@@ -28,7 +28,17 @@ inputs:
     default: 'cache-base'
     required: false
   filter-pattern:
-    description: 'Pattern to filter test files (e.g., isaaclab_tasks)'
+    description: >-
+      Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
+      contains this pattern are included. Only one pattern can be used at a time,
+      no comma-separated substrings allowed. Also supports the legacy "not <pattern>"
+      form for exclude-only jobs.
+    default: ''
+    required: false
+  exclude-pattern:
+    description: >-
+      Comma-separated substrings; test files whose path contains any entry are
+      skipped. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
   shard-index:
@@ -132,6 +142,7 @@ runs:
         image-tag: ${{ inputs.image-tag }}
         pytest-options: ${{ inputs.pytest-options }}
         filter-pattern: ${{ inputs.filter-pattern }}
+        exclude-pattern: ${{ inputs.exclude-pattern }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}

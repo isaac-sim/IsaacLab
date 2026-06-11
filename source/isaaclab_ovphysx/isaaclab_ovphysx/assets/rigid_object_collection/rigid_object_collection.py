@@ -24,6 +24,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, resolve_view_ids
+from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 
 from .rigid_object_collection_data import RigidObjectCollectionData
@@ -74,7 +75,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
-        for rigid_body_cfg in self.cfg.rigid_objects.values():
+        for rigid_body_name, rigid_body_cfg in self.cfg.rigid_objects.items():
             # spawn the asset
             if rigid_body_cfg.spawn is not None:
                 rigid_body_cfg.spawn.func(
@@ -87,6 +88,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            queue_ovphysx_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list: list[str] = []
         # one fused TensorBinding per tensor type, populated in _initialize_impl
@@ -1040,60 +1042,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._prim_paths: list[str] = []
         self._body_names_list: list[str] = []
 
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
         for name, obj_cfg in self.cfg.rigid_objects.items():
-            # Convert IsaacLab prim-path notation to the fnmatch-style glob that
-            # OVPhysX create_tensor_binding expects.  Two conventions are in use:
-            #   /World/envs/env_.*/object   -- regex dot-star for any env index
-            #   /World/envs/{ENV_REGEX_NS}/object -- explicit placeholder
-            pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", obj_cfg.prim_path)
+            # Resolve the rigid body root expression.
+            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path)[0]
+            walk_root = asset_prim.GetPath().pathString
+            root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
+            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+            # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
+            # ``create_tensor_binding`` expects fnmatch globs.
+            pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
             pattern = re.sub(r"\.\*", "*", pattern)
-
-            # Validate the prim tree before creating tensor bindings.
-            # OVPhysX silently returns a zero-count binding when the pattern
-            # matches nothing; fail fast here with a clear message instead.
-            template_prim = sim_utils.find_first_matching_prim(obj_cfg.prim_path)
-            if template_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{obj_cfg.prim_path}' (body '{name}').")
-            template_prim_path = template_prim.GetPath().pathString
-
-            root_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-                traverse_instance_prims=False,
-            )
-            if len(root_prims) == 0:
-                raise RuntimeError(
-                    f"Failed to find a rigid body when resolving '{obj_cfg.prim_path}' (body '{name}')."
-                    " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-                )
-            if len(root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single rigid body when resolving '{obj_cfg.prim_path}' (body '{name}')."
-                    f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                    " Please ensure that there is only one rigid body in the prim path tree."
-                )
-
-            articulation_prims = sim_utils.get_all_matching_child_prims(
-                template_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-                traverse_instance_prims=False,
-            )
-            if len(articulation_prims) != 0:
-                if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                    raise RuntimeError(
-                        f"Found an articulation root when resolving '{obj_cfg.prim_path}' (body '{name}') in the"
-                        f" rigid object collection. These are located at: '{articulation_prims}' under"
-                        f" '{template_prim_path}'. Please disable the articulation root in the USD or from code by"
-                        " setting the parameter 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the"
-                        " spawn configuration."
-                    )
-
-            # resolve root prim back into the regex expression
-            root_prim_path = root_prims[0].GetPath().pathString
-            suffix = root_prim_path[len(template_prim_path) :]
-            if suffix:
-                pattern = pattern + suffix
-
             self._prim_paths.append(pattern)
             self._body_names_list.append(name)
 
@@ -1253,7 +1214,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         return wp.clone(strided_view, device=device).reshape((self.num_bodies * self.num_instances,))
 
-    def reshape_data_to_view_3d(self, data: wp.array, data_dim: int, device: str | None = None) -> wp.array:
+    def reshape_data_to_view_3d(
+        self, data: wp.array | torch.Tensor, data_dim: int, device: str | None = None
+    ) -> wp.array | torch.Tensor:
         """Reshape instance-major ``(num_instances, num_bodies, data_dim)`` data to body-major view order.
 
         Companion of :meth:`reshape_data_to_view_2d` for 3D buffers (e.g. inertia
@@ -1261,12 +1224,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             data: Source buffer with shape ``(num_instances, num_bodies, data_dim)``.
+                Supports Warp arrays and torch tensors.
             data_dim: Trailing per-element dimension size.
-            device: Optional target device for the cloned output.  Defaults to ``data.device``.
+            device: Optional target device for the output. Defaults to ``data.device``.
 
         Returns:
             Contiguous body-major buffer with shape ``(num_bodies * num_instances, data_dim)``.
+            Torch inputs return torch tensors, and Warp inputs return Warp arrays.
         """
+        if isinstance(data, torch.Tensor):
+            if device is None:
+                device = data.device
+            return data.transpose(0, 1).reshape(self.num_bodies * self.num_instances, data_dim).to(device).contiguous()
+
         if device is None:
             device = str(data.device)
         element_size = wp.types.type_size_in_bytes(data.dtype)

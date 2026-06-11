@@ -21,6 +21,7 @@
 
     SpawnerCfg
     RigidObjectSpawnerCfg
+    DeformableObjectSpawnerCfg
 
 Spawners
 --------
@@ -34,12 +35,10 @@ Spawners
     :show-inheritance:
     :exclude-members: __init__
 
-.. note::
-
-   ``DeformableObjectSpawnerCfg`` has moved to the PhysX backend extension. See
-   :class:`isaaclab_physx.sim.spawners.DeformableObjectSpawnerCfg`.
-
-   For migration details, see :ref:`migrating-deformables`.
+.. autoclass:: DeformableObjectSpawnerCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
 
 Shapes
 ------
@@ -110,6 +109,7 @@ Meshes
     MeshConeCfg
     MeshCuboidCfg
     MeshCylinderCfg
+    MeshRectangleCfg
     MeshSphereCfg
 
 .. autoclass:: MeshCfg
@@ -140,6 +140,13 @@ Meshes
 .. autofunction:: spawn_mesh_cylinder
 
 .. autoclass:: MeshCylinderCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_mesh_rectangle
+
+.. autoclass:: MeshRectangleCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__, func
@@ -261,6 +268,10 @@ Materials
     GlassMdlCfg
     PhysicsMaterialCfg
     RigidBodyMaterialCfg
+    DeformableBodyMaterialBaseCfg
+    SurfaceDeformableBodyMaterialBaseCfg
+    DeformableBodyMaterialCfg
+    SurfaceDeformableBodyMaterialCfg
 
 Visual Materials
 ~~~~~~~~~~~~~~~~
@@ -298,15 +309,36 @@ Physical Materials
     :members:
     :exclude-members: __init__, func
 
+.. autofunction:: spawn_deformable_body_material
+
+.. autoclass:: DeformableBodyMaterialBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: SurfaceDeformableBodyMaterialBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
 .. note::
 
-   ``DeformableBodyMaterialCfg``, ``SurfaceDeformableBodyMaterialCfg``, and
-   ``spawn_deformable_body_material`` have moved to the PhysX backend extension. See
-   :class:`isaaclab_physx.sim.spawners.materials.DeformableBodyMaterialCfg`,
-   :class:`isaaclab_physx.sim.spawners.materials.SurfaceDeformableBodyMaterialCfg`, and
-   :func:`isaaclab_physx.sim.spawners.materials.spawn_deformable_body_material`.
+    Backend-specific deformable material cfgs live in
+    :mod:`isaaclab_physx.sim.spawners.materials` and
+    :mod:`isaaclab_newton.sim.spawners.materials`. The legacy default names below
+    are forwarded to the deprecated PhysX aliases for compatibility.
 
-   For migration details, see :ref:`migrating-deformables`.
+.. autoclass:: DeformableBodyMaterialCfg
+    :no-index:
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: SurfaceDeformableBodyMaterialCfg
+    :no-index:
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 Wrappers
 --------

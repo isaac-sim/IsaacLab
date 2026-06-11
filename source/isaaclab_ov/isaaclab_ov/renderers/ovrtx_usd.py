@@ -19,6 +19,7 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
+    use_hdr = "rgb_hdr" in data_types
 
     if use_depth and not (use_rgb or use_albedo or use_semantic):
         return "/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"
@@ -26,7 +27,26 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
     if use_semantic and not (use_rgb or use_albedo):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
+    if use_hdr and not use_rgb:
+        return "/Render/Vars/HdrColor", "HdrColor", "HdrColor"
     return "/Render/Vars/LdrColor", "LdrColor", "LdrColor"
+
+
+def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
+    """Return render var configs needed for the requested data types.
+
+    Returns the single render var resolved by :func:`get_render_var_config`,
+    plus ``HdrColor`` when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are
+    in ``data_types`` so PPISP can consume the HDR AOV alongside the LDR
+    destination on the same render product. Other multi-AOV combinations are
+    not supported.
+    """
+    data_types = data_types if data_types else ["rgb"]
+    render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]
+    use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
+    if use_rgb and "rgb_hdr" in data_types:
+        render_vars.append(("/Render/Vars/HdrColor", "HdrColor", "HdrColor"))
+    return render_vars
 
 
 def build_render_scope_usd(
@@ -38,6 +58,7 @@ def build_render_scope_usd(
     tiled_width: int,
     tiled_height: int,
     minimal_mode: int | None = None,
+    render_var_configs: list[tuple[str, str, str]] | None = None,
 ) -> str:
     """Build the Render scope USD string (def Scope Render, RenderProduct, Vars).
 
@@ -50,6 +71,7 @@ def build_render_scope_usd(
         tiled_width: Width of the tiled image.
         tiled_height: Height of the tiled image.
         minimal_mode: RTX minimal mode. None if not requested. Valid values are 1, 2, 3.
+        render_var_configs: Render variables to author. Uses the single render var arguments if not provided.
 
     Returns:
         The USD string for the render scope.
@@ -65,6 +87,16 @@ def build_render_scope_usd(
         ]
 
     render_mode_block = "\n        ".join(render_mode_lines)
+    if render_var_configs is None:
+        render_var_configs = [(render_var_path, render_var_name, source_name)]
+    ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
+    render_var_defs = "\n".join(
+        f'''        def RenderVar "{name}"
+        {{
+            uniform string sourceName = "{source}"
+        }}'''
+        for _, name, source in render_var_configs
+    )
 
     return f'''
 def Scope "Render"
@@ -77,16 +109,13 @@ def Scope "Render"
         float omni:rtx:rt:ambientLight:intensity = 1.0
         {render_mode_block}
         token[] omni:rtx:waitForEvents = ["AllLoadingFinished", "OnlyOnFirstRequest"]
-        rel orderedVars = <{render_var_path}>
+        rel orderedVars = [{ordered_vars}]
         uniform int2 resolution = ({tiled_width}, {tiled_height})
     }}
 
     def "Vars"
     {{
-        def RenderVar "{render_var_name}"
-        {{
-            uniform string sourceName = "{source_name}"
-        }}
+{render_var_defs}
     }}
 }}
 '''
@@ -129,7 +158,8 @@ def build_render_product_as_string(
     render_product_name = "RenderProduct"
     render_product_path = f"/Render/{render_product_name}"
 
-    render_var_path, render_var_name, source_name = get_render_var_config(data_types)
+    render_var_configs = get_render_var_configs(data_types)
+    render_var_path, render_var_name, source_name = render_var_configs[0]
 
     camera_content = build_render_scope_usd(
         camera_paths,
@@ -140,6 +170,7 @@ def build_render_product_as_string(
         tiled_width,
         tiled_height,
         minimal_mode,
+        render_var_configs,
     )
     return camera_content, render_product_path
 
@@ -148,7 +179,6 @@ def create_scene_partition_attributes(
     stage,
     num_envs: int = 1,
     use_ovrtx_cloning: bool = True,
-    enable_scene_partition_workaround: bool = False,
 ) -> None:
     """Create scene partition attributes for env roots and cameras.
 
@@ -163,8 +193,6 @@ def create_scene_partition_attributes(
         stage: USD stage to modify.
         num_envs: Number of environments.
         use_ovrtx_cloning: Whether OVRTX cloning is enabled.
-        enable_scene_partition_workaround: Whether to enable the scene partition workaround for OVRTX 0.2.0 because it
-            doesn't support primvar inheritance.
     """
     env_indices = [0] if use_ovrtx_cloning else range(num_envs)
     for env_idx in env_indices:
@@ -181,12 +209,12 @@ def create_scene_partition_attributes(
         for prim in Usd.PrimRange(env_prim):
             if prim.GetPath() == env_prim.GetPath():
                 continue
-            if prim.IsA(UsdGeom.Camera):
-                prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-                logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
-            elif enable_scene_partition_workaround:
-                prim.CreateAttribute("primvars:omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
-                logger.debug("Set scene partition '%s' on prim '%s'", scene_partition, prim.GetPath())
+
+            if not prim.IsA(UsdGeom.Camera):
+                continue
+
+            prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token).Set(scene_partition)
+            logger.debug("Set scene partition '%s' on camera '%s'", scene_partition, prim.GetPath())
 
 
 def export_stage_to_string(stage, num_envs: int, use_ovrtx_cloning: bool = True) -> str:

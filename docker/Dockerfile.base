@@ -49,14 +49,53 @@ RUN apt-get update && \
     git \
     wget
 
+# Install the Carbonite env shim (libcarb.env.shim.so) that serializes glibc's
+# environment functions (getenv/setenv/putenv/unsetenv/secure_getenv/clearenv).
+# Carb/Kit/Omni plugins call these from worker threads while other threads
+# mutate the environment, which intermittently crashes CI with
+# `libc.so.6!getenv+0x56` SIGSEGVs. The shim now ships inside Isaac Sim's
+# Carbonite, so we copy it out of the install tree rather than vendoring a
+# prebuilt binary.
+#
+# Activation uses /etc/ld.so.preload (not ENV LD_PRELOAD) because Isaac Sim's
+# `_isaac_sim/python.sh` unconditionally overwrites LD_PRELOAD with
+# `kit/libcarb.so` before exec'ing the interpreter, which would strip our
+# shim. /etc/ld.so.preload is read by the dynamic linker for every process
+# and cannot be turned off by env-var manipulation.
+RUN install_carb_env_shim() { \
+      local dst=/usr/local/lib/libcarb.env.shim.so; \
+      local src=""; \
+      for c in \
+        "${ISAACSIM_ROOT_PATH}/kit/kernel/plugins/libcarb.env.shim.so" \
+        "${ISAACSIM_ROOT_PATH}/kit/libcarb.env.shim.so" \
+        "${ISAACSIM_ROOT_PATH}/_build/linux-x86_64/release/kit/kernel/plugins/libcarb.env.shim.so" \
+        "${ISAACSIM_ROOT_PATH}/_build/target-deps/carb_sdk_plugins/_build/linux-x86_64/release/libcarb.env.shim.so" \
+      ; do \
+        if [ -f "${c}" ]; then src="${c}"; break; fi; \
+      done; \
+      if [ -z "${src}" ]; then \
+        src="$(find "${ISAACSIM_ROOT_PATH}" -name libcarb.env.shim.so -type f 2>/dev/null | head -n1)"; \
+      fi; \
+      if [ -n "${src}" ] && [ -f "${src}" ]; then \
+        install -m 0755 "${src}" "${dst}" && \
+        echo "${dst}" > /etc/ld.so.preload && \
+        echo "installed carb env shim from ${src}"; \
+      else \
+        echo "no carb env shim found under ${ISAACSIM_ROOT_PATH}; skipping /etc/ld.so.preload" >&2; \
+      fi; \
+    }; \
+    install_carb_env_shim
+
 # arm64-only build deps:
 # - imgui-bundle has no prebuilt arm64 wheel; needs GL/X11 dev headers.
 # - swig is required for the nlopt source build (see arm64 nlopt step below).
+# - libgmp-dev is required by pytetwild's fTetWild source build (no aarch64 wheel for 0.2.3).
 RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         apt-get update && \
         apt-get install -y --no-install-recommends \
         libgl1-mesa-dev libopengl-dev libglx-dev \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
+        libgmp-dev \
         swig; \
     fi
 
@@ -75,8 +114,9 @@ RUN chmod +x ${ISAACLAB_PATH}/isaaclab.sh
 # Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
 RUN ln -sf ${ISAACSIM_ROOT_PATH} ${ISAACLAB_PATH}/_isaac_sim
 
-# Install toml dependency
-RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml
+# Install toml (used by tools/install_deps.py) and pytest (needed to run
+# in-container tests; moved to optional [test] extra in pyproject.toml)
+RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install toml pytest
 
 # Install apt dependencies for extensions that declare them in their extension.toml,
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/tools/install_deps.py apt ${ISAACLAB_PATH}/source && \
@@ -156,6 +196,25 @@ RUN chmod 755 \
 
 # copy the rest of the files
 COPY --chown=isaaclab:isaaclab ../ ${ISAACLAB_PATH}/
+
+# Pre-create every docker-compose named-volume mount point and hand it to the
+# non-root runtime user. docker-compose.yaml is the single source of truth for
+# the list; docker/utils/volume_mounts.py parses it so the paths are not
+# duplicated here. A fresh named volume inherits ownership from the image
+# directory at its mount path; if that directory is missing or root-owned, the
+# volume comes up root-owned and the isaaclab user cannot write it (e.g.
+# PermissionError creating logs/, or omni.datastore lock failures under
+# kit/cache). set -o pipefail makes a parse failure abort the build:
+# volume_mounts.py exits non-zero on an empty/unresolved list and grep exits
+# non-zero if no paths are produced, so the build fails here rather than
+# silently shipping an unprepared mount point.
+RUN set -o pipefail \
+ && export DOCKER_ISAACSIM_ROOT_PATH="${ISAACSIM_ROOT_PATH}" \
+           DOCKER_ISAACLAB_PATH="${ISAACLAB_PATH}" \
+           DOCKER_USER_HOME="${DOCKER_USER_HOME}" \
+ && dirs="$(${ISAACLAB_PATH}/isaaclab.sh -p ${ISAACLAB_PATH}/docker/utils/volume_mounts.py | grep '^/')" \
+ && mkdir -p ${dirs} \
+ && chown -R isaaclab:isaaclab ${dirs}
 
 USER isaaclab
 

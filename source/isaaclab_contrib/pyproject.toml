@@ -1,3 +1,47 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_contrib"
+version = "0.4.5"
+description = "An extension used to stage and integrate externally contributed features and implementations."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+keywords = ["kit", "robotics", "assets", "isaaclab"]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[project.optional-dependencies]
+rlinf = [
+    "ray[default]>=2.47.0",
+    "av>=12.3.0",
+    "numpydantic>=1.7.0",
+    "albumentations>=1.4.18",
+    "decord2",
+    "dm_tree>=0.1.8",
+    "diffusers>=0.35.0",
+    "timm>=1.0.14",
+    "peft>=0.17.0",
+    "pandas",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_contrib", "isaaclab_contrib.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

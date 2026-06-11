@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdPhysics, UsdShade
 
@@ -14,8 +13,7 @@ from isaaclab.sim.schemas.schemas import _apply_namespaced_schemas
 from isaaclab.sim.utils import clone
 from isaaclab.sim.utils.stage import get_current_stage
 
-if TYPE_CHECKING:
-    from . import physics_materials_cfg
+from . import physics_materials_cfg
 
 
 @clone
@@ -74,5 +72,51 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     # PhysX-subclass fields (compliant-contact, combine modes) under ``physxMaterial:*``.
     _apply_namespaced_schemas(prim, cfg, cfg_dict)
 
+    # return the prim
+    return prim
+
+
+@clone
+def spawn_deformable_body_material(
+    prim_path: str, cfg: physics_materials_cfg.DeformableBodyMaterialBaseCfg
+) -> Usd.Prim:
+    """Create material with deformable-body physics properties.
+
+    Deformable body materials are used to define the physical properties to meshes of a deformable body. These
+    include the friction and deformable body properties. For more information on deformable body material,
+    please refer to the documentation on `PxFEMSoftBodyMaterial`_.
+
+    .. note::
+        This function is decorated with :func:`clone` that resolves prim path into list of paths
+        if the input prim path is a regex pattern. This is done to support spawning multiple assets
+        from a single and cloning the USD prim at the given path expression.
+
+    Args:
+        prim_path: The prim path or pattern to spawn the asset at. If the prim path is a regex pattern,
+            then the asset is spawned at all the matching prim paths.
+        cfg: The configuration for the physics material.
+
+    Returns:
+        The spawned deformable body material prim.
+
+    Raises:
+        ValueError: When a prim already exists at the specified prim path and is not a material.
+
+    .. _PxFEMSoftBodyMaterial: https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxFEMSoftBodyMaterialModel.html
+    """
+    # get stage handle
+    stage = get_current_stage()
+
+    # create material prim if no prim exists
+    if not stage.GetPrimAtPath(prim_path).IsValid():
+        _ = UsdShade.Material.Define(stage, prim_path)
+
+    # obtain prim
+    prim = stage.GetPrimAtPath(prim_path)
+    # check if prim is a material
+    if not prim.IsA(UsdShade.Material):
+        raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
+    _apply_namespaced_schemas(prim, cfg, cfg_dict)
     # return the prim
     return prim

@@ -71,12 +71,12 @@ Quick Start
 .. code-block:: bash
 
     # Direct workflow
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
     # Manager-based workflow
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096 --headless
+    ./isaaclab.sh train --rl_library rsl_rl \
+        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -103,7 +103,7 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - Stable Step (us)
      - Warp Step (us)
      - Change
-   * - Cartpole-Direct
+   * - Isaac-Cartpole-Direct
      - Direct
      - 5,274
      - 4,331
@@ -228,7 +228,7 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
   ``class_type`` fields resolve to ``isaaclab_physx.*`` classes that depend on
   ``omni.physics.tensors`` (a Kit module the warp runtime does not initialise), and several
   warp APIs (env-mask reset, CUDA graph capture) require the Newton articulation. Configure
-  the cfg with a Newton physics block (or ``presets=newton_mjwarp``).
+  the cfg with a Newton physics block (or ``physics=newton_mjwarp``).
 
 **MDP coverage**
 
@@ -273,7 +273,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/stable
 
@@ -282,7 +281,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/warp
 
@@ -321,11 +319,4 @@ Migrating Existing Environments
 For step-by-step instructions on porting an existing stable env (or writing a new warp
 env from scratch) — covering project layout, the kernel + launch pattern shared by
 observations / rewards / events / terminations / actions, capture-safety rules, and
-parity testing — see :doc:`warp-env-migration` below.
-
-
-.. toctree::
-   :maxdepth: 2
-   :hidden:
-
-   warp-env-migration
+parity testing — see :doc:`warp-env-migration`.

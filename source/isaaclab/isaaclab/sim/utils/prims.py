@@ -16,8 +16,6 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils
-
 from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import has_kit
@@ -28,6 +26,8 @@ from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
 
 if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils  # noqa: F401
+
     from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
 
 # import logger
@@ -131,6 +131,8 @@ def create_prim(
         ... )
         Usd.Prim(</World/Parent/Sphere>)
     """
+    from pxr import UsdGeom  # noqa: PLC0415
+
     # Ensure that user doesn't provide both position and translation
     if position is not None and translation is not None:
         raise ValueError("Cannot provide both position and translation. Please provide only one.")
@@ -200,6 +202,8 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
         >>>
         >>> sim_utils.delete_prim("/World/Cube")
     """
+    from pxr import UsdUtils  # noqa: PLC0415
+
     # convert prim_path to list if it is a string
     if isinstance(prim_path, str):
         prim_path = [prim_path]
@@ -243,6 +247,8 @@ def make_uninstanceable(prim_path: str | Sdf.Path, stage: Usd.Stage | None = Non
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -288,6 +294,8 @@ def set_prim_visibility(prim: Usd.Prim, visible: bool) -> None:
         >>> prim = sim_utils.get_prim_at_path("/World/Cube")
         >>> sim_utils.set_prim_visibility(prim, False)
     """
+    from pxr import UsdGeom  # noqa: PLC0415
+
     imageable = UsdGeom.Imageable(prim)
     if visible:
         imageable.MakeVisible()
@@ -345,6 +353,8 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
         value: The value to set the attribute to.
         camel_case: Whether to convert the attribute name to camel case.
     """
+    from pxr import Sdf  # noqa: PLC0415
+
     # if value is None, do nothing
     if value is None:
         return
@@ -431,6 +441,8 @@ def change_prim_property(
         ... )
         True
     """
+    from pxr import Sdf, Usd  # noqa: PLC0415
+
     # get stage handle
     stage = get_current_stage() if stage is None else stage
 
@@ -493,6 +505,8 @@ def export_prim_to_file(
     Raises:
         ValueError: If the prim paths are not global (i.e: do not start with '/').
     """
+    from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -643,6 +657,8 @@ def clone(func: Callable) -> Callable:
 
     @functools.wraps(func)
     def wrapper(prim_path: str | Sdf.Path, cfg: SpawnerCfg, *args, **kwargs):
+        from pxr import Sdf, UsdGeom  # noqa: PLC0415
+
         # get stage handle
         stage = get_current_stage()
 
@@ -819,6 +835,8 @@ def bind_physics_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
+    from pxr import UsdPhysics, UsdShade  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()

@@ -8,11 +8,11 @@
 This script is used to train and publish pretrained checkpoints for Isaac Lab environments.
 It supports multiple workflows: rl_games, rsl_rl, sb3, and skrl.
 
-* To train an agent using the rl_games workflow on the Isaac-Cartpole-v0 environment:
+* To train an agent using the rl_games workflow on the Isaac-Cartpole environment:
 
   .. code-block:: shell
 
-    python scripts/tools/train_and_publish_checkpoints.py --train rl_games:Isaac-Cartpole-v0
+    python scripts/tools/train_and_publish_checkpoints.py --train rl_games:Isaac-Cartpole
 
 * To train and publish the checkpoints for all workflows on only the direct Cartpole environments:
 
@@ -51,8 +51,8 @@ parser = argparse.ArgumentParser(
 Script for training and publishing pre-trained checkpoints in Isaac Lab.
 
 Examples:
-    # Train an agent using the rl_games workflow for the Isaac-Cartpole-v0 environment.
-    train_and_publish_checkpoints.py --train rl_games:Isaac-Cartpole-v0
+    # Train an agent using the rl_games workflow for the Isaac-Cartpole environment.
+    train_and_publish_checkpoints.py --train rl_games:Isaac-Cartpole
 
     # Train and publish checkpoints for all workflows, targeting only direct Cartpole environments.
     train_and_publish_checkpoints.py -tp "*:Isaac-Cartpole-*Direct-v0" \\
@@ -75,8 +75,8 @@ parser.add_argument(
     help="""
 A job consists of a workflow and a task name, separated by a colon (wildcards are optional). Examples:
 
-    rl_games:Isaac-Humanoid-*v0      # Wildcard for any Humanoid version
-    rsl_rl:Isaac-Ant-*-v0            # Wildcard for any Ant environment
+    rl_games:Isaac-Humanoid-*        # Wildcard for any Humanoid version
+    rsl_rl:Isaac-Ant-*               # Wildcard for any Ant environment
     *:Isaac-Velocity-Flat-Spot-v0    # Wildcard for any workflow, specific task
 
 Wildcards can be used in either the workflow or task name to match multiple entries.

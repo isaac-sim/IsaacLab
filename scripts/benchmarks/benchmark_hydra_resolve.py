@@ -19,7 +19,7 @@ Usage::
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --suite broad
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py \
-        --case cartpole:Isaac-Cartpole-v0:: \
+        --case cartpole:Isaac-Cartpole:: \
         --case anymal:Isaac-Velocity-Rough-Anymal-C-v0::env.scene.num_envs=256
 
 Case format is ``name:task:agent_entry:arg[,arg...]``. Leave ``agent_entry`` or
@@ -62,13 +62,13 @@ class Case:
 
 
 QUICK_CASES = (
-    Case("cartpole_manager", "Isaac-Cartpole-v0"),
-    Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Presets-Direct-v0", "rl_games_cfg_entry_point"),
+    Case("cartpole_manager", "Isaac-Cartpole"),
+    Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
     Case("anymal_rough", "Isaac-Velocity-Rough-Anymal-C-v0"),
-    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka-v0"),
+    Case("franka_lift_cube", "Isaac-Lift-Cube-Franka"),
     Case(
         "cartpole_camera_newton_ovrtx",
-        "Isaac-Cartpole-Camera-Presets-Direct-v0",
+        "Isaac-Cartpole-Camera-Direct",
         "rl_games_cfg_entry_point",
         ("presets=newton_mjwarp,ovrtx_renderer",),
     ),
@@ -78,12 +78,12 @@ QUICK_CASES = (
 
 BROAD_CASES = (
     *QUICK_CASES,
-    Case("cartpole_direct", "Isaac-Cartpole-Direct-v0"),
-    Case("cartpole_rgb_direct", "Isaac-Cartpole-RGB-Camera-Direct-v0"),
-    Case("ant_manager", "Isaac-Ant-v0"),
-    Case("humanoid_manager", "Isaac-Humanoid-v0", "rsl_rl_cfg_entry_point"),
-    Case("franka_reach", "Isaac-Reach-Franka-v0"),
-    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka-v0", "sb3_cfg_entry_point"),
+    Case("cartpole_direct", "Isaac-Cartpole-Direct"),
+    Case("cartpole_rgb_direct", "Isaac-Cartpole-Camera-Direct", None, ("presets=rgb",)),
+    Case("ant_manager", "Isaac-Ant"),
+    Case("humanoid_manager", "Isaac-Humanoid", "rsl_rl_cfg_entry_point"),
+    Case("franka_reach", "Isaac-Reach-Franka"),
+    Case("franka_lift_cube_agent", "Isaac-Lift-Cube-Franka", "sb3_cfg_entry_point"),
     Case("kuka_allegro_lift", "Isaac-Dexsuite-Kuka-Allegro-Lift-v0", "rsl_rl_cfg_entry_point"),
     Case(
         "kuka_allegro_lift_single_camera",
@@ -105,7 +105,7 @@ BROAD_CASES = (
     ),
     Case(
         "cartpole_camera_hydra_force",
-        "Isaac-Cartpole-Camera-Presets-Direct-v0",
+        "Isaac-Cartpole-Camera-Direct",
         "rl_games_cfg_entry_point",
         ("++env.scene.num_envs=256",),
     ),

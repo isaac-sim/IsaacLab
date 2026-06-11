@@ -20,7 +20,7 @@ In Isaac Lab 3.0, the ``--headless`` argument is deprecated. Instead, use ``--vi
 to determine whether viewer apps are launched with an Isaac Lab command.
 
 Visualizers are lightweight viewer apps for monitoring, debugging, and recording workflows
-(see :doc:`/source/features/visualization`).
+(see :doc:`/source/overview/core-concepts/visualization`).
 
 The details below describe how CLI visualizer arguments resolve together with
 ``SimulationCfg.visualizer_cfgs``.
@@ -32,6 +32,42 @@ The details below describe how CLI visualizer arguments resolve together with
 
 For the full behavior of visualizer resolution, with the visualizer CLI arg, visualizer configs,
 and ``--headless``, see :ref:`visualization-common-modes`.
+
+
+Reinforcement Learning CLI Entrypoints
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Isaac Lab 3.0 provides unified reinforcement learning entrypoints for training
+and play. Instead of launching library-specific scripts under
+``scripts/reinforcement_learning/<library>/``, select the library with
+``--rl_library``.
+
+.. code-block:: bash
+
+   # Isaac Lab 2.x/deprecated
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole
+
+   # Isaac Lab 3.0
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
+
+The same pattern applies to the play workflow:
+
+.. code-block:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
+
+Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
+``sb3``, and ``rlinf``. The old per-library ``train.py`` and ``play.py`` scripts
+remain available as deprecated compatibility entrypoints and emit a
+``DeprecationWarning`` when used.
+
+For distributed launchers that execute a Python script directly, use the unified
+script path and pass ``--rl_library`` to it:
+
+.. code-block:: bash
+
+   python -m torch.distributed.run --nproc_per_node=2 scripts/reinforcement_learning/train.py \
+      --rl_library rsl_rl --task Isaac-Cartpole --distributed
 
 
 Multi-Backend Architecture
@@ -69,9 +105,9 @@ New ``isaaclab_physx`` and ``isaaclab_newton`` Extensions
 
 Two new backend extensions have been introduced:
 
-- **``isaaclab_physx``** — PhysX-specific implementations of all asset and sensor classes.
-- **``isaaclab_newton``** — Newton-specific implementations of asset classes (Articulation and
-  RigidObject).
+- **``isaaclab_physx``** — PhysX-specific implementations of asset and sensor classes.
+- **``isaaclab_newton``** — Newton-specific implementations of supported asset classes, including
+  articulations, rigid objects, and deformable objects.
 
 The following classes have been moved to ``isaaclab_physx``:
 
@@ -81,16 +117,17 @@ The following classes have been moved to ``isaaclab_physx``:
 
    * - Isaac Lab 2.x
      - Isaac Lab 3.0
-   * - ``from isaaclab.assets import DeformableObject``
-     - ``from isaaclab_physx.assets import DeformableObject``
-   * - ``from isaaclab.assets import DeformableObjectCfg``
-     - ``from isaaclab_physx.assets import DeformableObjectCfg``
-   * - ``from isaaclab.assets import DeformableObjectData``
-     - ``from isaaclab_physx.assets import DeformableObjectData``
    * - ``from isaaclab.assets import SurfaceGripper``
      - ``from isaaclab_physx.assets import SurfaceGripper``
    * - ``from isaaclab.assets import SurfaceGripperCfg``
      - ``from isaaclab_physx.assets import SurfaceGripperCfg``
+
+.. note::
+
+   Deformable object public APIs remain in the backend-neutral ``isaaclab``
+   package. Continue importing :class:`~isaaclab.assets.DeformableObject`,
+   :class:`~isaaclab.assets.DeformableObjectCfg`, and
+   :class:`~isaaclab.assets.DeformableObjectData` from ``isaaclab.assets``.
 
 .. note::
 
@@ -382,13 +419,17 @@ release. The old soft body API has been deprecated and replaced by two distinct 
 types: **volume deformables** (3D FEM tetrahedral meshes) and **surface deformables** (2D
 triangle cloth meshes). The deformable type is determined by the physics material assigned:
 
-- :class:`~isaaclab_physx.sim.DeformableBodyMaterialCfg` for volume deformables.
-- :class:`~isaaclab_physx.sim.SurfaceDeformableBodyMaterialCfg` for surface deformables.
+- :class:`~isaaclab_physx.sim.PhysxDeformableBodyMaterialCfg` for PhysX volume deformables.
+- :class:`~isaaclab_physx.sim.PhysxSurfaceDeformableBodyMaterialCfg` for PhysX surface deformables.
+- :class:`~isaaclab_newton.sim.spawners.materials.NewtonDeformableBodyMaterialCfg` for Newton volume deformables.
+- :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableBodyMaterialCfg` for Newton surface
+  deformables.
 
-All deformable-related classes have moved from ``isaaclab`` to ``isaaclab_physx``, as shown
-in the import table above. Several properties on
-:class:`~isaaclab_physx.sim.DeformableBodyPropertiesCfg` have been removed or added to match
-the new Omni Physics schema.
+Deformable property and material cfgs are backend-specific. Several properties on
+:class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg` have been removed or added to
+match the new Omni Physics schema. The common
+:class:`~isaaclab.sim.DeformableBodyPropertiesBaseCfg` is now empty; OmniPhysics
+deformable body fields are owned by :class:`~isaaclab_physx.sim.PhysxDeformableBodyPropertiesCfg`.
 
 For a comprehensive guide covering the full deformable API migration — including removed and
 added properties, material changes, code examples for both volume and surface deformables, and
@@ -594,18 +635,19 @@ when no CLI override is given. Other fields are named presets selectable with
    @configclass
    class MyPhysicsCfg(PresetCfg):
        default: PhysxCfg = PhysxCfg(...)   # used when no override is given
-       physx:   PhysxCfg = PhysxCfg(...)   # selected by presets=physx
-       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by presets=newton_mjwarp
+       physx:   PhysxCfg = PhysxCfg(...)   # selected by physics=physx
+       newton_mjwarp:  NewtonCfg = NewtonCfg(...)  # selected by physics=newton_mjwarp
 
 Selecting a preset at launch
 -----------------------------
 
-Pass ``presets=newton_mjwarp`` (or ``presets=physx``) on the CLI to swap the entire config section:
+Pass ``physics=newton_mjwarp`` (or ``physics=physx``) on the CLI to swap the entire config section.
+The legacy ``presets=NAME`` form still works for the same values.
 
 .. code-block:: bash
 
    # Run with Newton backend
-   python train.py task=Isaac-Franka-Cabinet-v0 presets=newton_mjwarp
+   python train.py task=Isaac-Franka-Cabinet-v0 physics=newton_mjwarp
 
    # Run with default (PhysX) backend
    python train.py task=Isaac-Franka-Cabinet-v0
@@ -641,8 +683,8 @@ subclass that carries both a PhysX and a Newton variant.
        newton_mjwarp:  NewtonCfg = NewtonCfg(
            solver_cfg=MJWarpSolverCfg(
                njmax=20, nconmax=20, ls_iterations=20,
-               cone="pyramidal", ls_parallel=True,
-               integrator="implicitfast", impratio=1,
+               cone="pyramidal", integrator="implicitfast",
+               impratio=1,
            ),
            num_substeps=1,
            debug_mode=False,
@@ -666,7 +708,8 @@ Key Newton solver parameters:
    * - ``nconmax``
      - Max contacts per env
    * - ``ls_iterations``
-     - Linear solver iterations (higher = more stable, slower)
+     - Iterative line search cap; stops early when convergence is reached.
+       Tune alongside outer solver iterations for runtime and convergence.
    * - ``cone``
      - ``"pyramidal"`` (fast) or ``"elliptic"`` (more accurate)
    * - ``integrator``
@@ -877,7 +920,7 @@ Here's a complete example showing how to update your code:
 
 .. code-block:: python
 
-   from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
+   from isaaclab.assets import DeformableObject, DeformableObjectCfg
    from isaaclab_physx.assets import SurfaceGripper, SurfaceGripperCfg
    from isaaclab.assets import RigidObjectCollection  # unchanged
 
@@ -1219,7 +1262,7 @@ All ``.data.*`` properties on asset and sensor classes now return
 the underlying ``wp.array`` and exposes explicit ``.torch`` and ``.warp`` accessors. This
 change applies to all asset classes (:class:`~isaaclab.assets.Articulation`,
 :class:`~isaaclab.assets.RigidObject`, :class:`~isaaclab.assets.RigidObjectCollection`,
-:class:`~isaaclab_physx.assets.DeformableObject`) and all sensor classes
+:class:`~isaaclab.assets.DeformableObject`) and all sensor classes
 (:class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
 :class:`~isaaclab_physx.sensors.Pva`, :class:`~isaaclab_physx.sensors.FrameTransformer`).
 
@@ -1276,8 +1319,8 @@ Common patterns that need updating:
      - ``isaaclab`` / ``isaaclab_physx``
    * - :class:`~isaaclab.assets.RigidObjectCollection`
      - ``isaaclab`` / ``isaaclab_physx``
-   * - :class:`~isaaclab_physx.assets.DeformableObject`
-     - ``isaaclab_physx``
+   * - :class:`~isaaclab.assets.DeformableObject`
+     - ``isaaclab`` / ``isaaclab_physx`` / ``isaaclab_newton``
    * - :class:`~isaaclab_physx.sensors.ContactSensor`
      - ``isaaclab_physx``
    * - :class:`~isaaclab_physx.sensors.Imu`
@@ -1614,7 +1657,8 @@ automatically by the importer based on the robot name and cannot be overridden.
      /output/dir \
      --fix-base \
      --joint-stiffness 100.0 \
-     --joint-damping 1.0
+     --joint-damping 1.0 \
+     --viz kit
 
 .. note::
 
@@ -1768,7 +1812,8 @@ are no longer available.
      ../mujoco_menagerie/unitree_h1/h1.xml \
      source/isaaclab_assets/data/Robots/Unitree/h1.usd \
      --merge-mesh \
-     --self-collision
+     --self-collision \
+     --viz kit
 
 New flags: ``--merge-mesh``, ``--collision-from-visuals``, ``--collision-type``, ``--self-collision``.
 

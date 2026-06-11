@@ -49,6 +49,7 @@ Guidelines for modifications:
 * Alexander Millane
 * Alice Zhou
 * Amr Mousa
+* Andrei Aristarkhov
 * Andrej Orsula
 * Anke Zhao
 * Anton Bjørndahl Mortensen
@@ -138,6 +139,7 @@ Guidelines for modifications:
 * Neel Anand Jawale
 * Nicola Loi
 * Nicholas Blauch
+* Nicolas Moenne-Loccoz
 * Norbert Cygiert
 * Nuoyan Chen (Alvin)
 * Nuralem Abizov
@@ -155,6 +157,7 @@ Guidelines for modifications:
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
+* Rebecca Zhang
 * Renaud Poncelet
 * René Zurbrügg
 * Richard Schmitt
@@ -162,6 +165,7 @@ Guidelines for modifications:
 * Ritvik Singh
 * Rosario Scalise
 * Ruben D'Sa
+* Ruben Grandia
 * Ryan Gresia
 * Ryley McCarroll
 * Sahara Yuta
@@ -193,6 +197,7 @@ Guidelines for modifications:
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
+* Yize Wang
 * Yohan Choi
 * Yujian Zhang
 * Yun Liu

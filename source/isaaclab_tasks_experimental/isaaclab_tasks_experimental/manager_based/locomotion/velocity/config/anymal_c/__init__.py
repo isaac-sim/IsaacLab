@@ -6,7 +6,7 @@
 import gymnasium as gym
 
 # Reuse agent configs from the stable task package.
-from isaaclab_tasks.manager_based.locomotion.velocity.config.anymal_c import agents
+from isaaclab_tasks.contrib.velocity.config.anymal_c import agents
 
 ##
 # Register Gym environments.

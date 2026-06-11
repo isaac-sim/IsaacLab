@@ -1,0 +1,56 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Run Installation CI Tests'
+description: >
+  Runs the install_ci suite inside the project's Docker harness via
+  tools/run_install_ci.py and uploads the JUnit XML report as an artifact
+  named install-ci-junit-<runner.arch>.
+
+inputs:
+  base-image:
+    description: 'Docker base image for the test container'
+    required: false
+    default: 'ubuntu:24.04'
+  test-filter:
+    description: 'pytest -k expression (empty = run everything)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    # Host runs tools/run_install_ci.py (which in turn calls tools/wheel_builder/build.sh).
+    # build.sh / gen_pyproject.py use stdlib ``tomllib`` (Python 3.11+). x86 runners default
+    # to Python 3.10, so install a managed 3.12 with uv and activate it for this step.
+    - name: Set up Python 3.12 via uv
+      uses: astral-sh/setup-uv@v6
+      with:
+        python-version: "3.12"
+    - name: Run Tests
+      shell: bash
+      env:
+        BASE_IMAGE: ${{ inputs.base-image }}
+        TEST_FILTER: ${{ inputs.test-filter }}
+      run: |
+        args=(docker --gpu --base-image "$BASE_IMAGE"
+              --build-wheel
+              --results-dir "${{ github.workspace }}/results"
+              -- --tb=short -sv)
+        [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
+        # Make `python3` resolve to the uv-managed 3.12 for build.sh's gen_pyproject.py.
+        # --seed installs pip/setuptools/wheel into the venv so build.sh's `python3 -m pip install`
+        # works (uv venv is otherwise pip-free).
+        uv venv --seed --python 3.12 "${RUNNER_TEMP}/venv-runner"
+        source "${RUNNER_TEMP}/venv-runner/bin/activate"
+        tools/run_install_ci.py "${args[@]}"
+    - name: Upload JUnit XML report
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: install-ci-junit-${{ runner.arch }}
+        path: ${{ github.workspace }}/results/results.xml
+        if-no-files-found: ignore
+        retention-days: 7

@@ -10,6 +10,7 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -44,8 +45,19 @@ def test_setup_teardown():
 
 
 def _skip_if_unavailable(device: str):
-    if device.startswith("cuda") and not torch.cuda.is_available():
+    if not device.startswith("cuda"):
+        return
+    if not torch.cuda.is_available():
         pytest.skip("CUDA not available")
+    idx = int(device.split(":")[1]) if ":" in device else 0
+    n = torch.cuda.device_count()
+    if idx >= n:
+        # Always skip rather than fail: the dedicated multi-GPU workflow does its own
+        # pre-flight ``torch.cuda.device_count() >= 2`` check before invoking pytest, so
+        # a misconfigured multi-GPU runner is already caught there.  Failing here would
+        # only break the standard single-GPU CI runners that legitimately can't run
+        # ``cuda:1+`` tests.
+        pytest.skip(f"{device} not available (device_count={n}) — multi-GPU test skipped")
 
 
 # ------------------------------------------------------------------
@@ -169,7 +181,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
 
     # Verify Fabric has the new position
     fab_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(fab_pos)
+    pos_torch = torch.as_tensor(fab_pos, device=device)
     assert torch.allclose(pos_torch, torch.tensor([[99.0, 99.0, 99.0]], device=device), atol=0.1), (
         f"Fabric should have new position, got {pos_torch}"
     )
@@ -230,6 +242,92 @@ def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch)
     # Read back — proves the rebuilt _view_to_fabric and _fabric_world_matrices
     # are still consistent.
     ret_pos, _ = view.get_world_poses()
-    pos_torch = wp.to_torch(ret_pos)
+    pos_torch = torch.as_tensor(ret_pos, device=device)
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Read after rebuild failed on {device}: {pos_torch}"
+
+
+# ------------------------------------------------------------------
+# Multi-GPU tests (cuda:1) — skipped automatically on single-GPU workstations
+# ------------------------------------------------------------------
+
+
+@pytest.mark.skipif(
+    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
+    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
+)
+@pytest.mark.parametrize("device", ["cuda:1"])
+def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
+    """set_world_poses -> get_world_poses roundtrip works on cuda:1.
+
+    Verifies that FabricFrameView operates correctly on a non-primary CUDA
+    device without falling back to the USD path.
+    """
+    bundle = view_factory(2, device)
+    view = bundle.view
+
+    new_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_pos, 10.0, 20.0, 30.0], device=device)
+    view.set_world_poses(positions=new_pos)
+
+    ret_pos, _ = view.get_world_poses()
+    pos_torch = torch.as_tensor(ret_pos, device=device)
+    expected = torch.tensor([[10.0, 20.0, 30.0], [10.0, 20.0, 30.0]], device=device)
+    assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
+
+
+@pytest.mark.skipif(
+    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
+    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
+)
+@pytest.mark.parametrize("device", ["cuda:1"])
+def test_fabric_cuda1_no_usd_writeback(device, view_factory):
+    """set_world_poses on cuda:1 does not write back to USD.
+
+    Mirrors test_fabric_set_world_does_not_write_back_to_usd for the cuda:1
+    device to confirm the no-writeback invariant holds across GPU indices.
+    """
+    bundle = view_factory(1, device)
+    view = bundle.view
+
+    stage = sim_utils.get_current_stage()
+    prim = stage.GetPrimAtPath(view.prim_paths[0])
+    xform_cache = UsdGeom.XformCache()
+    t_before = xform_cache.GetLocalToWorldTransform(prim).ExtractTranslation()
+    orig_usd_pos = torch.tensor([float(t_before[0]), float(t_before[1]), float(t_before[2])])
+
+    new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 99.0, 99.0, 99.0], device=device)
+    view.set_world_poses(positions=new_pos)
+
+    # USD must not have moved at all — equality, not approximate.
+    t_after = UsdGeom.XformCache().GetLocalToWorldTransform(prim).ExtractTranslation()
+    usd_pos_after = torch.tensor([float(t_after[0]), float(t_after[1]), float(t_after[2])])
+    assert torch.allclose(usd_pos_after, orig_usd_pos, atol=0.0), (
+        f"USD wrote back on {device}: expected {orig_usd_pos}, got {usd_pos_after}"
+    )
+
+
+@pytest.mark.skipif(
+    not os.environ.get("ISAACLAB_TEST_MULTI_GPU"),
+    reason="Multi-GPU tests disabled (set ISAACLAB_TEST_MULTI_GPU=1 to enable)",
+)
+@pytest.mark.parametrize("device", ["cuda:1"])
+def test_fabric_cuda1_scales_roundtrip(device, view_factory):
+    """set_scales -> get_scales roundtrip works on cuda:1.
+
+    Both write paths (``set_world_poses`` and ``set_scales``) call
+    ``_prepare_for_reuse`` and launch on ``self._device``; this test covers
+    the scales path on the non-primary CUDA device.
+    """
+    bundle = view_factory(2, device)
+    view = bundle.view
+
+    new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
+    view.set_scales(new_scales)
+
+    ret_scales = view.get_scales()
+    scales_torch = torch.as_tensor(ret_scales, device=device)
+    expected = torch.tensor([[2.0, 3.0, 4.0], [2.0, 3.0, 4.0]], device=device)
+    assert torch.allclose(scales_torch, expected, atol=1e-7), f"Scales roundtrip failed on {device}: {scales_torch}"

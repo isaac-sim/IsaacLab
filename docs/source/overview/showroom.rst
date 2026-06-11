@@ -57,7 +57,7 @@ A few quick showroom scripts to run and checkout:
       :alt: Biped robots in Isaac Lab
 
 
--  Spawn different deformable (soft) bodies and let them fall from a height:
+-  Spawn different deformable objects and let them fall from a height:
 
    .. tab-set::
       :sync-group: os
@@ -75,6 +75,9 @@ A few quick showroom scripts to run and checkout:
          .. code:: batch
 
             isaaclab.bat -p scripts\demos\deformables.py
+
+   Add ``--backend newton`` to run the same demo with the experimental Newton
+   deformable backend.
 
    .. image:: ../_static/demos/deformables.jpg
       :width: 100%

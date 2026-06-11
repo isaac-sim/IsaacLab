@@ -11,12 +11,11 @@ import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import toml
+import tomllib
 import torch
-
-from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -29,13 +28,16 @@ from isaaclab.physics.scene_data_requirements import (
     resolve_scene_data_requirements,
 )
 from isaaclab.renderers.render_context import RenderContext
-from isaaclab.scene.scene_data_provider import SceneDataProvider
+from isaaclab.scene_data import SceneDataProvider
+from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from isaaclab.cloner.clone_plan import ClonePlan
 
 from .simulation_cfg import SimulationCfg
@@ -109,6 +111,8 @@ class SimulationContext:
         if type(self)._instance is not None:
             return  # Already initialized
 
+        from pxr import UsdUtils  # noqa: PLC0415
+
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
@@ -179,7 +183,7 @@ class SimulationContext:
         self._scene_data_requirements = SceneDataRequirement()
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
-        # their own backend args. None until :meth:`InteractiveScene.clone_environments` runs.
+        # their own backend args. None until a replication session publishes a plan.
         self._clone_plan: ClonePlan | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -214,6 +218,8 @@ class SimulationContext:
             order=5,
         )
 
+        self._services = ServiceLocator()
+
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
     def _apply_render_cfg_settings(self) -> None:
@@ -246,8 +252,8 @@ class SimulationContext:
 
             preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
             if os.path.exists(preset_filename):
-                with open(preset_filename) as file:
-                    preset_dict = toml.load(file)
+                with open(preset_filename, "rb") as file:
+                    preset_dict = tomllib.load(file)
 
                 def _apply_nested(data: dict[str, Any], path: str = "") -> None:
                     for key, value in data.items():
@@ -318,6 +324,8 @@ class SimulationContext:
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
+        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+
         cfg = self.cfg
         with sim_utils.use_stage(self.stage):
             # Set stage conventions for metric units
@@ -383,6 +391,10 @@ class SimulationContext:
             self.get_setting("/isaaclab/video/auto_start_kit")
         )
 
+    def is_headless_or_exist_active_visualizer(self) -> bool:
+        """Return whether the simulation should keep stepping without visualizers or with an active visualizer."""
+        return not self._visualizers or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
+
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available."""
         return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
@@ -441,7 +453,9 @@ class SimulationContext:
                     continue
                 mod = importlib.import_module(f"isaaclab_visualizers.{viz_type}")
                 cfg_cls = getattr(mod, cfg_class_names[viz_type])
-                default_configs.append(cfg_cls())
+                cfg = cfg_cls()
+                self._apply_default_visualizer_cfg(cfg)
+                default_configs.append(cfg)
             except (ImportError, ModuleNotFoundError) as exc:
                 # isaaclab_visualizers is optional; log once at warning level
                 if "isaaclab_visualizers" in str(exc):
@@ -460,6 +474,16 @@ class SimulationContext:
             except Exception as exc:
                 logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
         return default_configs
+
+    def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
+        """Apply shared default visualizer settings to a backend-specific config."""
+        default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
+        if default_cfg is None:
+            return
+        for field in fields(default_cfg):
+            if field.name == "visualizer_type" or not hasattr(cfg, field.name):
+                continue
+            setattr(cfg, field.name, getattr(default_cfg, field.name))
 
     def _get_cli_visualizer_types(self) -> list[str]:
         """Return list of visualizer types requested via CLI (setting)."""
@@ -632,8 +656,20 @@ class SimulationContext:
                 viz.set_camera_view(eye, target)
             self._pending_camera_view = None
 
+        if not self._visualizers and self._scene_data_provider is not None:
+            close_provider = getattr(self._scene_data_provider, "close", None)
+            if callable(close_provider):
+                close_provider()
+            self._scene_data_provider = None
+
     def get_scene_data_provider(self) -> SceneDataProvider:
         return self._scene_data_provider
+
+    def register_interactive_scene(self, scene) -> None:
+        """Register the active scene so scene data providers can expose scene-owned sensors."""
+        self._interactive_scene = scene
+        if self._scene_data_provider is not None:
+            self._scene_data_provider.set_interactive_scene(scene)
 
     def get_scene_data_requirements(self) -> SceneDataRequirement:
         """Return scene-data requirements resolved from visualizers/renderers."""
@@ -646,9 +682,9 @@ class SimulationContext:
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
 
-        Set by :meth:`InteractiveScene.clone_environments` after replication. Consumed by
-        scene data providers that build backend models (e.g. Newton visualizer model on a
-        PhysX backend) from the same plan the cloner used. ``None`` until the scene clones.
+        Set after replication. Consumed by scene data providers that build backend models
+        (e.g. Newton visualizer model on a PhysX backend) from the same plan the cloner used.
+        ``None`` until the scene replicates.
         """
         return self._clone_plan
 
@@ -761,13 +797,11 @@ class SimulationContext:
         if not self._visualizers:
             return
 
+        for viz in self._visualizers:
+            viz.flush_startup_messages()
+
         if self._should_forward_before_visualizer_update():
             self.physics_manager.forward()
-
-        # Marker callbacks update VisualizationMarkers state; visualizer step()
-        # consumes that state later in this method.
-        if any(viz.supports_markers() for viz in self._visualizers):
-            self.vis_marker_registry.dispatch_callbacks()
 
         # Marker callbacks update VisualizationMarkers state; visualizer step()
         # consumes that state later in this method.
@@ -852,6 +886,22 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
+    # ------------------------------------------------------------------
+    # Service locator
+    # ------------------------------------------------------------------
+
+    @property
+    def services(self) -> ServiceLocator:
+        """Typed service registry for backend-specific singletons.
+
+        Usage::
+
+            sim_context.services[FabricStageCache] = cache
+            cache = sim_context.services[FabricStageCache]
+            del sim_context.services[FabricStageCache]  # closes and removes
+        """
+        return self._services
+
     @classmethod
     def clear_instance(cls) -> None:
         """Clean up resources and clear the singleton instance."""
@@ -865,6 +915,10 @@ class SimulationContext:
                 viz.close()
             cls._instance._visualizers.clear()
 
+            # Close and drop all registered singleton services
+            service_errors: list[Exception] = []
+            cls._instance._services.close_all(caught_exceptions=service_errors)
+
             # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since
             # close_stage() + app shutdown destroy the entire stage at once.
             stage_utils.close_stage()
@@ -877,6 +931,11 @@ class SimulationContext:
 
             gc.collect()
             logger.info("SimulationContext cleared")
+
+            if service_errors:
+                msg = f"SimulationContext.clear_instance(): {len(service_errors)} service(s) failed to close"
+                # TODO: Use ExceptionGroup when ruff target-version is bumped to py311+
+                raise RuntimeError(msg) from service_errors[0]
 
     @classmethod
     def clear_stage(cls) -> None:
@@ -903,7 +962,7 @@ class SimulationContext:
 def build_simulation_context(
     create_new_stage: bool = True,
     gravity_enabled: bool = True,
-    device: str = "cuda:0",
+    device: str | None = None,
     dt: float = 0.01,
     sim_cfg: SimulationCfg | None = None,
     add_ground_plane: bool = False,
@@ -916,7 +975,11 @@ def build_simulation_context(
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.
         gravity_enabled: Whether to enable gravity. Defaults to True.
-        device: Device to run the simulation on. Defaults to "cuda:0".
+        device: Device to run the simulation on. When given alongside ``sim_cfg``,
+            overrides ``sim_cfg.device`` so the caller's explicit choice wins
+            (most test callers pass both, expecting this behavior). Defaults to
+            ``None``, meaning ``sim_cfg.device`` is left untouched and a freshly
+            built ``sim_cfg`` uses :class:`SimulationCfg`'s default device.
         dt: Time step for the simulation. Defaults to 0.01.
         sim_cfg: SimulationCfg to use. Defaults to None.
         add_ground_plane: Whether to add a ground plane. Defaults to False.
@@ -933,11 +996,22 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
+            # ``create_new_stage`` is shadowed here by the bool parameter, so call via the namespace.
             sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-            sim_cfg = SimulationCfg(device=device, dt=dt, gravity=gravity)
+            sim_cfg = SimulationCfg(dt=dt, gravity=gravity)
+        if device is not None:
+            # Honor the explicit device kwarg in both branches: when sim_cfg is
+            # freshly built, this picks the device; when sim_cfg is passed in,
+            # this overrides its (possibly default) device. Without the override,
+            # callers passing both ``sim_cfg=<built-with-default-device>`` and
+            # ``device=cuda:N`` silently got sim_cfg's device, causing warp
+            # kernel-launch mismatches when test fixtures allocated tensors on
+            # the requested device while assets resolved their device from the
+            # untouched sim_cfg.
+            sim_cfg.device = device
 
         sim = SimulationContext(sim_cfg)
 

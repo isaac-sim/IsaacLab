@@ -22,6 +22,7 @@ from isaaclab_newton.sim.schemas import (
     NewtonMaterialPropertiesCfg,
     NewtonMeshCollisionPropertiesCfg,
     NewtonRigidBodyPropertiesCfg,
+    NewtonSDFCollisionPropertiesCfg,
 )
 
 from pxr import UsdPhysics
@@ -41,6 +42,19 @@ def setup_sim():
     sim._disable_app_control_on_stop_handle = True
     sim.stop()
     sim.clear_instance()
+
+
+def _has_authored_api_schema(prim, schema_name: str) -> bool:
+    """Return whether a schema name is applied or authored in ``apiSchemas`` metadata."""
+    if schema_name in prim.GetAppliedSchemas():
+        return True
+    api_schemas = prim.GetMetadata("apiSchemas")
+    if api_schemas is None:
+        return False
+    return any(
+        schema_name in getattr(api_schemas, item_list)
+        for item_list in ("explicitItems", "prependedItems", "appendedItems", "addedItems")
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +233,71 @@ def test_newton_mesh_collision_no_schema_when_none(setup_sim):
 
 
 # ---------------------------------------------------------------------------
+# Newton SDF collision
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_sdf_collision_properties_written(setup_sim):
+    """SDF fields must write newton:* attributes and apply NewtonSDFCollisionAPI."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/sdf_col", prim_type="Cube", translation=(6.0, 0.0, 0.5))
+    schemas.define_collision_properties(
+        "/World/sdf_col",
+        NewtonSDFCollisionPropertiesCfg(
+            sdf_max_resolution=64,
+            sdf_narrow_band_inner=-0.02,
+            sdf_narrow_band_outer=0.03,
+            sdf_target_voxel_size=0.005,
+            sdf_texture_format="float32",
+            sdf_padding=0.01,
+            hydroelastic_enabled=True,
+            hydroelastic_stiffness=1.0e8,
+        ),
+    )
+    prim = stage.GetPrimAtPath("/World/sdf_col")
+    assert prim.GetAttribute("newton:sdfMaxResolution").Get() == 64
+    assert prim.GetAttribute("newton:sdfNarrowBandInner").Get() == pytest.approx(-0.02)
+    assert prim.GetAttribute("newton:sdfNarrowBandOuter").Get() == pytest.approx(0.03)
+    assert prim.GetAttribute("newton:sdfTargetVoxelSize").Get() == pytest.approx(0.005)
+    assert prim.GetAttribute("newton:sdfTextureFormat").Get() == "float32"
+    assert prim.GetAttribute("newton:sdfPadding").Get() == pytest.approx(0.01)
+    assert prim.GetAttribute("newton:hydroelasticEnabled").Get() is True
+    assert prim.GetAttribute("newton:hydroelasticStiffness").Get() == pytest.approx(1.0e8)
+    applied = prim.GetAppliedSchemas()
+    assert _has_authored_api_schema(prim, "NewtonSDFCollisionAPI")
+    assert "NewtonMeshCollisionAPI" not in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_sdf_collision_no_schema_when_only_base_fields_set(setup_sim):
+    """Base Newton collision fields must not apply NewtonSDFCollisionAPI."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/sdf_base_only", prim_type="Cube", translation=(7.0, 0.0, 0.5))
+    schemas.define_collision_properties(
+        "/World/sdf_base_only",
+        NewtonSDFCollisionPropertiesCfg(contact_margin=0.005),
+    )
+    prim = stage.GetPrimAtPath("/World/sdf_base_only")
+    applied = prim.GetAppliedSchemas()
+    assert prim.GetAttribute("newton:contactMargin").Get() == pytest.approx(0.005)
+    assert "NewtonCollisionAPI" in applied
+    assert not _has_authored_api_schema(prim, "NewtonSDFCollisionAPI")
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_sdf_collision_no_schema_when_none(setup_sim):
+    """NewtonSDFCollisionPropertiesCfg() with all None must NOT apply NewtonSDFCollisionAPI."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/sdf_col2", prim_type="Cube", translation=(8.0, 0.0, 0.5))
+    schemas.define_collision_properties("/World/sdf_col2", NewtonSDFCollisionPropertiesCfg())
+    prim = stage.GetPrimAtPath("/World/sdf_col2")
+    applied = prim.GetAppliedSchemas()
+    assert "NewtonCollisionAPI" not in applied
+    assert not _has_authored_api_schema(prim, "NewtonSDFCollisionAPI")
+
+
+# ---------------------------------------------------------------------------
 # Class hierarchy contract: Mujoco IS-A Newton
 # ---------------------------------------------------------------------------
 
@@ -250,7 +329,7 @@ def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
     namespace and apply both schemas.
     """
     stage = sim_utils.get_current_stage()
-    sim_utils.create_prim("/World/mesh_mixed", prim_type="Cube", translation=(6.0, 0.0, 0.5))
+    sim_utils.create_prim("/World/mesh_mixed", prim_type="Cube", translation=(9.0, 0.0, 0.5))
     schemas.define_mesh_collision_properties(
         "/World/mesh_mixed",
         NewtonMeshCollisionPropertiesCfg(
@@ -266,4 +345,5 @@ def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
     assert prim.GetAttribute("newton:contactMargin").Get() == pytest.approx(0.005)
     assert prim.GetAttribute("newton:maxHullVertices").Get() == 32
     applied = prim.GetAppliedSchemas()
+    assert "NewtonCollisionAPI" in applied
     assert "NewtonMeshCollisionAPI" in applied

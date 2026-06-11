@@ -3,237 +3,331 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+
 from __future__ import annotations
 
-import contextlib
 import itertools
 import logging
 import math
-from collections.abc import Iterator, Sequence
+import re
+from collections.abc import Callable, Iterable, Iterator
+from typing import TYPE_CHECKING, Any
 
 import torch
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdUtils, Vt
+from pxr import Sdf, Usd, UsdGeom
 
-from . import _fabric_notices
 from .clone_plan import ClonePlan
+from .cloner_strategies import sequential
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
 
-@contextlib.contextmanager
-def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -> Iterator[None]:
-    """Suspend the ``IFabricUsd`` USD notice listener for the body of the ``with`` block.
+def split_clone_template(destination_template: str) -> tuple[str, str]:
+    """Split a clone destination template around its clone slot.
 
-    Targets the same handler that :meth:`isaacsim.core.cloner.Cloner.disable_change_listener`
-    toggles, but goes through ``omni::fabric::IFabricUsd`` directly so we don't take an
-    ``isaacsim.core.simulation_manager`` dependency.
-
-    The listener is a global ``TfNotice`` registered when ``omni.fabric`` loads; it
-    short-circuits via a soft flag (``IFabricUsd.cpp:739``). Toggling that flag is what
-    skips the per-``Sdf.CopySpec`` Fabric sync that dominates cloning time on large scenes.
-
-    When this provides a measurable speedup
-    ----------------------------------------
-    Bisection on the regression test (see ``test_cloner.py``) shows the listener cost is
-    only on the critical path when **all** of these hold:
-
-    1. The clone happens through the ``InteractiveScene`` path with ``replicate_physics=True``.
-       Calling :func:`usd_replicate` directly on a stage produces no measurable gap; with
-       ``replicate_physics=False`` the gap drops to ~1.19x. The PhysX replication path is
-       what amplifies per-spec listener work.
-    2. The cloned prims carry PhysX rigid-body schemas (e.g. ``UsdPhysics.RigidBodyAPI``,
-       authored via ``rigid_props`` on a spawn cfg). Plain Xforms or geometry without
-       physics schemas produce ~1.0x — the listener has no Fabric-tracked state to sync.
-       ``mass_props`` and ``collision_props`` add nothing beyond ``rigid_props``.
-    3. Total per-``Sdf.CopySpec`` firings reach ~32K — i.e. ``num_bodies × num_envs`` is
-       large enough to dominate scene-init cost. Below this the speedup sinks into noise.
-
-    Conditions outside this envelope (no PhysX schemas, single-env scenes, raw
-    ``usd_replicate`` calls, ``replicate_physics=False``) won't see a perf win — the
-    suspension is correct but its effect is lost in the rest of the work.
-
-    Re-entrant: if the flag is already off on entry, ``__exit__`` leaves it off. Falls
-    through to a no-op if the Carbonite interface can't be acquired (e.g. outside a live
-    Kit application) — the caller never breaks, it just doesn't get the perf win.
+    The ``"{}"`` slot represents one concrete environment/instance path segment.
 
     Args:
-        stage: USD stage whose Fabric notice handler should be suspended.
-        restore: When ``True`` (default), re-enable the handler on exit. Set to ``False``
-            inside a known clone-then-``sim.reset`` window where the downstream Fabric
-            resync happens anyway and re-enabling here would trigger a redundant
-            ``forceMinimalPopulate`` batch — see ``PluginInterface.cpp:337``.
+        destination_template: Destination path template with ``"{}"`` for the instance id.
+
+    Returns:
+        The ``(prefix, suffix)`` around the clone slot.
+
+    Raises:
+        ValueError: If ``destination_template`` does not contain a clone slot.
+    """
+    destination_template = destination_template.rstrip("/") or "/"
+    prefix, slot, suffix = destination_template.partition("{}")
+    if slot != "{}":
+        raise ValueError(f"Clone destination template must contain '{{}}': {destination_template!r}.")
+    return prefix, suffix
+
+
+def get_suffix(path_expr: str, destination_template: str) -> str | None:
+    """Return the part of ``path_expr`` below a destination template's env-instance root.
+
+    The template's ``"{}"`` slot matches exactly one path segment (a concrete id like ``env_3``
+    or a wildcard like ``env_.*``).
+
+    Example:
+        >>> tmpl = "/World/scenes/{}/Robot"
+        >>> get_suffix("/World/scenes/env_3/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/.*/Robot/base", tmpl)
+        '/base'
+        >>> get_suffix("/World/scenes/env_3/Robot", tmpl)
+        ''
+        >>> get_suffix("/World/scenes/env_3/Sensor", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/RobotArm", tmpl) is None
+        True
+        >>> get_suffix("/World/scenes/env_3/sub/Robot/base", tmpl) is None
+        True
+    """
+    pattern = re.compile(r"[^/]+".join(re.escape(part) for part in split_clone_template(destination_template)))
+    match = pattern.match(path_expr)
+    if match is None:
+        return None
+    suffix = path_expr[match.end() :]
+    return None if suffix and not suffix.startswith("/") else suffix
+
+
+def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
+    """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
+
+    Finds the rows whose destination template owns ``path_expr`` (same matching
+    logic as :func:`iter_clone_plan_matches`), OR-merges their
+    :attr:`~isaaclab.cloner.ClonePlan.clone_mask` rows, and splits the
+    expression at the row's destination template so the asset-relative suffix is
+    returned for downstream walks.
+
+    Args:
+        path_expr: Destination-side path expression (e.g., a sensor's ``prim_path``,
+            with ``.*`` env wildcard).
+        plan: Active clone plan.
+
+    Returns:
+        Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)``. The
+        ``asset_suffix`` is the part of ``path_expr`` beyond the matching row's
+        destination template (empty when ``path_expr`` equals the row's template).
+        Returns ``None`` when ``path_expr`` matches no row in the plan, letting
+        callers fall back to direct stage resolution (e.g. for sensor frames
+        mounted at the env root rather than under a planned asset).
+
+    Raises:
+        ValueError: When ``path_expr`` is owned by multiple distinct, equally
+            specific destination templates (a genuine ambiguity). Nested
+            templates do not conflict: the most specific (longest-matching) one
+            wins, mirroring :func:`iter_clone_plan_matches`.
+        NotImplementedError: When the union of matching rows' clone masks does not
+            cover every env (partial-env heterogeneous coverage is unsupported).
+    """
+    # Collect every template that owns ``path_expr`` together with the suffix below it.
+    # A shorter suffix means a longer matched prefix, i.e. a more specific (nearer) owner.
+    candidates: list[tuple[str, str, int]] = []
+    for source_index, destination_template in enumerate(plan.destinations):
+        if "{}" not in destination_template:
+            continue
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
+            continue
+        candidates.append((destination_template, suffix, source_index))
+    if not candidates:
+        return None
+
+    # The nearest owner is the one with the shortest suffix. Distinct templates that tie
+    # at this minimal suffix length are a genuine ambiguity that callers cannot resolve.
+    min_suffix_len = min(len(suffix) for _, suffix, _ in candidates)
+    owning_templates = {template for template, suffix, _ in candidates if len(suffix) == min_suffix_len}
+    if len(owning_templates) > 1:
+        raise ValueError(f"path_expr {path_expr!r}: matches multiple destination templates {sorted(owning_templates)}.")
+    matching_template = next(iter(owning_templates))
+    matching_rows = [index for template, _, index in candidates if template == matching_template]
+    matching_suffix = next(suffix for template, suffix, _ in candidates if template == matching_template)
+    if not plan.clone_mask[matching_rows].any(dim=0).all():
+        raise NotImplementedError(
+            f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"
+            " matching rows must collectively cover all envs."
+        )
+    return plan.sources[matching_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
+
+
+def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
+    """Yield clone-plan entries whose destinations own a path expression.
+
+    Example:
+        For an entry with source root ``"/World/source/Robot"``, destination
+        template ``"/World/scenes/{}/Robot"``, and populated env ids
+        ``(0, 2)``, querying ``"/World/scenes/.*/Robot/base"`` yields
+        ``("/World/source/Robot", "/World/scenes/{}/Robot",
+        "/World/source/Robot/base", (0, 2))``.
+
+    Args:
+        plan: Clone plan to query.
+        path_expr: Destination prim path or path expression. Expressions are
+            matched against each clone-plan destination template by treating
+            the template's ``"{}"`` field as the populated environment slot.
 
     Yields:
-        None.
+        Tuples ``(source_root, destination_template, source_path, env_ids)``
+        for the nearest matching destination root. Multiple source variants
+        with the same destination root are preserved.
     """
-    bindings = _fabric_notices.get_bindings()
-    if bindings is None:
-        yield
-        return
+    matches: list[tuple[str, str, str, tuple[int, ...]]] = []
+    for source_index, (source_root, destination_template) in enumerate(zip(plan.sources, plan.destinations)):
+        if "{}" not in destination_template:
+            continue
 
-    # usdrt only works with a live Kit app — defer import so module load stays cheap.
-    import usdrt
+        env_ids = tuple(int(i) for i in plan.clone_mask[source_index].nonzero(as_tuple=False).flatten().tolist())
+        if not env_ids:
+            continue
 
-    # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
-    # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
-    cache = UsdUtils.StageCache.Get()
-    cached_id = cache.GetId(stage)
-    stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()
-    # ``FabricId`` wraps a uint64; the C ABI needs the raw integer.
-    fabric_id = usdrt.Usd.Stage.Attach(stage_id).GetFabricId().id
-    # First-call ABI sanity check — if the toggle doesn't actually round-trip the flag
-    # (e.g. Kit's vtable shifted), fall through to a no-op rather than corrupting state.
-    if not bindings.validate_with(fabric_id):
-        logger.warning("Fabric notice toggle failed round-trip check — suspension disabled")
-        yield
-        return
-    was_enabled = bindings.is_enabled(fabric_id)
-    if was_enabled:
-        bindings.set_enable(fabric_id, False)
-    try:
-        yield
-    finally:
-        if restore and was_enabled:
-            bindings.set_enable(fabric_id, True)
+        source_root = source_root.rstrip("/") or "/"
+        destination_template = destination_template.rstrip("/") or "/"
+
+        suffix = get_suffix(path_expr, destination_template)
+        if suffix is None:
+            continue
+        source_path = source_root + suffix if source_root != "/" else suffix or "/"
+
+        matches.append((source_root, destination_template, source_path, env_ids))
+
+    matches.sort(key=lambda match: len(match[1].format(match[3][0])), reverse=True)
+    if matches:
+        owner_length = len(matches[0][1].format(matches[0][3][0]))
+        yield from (match for match in matches if len(match[1].format(match[3][0])) == owner_length)
 
 
 def make_clone_plan(
-    sources: Sequence[Sequence[str]],
-    destinations: Sequence[str],
+    cfgs: Iterable[Any],
     num_clones: int,
-    clone_strategy: callable,
-    device: str = "cpu",
+    env_spacing: float,
+    device: str,
+    *,
+    clone_strategy: Callable = sequential,
+    valid_set: torch.Tensor | None = None,
 ) -> ClonePlan:
-    """Construct a cloning plan mapping prototype prims to per-environment destinations.
+    """Build a :class:`~isaaclab.cloner.ClonePlan` from asset cfgs.
 
-    The plan enumerates all combinations of prototypes, selects a combination per environment using ``clone_strategy``,
-    and builds a boolean masking matrix indicating which prototype populates each environment slot.
+    Iterates ``cfgs``, identifies env-scoped cfgs with a spawn, expands
+    :class:`~isaaclab.sim.MultiAssetSpawnerCfg` / :class:`~isaaclab.sim.MultiUsdFileCfg`
+    into per-variant prototype rows, runs ``clone_strategy`` to assign prototypes to
+    envs, and returns a self-contained :class:`ClonePlan` with ``cfg_rows`` populated.
+
+    Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
+    asset constructor spawns the prototype into its first active environment. Cfgs
+    whose ``prim_path`` is global (not under the env root ``/World/envs/``) or that
+    lack a spawn are skipped — they do not appear in the plan and are not replicated.
 
     Args:
-        sources: Prototype prim paths grouped by asset type (e.g., [[robot_a, robot_b], [obj_x]]).
-        destinations: Destination path templates (one per group) with ``"{}"`` placeholder for env id.
-        num_clones: Number of environments to populate.
-        clone_strategy: Function that picks a prototype combo per environment; signature
-            ``clone_strategy(combos: Tensor, num_clones: int, device: str) -> Tensor[num_clones, num_groups]``.
-        device: Torch device for tensors in the plan. Defaults to ``"cpu"``.
+        cfgs: Asset cfgs with resolved ``prim_path`` (no ``{ENV_REGEX_NS}`` macros).
+        num_clones: Number of target envs.
+        env_spacing: Distance between neighboring grid env origins [m].
+        device: Torch device for plan tensors.
+        clone_strategy: Function that assigns prototype combinations to envs. Defaults
+            to :func:`~isaaclab.cloner.sequential`.
+        valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid prototype
+            combinations. ``None`` (default) uses the full cartesian product of every
+            group's prototype indices.
 
     Returns:
-        A :class:`ClonePlan` whose ``sources`` and ``destinations`` are flattened per-source rows and
-        whose ``clone_mask`` is a ``[num_src, num_clones]`` boolean tensor.
+        A :class:`ClonePlan` whose ``sources``/``destinations``/``clone_mask`` describe
+        the flat prototype-to-env mapping and whose ``cfg_rows`` maps each cfg to the
+        rows it owns.
     """
-    if len(sources) != len(destinations):
-        raise ValueError(f"Expected one destination per source group, got {len(destinations)} and {len(sources)}.")
-    if not sources:
-        raise ValueError("Expected at least one source group.")
-    group_sizes = [len(group) for group in sources]
-    if any(size == 0 for size in group_sizes):
-        raise ValueError("Source groups must not be empty.")
+    import isaaclab.sim as sim_utils  # noqa: PLC0415
 
-    # 1) Flatten into src and dest lists
-    src = tuple(p for group in sources for p in group)
-    dest = tuple(dst for dst, group in zip(destinations, sources) for _ in group)
+    def num_variants(spawn_cfg: Any) -> int:
+        if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
+            return len(spawn_cfg.assets_cfg)
+        if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
+            return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
+        return 1
 
-    # 2) Enumerate all combinations of "one prototype per group"
-    #    all_combos: list of tuples (g0_idx, g1_idx, ..., g_{G-1}_idx)
-    all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
-    combos = torch.tensor(all_combos, dtype=torch.long, device=device)
+    def set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
+        if isinstance(spawn_cfg, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
+            spawn_cfg.spawn_paths = paths
+        else:
+            active = [p for p in paths if p is not None]
+            if len(active) != 1:
+                raise ValueError("Single spawner expects exactly one planned source path.")
+            spawn_cfg.spawn_path = active[0]
 
-    # 3) Assign a combination to each environment
+    env_root_marker = "/World/envs/"
+    env_template = "/World/envs/env_{}"
+
+    # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
+    groups: list[tuple[Any, Any, str, int]] = []
+    for cfg in cfgs:
+        if not hasattr(cfg, "prim_path") or not hasattr(cfg, "spawn") or cfg.spawn is None:
+            continue
+        prim_path = cfg.prim_path
+        if env_root_marker not in prim_path:
+            continue
+        count = num_variants(cfg.spawn)
+        if count <= 0:
+            raise ValueError(f"Spawner at '{prim_path}' must have at least one variant.")
+        destination = prim_path.replace(".*", "{}")
+        groups.append((cfg, cfg.spawn, destination, count))
+
+    env_ids = torch.arange(num_clones, dtype=torch.long, device=device)
+    positions, _ = grid_transforms(num_clones, env_spacing, device=device)
+
+    # 2) No env-scoped cfgs: emit an empty plan so the scene can still proceed.
+    if not groups:
+        empty_mask = torch.zeros((0, num_clones), dtype=torch.bool, device=device)
+        return ClonePlan(
+            sources=(),
+            destinations=(),
+            clone_mask=empty_mask,
+            env_ids=env_ids,
+            positions=positions,
+            cfg_rows={},
+        )
+
+    # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
+    if all(count == 1 for _, _, _, count in groups):
+        for cfg, spawn_cfg, destination, _ in groups:
+            set_spawn_paths(spawn_cfg, [destination.format(0)])
+        cfg_rows = {id(cfg): (0,) for cfg, _, _, _ in groups}
+        return ClonePlan(
+            sources=(env_template.format(0),),
+            destinations=(env_template,),
+            clone_mask=torch.ones((1, num_clones), dtype=torch.bool, device=device),
+            env_ids=env_ids,
+            positions=positions,
+            cfg_rows=cfg_rows,
+        )
+
+    # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
+    group_sizes = [count for _, _, _, count in groups]
+    if valid_set is None:
+        all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
+        combos = torch.tensor(all_combos, dtype=torch.long, device=device)
+    else:
+        combos = valid_set.to(device=device, dtype=torch.long)
     chosen = clone_strategy(combos, num_clones, device)
 
-    # 4) Build masking: [num_src, num_clones] boolean
-    #    For each env, for each group, mark exactly one prototype row as True.
     group_offsets = torch.tensor([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=torch.long, device=device)
     rows = (chosen + group_offsets).view(-1)
     cols = torch.arange(num_clones, device=device).view(-1, 1).expand(-1, len(group_sizes)).reshape(-1)
 
-    masking = torch.zeros((sum(group_sizes), num_clones), dtype=torch.bool, device=device)
-    masking[rows, cols] = True
-    return ClonePlan(sources=src, destinations=dest, clone_mask=masking)
+    num_rows = sum(group_sizes)
+    clone_mask = torch.zeros((num_rows, num_clones), dtype=torch.bool, device=device)
+    clone_mask[rows, cols] = True
 
+    sources_list: list[str] = []
+    destinations_list: list[str] = []
+    cfg_rows: dict[int, tuple[int, ...]] = {}
+    row = 0
+    for cfg, spawn_cfg, destination, count in groups:
+        cfg_rows[id(cfg)] = tuple(range(row, row + count))
+        group_mask = clone_mask[row : row + count]
+        env_ids_assigned = group_mask.to(torch.int).argmax(dim=1).tolist()
+        active = group_mask.any(dim=1).tolist()
+        paths = [
+            destination.format(env_id) if is_active else None for env_id, is_active in zip(env_ids_assigned, active)
+        ]
+        for i, path in enumerate(paths):
+            destinations_list.append(destination)
+            # Inactive prototypes fall back to env-i so the source path stays valid even
+            # when the variant has no active environment (matches the legacy behavior).
+            sources_list.append(path if path is not None else destination.format(i))
+        set_spawn_paths(spawn_cfg, paths)
+        row += count
 
-def usd_replicate(
-    stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mask: torch.Tensor | None = None,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-) -> None:
-    """Replicate USD prims to per-environment destinations.
-
-    Copies each source prim spec to destination templates for selected environments
-    (``mask``). Optionally authors translate/orient from position/quaternion buffers.
-    Replication runs in path-depth order (parents before children) for robust composition.
-
-    Args:
-        stage: USD stage.
-        sources: Source prim paths.
-        destinations: Destination formattable templates with ``"{}"`` for env index.
-        env_ids: Environment indices.
-        mask: Optional per-source or shared mask. ``None`` selects all.
-        positions: Optional positions (``[E, 3]``) -> ``xformOp:translate``.
-        quaternions: Optional orientations (``[E, 4]``) in ``xyzw`` -> ``xformOp:orient``.
-
-    """
-    rl = stage.GetRootLayer()
-
-    # Group replication by destination path depth so ancestors land before deeper paths.
-    # This avoids composition issues for nested or interdependent specs.
-    def dp_depth(template: str) -> int:
-        """Return destination prim path depth for stable parent-first replication."""
-        dp = template.format(0)
-        return Sdf.Path(dp).pathElementCount
-
-    order = sorted(range(len(sources)), key=lambda i: dp_depth(destinations[i]))
-
-    # Process in layers of equal depth, committing at each depth to stabilize composition
-    depth_to_indices: dict[int, list[int]] = {}
-    for i in order:
-        d = dp_depth(destinations[i])
-        depth_to_indices.setdefault(d, []).append(i)
-
-    for depth in sorted(depth_to_indices.keys()):
-        with Sdf.ChangeBlock():
-            for i in depth_to_indices[depth]:
-                src = sources[i]
-                tmpl = destinations[i]
-                # Select target environments for this source (supports None, [E], or [S, E])
-                target_envs = env_ids if mask is None else env_ids[mask[i]]
-                for wid in target_envs.tolist():
-                    dp = tmpl.format(wid)
-                    Sdf.CreatePrimInLayer(rl, dp)
-                    if src == dp:
-                        pass  # self-copy: CreatePrimInLayer already ensures it exists; CopySpec would be destructive
-                    else:
-                        Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
-
-                    if positions is not None or quaternions is not None:
-                        ps = rl.GetPrimAtPath(dp)
-                        op_names = []
-                        if positions is not None:
-                            p = positions[wid]
-                            t_attr = ps.GetAttributeAtPath(dp + ".xformOp:translate")
-                            if t_attr is None:
-                                t_attr = Sdf.AttributeSpec(ps, "xformOp:translate", Sdf.ValueTypeNames.Double3)
-                            t_attr.default = Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
-                            op_names.append("xformOp:translate")
-                        if quaternions is not None:
-                            q = quaternions[wid]
-                            o_attr = ps.GetAttributeAtPath(dp + ".xformOp:orient")
-                            if o_attr is None:
-                                o_attr = Sdf.AttributeSpec(ps, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
-                            # xyzw convention: q[3] is w, q[0:3] is xyz
-                            o_attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(float(q[0]), float(q[1]), float(q[2])))
-                            op_names.append("xformOp:orient")
-                        # Only author xformOpOrder for the ops we actually authored
-                        if op_names:
-                            op_order = ps.GetAttributeAtPath(dp + ".xformOpOrder") or Sdf.AttributeSpec(
-                                ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
-                            )
-                            op_order.default = Vt.TokenArray(op_names)
+    return ClonePlan(
+        sources=tuple(sources_list),
+        destinations=tuple(destinations_list),
+        clone_mask=clone_mask,
+        env_ids=env_ids,
+        positions=positions,
+        cfg_rows=cfg_rows,
+    )
 
 
 def filter_collisions(

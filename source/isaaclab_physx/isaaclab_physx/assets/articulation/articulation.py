@@ -23,18 +23,23 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-
-_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
-
-
-from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matching_child_prims
+from isaaclab.cloner import queue_usd_replication
+from isaaclab.sim.utils.queries import (
+    find_first_matching_prim,
+    get_all_matching_child_prims,
+    resolve_matching_prims_from_source,
+)
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+_HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
+
+
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
+from isaaclab_physx.cloner import queue_physx_replication
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -42,7 +47,7 @@ from .articulation_data import ArticulationData
 if TYPE_CHECKING:
     from isaaclab_newton.actuators import NewtonActuatorAdapter
 
-    import omni.physics.tensors.api as physx
+    import omni.physics.tensors as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 
@@ -121,6 +126,8 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -3770,42 +3777,16 @@ class Articulation(BaseArticulation):
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
 
         if self.cfg.articulation_root_prim_path is not None:
-            # The articulation root prim path is specified explicitly, so we can just use this.
             root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
         else:
-            # No articulation root prim path was specified, so we need to search
-            # for it. We search for this in the first environment and then
-            # create a regex that matches all environments.
-            first_env_matching_prim = find_first_matching_prim(self.cfg.prim_path)
-            if first_env_matching_prim is None:
-                raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-            first_env_matching_prim_path = first_env_matching_prim.GetPath().pathString
 
-            # Find all articulation root prims in the first environment.
-            first_env_root_prims = get_all_matching_child_prims(
-                first_env_matching_prim_path,
-                predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI)
-                and prim.GetAttribute("physxArticulation:articulationEnabled").Get() is not False,
-                traverse_instance_prims=False,
-            )
-            if len(first_env_root_prims) == 0:
-                raise RuntimeError(
-                    f"Failed to find an articulation when resolving '{first_env_matching_prim_path}'."
-                    " Please ensure that the prim has 'USD ArticulationRootAPI' applied."
-                )
-            if len(first_env_root_prims) > 1:
-                raise RuntimeError(
-                    f"Failed to find a single articulation when resolving '{first_env_matching_prim_path}'."
-                    f" Found multiple '{first_env_root_prims}' under '{first_env_matching_prim_path}'."
-                    " Please ensure that there is only one articulation in the prim path tree."
-                )
+            def has_articulation_root_api(prim) -> bool:
+                return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            # Now we convert the found articulation root from the first
-            # environment back into a regex that matches all environments.
-            first_env_root_prim_path = first_env_root_prims[0].GetPath().pathString
-            root_prim_path_relative_to_prim_path = first_env_root_prim_path[len(first_env_matching_prim_path) :]
-            root_prim_path_expr = self.cfg.prim_path + root_prim_path_relative_to_prim_path
-
+            asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
+            walk_root = asset_prim.GetPath().pathString
+            root_prims = get_all_matching_child_prims(walk_root, has_articulation_root_api, expected_num_matches=1)
+            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         # -- articulation
         self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 

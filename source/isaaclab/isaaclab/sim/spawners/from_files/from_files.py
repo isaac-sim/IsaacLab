@@ -12,15 +12,10 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from filelock import FileLock
-
-# deformables only supported on PhysX backend
-from isaaclab_physx.sim import schemas as schemas_physx
-from isaaclab_physx.sim.spawners.materials import SurfaceDeformableBodyMaterialCfg
-
-from pxr import Gf, Sdf, Usd, UsdGeom
+from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
-from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -37,6 +32,8 @@ from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
+
     from . import from_files_cfg
 
 # import logger
@@ -240,6 +237,8 @@ def spawn_ground_plane(
     # Change the color of the plane
     # Warning: This is specific to the default grid plane asset.
     if cfg.color is not None:
+        from pxr import Gf, Sdf  # noqa: PLC0415
+
         # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
@@ -251,6 +250,8 @@ def spawn_ground_plane(
     # It isn't bright enough and messes up with the user's lighting settings
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
     if light_prim.IsValid():
+        from pxr import UsdGeom  # noqa: PLC0415
+
         imageable = UsdGeom.Imageable(light_prim)
         imageable.MakeInvisible()
 
@@ -387,15 +388,17 @@ def _spawn_from_usd_file(
     # define deformable body properties, or modify if deformable body API is present (PhysX only)
     if cfg.deformable_props is not None:
         prim = stage.GetPrimAtPath(prim_path)
-        deformable_type = "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialCfg) else "volume"
+        deformable_type = (
+            "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
+        )
         if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
-            schemas_physx.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
+            schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
         else:
-            schemas_physx.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
+            schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
         if cfg.mass_props is not None:
             raise ValueError(
                 """MassPropertiesCfg are not supported for deformable bodies
-                and should be set through DeformableBodyPropertiesCfg(mass=<value>)."""
+                and should be set through deformable_props with mass=<value>."""
             )
 
     # apply visual material
@@ -476,7 +479,7 @@ def spawn_from_usd_with_compliant_contact_material(
             material_kwargs["compliant_contact_stiffness"] = stiff
         if damp is not None:
             material_kwargs["compliant_contact_damping"] = damp
-        material_cfg = RigidBodyMaterialCfg(**material_kwargs)
+        material_cfg = PhysxRigidBodyMaterialCfg(**material_kwargs)
 
         for path in prim_paths:
             if not path.startswith("/"):

@@ -20,35 +20,39 @@ from ray.tune.stopper import Stopper
 class CartpoleRGBNoTuneJobCfg(vision_cfg.CameraJobCfg):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
-        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-v0"])
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
         super().__init__(cfg, vary_env_count=False, vary_cnn=False, vary_mlp=False)
 
 
 class CartpoleRGBCNNOnlyJobCfg(vision_cfg.CameraJobCfg):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
-        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-v0"])
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
         super().__init__(cfg, vary_env_count=False, vary_cnn=True, vary_mlp=False)
 
 
 class CartpoleRGBJobCfg(vision_cfg.CameraJobCfg):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
-        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-v0"])
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
         super().__init__(cfg, vary_env_count=True, vary_cnn=True, vary_mlp=True)
 
 
 class CartpoleResNetJobCfg(vision_cfg.ResNetCameraJob):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
-        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-ResNet18-v0"])
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
+        cfg["runner_args"]["--agent"] = "rl_games_feature_cfg_entry_point"
+        cfg["hydra_args"]["presets"] = "resnet18"
         super().__init__(cfg)
 
 
 class CartpoleTheiaJobCfg(vision_cfg.TheiaCameraJob):
     def __init__(self, cfg: dict = {}):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
-        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-RGB-TheiaTiny-v0"])
+        cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
+        cfg["runner_args"]["--agent"] = "rl_games_feature_cfg_entry_point"
+        cfg["hydra_args"]["presets"] = "theia_tiny"
         super().__init__(cfg)
 
 

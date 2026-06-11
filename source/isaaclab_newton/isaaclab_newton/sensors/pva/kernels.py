@@ -21,6 +21,8 @@ def pva_update_kernel(
     body_q: wp.array(dtype=wp.transform),
     body_qd: wp.array(dtype=wp.spatial_vector),
     body_qdd: wp.array(dtype=wp.spatial_vector),
+    # timestamp guard (see #4970): skip envs not stepped since reset.
+    timestamp: wp.array(dtype=wp.float32),
     # outputs
     out_pose_w: wp.array(dtype=wp.transformf),
     out_pos_w: wp.array(dtype=wp.vec3f),
@@ -33,6 +35,11 @@ def pva_update_kernel(
 ):
     idx = wp.tid()
     if not env_mask[idx]:
+        return
+
+    # Skip envs that have not been stepped since their last reset: Newton's body velocity /
+    # acceleration arrays still hold pre-reset values and would inject stale data (#4970).
+    if timestamp[idx] == 0.0:
         return
 
     site_idx = site_indices[idx]

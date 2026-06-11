@@ -9,7 +9,7 @@
 # Re-enable once the UR10 USD asset is fixed.
 
 # import gymnasium as gym
-# from isaaclab_tasks.manager_based.manipulation.reach.config.ur_10 import agents
+# from isaaclab_tasks.core.reach.config.ur_10 import agents
 
 # gym.register(
 #     id="Isaac-Reach-UR10-Warp-v0",

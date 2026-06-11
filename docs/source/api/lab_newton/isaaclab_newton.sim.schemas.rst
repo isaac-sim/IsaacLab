@@ -16,10 +16,12 @@ isaaclab_newton.sim.schemas
 
   .. autosummary::
 
+    NewtonDeformableBodyPropertiesCfg
     NewtonRigidBodyPropertiesCfg
     NewtonJointDrivePropertiesCfg
     NewtonCollisionPropertiesCfg
     NewtonMeshCollisionPropertiesCfg
+    NewtonSDFCollisionPropertiesCfg
     NewtonMaterialPropertiesCfg
     NewtonArticulationRootPropertiesCfg
 
@@ -31,6 +33,17 @@ isaaclab_newton.sim.schemas
     MujocoJointDrivePropertiesCfg
 
 .. currentmodule:: isaaclab_newton.sim.schemas
+
+Deformable Body
+---------------
+
+.. autoclass:: NewtonDeformableBodyPropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+Schema define and modify functions remain unified in
+:mod:`isaaclab.sim.schemas`.
 
 Rigid Body
 ----------
@@ -67,6 +80,11 @@ Collision
     :exclude-members: __init__
 
 .. autoclass:: NewtonMeshCollisionPropertiesCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: NewtonSDFCollisionPropertiesCfg
     :members:
     :show-inheritance:
     :exclude-members: __init__

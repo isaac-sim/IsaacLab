@@ -41,7 +41,7 @@ input modes, which determine which retargeters and control schemes are available
    * - Meta Quest 3
      - Motion controllers (triggers, thumbsticks, squeeze), hand tracking
      - CloudXR.js WebXR client (browser)
-     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client>`__; see :ref:`connection guide <connect-quest-pico>`
+     - `CloudXR client <https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`__; see :ref:`connection guide <connect-quest-pico>`
    * - Pico 4 Ultra
      - Motion controllers, hand tracking
      - CloudXR.js WebXR client (browser)
@@ -122,7 +122,7 @@ and Isaac Lab. It composes three collaborators:
 
 .. dropdown:: Session lifecycle details
 
-   The session uses **deferred creation**: if the user has not yet clicked "Start AR" in the Isaac
+   The session uses **deferred creation**: if the user has not yet clicked "Start XR" in the Isaac
    Sim UI, the session is not created immediately. Instead, each call to ``advance()`` retries
    session creation until OpenXR handles become available. Once connected, ``advance()`` returns a
    flattened action tensor (``torch.Tensor``) on the configured device. It returns ``None`` when
@@ -479,6 +479,12 @@ follows.
      - **Arm:** end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+
+       **Note:** With the RMPFlow controller, avoid colliding with
+       the cubes during teleoperation: contact forces cause the
+       controller to overtune and the arm to drift. Move the
+       end-effector close to and just above the cube, stop, then
+       close the suction cup.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -492,13 +498,18 @@ follows.
    * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** absolute IK end-effector control. Gripper disabled.
    * - ``Isaac-Reach-Franka-IK-Rel-v0``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
 
+
+.. note::
+
+   Humanoid arms (e.g. Galbot, Agibot) have joint limits that inverse kinematics must respect.
+   The differential IK controller ignores these limits, so RMPFlow is preferred for teleoperating
+   them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
+   responding when the commanded target pose is unreachable within those limits -- this is expected,
+   not a bug.
 
 .. _isaac-teleop-switching-input-mode:
 
@@ -711,24 +722,29 @@ These are bundled inside the ``isaaclab_teleop`` package and can be referenced v
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 25 25 20
+   :widths: 28 24 20 18 20
 
    * - Constant
      - File
      - ``NV_DEVICE_PROFILE``
      - ``NV_CXR_ENABLE_PUSH_DEVICES``
+     - ``NV_ENABLE_POSE_WAIT``
    * - :data:`~isaaclab_teleop.CLOUDXR_JS_ENV`
      - ``cloudxrjs-cloudxr.env``
      - ``auto-webrtc``
+     - ``0``
      - ``0``
    * - :data:`~isaaclab_teleop.CLOUDXR_AVP_ENV`
      - ``avp-cloudxr.env``
      - ``auto-native``
      - ``0``
+     - ``0``
 
 Both profiles set ``NV_CXR_ENABLE_PUSH_DEVICES=0``, which is correct for headset optical hand
 tracking (the most common setup). For external push-device peripherals such as Manus gloves, set
 this to ``1`` in a custom profile (see below).
+They also set ``NV_ENABLE_POSE_WAIT=0`` so CloudXR does not throttle the application when frame
+times spike. This favors lower latency over CloudXR's pose-wait smoothing.
 
 Override at launch time
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -1024,6 +1040,28 @@ Optimize XR Performance
              spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
          )
 
+      Depending on your environment, the default ``DistantLight`` orientation may cast shadows
+      that overlap the robot and reduce visibility during teleoperation. If you encounter this,
+      adjust the light's orientation via ``init_state`` on :class:`~isaaclab.assets.AssetBaseCfg`
+      to position the light source at an angle that gives clear visibility:
+
+      .. code-block:: python
+
+         import isaaclab.sim as sim_utils
+         from isaaclab.assets import AssetBaseCfg
+
+         light = AssetBaseCfg(
+             prim_path="/World/light",
+             spawn=sim_utils.DistantLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+             init_state=AssetBaseCfg.InitialStateCfg(
+                 rot=(0.0, 0.0, 0.0, 1.0),  # quaternion (x, y, z, w); adjust to reduce shadow overlap
+             ),
+         )
+
+      Experiment with different orientations in your scene to find an angle that avoids
+      shadow overlap on the robot. A slight tilt away from the camera viewpoint is a good
+      starting point.
+
 .. dropdown:: Lower the XR render resolution
    :open:
 
@@ -1089,15 +1127,15 @@ Optimize XR Performance
 .. dropdown:: Check CloudXR frame pacing
    :open:
 
-   The CloudXR runtime frame pacer attempts to keep the client experience smooth. If the
+   The CloudXR Runtime frame pacer attempts to keep the client experience smooth. If the
    application has repeated frame-time spikes, the pacer may settle at a lower stable frame
    rate instead of oscillating between rates. This can make a connected client appear slower
    even when Isaac Lab profiling does not show a proportional simulation-side regression.
 
-   To diagnose or mitigate this case, override CloudXR settings such as
-   ``NV_ENABLE_POSE_WAIT=false`` via a custom ``.env`` file, then point
-   ``teleop_se3_agent.py`` or ``record_demos.py`` at it with ``--cloudxr_env``.
-   See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
+   The shipped CloudXR profiles set ``NV_ENABLE_POSE_WAIT=0`` to mitigate this case, favoring lower
+   latency over pose-wait smoothing. If you use a custom ``.env`` file, copy that setting into the
+   custom profile, then point ``teleop_se3_agent.py`` or ``record_demos.py`` at it with
+   ``--cloudxr_env``. See :ref:`isaac-teleop-cloudxr-profiles` for the profile override workflow.
 
 
 .. _isaac-teleop-known-issues:

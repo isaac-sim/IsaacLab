@@ -21,12 +21,19 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
+from pxr import UsdPhysics
+
 import isaaclab.sim as sim_utils
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
+from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
+
     from .sensor_base_cfg import SensorBaseCfg
 
 logger = logging.getLogger(__name__)
@@ -53,11 +60,14 @@ class SensorBase(ABC):
         # check that the config is valid
         cfg.validate()
         # store inputs
+        self._source_cfg = cfg
         self.cfg = cfg.copy()
         # flag for whether the sensor is initialized
         self._is_initialized = False
         # flag for whether the sensor is in visualization mode
         self._is_visualizing = False
+        # clone plan used for this sensor's latest initialization
+        self._clone_plan: ClonePlan | None = None
         self.stage = sim_utils.get_current_stage()
 
         # register various callback functions
@@ -216,10 +226,24 @@ class SensorBase(ABC):
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments
-        env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
-        self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
-        self._num_envs = len(self._parent_prims)
+        # Count number of environments. Prefer the active simulation's clone plan when USD
+        # only carries the env_0 prototype (e.g. Newton clones solver-side).
+        self._clone_plan = sim.get_clone_plan()
+        clone_plan = self._clone_plan
+        clone_plan_matches = ()
+        if clone_plan is not None:
+            clone_plan_matches = tuple(iter_clone_plan_matches(clone_plan, self.cfg.prim_path))
+        if clone_plan_matches:
+            self._parent_prims = []
+            self._num_envs = int(clone_plan.clone_mask.shape[1])
+        elif clone_plan is not None:
+            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
+            self._num_envs = int(clone_plan.env_ids.numel())
+        else:
+            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
+            self._num_envs = len(self._parent_prims)
         # Create warp env mask arrays for "all envs" cases and resets.
         # Note: We use wp.to_torch() to create zero-copy torch tensor views of warp arrays.
         # This allows warp arrays to be passed to warp kernels while the corresponding torch
@@ -322,6 +346,7 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        self._clone_plan = None
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
@@ -393,70 +418,66 @@ class SensorBase(ABC):
             self._reset_mask_torch[env_ids] = True
             return self._reset_mask
 
-    def _resolve_and_spawn(self, sensor_name: str, **spawn_kwargs) -> None:
-        """Resolve physics-body prim paths and spawn the sensor prim if needed.
+    def _resolve_rigid_body_ancestor_expr(
+        self,
+    ) -> tuple[str, tuple[float, float, float] | None, tuple[float, float, float, float] | None]:
+        """Resolve the rigid-body ancestor view expression and the sensor-to-body offset.
 
-        Behavior matrix (``spawn`` refers to ``cfg.spawn``):
+        The sensor's :attr:`SensorBaseCfg.prim_path` may point to any frame
+        inside the asset. To create a physics view, this helper walks ancestors
+        from that prim until it finds one with ``UsdPhysics.RigidBodyAPI``,
+        builds the corresponding destination-side expression, and computes the
+        fixed transform from that body to the configured sensor frame.
 
-        +----------------+------------------+--------------------------------------------+
-        | ``spawn``      | ``prim_path``    | Action                                     |
-        +================+==================+============================================+
-        | not ``None``   | physics body     | Append ``/<sensor_name>``, spawn child.    |
-        +----------------+------------------+--------------------------------------------+
-        | not ``None``   | non-physics prim | Use existing prim, skip spawn.             |
-        |                | (already exists) |                                            |
-        +----------------+------------------+--------------------------------------------+
-        | not ``None``   | does not exist   | Spawn prim at ``prim_path``.               |
-        +----------------+------------------+--------------------------------------------+
-        | ``None``       | physics body     | Raise ``ValueError``.                      |
-        +----------------+------------------+--------------------------------------------+
-        | ``None``       | non-physics prim | Use as-is (no spawn).                      |
-        +----------------+------------------+--------------------------------------------+
+        Combines two resolution paths:
 
-        Args:
-            sensor_name: Short identifier (e.g. ``"raycaster"``, ``"camera"``).
-            **spawn_kwargs: Extra keyword arguments forwarded to ``cfg.spawn.func``
-                (e.g. ``translation``, ``orientation``).
+        1. When an active :class:`~isaaclab.cloner.ClonePlan` exists, the
+           source-side env path is taken from the plan via
+           :func:`~isaaclab.cloner.resolve_clone_plan_source`, the rigid-body ancestor
+           is located on that source env, and the destination expression is
+           reconstructed by trimming the sensor-relative suffix from the plan's
+           destination glob.
+        2. Otherwise (stage scan fallback for non-cloned setups), the first
+           matching env is located via
+           :func:`~isaaclab.sim.utils.queries.find_first_matching_prim`, the
+           rigid-body ancestor is located on that env, and the destination
+           expression is the configured :attr:`SensorBaseCfg.prim_path` minus
+           the sensor-relative suffix.
 
-        Raises:
-            ValueError: If ``spawn`` is ``None`` and ``prim_path`` is a physics body.
-            RuntimeError: If the prim does not exist after the spawn attempt.
+        The returned expression may still contain regex-style wildcards (e.g.
+        ``.*``); callers are responsible for converting to glob form for their
+        physics view (e.g. ``.replace(".*", "*")``).
+
+        Returns:
+            A tuple of:
+
+            * ``rigid_parent_expr``: destination-side view expression that
+              matches the rigid-body ancestor across envs.
+            * ``fixed_pos_b``: sensor-relative-to-body translation [m] (xyz),
+              or ``None`` when the sensor is mounted directly at the body
+              origin.
+            * ``fixed_quat_b``: sensor-relative-to-body rotation as a
+              quaternion ``(x, y, z, w)``, or ``None`` when the sensor is
+              mounted directly at the body origin.
         """
-        from pxr import UsdPhysics  # noqa: PLC0415
+        prim, target_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
 
-        spawn = getattr(self.cfg, "spawn", None)
-        has_spawn = spawn is not None
+        ancestor_prim = get_first_matching_ancestor_prim(
+            prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
+        )
+        if ancestor_prim is None:
+            raise RuntimeError(f"Failed to find a rigid body ancestor prim at path expression: {self.cfg.prim_path}")
 
-        # Determine the path to probe for physics-body redirect
-        spawn_path = (getattr(spawn, "spawn_path", None) or self.cfg.prim_path) if has_spawn else None
-        probe_path = spawn_path if spawn_path is not None else self.cfg.prim_path
+        if ancestor_prim == prim:
+            return target_expr, None, None
 
-        prim = sim_utils.find_first_matching_prim(probe_path)
-        if prim is not None and prim.IsValid():
-            is_physics = prim.HasAPI(UsdPhysics.ArticulationRootAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)
-            if is_physics:
-                if not has_spawn:
-                    raise ValueError(
-                        f"Sensor prim_path '{self.cfg.prim_path}' resolves to a physics body but"
-                        f" no spawner is configured (spawn=None). Either set spawn or point"
-                        f" prim_path at a non-physics child (e.g. '{self.cfg.prim_path}/{sensor_name}')."
-                    )
-                logger.info(
-                    f"Sensor prim_path '{self.cfg.prim_path}' points at a physics body."
-                    f" Redirecting to '{self.cfg.prim_path}/{sensor_name}'."
-                )
-                self.cfg.prim_path = f"{self.cfg.prim_path}/{sensor_name}"
-                if getattr(spawn, "spawn_path", None) is not None:
-                    spawn.spawn_path = f"{spawn.spawn_path}/{sensor_name}"
-
-        if not has_spawn:
-            return
-
-        spawn_target = getattr(spawn, "spawn_path", None) or self.cfg.prim_path
-        prim = sim_utils.find_first_matching_prim(spawn_target)
-        if prim is None or not prim.IsValid():
-            spawn.func(spawn_target, spawn, **spawn_kwargs)
-
-        check_path = getattr(spawn, "spawn_path", None) or self.cfg.prim_path
-        if len(sim_utils.find_matching_prims(check_path)) == 0:
-            raise RuntimeError(f"Could not find prim with path {check_path!r}.")
+        relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
+        suffix = "/" + relative_path
+        if not target_expr.endswith(suffix):
+            raise RuntimeError(
+                f"Failed to build rigid body ancestor expression: target expression {target_expr!r} does not end "
+                f"with relative path {relative_path!r}."
+            )
+        rigid_parent_expr = target_expr[: -len(suffix)]
+        fixed_pos_b, fixed_quat_b = resolve_prim_pose(prim, ancestor_prim)
+        return rigid_parent_expr, fixed_pos_b, fixed_quat_b

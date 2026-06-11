@@ -14,7 +14,7 @@ import gymnasium as gym
 ##
 
 inhand_task_entry = "isaaclab_tasks_experimental.direct.inhand_manipulation"
-stable_agents = "isaaclab_tasks.direct.allegro_hand.agents"
+stable_agents = "isaaclab_tasks.core.allegro_hand.agents"
 
 gym.register(
     id="Isaac-Repose-Cube-Allegro-Direct-Warp-v0",

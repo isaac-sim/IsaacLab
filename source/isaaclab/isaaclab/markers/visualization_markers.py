@@ -111,6 +111,7 @@ class VisualizationMarkers:
         self.prim_path = cfg.prim_path
         self._count = len(cfg.markers)
         self._is_visible = True
+        self._has_visualized = False
         self._backends: list[object] = []
         self._ensure_backends_initialized()
 
@@ -226,7 +227,11 @@ class VisualizationMarkers:
             if value is not None:
                 num_markers = value.shape[0]
 
-        if norm_marker_indices is None and num_markers != 0 and num_markers != self._count:
+        if (
+            norm_marker_indices is None
+            and num_markers != 0
+            and (not self._has_visualized or num_markers != self._count)
+        ):
             norm_marker_indices = torch.zeros(num_markers, dtype=torch.int32, device=target_device)
         elif norm_marker_indices is None and num_markers == 0:
             if all(value is None for value in (norm_translations, norm_orientations, norm_scales)):
@@ -238,6 +243,7 @@ class VisualizationMarkers:
 
         if num_markers != 0:
             self._count = num_markers
+            self._has_visualized = True
 
     def __del__(self):
         for backend in getattr(self, "_backends", []):
@@ -250,7 +256,10 @@ class VisualizationMarkers:
             self._ensure_kit_backend()
             return
 
-        if any(viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers):
+        needs_kit_backend = sim.is_rendering or any(
+            viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+        )
+        if needs_kit_backend:
             self._ensure_kit_backend()
         if any(
             viz.supports_markers() and not viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers

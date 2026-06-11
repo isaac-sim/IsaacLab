@@ -1,6 +1,217 @@
 Changelog
 ---------
 
+0.15.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton rigid-object deprecated root state writers to call keyword-only
+  pose and velocity helpers correctly.
+* Fixed Newton RTX/Fabric body binding to derive per-body Fabric bindings from
+  clone-plan source rows while labels are rewritten, avoiding invalid Fabric
+  attribute writes without cloning USD specs for each environment.
+
+
+0.15.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+* Fixed incorrect camera pose in :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`.
+
+
+0.15.3 (2026-06-08)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed stale Newton sensor site registrations leaking across simulation context teardown.
+
+
+0.15.2 (2026-06-06)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``NewtonManager.get_contacts()`` accessor so visualizers can render
+  Newton contact buffers without reaching into manager internals.
+
+
+0.15.1 (2026-06-05)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin from ``v1.2.0`` to ``v1.2.1rc2``.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the MuJoCo Warp parallel line search config option. Setting it
+  emits a warning and is ignored; use
+  :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.ls_iterations` to tune the
+  iterative line search path.
+
+
+0.15.0 (2026-06-04)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``NewtonSDFCollisionPropertiesCfg`` for authoring Newton SDF and hydroelastic collision USD attributes.
+
+
+0.14.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_newton.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
+0.14.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+*  Updates articulation to support passive tendons properties
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.collision_decimation` to
+  re-invoke the Newton collision pipeline every ``N`` solver substeps within
+  a physics tick. Defaults to ``0`` (legacy: one collide per tick). When set
+  to ``0 < N < num_substeps``, the substep loop in
+  :meth:`~isaaclab_newton.physics.NewtonManager._run_solver_substeps` calls
+  the collision pipeline again at the matching substep boundaries so contact
+  normals reflect the bodies' just-integrated poses. The last substep is
+  intentionally skipped — its contact set would only feed the next tick.
+  :meth:`~isaaclab_newton.physics.NewtonCfg.__post_init__` warns when
+  ``collision_decimation >= num_substeps`` (the gate is silently bypassed).
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.sensors.ContactSensor`, :class:`~isaaclab_newton.sensors.Imu`,
+  :class:`~isaaclab_newton.sensors.Pva`, and :class:`~isaaclab_newton.sensors.JointWrenchSensor`
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each sensor's ``reset()`` now marks
+  the reset envs as up to date after zeroing ``_data``, so an immediate read returns those
+  zeros rather than re-fetching a physics buffer that has not been stepped since the reset.
+* Fixed particle self-contact configuration in the Newton deformables demo to prevent inter-penetration.
+* Fixed :attr:`~isaaclab_newton.assets.ArticulationData.GRAVITY_VEC_W` (and the
+  matching attribute on :class:`~isaaclab_newton.assets.RigidObjectData` and
+  :class:`~isaaclab_newton.assets.RigidObjectCollectionData`) to bind directly
+  to Newton's per-world ``model.gravity`` array. Previously the constructor
+  snapshotted env 0's gravity as a unit vector and broadcast it to every
+  environment, so per-env gravity randomization (e.g.
+  :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity`) was invisible to
+  every consumer of ``GRAVITY_VEC_W`` and to the lazily-recomputed
+  :attr:`~isaaclab_newton.assets.ArticulationData.projected_gravity_b`.
+  ``GRAVITY_VEC_W`` now carries the actual world-frame gravity vector
+  (m/s\\ :sup:`2`); ``projected_gravity_b`` continues to expose a unit vector
+  in the body frame via a new dedicated kernel that normalizes internally.
+* Fixed Newton frame-view and ray-caster sensor resolution to use clone-plan
+  source paths and Newton model labels instead of cloned destination USD prims.
+* Fixed Newton Warp camera preparation to avoid requiring PPISP when camera ISP
+  is disabled.
+
+
+0.13.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`, sourced from its native scene-linear color buffer.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_newton.renderers.NewtonWarpRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch tensor and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+
+Fixed
+^^^^^
+
+* Fixed Newton visualizer camera image views and state updates for PhysX-backed simulations.
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager._backend_is_newton`
+  returning ``False`` when ``PhysicsManager._sim`` was unset but a
+  :class:`~isaaclab.sim.SimulationContext` instance existed. The scene-data
+  provider lookup now consistently falls back to
+  :meth:`~isaaclab.sim.SimulationContext.instance`, via a new
+  :meth:`~isaaclab_newton.physics.NewtonManager.get_scene_data_provider`
+  helper shared with :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`.
+
+
+0.12.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton-specific deformable property and material cfgs.
+* Added Newton deformable asset exports under
+  :mod:`isaaclab_newton.assets.deformable_object`.
+* Added deformable registration hooks to Newton cloning so deformable assets can
+  be added per replicated world while their USD proxy meshes are skipped by the
+  Newton USD importer.
+* Added Newton manager abstraction documentation for adding solver managers and
+  custom coupled solvers.
+
+Changed
+^^^^^^^
+
+* Moved Newton-native actuator USD authoring out of
+  ``isaaclab_newton.actuators.authoring`` (now deleted) into
+  :func:`~isaaclab.sim.schemas.define_actuator_properties`. The authoring step
+  is now invoked via the schema-side ``_post_spawn`` hook on
+  :class:`~isaaclab.assets.AssetBaseCfg`.
+* Grouped :attr:`~isaaclab_newton.physics.NewtonManager._decimation` next to
+  :attr:`~isaaclab_newton.physics.NewtonManager._num_substeps` for consistency
+  with related solver-stepping configuration.
+* Changed Newton solver configuration exports so
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg`,
+  :class:`~isaaclab_newton.physics.XPBDSolverCfg`,
+  :class:`~isaaclab_newton.physics.FeatherstoneSolverCfg`, and
+  :class:`~isaaclab_newton.physics.KaminoSolverCfg` are provided from
+  :mod:`isaaclab_newton.physics.newton_manager_cfg`.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` to use
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` as its explicit default
+  solver configuration.
+* Changed :class:`~isaaclab_newton.physics.NewtonCfg` validation to reject
+  :class:`~isaaclab_newton.physics.MJWarpSolverCfg` configurations that combine
+  ``use_mujoco_contacts=True`` with ``collision_cfg``. Remove ``collision_cfg``
+  or set ``use_mujoco_contacts=False``.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Fixed
+^^^^^
+
+* Fixed Newton visualization state updates for PhysX-backed simulations.
+* Fixed Newton Fabric synchronization for deformable particle meshes and
+  particle-only scenes.
+* Fixed :meth:`~isaaclab_newton.physics.NewtonManager.update_visualization_state`
+  retrieving the wrong simulation context. It now uses
+  :meth:`~isaaclab.sim.SimulationContext.instance` instead of the stale
+  ``PhysicsManager._sim`` reference.
+
+
 0.11.0 (2026-05-17)
 ~~~~~~~~~~~~~~~~~~~
 
@@ -116,7 +327,7 @@ Added
   USD stage (via
   :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`)
   and refreshes ``state_0.body_q`` from rigid-body transforms supplied by the
-  :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` each render
+  :class:`~isaaclab.scene_data.SceneDataProvider` each render
   frame.
 
 Changed
@@ -149,7 +360,7 @@ Removed
   (``NewtonSceneDataProvider``). Replace direct uses with
   :meth:`~isaaclab_newton.physics.NewtonManager.get_model` /
   :meth:`~isaaclab_newton.physics.NewtonManager.get_state` and the
-  Warp-native :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider`.
+  Warp-native :class:`~isaaclab.scene_data.SceneDataProvider`.
 
 Fixed
 ^^^^^

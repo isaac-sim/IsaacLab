@@ -1,0 +1,38 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
+from isaaclab.managers.action_manager import ActionTermCfg
+from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from ..mdp.actions import AgileBasedLowerBodyAction
+
+
+@configclass
+class AgileBasedLowerBodyActionCfg(ActionTermCfg):
+    """Configuration for the lower body action term that is based on Agile lower body RL policy."""
+
+    class_type: type["AgileBasedLowerBodyAction"] | str = (
+        "isaaclab_tasks.contrib.locomanip_pick_place.mdp.actions:AgileBasedLowerBodyAction"
+    )
+    """The class type for the lower body action term."""
+
+    joint_names: list[str] = MISSING
+    """The names of the joints to control."""
+
+    obs_group_name: str = MISSING
+    """The name of the observation group to use."""
+
+    policy_path: str = MISSING
+    """The path to the policy model."""
+
+    policy_output_offset: float = 0.0
+    """Offsets the output of the policy."""
+
+    policy_output_scale: float = 1.0
+    """Scales the output of the policy."""

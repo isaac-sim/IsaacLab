@@ -32,7 +32,8 @@ import omni.usd
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager, SceneDataBackend, SceneDataFormat
+from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
+from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.utils.string import to_camel_case
 
 if TYPE_CHECKING:
@@ -172,9 +173,10 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
 
-        Discovers rigid body prims by traversing the USD stage and converts
-        per-environment paths (``/World/envs/env_N/...``) into wildcard
-        patterns so a single PhysX view covers every environment instance.
+        Discovers exact rigid body prims by traversing USD, then compacts cloned
+        environment paths into wildcard patterns. If a rigid body name is also
+        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
+        the wildcard to the non-rigid prim.
         """
         if self._rigid_body_view is not None:
             return self._rigid_body_view
@@ -186,15 +188,29 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return None
 
-        patterns: set[str] = set()
+        rigid_body_paths: list[str] = []
+        non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
+            prim_path = prim.GetPath().pathString
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+                rigid_body_paths.append(prim_path)
+            elif re.search(r"/World/envs/env_\d+/", prim_path):
+                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
 
-        if not patterns:
+        patterns: set[str] = set()
+        exact_paths: list[str] = []
+        for prim_path in rigid_body_paths:
+            body_name = prim_path.rsplit("/", 1)[-1]
+            if body_name in non_rigid_body_names:
+                exact_paths.append(prim_path)
+            else:
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
+
+        body_paths = [*sorted(patterns), *exact_paths]
+        if not body_paths:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(list(patterns))
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
 
     @property
@@ -335,7 +351,6 @@ class PhysxManager(PhysicsManager):
 
         cls._physx_sim.simulate(sim.cfg.dt, 0.0)
         cls._physx_sim.fetch_results()
-
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -348,6 +363,7 @@ class PhysxManager(PhysicsManager):
         cls._timeline.play()
         # Pump events so timeline callbacks fire synchronously
         omni.kit.app.get_app().update()
+        cls._sync_fabric_after_resume()
 
     @classmethod
     def pause(cls) -> None:
@@ -377,15 +393,20 @@ class PhysxManager(PhysicsManager):
             app.update()
             if cls._timeline.is_stopped():
                 break
-        # Force fabric to re-sync articulation transforms after resume.
-        # detach/attach resets the FabricManager, then we immediately push
-        # current poses so the first render after resume shows correct state.
-        if not cls._timeline.is_stopped():
-            cls._re_sync_fabric()
-            if cls._view is not None:
-                cls._view.update_articulations_kinematic()
-            if cls._update_fabric is not None:
-                cls._update_fabric(0.0, 0.0)
+        cls._sync_fabric_after_resume()
+
+    @classmethod
+    def _sync_fabric_after_resume(cls) -> None:
+        """Force Fabric to show current articulation transforms after timeline resume."""
+        if cls._timeline.is_stopped():
+            return
+        # detach/attach resets the FabricManager, then immediately push current
+        # poses so the first render after resume shows correct state.
+        cls._re_sync_fabric()
+        if cls._view is not None:
+            cls._view.update_articulations_kinematic()
+        if cls._update_fabric is not None:
+            cls._update_fabric(0.0, 0.0)
 
     @classmethod
     def close(cls) -> None:

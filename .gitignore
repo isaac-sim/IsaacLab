@@ -80,9 +80,6 @@ _build
 # Ruff cache
 **/.ruff_cache/
 
-# Dev-time files, generated stuff
-**/__*
-
 # Isaac Lab CI environments in native mode
 **/_isaaclab_install_ci_*
 

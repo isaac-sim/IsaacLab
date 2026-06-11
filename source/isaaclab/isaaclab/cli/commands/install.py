@@ -83,11 +83,44 @@ def _install_system_deps() -> None:
         # isaacteleop[retargeters], so pip falls back to a CMake source build
         # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
         if not shutil.which("swig"):
-            print_info("Installing swig (required for building nlopt on ARM)...")
-            cmd = ["apt-get", "update"]
-            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-            cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
-            run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+            if os.geteuid() != 0 and not shutil.which("sudo"):
+                print_info(
+                    "swig is missing and sudo is unavailable; skipping swig install. "
+                    "Pre-install swig in your image if you need to build nlopt from source."
+                )
+            else:
+                print_info("Installing swig (required for building nlopt on ARM)...")
+                cmd = ["apt-get", "update"]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+                cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+
+        # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a
+        # CMake source build that needs GL/X11 dev headers (via glfw).
+        # Mirrors the apt step in docker/Dockerfile.base.
+        _gl_x11_packages = [
+            "libgl1-mesa-dev",
+            "libopengl-dev",
+            "libglx-dev",
+            "libx11-dev",
+            "libxcursor-dev",
+            "libxi-dev",
+            "libxinerama-dev",
+            "libxrandr-dev",
+        ]
+        if not os.path.isfile("/usr/include/X11/Xlib.h"):
+            if os.geteuid() != 0 and not shutil.which("sudo"):
+                print_info(
+                    "GL/X11 dev headers are missing and sudo is unavailable; "
+                    "skipping install.  Pre-install " + " ".join(_gl_x11_packages) + " "
+                    "if you need to build imgui-bundle from source."
+                )
+            else:
+                print_info("Installing GL/X11 dev headers (required for building imgui-bundle on ARM)...")
+                cmd = ["apt-get", "update"]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+                cmd = ["apt-get", "install", "-y", "--no-install-recommends", *_gl_x11_packages]
+                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
 
 def _torch_first_on_sys_path_is_prebundle(python_exe: str, *, env: dict[str, str]) -> bool:
@@ -180,7 +213,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     the pink IK controller and its tests work out of the box.
 
     Only runs on Linux x86_64 / aarch64 — the same platforms that have
-    pinocchio listed in :mod:`isaaclab`'s ``setup.py`` install requirements.
+    pinocchio listed in :mod:`isaaclab`'s ``pyproject.toml`` install requirements.
     Skipped on Windows and macOS (no cmeel wheels) and on unsupported
     architectures so the rest of ``--install`` behaves unchanged there.
 
@@ -431,10 +464,13 @@ def _install_isaacsim() -> None:
     )
 
 
-# Source directories installed on every ./isaaclab.sh -i invocation (even "none").
-# Order matters: isaaclab must be first so dependents resolve against the local copy.
+# Source directories installed on every ./isaaclab.sh -i invocation (even "core").
+# Order matters: isaaclab must be first so dependents resolve against the local copy,
+# and isaaclab_ppisp should precede renderer backends (newton/ov/physx) so local
+# camera ISP support is available when CameraCfg.isp_cfg is used.
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
+    "isaaclab_ppisp",
     "isaaclab_assets",
     "isaaclab_contrib",
     "isaaclab_experimental",
@@ -451,7 +487,7 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 # Optional submodules — only installed when explicitly requested or with 'all'.
 # Maps the short CLI name to one or more source directory names under source/.
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
-    "mimic": ("isaaclab_mimic",),
+    "mimic": ("isaaclab_teleop", "isaaclab_mimic"),
     "teleop": ("isaaclab_teleop",),
 }
 
@@ -471,7 +507,7 @@ VALID_EXTRA_FEATURES: set[str] = {
 MANUAL_EXTRA_FEATURES: set[str] = {"contrib", "ov"}
 
 
-def _split_install_items(install_type: str) -> list[str]:
+def split_install_items(install_type: str) -> list[str]:
     """Split comma-separated install items, ignoring commas inside brackets."""
     parts: list[str] = []
     buf: list[str] = []
@@ -512,8 +548,8 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
     pip_cmd = get_pip_command(python_exe)
     for pkg_name in isaaclab_submodules:
         item = source_dir / pkg_name
-        if not item.is_dir() or not (item / "setup.py").exists():
-            print_warning(f"Submodule directory not found or missing setup.py: {item}")
+        if not item.is_dir() or not ((item / "pyproject.toml").exists() or (item / "setup.py").exists()):
+            print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
         run_command(pip_cmd + ["install", "--editable", str(item)])
@@ -616,7 +652,7 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     elif feature_name == "newton":
         if selector:
             print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
-        print_info("Installing newton extras (newton[sim], PyOpenGL-accelerate, imgui-bundle)...")
+        print_info("Installing newton extras (newton[sim], PyOpenGL-accelerate, imgui-bundle, typing-extensions)...")
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_newton[all]"])
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_physx[newton]"])
         run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[newton]"])
@@ -649,6 +685,8 @@ _PREBUNDLE_REPOINT_PACKAGES: list[str] = [
     "websockets",
     "viser",
     "imgui_bundle",
+    "attr",
+    "attrs",
 ]
 """Package directory names in Isaac Sim prebundle directories to repoint.
 
@@ -783,7 +821,7 @@ def command_install(install_type: str = "all") -> None:
             * ``"all"`` (default) — install core submodules + optional
               submodules (``mimic``, ``teleop``) + all automatic
               extra features.
-            * ``"none"`` — install core submodules only; no optional
+            * ``"core"`` — install core submodules only; no optional
               submodules, no extra feature dependencies.
             * Comma-separated tokens — install core submodules plus the listed
               optional submodules and extra features. Valid tokens:
@@ -825,15 +863,19 @@ def command_install(install_type: str = "all") -> None:
             if pkg_dir not in submodules_to_install:
                 submodules_to_install.append(pkg_dir)
 
+    # back-compat: "none" is the old name for "core"
+    if install_type == "none":
+        install_type = "core"
+
     if install_type == "all":
         for package_dirs in OPTIONAL_ISAACLAB_SUBMODULES.values():
             append_submodules_once(package_dirs)
         extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
-    elif install_type == "none":
+    elif install_type == "core":
         # Core only — no optional submodules, no extra features.
         pass
     else:
-        for token in _split_install_items(install_type):
+        for token in split_install_items(install_type):
             if "[" in token:
                 bracket_pos = token.index("[")
                 name = token[:bracket_pos].strip()
@@ -936,7 +978,7 @@ def command_install(install_type: str = "all") -> None:
             for feature_name, selector in extra_features:
                 _install_extra_feature(feature_name, selector)
 
-        # In some rare cases, torch might not be installed properly by setup.py, add one more check here.
+        # In some rare cases, torch might not be installed properly by pyproject.toml, add one more check here.
         # Can prevent that from happening.
         _ensure_cuda_torch()
 

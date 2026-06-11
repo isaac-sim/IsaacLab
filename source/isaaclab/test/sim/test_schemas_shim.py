@@ -13,6 +13,7 @@ These tests do not require Isaac Sim — only Python import semantics.
 import warnings
 
 import pytest
+from isaaclab_newton.sim.schemas import schemas_cfg as newton_cfg
 from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
 from isaaclab_physx.sim.spawners.materials import physics_materials_cfg as physx_mat_cfg
 
@@ -29,8 +30,9 @@ FORWARDED_NAMES = [
     "PhysxJointDrivePropertiesCfg",
     "CollisionPropertiesCfg",
     "PhysxCollisionPropertiesCfg",
+    "DeformableBodyPropertiesCfg",
+    "PhysxDeformableBodyPropertiesCfg",
     "PhysxDeformableCollisionPropertiesCfg",
-    "PhysXCollisionPropertiesCfg",
     "ArticulationRootPropertiesCfg",
     "PhysxArticulationRootPropertiesCfg",
     "MeshCollisionPropertiesCfg",
@@ -54,7 +56,7 @@ DEPRECATED_FORWARDED_NAMES = [
     "RigidBodyPropertiesCfg",
     "JointDrivePropertiesCfg",
     "CollisionPropertiesCfg",
-    "PhysXCollisionPropertiesCfg",
+    "DeformableBodyPropertiesCfg",
     "ArticulationRootPropertiesCfg",
     "MeshCollisionPropertiesCfg",
     "ConvexHullPropertiesCfg",
@@ -67,8 +69,30 @@ DEPRECATED_FORWARDED_NAMES = [
 ]
 
 FORWARDED_MATERIAL_NAMES = [
+    "DeformableBodyMaterialCfg",
     "RigidBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
     "PhysxRigidBodyMaterialCfg",
+    "PhysxDeformableBodyMaterialCfg",
+    "PhysxSurfaceDeformableBodyMaterialCfg",
+]
+
+DEPRECATED_FORWARDED_MATERIAL_NAMES = [
+    "DeformableBodyMaterialCfg",
+    "RigidBodyMaterialCfg",
+    "SurfaceDeformableBodyMaterialCfg",
+]
+
+NEWTON_FORWARDED_NAMES = [
+    "MujocoRigidBodyPropertiesCfg",
+    "MujocoJointDrivePropertiesCfg",
+    "NewtonRigidBodyPropertiesCfg",
+    "NewtonJointDrivePropertiesCfg",
+    "NewtonCollisionPropertiesCfg",
+    "NewtonMeshCollisionPropertiesCfg",
+    "NewtonSDFCollisionPropertiesCfg",
+    "NewtonMaterialPropertiesCfg",
+    "NewtonArticulationRootPropertiesCfg",
 ]
 
 
@@ -106,6 +130,24 @@ def test_materials_cfg_submodule_shim_resolves_to_physx_class(name):
     assert getattr(materials_cfg_submodule, name) is getattr(physx_mat_cfg, name)
 
 
+@pytest.mark.parametrize("name", NEWTON_FORWARDED_NAMES)
+def test_schemas_shim_resolves_to_newton_class(name):
+    """``isaaclab.sim.schemas.<name>`` resolves to the Newton extension class."""
+    assert getattr(schemas, name) is getattr(newton_cfg, name)
+
+
+@pytest.mark.parametrize("name", NEWTON_FORWARDED_NAMES)
+def test_sim_namespace_shim_resolves_to_newton_class(name):
+    """``isaaclab.sim.<name>`` resolves to the Newton extension class."""
+    assert getattr(sim_utils, name) is getattr(newton_cfg, name)
+
+
+@pytest.mark.parametrize("name", NEWTON_FORWARDED_NAMES)
+def test_schemas_cfg_submodule_shim_resolves_to_newton_class(name):
+    """Direct ``isaaclab.sim.schemas.schemas_cfg`` imports resolve to Newton classes."""
+    assert getattr(schemas_cfg_submodule, name) is getattr(newton_cfg, name)
+
+
 @pytest.mark.parametrize("name", FORWARDED_MATERIAL_NAMES)
 def test_sim_namespace_material_shim_resolves_to_physx_class(name):
     """``isaaclab.sim.<name>`` (i.e. ``sim_utils.<name>``) resolves to the relocated material class."""
@@ -132,13 +174,14 @@ def test_deprecated_aliases_emit_deprecation_warning(name):
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
 
 
-def test_deprecated_material_alias_emits_deprecation_warning():
-    """Instantiating ``RigidBodyMaterialCfg`` via the shim still emits ``DeprecationWarning``."""
+@pytest.mark.parametrize("name", DEPRECATED_FORWARDED_MATERIAL_NAMES)
+def test_deprecated_material_aliases_emit_deprecation_warning(name):
+    """Instantiating a deprecated material alias via the shim still emits ``DeprecationWarning``."""
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        materials.RigidBodyMaterialCfg()
+        getattr(materials, name)()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1
+    assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
     assert "5.0" in str(deprecations[0].message)
 
 
@@ -158,10 +201,19 @@ def test_new_material_class_does_not_emit_deprecation_warning():
     assert not any(issubclass(w.category, DeprecationWarning) for w in caught)
 
 
+def test_deformable_component_cfg_is_not_forwarded_from_core():
+    """Component deformable cfgs are backend-owned and not forwarded from ``isaaclab``."""
+    assert not hasattr(schemas, "PhysXDeformableBodyPropertiesCfg")
+    assert not hasattr(sim_utils, "PhysXDeformableBodyPropertiesCfg")
+    assert not hasattr(schemas_cfg_submodule, "PhysXDeformableBodyPropertiesCfg")
+
+
 def test_dir_lists_forwarded_names():
     """``dir(isaaclab.sim.schemas)`` includes the forwarded names so IDE autocomplete works."""
     listing = dir(schemas)
     for name in FORWARDED_NAMES:
+        assert name in listing
+    for name in NEWTON_FORWARDED_NAMES:
         assert name in listing
 
 

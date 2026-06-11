@@ -20,10 +20,18 @@ have successfully deployed a Newton-trained locomotion policy to a G1 robot.
 Newton can support `multiple solvers
 <https://newton-physics.github.io/newton/latest/api/newton_solvers.html>`_ for
 handling different types of physics simulation. The Isaac Lab integration ships
-two solver pages:
+the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
+* :doc:`using-vbd-solver` — experimental VBD solver for cloth and soft bodies,
+  available through :mod:`isaaclab_contrib.deformable` and the MJWarp + VBD or
+  Featherstone + VBD coupled managers.
+
+Each solver is exposed as a small subclass of
+:class:`~isaaclab_newton.physics.NewtonManager`. See
+:doc:`newton-manager-abstraction` for the developer-facing guide to adding a
+new solver or a coupled solver.
 
 During the beta phase, breaking changes and incomplete documentation are still
 expected. Official support and debugging assistance will follow once the framework
@@ -41,5 +49,7 @@ new backend, see :doc:`../../multi_backend_architecture`.
   supported-features
   mjwarp-solver
   kamino-solver
+  using-vbd-solver
+  newton-manager-abstraction
   warp-environments
   warp-env-migration

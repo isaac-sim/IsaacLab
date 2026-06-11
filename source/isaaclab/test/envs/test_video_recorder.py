@@ -172,6 +172,17 @@ def test_resolve_backend_kit_wins_over_newton_visualizer():
     assert matched == "kit"
 
 
+def test_resolve_backend_warns_when_multiple_video_capable_visualizers(caplog: pytest.LogCaptureFixture):
+    """The Gymnasium video wrapper records one stream even if both Kit and Newton are active."""
+    scene = _make_scene(["newton", "kit"])
+    with caplog.at_level("WARNING"):
+        backend, matched = _resolve_video_backend(scene)
+
+    assert backend == "kit"
+    assert matched == "kit"
+    assert any("Multiple video-capable visualizers are active" in record.getMessage() for record in caplog.records)
+
+
 def test_resolve_backend_unsupported_visualizer_falls_through():
     """viser/rerun visualizers fall through to physics stack detection."""
     scene = _make_scene(["viser"], physics_name="PhysxPhysicsManager")

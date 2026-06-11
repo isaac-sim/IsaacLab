@@ -15,7 +15,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/skrl/play.py is deprecated. Use "
     "`./isaaclab.sh play --rl_library skrl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library skrl --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh play --rl_library skrl --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )
@@ -32,6 +32,7 @@ import skrl
 import torch
 from packaging import version
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.seed import configure_seed
@@ -40,10 +41,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -52,7 +50,7 @@ from isaaclab_tasks.utils import (
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
-SKRL_VERSION = "2.0.0"
+SKRL_VERSION = "2.1.0"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
@@ -96,7 +94,7 @@ parser.add_argument(
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True

@@ -72,107 +72,38 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # on every CI run. (NVBUG#6152566)
 _FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 
+# Expand this tuple to test additional camera sensor data types
+_DEFAULT_SENSOR_DATA_TYPES = (
+    "rgb",
+    "albedo",
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+    "semantic_segmentation",
+    "depth",
+)
+
+
+def _make_sensor_data_type_params(
+    physics_backend: str, renderer: str, sensor_data_types: list[str] = None
+) -> list[pytest.param]:
+    """Create golden-image parameter entries for every supported output type."""
+    sensor_data_types = sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES
+    return [
+        pytest.param(
+            physics_backend,
+            f"{renderer}_renderer",
+            data_type,
+            id=f"{physics_backend}-{renderer}-{data_type}",
+            marks=_FLAKY_MARK,
+        )
+        for data_type in sensor_data_types
+    ]
+
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    # physx + isaacsim_rtx_renderer
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "rgb",
-        id="physx-isaacsim_rtx-rgb",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "albedo",
-        id="physx-isaacsim_rtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "depth",
-        id="physx-isaacsim_rtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "simple_shading_full_mdl",
-        id="physx-isaacsim_rtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "semantic_segmentation",
-        id="physx-isaacsim_rtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
-    ),
-    # newton + isaacsim_rtx_renderer
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "rgb",
-        id="newton-isaacsim_rtx-rgb",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "albedo",
-        id="newton-isaacsim_rtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "depth",
-        id="newton-isaacsim_rtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_full_mdl",
-        id="newton-isaacsim_rtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "semantic_segmentation",
-        id="newton-isaacsim_rtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
-    ),
+    *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
     # physx + newton_renderer (warp)
     pytest.param(
         "physx",
@@ -189,55 +120,20 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    # newton + ovrtx_renderer
+    *_make_sensor_data_type_params("ovphysx", "ovrtx"),
+    *_make_sensor_data_type_params("newton", "ovrtx"),
+    # ovphysx + newton_renderer (warp)
     pytest.param(
-        "newton",
-        "ovrtx_renderer",
+        "ovphysx",
+        "newton_renderer",
         "rgb",
-        id="newton-ovrtx-rgb",
-        marks=_FLAKY_MARK,
+        id="ovphysx-newton_warp-rgb",
     ),
     pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "albedo",
-        id="newton-ovrtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
+        "ovphysx",
+        "newton_renderer",
         "depth",
-        id="newton-ovrtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "simple_shading_full_mdl",
-        id="newton-ovrtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "semantic_segmentation",
-        id="newton-ovrtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
+        id="ovphysx-newton_warp-depth",
     ),
     # newton + newton_renderer (warp)
     pytest.param(
@@ -279,6 +175,36 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
     hydra_cfg = {"env": env_cfg.to_dict()}
     env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
     return env_cfg
+
+
+def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
+    """Point OVRTX renderer logs at process stdout for kitless rendering tests.
+
+    Walks camera cfgs (``env_cfg.tiled_camera`` for direct envs, ``env_cfg.scene.base_camera`` / ``wrist_camera`` for
+    manager-based envs) and sets :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.log_file_path` on each camera whose
+    resolved ``renderer_cfg.renderer_type`` is ``"ovrtx"``. Uses ``/dev/stdout`` on Linux and ``CON`` on Windows so
+    pytest captures OVRTX renderer log.
+    """
+    camera_cfgs: list[Any] = []
+
+    # direct envs
+    tiled_camera = getattr(env_cfg, "tiled_camera", None)
+    if tiled_camera is not None:
+        camera_cfgs.append(tiled_camera)
+
+    # manager-based envs
+    scene = getattr(env_cfg, "scene", None)
+    if scene is not None:
+        for camera_name in ("base_camera", "wrist_camera"):
+            camera_cfg = getattr(scene, camera_name, None)
+            if camera_cfg is not None:
+                camera_cfgs.append(camera_cfg)
+
+    # redirect OVRTX renderer log to stdout
+    for camera_cfg in camera_cfgs:
+        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
+        if renderer_cfg is not None and getattr(renderer_cfg, "renderer_type", None) == "ovrtx":
+            renderer_cfg.log_file_path = "CON" if os.name == "nt" else "/dev/stdout"
 
 
 def _physics_preset_name(physics_backend: str) -> str:
@@ -473,35 +399,44 @@ def make_attach_comparison_properties_fixture(comparison_scores: list[dict]):
     return _attach_comparison_properties
 
 
-def make_require_ovrtx_install_fixture():
-    """Create an autouse fixture that fails fast when OVRTX is required but not installed.
+def make_require_ovlibs_install_fixture():
+    """Create an autouse fixture that fails fast when OV libraries are required but not installed.
 
-    Only parametrized cases with ``renderer == "ovrtx_renderer"`` are checked (Newton
-    Warp kitless cases do not need ``ov[ovrtx]``). Install with
-    ``./isaaclab.sh -i 'ov[ovrtx]'`` (or the equivalent in your environment).
+    Only parametrized cases with ``renderer == "ovrtx_renderer"`` or ``physics_backend == "ovphysx"`` are checked.
+    Install with ``./isaaclab.sh -i 'ov[all]'`` (or the equivalent in your environment).
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovrtx_install(request):
+    def _require_ovlibs_install(request):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
 
-        if callspec.params.get("renderer") != "ovrtx_renderer":
-            return
+        if callspec.params.get("renderer") == "ovrtx_renderer":
+            try:
+                import ovrtx
 
-        try:
-            import ovrtx
+                print(f"ovrtx version: {ovrtx.__version__}")
+            except ImportError as exc:
+                pytest.fail(
+                    "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
+                    "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
+                    f"ImportError: {exc}"
+                )
 
-            print(f"ovrtx version: {ovrtx.__version__}")
-        except ImportError as exc:
-            pytest.fail(
-                "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
-                "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
-                f"ImportError: {exc}"
-            )
+        if callspec.params.get("physics_backend") == "ovphysx":
+            try:
+                import ovphysx
 
-    return _require_ovrtx_install
+                print(f"ovphysx version: {ovphysx.__version__}")
+            except ImportError as exc:
+                pytest.fail(
+                    "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
+                    "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"
+                    f"ImportError: {exc}"
+                )
+
+    return _require_ovlibs_install
 
 
 def _make_grid(images: torch.Tensor) -> torch.Tensor:
@@ -681,8 +616,11 @@ def rendering_test_shadow_hand(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
-    from isaaclab_tasks.direct.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
+    if physics_backend == "ovphysx":
+        pytest.skip("ovphysx is not supported yet.")
+
+    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
+    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
@@ -690,6 +628,9 @@ def rendering_test_shadow_hand(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     if data_type == "depth":
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
@@ -724,15 +665,18 @@ def rendering_test_cartpole(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    from isaaclab_tasks.direct.cartpole.cartpole_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.direct.cartpole.cartpole_camera_presets_env_cfg import CartpoleCameraPresetsEnvCfg
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-    env_cfg = CartpoleCameraPresetsEnvCfg()
+    env_cfg = CartpoleCameraEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(
         env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
     )
 
     env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     env = None
 
@@ -762,9 +706,12 @@ def rendering_test_dexsuite_kuka(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("ovphysx is not supported yet.")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
     )
 
@@ -774,6 +721,9 @@ def rendering_test_dexsuite_kuka(
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
     # The underlying point sampling uses the global numpy/torch RNG, so marker positions shift

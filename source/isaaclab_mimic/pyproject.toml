@@ -1,3 +1,42 @@
+# Copyright (c) 2024-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_mimic"
+version = "1.3.1"
+description = "Mimic for Isaac Lab."
+license = {text = "Apache-2.0"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+keywords = ["extension", "template", "isaaclab"]
+requires-python = ">=3.12"
+dependencies = [
+    # jupyter notebook
+    "ipywidgets>=8.1.5",
+    # data collection
+    "h5py>=3.15.0",
+    # USD to URDF conversion (no aarch64 wheels)
+    "nvidia-srl-usd-to-urdf ; platform_machine != 'aarch64'",
+    # data augmentation (Linux only)
+    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
+]
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_mimic", "isaaclab_mimic.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

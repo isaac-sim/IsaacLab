@@ -6,7 +6,7 @@
 import gymnasium as gym
 
 # Reuse agent configs from the stable task package.
-from isaaclab_tasks.manager_based.manipulation.reach.config.franka import agents
+from isaaclab_tasks.core.reach.config.franka import agents
 
 ##
 # Register Gym environments.

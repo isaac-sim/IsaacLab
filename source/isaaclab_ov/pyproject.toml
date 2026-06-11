@@ -1,3 +1,37 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_ov"
+version = "0.4.4"
+description = "Extension providing Omniverse renderers (OVRTX, ovphysx, etc.) for tiled camera rendering."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+keywords = ["robotics", "simulation", "rendering", "ovrtx", "omniverse"]
+requires-python = ">=3.12"
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[project.optional-dependencies]
+ovrtx = ["ovrtx>=0.3.0,<0.4.0"]
+all = ["ovrtx>=0.3.0,<0.4.0"]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_ov", "isaaclab_ov.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

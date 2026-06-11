@@ -68,12 +68,12 @@ the manager-based workflow and the environment specific class names have been up
 Updates to the tasks folder structure
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-To support the manager-based and direct workflows, we have added two folders in the tasks extension:
+The tasks extension is organized into two folders:
 
-- ``source/isaaclab_tasks/isaaclab_tasks/manager_based``
-- ``source/isaaclab_tasks/isaaclab_tasks/direct``
+- ``source/isaaclab_tasks/isaaclab_tasks/core``
+- ``source/isaaclab_tasks/isaaclab_tasks/contrib``
 
-The tasks from Orbit can now be found under the ``manager_based`` folder.
+The tasks from Orbit can now be found under the ``core`` folder.
 This change must also be reflected in the imports for your tasks. For example,
 
 .. code-block:: python
@@ -84,7 +84,7 @@ should now be:
 
 .. code-block:: python
 
-  from isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg ...
+  from isaaclab_tasks.core.velocity.velocity_env_cfg ...
 
 
 Other Breaking changes

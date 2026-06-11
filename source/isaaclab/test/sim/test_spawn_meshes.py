@@ -120,18 +120,19 @@ def test_spawn_sphere(sim):
 
 
 @pytest.mark.parametrize("resolution", [(1, 1), (3, 2)])
-def test_spawn_square(sim, resolution):
-    """Test spawning of UsdGeomMesh as a square prim."""
-    # Spawn square
-    cfg = sim_utils.MeshSquareCfg(size=1.0, resolution=resolution)
-    prim = cfg.func("/World/Square", cfg)
+@pytest.mark.parametrize("size", [(1.0, 1.0), (1.5, 0.8)])
+def test_spawn_rectangle(sim, resolution, size):
+    """Test spawning of UsdGeomMesh as a rectangle prim."""
+    # Spawn rectangle
+    cfg = sim_utils.MeshRectangleCfg(size=size, resolution=resolution)
+    prim = cfg.func("/World/Rectangle", cfg)
 
     # Check validity
     assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Square").IsValid()
+    assert sim.stage.GetPrimAtPath("/World/Rectangle").IsValid()
     assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
     # Check properties
-    prim = sim.stage.GetPrimAtPath("/World/Square/geometry/mesh")
+    prim = sim.stage.GetPrimAtPath("/World/Rectangle/geometry/mesh")
     assert prim.GetPrimTypeInfo().GetTypeName() == "Mesh"
 
 

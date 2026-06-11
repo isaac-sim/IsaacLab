@@ -22,6 +22,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on interacting with a deformable object.")
+parser.add_argument("--backend", type=str, default="physx", choices=["physx", "newton"], help="Physics backend.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # demos should open Kit visualizer by default
@@ -36,14 +37,10 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import torch
-from isaaclab_physx.assets import DeformableObject, DeformableObjectCfg
-
-# deformables supported in PhysX
-from isaaclab_physx.sim import DeformableBodyMaterialCfg, DeformableBodyPropertiesCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.sim import SimulationContext
+from isaaclab.assets import DeformableObject, DeformableObjectCfg
 
 
 def design_scene():
@@ -58,20 +55,43 @@ def design_scene():
     # Create a dictionary for the scene entities
     scene_entities = {}
 
-    # Create separate groups called "Origin0", "Origin1", ...
-    # Each group will have a robot in it
+    # Create separate groups called "env_0", "env_1", ...
+    # Newton's scene loader requires the "env_\d+" naming convention to
+    # detect per-environment Xforms and replicate them as separate worlds.
     origins = [[0.25, 0.25, 0.0], [-0.25, 0.25, 0.0], [0.25, -0.25, 0.0], [-0.25, -0.25, 0.0]]
     for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Origin{i}", "Xform", translation=origin)
+        sim_utils.create_prim(f"/World/env_{i}", "Xform", translation=origin)
+
+    youngs_modulus = 1e5
+    poissons_ratio = 0.4
+    density = 500.0
+    if args_cli.backend == "newton":
+        from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
+        from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
+
+        deformable_props = NewtonDeformableBodyPropertiesCfg()
+        physics_material = NewtonDeformableBodyMaterialCfg(
+            k_mu=youngs_modulus / (2.0 * (1.0 + poissons_ratio)),
+            k_lambda=youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio)),
+            density=density,
+        )
+    else:
+        from isaaclab_physx.sim.schemas import PhysxDeformableBodyPropertiesCfg
+        from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
+
+        deformable_props = PhysxDeformableBodyPropertiesCfg(rest_offset=0.0, contact_offset=0.001)
+        physics_material = PhysxDeformableBodyMaterialCfg(
+            poissons_ratio=poissons_ratio, youngs_modulus=youngs_modulus, density=density
+        )
 
     # 3D Deformable Object
     cfg = DeformableObjectCfg(
-        prim_path="/World/Origin.*/Cube",
+        prim_path="/World/env_.*/Cube",
         spawn=sim_utils.MeshCuboidCfg(
             size=(0.2, 0.2, 0.2),
-            deformable_props=DeformableBodyPropertiesCfg(),
+            deformable_props=deformable_props,
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.1, 0.0)),
-            physics_material=DeformableBodyMaterialCfg(poissons_ratio=0.4, youngs_modulus=1e5),
+            physics_material=physics_material,
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         debug_vis=True,
@@ -155,8 +175,18 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict, origins: tor
 def main():
     """Main function."""
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
+    if args_cli.backend == "newton":
+        from isaaclab_newton.physics import NewtonCfg
+
+        from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+
+        physics_cfg = NewtonCfg(solver_cfg=VBDSolverCfg(iterations=10), num_substeps=4)
+    else:
+        from isaaclab_physx.physics import PhysxCfg
+
+        physics_cfg = PhysxCfg()
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+    sim = sim_utils.SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
     # Design scene

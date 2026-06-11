@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing utilities for creating prims in Omniverse for the PhysX backend."""
+"""Sub-module containing PhysX spawner compatibility exports."""
 
 from isaaclab.utils.module import lazy_export
 

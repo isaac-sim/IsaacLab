@@ -100,7 +100,6 @@ Table of Contents
    :titlesonly:
 
    source/setup/quickstart
-   source/setup/quick_installation
    source/overview/own-project/index
    source/setup/walkthrough/index
    source/tutorials/index
@@ -131,10 +130,8 @@ Table of Contents
    source/features/hydra
    source/features/multi_gpu
    source/features/population_based_training
-   Tiled Rendering</source/overview/core-concepts/sensors/camera>
    source/features/ray
    source/features/reproducibility
-   source/features/visualization
 
 
 .. toctree::
@@ -143,6 +140,7 @@ Table of Contents
 
    source/experimental-features/bleeding-edge
    source/experimental-features/visuo_tactile_sensor
+   source/experimental-features/rlinf_vla_posttraining
 
 .. toctree::
    :maxdepth: 1

@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import time
+from dataclasses import dataclass
 
 import pytest
 from junitparser import Error, JUnitXml, TestCase, TestSuite
@@ -17,6 +18,7 @@ from prettytable import PrettyTable
 
 # Local imports
 import test_settings as test_settings  # isort: skip
+from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
 
 def pytest_ignore_collect(collection_path, config):
@@ -50,6 +52,14 @@ STARTUP_HANG_RETRIES = 2
 
 TIMEOUT_RETRIES = 0
 """Number of times to retry a test that reaches its hard timeout before giving up."""
+
+PROCESS_FAILURE_RETRIES_BY_FILE = {
+    "test_visualizer_integration_physx.py": 4,
+    "test_visualizer_integration_newton.py": 4,
+    "test_visualizer_tiled_integration_physx.py": 4,
+    "test_visualizer_tiled_integration_newton.py": 4,
+}
+"""Extra fresh-process attempts for visualizer tests that can enter stale render states."""
 
 SHUTDOWN_GRACE_PERIOD = 30
 """Seconds to wait for clean exit after the JUnit XML report file appears.
@@ -304,6 +314,421 @@ def _capture_system_diagnostics():
     return "\n\n".join(sections)
 
 
+def _read_test_report(report_file, file_name):
+    """Read a pytest JUnit report and return its summary fields."""
+    report = JUnitXml.fromfile(report_file)
+    for suite in report:
+        if suite.name == "pytest":
+            suite.name = os.path.splitext(file_name)[0]
+    report.write(report_file)
+
+    errors = int(report.errors) if report.errors is not None else 0
+    failures = int(report.failures) if report.failures is not None else 0
+    skipped = int(report.skipped) if report.skipped is not None else 0
+    tests = int(report.tests) if report.tests is not None else 0
+    time_elapsed = float(report.time) if report.time is not None else 0.0
+    return report, errors, failures, skipped, tests, time_elapsed
+
+
+def _retry_failed_test_in_fresh_process(
+    *,
+    test_file,
+    file_name,
+    cmd,
+    timeout,
+    env,
+    startup_deadline,
+    report_file,
+    report,
+    errors,
+    failures,
+    skipped,
+    tests,
+    time_elapsed,
+    returncode,
+    stdout_data,
+    stderr_data,
+    kill_reason,
+    wall_time,
+    pre_kill_diag,
+):
+    """Retry selected failed test files in a fresh subprocess."""
+    has_test_failures = errors > 0 or failures > 0
+    process_failure_attempts = 0
+    max_process_failure_retries = PROCESS_FAILURE_RETRIES_BY_FILE.get(file_name, 0)
+
+    while has_test_failures and process_failure_attempts < max_process_failure_retries:
+        process_failure_attempts += 1
+        print(
+            f"⚠️  {test_file}: failed in subprocess"
+            f" (attempt {process_failure_attempts}/{max_process_failure_retries + 1}), retrying in fresh process..."
+        )
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(report_file)
+
+        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+            cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
+        )
+        if not os.path.exists(report_file):
+            break
+
+        try:
+            report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, file_name)
+            has_test_failures = errors > 0 or failures > 0
+        except Exception as e:
+            print(f"Error reading retry test report {report_file}: {e}")
+            has_test_failures = True
+            errors = 1
+            failures = 0
+            skipped = 0
+            tests = 0
+            time_elapsed = 0.0
+            break
+
+    return (
+        report,
+        errors,
+        failures,
+        skipped,
+        tests,
+        time_elapsed,
+        returncode,
+        stdout_data,
+        stderr_data,
+        kill_reason,
+        wall_time,
+        pre_kill_diag,
+        has_test_failures,
+    )
+
+
+@dataclass
+class _PassContext:
+    """Inputs shared across all pytest invocations for a single test file.
+
+    Attributes:
+        test_file: Absolute path to the test file being driven.
+        file_name: Basename of ``test_file`` (used for JUnit naming).
+        workspace_root: Repository root; passed to pytest's ``--config-file``.
+        isaacsim_ci: Whether ``ISAACSIM_CI_SHORT`` is active; toggles the
+            ``-m isaacsim_ci`` selector.
+        timeout: Per-pass hard timeout in seconds.
+        startup_deadline: Per-pass startup-hang deadline in seconds.
+        env: Environment passed to the pytest subprocess.
+    """
+
+    test_file: str
+    file_name: str
+    workspace_root: str
+    isaacsim_ci: bool
+    timeout: int
+    startup_deadline: int
+    env: dict
+
+
+_RESULT_PRIORITY = {
+    "STARTUP_HANG": 5,
+    "CRASHED": 4,
+    "TIMEOUT": 3,
+    "FAILED": 2,
+    "passed (shutdown hanged)": 1,
+    "passed": 0,
+}
+
+
+def _merge_pass_status(prev: dict | None, new: dict) -> dict:
+    """Merge per-pass status dicts into a single per-file entry.
+
+    Counters (``errors``, ``failures``, ``skipped``, ``tests``,
+    ``time_elapsed``, ``wall_time``) are summed. ``result`` becomes the more
+    severe of the two via :data:`_RESULT_PRIORITY`.
+    """
+    if prev is None:
+        return new
+    return {
+        "errors": prev["errors"] + new["errors"],
+        "failures": prev["failures"] + new["failures"],
+        "skipped": prev["skipped"] + new["skipped"],
+        "tests": prev["tests"] + new["tests"],
+        "time_elapsed": prev["time_elapsed"] + new["time_elapsed"],
+        "wall_time": prev["wall_time"] + new["wall_time"],
+        "result": prev["result"]
+        if _RESULT_PRIORITY.get(prev["result"], 0) >= _RESULT_PRIORITY.get(new["result"], 0)
+        else new["result"],
+    }
+
+
+def _run_one_pass(
+    ctx: _PassContext,
+    k_expr: str | None,
+    suffix: str,
+) -> tuple[JUnitXml | None, dict, bool]:
+    """Drive one pytest subprocess for ``ctx.test_file`` and return its results.
+
+    Args:
+        ctx: Static per-file context (paths, timeouts, env).
+        k_expr: Optional ``-k`` selector. ``None`` means no selector (default
+            single-pass invocation).
+        suffix: Suffix appended to the JUnit report filename, e.g. ``"-cpu"``
+            or ``""`` for the unsplit default.
+
+    Returns:
+        A 3-tuple ``(xml_report, status_dict, was_failure)``:
+            * ``xml_report``: parsed JUnit XML, or ``None`` if the pass produced
+              no report (e.g. startup hang).
+            * ``status_dict``: per-pass counters compatible with the entries
+              currently appended to ``test_status``.
+            * ``was_failure``: whether the pass should add ``ctx.test_file`` to
+              the ``failed_tests`` list.
+    """
+    pass_file_label = f"{ctx.file_name}{suffix}"
+    report_file = f"tests/test-reports-{pass_file_label}.xml"
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "pytest",
+        "-s",
+        "--no-header",
+        f"--config-file={ctx.workspace_root}/pyproject.toml",
+        f"--junitxml={report_file}",
+        "--tb=short",
+    ]
+    if ctx.isaacsim_ci:
+        cmd += ["-m", "isaacsim_ci"]
+    if k_expr is not None:
+        cmd += ["-k", k_expr]
+    cmd.append(str(ctx.test_file))
+
+    # -- Run with retry on startup hang or hard timeout -----------------
+    returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
+    wall_time, pre_kill_diag = 0.0, ""
+    startup_hang_attempts = 0
+    timeout_attempts = 0
+    while True:
+        with contextlib.suppress(FileNotFoundError):
+            os.remove(report_file)
+
+        returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = capture_test_output_with_timeout(
+            cmd, ctx.timeout, ctx.env, startup_deadline=ctx.startup_deadline, report_file=report_file
+        )
+
+        has_report = os.path.exists(report_file)
+
+        if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
+            startup_hang_attempts += 1
+            print(
+                f"⚠️  {ctx.test_file}{suffix}: startup hang detected after {ctx.startup_deadline}s"
+                f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
+            )
+            if stderr_data:
+                print("=== STDERR (last 5000 chars) ===")
+                print(stderr_data.decode("utf-8", errors="replace")[-5000:])
+            diag = pre_kill_diag or _capture_system_diagnostics()
+            if len(diag) > 10000:
+                diag = diag[:10000] + "\n... (truncated)"
+            print(diag)
+            continue
+
+        if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
+            timeout_attempts += 1
+            print(
+                f"⚠️  {ctx.test_file}{suffix}: timeout detected after {ctx.timeout}s"
+                f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
+            )
+            if stdout_data:
+                print("=== STDOUT (last 5000 chars) ===")
+                print(stdout_data.decode("utf-8", errors="replace")[-5000:])
+            if stderr_data:
+                print("=== STDERR (last 5000 chars) ===")
+                print(stderr_data.decode("utf-8", errors="replace")[-5000:])
+            diag = pre_kill_diag or _capture_system_diagnostics()
+            if len(diag) > 10000:
+                diag = diag[:10000] + "\n... (truncated)"
+            print(diag)
+            continue
+        break
+
+    # -- Resolve result from kill_reason and report file ----------------
+    has_report = os.path.exists(report_file)
+
+    if kill_reason == "startup_hang":
+        diag = _get_diagnostics(pre_kill_diag)
+        print(f"⚠️  {ctx.test_file}{suffix}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
+        print(diag)
+
+        msg = f"Startup hang after {ctx.startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
+        details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+        if stderr_data:
+            details += "=== STDERR (last 5000 chars) ===\n"
+            details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        if stdout_data:
+            details += "=== STDOUT (last 2000 chars) ===\n"
+            details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+
+        error_report = _create_error_report("startup_hang", pass_file_label, msg, details)
+        error_report.write(report_file)
+        return (
+            error_report,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "STARTUP_HANG",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    if kill_reason == "timeout" and not has_report:
+        diag = _get_diagnostics(pre_kill_diag)
+        print(f"Test {ctx.test_file}{suffix} timed out after {ctx.timeout} seconds...")
+        print(diag)
+
+        msg = f"Timeout after {ctx.timeout} seconds (retried {timeout_attempts} time(s))"
+        details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+        if stdout_data:
+            details += "=== STDOUT (last 5000 chars) ===\n"
+            details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+        if stderr_data:
+            details += "=== STDERR (last 5000 chars) ===\n"
+            details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
+
+        error_report = _create_error_report("timeout", pass_file_label, msg, details)
+        error_report.write(report_file)
+        return (
+            error_report,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "TIMEOUT",
+                "time_elapsed": ctx.timeout,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    if not has_report:
+        reason = (
+            _signal_description(-returncode)
+            if returncode < 0
+            else f"Process exited with code {returncode} but produced no report"
+        )
+        diag = _get_diagnostics()
+        print(f"⚠️  {ctx.test_file}{suffix}: {reason}")
+        print(diag)
+
+        details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
+        if stdout_data:
+            details += "=== STDOUT (last 2000 chars) ===\n"
+            details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+        if stderr_data:
+            details += "=== STDERR (last 2000 chars) ===\n"
+            details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
+
+        error_report = _create_error_report("crash", pass_file_label, reason, details)
+        error_report.write(report_file)
+        return (
+            error_report,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 1,
+                "result": "CRASHED",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    # -- Report file exists: parse actual test results -----------------
+    if kill_reason in ("shutdown_hang", "timeout"):
+        print(f"⚠️  {ctx.test_file}{suffix}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)")
+
+    try:
+        report, errors, failures, skipped, tests, time_elapsed = _read_test_report(report_file, pass_file_label)
+    except Exception as e:
+        print(f"Error reading test report {report_file}: {e}")
+        return (
+            None,
+            {
+                "errors": 1,
+                "failures": 0,
+                "skipped": 0,
+                "tests": 0,
+                "result": "FAILED",
+                "time_elapsed": 0.0,
+                "wall_time": wall_time,
+            },
+            True,
+        )
+
+    (
+        report,
+        errors,
+        failures,
+        skipped,
+        tests,
+        time_elapsed,
+        returncode,
+        stdout_data,
+        stderr_data,
+        kill_reason,
+        wall_time,
+        pre_kill_diag,
+        has_test_failures,
+    ) = _retry_failed_test_in_fresh_process(
+        test_file=ctx.test_file,
+        file_name=ctx.file_name,
+        cmd=cmd,
+        timeout=ctx.timeout,
+        env=ctx.env,
+        startup_deadline=ctx.startup_deadline,
+        report_file=report_file,
+        report=report,
+        errors=errors,
+        failures=failures,
+        skipped=skipped,
+        tests=tests,
+        time_elapsed=time_elapsed,
+        returncode=returncode,
+        stdout_data=stdout_data,
+        stderr_data=stderr_data,
+        kill_reason=kill_reason,
+        wall_time=wall_time,
+        pre_kill_diag=pre_kill_diag,
+    )
+
+    shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
+    was_failure = has_test_failures or (returncode != 0 and not shutdown_hanged)
+
+    if shutdown_hanged:
+        result = "passed (shutdown hanged)"
+    elif has_test_failures:
+        result = "FAILED"
+    else:
+        result = "passed"
+
+    return (
+        report,
+        {
+            "errors": errors,
+            "failures": failures,
+            "skipped": skipped,
+            "tests": tests,
+            "result": result,
+            "time_elapsed": time_elapsed,
+            "wall_time": wall_time,
+        },
+        was_failure,
+    )
+
+
 def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
@@ -319,7 +744,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
 
         timeout = test_settings.PER_TEST_TIMEOUTS.get(file_name, test_settings.DEFAULT_TIMEOUT)
 
-        # Read the test file once for cold-cache check.
+        # Read the test file once for cold-cache and device-split detection.
         try:
             with open(test_file) as fh:
                 test_content = fh.read()
@@ -337,223 +762,33 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
         extra = COLD_CACHE_BUFFER if is_cold_cache_test else 0
         startup_deadline = min(timeout, STARTUP_DEADLINE + extra)
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "pytest",
-            "-s",
-            "--no-header",
-            f"--config-file={workspace_root}/pyproject.toml",
-            f"--junitxml=tests/test-reports-{str(file_name)}.xml",
-            "--tb=short",
-        ]
+        ctx = _PassContext(
+            test_file=test_file,
+            file_name=file_name,
+            workspace_root=workspace_root,
+            isaacsim_ci=isaacsim_ci,
+            timeout=timeout,
+            startup_deadline=startup_deadline,
+            env=env,
+        )
 
-        if isaacsim_ci:
-            cmd.append("-m")
-            cmd.append("isaacsim_ci")
-
-        cmd.append(str(test_file))
-
-        report_file = f"tests/test-reports-{str(file_name)}.xml"
-
-        # -- Run with retry on startup hang or hard timeout -----------------
-        returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
-        wall_time, pre_kill_diag = 0.0, ""
-        startup_hang_attempts = 0
-        timeout_attempts = 0
-        while True:
-            with contextlib.suppress(FileNotFoundError):
-                os.remove(report_file)
-
-            returncode, stdout_data, stderr_data, kill_reason, wall_time, pre_kill_diag = (
-                capture_test_output_with_timeout(
-                    cmd, timeout, env, startup_deadline=startup_deadline, report_file=report_file
-                )
-            )
-
-            has_report = os.path.exists(report_file)
-
-            if kill_reason == "startup_hang" and startup_hang_attempts < STARTUP_HANG_RETRIES:
-                startup_hang_attempts += 1
-                print(
-                    f"⚠️  {test_file}: startup hang detected after {startup_deadline}s"
-                    f" (attempt {startup_hang_attempts}/{STARTUP_HANG_RETRIES + 1}), retrying..."
-                )
-                if stderr_data:
-                    print("=== STDERR (last 5000 chars) ===")
-                    print(stderr_data.decode("utf-8", errors="replace")[-5000:])
-                diag = pre_kill_diag or _capture_system_diagnostics()
-                if len(diag) > 10000:
-                    diag = diag[:10000] + "\n... (truncated)"
-                print(diag)
-                continue
-
-            if kill_reason == "timeout" and not has_report and timeout_attempts < TIMEOUT_RETRIES:
-                timeout_attempts += 1
-                print(
-                    f"⚠️  {test_file}: timeout detected after {timeout}s"
-                    f" (attempt {timeout_attempts}/{TIMEOUT_RETRIES + 1}), retrying..."
-                )
-                if stdout_data:
-                    print("=== STDOUT (last 5000 chars) ===")
-                    print(stdout_data.decode("utf-8", errors="replace")[-5000:])
-                if stderr_data:
-                    print("=== STDERR (last 5000 chars) ===")
-                    print(stderr_data.decode("utf-8", errors="replace")[-5000:])
-                diag = pre_kill_diag or _capture_system_diagnostics()
-                if len(diag) > 10000:
-                    diag = diag[:10000] + "\n... (truncated)"
-                print(diag)
-                continue
-            break
-
-        # -- Resolve result from kill_reason and report file ----------------
-        has_report = os.path.exists(report_file)
-
-        if kill_reason == "startup_hang":
-            diag = _get_diagnostics(pre_kill_diag)
-            print(f"⚠️  {test_file}: startup hang after {STARTUP_HANG_RETRIES + 1} attempt(s)")
-            print(diag)
-
-            msg = f"Startup hang after {startup_deadline}s (retried {STARTUP_HANG_RETRIES} time(s))"
-            details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-            if stderr_data:
-                details += "=== STDERR (last 5000 chars) ===\n"
-                details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-            if stdout_data:
-                details += "=== STDOUT (last 2000 chars) ===\n"
-                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-
-            error_report = _create_error_report("startup_hang", file_name, msg, details)
-            error_report.write(report_file)
-            xml_reports.append(error_report)
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "STARTUP_HANG",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
-            continue
-
-        if kill_reason == "timeout" and not has_report:
-            diag = _get_diagnostics(pre_kill_diag)
-            print(f"Test {test_file} timed out after {timeout} seconds...")
-            print(diag)
-
-            msg = f"Timeout after {timeout} seconds (retried {timeout_attempts} time(s))"
-            details = f"{msg}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-            if stdout_data:
-                details += "=== STDOUT (last 5000 chars) ===\n"
-                details += stdout_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-            if stderr_data:
-                details += "=== STDERR (last 5000 chars) ===\n"
-                details += stderr_data.decode("utf-8", errors="replace")[-5000:] + "\n"
-
-            error_report = _create_error_report("timeout", file_name, msg, details)
-            error_report.write(report_file)
-            xml_reports.append(error_report)
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "TIMEOUT",
-                "time_elapsed": timeout,
-                "wall_time": wall_time,
-            }
-            continue
-
-        if not has_report:
-            reason = (
-                _signal_description(-returncode)
-                if returncode < 0
-                else f"Process exited with code {returncode} but produced no report"
-            )
-            diag = _get_diagnostics()
-            print(f"⚠️  {test_file}: {reason}")
-            print(diag)
-
-            details = f"{reason}\n\n=== SYSTEM DIAGNOSTICS ===\n{diag}\n\n"
-            if stdout_data:
-                details += "=== STDOUT (last 2000 chars) ===\n"
-                details += stdout_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-            if stderr_data:
-                details += "=== STDERR (last 2000 chars) ===\n"
-                details += stderr_data.decode("utf-8", errors="replace")[-2000:] + "\n"
-
-            error_report = _create_error_report("crash", file_name, reason, details)
-            error_report.write(report_file)
-            xml_reports.append(error_report)
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 1,
-                "result": "CRASHED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
-            continue
-
-        # -- Report file exists: parse actual test results -----------------
-        if kill_reason in ("shutdown_hang", "timeout"):
-            print(f"⚠️  {test_file}: shutdown hanged (killed after {wall_time:.0f}s, test had completed)")
-
-        try:
-            report = JUnitXml.fromfile(report_file)
-            for suite in report:
-                if suite.name == "pytest":
-                    suite.name = os.path.splitext(file_name)[0]
-            report.write(report_file)
-            xml_reports.append(report)
-
-            errors = int(report.errors) if report.errors is not None else 0
-            failures = int(report.failures) if report.failures is not None else 0
-            skipped = int(report.skipped) if report.skipped is not None else 0
-            tests = int(report.tests) if report.tests is not None else 0
-            time_elapsed = float(report.time) if report.time is not None else 0.0
-        except Exception as e:
-            print(f"Error reading test report {report_file}: {e}")
-            failed_tests.append(test_file)
-            test_status[test_file] = {
-                "errors": 1,
-                "failures": 0,
-                "skipped": 0,
-                "tests": 0,
-                "result": "FAILED",
-                "time_elapsed": 0.0,
-                "wall_time": wall_time,
-            }
-            continue
-
-        has_test_failures = errors > 0 or failures > 0
-        shutdown_hanged = kill_reason in ("shutdown_hang", "timeout") and not has_test_failures
-
-        if has_test_failures or (returncode != 0 and not shutdown_hanged):
-            failed_tests.append(test_file)
-
-        if shutdown_hanged:
-            result = "passed (shutdown hanged)"
-        elif has_test_failures:
-            result = "FAILED"
+        if is_device_split_file(test_file, source=test_content):
+            print(f"⚙️  device_split detected — invoking {file_name} once per device (CPU then GPU)")
+            passes = DEVICE_SPLIT_PASSES
         else:
-            result = "passed"
+            passes = [("", None)]
 
-        test_status[test_file] = {
-            "errors": errors,
-            "failures": failures,
-            "skipped": skipped,
-            "tests": tests,
-            "result": result,
-            "time_elapsed": time_elapsed,
-            "wall_time": wall_time,
-        }
+        merged_status: dict | None = None
+        for suffix, k_expr in passes:
+            report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
+            if report is not None:
+                xml_reports.append(report)
+            if was_failure and test_file not in failed_tests:
+                failed_tests.append(test_file)
+            merged_status = _merge_pass_status(merged_status, status)
+
+        assert merged_status is not None  # the pass list is never empty
+        test_status[test_file] = merged_status
 
     print("~~~~~~~~~~~~ Finished running all tests")
 
@@ -576,6 +811,12 @@ def _collect_test_files(
             pytest.exit("Source directory not found", returncode=1)
 
         for root, _, files in os.walk(source_dir):
+            # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
+            # It is run via .github/actions/install-ci-run, never via this collector,
+            # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
+            if "install_ci" in root.replace("\\", "/").split("/"):
+                continue
+
             for file in files:
                 if not (file.startswith("test_") and file.endswith(".py")):
                     continue

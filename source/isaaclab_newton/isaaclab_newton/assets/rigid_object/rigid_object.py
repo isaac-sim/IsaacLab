@@ -17,13 +17,14 @@ from newton.solvers import SolverNotifyFlags
 
 from pxr import UsdPhysics
 
-import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.physics import PhysicsEvent
+from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
+from isaaclab_newton.cloner import queue_newton_physics_replication
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .rigid_object_data import RigidObjectData
@@ -59,6 +60,7 @@ class RigidObject(BaseRigidObject):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
+        queue_newton_physics_replication(cfg)
 
     """
     Properties
@@ -988,47 +990,13 @@ class RigidObject(BaseRigidObject):
     """
 
     def _initialize_impl(self):
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self.cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self.cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
+        def has_rigid_body_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        # find rigid root prims
-        root_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI),
-            traverse_instance_prims=False,
-        )
-        if len(root_prims) == 0:
-            raise RuntimeError(
-                f"Failed to find a rigid body when resolving '{self.cfg.prim_path}'."
-                " Please ensure that the prim has 'USD RigidBodyAPI' applied."
-            )
-        if len(root_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single rigid body when resolving '{self.cfg.prim_path}'."
-                f" Found multiple '{root_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one rigid body in the prim path tree."
-            )
-
-        articulation_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-            traverse_instance_prims=False,
-        )
-        if len(articulation_prims) != 0:
-            if articulation_prims[0].GetAttribute("physxArticulation:articulationEnabled").Get():
-                raise RuntimeError(
-                    f"Found an articulation root when resolving '{self.cfg.prim_path}' for rigid objects. These are"
-                    f" located at: '{articulation_prims}' under '{template_prim_path}'. Please disable the articulation"
-                    " root in the USD or from code by setting the parameter"
-                    " 'ArticulationRootPropertiesCfg.articulation_enabled' to False in the spawn configuration."
-                )
-
-        # resolve root prim back into regex expression
-        root_prim_path = root_prims[0].GetPath().pathString
-        root_prim_path_expr = self.cfg.prim_path + root_prim_path[len(template_prim_path) :]
+        asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
+        walk_root = asset_prim.GetPath().pathString
+        root_prims = get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
+        root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
         # -- object view
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
@@ -1149,8 +1117,8 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
@@ -1165,8 +1133,8 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
@@ -1181,5 +1149,5 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)

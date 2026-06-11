@@ -10,7 +10,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/rl_games/play.py is deprecated. Use "
     "`./isaaclab.sh play --rl_library rl_games --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library rl_games --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh play --rl_library rl_games --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )
@@ -29,6 +29,7 @@ from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -39,10 +40,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -78,7 +76,7 @@ parser.add_argument(
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True

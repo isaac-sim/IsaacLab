@@ -3,15 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton and MuJoCo simulation schema configuration classes."""
+"""Sub-module containing Newton schema configuration exports."""
 
-from .schemas_cfg import (
-    MujocoJointDrivePropertiesCfg,
-    MujocoRigidBodyPropertiesCfg,
-    NewtonArticulationRootPropertiesCfg,
-    NewtonCollisionPropertiesCfg,
-    NewtonJointDrivePropertiesCfg,
-    NewtonMaterialPropertiesCfg,
-    NewtonMeshCollisionPropertiesCfg,
-    NewtonRigidBodyPropertiesCfg,
-)
+from isaaclab.utils.module import lazy_export
+
+lazy_export()

@@ -1,6 +1,137 @@
 Changelog
 ---------
 
+3.0.4 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Re-enabled both CPU and GPU coverage in CI for OVPhysX tests by tagging
+  :file:`test/assets/test_articulation.py`,
+  :file:`test/assets/test_rigid_object.py`,
+  :file:`test/assets/test_rigid_object_collection.py`,
+  :file:`test/sensors/test_contact_sensor.py`, and
+  :file:`test/sim/test_views_xform_prim_ovphysx.py` with the new
+  ``device_split`` pytest marker, which causes the CI driver to invoke each
+  file once per device in separate subprocesses. Works around the
+  ``ovphysx<=0.3.7`` process-global device lock (gap G5).
+* Stopped OVPhysX assets from enqueueing redundant USD replication work
+  during scene cloning.
+
+
+3.0.3 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an actionable install error when the optional ``ovphysx`` runtime wheel
+  is missing from the :mod:`isaaclab_ovphysx` backend.
+
+
+3.0.2 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install ``ovphysx==0.4.13``
+  instead of accepting newer breaking releases.
+
+
+3.0.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_ovphysx.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
+3.0.0 (2026-05-20)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.assets.RigidObjectCollection` and
+  :class:`~isaaclab_ovphysx.assets.RigidObjectCollectionData` for the
+  OVPhysX backend, completing the rigid-body asset surface alongside
+  :class:`~isaaclab_ovphysx.assets.RigidObject` and
+  :class:`~isaaclab_ovphysx.assets.Articulation`. Supports
+  ``(env, body)`` dual indexing and per-body property setters. Uses the
+  ovphysx 0.4.3+ native fused multi-prim binding API
+  (``create_tensor_binding(prim_paths=[...])``) so one binding spans all
+  ``num_instances * num_bodies`` prims per tensor type, mirroring the
+  strided-view reshape pattern used by the PhysX collection.
+* Added :class:`~isaaclab_ovphysx.sensors.ContactSensor`,
+  :class:`~isaaclab_ovphysx.sensors.ContactSensorCfg`, and
+  :class:`~isaaclab_ovphysx.sensors.ContactSensorData` for the OVPhysX
+  backend, satisfying the
+  :class:`~isaaclab.sensors.contact_sensor.BaseContactSensor` and
+  :class:`~isaaclab.sensors.contact_sensor.BaseContactSensorData`
+  contracts. Wires net contact forces and the per-partner force matrix
+  through the OVPhysX :class:`ovphysx.api.ContactBinding` API
+  (``read_net_forces`` / ``read_force_matrix``); optional pose tracking
+  reads through a ``RIGID_BODY_POSE`` :class:`ovphysx.api.TensorBinding`.
+  Air/contact time tracking,
+  :meth:`~isaaclab_ovphysx.sensors.ContactSensor.compute_first_contact`,
+  :meth:`~isaaclab_ovphysx.sensors.ContactSensor.compute_first_air`,
+  history buffers, and reset semantics mirror the PhysX backend.
+* Added the shared
+  :mod:`isaaclab_ovphysx.sensors.kernels` module with
+  :func:`~isaaclab_ovphysx.sensors.kernels.concat_pos_and_quat_to_pose_kernel`
+  and the 1D variant for reuse across future OVPhysX sensors.
+* Added :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView`, a
+  Warp-native batched-prim view that reads world poses from the OVPhysX
+  scene data provider's ``body_q`` array. Mirrors
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` in semantics
+  and API: ``set_world_poses`` / ``set_local_poses`` update the view's
+  internal ``site_local`` buffer and never mutate the physics state.
+  Scales and visibility delegate to a lazy internal
+  :class:`~isaaclab.sim.views.UsdFrameView`.
+
+Changed
+^^^^^^^
+
+* Changed the existing
+  ``source/isaaclab_ovphysx/test/sensors/check_contact_sensor.py``
+  stubs to real tests adapted from the PhysX
+  :mod:`isaaclab_physx.test.sensors.test_contact_sensor` suite. The
+  three tests that exercise ``track_contact_points`` or
+  ``track_friction_forces`` are decorated with
+  :func:`pytest.mark.skip` until the OVPhysX wheel ships
+  tensor-friendly per-sensor reads (see
+  ``docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md``);
+  the test bodies are preserved so the decorator can be removed in a
+  follow-up.
+* Updated imports of :class:`~isaaclab.scene_data.SceneDataBackend` and
+  :class:`~isaaclab.scene_data.SceneDataFormat` in
+  :mod:`~isaaclab_ovphysx.physics.ovphysx_manager` to their new location in
+  :mod:`isaaclab.scene_data` (previously :mod:`isaaclab.physics`).
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the five
+  ``source/isaaclab_ovphysx/test/sensors/check_contact_sensor.py``
+  ``pytest.skip("Contact sensor not yet supported by ovphysx
+  backend.")`` placeholders in favour of the real test suite above.
+  No public migration is required; the placeholder names did not
+  appear in any external API.
+
+
 2.1.0 (2026-05-19)
 ~~~~~~~~~~~~~~~~~~
 

@@ -120,6 +120,23 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
        --visualizer kit \
        --xr
 
+.. attention::
+
+   **First run — EULA acceptance required.**
+   On the first launch, Isaac Sim will prompt you to accept the NVIDIA Omniverse License
+   Agreement before the simulation starts:
+
+   .. code-block:: text
+
+      By installing or using Isaac Sim, I agree to the terms of NVIDIA OMNIVERSE LICENSE AGREEMENT
+      in https://docs.isaacsim.omniverse.nvidia.com/latest/common/NVIDIA_Omniverse_License_Agreement.html
+
+      Do you accept the EULA? (Yes/No):
+
+   Type ``Yes`` and press **Enter** to continue. If this prompt goes unnoticed the script
+   will appear to hang — check your terminal output if Isaac Sim does not start within a
+   few seconds.
+
 .. tip::
 
    The ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` task above uses **hand tracking** as its
@@ -144,7 +161,7 @@ For details on the shipped ``.env`` profiles and how to customise them, see
 
 Then in the Isaac Sim UI:
 
-#. Locate the panel named **AR** and choose the following options:
+#. Locate the panel named **XR** and choose the following options:
 
    * Selected Output Plugin: **OpenXR**
    * OpenXR Runtime: **System OpenXR Runtime**
@@ -152,16 +169,17 @@ Then in the Isaac Sim UI:
    .. figure:: ../_static/setup/cloudxr_ar_panel.jpg
       :align: center
       :figwidth: 50%
-      :alt: Isaac Sim UI: AR Panel
+      :alt: Isaac Sim UI: XR Panel
 
-#. Click **Start AR**.
+#. Click **Start XR**.
 
-The viewport should show two eyes being rendered and the status "AR profile is active".
+You should see "Waiting for connection" displayed in the status bar at the bottom of the viewport.
+The dual-eye stereo render only becomes active once a headset connects and playback begins on the device.
 
 .. figure:: ../_static/setup/cloudxr_viewport.jpg
    :align: center
    :figwidth: 100%
-   :alt: Isaac Lab viewport rendering two eyes
+   :alt: Isaac Lab viewport showing "Waiting for connection" status after clicking Start XR
 
 Isaac Lab is now ready to receive connections from a CloudXR client.
 
@@ -195,7 +213,14 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client>`_.
+         `<https://nvidia.github.io/IsaacTeleop/client/release-1.3.x>`_.
+
+         .. note::
+
+            The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in
+            ``source/isaaclab_teleop/pyproject.toml``). When Isaac Lab bumps its Isaac Teleop
+            pin, update this link to the matching client release.
 
          .. tip::
 
@@ -404,11 +429,11 @@ API as headset-based optical hand tracking in Isaac Teleop, so the same retarget
 work with both input sources.
 
 For plugin configuration details, see the `Manus plugin documentation
-<https://github.com/NVIDIA/IsaacTeleop/blob/main/docs/source/device/manus.rst>`_.
+<https://nvidia.github.io/IsaacTeleop/main/device/manus.html>`_.
 
 The recommended workflow:
 
-#. Start Isaac Lab and click **Start AR**.
+#. Start Isaac Lab and click **Start XR**.
 #. Put on the Manus gloves and headset.
 #. Use voice commands to launch the Isaac XR Teleop Sample Client and connect to Isaac Lab.
 
@@ -423,6 +448,41 @@ components run inside one container with Isaac Lab in this release.
 The CloudXR runtime auto-launches when a teleop script is started, so no separate
 runtime command is needed.
 
+.. attention::
+
+   Recent Isaac Lab Docker images (3.0.0-beta2 and later) run as a **non-root** user
+   (uid/gid 1000). Persistent named volumes or host directories that were created by an
+   earlier root-based image are owned by ``root`` and are **not writable** by the runtime
+   user. The XR teleop workflow trips on this first, because it writes the extension
+   registry cache under the runtime home. The failure looks like::
+
+      [Error] [carb.scripting-python.plugin] PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'
+
+   followed by a cascade of extension-registry errors that abort the app *before* the XR
+   session can start::
+
+      [Error] [omni.ext.plugin] Syncing with extension registry unavailable.
+      [Error] [omni.ext.plugin] Failed to resolve extension dependencies. Failure hints:
+        * No versions of omni.kit.xr.bundle.generic that satisfies: isaaclab.python.xr.openxr-3.0.0 ...
+      [Error] [omni.kit.app.plugin] Exiting app because of dependency solver failure...
+
+   The XR bundle is not actually missing -- the registry never synced because its cache
+   directory could not be created. To fix it, make the persistent storage writable by
+   uid/gid 1000 before relaunching:
+
+   * **Docker Compose:** recreate the named volumes, e.g.
+
+     .. code-block:: bash
+
+        docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+
+     See :ref:`deployment-docker` for details. To preserve cached data instead of
+     deleting it, ``chown`` the volume: ``docker run --rm -v docker_isaac-data:/data alpine
+     chown -R 1000:1000 /data``.
+   * **Single container with bind mounts:** pre-create the host directories and
+     ``sudo chown -R 1000:1000`` them before launching, so the non-root user can write to
+     them.
+
 Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 .. code-block:: bash
@@ -433,10 +493,10 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
      --dataset_file ./datasets/dataset.hdf5 \
      --xr --visualizer kit
 
-Then in the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**.
+Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` and the XR
-teleop session will run automatically.
+For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
+``--viz none`` and the XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 

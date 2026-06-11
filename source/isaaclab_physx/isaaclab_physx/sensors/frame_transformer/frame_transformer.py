@@ -16,9 +16,9 @@ import warp as wp
 
 from pxr import UsdPhysics
 
-import isaaclab.sim as sim_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -182,23 +182,21 @@ class FrameTransformer(BaseFrameTransformer):
         frame_offsets = [None] + [target_frame.offset for target_frame in self.cfg.target_frames]
         frame_types = ["source"] + ["target"] * len(self.cfg.target_frames)
         for frame, prim_path, offset, frame_type in zip(frames, frame_prim_paths, frame_offsets, frame_types):
-            # Find correct prim
-            matching_prims = sim_utils.find_matching_prims(prim_path)
-            if len(matching_prims) == 0:
+            # Resolve the source-side env prims (filtered to rigid bodies) and their destination
+            # expressions. Plan-aware: with an active ``ClonePlan``, only env-0 representatives
+            # are walked and dest expressions are rebuilt against the plan's destination glob.
+            def has_rigid_body_api(prim) -> bool:
+                return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
+
+            matches = resolve_matching_prims_from_source(
+                prim_path, predicate=has_rigid_body_api, raise_if_no_matches=False
+            )
+            if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
-                    " No matching prims were found."
+                    " No matching rigid-body prims were found."
                 )
-            for prim in matching_prims:
-                # Get the prim path of the matching prim
-                matching_prim_path = prim.GetPath().pathString
-                # Check if it is a rigid prim
-                if not prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                    raise ValueError(
-                        f"While resolving expression '{prim_path}' found a prim '{matching_prim_path}' which is not a"
-                        " rigid body. The class only supports transformations between rigid bodies."
-                    )
-
+            for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification
                 body_name = self._get_relative_body_path(matching_prim_path)
                 # Use leaf name of prim path if frame name isn't specified by user
@@ -244,7 +242,12 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
-        body_names_regex = [tracked_prim_path.replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths]
+        # Convert each tracked prim path to PhysX glob form for ``create_rigid_body_view``.
+        # Plan-mode dest expressions use ``env_.*`` (regex), legacy mode produces concrete
+        # ``env_0`` paths; chain both substitutions so each mode normalises to ``env_*``.
+        body_names_regex = [
+            tracked_prim_path.replace(".*", "*").replace("env_0", "env_*") for tracked_prim_path in tracked_prim_paths
+        ]
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()

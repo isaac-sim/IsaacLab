@@ -1,0 +1,21 @@
+[package]
+
+# Note: Semantic Versioning is used: https://semver.org/
+version = "0.2.0"
+
+# Description
+title = "Post-render PPISP (Physically Plausible Image Signal Processing) for IsaacLab"
+description="Extension providing a renderer-backend-agnostic PPISP pipeline that converts HDR scene-linear color to LDR RGBA at the end of a render tick."
+readme  = "docs/README.md"
+repository = "https://github.com/isaac-sim/IsaacLab"
+category = "robotics"
+keywords = ["robotics", "simulation", "rendering", "isp", "ppisp"]
+
+[dependencies]
+"isaaclab" = {}
+
+[core]
+reloadable = false
+
+[[python.module]]
+name = "isaaclab_ppisp"

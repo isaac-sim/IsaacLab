@@ -5,13 +5,15 @@
 
 from __future__ import annotations
 
-import dataclasses
 import warnings
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
-from isaaclab.sim.spawners.materials import PhysicsMaterialCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+from isaaclab.sim.spawners.materials.physics_materials_cfg import (
+    DeformableBodyMaterialBaseCfg,
+    RigidBodyMaterialBaseCfg,
+    SurfaceDeformableBodyMaterialBaseCfg,
+)
 from isaaclab.utils.configclass import configclass
 
 
@@ -19,50 +21,39 @@ from isaaclab.utils.configclass import configclass
 class OmniPhysicsDeformableMaterialCfg:
     """OmniPhysics material properties for a deformable body.
 
-    These properties are set with the prefix ``omniphysics:<property_name>``. For example, to set the density of the
-    deformable body, you would set the property ``omniphysics:density``.
-
-    See the OmniPhysics documentation for more information on the available properties.
+    These properties are set with the prefix ``omniphysics:<property_name>``.
     """
 
-    density: float | None = None
-    """The material density in [kg/m^3]. Defaults to None, in which case the simulation decides the default density."""
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsDeformableMaterialAPI"
+    _usd_field_exceptions: ClassVar[dict] = {}
+
+    density: float = 1000.0
+    """The material density [kg/m^3]. Defaults to 1000.0 kg/m^3."""
 
     static_friction: float = 0.25
-    """The static friction. Defaults to 0.25."""
+    """The static friction coefficient. Defaults to 0.25."""
 
     dynamic_friction: float = 0.25
-    """The dynamic friction. Defaults to 0.25."""
+    """The dynamic friction coefficient. Defaults to 0.25."""
 
     youngs_modulus: float = 1000000.0
-    """The Young's modulus, which defines the body's stiffness. Defaults to 1[MPa].
-
-    The Young's modulus is a measure of the material's ability to deform under stress. It is measured in Pascals ([Pa]).
-    """
+    """The Young's modulus, which defines the body's stiffness [Pa]. Defaults to 1 MPa."""
 
     poissons_ratio: float = 0.45
-    """The Poisson's ratio which defines the body's volume preservation. Defaults to 0.45.
-
-    The Poisson's ratio is a measure of the material's ability to expand in the lateral direction when compressed
-    in the axial direction. It is a dimensionless number between 0 and 0.5. Using a value of 0.5 will make the
-    material incompressible.
-    """
+    """The Poisson's ratio which defines the body's volume preservation."""
 
 
 @configclass
 class OmniPhysicsSurfaceDeformableMaterialCfg(OmniPhysicsDeformableMaterialCfg):
-    """OmniPhysics material properties for a surface deformable body,
-    extending on :class:`OmniPhysicsDeformableMaterialCfg` with additional parameters for surface deformable bodies.
+    """OmniPhysics material properties for a surface deformable body."""
 
-    These properties are set with the prefix ``omniphysics:<property_name>``.
-    For example, to set the surface thickness of the surface deformable body,
-    you would set the property ``omniphysics:surfaceThickness``.
-
-    See the OmniPhysics documentation for more information on the available properties.
-    """
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = "OmniPhysicsSurfaceDeformableMaterialAPI"
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     surface_thickness: float = 0.01
-    """The thickness of the deformable body's surface. Defaults to 0.01 meters ([m])."""
+    """The thickness of the deformable body's surface [m]. Defaults to 0.01."""
 
     surface_stretch_stiffness: float = 0.0
     """The stretch stiffness of the deformable body's surface. Defaults to 0.0."""
@@ -73,56 +64,88 @@ class OmniPhysicsSurfaceDeformableMaterialCfg(OmniPhysicsDeformableMaterialCfg):
     surface_bend_stiffness: float = 0.0
     """The bend stiffness of the deformable body's surface. Defaults to 0.0."""
 
-    bend_damping: float = 0.0
-    """The bend damping for the deformable body's surface. Defaults to 0.0."""
-
 
 @configclass
 class PhysXDeformableMaterialCfg:
     """PhysX-specific material properties for a deformable body.
 
-    These properties are set with the prefix ``physxDeformableBody:<property_name>``.
-    For example, to set the elasticity damping of the deformable body,
-    you would set the property ``physxDeformableBody:elasticityDamping``.
-
-    See the PhysX documentation for more information on the available properties.
+    These properties are set with the prefix ``physxDeformableMaterial:<property_name>``.
     """
+
+    _usd_namespace: ClassVar[str | None] = "physxDeformableMaterial"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxDeformableMaterialAPI"
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     elasticity_damping: float = 0.005
     """The elasticity damping for the deformable material. Defaults to 0.005."""
 
 
 @configclass
-class DeformableBodyMaterialCfg(PhysicsMaterialCfg, OmniPhysicsDeformableMaterialCfg, PhysXDeformableMaterialCfg):
-    """Physics material parameters for deformable bodies.
+class PhysxDeformableBodyMaterialCfg(
+    DeformableBodyMaterialBaseCfg,
+    OmniPhysicsDeformableMaterialCfg,
+    PhysXDeformableMaterialCfg,
+):
+    """PhysX-specific physics material parameters for deformable bodies."""
 
-    See :meth:`spawn_deformable_body_material` for more information.
-    """
-
-    func: Callable | str = "{DIR}.physics_materials:spawn_deformable_body_material"
-
-    _property_prefix: dict[str, list[str]] = {
-        "omniphysics": [field.name for field in dataclasses.fields(OmniPhysicsDeformableMaterialCfg)],
-        "physxDeformableBody": [field.name for field in dataclasses.fields(PhysXDeformableMaterialCfg)],
-    }
-    """Mapping between the property prefixes and the properties that fall under each prefix."""
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
 
 
 @configclass
-class SurfaceDeformableBodyMaterialCfg(DeformableBodyMaterialCfg, OmniPhysicsSurfaceDeformableMaterialCfg):
-    """Physics material parameters for surface deformable bodies,
-    extending on :class:`DeformableBodyMaterialCfg` with additional parameters for surface deformable bodies.
+class PhysxSurfaceDeformableBodyMaterialCfg(
+    SurfaceDeformableBodyMaterialBaseCfg,
+    OmniPhysicsSurfaceDeformableMaterialCfg,
+    PhysXDeformableMaterialCfg,
+):
+    """PhysX-specific physics material parameters for surface deformable bodies."""
 
-    See :meth:`spawn_deformable_body_material` for more information.
+    _usd_namespace: ClassVar[str | None] = "physxDeformableMaterial"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxSurfaceDeformableMaterialAPI"
+
+    func: Callable | str = "isaaclab.sim.spawners.materials.physics_materials:spawn_deformable_body_material"
+
+    bend_damping: float = 0.0
+    """Damping acting against bend-resistance forces [1/s]. Defaults to 0.0."""
+
+
+@configclass
+class DeformableBodyMaterialCfg(PhysxDeformableBodyMaterialCfg):
+    """Deprecated: use :class:`PhysxDeformableBodyMaterialCfg`.
+
+    .. deprecated:: 4.6.x
+        ``DeformableBodyMaterialCfg`` has moved to
+        :class:`PhysxDeformableBodyMaterialCfg` for PhysX-specific deformable materials
+        and is scheduled for removal in 5.0.
     """
 
-    func: Callable | str = "{DIR}.physics_materials:spawn_deformable_body_material"
+    def __post_init__(self):
+        warnings.warn(
+            "'DeformableBodyMaterialCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.spawners.materials.PhysxDeformableBodyMaterialCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
 
-    _property_prefix: dict[str, list[str]] = {
-        "omniphysics": [field.name for field in dataclasses.fields(OmniPhysicsSurfaceDeformableMaterialCfg)],
-        "physxDeformableBody": [field.name for field in dataclasses.fields(PhysXDeformableMaterialCfg)],
-    }
-    """Extend DeformableBodyMaterialCfg properties under each prefix."""
+
+@configclass
+class SurfaceDeformableBodyMaterialCfg(PhysxSurfaceDeformableBodyMaterialCfg):
+    """Deprecated: use :class:`PhysxSurfaceDeformableBodyMaterialCfg`.
+
+    .. deprecated:: 4.6.x
+        ``SurfaceDeformableBodyMaterialCfg`` has moved to
+        :class:`PhysxSurfaceDeformableBodyMaterialCfg` for PhysX-specific surface
+        deformable materials and is scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'SurfaceDeformableBodyMaterialCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableBodyMaterialCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
 
 
 @configclass

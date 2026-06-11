@@ -238,6 +238,11 @@ def update_net_forces_kernel(
         if not mask[env]:
             return
 
+    # Skip envs that have not been stepped since their last reset: the PhysX contact buffer
+    # still holds pre-reset values, so reading it now would inject stale data (#4970).
+    if timestamp[env] == 0.0:
+        return
+
     src_idx = env * num_sensors + sensor
 
     # Update net forces

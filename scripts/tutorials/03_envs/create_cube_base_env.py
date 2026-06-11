@@ -288,7 +288,7 @@ class CubeEnvCfg(ManagerBasedEnvCfg):
     # The flag 'replicate_physics' is set to False, which means that the cube is not replicated
     # across multiple environments but rather each environment gets its own cube instance.
     # This allows modifying the cube's properties independently for each environment.
-    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=True)
+    scene: MySceneCfg = MySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.5, replicate_physics=False)
 
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()

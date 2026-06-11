@@ -31,7 +31,7 @@ Examples
     tools/run_install_ci.py docker --gpu -- -m "slow and gpu"
 
     # Filter by bug ID (dashes become underscores)
-    tools/run_install_ci.py docker --gpu -- -m nvbugs_5968136
+    tools/run_install_ci.py docker --gpu -- -m <bug-id>
 
     # Drop into a shell for debugging
     tools/run_install_ci.py docker --shell
@@ -149,6 +149,37 @@ def _find_repo_root() -> Path:
     raise FileNotFoundError("Could not locate IsaacLab repository root")
 
 
+def _build_isaaclab_wheel(repo_root: Path, debug: bool = False) -> Path:
+    """Build the isaaclab wheel via ``tools/wheel_builder/build.sh`` and return its path.
+
+    Used by ``--build-wheel`` so callers (CI or local dev) don't have to pre-build the
+    wheel out-of-band before invoking the install_ci runner. Tests consume the wheel
+    via the existing ``ISAACLAB_WHEEL`` env var / ``wheel_path`` session fixture.
+
+    Output is captured and discarded by default to avoid spamming CI logs with thousands of
+    setuptools / pip lines. Pass ``debug=True`` (via the runner's ``--debug`` flag) to stream
+    the build output live. On failure the captured output is dumped regardless.
+    """
+    build_script = repo_root / "tools" / "wheel_builder" / "build.sh"
+    dist_dir = repo_root / "tools" / "wheel_builder" / "build" / "dist"
+    mode = "verbose" if debug else "quiet; pass --debug for full output"
+    print(f"{_MAGENTA}[BUILD-WHEEL] running {build_script} ({mode}){_RESET}")
+    t0 = time.monotonic()
+    result = run_cmd(["bash", str(build_script)], cwd=repo_root, timeout=900, check=False, stream=debug)
+    if result.returncode != 0:
+        if not debug:
+            sys.stdout.write(result.stdout or "")
+            if result.stderr:
+                sys.stderr.write(result.stderr)
+        raise RuntimeError(f"tools/wheel_builder/build.sh failed (rc={result.returncode})")
+    wheels = sorted(dist_dir.glob("isaaclab-*.whl"))
+    if len(wheels) != 1:
+        raise RuntimeError(f"Expected exactly 1 wheel in {dist_dir}, found: {wheels}")
+    elapsed = time.monotonic() - t0
+    print(f"{_MAGENTA}[BUILD-WHEEL] built {wheels[0]} ({elapsed:.1f}s){_RESET}")
+    return wheels[0]
+
+
 # Docker mode
 
 
@@ -227,33 +258,37 @@ def _copy_junit_xml(container_name: str, container_results_xml: str, host_result
         print(f"Warning: could not chmod results file {host_results_xml}: {exc}", file=sys.stderr)
 
 
+def _maybe_build_wheel(args: argparse.Namespace, repo_root: Path) -> None:
+    """If ``--build-wheel`` was given, build the wheel and populate ``args.wheel``."""
+    if not getattr(args, "build_wheel", False):
+        return
+    if args.wheel:
+        raise SystemExit("--build-wheel is mutually exclusive with --wheel")
+    args.wheel = str(_build_isaaclab_wheel(repo_root, debug=getattr(args, "debug", False)))
+
+
 def _cmd_docker(args: argparse.Namespace) -> int:
     """Build the Docker image and run tests inside the container based on *args*."""
 
     repo_root = _find_repo_root()
 
-    # Build the uv base image first.
+    _maybe_build_wheel(args, repo_root)
+
     _install_ci_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
-    uv_dockerfile = _install_ci_dir / "Dockerfile.installci"
-    uv_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
+    dockerfile = _install_ci_dir / "Dockerfile.installci"
+    image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
-    rc = _build_image(repo_root, uv_dockerfile, uv_tag, {"BASE_IMAGE": args.base_image}, args.no_cache)
+    rc = _build_image(
+        repo_root,
+        dockerfile,
+        image_tag,
+        {"BASE_IMAGE": args.base_image},
+        args.no_cache,
+    )
     if rc != 0:
-        print(f"Docker build (uv base) failed (exit {rc})")
+        print(f"Docker build failed (exit {rc})")
         return rc
-    print(f"Docker uv base image built: {uv_tag}")
-
-    # If conda mode, build the conda layer on top.
-    if getattr(args, "conda", False):
-        conda_dockerfile = _install_ci_dir / "Dockerfile.installci-conda"
-        image_tag = f"{uv_tag}-conda"
-        rc = _build_image(repo_root, conda_dockerfile, image_tag, {"UV_IMAGE": uv_tag}, args.no_cache)
-        if rc != 0:
-            print(f"Docker build (conda layer) failed (exit {rc})")
-            return rc
-        print(f"Docker conda image built: {image_tag}")
-    else:
-        image_tag = uv_tag
+    print(f"Docker image built: {image_tag}")
 
     host_results_xml: Path | None = None
     container_name: str | None = None
@@ -278,9 +313,9 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     # The container runs as the non-root 'isaaclab' user (uid 1000), so caches
     # must live under /home/isaaclab rather than /root.
     if not args.no_pip_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-pip-cache:/home/isaaclab/.cache/pip"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-pip-cache:/home/isaaclab/.cache/pip"])
     if not args.no_uv_cache:
-        docker_run_cmd.extend(["-v", "isaaclab-installci-uv-cache:/home/isaaclab/.cache/uv"])
+        docker_run_cmd.extend(["-v", "isaaclab-install-ci-uv-cache:/home/isaaclab/.cache/uv"])
 
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
@@ -334,6 +369,8 @@ def _cmd_native(args: argparse.Namespace) -> int:
     repo_root = _find_repo_root()
     test_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
 
+    _maybe_build_wheel(args, repo_root)
+
     env = os.environ.copy()
     if args.wheel:
         env["ISAACLAB_WHEEL"] = str(Path(args.wheel).resolve())
@@ -366,16 +403,19 @@ def main() -> int:
 docker options:
   --base-image IMAGE   Docker base image (default: ubuntu:24.04)
   --gpu                Pass --gpus all to docker run
-  --conda              Build and use a conda-enabled image (layered on the uv base)
   --shell              Drop into interactive bash instead of running tests
   --no-cache           Build Docker image without layer cache
   --no-pip-cache       Disable persistent pip cache volume
   --no-uv-cache        Disable persistent uv cache volume
   --results-dir DIR    Host directory for test results (auto-adds --junitxml)
   --wheel PATH         Path to pre-built isaaclab wheel file
+  --build-wheel        Build the isaaclab wheel and pass it to tests (mutually exclusive with --wheel)
+  --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
 
 native options:
   --wheel PATH         Path to pre-built isaaclab wheel file
+  --build-wheel        Build the isaaclab wheel and pass it to tests (mutually exclusive with --wheel)
+  --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
 
 pytest arguments:
   Pass pytest options after '--'. Without '--', defaults to '-sv --tb=short'.
@@ -385,9 +425,9 @@ pytest arguments:
     %(prog)s docker --base-image ubuntu:22.04 -- -vs -k "testname"  # custom base image
     %(prog)s docker --gpu                                    # GPU support (--gpus all)
     %(prog)s docker --gpu -- -m uv                           # uv tests only
-    %(prog)s docker --gpu --conda -- -m conda                # conda tests (conda image)
+    %(prog)s docker --gpu -- -m conda                        # conda tests only
     %(prog)s docker --gpu -- -m "slow and gpu"               # combine markers with GPU
-    %(prog)s docker --gpu -- -m nvbugs_5968136               # filter by bug ID
+    %(prog)s docker --gpu -- -k <bug-id>                     # filter by bug ID
     %(prog)s docker --shell                                  # drop into shell for debugging
     %(prog)s native -- -vs                                   # run natively (no Docker)
     %(prog)s docker --wheel /tmp/isaaclab.whl                # pass a pre-built wheel
@@ -405,11 +445,6 @@ pytest arguments:
     )
     docker_p.add_argument("--gpu", action="store_true", help="Pass --gpus all to docker run")
     docker_p.add_argument(
-        "--conda",
-        action="store_true",
-        help="Build and use a conda-enabled Docker image (layered on top of the uv base image)",
-    )
-    docker_p.add_argument(
         "--shell", action="store_true", help="Drop into an interactive bash shell instead of running tests"
     )
     docker_p.add_argument("--no-cache", action="store_true", help="Build Docker image without cache")
@@ -419,11 +454,31 @@ pytest arguments:
         "--results-dir", type=str, default=None, help="Host directory for test results (auto-adds --junitxml)"
     )
     docker_p.add_argument("--wheel", type=str, default=None, help="Path to pre-built isaaclab wheel file")
+    docker_p.add_argument(
+        "--build-wheel",
+        action="store_true",
+        help="Build the isaaclab wheel via tools/wheel_builder/build.sh and pass it to tests (sets --wheel)",
+    )
+    docker_p.add_argument(
+        "--debug",
+        action="store_true",
+        help="Stream wheel-build output live instead of capturing it silently (default: quiet)",
+    )
     docker_p.add_argument("pytest_args", nargs="*", help="Arguments forwarded to pytest (use -- to separate)")
 
     # native subcommand
     native_p = sub.add_parser("native", help="Run tests directly on the host OS")
     native_p.add_argument("--wheel", type=str, default=None, help="Path to pre-built isaaclab wheel file")
+    native_p.add_argument(
+        "--build-wheel",
+        action="store_true",
+        help="Build the isaaclab wheel via tools/wheel_builder/build.sh and pass it to tests (sets --wheel)",
+    )
+    native_p.add_argument(
+        "--debug",
+        action="store_true",
+        help="Stream wheel-build output live instead of capturing it silently (default: quiet)",
+    )
     native_p.add_argument("pytest_args", nargs="*", help="Arguments forwarded to pytest (use -- to separate)")
 
     # If '--' is in sys.argv, split there so pytest args are captured correctly

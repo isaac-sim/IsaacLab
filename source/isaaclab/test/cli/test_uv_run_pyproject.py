@@ -54,6 +54,7 @@ def test_uv_run_keeps_modular_extras_without_isaacsim():
             "isaaclab-mimic",
             "isaaclab-newton[all]",
             "isaaclab-physx[newton]",
+            "isaaclab-ppisp",
             "isaaclab-rl[all]",
             "isaaclab-visualizers[all]",
         ],

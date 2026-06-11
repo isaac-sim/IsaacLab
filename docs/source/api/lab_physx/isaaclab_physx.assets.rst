@@ -16,7 +16,6 @@
     RigidObjectCollectionData
     DeformableObject
     DeformableObjectData
-    DeformableObjectCfg
     SurfaceGripper
     SurfaceGripperCfg
 
@@ -78,11 +77,13 @@ Deformable Object
     :show-inheritance:
     :exclude-members: __init__
 
-.. autoclass:: DeformableObjectCfg
-    :members:
-    :inherited-members:
-    :show-inheritance:
-    :exclude-members: __init__, class_type, InitialStateCfg
+.. note::
+
+    :class:`isaaclab.assets.DeformableObjectCfg` is the shared configuration
+    class for deformable objects. The PhysX extension provides the PhysX
+    implementation of :class:`isaaclab.assets.DeformableObject`, while
+    deformable schema and material cfgs referenced by ``spawn`` remain
+    backend-specific.
 
 Surface Gripper
 ---------------

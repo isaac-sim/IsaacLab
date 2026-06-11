@@ -21,8 +21,23 @@ class ViserVisualizerCfg(VisualizerCfg):
     port: int = 8080
     """Port of the local viser web server."""
 
-    open_browser: bool = True
-    """Whether to attempt opening the viser web viewer URL in a browser."""
+    bind_address: str = "0.0.0.0"
+    """Host/interface for the Viser server to bind.
+
+    Use ``"0.0.0.0"`` to listen on all interfaces for remote access.
+    """
+
+    display_address: str = "localhost"
+    """Host name or IP address shown in the printed browser URL.
+
+    For remote access, set this to the hostname/IP reachable from your browser.
+    """
+
+    open_browser: bool = False
+    """Whether to attempt opening the viser web viewer URL in a browser.
+
+    The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
+    """
 
     label: str | None = "Isaac Lab Simulation"
     """Optional label shown in the viewer page title."""

@@ -5,13 +5,13 @@
 
 from __future__ import annotations
 
-import dataclasses
 import warnings
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     CollisionBaseCfg,
+    DeformableBodyPropertiesBaseCfg,
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
@@ -20,14 +20,15 @@ from isaaclab.utils.configclass import configclass
 
 
 @configclass
-class OmniPhysicsPropertiesCfg:
+class OmniPhysicsDeformableBodyPropertiesCfg(DeformableBodyPropertiesBaseCfg):
     """OmniPhysics properties for a deformable body.
 
-    These properties are set with the prefix ``omniphysics:<property_name>``. For example, to set the mass of the
-    deformable body, you would set the property ``omniphysics:mass``.
-
-    See the OmniPhysics documentation for more information on the available properties.
+    These properties are set with the prefix ``omniphysics:<property_name>``.
     """
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = None
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     deformable_body_enabled: bool | None = None
     """Enables deformable body."""
@@ -36,7 +37,7 @@ class OmniPhysicsPropertiesCfg:
     """Enables kinematic body. Defaults to False, which means that the body is not kinematic."""
 
     mass: float | None = None
-    """The material mass in [kg]. Defaults to None, in which case the material density is used to compute the mass."""
+    """The material mass [kg]. Defaults to None, in which case the material density is used to compute the mass."""
 
 
 @configclass
@@ -47,6 +48,10 @@ class PhysXDeformableBodyPropertiesCfg:
 
     For more information on the available properties, please refer to the `documentation <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/deformables/physx_deformable_schema.html#physxbasedeformablebodyapi>`_.
     """
+
+    _usd_namespace: ClassVar[str | None] = "physxDeformableBody"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxBaseDeformableBodyAPI"
+    _usd_field_exceptions: ClassVar[dict] = {}
 
     solver_position_iteration_count: int = 16
     """Number of the solver positional iterations per step. Range is [1,255], default to 16."""
@@ -134,6 +139,10 @@ class PhysxDeformableCollisionPropertiesCfg:
         as a base of :class:`DeformableBodyPropertiesCfg`.
     """
 
+    _usd_namespace: ClassVar[str | None] = "physxCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxCollisionAPI"
+    _usd_field_exceptions: ClassVar[dict] = {}
+
     contact_offset: float | None = None
     """Contact offset for the collision shape [m].
 
@@ -152,31 +161,12 @@ class PhysxDeformableCollisionPropertiesCfg:
 
 
 @configclass
-class PhysXCollisionPropertiesCfg(PhysxDeformableCollisionPropertiesCfg):
-    """Deprecated: use :class:`PhysxDeformableCollisionPropertiesCfg`.
-
-    .. deprecated:: 4.6.23
-        ``PhysXCollisionPropertiesCfg`` (capital X) was renamed to
-        :class:`PhysxDeformableCollisionPropertiesCfg` to clear the namespace for the
-        new rigid-body :class:`PhysxCollisionPropertiesCfg` (lowercase x). The capital-X
-        name is preserved as a deprecation alias and is scheduled for removal in 5.0.
-    """
-
-    def __post_init__(self):
-        warnings.warn(
-            "'PhysXCollisionPropertiesCfg' (capital X) is deprecated and will be removed in 5.0."
-            " Use 'isaaclab_physx.sim.schemas.PhysxDeformableCollisionPropertiesCfg' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        super().__post_init__()
-
-
-@configclass
-class DeformableBodyPropertiesCfg(
-    OmniPhysicsPropertiesCfg, PhysXDeformableBodyPropertiesCfg, PhysxDeformableCollisionPropertiesCfg
+class PhysxDeformableBodyPropertiesCfg(
+    OmniPhysicsDeformableBodyPropertiesCfg,
+    PhysXDeformableBodyPropertiesCfg,
+    PhysxDeformableCollisionPropertiesCfg,
 ):
-    """Properties to apply to a deformable body.
+    """PhysX-specific properties to apply to a deformable body.
 
     A deformable body is a body that can deform under forces, both surface and volume deformables.
     The configuration allows users to specify the properties of the deformable body,
@@ -192,12 +182,25 @@ class DeformableBodyPropertiesCfg(
         the properties and leave the rest as-is.
     """
 
-    _property_prefix: dict[str, list[str]] = {
-        "omniphysics": [field.name for field in dataclasses.fields(OmniPhysicsPropertiesCfg)],
-        "physxDeformableBody": [field.name for field in dataclasses.fields(PhysXDeformableBodyPropertiesCfg)],
-        "physxCollision": [field.name for field in dataclasses.fields(PhysxDeformableCollisionPropertiesCfg)],
-    }
-    """Mapping between the property prefixes and the properties that fall under each prefix."""
+
+@configclass
+class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
+    """Deprecated: use :class:`PhysxDeformableBodyPropertiesCfg`.
+
+    .. deprecated:: 4.6.x
+        ``DeformableBodyPropertiesCfg`` has moved to
+        :class:`PhysxDeformableBodyPropertiesCfg` for PhysX-specific deformable properties
+        and is scheduled for removal in 5.0.
+    """
+
+    def __post_init__(self):
+        warnings.warn(
+            "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 5.0. Use"
+            " 'isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg' instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__post_init__()
 
 
 @configclass

@@ -11,11 +11,13 @@ __all__ = [
     "define_actuator_properties",
     "define_articulation_root_properties",
     "define_collision_properties",
+    "define_deformable_body_properties",
     "define_mass_properties",
     "define_mesh_collision_properties",
     "define_rigid_body_properties",
     "modify_articulation_root_properties",
     "modify_collision_properties",
+    "modify_deformable_body_properties",
     "modify_fixed_tendon_properties",
     "modify_joint_drive_properties",
     "modify_mass_properties",
@@ -26,6 +28,8 @@ __all__ = [
     "BoundingCubePropertiesCfg",
     "BoundingSpherePropertiesCfg",
     "CollisionBaseCfg",
+    "DeformableBodyPropertiesBaseCfg",
+    "DeformableBodyPropertiesCfg",
     "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionBaseCfg",
@@ -37,6 +41,7 @@ __all__ = [
     "NewtonMaterialPropertiesCfg",
     "NewtonMeshCollisionPropertiesCfg",
     "NewtonRigidBodyPropertiesCfg",
+    "NewtonSDFCollisionPropertiesCfg",
     "RigidBodyBaseCfg",
 ]
 
@@ -47,11 +52,13 @@ from .schemas import (
     activate_contact_sensors,
     define_articulation_root_properties,
     define_collision_properties,
+    define_deformable_body_properties,
     define_mass_properties,
     define_mesh_collision_properties,
     define_rigid_body_properties,
     modify_articulation_root_properties,
     modify_collision_properties,
+    modify_deformable_body_properties,
     modify_fixed_tendon_properties,
     modify_joint_drive_properties,
     modify_mass_properties,
@@ -67,6 +74,8 @@ from .schemas_cfg import (
     BoundingCubePropertiesCfg,
     BoundingSpherePropertiesCfg,
     CollisionBaseCfg,
+    DeformableBodyPropertiesBaseCfg,
+    DeformableBodyPropertiesCfg,
     JointDriveBaseCfg,
     MassPropertiesCfg,
     MeshCollisionBaseCfg,
@@ -82,3 +91,4 @@ NewtonJointDrivePropertiesCfg = ...
 NewtonMaterialPropertiesCfg = ...
 NewtonMeshCollisionPropertiesCfg = ...
 NewtonRigidBodyPropertiesCfg = ...
+NewtonSDFCollisionPropertiesCfg = ...
