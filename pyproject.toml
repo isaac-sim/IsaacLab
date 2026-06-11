@@ -189,7 +189,7 @@ reportPrivateUsage = "warning"
 skip = '*.usd,*.usda,*.usdz,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
 quiet-level = 0
 # the world list should always have words in lower case
-ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty"
+ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty,segway"
 
 
 [tool.pytest.ini_options]

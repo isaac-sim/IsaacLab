@@ -1,6 +1,131 @@
 Changelog
 ---------
 
+6.0.0 (2026-06-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a config-time check that raises a clear error when a surface-gripper (suction)
+  stacking task is run with the Newton physics backend, which has no surface-gripper
+  implementation, instead of failing later during scene creation.
+* Added a config-time check that raises a clear error when an Agibot place task is run
+  with the Newton physics backend, whose USD parser rejects the robot's reversed
+  gripper joints, instead of failing later during scene creation.
+* Added a ``preferred_checkpoint`` regex argument to :func:`~isaaclab_tasks.utils.parse_cfg.get_checkpoint_path`
+  that is matched before ``checkpoint`` and wins when it matches, otherwise resolution falls back to ``checkpoint``.
+
+Changed
+^^^^^^^
+
+* Migrated the Stack-Cube (UR10, Galbot) and Place (Agibot) manipulation tasks to
+  Lab 3.0 multi-backend physics by exposing a ``PhysicsCfg`` preset
+  (``physics=physx`` / ``physics=newton_mjwarp``) instead of a hard-coded
+  :class:`~isaaclab_physx.physics.PhysxCfg`.
+* **Breaking:** Consolidated the in-hand reorientation tasks into a single
+  :mod:`isaaclab_tasks.core.reorient` package. The former ``isaaclab_tasks.core.allegro_hand``
+  (direct) and ``isaaclab_tasks.core.inhand.config.allegro_hand`` (manager-based) tasks moved
+  under :mod:`isaaclab_tasks.core.reorient.config.allegro_hand`, and ``isaaclab_tasks.core.shadow_hand``
+  moved under :mod:`isaaclab_tasks.core.reorient.config.shadow_hand`. The shared direct base environment
+  ``isaaclab_tasks.core.inhand_manipulation.inhand_manipulation_env.InHandManipulationEnv`` was
+  renamed to :class:`isaaclab_tasks.core.reorient.reorient_direct_env.ReorientDirectEnv`, and the
+  shared manager-based base configuration to
+  :class:`isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`. Update imports
+  such as ``from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg`` to
+  ``from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg``.
+* **Breaking:** Within :mod:`isaaclab_tasks.core.reorient.config.allegro_hand`, the workflow-specific
+  config modules carry a ``_direct_`` / ``_manager_`` infix
+  (:mod:`~isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg` and
+  :mod:`~isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_cfg`), and the colliding
+  ``rl_games`` / ``skrl`` agent configs were renamed accordingly (e.g. ``rl_games_ppo_cfg.yaml`` →
+  ``rl_games_direct_ppo_cfg.yaml`` / ``rl_games_manager_ppo_cfg.yaml``). The direct and
+  manager-based ``rsl_rl`` runner configs (``AllegroHandPPORunnerCfg`` and ``AllegroCubePPORunnerCfg``)
+  now live together in ``reorient.config.allegro_hand.agents.rsl_rl_ppo_cfg``.
+* **Breaking:** Renamed the camera-based shadow hand task from ``Vision`` to ``Camera``. The env
+  modules ``shadow_hand_vision_env`` / ``shadow_hand_vision_env_cfg`` became
+  :mod:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env` /
+  :mod:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg`, and the
+  ``ShadowHandVision*`` classes (env, env cfg, runner cfg) became ``ShadowHandCamera*``.
+* Promoted the task-local ``reset_joints_within_limits_range`` event term to the core
+  :class:`~isaaclab.envs.mdp.events.reset_joints_within_limits_range`; it is still accessible via
+  ``isaaclab_tasks.core.reorient.mdp`` through the core re-export.
+* **Breaking:** Moved the multi-agent Shadow Hand Over task to the top-level
+  :mod:`isaaclab_tasks.core.handover` package and renamed ``ShadowHandOverEnv`` /
+  ``ShadowHandOverEnvCfg`` to :class:`~isaaclab_tasks.core.handover.handover_env.HandoverEnv` /
+  :class:`~isaaclab_tasks.core.handover.handover_env_cfg.HandoverEnvCfg`.
+* **Breaking:** Renamed the Gym environment IDs: dropped the ``-v0`` version suffix, renamed
+  ``Repose-Cube`` to ``Reorient-Cube`` and the camera variants from ``Vision`` to ``Camera``. The
+  manager-based workflow carries no workflow suffix while the direct workflow keeps ``-Direct``.
+  Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Repose-Cube-Allegro-v0`` → ``Isaac-Reorient-Cube-Allegro``.
+  * ``Isaac-Repose-Cube-Allegro-Play-v0`` → ``Isaac-Reorient-Cube-Allegro-Play``.
+  * ``Isaac-Repose-Cube-Allegro-Direct-v0`` → ``Isaac-Reorient-Cube-Allegro-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-Camera-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0`` → ``Isaac-Reorient-Cube-Shadow-Camera-Direct-Play``.
+  * ``Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct``.
+  * ``Isaac-Shadow-Hand-Over-Direct-v0`` → ``Isaac-Shadow-Handover-Direct``.
+* **Breaking:** Consolidated the Franka cabinet (open-drawer) tasks into the single
+  :mod:`isaaclab_tasks.core.cabinet` package. The former ``isaaclab_tasks.core.franka_cabinet``
+  direct task moved in: the env ``FrankaCabinetEnv`` became the robot-agnostic
+  :class:`~isaaclab_tasks.core.cabinet.cabinet_direct_env.CabinetDirectEnv` (at the package root,
+  alongside the manager-based :class:`~isaaclab_tasks.core.cabinet.cabinet_env_cfg.CabinetEnvCfg`).
+  Its config ``FrankaCabinetEnvCfg`` (a ``DirectRLEnvCfg``) was split into a robot-agnostic base
+  :class:`~isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg.CabinetDirectEnvCfg` (at the package
+  root, with the robot left unset) and the Franka subclass
+  :class:`~isaaclab_tasks.core.cabinet.config.franka.cabinet_direct_env_cfg.FrankaCabinetDirectEnvCfg`
+  (which supplies the arm). The split also avoids clashing with the manager-based
+  ``FrankaCabinetEnvCfg`` in :mod:`~isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg`.
+* **Breaking:** Renamed the Gym environment IDs: dropped the ``-v0`` version suffix and unified the
+  direct task under the manager's ``Open-Drawer-Franka`` name with a ``-Direct`` suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Open-Drawer-Franka-v0`` → ``Isaac-Open-Drawer-Franka``.
+  * ``Isaac-Open-Drawer-Franka-Play-v0`` → ``Isaac-Open-Drawer-Franka-Play``.
+  * ``Isaac-Franka-Cabinet-Direct-v0`` → ``Isaac-Open-Drawer-Franka-Direct``.
+* **Breaking:** Merged the direct and manager agent configs into
+  ``isaaclab_tasks.core.cabinet.config.franka.agents``. The colliding ``rl_games`` / ``skrl`` configs
+  carry a ``_direct_`` / ``_manager_`` infix (e.g. ``rl_games_manager_ppo_cfg.yaml`` /
+  ``rl_games_direct_ppo_cfg.yaml``), and the ``rsl_rl`` runner configs ``CabinetPPORunnerCfg``
+  (manager) and ``FrankaCabinetPPORunnerCfg`` (direct) now live together in
+  ``cabinet.config.franka.agents.rsl_rl_ppo_cfg``.
+* **Breaking:** Renamed the cart double pendulum task to ``pendulum``. The package moved from
+  ``isaaclab_tasks.core.cart_double_pendulum`` to :mod:`isaaclab_tasks.core.pendulum`, the env
+  ``CartDoublePendulumEnv`` / ``CartDoublePendulumEnvCfg`` became
+  :class:`~isaaclab_tasks.core.pendulum.pendulum_env.PendulumEnv` /
+  :class:`~isaaclab_tasks.core.pendulum.pendulum_env_cfg.PendulumEnvCfg`, and the Gym environment ID
+  ``Isaac-Cart-Double-Pendulum-Direct`` became ``Isaac-Pendulum-Direct``. The
+  ``CART_DOUBLE_PENDULUM_CFG`` robot asset in :mod:`isaaclab_assets` is unchanged.
+* Removed the per-environment ``try/except ImportError`` guards around the
+  ``isaacteleop`` / ``isaaclab_teleop`` imports in the Galbot, Franka, GR1T2
+  nut-pour, and GR1T2 exhaust-pipe task configs. The imports are now
+  unconditional, matching the other teleop task configs, now that
+  :class:`~isaaclab_teleop.IsaacTeleopCfg` no longer requires the optional
+  ``isaacteleop`` package at import time. No migration is needed:
+  ``isaaclab_teleop`` ships with Isaac Lab and teleoperation behavior is
+  unchanged.
+
+Fixed
+^^^^^
+
+* Fixed the Galbot cube-stack tasks (``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0``
+  and ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``) failing to parse with
+  ``No module named 'isaacteleop'`` when the optional ``isaacteleop`` dependency is not
+  installed (e.g. on DGX Spark). The ``isaaclab_teleop`` import and XR pipeline setup are
+  now guarded behind an availability check, matching the Franka stack configs, so
+  keyboard/spacemouse teleoperation works without ``isaacteleop``.
+* Removed an unused ``joint_positions`` parameter from the cabinet direct environment's reward
+  computation.
+* Fixed ``rl_games`` and ``sb3`` play failing to load a checkpoint on short runs where the preferred
+  best/final checkpoint has not been written yet. They now prefer the best (``rl_games``) or final
+  (``sb3``) checkpoint and fall back to the latest available checkpoint when it is missing. Numbered
+  checkpoint filenames are now sorted naturally so epoch 10 is selected after epoch 9.
+
+
 5.0.1 (2026-06-10)
 ~~~~~~~~~~~~~~~~~~
 

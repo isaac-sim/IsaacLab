@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.15.6 (2026-06-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton replication to apply per-source world transforms when adding
+  prototypes to cloned worlds, instead of always offsetting from ``env_0``.
+* Fixed ``IndexError`` in Newton heterogeneous replication when resolving
+  source-world indices for inactive clone-plan rows with no assigned
+  environment.
+
+
 0.15.5 (2026-06-10)
 ~~~~~~~~~~~~~~~~~~~
 

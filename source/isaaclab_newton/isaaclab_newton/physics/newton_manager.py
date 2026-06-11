@@ -1861,11 +1861,37 @@ class NewtonManager(PhysicsManager):
         if cls._scene_data is None:
             cls._scene_data = SceneDataFormat.Transform()
         if cls._scene_data_mapping is None:
-            body_paths = list(getattr(cls._model, "body_label", None) or [])
+            body_paths = cls._resolve_scene_data_body_paths(list(cls._model.body_label), scene_data_provider.usd_stage)
             cls._scene_data_mapping = scene_data_provider.create_mapping(body_paths)
 
         cls._scene_data.transforms = cls._state_0.body_q
         scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
+
+    @staticmethod
+    def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:
+        """Map Newton joint labels to their target rigid-body prim paths."""
+        if stage is None:
+            return body_paths
+
+        from pxr import UsdPhysics
+
+        def _joint_body_path(prim):
+            joint = UsdPhysics.Joint(prim)
+            for rel in (joint.GetBody1Rel(), joint.GetBody0Rel()):
+                for target_path in rel.GetTargets():
+                    target_prim = stage.GetPrimAtPath(target_path)
+                    if target_prim.IsValid() and target_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                        return target_path.pathString
+            return None
+
+        resolved_paths = body_paths.copy()
+        for index, body_path in enumerate(body_paths):
+            if body_path is None:
+                continue
+            prim = stage.GetPrimAtPath(body_path)
+            if prim.IsValid() and prim.IsA(UsdPhysics.Joint):
+                resolved_paths[index] = _joint_body_path(prim) or body_path
+        return resolved_paths
 
     @classmethod
     def get_state_1(cls) -> State:

@@ -161,3 +161,24 @@ def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
     NewtonManager.update_visualization_state()
     assert NewtonManager._model == "live-model"
     assert NewtonManager._state_0 == "live-state"
+
+
+def test_resolve_scene_data_body_paths_uses_joint_body_targets():
+    """PhysX visualization sync maps Newton joint labels to the actual body prim path."""
+    import pytest
+
+    pytest.importorskip("pxr")
+    from isaaclab_newton.physics import NewtonManager
+
+    from pxr import Usd, UsdGeom, UsdPhysics
+
+    stage = Usd.Stage.CreateInMemory()
+    body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/robot0_forearm").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(body_prim)
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/envs/env_0/Robot/joints/robot0_forearm")
+    joint.GetBody1Rel().SetTargets([body_prim.GetPath()])
+
+    body_paths = ["/World/envs/env_0/Robot/joints/robot0_forearm"]
+    resolved_paths = NewtonManager._resolve_scene_data_body_paths(body_paths, stage)
+
+    assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
