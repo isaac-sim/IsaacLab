@@ -115,7 +115,10 @@ def _build_newton_builder_from_mapping(
 
     # Heterogeneous clone-plan rows spawn their prototype in the first active environment
     # for that row, then reuse that prototype for every other active environment.
-    source_world_indices = [int(torch.nonzero(mapping[row], as_tuple=True)[0][0]) for row in range(mapping.size(0))]
+    source_world_indices = []
+    for mapping_row in mapping:
+        nonzero_columns = torch.nonzero(mapping_row, as_tuple=True)
+        source_world_indices.append(int(nonzero_columns[0][0]) if nonzero_columns else -1)
 
     # create a separate world for each environment (heterogeneous spawning)
     # Newton assigns sequential world IDs (0, 1, 2, ...), so we need to track the mapping
