@@ -6,19 +6,17 @@
 """Base RL environment for inserting a DisplayPort plug into a socket.
 
 This mirrors :mod:`cable_insertion_env_cfg` (the GB300 cable-insertion base)
-but targets the right-angle DisplayPort plug/socket SimReady assets that live
-in ``display_cable_insertion_assets``.
+but targets the right-angle DisplayPort plug/socket assets in
+``display_cable_insertion_assets``.
 
-The DisplayPort assets are multi-body and ship a ``convexHull`` collider plus an
-embedded ``PhysicsScene``; they are loaded through the custom spawner
-:func:`...config.displayport_basic.spawners.spawn_usd_with_physics`, which (at
-spawn time) de-instances the geometry, strips the embedded scene, consolidates
-to a single root rigid body, and re-authors per-body colliders
-(convexDecomposition for the dynamic plug, triangle-mesh for the kinematic
-socket). This is the same working configuration validated in the
-``Isaac-Deploy-DisplayportBasic-v0`` drop-test env. Replace the spawner with a
-plain :class:`~isaaclab.sim.UsdFileCfg` once the assets are baked offline into
-GB300-ready single-body USDs.
+Assets (``display_port_plug_fixed.usd``, ``display_port_socket_fixed.usd``) were
+produced from STEP source via the ``omniverse-cad-to-simready`` pipeline and
+post-processed by ``physical-ai-skill-hub-dev/scripts/finalize_dp_assets.py``.
+All issues from ``output_dir/displayport_asset_fixes_required.md`` have been
+resolved offline: geometry is in metres, single root :class:`RigidBodyAPI`,
+no embedded ``PhysicsScene``, ``convexDecomposition`` on the plug, ``triangleMesh``
+on the socket, Body4/Body5 collision disabled. Assets load with plain
+:class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``; no custom spawner needed.
 
 Geometry constants below were derived from the **live-sim-verified** seated pose
 of the drop-test (plug pos ``(0,0,0.2096)`` rot ``(0.70711,0.70711,0,0)``;
@@ -57,12 +55,10 @@ from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import Re
 CABLE_INSERTION_DIR = os.path.dirname(os.path.abspath(__file__))
 DISPLAY_ASSETS_DIR = os.path.join(CABLE_INSERTION_DIR, "display_cable_insertion_assets")
 
-# Custom spawner that applies physics APIs to the multi-body DisplayPort assets.
-# Referenced as a string so ``pxr`` is not imported at config-resolution time.
-_DP_SPAWNER = (
-    "isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion"
-    ".config.displayport_basic.spawners:spawn_usd_with_physics"
-)
+# _DP_SPAWNER = (  # old: runtime USD patching for original multi-body simready assets
+#     "isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion"
+#     ".config.displayport_basic.spawners:spawn_usd_with_physics"
+# )
 
 # ---------------------------------------------------------------------------
 # USD body-frame offsets (DisplayPort asset geometry)
@@ -119,9 +115,7 @@ _PLUG_ROOT_POS, _DEFAULT_PLUG_ROT = compute_plug_pose(
     _INSERTION_POINT, _DEFAULT_SOCKET_ROT, z_clearance=0.033,
 )
 
-# Inch->metre normalization op baked into the SimReady assets; create_prim
-# replaces it with cfg.scale, so this restores the asset's intended real size.
-_DP_SCALE = (0.0254, 0.0254, 0.0254)
+# _DP_SCALE = (0.0254, 0.0254, 0.0254)  # old: inch→metre workaround for original simready assets; geometry is now natively in metres
 
 ##
 # Asset Configurations
@@ -134,9 +128,11 @@ class DisplayPortPlug(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortPlug"
     spawn = sim_utils.UsdFileCfg(
-        func=_DP_SPAWNER,
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),
-        scale=_DP_SCALE,
+        # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
+        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),  # old: inches, multi-body, instanced
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed.usd"),
+        # scale=_DP_SCALE,  # old: inch→metre workaround; finalize_dp_assets.py baked metres into vertices
+        scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -169,9 +165,11 @@ class DisplayPortSocket(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortSocket"
     spawn = sim_utils.UsdFileCfg(
-        func=_DP_SPAWNER,
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),
-        scale=_DP_SCALE,
+        # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
+        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, multi-body
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed.usd"),
+        # scale=_DP_SCALE,  # old: inch→metre workaround
+        scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=False,
@@ -201,7 +199,8 @@ class DisplayPortSocket(RigidObjectCfg):
 class DisplayportInsertionSceneCfg(InteractiveSceneCfg):
     """Configuration for the DisplayPort insertion scene."""
 
-    replicate_physics = False
+    # replicate_physics = False  # old: required when spawner patched de-instanced geometry at runtime
+    replicate_physics = True
 
     ground = AssetBaseCfg(
         prim_path="/World/ground",
