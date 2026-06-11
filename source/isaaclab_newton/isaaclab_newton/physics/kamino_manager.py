@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 import warp as wp
-from newton import Model, eval_fk
+from newton import JointType, Model, eval_fk
 from newton.solvers import SolverKamino
 
 from isaaclab.physics import PhysicsManager
@@ -37,10 +37,12 @@ class NewtonKaminoManager(NewtonManager):
         Kamino's ``joint_q`` / ``joint_u`` include coordinates for **all** joints
         (including free joints), so we pass Newton's full state arrays directly.
 
-        The first joint per world is assumed to be a free (floating-base) joint, so
-        ``base_q`` / ``base_u`` are always reconstructed from the first 7 coords / 6 dofs
-        of ``joint_q`` / ``joint_qd``. After the solver reset, a full ``eval_fk`` (mask
-        ``None``) overwrites ``body_q`` for a consistent frame convention.
+        For floating-base models the first joint per world is a free joint and
+        ``base_q`` / ``base_u`` are reconstructed from the first 7 coords / 6 dofs
+        of ``joint_q`` / ``joint_qd``. Fixed-base models (e.g. Cartpole) omit
+        ``base_q`` / ``base_u`` and reset through ``joint_q`` / ``joint_u`` only.
+        After the solver reset, a full ``eval_fk`` (mask ``None``) overwrites
+        ``body_q`` for a consistent frame convention.
 
         Consumes the pending reset state: zeroes the world / FK reset masks and clears
         :attr:`_reset_pending` so that callers (:meth:`forward`, :meth:`step`) do not
@@ -59,8 +61,13 @@ class NewtonKaminoManager(NewtonManager):
         _dofs_per_world = _dof_count // _nw
         _jq = wp.to_torch(cls._state_0.joint_q).reshape(_nw, _coords_per_world)
         _ju = wp.to_torch(cls._state_0.joint_qd).reshape(_nw, _dofs_per_world)
-        _base_q = wp.from_torch(_jq[:, :7].contiguous(), dtype=wp.transformf)
-        _base_u = wp.from_torch(_ju[:, :6].contiguous(), dtype=wp.spatial_vectorf)
+        _has_free_base = _coords_per_world >= 7 and int(_model.joint_type.numpy()[0]) == int(JointType.FREE)
+        if _has_free_base:
+            _base_q = wp.from_torch(_jq[:, :7].contiguous(), dtype=wp.transformf)
+            _base_u = wp.from_torch(_ju[:, :6].contiguous(), dtype=wp.spatial_vectorf)
+        else:
+            _base_q = None
+            _base_u = None
 
         cls._solver.reset(
             state=cls._state_0,
@@ -73,6 +80,7 @@ class NewtonKaminoManager(NewtonManager):
 
         # Overwrite body_q via Newton's full eval_fk for a consistent frame convention.
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, None)
+        cls._update_sensors(None)
         NewtonManager._world_reset_mask.zero_()
         NewtonManager._fk_reset_mask.zero_()
         NewtonManager._reset_pending = False
