@@ -130,7 +130,7 @@ class DisplayPortPlug(RigidObjectCfg):
     spawn = sim_utils.UsdFileCfg(
         # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),  # old: inches, multi-body, instanced
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_watertight.usd"),
         # scale=_DP_SCALE,  # old: inch→metre workaround; finalize_dp_assets.py baked metres into vertices
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
@@ -166,7 +166,7 @@ class DisplayPortSocket(RigidObjectCfg):
     spawn = sim_utils.UsdFileCfg(
         # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, multi-body
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_watertight.usd"),
         # scale=_DP_SCALE,  # old: inch→metre workaround
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
