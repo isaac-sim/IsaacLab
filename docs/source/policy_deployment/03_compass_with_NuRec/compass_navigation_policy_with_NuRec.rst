@@ -34,7 +34,7 @@ scenes produced with this workflow; two examples are shown below.
    :widths: 50 50
    :class: nurec-gif-grid
 
-   * - .. figure:: ../../_static/policy_deployment/03_compass_with_NuRec/galileo.gif
+   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_galileo.gif
           :alt: Galileo Real2Sim NuRec asset
           :target: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2/nova_carter-galileo
           :class: nurec-gif-cover
@@ -44,7 +44,7 @@ scenes produced with this workflow; two examples are shown below.
 
           | Embodiment: `Nova Carter [wheeled robot] <https://robotics.segway.com/nova-carter/>`_
           | Sensor Rig: 4 x `Stereo Camera <https://leopardimaging.com/wp-content/uploads/2024/07/LI-AR0234CS-STEREO-GMSL2-30_Datasheet_V1.8.pdf>`_
-     - .. figure:: ../../_static/policy_deployment/03_compass_with_NuRec/living_room.gif
+     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/nurec_real2sim_living_room.gif
           :alt: Living Room Real2Sim NuRec asset
           :target: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2/hand_hold-endeavor-livingroom
           :class: nurec-gif-cover
@@ -66,7 +66,7 @@ assets available in Isaac Sim.
    :widths: 100
    :class: nurec-gif-grid nurec-gif-grid-single
 
-   * - .. figure:: ../../_static/policy_deployment/03_compass_with_NuRec/wormhole_with_sim_objects.gif
+   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/xgrid_wormhole_with_sim_objects.gif
           :alt: Wormhole XGRIDS reconstruction
           :target: https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-NuRec/tree/v0.2/xgrid-wormhole
           :class: nurec-gif-cover
@@ -99,13 +99,13 @@ The following clips show COMPASS training with different robot embodiments in Nu
    :widths: 50 50
    :class: nurec-gif-grid
 
-   * - .. figure:: ../../_static/policy_deployment/03_compass_with_NuRec/galileo_g1_training.gif
+   * - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/compass_galileo_g1_training.gif
           :alt: COMPASS training with a G1 robot in the Galileo scene
           :class: nurec-gif-contain
           :align: center
 
           **Galileo** with G1
-     - .. figure:: ../../_static/policy_deployment/03_compass_with_NuRec/xgrid_wormhole_carter_training.gif
+     - .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/compass_xgrid_wormhole_carter_training.gif
           :alt: COMPASS training with a Carter robot in the XGRIDS Wormhole scene
           :class: nurec-gif-contain
           :align: center
