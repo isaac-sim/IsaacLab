@@ -107,7 +107,11 @@ def _build_newton_builder_from_mapping(
 
     # Heterogeneous clone-plan rows spawn their prototype in the first active environment
     # for that row, then reuse that prototype for every other active environment.
-    source_world_indices = [int(torch.nonzero(mapping[row], as_tuple=True)[0][0]) for row in range(mapping.size(0))]
+    # NOTE: None is used to indicate that the source does not map to any environment.
+    source_world_indices = []
+    for mapping_row in mapping:
+        nz = torch.nonzero(mapping_row, as_tuple=True)[0]
+        source_world_indices.append(int(nz[0]) if nz.numel() > 0 else None)
 
     # World xforms used by downstream consumers (e.g. fabric binding).
     world_xforms: list[wp.transform] = []
