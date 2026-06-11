@@ -133,19 +133,19 @@ a {
     max-width: 360px;
 }
 
-.nurec-gif-cover,
-.nurec-gif-contain {
+figure.nurec-gif-cover img,
+figure.nurec-gif-contain img {
     aspect-ratio: 16 / 9;
     display: block;
     object-position: center;
     width: 100%;
 }
 
-.nurec-gif-cover {
+figure.nurec-gif-cover img {
     object-fit: cover;
 }
 
-.nurec-gif-contain {
+figure.nurec-gif-contain img {
     object-fit: contain;
 }
 
