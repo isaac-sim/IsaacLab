@@ -162,5 +162,25 @@
             {"function": "NewtonWarpRenderer.render", "color": "0x4CAF50"},
             {"function": "NewtonWarpRenderer.read_output", "color": "0xFF9800"}
         ]
+    },
+    {
+        "domain": "OVRTXRenderer",
+        "color": "0x76B800",
+        "module": "isaaclab_ov.renderers.ovrtx_renderer",
+        "functions": [
+            "OVRTXRenderer.prepare_stage",
+            "OVRTXRenderer.create_render_data",
+            "OVRTXRenderer._clone_sources_in_ovrtx",
+            "OVRTXRenderer._update_scene_partitions_after_clone",
+            "OVRTXRenderer._setup_object_bindings",
+            "OVRTXRenderer.update_transforms",
+            "OVRTXRenderer.render",
+            "OVRTXRenderer.read_output",
+            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "create_scene_partition_attributes"},
+            {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"},
+            {"module": "ovrtx", "function": "Renderer.open_usd_from_string", "color": "0x87CEEB"},
+            {"module": "ovrtx", "function": "Renderer.bind_attribute", "color": "0x87CEEB"},
+            {"module": "ovrtx", "function": "Renderer.write_attribute", "color": "0x87CEEB"}
+        ]
     }
 ]

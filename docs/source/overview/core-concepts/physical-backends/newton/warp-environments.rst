@@ -34,7 +34,7 @@ Direct Warp Environments
 - ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
 - ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
 - ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
-- ``Isaac-Repose-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube repose
+- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
 
 
 Manager-Based Warp Environments
@@ -72,11 +72,11 @@ Quick Start
 
     # Direct workflow
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
+        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
     # Manager-based workflow
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096 --headless
+        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -273,7 +273,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/stable
 
@@ -282,7 +281,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/warp
 

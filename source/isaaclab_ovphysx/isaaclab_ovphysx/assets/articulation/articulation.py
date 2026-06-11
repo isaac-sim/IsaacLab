@@ -23,7 +23,6 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -86,7 +85,6 @@ class Articulation(BaseArticulation):
             cfg: A configuration instance.
         """
         super().__init__(cfg)
-        queue_usd_replication(cfg)
         queue_ovphysx_replication(cfg)
         # bindings are populated eagerly in ``_initialize_impl``; the dict
         # also caches any tensor type the user explicitly queries later

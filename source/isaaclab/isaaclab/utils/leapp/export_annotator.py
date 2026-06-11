@@ -291,6 +291,8 @@ class ExportPatcher:
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
+                elif func_name == "projected_gravity":
+                    term_cfg.func = self._wrap_projected_gravity(original_func, proxy_env)
                 else:
                     term_cfg.func = self._wrap_with_proxy(original_func, proxy_env)
 
@@ -441,6 +443,34 @@ class ExportPatcher:
             else:
                 args = (proxy_env,)
             return original_func(*args, **kwargs)
+
+        wrapped.__name__ = getattr(original_func, "__name__", "unknown")
+        return wrapped
+
+    @staticmethod
+    def _wrap_projected_gravity(original_func, proxy_env):
+        """Wrap projected gravity as root-quaternion input plus fixed gravity projection.
+
+        Deployment backends generally provide body orientation, not an already
+        projected gravity vector. During export, keep the policy observation as
+        projected gravity while exposing ``root_quat_w`` at the LEAPP graph
+        boundary.
+        """
+
+        def wrapped(*args, **kwargs):
+            """Compute projected gravity from an annotated root quaternion input."""
+            kwargs.pop("inspect", None)
+            asset_cfg = kwargs.get("asset_cfg")
+            if asset_cfg is None and len(args) > 1:
+                asset_cfg = args[1]
+            asset_name = getattr(asset_cfg, "name", "robot")
+            root_quat_w = proxy_env.scene[asset_name].data.root_quat_w.torch
+            gravity_w = torch.zeros((*root_quat_w.shape[:-1], 3), dtype=root_quat_w.dtype, device=root_quat_w.device)
+            gravity_w[..., 2] = -1.0
+            quat_xyz = root_quat_w[..., :3]
+            quat_w = root_quat_w[..., 3:4]
+            t = torch.cross(quat_xyz, gravity_w, dim=-1) * 2.0
+            return gravity_w - quat_w * t + torch.cross(quat_xyz, t, dim=-1)
 
         wrapped.__name__ = getattr(original_func, "__name__", "unknown")
         return wrapped

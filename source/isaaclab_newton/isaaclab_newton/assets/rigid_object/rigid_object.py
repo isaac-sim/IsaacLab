@@ -1117,8 +1117,8 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_com_state_to_sim(
         self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
@@ -1133,8 +1133,8 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_com_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_com_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_com_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)
 
     def write_root_link_state_to_sim(
         self, root_state: torch.Tensor, env_ids: Sequence[int] | torch.Tensor | None = None
@@ -1149,5 +1149,5 @@ class RigidObject(BaseRigidObject):
         )
         if isinstance(root_state, wp.array):
             raise ValueError("The root state must be a torch tensor, not a warp array.")
-        self.write_root_link_pose_to_sim_index(root_state[:, :7], env_ids=env_ids)
-        self.write_root_link_velocity_to_sim_index(root_state[:, 7:], env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_state[:, :7], env_ids=env_ids)
+        self.write_root_link_velocity_to_sim_index(root_velocity=root_state[:, 7:], env_ids=env_ids)

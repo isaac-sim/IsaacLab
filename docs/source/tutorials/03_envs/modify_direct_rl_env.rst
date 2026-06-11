@@ -75,7 +75,7 @@ Since the Unitree H1 robot is included in the Isaac Lab assets extension (``isaa
 and do the replacement directly (under the ``H1EnvCfg.robot`` property), as shown below. Note that we also need to modify the
 ``joint_gears`` property as it holds robot-specific configuration values.
 
-.. |franka-direct-link| replace:: `Isaac-Franka-Cabinet-Direct-v0 <../../../../source/isaaclab_tasks/isaaclab_tasks/core/franka_cabinet/franka_cabinet_env.py>`__
+.. |franka-direct-link| replace:: `Isaac-Open-Drawer-Franka-Direct <../../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`__
 
 .. hint::
 
@@ -111,7 +111,7 @@ After the minor modification has been done, and similar to the previous tutorial
 
 .. code-block:: bash
 
-  ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0 --headless
+  ./isaaclab.sh train --rl_library rl_games --task Isaac-H1-Direct-v0
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal

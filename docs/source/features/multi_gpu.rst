@@ -96,14 +96,14 @@ To train with multiple GPUs, use the following command, where ``--nproc_per_node
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --headless --distributed
+            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --distributed
 
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --headless --distributed
+            python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --distributed
 
     .. tab-item:: skrl
         :sync: skrl
@@ -115,14 +115,14 @@ To train with multiple GPUs, use the following command, where ``--nproc_per_node
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --headless --distributed
+                    python -m torch.distributed.run --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed
 
             .. tab-item:: JAX
                 :sync: jax
 
                 .. code-block:: shell
 
-                    python -m skrl.utils.distributed.jax --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --headless --distributed --ml_framework jax
+                    python -m skrl.utils.distributed.jax --nnodes=1 --nproc_per_node=2 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed --ml_framework jax
 
 .. _multi-gpu-nccl-troubleshooting:
 
@@ -182,14 +182,14 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --headless --distributed
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --distributed
 
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --headless --distributed
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --distributed
 
     .. tab-item:: skrl
         :sync: skrl
@@ -201,14 +201,14 @@ For the master node, use the following command, where ``--nproc_per_node`` repre
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --headless --distributed
+                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=0 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed
 
             .. tab-item:: JAX
                 :sync: jax
 
                 .. code-block:: shell
 
-                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=0 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --headless --distributed --ml_framework jax
+                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=0 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed --ml_framework jax
 
 Note that the port (``5555``) can be replaced with any other available port.
 
@@ -222,14 +222,14 @@ For non-master nodes, use the following command, replacing ``--node_rank`` with 
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --headless --distributed
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rl_games --task=Isaac-Cartpole --distributed
 
     .. tab-item:: rsl_rl
         :sync: rsl_rl
 
         .. code-block:: shell
 
-            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --headless --distributed
+            python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library rsl_rl --task=Isaac-Cartpole --distributed
 
     .. tab-item:: skrl
         :sync: skrl
@@ -241,14 +241,14 @@ For non-master nodes, use the following command, replacing ``--node_rank`` with 
 
                 .. code-block:: shell
 
-                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --headless --distributed
+                    python -m torch.distributed.run --nproc_per_node=2 --nnodes=2 --node_rank=1 --master_addr=<ip_of_master> --master_port=5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed
 
             .. tab-item:: JAX
                 :sync: jax
 
                 .. code-block:: shell
 
-                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=1 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --headless --distributed --ml_framework jax
+                    python -m skrl.utils.distributed.jax --nproc_per_node=2 --nnodes=2 --node_rank=1 --coordinator_address=ip_of_master_machine:5555 scripts/reinforcement_learning/train.py --rl_library skrl --task=Isaac-Cartpole --distributed --ml_framework jax
 
 For more details on multi-node training with PyTorch, please visit the
 `PyTorch documentation <https://pytorch.org/tutorials/intermediate/ddp_series_multinode.html>`_.
@@ -287,7 +287,7 @@ Single-node training (defaults to all available GPUs):
 
             ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
                --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
-               --headless --num_envs 4096 --max_iterations 100
+               --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -296,7 +296,7 @@ Single-node training (defaults to all available GPUs):
 
             uv run train_multigpu \
                --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
-               --headless --num_envs 4096 --max_iterations 100
+               --num_envs 4096 --max_iterations 100
 
 Override the GPU count or torchrun settings when needed:
 
@@ -311,7 +311,7 @@ Override the GPU count or torchrun settings when needed:
             ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
                --num_gpus 4 --master_port 29504 \
                --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
-               --headless --num_envs 4096 --max_iterations 100
+               --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -320,7 +320,7 @@ Override the GPU count or torchrun settings when needed:
 
             uv run train_multigpu --num_gpus 4 --master_port 29504 \
                --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
-               --headless --num_envs 4096 --max_iterations 100
+               --num_envs 4096 --max_iterations 100
 
 Use ``--rl_library`` to select other distributed-capable libraries (``rsl_rl``, ``rl_games``, or ``skrl``).
 For skrl JAX training, pass an integer GPU count and the ``--coordinator_address``:
@@ -337,7 +337,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
                --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
                --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
-               --headless --num_envs 4096 --max_iterations 100
+               --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
         :sync: uv
@@ -347,7 +347,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
             uv run train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
                --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
-               --headless --num_envs 4096 --max_iterations 100
+               --num_envs 4096 --max_iterations 100
 
 For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,
 ``--rdzv_backend``, ``--rdzv_endpoint``, and ``--rdzv_id`` before the training arguments. For

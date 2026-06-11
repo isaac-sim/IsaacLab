@@ -3,17 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import logging
 import tempfile
 from dataclasses import MISSING
 
-try:
-    from isaaclab_teleop import XrCfg
+from isaaclab_teleop import XrCfg
 
-    _TELEOP_AVAILABLE = True
-except ImportError:
-    _TELEOP_AVAILABLE = False
-    logging.getLogger(__name__).warning("isaaclab_teleop is not installed. XR teleoperation features will be disabled.")
+# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
+# environments in the test suite.
+_TELEOP_AVAILABLE = True
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
@@ -363,8 +360,7 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]
 
-        if _TELEOP_AVAILABLE:
-            self.xr = XrCfg(
-                anchor_pos=(0.0, 0.0, 0.0),
-                anchor_rot=(0.0, 0.0, 0.0, 1.0),
-            )
+        self.xr = XrCfg(
+            anchor_pos=(0.0, 0.0, 0.0),
+            anchor_rot=(0.0, 0.0, 0.0, 1.0),
+        )

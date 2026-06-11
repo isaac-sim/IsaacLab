@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab-visualizers"
-version = "0.1.4"
+version = "0.1.5"
 description = "Visualizer backends for Isaac Lab (Kit, Newton, Rerun, Viser)."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]

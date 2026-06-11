@@ -184,7 +184,13 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
         return
 
     # usdrt only works with a live Kit app — defer import so module load stays cheap.
-    import usdrt
+    try:
+        import usdrt
+    except ModuleNotFoundError as exc:
+        if exc.name != "usdrt":
+            raise
+        yield
+        return
 
     # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
     # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.

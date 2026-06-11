@@ -1762,13 +1762,13 @@ Before:
 
 .. code:: bash
 
-    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --headless --cpu
+    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --cpu
 
 Now:
 
 .. code:: bash
 
-    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --headless --device cpu
+    ./isaaclab.sh -p source/standalone/workflows/sb3/train.py --task Isaac-Cartpole --device cpu
 
 Renaming of teleoperation device CLI in standalone scripts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

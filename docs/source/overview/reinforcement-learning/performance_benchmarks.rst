@@ -11,7 +11,7 @@ Multi-GPU and multi-node training performance results are also outlined.
 Benchmark Results
 -----------------
 
-All benchmarking results were performed with the RL Games library with ``--headless`` flag on Ubuntu 22.04.
+All benchmarking results were performed with the RL Games library in headless mode on Ubuntu 22.04.
 ``Isaac-Velocity-Rough-G1-v0`` environment benchmarks were performed with the RSL RL library.
 The PhysX backend was used for all benchmarks.
 
@@ -28,7 +28,7 @@ Memory Consumption
 +------------------------------------+----------------+-------------------+----------+-----------+
 | Isaac-Velocity-Rough-G1-v0         | |g1|           | 4096              | 6.5      | 6.1       |
 +------------------------------------+----------------+-------------------+----------+-----------+
-| Isaac-Repose-Cube-Shadow-Direct-v0 | |shadow|       | 8192              | 6.7      | 6.4       |
+| Isaac-Reorient-Cube-Shadow-Direct  | |shadow|       | 8192              | 6.7      | 6.4       |
 +------------------------------------+----------------+-------------------+----------+-----------+
 
 .. |cartpole| image:: ../../_static/benchmarks/cartpole.jpg
@@ -61,7 +61,7 @@ CPU: AMD Ryzen 9 7950X 16-Core Processor
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 | Isaac-Velocity-Rough-G1-v0          | 4096              | 94000        | 88000             | 82000              |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
-| Isaac-Repose-Cube-Shadow-Direct-v0  | 8192              | 200000       | 190000            | 170000             |
+| Isaac-Reorient-Cube-Shadow-Direct   | 8192              | 200000       | 190000            | 170000             |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 
 
@@ -81,7 +81,7 @@ CPU: Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 | Isaac-Velocity-Rough-G1-v0          | 4096              | 72000        | 64000             | 62000              |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
-| Isaac-Repose-Cube-Shadow-Direct-v0  | 8192              | 170000       | 140000            | 120000             |
+| Isaac-Reorient-Cube-Shadow-Direct   | 8192              | 170000       | 140000            | 120000             |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 
 
@@ -101,7 +101,7 @@ CPU: Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 | Isaac-Velocity-Rough-G1-v0          | 4096              | 290000       | 270000            | 250000             |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
-| Isaac-Repose-Cube-Shadow-Direct-v0  | 8192              | 440000       | 420000            | 390000             |
+| Isaac-Reorient-Cube-Shadow-Direct   | 8192              | 440000       | 420000            | 390000             |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 
 
@@ -121,7 +121,7 @@ CPU: Intel(R) Xeon(R) Platinum 8362 CPU @ 2.80GHz
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 | Isaac-Velocity-Rough-G1-v0          | 4096              | 1200000      | 1100000           | 960000             |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
-| Isaac-Repose-Cube-Shadow-Direct-v0  | 8192              | 2400000      | 2300000           | 1800000            |
+| Isaac-Reorient-Cube-Shadow-Direct   | 8192              | 2400000      | 2300000           | 1800000            |
 +-------------------------------------+-------------------+--------------+-------------------+--------------------+
 
 
@@ -138,13 +138,13 @@ Example scripts can be run similarly to training scripts:
 .. code-block:: bash
 
    # benchmark with RSL RL
-   python scripts/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole --headless
+   python scripts/benchmarks/benchmark_rsl_rl.py --task=Isaac-Cartpole
 
    # benchmark with RL Games
-   python scripts/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole --headless
+   python scripts/benchmarks/benchmark_rlgames.py --task=Isaac-Cartpole
 
    # benchmark without RL libraries
-   python scripts/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole --headless
+   python scripts/benchmarks/benchmark_non_rl.py --task=Isaac-Cartpole
 
 Each script will generate a set of KPI files at the end of the run, which includes data on the
 startup times, runtime statistics, such as the time taken for each simulation or rendering step,
