@@ -36,6 +36,7 @@ def object_ee_distance(
     thumb_name: str,
     finger_names: list[str],
     contact_threshold: float = 1.0,
+    no_contact_scale: float = 0.1,
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
@@ -43,7 +44,7 @@ def object_ee_distance(
 
     The reward is close to 1 when the distance is small. The reward is scaled by contact:
     - Full reward (1x) when good contact (thumb + finger)
-    - Reduced reward (0.1x) when no contact
+    - Reduced reward (``no_contact_scale`` x) when no contact
 
     Args:
         env: The environment instance.
@@ -51,6 +52,7 @@ def object_ee_distance(
         thumb_name: Name of the thumb contact sensor.
         finger_names: Names of the finger contact sensors.
         contact_threshold: Contact force magnitude threshold.
+        no_contact_scale: Reward multiplier while there is no good contact (the pre-grasp reach gate).
         object_cfg: Configuration for the object.
         asset_cfg: Configuration for the robot asset.
     """
@@ -59,7 +61,7 @@ def object_ee_distance(
     asset_pos = asset.data.body_pos_w.torch[:, asset_cfg.body_ids]
     object_pos = obj.data.root_pos_w.torch
     distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
-    contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)
+    contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(no_contact_scale, 1.0)
     return (1 - torch.tanh(distance / std)) * contact_bonus
 
 
@@ -223,3 +225,140 @@ def orientation_command_error_tanh(
     quat_distance = math_utils.quat_error_magnitude(obj.data.root_quat_w.torch, des_quat_w)
 
     return (1 - torch.tanh(quat_distance / std)) * contacts(env, contact_threshold, thumb_name, finger_names).float()
+
+
+class delivery_progress(ManagerTermBase):
+    """Contact-gated reward for net progress of the object toward the commanded goal.
+
+    Returns ``clamp((d0 - d) / d0, 0, 1) * grasp``, with ``d`` the current object-to-goal distance
+    and ``d0`` that distance when the goal was set. Linear and non-negative, so off-target or
+    backward motion earns nothing. ``d0`` is (re)captured on reset and on goal resample; scene state
+    is read in ``__call__``, never ``__init__``.
+    """
+
+    def __init__(self, cfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._d0 = torch.ones(env.num_envs, device=env.device)  # start-distance to the current goal [m]
+        self._goal_w = torch.zeros(env.num_envs, 3, device=env.device)  # last goal position [m], world
+        self._need_capture = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        self._need_capture[slice(None) if env_ids is None else env_ids] = True
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        command_name: str,
+        asset_cfg: SceneEntityCfg,
+        align_asset_cfg: SceneEntityCfg,
+        thumb_name: str,
+        finger_names: list[str],
+        contact_threshold: float = 0.1,
+    ) -> torch.Tensor:
+        asset: RigidObject = env.scene[asset_cfg.name]
+        obj: RigidObject = env.scene[align_asset_cfg.name]
+        command = env.command_manager.get_command(command_name)
+        des_pos_w, _ = combine_frame_transforms(
+            asset.data.root_pos_w.torch, asset.data.root_quat_w.torch, command[:, :3]
+        )
+        d = torch.linalg.norm(obj.data.root_pos_w.torch - des_pos_w, dim=1)
+        # (Re)capture d0 on reset or goal resample. Updated unconditionally (vectorised) to avoid a
+        # per-step host-device sync; unflagged envs keep their stored d0/goal via the masked where.
+        capture = self._need_capture | (torch.linalg.norm(des_pos_w - self._goal_w, dim=1) > 1e-4)
+        self._d0 = torch.where(capture, d.clamp(min=1e-3), self._d0)
+        self._goal_w = torch.where(capture.unsqueeze(-1), des_pos_w, self._goal_w)
+        self._need_capture &= ~capture
+        progress = ((self._d0 - d) / self._d0).clamp(0.0, 1.0)
+        return progress * contacts(env, contact_threshold, thumb_name, finger_names).float()
+
+
+class _GraspAgeDecay(ManagerTermBase):
+    """Base for grip rewards that fade with time since the episode's first grasp.
+
+    After the first grasp the reward is scaled by a factor decaying linearly from 1.0 to
+    ``decay_floor`` over ``decay_steps`` control steps, then held at the floor. The grasp step is
+    latched on first contact only (monotonic per episode), so release-and-regrip cannot reset it.
+    """
+
+    def __init__(self, cfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._t_grasp = torch.full((env.num_envs,), -1, dtype=torch.long, device=env.device)
+
+    def reset(self, env_ids: Sequence[int] | None = None):
+        self._t_grasp[slice(None) if env_ids is None else env_ids] = -1
+
+    def _decay_factor(self, env: ManagerBasedRLEnv, grasped: torch.Tensor, decay_steps: float, decay_floor: float):
+        now = env.episode_length_buf
+        self._t_grasp = torch.where(grasped & (self._t_grasp < 0), now, self._t_grasp)
+        age = (now - self._t_grasp).clamp(min=0).float()
+        factor = (1.0 - (1.0 - decay_floor) * age / decay_steps).clamp(decay_floor, 1.0)
+        return torch.where(self._t_grasp >= 0, factor, torch.ones_like(factor))
+
+
+class good_finger_contact_decay(_GraspAgeDecay):
+    """:func:`contacts` reward (thumb + finger) with time-since-grasp decay (see :class:`_GraspAgeDecay`)."""
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        threshold: float,
+        thumb_name: str,
+        finger_names: list[str],
+        decay_steps: float = 200.0,
+        decay_floor: float = 0.3,
+    ) -> torch.Tensor:
+        grasped = contacts(env, threshold, thumb_name, finger_names)
+        return grasped.float() * self._decay_factor(env, grasped, decay_steps, decay_floor)
+
+
+class contact_count_decay(_GraspAgeDecay):
+    """:func:`contact_count` reward with time-since-grasp decay, anchored on the thumb+finger grasp event."""
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        threshold: float,
+        sensor_names: list[str],
+        thumb_name: str,
+        finger_names: list[str],
+        grasp_threshold: float = 0.1,
+        decay_steps: float = 200.0,
+        decay_floor: float = 0.3,
+    ) -> torch.Tensor:
+        grasped = contacts(env, grasp_threshold, thumb_name, finger_names)
+        return contact_count(env, threshold, sensor_names) * self._decay_factor(env, grasped, decay_steps, decay_floor)
+
+
+class object_ee_distance_decay(_GraspAgeDecay):
+    """:func:`object_ee_distance` (reach/hold) reward with *post-grasp* time-since-grasp decay.
+
+    Pre-grasp the decay factor is 1.0 (the approach pull is untouched); after the first grasp it fades
+    so that keeping the hand on a held-in-place object stops being a large constant reward.
+    """
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        std: float,
+        thumb_name: str,
+        finger_names: list[str],
+        contact_threshold: float = 1.0,
+        no_contact_scale: float = 0.1,
+        grasp_threshold: float = 0.1,
+        decay_steps: float = 200.0,
+        decay_floor: float = 0.3,
+        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ) -> torch.Tensor:
+        base = object_ee_distance(
+            env,
+            std=std,
+            thumb_name=thumb_name,
+            finger_names=finger_names,
+            contact_threshold=contact_threshold,
+            no_contact_scale=no_contact_scale,
+            object_cfg=object_cfg,
+            asset_cfg=asset_cfg,
+        )
+        grasped = contacts(env, grasp_threshold, thumb_name, finger_names)
+        return base * self._decay_factor(env, grasped, decay_steps, decay_floor)

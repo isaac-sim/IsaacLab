@@ -65,17 +65,19 @@ class KukaAllegroRelJointPosActionCfg:
 @configclass
 class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
     good_finger_contact = RewTerm(
-        func=mdp.contacts,
+        func=mdp.good_finger_contact_decay,
         weight=0.5,
         params={"threshold": 0.1, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
     )
 
     contact_count = RewTerm(
-        func=mdp.contact_count,
+        func=mdp.contact_count_decay,
         weight=1.0,
         params={
             "threshold": 0.01,
             "sensor_names": FINGER_SENSORS + [THUMB_SENSOR],
+            "thumb_name": THUMB_SENSOR,
+            "finger_names": FINGER_SENSORS,
         },
     )
 
@@ -91,6 +93,8 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
             self.orientation_tracking.params["finger_names"] = FINGER_SENSORS
         self.success.params["thumb_name"] = THUMB_SENSOR
         self.success.params["finger_names"] = FINGER_SENSORS
+        self.delivery_progress.params["thumb_name"] = THUMB_SENSOR
+        self.delivery_progress.params["finger_names"] = FINGER_SENSORS
 
 
 @configclass
