@@ -8,14 +8,10 @@ name = "isaaclab-dev"
 version = "0.1.0"
 description = "Isaac Lab source checkout development environment."
 requires-python = ">=3.12,<3.13"
-# Single source of truth for all Isaac Lab dependencies. The editable workspace
-# members (``isaaclab*``) are listed here and resolved to the local ``source/``
-# checkouts via ``[tool.uv.sources]``; the third-party requirements they used to
-# declare individually now live in this file. The wheel builder
-# (``tools/wheel_builder/gen_pyproject.py``) and the ``./isaaclab.sh -i`` install
-# CLI both read this file, stripping the ``isaaclab*`` self-references.
+# Single source of truth for all dependencies, also read by the wheel builder and
+# ``./isaaclab.sh -i``. Workspace members resolve to ``source/`` via [tool.uv.sources].
 dependencies = [
-    # ----- editable workspace members (always installed) -----
+    # ----- workspace members (editable) -----
     "isaaclab",
     "isaaclab-assets",
     "isaaclab-contrib",
@@ -37,34 +33,24 @@ dependencies = [
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
     "protobuf>=4.25.8,!=5.26.0",
-    # devices
     "hidapi>=0.14.0",
-    # reinforcement learning
     "gymnasium>=1.2.0",
-    # procedural-generation
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on
-    # aarch64 (CMake hardcodes -m64). Gate it on x86_64 so ARM64 docker builds are
-    # not blocked; tetrahedralize callers degrade gracefully via ImportError when missing.
-    # Pinned to ==0.2.3: >=0.3 unconditionally imports pyvista at package import time.
+    # x86_64-only wheel (sdist fails to build on aarch64). Pinned ==0.2.3: >=0.3
+    # imports pyvista at import time.
     "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
-    # image processing
     "transformers==4.57.6",
     "einops",
     "warp-lang==1.13.0",
     "matplotlib>=3.10.3",
-    # keep consistent with isaac sim version
-    "pillow==12.1.1",
-    # required by omni.replicator.core S3 backend
-    "botocore",
-    # livestream (range chosen to coexist with isaacsim 6.0)
-    "starlette>=0.46.0,<0.50",
+    "pillow==12.1.1",  # keep consistent with isaac sim
+    "botocore",  # omni.replicator.core S3 backend
+    "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
     "omniverseclient==2.71.1.7015",
-    # cross-platform file locking
     "filelock",
     "lazy_loader>=0.4",
-    # IK controller (Linux x86_64 + ARM64), requires pinning to 3.1.0 and 0.8.5 to avoid breaking change
+    # IK controller (Linux only); 3.1.0/0.8.5 pins avoid a breaking change
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
@@ -82,14 +68,11 @@ dependencies = [
     "moviepy",
     "packaging",
     "tqdm>=4.67.1",
-    # ----- default RL framework (rsl_rl is the documented default for training) -----
-    "rsl-rl-lib==5.0.1",
+    "rsl-rl-lib==5.0.1",  # default RL framework
     "onnxscript>=0.5",
-    # ----- Newton (default physics engine, installed everywhere) -----
-    # Loose lower bound keeps the published wheel resolvable: a bare install
-    # picks the newest Newton, while co-installing isaacsim narrows it to the
-    # exact version isaacsim pins (currently 1.2.0). The dev workspace pins the
-    # git prerelease via [tool.uv.sources] below.
+    # ----- newton (default physics engine) -----
+    # Loose lower bound keeps the wheel resolvable; co-installing isaacsim narrows
+    # it to isaacsim's pin. Dev workspace pins the git prerelease in [tool.uv.sources].
     "newton[sim]>=1.2.0",
     "PyOpenGL-accelerate>=3.1.0",
 ]
@@ -102,12 +85,10 @@ test = [
     "junitparser",
     "flatdict>=4.1.0",
     "flaky",
-    # coverage>=7.6.1 restored coverage.types.Tracer as a shim; required for
-    # numba compatibility (numba subclasses Tracer at import time)
+    # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
     "coverage>=7.6.1",
 ]
-# RL frameworks. RSL-RL is the default and ships in the core deps above; install
-# whichever framework you train with via its own self-contained extra.
+# RL frameworks (rsl-rl is the default, in core deps); install the one you train with.
 sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 rl-games = [
@@ -126,29 +107,24 @@ newton = [
 viser = ["viser>=1.0.16"]
 rerun = [
     "rerun-sdk>=0.29.0",
-    # Match rerun-sdk's supported Arrow stack and avoid resolver drift across environments.
-    "pyarrow==22.0.0",
+    "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 # Omniverse renderer / physics backends.
 ov = ["ovphysx==0.4.13"]
 rtx = ["ovrtx>=0.3.0,<0.4.0"]
-# Optional submodules (the editable member ships with its third-party deps).
 mimic = [
     "isaaclab-mimic",
-    # jupyter notebook
     "ipywidgets>=8.1.5",
-    # USD to URDF conversion (no aarch64 wheels)
-    "nvidia-srl-usd-to-urdf ; platform_machine != 'aarch64'",
-    # data augmentation (Linux only)
+    "nvidia-srl-usd-to-urdf ; platform_machine != 'aarch64'",  # no aarch64 wheels
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 teleop = [
     "isaaclab-teleop",
-    # IsaacTeleop is only available on Linux x86_64
+    # IsaacTeleop is Linux x86_64 only
     "isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
     "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
 ]
-# Externally contributed runtime dependencies (RLinf VLA post-training).
+# RLinf VLA post-training (externally contributed).
 rlinf = [
     "ray[default]>=2.47.0",
     "av>=12.3.0",
@@ -161,31 +137,21 @@ rlinf = [
     "peft>=0.17.0",
     "pandas",
 ]
-# Everything that can co-resolve with ``isaacsim`` in one shot (the documented
-# ``[all,isaacsim]`` install). Excludes ``teleop``: dex-retargeting pins
-# lxml>=5.2.2 while mimic's nvidia-srl-usd-to-urdf pins lxml<5.0.0, so the two
-# cannot co-resolve. Install the teleop stack on its own with ``--extra teleop``.
-# Also excludes packages whose pins are incompatible with isaacsim's: ``ov``
-# (ovphysx/ovrtx cap packaging<24 vs isaacsim's packaging==26.0), ``viser``
-# (websockets>=13.1 vs isaacsim's websockets==12.0), and mimic's
-# nvidia-srl-usd-to-urdf (numpy<2 vs isaacsim's numpy==2.3.1). Install those on
-# their own with ``--extra ov`` / ``--extra viser`` / ``--extra mimic``.
+# Everything that co-resolves with isaacsim in one shot (the documented
+# ``[all,isaacsim]`` install). Excludes extras whose pins clash with isaacsim's:
+# ``teleop`` (lxml vs mimic), ``ov`` (packaging<24), ``viser`` (websockets==12.0),
+# and mimic's nvidia-srl-usd-to-urdf (numpy<2). Install those via their own extra.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,newton,rerun,rlinf]",
-    # mimic, minus the USD-to-URDF converter (nvidia-srl-usd-to-urdf pins
-    # numpy<2, which clashes with isaacsim's numpy==2.3.1).
+    # mimic without nvidia-srl-usd-to-urdf (its numpy<2 clashes with isaacsim)
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 
-# Extras shipped in the published wheel but intentionally excluded from the uv
-# workspace resolution. The source workspace uses a repo-local Isaac Sim (the
-# ``_isaac_sim`` symlink / ``.env``), and ``isaacsim``'s exact version pins
-# conflict with several workspace extras under uv's strict resolver. Declaring
-# them here (rather than under ``[project.optional-dependencies]``) keeps the
-# wheel's extras defined in this single file while leaving ``uv lock`` solvable.
-# ``tools/wheel_builder/gen_pyproject.py`` merges these into the wheel metadata.
+# Extras shipped in the published wheel but excluded from uv workspace resolution
+# (the source workspace uses a repo-local Isaac Sim, and isaacsim's pins conflict
+# with several extras under uv). The wheel builder merges these into wheel metadata.
 [tool.isaaclab.wheel-extras]
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 
@@ -193,7 +159,6 @@ isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 line-length = 120
 target-version = "py310"
 
-# Exclude directories
 extend-exclude = [
     "logs",
     "_isaac_sim",
@@ -203,7 +168,6 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Enable flake8 rules and other useful ones
 select = [
     "E",      # pycodestyle errors
     "W",      # pycodestyle warnings
@@ -216,7 +180,6 @@ select = [
     "RET",    # flake8-return
 ]
 
-# Ignore specific rules (matching your flake8 config)
 ignore = [
     "E402",   # Module level import not at top of file
     "D401",   # First line should be in imperative mood
@@ -242,28 +205,23 @@ convention = "google"
 
 [tool.ruff.lint.isort]
 
-# Custom import sections with separate sections for each Isaac Lab extension
 section-order = [
     "future",
     "standard-library",
     "third-party",
-    # Group omniverse extensions separately since they are run-time dependencies
-    # which are pulled in by Isaac Lab extensions
+    # omniverse extensions are run-time deps pulled in by Isaac Lab extensions
     "omniverse-extensions",
-    # Group Isaac Lab extensions together since they are all part of the Isaac Lab project
     "isaaclab",
     "isaaclab-contrib",
     "isaaclab-rl",
     "isaaclab-mimic",
     "isaaclab-tasks",
     "isaaclab-assets",
-    # First-party is reserved for project templates
-    "first-party",
+    "first-party",  # reserved for project templates
     "local-folder",
 ]
 
 [tool.ruff.lint.isort.sections]
-# Define what belongs in each custom section
 
 "omniverse-extensions" = [
     "isaacsim",
@@ -303,10 +261,8 @@ pythonVersion = "3.12"
 pythonPlatform = "Linux"
 enableTypeIgnoreComments = true
 
-# This is required as the CI pre-commit does not download the module (i.e. numpy, torch, prettytable)
-# Therefore, we have to ignore missing imports
+# CI pre-commit does not install modules (numpy, torch, ...), so ignore missing imports
 reportMissingImports = "none"
-# This is required to ignore for type checks of modules with stubs missing.
 reportMissingModuleSource = "none" # -> most common: prettytable in mdp managers
 
 reportGeneralTypeIssues = "none"       # -> raises 218 errors (usage of literal MISSING in dataclasses)
@@ -344,25 +300,21 @@ name = "pytorch-cu130"
 url = "https://download.pytorch.org/whl/cu130"
 explicit = true
 
-# Some NVIDIA-hosted dependencies have mismatched versions across pypi.nvidia.com
-# and PyPI. unsafe-best-match lets uv resolve the correct version from any index,
-# and prerelease=allow covers packages that only publish pre-release wheels.
+# unsafe-best-match resolves NVIDIA deps with versions mismatched across
+# pypi.nvidia.com and PyPI; prerelease=allow covers prerelease-only packages.
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 override-dependencies = ["numpy>=2"]
-# Pin the exact torch stack for the dev workspace (routed through the CUDA
-# indexes below via [tool.uv.sources]). The loose specs in
-# [project.dependencies] keep the published wheel resolvable against isaacsim.
+# Pin the dev workspace torch stack (routed to the CUDA indexes via [tool.uv.sources]).
+# The loose [project.dependencies] specs keep the wheel resolvable against isaacsim.
 constraint-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
 ]
-# The teleop stack (dex-retargeting -> lxml>=5.2.2) cannot co-resolve with the
-# mimic stack (nvidia-srl-usd-to-urdf -> lxml<5.0.0), which is also pulled in by
-# the aggregate ``all`` extra. Declaring the conflict lets uv lock each side in
-# its own resolution fork instead of failing.
+# teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
+# declaring the conflict lets uv fork the resolution instead of failing.
 conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
     [{ extra = "teleop" }, { extra = "all" }],
@@ -386,9 +338,8 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
-# The dev workspace tracks the Newton prerelease; the published wheel keeps the
-# loose ``newton[sim]>=1.2.0`` spec from [project.dependencies] so it stays
-# resolvable against isaacsim.
+# Dev workspace tracks the Newton prerelease; the wheel keeps the loose
+# newton[sim]>=1.2.0 spec from [project.dependencies].
 newton = { git = "https://github.com/newton-physics/newton.git", tag = "v1.2.1rc2" }
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },

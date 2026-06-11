@@ -268,8 +268,8 @@ def _ensure_cuda_torch() -> None:
     base_index = "https://download.pytorch.org/whl"
 
     # Choose pins per arch.
-    torch_ver = "2.10.0"
-    tv_ver = "0.25.0"
+    torch_ver = "2.11.0"
+    tv_ver = "0.26.0"
 
     if is_arm():
         cuda_ver = "130"

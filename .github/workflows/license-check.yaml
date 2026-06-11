@@ -63,7 +63,7 @@ jobs:
       run: |
         uv sync --extra all
         # Isaac Sim isn't in the dev pyproject; sync first so it isn't pruned.
-        uv pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0' }}'
+        uv pip install 'isaacsim[all,extscache]==${{ vars.ISAACSIM_BASE_VERSION || '6.0.0.1' }}'
         uv pip install pip-licenses pipdeptree \
           -r tools/template/requirements.txt \
           -r docs/requirements.txt
