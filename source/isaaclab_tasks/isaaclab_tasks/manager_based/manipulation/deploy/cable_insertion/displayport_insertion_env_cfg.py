@@ -15,7 +15,7 @@ post-processed by ``physical-ai-skill-hub-dev/scripts/finalize_dp_assets.py``.
 All issues from ``output_dir/displayport_asset_fixes_required.md`` have been
 resolved offline: geometry is in metres, single root :class:`RigidBodyAPI`,
 no embedded ``PhysicsScene``, ``convexDecomposition`` on the plug, ``triangleMesh``
-on the socket, Body4/Body5 collision disabled. Assets load with plain
+on the socket (all bodies enabled). Assets load with plain
 :class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``; no custom spawner needed.
 
 Geometry constants below were derived from the **live-sim-verified** seated pose
