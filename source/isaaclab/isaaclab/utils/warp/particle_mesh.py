@@ -33,18 +33,7 @@ import numpy as np
 import torch
 import warp as wp
 
-# Disable Warp's init banner and initialize the module so the kernel below is registered at import
-# time (matches the pattern used in :mod:`isaaclab.utils.warp.ops`).
-wp.config.quiet = True
-wp.init()
-
-
-@wp.func
-def _is_finite_vec3(v: wp.vec3) -> bool:
-    """Return ``True`` when all components of ``v`` are finite (no NaN / Inf)."""
-    return not (
-        wp.isnan(v[0]) or wp.isnan(v[1]) or wp.isnan(v[2]) or wp.isinf(v[0]) or wp.isinf(v[1]) or wp.isinf(v[2])
-    )
+from .proxy_array import ProxyArray
 
 
 @wp.kernel
@@ -60,7 +49,7 @@ def count_particles_in_meshes_kernel(
 
     The thread grid is ``(num_envs, num_particles, num_regions)``. Each particle position is
     transformed into the region's local frame using the region's rigid transform and tested for
-    containment with the mesh winding number. Non-finite particle positions are treated as outside.
+    containment with the mesh winding number.
 
     Args:
         particle_pos: Particle positions in a common frame, shape ``(num_envs, num_particles)``.
@@ -76,23 +65,22 @@ def count_particles_in_meshes_kernel(
     env_id, particle_id, region_id = wp.tid()
     point = particle_pos[env_id, particle_id]
     flag = wp.float32(0.0)
-    if _is_finite_vec3(point):
-        region_tf = wp.transform(region_pos[region_id, env_id], region_quat[region_id, env_id])
-        point_local = wp.transform_point(wp.transform_inverse(region_tf), point)
-        query = wp.mesh_query_point_sign_winding_number(region_mesh_ids[region_id], point_local, max_query_dist)
-        # Warp convention: a negative winding-number sign means the point is inside the mesh.
-        if query.result and query.sign < 0.0:
-            flag = wp.float32(1.0)
+    region_tf = wp.transform(region_pos[region_id, env_id], region_quat[region_id, env_id])
+    point_local = wp.transform_point(wp.transform_inverse(region_tf), point)
+    query = wp.mesh_query_point_sign_winding_number(region_mesh_ids[region_id], point_local, max_query_dist)
+    # Warp convention: a negative winding-number sign means the point is inside the mesh.
+    if query.result and query.sign < 0.0:
+        flag = wp.float32(1.0)
     inside[env_id, particle_id, region_id] = flag
 
 
 class ParticleMeshCounter:
     """Counts particles inside closed region meshes using Warp winding-number point queries.
 
-    The counter owns one Warp mesh per region (built once with winding-number support) and, on every
-    :meth:`count` call, transforms each environment's particles into each region's local frame to
-    test containment. Regions may move and rotate between calls (e.g. a scoop bowl welded to a
-    gripper); only their transforms are passed in, the geometry is fixed in its local frame.
+    The counter owns one Warp mesh per region and, on every :meth:`count` call, transforms each
+    environment's particles into each region's local frame to test containment. Regions may move and
+    rotate between calls (e.g. a scoop bowl welded to a gripper); only their transforms are passed
+    in, the geometry is fixed in its local frame.
 
     Positions and region transforms must be expressed in a *common* frame (typically the per-env
     frame or the world frame). The counter does not assume any particular frame.
@@ -112,9 +100,8 @@ class ParticleMeshCounter:
     Args:
         region_meshes: One entry per region, each either a built :class:`warp.Mesh` or a
             ``(vertices, indices)`` pair. ``vertices`` is shape ``(num_vertices, 3)`` [m]; ``indices``
-            is the flattened or ``(num_faces, 3)`` triangle index array. A pre-built mesh is rebuilt
-            on :paramref:`device` with winding-number support, so it need not have been created with
-            ``support_winding_number=True``.
+            is the flattened or ``(num_faces, 3)`` triangle index array. Pre-built meshes are used
+            as-is and must be on :paramref:`device` with winding-number support enabled.
         num_envs: Number of environments.
         device: Torch device string the counter operates on (e.g. ``"cuda:0"`` or ``"cpu"``).
         max_query_dist: Maximum distance for the closest-point search [m]. Defaults to a large value
@@ -132,23 +119,16 @@ class ParticleMeshCounter:
         if len(region_meshes) == 0:
             raise ValueError("`region_meshes` must contain at least one region mesh.")
         self._device = str(device)
-        self._wp_device = wp.device_from_torch(torch.device(self._device))
         self._num_envs = int(num_envs)
         self._max_query_dist = float(max_query_dist)
-        self._meshes: list[wp.Mesh] = [self._as_winding_mesh(mesh) for mesh in region_meshes]
-        self._num_regions = len(self._meshes)
-        self._mesh_ids = wp.array([mesh.id for mesh in self._meshes], dtype=wp.uint64, device=self._wp_device)
-        # buffers sized on first use (depend on the per-call particle count)
-        self._num_particles = 0
-        self._inside_torch: torch.Tensor | None = None
-        self._inside_wp: wp.array | None = None
-
-    """Public properties."""
+        self._meshes: tuple[wp.Mesh, ...] = tuple(self._make_region_mesh(mesh) for mesh in region_meshes)
+        self._mesh_ids = wp.array([mesh.id for mesh in self._meshes], dtype=wp.uint64, device=self._device)
+        self._inside: ProxyArray | None = None
 
     @property
     def num_regions(self) -> int:
         """Number of region meshes."""
-        return self._num_regions
+        return len(self._meshes)
 
     @property
     def num_envs(self) -> int:
@@ -159,18 +139,6 @@ class ParticleMeshCounter:
     def device(self) -> str:
         """Torch device string the counter operates on."""
         return self._device
-
-    @property
-    def meshes(self) -> list[wp.Mesh]:
-        """The region meshes, one per region."""
-        return self._meshes
-
-    @property
-    def mesh_ids(self) -> wp.array:
-        """Warp mesh ids of the region meshes, shape ``(num_regions,)``."""
-        return self._mesh_ids
-
-    """Operations."""
 
     def count(
         self,
@@ -198,37 +166,6 @@ class ParticleMeshCounter:
             :paramref:`return_mask` is ``True``, a tuple of the counts and the boolean containment
             mask of shape ``(num_envs, num_particles, num_regions)``.
         """
-        inside = self._compute_inside_mask(particle_positions, region_positions, region_orientations)
-        counts = inside.sum(dim=1)
-        if return_mask:
-            return counts, inside > 0.5
-        return counts
-
-    def _compute_inside_mask(
-        self,
-        particle_positions: torch.Tensor,
-        region_positions: torch.Tensor,
-        region_orientations: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        """Compute the per-particle containment mask for every region (internal helper).
-
-        Returns the reused internal buffer; the public :meth:`count` (with
-        ``return_mask=True``) is the supported way to obtain a standalone mask.
-
-        Args:
-            particle_positions: Particle positions in a common frame, shape
-                ``(num_envs, num_particles, 3)`` [m].
-            region_positions: Region origins in the same frame, shape ``(num_regions, num_envs, 3)``
-                or ``(num_regions, 3)`` (broadcast) [m].
-            region_orientations: Region orientations as ``(x, y, z, w)`` quaternions, shape
-                ``(num_regions, num_envs, 4)`` or ``(num_regions, 4)`` (broadcast), or ``None`` for
-                identity.
-
-        Returns:
-            The containment mask (``1.0`` inside, ``0.0`` outside), shape
-            ``(num_envs, num_particles, num_regions)``, float. The returned tensor is an internal,
-            reused buffer; clone it if you need to retain it across calls.
-        """
         points = particle_positions.to(device=self._device, dtype=torch.float32)
         if points.dim() != 3 or points.shape[0] != self._num_envs or points.shape[2] != 3:
             raise ValueError(
@@ -238,42 +175,36 @@ class ParticleMeshCounter:
         points = points.contiguous()
         num_particles = points.shape[1]
         region_pos, region_quat = self._prepare_region_transforms(region_positions, region_orientations)
-        self._ensure_buffers(num_particles)
+        inside_buffer = self._resize_inside_buffer(num_particles)
         wp.launch(
             count_particles_in_meshes_kernel,
-            dim=(self._num_envs, num_particles, self._num_regions),
+            dim=(self._num_envs, num_particles, self.num_regions),
             inputs=[
                 wp.from_torch(points, dtype=wp.vec3),
                 self._mesh_ids,
                 wp.from_torch(region_pos, dtype=wp.vec3),
                 wp.from_torch(region_quat, dtype=wp.quat),
                 self._max_query_dist,
-                self._inside_wp,
+                inside_buffer.warp,
             ],
-            device=self._wp_device,
+            device=self._device,
         )
-        return self._inside_torch
+        inside = inside_buffer.torch
+        counts = inside.sum(dim=1)
+        if return_mask:
+            return counts, inside > 0.5
+        return counts
 
-    """Helper functions."""
-
-    def _as_winding_mesh(self, mesh: wp.Mesh | tuple[np.ndarray, np.ndarray]) -> wp.Mesh:
-        """Build a winding-number-capable :class:`warp.Mesh` on the counter's device.
-
-        ``mesh_query_point_sign_winding_number`` silently returns wrong signs for a
-        mesh built without ``support_winding_number=True``, and Warp does not expose
-        that flag on an existing :class:`warp.Mesh`. A pre-built mesh is therefore
-        rebuilt from its points and indices so the winding-number BVH is guaranteed
-        to exist; region meshes are built once, so this cost is paid only at setup.
-        """
+    def _make_region_mesh(self, mesh: wp.Mesh | tuple[np.ndarray, np.ndarray]) -> wp.Mesh:
+        """Build tuple-backed region meshes on the counter's device."""
         if isinstance(mesh, wp.Mesh):
-            vertices, indices = mesh.points.numpy(), mesh.indices.numpy()
-        else:
-            vertices, indices = mesh
+            return mesh
+        vertices, indices = mesh
         vertices = np.asarray(vertices, dtype=np.float32).reshape(-1, 3)
         indices = np.asarray(indices, dtype=np.int32).reshape(-1)
         return wp.Mesh(
-            points=wp.array(vertices, dtype=wp.vec3, device=self._wp_device),
-            indices=wp.array(indices, dtype=wp.int32, device=self._wp_device),
+            points=wp.array(vertices, dtype=wp.vec3, device=self._device),
+            indices=wp.array(indices, dtype=wp.int32, device=self._device),
             support_winding_number=True,
         )
 
@@ -282,39 +213,34 @@ class ParticleMeshCounter:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Validate and broadcast region transforms to ``(num_regions, num_envs, {3,4})``."""
         region_pos = region_positions.to(device=self._device, dtype=torch.float32)
-        # Only broadcast the (num_regions, 3) form; an ill-shaped 2-D input falls through to the
-        # shape check below so it raises a clear ValueError instead of a raw expand() error.
-        if region_pos.dim() == 2 and tuple(region_pos.shape) == (self._num_regions, 3):
-            region_pos = region_pos.unsqueeze(1).expand(self._num_regions, self._num_envs, 3)
-        if tuple(region_pos.shape) != (self._num_regions, self._num_envs, 3):
+        if region_pos.dim() == 2:
+            region_pos = region_pos.unsqueeze(1).expand(-1, self._num_envs, -1)
+        if tuple(region_pos.shape) != (self.num_regions, self._num_envs, 3):
             raise ValueError(
-                f"`region_positions` must broadcast to (num_regions={self._num_regions},"
+                f"`region_positions` must broadcast to (num_regions={self.num_regions},"
                 f" num_envs={self._num_envs}, 3), got {tuple(region_positions.shape)}."
             )
 
         if region_orientations is None:
-            region_quat = torch.zeros((self._num_regions, self._num_envs, 4), device=self._device, dtype=torch.float32)
+            region_quat = torch.zeros((self.num_regions, self._num_envs, 4), device=self._device, dtype=torch.float32)
             region_quat[..., 3] = 1.0
         else:
             region_quat = region_orientations.to(device=self._device, dtype=torch.float32)
-            if region_quat.dim() == 2 and tuple(region_quat.shape) == (self._num_regions, 4):
-                region_quat = region_quat.unsqueeze(1).expand(self._num_regions, self._num_envs, 4)
-            if tuple(region_quat.shape) != (self._num_regions, self._num_envs, 4):
+            if region_quat.dim() == 2:
+                region_quat = region_quat.unsqueeze(1).expand(-1, self._num_envs, -1)
+            if tuple(region_quat.shape) != (self.num_regions, self._num_envs, 4):
                 raise ValueError(
-                    f"`region_orientations` must broadcast to (num_regions={self._num_regions},"
+                    f"`region_orientations` must broadcast to (num_regions={self.num_regions},"
                     f" num_envs={self._num_envs}, 4), got {tuple(region_orientations.shape)}."
                 )
         return region_pos.contiguous(), region_quat.contiguous()
 
-    def _ensure_buffers(self, num_particles: int) -> None:
-        """(Re)allocate the containment buffer when the particle count changes."""
-        if self._inside_torch is not None and self._num_particles == num_particles:
-            return
-        self._num_particles = num_particles
-        self._inside_torch = torch.zeros(
-            (self._num_envs, num_particles, self._num_regions), device=self._device, dtype=torch.float32
-        )
-        self._inside_wp = wp.from_torch(self._inside_torch, dtype=wp.float32)
+    def _resize_inside_buffer(self, num_particles: int) -> ProxyArray:
+        """Return the containment buffer, resizing it when the particle count changes."""
+        shape = (self._num_envs, num_particles, self.num_regions)
+        if self._inside is None or self._inside.shape != shape:
+            self._inside = ProxyArray(wp.empty(shape, dtype=wp.float32, device=self._device))
+        return self._inside
 
 
 def make_box_region_mesh(

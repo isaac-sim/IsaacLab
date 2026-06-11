@@ -11,9 +11,6 @@ import pytest
 import torch
 import warp as wp
 
-wp.config.quiet = True
-wp.init()
-
 from isaaclab.utils.warp import ParticleMeshCounter, make_box_region_mesh, make_frustum_region_mesh
 
 
@@ -176,18 +173,7 @@ class TestParticleMeshCounterMultiRegion:
 
 
 class TestParticleMeshCounterRobustness:
-    """Sanitization, buffer reuse, prebuilt meshes, and input validation."""
-
-    def test_nan_inf_treated_as_outside(self, device):
-        """Non-finite particle positions never count as inside."""
-        counter = ParticleMeshCounter([make_box_region_mesh((0.1, 0.1, 0.1))], num_envs=1, device=device)
-        points = torch.tensor(
-            [[[0.0, 0, 0], [float("nan"), 0, 0], [0.0, float("inf"), 0], [0.0, 0, float("-inf")]]],
-            device=device,
-        )
-        counts, mask = counter.count(points, torch.zeros(1, 1, 3, device=device), return_mask=True)
-        assert counts[0, 0].item() == 1.0
-        assert mask[0, :, 0].int().tolist() == [1, 0, 0, 0]
+    """Buffer reuse, prebuilt meshes, and input validation."""
 
     def test_return_mask_consistency(self, device):
         """The boolean mask sums to the reported counts."""
@@ -215,19 +201,6 @@ class TestParticleMeshCounterRobustness:
             points=wp.array(verts, dtype=wp.vec3, device=wp_device),
             indices=wp.array(faces.flatten(), dtype=wp.int32, device=wp_device),
             support_winding_number=True,
-        )
-        counter = ParticleMeshCounter([mesh], num_envs=1, device=device)
-        points = torch.tensor([[[0.0, 0, 0], [0.5, 0, 0]]], device=device)
-        assert counter.count(points, torch.zeros(1, 1, 3, device=device))[0, 0].item() == 1.0
-
-    def test_prebuilt_mesh_without_winding_support_is_rebuilt(self, device):
-        """A pre-built mesh lacking winding support is rebuilt, so counts stay correct."""
-        verts, faces = make_box_region_mesh((0.1, 0.1, 0.1))
-        wp_device = wp.device_from_torch(torch.device(device))
-        # Built WITHOUT support_winding_number: querying it directly would return zero counts.
-        mesh = wp.Mesh(
-            points=wp.array(verts, dtype=wp.vec3, device=wp_device),
-            indices=wp.array(faces.flatten(), dtype=wp.int32, device=wp_device),
         )
         counter = ParticleMeshCounter([mesh], num_envs=1, device=device)
         points = torch.tensor([[[0.0, 0, 0], [0.5, 0, 0]]], device=device)
