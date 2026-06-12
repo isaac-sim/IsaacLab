@@ -93,5 +93,5 @@ from .schema import (
     StartupTime,
     TrainingBundle,
     Versions,
-    write_bundle_file,
 )
+from .serialize import write_bundle_file

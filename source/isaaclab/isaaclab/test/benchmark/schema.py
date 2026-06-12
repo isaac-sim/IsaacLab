@@ -7,8 +7,8 @@
 
 Defines the on-disk JSON schema produced by the standalone benchmark scripts
 under ``scripts/benchmarks/`` (``runtime.py``, ``training.py``, ``startup.py``).
-Producers populate a :class:`TrainingBundle` or
-:class:`StartupBundle` and call :func:`write_bundle_file` to emit
+Producers populate a :class:`TrainingBundle` or :class:`StartupBundle` and call
+:func:`~isaaclab.test.benchmark.serialize.write_bundle_file` to emit
 schema-compliant JSON. Consumers (dashboards, regression-comparison tools,
 the in-tree Odin evaluation harness under ``tools/odin/``) read the same file
 and reconstruct the dataclasses.
@@ -22,11 +22,8 @@ Current version: 1.0
 
 from __future__ import annotations
 
-import dataclasses
-import json
-import os
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 SCHEMA_VERSION = "1.0"
 
@@ -331,32 +328,3 @@ class StartupBundle:
     phases: dict[str, StartupPhase]
     config: StartupConfig
     schema_version: str = SCHEMA_VERSION
-
-
-def _to_plain(obj: Any) -> Any:
-    """Recursively convert dataclass instances to plain dicts/lists."""
-    if dataclasses.is_dataclass(obj) and not isinstance(obj, type):
-        return {f.name: _to_plain(getattr(obj, f.name)) for f in dataclasses.fields(obj)}
-    if isinstance(obj, list):
-        return [_to_plain(x) for x in obj]
-    if isinstance(obj, dict):
-        return {k: _to_plain(v) for k, v in obj.items()}
-    return obj
-
-
-def write_bundle_file(bundle: Any, path: str) -> None:
-    """Write a bundle dataclass to disk as schema-v1 JSON.
-
-    Creates the parent directory if missing. Uses ``indent=2`` for readability;
-    payloads are small (~10 KB training.json, ~50 KB startup.json).
-
-    Args:
-        bundle: A dataclass instance to serialise. Typically
-            :class:`TrainingBundle` or :class:`StartupBundle`; any frozen
-            dataclass tree composed of primitives, lists, and dicts works.
-        path: Output file path.
-    """
-    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
-    with open(path, "w") as f:
-        json.dump(_to_plain(bundle), f, indent=2, sort_keys=False)
-        f.write("\n")

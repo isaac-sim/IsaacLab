@@ -30,8 +30,8 @@ from isaaclab.test.benchmark.schema import (
     StartupTime,
     TrainingBundle,
     Versions,
-    write_bundle_file,
 )
+from isaaclab.test.benchmark.serialize import write_bundle_file
 
 
 def _versions() -> Versions:
@@ -241,3 +241,26 @@ def test_package_reexports_match_schema_module():
     assert checked, "no schema symbols found in package __all__"
     for name in checked:
         assert getattr(pkg, name) is getattr(schema, name), name
+
+
+def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
+    """A failure mid-serialise must not clobber an existing good file."""
+    import isaaclab.test.benchmark.serialize as serialize
+
+    path = os.path.join(tmp_path, "training.json")
+    write_bundle_file(_minimal_training_bundle(), path)
+    with open(path) as fh:
+        good = fh.read()
+
+    # Force json.dump to blow up after the temp file is opened.
+    def _boom(*a, **k):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(serialize.json, "dump", _boom)
+    with pytest.raises(RuntimeError):
+        write_bundle_file(_minimal_training_bundle(), path)
+
+    # Original file is intact; no leftover .tmp.
+    with open(path) as fh:
+        assert fh.read() == good
+    assert not os.path.exists(path + ".tmp")
