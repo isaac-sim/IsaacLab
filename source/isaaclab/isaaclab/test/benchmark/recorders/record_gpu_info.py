@@ -37,9 +37,8 @@ class GPUInfoRecorder(MeasurementDataRecorder):
         self._util_n = []
         self._util_m2 = []
 
-        # Per-device peak (running max) for memory (bytes) and utilization (%)
+        # Per-device peak (running max) for memory (bytes)
         self._mem_peak = []
-        self._util_peak = []
 
         # pynvml device handles (one per GPU)
         self._handles = []
@@ -81,7 +80,6 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             self._util_m2.append(0)
             # Peak state (running max)
             self._mem_peak.append(0.0)
-            self._util_peak.append(0.0)
 
         # CUDA version
         with contextlib.suppress(Exception):
@@ -198,11 +196,8 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                 self._util_m2[i] += delta * delta2
                 if self._util_n[i] > 1:
                     self._util_std[i] = math.sqrt(self._util_m2[i] / (self._util_n[i] - 1))
-                self._util_peak[i] = max(self._util_peak[i], float(gpu_util))
-
                 self._gpu_runtime_info["devices"][i]["utilization_mean_percent"] = self._util_mean[i]
                 self._gpu_runtime_info["devices"][i]["utilization_std_percent"] = self._util_std[i]
-                self._gpu_runtime_info["devices"][i]["utilization_peak_percent"] = self._util_peak[i]
                 self._gpu_runtime_info["devices"][i]["utilization_n"] = self._util_n[i]
 
     def update(self) -> None:
@@ -308,13 +303,6 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                         SingleMeasurement(
                             name=f"{prefix}Utilization std",
                             value=round(runtime["utilization_std_percent"], 2),
-                            unit="%",
-                        )
-                    )
-                    measurements.append(
-                        SingleMeasurement(
-                            name=f"{prefix}Utilization peak",
-                            value=round(runtime.get("utilization_peak_percent", 0), 2),
                             unit="%",
                         )
                     )

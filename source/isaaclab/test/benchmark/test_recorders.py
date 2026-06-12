@@ -131,6 +131,8 @@ class TestGPUInfoRecorder:
         assert isinstance(recorder._mem_n, list)
         assert isinstance(recorder._util_mean, list)
         assert isinstance(recorder._util_n, list)
+        # No utilization peak tracking
+        assert not hasattr(recorder, "_util_peak")
 
     def test_get_initial_data_structure(self, recorder):
         """Test that get_initial_data returns correct structure."""
@@ -236,12 +238,13 @@ class TestGPUInfoRecorder:
 
         measurement_data = recorder.get_data()
         assert isinstance(measurement_data, MeasurementData)
-        # GPU data includes measurements per GPU:
-        #   memory: mean, std, n + peak (always) = 4
-        #   utilization: mean, std, peak, n (when nvml/smi available) = 4
-        # Total is 4 (memory-only) or 8 (memory + utilization) per GPU.
+        # Assert memory peak is present and utilization peak is absent for each GPU.
         num_gpus = data["gpu_metadata"]["device_count"]
-        assert len(measurement_data.measurements) in (4 * num_gpus, 8 * num_gpus)
+        names = {m.name for m in measurement_data.measurements}
+        for i in range(num_gpus):
+            prefix = f"GPU {i} " if num_gpus > 1 else "GPU "
+            assert f"{prefix}Memory Used peak" in names
+            assert f"{prefix}Utilization peak" not in names
         # 4 metadata entries: device_count, current_device, cuda_version, gpu_devices dict
         assert len(measurement_data.metadata) == 4
 
