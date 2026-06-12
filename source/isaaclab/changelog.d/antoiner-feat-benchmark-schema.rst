@@ -15,6 +15,8 @@ Added
   :class:`~isaaclab.test.benchmark.schema.Learning` records, along with
   :func:`~isaaclab.test.benchmark.serialize.write_bundle_file` for emitting
   schema-compliant JSON atomically.
+  Each bundle also carries an optional ``extra`` mapping of free-form scalar
+  values for producer-specific data outside the stable contract.
 
 Changed
 ^^^^^^^

@@ -248,6 +248,12 @@ class RuntimeBundle:
     """Top-level shape of ``runtime.json`` (environment stepping, no learning).
 
     Mirrors :class:`TrainingBundle` without the learning metrics.
+
+    Args:
+        extra: Optional free-form scalar values (experimental or producer-specific)
+            that are **not** part of the stable schema contract. Consumers must
+            tolerate its absence and must not depend on specific keys; promote a key
+            to a typed field once it is stable and broadly useful.
     """
 
     run: RunIdentity
@@ -255,6 +261,7 @@ class RuntimeBundle:
     hardware: Hardware
     runtime: Runtime
     resources: Resources
+    extra: dict[str, float | int | str | bool] | None = None
     schema_version: str = SCHEMA_VERSION
 
 
@@ -267,6 +274,10 @@ class TrainingBundle:
             ``None``.
         checkpoint_path: Path to the final saved policy checkpoint, if any.
         video_path: Path to a recorded rollout video/gif, if any.
+        extra: Optional free-form scalar values (experimental or producer-specific)
+            that are **not** part of the stable schema contract. Consumers must
+            tolerate its absence and must not depend on specific keys; promote a key
+            to a typed field once it is stable and broadly useful.
     """
 
     run: RunIdentity
@@ -278,6 +289,7 @@ class TrainingBundle:
     success_rate: float | None = None
     checkpoint_path: str | None = None
     video_path: str | None = None
+    extra: dict[str, float | int | str | bool] | None = None
     schema_version: str = SCHEMA_VERSION
 
 
@@ -320,6 +332,12 @@ class StartupBundle:
 
     Reuses :class:`RunIdentity` with ``framework``/``num_envs``/``max_iterations``
     left unset, since they are not meaningful for a startup profile.
+
+    Args:
+        extra: Optional free-form scalar values (experimental or producer-specific)
+            that are **not** part of the stable schema contract. Consumers must
+            tolerate its absence and must not depend on specific keys; promote a key
+            to a typed field once it is stable and broadly useful.
     """
 
     run: RunIdentity
@@ -327,4 +345,5 @@ class StartupBundle:
     hardware: Hardware
     phases: dict[str, StartupPhase]
     config: StartupConfig
+    extra: dict[str, float | int | str | bool] | None = None
     schema_version: str = SCHEMA_VERSION

@@ -264,3 +264,30 @@ def test_write_bundle_file_is_atomic(tmp_path, monkeypatch):
     with open(path) as fh:
         assert fh.read() == good
     assert not os.path.exists(path + ".tmp")
+
+
+def test_extra_field_round_trips(tmp_path):
+    """The free-form `extra` mapping round-trips with scalar values; defaults to None."""
+    bundle = dataclasses.replace(
+        _minimal_training_bundle(),
+        extra={"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2},
+    )
+    path = os.path.join(tmp_path, "training.json")
+    write_bundle_file(bundle, path)
+    with open(path) as f:
+        data = json.load(f)
+    assert data["extra"] == {"grad_norm": 0.42, "note": "warmup", "stable": True, "restarts": 2}
+
+    # default is None and serialises to JSON null
+    rt = RuntimeBundle(
+        run=_run_identity(framework=None, max_iterations=None),
+        versions=_versions(),
+        hardware=_hardware(),
+        runtime=_runtime(),
+        resources=_resources(),
+    )
+    path2 = os.path.join(tmp_path, "runtime.json")
+    write_bundle_file(rt, path2)
+    with open(path2) as f:
+        data2 = json.load(f)
+    assert data2["extra"] is None
