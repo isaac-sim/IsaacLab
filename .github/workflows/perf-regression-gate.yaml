@@ -71,11 +71,18 @@ jobs:
         with:
           fetch-depth: 1
       - id: load
+        # The shared config.yaml points at the internal nvcr.io/nvidian/isaac-sim
+        # image, which the fork's NGC key is not entitled to pull. Default this gate
+        # to the PUBLIC nvcr.io/nvidia/isaac-sim:6.0.0 release (same 6.0.0.x family as
+        # develop, any authenticated NGC account can pull it). Override via repo
+        # variables PERF_GATE_ISAACSIM_IMAGE / PERF_GATE_ISAACSIM_TAG if the fork later
+        # gains access to the internal image.
         run: |
           set -euo pipefail
-          f=.github/workflows/config.yaml
-          echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
-          echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+          IMG="${{ vars.PERF_GATE_ISAACSIM_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}"
+          TAG="${{ vars.PERF_GATE_ISAACSIM_TAG || '6.0.0' }}"
+          echo "isaacsim_image_name=${IMG}" >> "$GITHUB_OUTPUT"
+          echo "isaacsim_image_tag=${TAG}" >> "$GITHUB_OUTPUT"
       - id: build_matrix
         run: |
           set -euo pipefail
