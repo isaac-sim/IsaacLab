@@ -115,7 +115,7 @@ jobs:
         #
         # Within a discovered file, tests that are NOT parametrized over the
         # ``device`` argument are deselected at collection time by the
-        # ``_device_select`` plugin (injected by ``tools/conftest.py`` on every
+        # ``test_runner.selector`` plugin (which the runner injects on every
         # shard): single-GPU CI already covers them on ``cuda:0`` and re-running on
         # every non-default shard adds wall-time without surfacing any new failure mode.
         id: discover

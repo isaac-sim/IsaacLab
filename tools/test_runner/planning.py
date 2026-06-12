@@ -44,6 +44,8 @@ class RunnerConfig:
             ``"0001"`` a shard). Concrete — never the open-ended ``"X"`` form.
         queue_path: Shared work-queue root for mgpu work-stealing; empty when the
             runner iterates its own file list.
+        sim_device: Kit boot device; names the per-shard work-queue subdir and
+            labels rows in the report.
         isaacsim_ci: Whether to pass ``-m isaacsim_ci`` to each subprocess.
         filter_pattern: Substring a test path must contain to run; empty = all.
         exclude_pattern: Comma-separated substrings; a path matching any is skipped.
@@ -73,6 +75,7 @@ class RunnerConfig:
     # -- run scope --
     runtime_mask: str = "110"
     queue_path: str = ""
+    sim_device: str = "cuda:0"
     isaacsim_ci: bool = False
     # -- collection --
     filter_pattern: str = ""
@@ -130,6 +133,8 @@ class RunnerConfig:
             # An unset mask means single-GPU CI: cpu + cuda:0, matching test_devices()'s default.
             runtime_mask=os.environ.get("ISAACLAB_TEST_DEVICES") or "110",
             queue_path=os.environ.get("ISAACLAB_TEST_QUEUE", ""),
+            # Kit boot device; names the per-shard work-queue subdir and labels the report.
+            sim_device=os.environ.get("ISAACLAB_SIM_DEVICE") or "cuda:0",
             isaacsim_ci=os.environ.get("ISAACSIM_CI_SHORT", "false") == "true",
             filter_pattern=os.environ.get("TEST_FILTER_PATTERN", ""),
             exclude_pattern=os.environ.get("TEST_EXCLUDE_PATTERN", ""),
