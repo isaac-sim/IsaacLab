@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import sys
+import xml.etree.ElementTree as ET
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -42,48 +43,41 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
 
     enable_extension("isaacsim.asset.exporter.urdf")
 
-    from nvidia.srl.from_usd.to_urdf import UsdToUrdf
-
-    usd_to_urdf_kwargs = {
-        "node_names_to_remove": None,
-        "edge_names_to_remove": None,
-        "root": None,
-        "parent_link_is_body_1": None,
-        "log_level": logging.ERROR,
-    }
-
     urdf_output_dir = os.path.join(output_path, "urdf")
-    urdf_file_name = os.path.basename(usd_path).split(".")[0] + ".urdf"
-    urdf_output_path = urdf_output_dir + "/" + urdf_file_name
+    urdf_file_name = os.path.splitext(os.path.basename(usd_path))[0] + ".urdf"
+    urdf_output_path = os.path.join(urdf_output_dir, urdf_file_name)
     urdf_meshes_output_dir = os.path.join(output_path, "meshes")
 
     if not os.path.exists(urdf_output_path) or not os.path.exists(urdf_meshes_output_dir) or force_conversion:
-        usd_to_urdf = UsdToUrdf.init_from_file(usd_path, **usd_to_urdf_kwargs)
         os.makedirs(urdf_output_dir, exist_ok=True)
         os.makedirs(urdf_meshes_output_dir, exist_ok=True)
 
-        output_path = usd_to_urdf.save_to_file(
-            urdf_output_path=urdf_output_path,
+        from isaacsim.asset.exporter.urdf import UsdToUrdfConverter
+
+        usd_to_urdf = UsdToUrdfConverter(
+            stage=usd_path,
+            root_prim_path=None,
+            mesh_dir_name="../meshes",
+            mesh_path_prefix="../meshes/",
             visualize_collision_meshes=False,
-            mesh_dir=urdf_meshes_output_dir,
-            mesh_path_prefix="",
         )
+        usd_to_urdf.convert(urdf_output_path)
 
-        # The current version of the usd to urdf converter creates "inf" effort,
-        # This has to be replaced with a max value for the urdf to be valid
-        # Open the file for reading and writing
-        with open(urdf_output_path) as file:
-            # Read the content of the file
-            content = file.read()
-
-        # Replace all occurrences of 'inf' with '0'
-        content = content.replace("inf", "0.")
-
-        # Open the file again to write the modified content
-        with open(urdf_output_path, "w") as file:
-            # Write the modified content back to the file
-            file.write(content)
+        _sanitize_urdf_for_pinocchio(urdf_output_path)
     return urdf_output_path, urdf_meshes_output_dir
+
+
+def _sanitize_urdf_for_pinocchio(urdf_path: str) -> None:
+    """Fill Pinocchio-required non-kinematic joint-limit fields in exported URDFs."""
+    tree = ET.parse(urdf_path)
+    changed = False
+    for limit in tree.iter("limit"):
+        for attr in ("effort", "velocity"):
+            if limit.get(attr) in {None, "inf", "+inf", "-inf"}:
+                limit.set(attr, "0.")
+                changed = True
+    if changed:
+        tree.write(urdf_path, encoding="unicode")
 
 
 def change_revolute_to_fixed(urdf_path: str, fixed_joints: list[str], verbose: bool = False):
