@@ -115,9 +115,10 @@ jobs:
         #
         # Within a discovered file, tests that are NOT parametrized over the
         # ``device`` argument are deselected at collection time by the
-        # ``mgpu_shard_select`` plugin (injected per shard by ``tools/conftest.py``):
-        # single-GPU CI already covers them on ``cuda:0`` and re-running on every
-        # non-default shard adds wall-time without surfacing any new failure mode.
+        # ``_agnostic_select`` plugin (injected by ``tools/conftest.py`` for any
+        # unit whose mask lacks cpu, i.e. every shard): single-GPU CI already
+        # covers them on ``cuda:0`` and re-running on every non-default shard adds
+        # wall-time without surfacing any new failure mode.
         id: discover
         run: |
           # File-level opt-out: a test file can exclude itself from multi-GPU CI

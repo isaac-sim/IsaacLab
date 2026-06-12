@@ -54,7 +54,7 @@ from isaaclab.utils.math import (  # noqa: E402
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
+pytestmark = pytest.mark.device_isolated
 
 
 _LOCKED_DEVICE: list[str | None] = [None]

@@ -21,7 +21,27 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
+
+
+@dataclass(frozen=True)
+class Unit:
+    """One pytest subprocess to run for the test runner.
+
+    Attributes:
+        file: Test file to run.
+        mask: Device mask set as ``ISAACLAB_TEST_DEVICES`` for the subprocess;
+            ``test_devices()`` reads it to select the device variants.
+        split: Whether this unit is one of several produced by splitting a
+            ``device_isolated`` file. The executor uses it only to give split
+            units distinct JUnit report filenames; a non-split unit (one per
+            file) keeps the suffix-free name the mgpu aggregator expects.
+    """
+
+    file: str
+    mask: str
+    split: bool = False
 
 _ISOLATED_MARK_RE = re.compile(r"^\s*pytestmark\b.*\bdevice_isolated\b", re.MULTILINE)
 """Match a module-level ``pytestmark`` assignment that mentions ``device_isolated``.
@@ -73,8 +93,8 @@ def plan_units(
     files: list[str],
     runtime_mask: str,
     is_isolated: Callable[[Path | str], bool] = is_isolated,
-) -> list[tuple[str, str]]:
-    """Plan the ``(file, mask)`` work units for one runner.
+) -> list[Unit]:
+    """Plan the work units for one runner.
 
     Args:
         files: Test files this runner is responsible for, in run order.
@@ -95,10 +115,10 @@ def plan_units(
     if "X" in runtime_mask:
         raise ValueError(f"runtime mask {runtime_mask!r} must be concrete (no 'X'); 'X' is a scope-only construct")
     set_bits = [pos for pos, char in enumerate(runtime_mask) if char == "1"]
-    units: list[tuple[str, str]] = []
+    units: list[Unit] = []
     for test_file in files:
         if is_isolated(test_file) and len(set_bits) > 1:
-            units.extend((test_file, _single_bit_mask(pos, len(runtime_mask))) for pos in set_bits)
+            units.extend(Unit(test_file, _single_bit_mask(pos, len(runtime_mask)), split=True) for pos in set_bits)
         else:
-            units.append((test_file, runtime_mask))
+            units.append(Unit(test_file, runtime_mask))
     return units

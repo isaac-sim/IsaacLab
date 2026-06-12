@@ -12,33 +12,40 @@ The planner turns (files, runtime device mask, marker predicate) into a list of
 from __future__ import annotations
 
 import pytest
-from _device_plan import is_isolated, plan_units
+from _device_plan import Unit, is_isolated, plan_units
 
 # ---- plan_units: the per-runner planning logic --------------------------------
 
 
 def test_mix_ok_file_is_a_single_unit():
     # A file that does not need device isolation runs once, covering the whole mask.
-    assert plan_units(["a.py"], "110", is_isolated=lambda f: False) == [("a.py", "110")]
+    assert plan_units(["a.py"], "110", is_isolated=lambda f: False) == [Unit("a.py", "110")]
 
 
 def test_cant_mix_file_splits_into_one_unit_per_set_bit():
     # An isolated file on a multi-device runtime splits into one process per device.
-    assert plan_units(["a.py"], "110", is_isolated=lambda f: True) == [("a.py", "100"), ("a.py", "010")]
+    # Split units are flagged so the executor gives them distinct report names.
+    assert plan_units(["a.py"], "110", is_isolated=lambda f: True) == [
+        Unit("a.py", "100", split=True),
+        Unit("a.py", "010", split=True),
+    ]
 
 
 def test_cant_mix_on_single_device_runtime_does_not_split():
     # An mgpu shard's runtime is one device, so even an isolated file is one unit.
-    assert plan_units(["a.py"], "0001", is_isolated=lambda f: True) == [("a.py", "0001")]
+    assert plan_units(["a.py"], "0001", is_isolated=lambda f: True) == [Unit("a.py", "0001")]
 
 
 def test_cant_mix_on_cpu_only_runtime_does_not_split():
-    assert plan_units(["a.py"], "100", is_isolated=lambda f: True) == [("a.py", "100")]
+    assert plan_units(["a.py"], "100", is_isolated=lambda f: True) == [Unit("a.py", "100")]
 
 
 def test_split_masks_use_each_set_bit_position():
     # Set bits at positions 0 and 2 -> two single-bit masks of the same width.
-    assert plan_units(["a.py"], "1010", is_isolated=lambda f: True) == [("a.py", "1000"), ("a.py", "0010")]
+    assert plan_units(["a.py"], "1010", is_isolated=lambda f: True) == [
+        Unit("a.py", "1000", split=True),
+        Unit("a.py", "0010", split=True),
+    ]
 
 
 def test_multiple_files_preserve_order_and_decide_per_file():
@@ -46,9 +53,9 @@ def test_multiple_files_preserve_order_and_decide_per_file():
         return f == "b.py"
 
     assert plan_units(["a.py", "b.py"], "110", is_isolated=isolated) == [
-        ("a.py", "110"),
-        ("b.py", "100"),
-        ("b.py", "010"),
+        Unit("a.py", "110"),
+        Unit("b.py", "100", split=True),
+        Unit("b.py", "010", split=True),
     ]
 
 

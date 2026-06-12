@@ -84,7 +84,7 @@ from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_CFG  # i
 
 wp.init()
 
-pytestmark = pytest.mark.device_split
+pytestmark = pytest.mark.device_isolated
 
 
 _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
