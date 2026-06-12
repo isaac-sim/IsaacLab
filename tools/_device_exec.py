@@ -11,10 +11,10 @@ shutdown-hang detection, fresh-process retries, and JUnit report parsing.
 
 Device selection is the planner's job, expressed as the unit's mask: the
 executor sets ``ISAACLAB_TEST_DEVICES`` to that mask (``test_devices()`` reads
-it to pick the device variants) and, for a unit whose mask lacks cpu — an mgpu
-shard or the cuda unit of a can't-mix split — injects the ``_agnostic_select``
-plugin so device-agnostic tests do not run there. The executor never reads a
-marker or a ``-k`` selector.
+it to pick the device variants) and, for a split unit (either half) or an mgpu
+shard, injects the ``_device_select`` plugin to drop out-of-scope device variants
+— including literal device-param variants the mask alone cannot narrow — and
+device-agnostic tests. The executor never reads a marker or a ``-k`` selector.
 """
 
 from __future__ import annotations
@@ -416,7 +416,7 @@ class _UnitContext:
         test_file: Path to the test file being driven.
         file_name: Basename of ``test_file`` (used for JUnit naming).
         workspace_root: Repository root; passed to pytest's ``--config-file`` and
-            used to locate the ``_agnostic_select`` plugin.
+            used to locate the ``_device_select`` plugin.
         isaacsim_ci: Whether ``ISAACSIM_CI_SHORT`` is active; toggles the
             ``-m isaacsim_ci`` selector.
         timeout: Per-unit hard timeout in seconds.
@@ -471,7 +471,7 @@ def _build_unit_cmd(ctx: _UnitContext, unit: Unit) -> tuple[list[str], dict, str
 
     Device-variant selection is the unit's mask, set as ``ISAACLAB_TEST_DEVICES``
     for ``test_devices()`` to read — there is no ``-k``. A mask without cpu
-    (position 0) additionally injects the ``_agnostic_select`` plugin so
+    (position 0) additionally injects the ``_device_select`` plugin so
     device-agnostic tests do not run there.
 
     Args:
@@ -499,8 +499,12 @@ def _build_unit_cmd(ctx: _UnitContext, unit: Unit) -> tuple[list[str], dict, str
     env = dict(ctx.env)
     env["ISAACLAB_TEST_DEVICES"] = unit.mask
 
-    inject_agnostic = unit.mask[:1] == "0"
-    if inject_agnostic:
+    # A split unit (either half) or a cpu-less shard must run exactly its mask's
+    # devices, so inject the device selector to drop out-of-scope variants —
+    # including literal device-param variants the mask alone cannot narrow (only
+    # test_devices() reads the mask; a literal ["cuda:0", "cpu"] list does not).
+    select_by_device = unit.split or unit.mask[:1] == "0"
+    if select_by_device:
         tools_dir = os.path.join(ctx.workspace_root, "tools")
         env["PYTHONPATH"] = tools_dir + os.pathsep + env.get("PYTHONPATH", "")
 
@@ -515,8 +519,8 @@ def _build_unit_cmd(ctx: _UnitContext, unit: Unit) -> tuple[list[str], dict, str
         f"--junitxml={report_file}",
         "--tb=short",
     ]
-    if inject_agnostic:
-        cmd += ["-p", "_agnostic_select"]
+    if select_by_device:
+        cmd += ["-p", "_device_select"]
     if ctx.isaacsim_ci:
         cmd += ["-m", "isaacsim_ci"]
     cmd.append(str(ctx.test_file))

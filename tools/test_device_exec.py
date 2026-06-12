@@ -7,8 +7,8 @@
 
 These assert the device-selection contract without launching a subprocess: the
 unit's mask becomes ``ISAACLAB_TEST_DEVICES`` (so ``test_devices()`` selects the
-variants), the ``_agnostic_select`` plugin is injected only for a cpu-less mask
-(shards and the cuda unit of a split), ``-k`` is never used, and split units get
+variants), the ``_device_select`` plugin is injected for split units (both
+halves) and shards, ``-k`` is never used, and split units get
 a suffixed report name while single units keep the mgpu-aggregator-friendly one.
 """
 
@@ -36,33 +36,35 @@ def test_mix_ok_unit_sets_mask_with_no_plugin_and_no_k():
     cmd, env, report_file, label = _build_unit_cmd(_ctx(), Unit("source/pkg/test_x.py", "110"))
     assert env["ISAACLAB_TEST_DEVICES"] == "110"
     assert env["BASE"] == "1"  # base env preserved
-    assert "_agnostic_select" not in cmd
+    assert "_device_select" not in cmd  # mix-ok single unit: no isolation needed
     assert "-k" not in cmd
     assert report_file == "tests/test-reports-source__pkg__test_x.py.xml"  # no suffix for a single unit
     assert label == "test_x.py"
     assert cmd[-1] == "source/pkg/test_x.py"
 
 
-def test_cpu_split_unit_is_suffixed_and_keeps_agnostic_tests():
+def test_cpu_split_unit_is_suffixed_and_injects_device_select():
+    # The cpu half of a split must also drop out-of-scope literal cuda variants,
+    # else they leak into the cpu-locked process. So it injects the selector too.
     cmd, env, report_file, label = _build_unit_cmd(_ctx(), Unit("source/pkg/test_x.py", "100", split=True))
     assert env["ISAACLAB_TEST_DEVICES"] == "100"
-    assert "_agnostic_select" not in cmd  # cpu in mask -> agnostic tests run here
+    assert "_device_select" in cmd
     assert report_file.endswith("test_x.py-100.xml")
     assert label == "test_x.py-100"
 
 
-def test_cuda_split_unit_injects_agnostic_plugin_and_tools_pythonpath():
+def test_cuda_split_unit_injects_device_select_and_tools_pythonpath():
     cmd, env, report_file, _ = _build_unit_cmd(_ctx(), Unit("source/pkg/test_x.py", "010", split=True))
     assert env["ISAACLAB_TEST_DEVICES"] == "010"
-    assert cmd.count("-p") == 1 and "_agnostic_select" in cmd
+    assert cmd.count("-p") == 1 and "_device_select" in cmd
     assert env["PYTHONPATH"].split(os.pathsep)[0] == os.path.join("/ws", "tools")
     assert report_file.endswith("test_x.py-010.xml")
 
 
-def test_shard_unit_injects_agnostic_plugin_without_a_suffix():
+def test_shard_unit_injects_device_select_without_a_suffix():
     cmd, env, report_file, label = _build_unit_cmd(_ctx(), Unit("source/pkg/test_x.py", "0001"))
     assert env["ISAACLAB_TEST_DEVICES"] == "0001"
-    assert "_agnostic_select" in cmd  # cpu-less mask -> drop device-agnostic tests
+    assert "_device_select" in cmd  # cpu-less shard -> drop out-of-scope + agnostic
     # one unit per file on a shard -> suffix-free name the aggregator unslugs to a path
     assert report_file == "tests/test-reports-source__pkg__test_x.py.xml"
     assert label == "test_x.py"
