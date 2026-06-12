@@ -362,7 +362,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -389,7 +390,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -416,7 +418,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -443,7 +446,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -471,7 +475,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -499,7 +504,8 @@ class BaseArticulation(AssetBase):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -529,7 +535,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -559,7 +566,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -589,7 +597,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -619,7 +628,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -649,7 +659,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -679,7 +690,8 @@ class BaseArticulation(AssetBase):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -705,7 +717,8 @@ class BaseArticulation(AssetBase):
             position: Joint positions. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -731,7 +744,8 @@ class BaseArticulation(AssetBase):
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -757,7 +771,8 @@ class BaseArticulation(AssetBase):
             velocity: Joint velocities. Shape is (len(env_ids), len(joint_ids)).
             joint_ids: The joint indices to set the targets for. Defaults to None (all joints).
             env_ids: The environment indices to set the targets for. Defaults to None (all instances).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
@@ -783,7 +798,8 @@ class BaseArticulation(AssetBase):
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all the joints are updated. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
+            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
 
