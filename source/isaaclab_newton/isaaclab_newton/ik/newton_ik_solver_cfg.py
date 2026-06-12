@@ -10,13 +10,24 @@ from isaaclab.utils.configclass import configclass
 
 @configclass
 class NewtonIKSolverCfg:
-    """Configuration for the Newton inverse-kinematics solver."""
+    """Configuration for the Newton inverse-kinematics solver.
 
-    command_type: str = "pose"
-    """Action command type for manager-based actions: ``"position"`` or ``"pose"``."""
+    Holds solver hyperparameters only. Objectives (and their residual weights)
+    are configured separately as a list of
+    :class:`~isaaclab_newton.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`
+    passed to the solver. Command semantics for manager-based actions
+    (``command_type``, ``use_relative_mode``) live on the action cfg.
 
-    use_relative_mode: bool = True
-    """Whether manager-based action commands are relative to the current target pose."""
+    :attr:`class_type` selects the solver implementation, so an alternative
+    solver can be dropped in via config without changing callers.
+    """
+
+    class_type: type | str = "isaaclab_newton.ik.newton_ik_solver:NewtonIKSolver"
+    """Solver implementation, as a type or a ``"module:Class"`` string.
+
+    Instantiated as ``class_type(cfg, model=..., num_envs=..., device=...,
+    objectives=..., link_resolver=...)``.
+    """
 
     optimizer: str = "lm"
     """Newton IK optimizer backend. Supported values are ``"lm"`` and ``"lbfgs"``."""
@@ -53,15 +64,3 @@ class NewtonIKSolverCfg:
     This moderate default favors stable updates near singular configurations
     over aggressive first-step motion.
     """
-
-    position_weight: float = 1.0
-    """Default residual weight for pose position objectives."""
-
-    rotation_weight: float = 1.0
-    """Default residual weight for pose rotation objectives."""
-
-    joint_limit_weight: float | None = 0.1
-    """Residual weight for the joint-limit objective. Set to ``None`` to disable it."""
-
-    use_persistent_seed: bool = False
-    """Whether solved joint coordinates should be reused as the next IK seed."""

@@ -62,18 +62,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-@dataclass
-class NewtonPrototypeModelInfo:
-    """Cached Newton prototype model built before physics replication."""
-
-    source_path: str
-    destination_path: str
-    builder: ModelBuilder
-    model: Model | None = None
-    model_device: object | None = None
-
-
 # Tagged union for entries in _cl_site_index_map.
 # _GlobalSite: (global_shape_idx, None)           — body_pattern was None
 # _LocalSite:  (None, [[env0_idx, ...], ...])     — per-world site indices
@@ -239,7 +227,6 @@ class NewtonManager(PhysicsManager):
     # Newton model and state
     _builder: ModelBuilder = None
     _model: Model = None
-    _prototype_models: dict[str, NewtonPrototypeModelInfo] = {}
     _solver: SolverBase | None = None
     _use_single_state: bool | None = None
     """Use only one state for both input and output for solver stepping. Requires solver support."""
@@ -324,6 +311,10 @@ class NewtonManager(PhysicsManager):
     _cl_site_index_map: dict[str, _SiteEntry] = {}
     _cl_fabric_body_bindings: list[tuple[str, int]] | None = None
     _world_xforms: list[wp.transform] | None = None
+    # Per-source builders retained from replication, keyed by clone-plan source
+    # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
+    # model from these and resolve it via ``resolve_clone_plan_source``.
+    _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, list[float], list[float]], None]] = []
     _post_replicate_hooks: list[Callable[[ModelBuilder], None]] = []
@@ -795,13 +786,13 @@ class NewtonManager(PhysicsManager):
         NewtonManager._up_axis = "Z"
         NewtonManager._scene_data = None
         NewtonManager._scene_data_mapping = None
-        NewtonManager._prototype_models = {}
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
         NewtonManager._cl_site_index_map = {}
         NewtonManager._cl_fabric_body_bindings = None
         NewtonManager._world_xforms = None
+        NewtonManager._cl_protos = {}
         NewtonManager._pending_extended_state_attributes = set()
         NewtonManager._pending_extended_contact_attributes = set()
         NewtonManager._views = []
@@ -811,92 +802,6 @@ class NewtonManager(PhysicsManager):
     def set_builder(cls, builder: ModelBuilder) -> None:
         """Set the Newton model builder."""
         NewtonManager._builder = builder
-
-    @classmethod
-    def register_prototype_builders(
-        cls,
-        sources: list[str] | tuple[str, ...],
-        destinations: list[str] | tuple[str, ...],
-        proto_builders: dict[str, ModelBuilder],
-    ) -> None:
-        """Register prototype builders created before Newton physics replication.
-
-        Prototype builders preserve the single-source model that is later added
-        into each replicated Newton world. Controllers that need a single-model
-        representation, such as batched Newton IK, should use this registry
-        instead of re-importing USD after the scene has already been built.
-        """
-        for index, source_path in enumerate(sources):
-            builder = proto_builders.get(source_path)
-            if builder is None:
-                continue
-            destination_path = destinations[index] if index < len(destinations) else destinations[-1]
-            NewtonManager._prototype_models[source_path] = NewtonPrototypeModelInfo(
-                source_path=source_path,
-                destination_path=destination_path,
-                builder=builder,
-            )
-
-    @staticmethod
-    def _to_first_env_path(path: str) -> str:
-        """Convert common Isaac Lab env regex/template paths to env_0 paths."""
-        return (
-            path.replace("env_.*", "env_0")
-            .replace("env_\\d+", "env_0")
-            .replace("env_*", "env_0")
-            .replace("env_{}", "env_0")
-        )
-
-    @classmethod
-    def get_prototype_model(cls, prim_path: str) -> NewtonPrototypeModelInfo:
-        """Return the prototype model that owns ``prim_path``.
-
-        Args:
-            prim_path: Live Isaac Lab prim path or env-regex path, such as
-                ``/World/envs/env_.*/Robot``.
-
-        Returns:
-            Prototype model information with ``model`` finalized on the active
-            Newton device.
-
-        Raises:
-            RuntimeError: If no prototype builders have been registered.
-            KeyError: If ``prim_path`` does not resolve to a registered prototype.
-            ValueError: If multiple registered prototypes match equally well.
-        """
-        if not NewtonManager._prototype_models:
-            raise RuntimeError(
-                "No Newton prototype builders are registered. Prototype access is only available after "
-                "Newton physics replication has built the scene."
-            )
-
-        requested_path = cls._to_first_env_path(prim_path)
-        matches: list[NewtonPrototypeModelInfo] = []
-        for info in NewtonManager._prototype_models.values():
-            source_path = cls._to_first_env_path(info.source_path)
-            destination_path = cls._to_first_env_path(info.destination_path)
-            if requested_path in (source_path, destination_path) or requested_path.startswith(
-                (source_path + "/", destination_path + "/")
-            ):
-                matches.append(info)
-
-        if not matches:
-            available = ", ".join(sorted(NewtonManager._prototype_models))
-            raise KeyError(f"No Newton prototype model matches '{prim_path}'. Available prototypes: {available}")
-
-        matches.sort(key=lambda item: len(cls._to_first_env_path(item.source_path)), reverse=True)
-        if len(matches) > 1:
-            best_len = len(cls._to_first_env_path(matches[0].source_path))
-            if len(cls._to_first_env_path(matches[1].source_path)) == best_len:
-                paths = ", ".join(match.source_path for match in matches)
-                raise ValueError(f"Ambiguous Newton prototype model for '{prim_path}'. Matches: {paths}")
-
-        info = matches[0]
-        device = cls._model.device if cls._model is not None else None
-        if info.model is None or info.model_device != device:
-            info.model = info.builder.finalize(device=device)
-            info.model_device = device
-        return info
 
     @classmethod
     def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
@@ -1342,7 +1247,7 @@ class NewtonManager(PhysicsManager):
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
             source_builders[proto_path].add_usd(stage, root_path=proto_path, schema_resolvers=schema_resolvers)
-            cls.register_prototype_builders((proto_path,), (proto_path,), source_builders)
+            cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
             xform_cache = UsdGeom.XformCache()
@@ -1962,6 +1867,7 @@ class NewtonManager(PhysicsManager):
         Invoked lazily from :meth:`get_state` so consumers do not need to
         coordinate the sync explicitly.
         """
+
         if scene_data_provider is None:
             scene_data_provider = cls.get_scene_data_provider()
 

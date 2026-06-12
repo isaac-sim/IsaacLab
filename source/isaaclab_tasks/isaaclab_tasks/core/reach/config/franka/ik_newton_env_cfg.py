@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.envs.mdp.actions.newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
+from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 from isaaclab.utils.configclass import configclass
@@ -29,10 +30,17 @@ class FrankaReachEnvCfg(joint_pos_env_cfg.FrankaReachEnvCfg):
         self.actions.arm_action = NewtonInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
-            body_name="panda_hand",
-            controller=NewtonIKSolverCfg(command_type="pose", use_relative_mode=True),
-            scale=0.2,
-            body_offset=NewtonInverseKinematicsActionCfg.OffsetCfg(pos=(0.0, 0.0, 0.107)),
+            controller=NewtonIKSolverCfg(optimizer="lm", jacobian_mode="analytic", iterations=24),
+            objectives=[
+                NewtonIKPoseObjectiveCfg(
+                    body_name="panda_hand",
+                    body_offset_pos=(0.0, 0.0, 0.107),
+                    command_type="pose",
+                    use_relative_mode=True,
+                    scale=0.2,
+                ),
+                NewtonIKJointLimitObjectiveCfg(weight=0.1),
+            ],
         )
 
 

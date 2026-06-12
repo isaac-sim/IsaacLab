@@ -46,8 +46,9 @@ def _build_newton_builder_from_mapping(
 ) -> tuple[ModelBuilder, object, dict, list, dict[str, ModelBuilder]]:
     """Build a Newton model builder from clone mapping inputs.
 
-    Returns the populated builder, stage metadata, the site index map, the
-    per-world transforms, and the per-source builders keyed by clone source path.
+    Also returns the per-source builders (``{source_path: ModelBuilder}``) so the
+    committing path can retain them for single-model consumers such as the
+    batched Newton IK action.
     """
     if positions is None:
         positions = torch.zeros((mapping.size(1), 3), device=mapping.device, dtype=torch.float32)
@@ -228,7 +229,7 @@ class NewtonReplicateContext:
             NewtonManager._cl_site_index_map = site_index_map
             NewtonManager._cl_fabric_body_bindings = fabric_body_bindings
             NewtonManager._world_xforms = world_xforms
-            NewtonManager.register_prototype_builders(sources, destinations, source_builders)
+            NewtonManager._cl_protos = source_builders
             NewtonManager.set_builder(builder)
             NewtonManager._num_envs = mapping.size(1)
         self._queue.clear()

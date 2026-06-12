@@ -5,12 +5,13 @@
 
 from __future__ import annotations
 
-from dataclasses import MISSING
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING
 
 from isaaclab.managers.action_manager import ActionTermCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKObjectiveCfg
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
 
 if TYPE_CHECKING:
@@ -21,40 +22,33 @@ if TYPE_CHECKING:
 class NewtonInverseKinematicsActionCfg(ActionTermCfg):
     """Configuration for a Newton inverse-kinematics action term.
 
-    The action currently supports fixed-base articulations only. The configured
-    joints and body must resolve both in Isaac Lab and in the registered Newton
-    prototype model for the controlled asset.
+    The action solves IK as a single list of objectives. Pose objectives
+    (:class:`~isaaclab_newton.ik.NewtonIKPoseObjectiveCfg`) are command-driven
+    and contribute action dimensions -- one drives a single-body solve, several
+    drive a multi-body solve. Constraint objectives such as
+    :class:`~isaaclab_newton.ik.NewtonIKJointLimitObjectiveCfg` add residuals
+    but no action dimensions. The action vector is the concatenation of every
+    pose objective's slice, in list order.
+
+    The action currently supports fixed-base articulations only. Each pose
+    objective's body and the configured joints must resolve both in Isaac Lab
+    and in the registered Newton prototype model for the controlled asset.
     """
-
-    @configclass
-    class OffsetCfg:
-        """Offset pose from the controlled body frame to the IK target frame."""
-
-        pos: tuple[float, float, float] = (0.0, 0.0, 0.0)
-        """Translation [m] w.r.t. the parent body frame."""
-
-        rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-        """Quaternion rotation ``(x, y, z, w)`` w.r.t. the parent body frame."""
 
     class_type: type[NewtonInverseKinematicsAction] | str = (
         "isaaclab_newton.envs.mdp.actions.newton_ik_actions:NewtonInverseKinematicsAction"
     )
 
     joint_names: list[str] = MISSING
-    """List of joint names or regex expressions controlled by the action."""
+    """Joints actuated by the action.
 
-    body_name: str = MISSING
-    """Name of the body for which IK is performed."""
-
-    body_offset: OffsetCfg | None = None
-    """Offset of the target frame w.r.t. the body frame."""
-
-    scale: float | tuple[float, ...] = 1.0
-    """Scale factor applied to the raw action.
-
-    For position coordinates this is in meters. For relative rotation coordinates
-    this is in radians. For quaternions this is dimensionless.
+    The Newton solve resolves the whole prototype joint configuration jointly
+    against all objectives, so this is the single set of joints written back to
+    the articulation -- not a per-objective property.
     """
 
-    controller: NewtonIKSolverCfg = MISSING
-    """Configuration for the Newton IK solver."""
+    objectives: list[NewtonIKObjectiveCfg] = MISSING
+    """Ordered IK objectives. Must contain at least one pose objective."""
+
+    controller: NewtonIKSolverCfg = field(default_factory=NewtonIKSolverCfg)
+    """Configuration for the Newton IK solver (solver hyperparameters only)."""

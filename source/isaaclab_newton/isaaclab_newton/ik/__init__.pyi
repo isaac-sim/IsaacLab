@@ -6,8 +6,19 @@
 __all__ = [
     "NewtonIKSolver",
     "NewtonIKSolverCfg",
+    "NewtonIKObjective",
     "NewtonIKPoseObjective",
+    "NewtonIKJointLimitObjective",
+    "NewtonIKObjectiveCfg",
+    "NewtonIKPoseObjectiveCfg",
+    "NewtonIKJointLimitObjectiveCfg",
 ]
 
-from .newton_ik_solver import NewtonIKPoseObjective, NewtonIKSolver
+from .newton_ik_objectives import NewtonIKJointLimitObjective, NewtonIKObjective, NewtonIKPoseObjective
+from .newton_ik_objectives_cfg import (
+    NewtonIKJointLimitObjectiveCfg,
+    NewtonIKObjectiveCfg,
+    NewtonIKPoseObjectiveCfg,
+)
+from .newton_ik_solver import NewtonIKSolver
 from .newton_ik_solver_cfg import NewtonIKSolverCfg

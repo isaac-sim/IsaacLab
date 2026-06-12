@@ -5,17 +5,34 @@
 
 from __future__ import annotations
 
+import isaaclab_newton.ik.newton_ik_objectives as objectives_module
 import isaaclab_newton.ik.newton_ik_solver as ik_solver_module
 import torch
 import warp as wp
-from isaaclab_newton.ik.newton_ik_solver import NewtonIKPoseObjective, NewtonIKSolver
+from isaaclab_newton.ik.newton_ik_objectives import NewtonIKBuildContext, NewtonIKObjective, NewtonIKPoseObjective
+from isaaclab_newton.ik.newton_ik_objectives_cfg import (
+    NewtonIKJointLimitObjectiveCfg,
+    NewtonIKObjectiveCfg,
+    NewtonIKPoseObjectiveCfg,
+)
+from isaaclab_newton.ik.newton_ik_solver import NewtonIKSolver
 from isaaclab_newton.ik.newton_ik_solver_cfg import NewtonIKSolverCfg
+
+from isaaclab.utils.configclass import configclass
+
+# Maps the stub body names used across these tests to Newton link indices.
+_LINKS = {"ee": 0, "torso": 1, "custom": 0}
+
+
+def _resolver(body_name: str) -> int:
+    return _LINKS[body_name]
 
 
 class _Model:
     joint_coord_count = 2
     joint_limit_lower = None
     joint_limit_upper = None
+    body_label = None
 
 
 class _PoseObjective:
@@ -51,103 +68,134 @@ class _Solver:
 
 
 def _patch_newton_ik(monkeypatch):
-    monkeypatch.setattr(ik_solver_module.ik, "IKObjectivePosition", _PoseObjective)
-    monkeypatch.setattr(ik_solver_module.ik, "IKObjectiveRotation", _PoseObjective)
-    monkeypatch.setattr(ik_solver_module.ik, "IKObjectiveJointLimit", _JointLimitObjective)
+    # ``newton.ik`` is the same module object in both the solver and objective
+    # modules, so patching its attributes affects objective construction too.
+    monkeypatch.setattr(objectives_module.ik, "IKObjectivePosition", _PoseObjective)
+    monkeypatch.setattr(objectives_module.ik, "IKObjectiveRotation", _PoseObjective)
+    monkeypatch.setattr(objectives_module.ik, "IKObjectiveJointLimit", _JointLimitObjective)
     monkeypatch.setattr(ik_solver_module.ik, "IKSolver", _Solver)
     monkeypatch.setattr(ik_solver_module.ik, "IKOptimizer", lambda value: value)
     monkeypatch.setattr(ik_solver_module.ik, "IKJacobianType", lambda value: value)
     monkeypatch.setattr(ik_solver_module.ik, "IKSampler", lambda value: value)
 
 
-def _cfg() -> NewtonIKSolverCfg:
-    cfg = NewtonIKSolverCfg()
-    cfg.use_persistent_seed = True
-    cfg.joint_limit_weight = None
-    return cfg
-
-
-def test_persistent_seed_is_reused_between_solves(monkeypatch):
-    _patch_newton_ik(monkeypatch)
-    solver = NewtonIKSolver(
-        _cfg(),
+def _pose_solver(cfg: NewtonIKSolverCfg | None = None, num_envs: int = 2, objectives=None) -> NewtonIKSolver:
+    return NewtonIKSolver(
+        NewtonIKSolverCfg() if cfg is None else cfg,
         model=_Model(),
-        num_envs=2,
+        num_envs=num_envs,
         device="cpu",
-        pose_objectives=[NewtonIKPoseObjective(name="ee", link_index=0)],
+        objectives=[NewtonIKPoseObjectiveCfg(body_name="ee")] if objectives is None else objectives,
+        link_resolver=_resolver,
     )
 
-    seed = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-    solver.set_joint_seed(seed)
 
-    first = solver.solve().clone()
-    second = solver.solve().clone()
-
-    assert torch.allclose(first, seed + 1.0)
-    assert torch.allclose(second, seed + 2.0)
-
-
-def test_solve_result_is_independent_from_next_solve(monkeypatch):
+def test_solve_writes_output_buffer(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    cfg = _cfg()
-    cfg.use_persistent_seed = False
-    solver = NewtonIKSolver(
-        cfg,
-        model=_Model(),
-        num_envs=2,
-        device="cpu",
-        pose_objectives=[NewtonIKPoseObjective(name="ee", link_index=0)],
-    )
-    seed = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    solver = _pose_solver()
+    seed = wp.from_torch(torch.tensor([[1.0, 2.0], [3.0, 4.0]]), dtype=wp.float32)
 
-    first = solver.solve(seed)
-    expected_first = first.clone()
-    solver.solve(seed + 10.0)
+    result = solver.solve(seed)
 
-    assert torch.allclose(first, expected_first)
+    assert torch.allclose(wp.to_torch(result), torch.tensor([[2.0, 3.0], [4.0, 5.0]]))
 
 
 def test_set_target_pose_updates_named_objective(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    solver = NewtonIKSolver(
-        _cfg(),
-        model=_Model(),
-        num_envs=2,
-        device="cpu",
-        pose_objectives=[NewtonIKPoseObjective(name="ee", link_index=0)],
-    )
+    solver = _pose_solver()
     target_pos = torch.tensor([[0.1, 0.2, 0.3], [1.0, 1.1, 1.2]])
     target_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 0.0]])
 
-    solver.set_target_pose("ee", target_pos, target_quat)
+    pose = solver.objectives_by_name["ee"]
+    pose.set_target_pose(target_pos, target_quat)
 
-    assert torch.allclose(wp.to_torch(solver.position_objectives["ee"].target), target_pos)
-    assert torch.allclose(wp.to_torch(solver.rotation_objectives["ee"].target), target_quat)
+    assert torch.allclose(wp.to_torch(pose.position_objective.target), target_pos)
+    assert torch.allclose(wp.to_torch(pose.rotation_objective.target), target_quat)
 
 
-def test_pose_targets_can_be_initialized_from_body_transforms(monkeypatch):
+def test_constraint_objectives_carry_no_target_or_action(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    solver = NewtonIKSolver(
-        _cfg(),
-        model=_Model(),
-        num_envs=2,
-        device="cpu",
-        pose_objectives=[
-            NewtonIKPoseObjective(name="ee", link_index=0),
-            NewtonIKPoseObjective(name="torso", link_index=1, position_weight=50.0, rotation_weight=50.0),
-        ],
-    )
-    body_q = torch.tensor(
-        [
-            [1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0],
-            [4.0, 5.0, 6.0, 0.0, 0.0, 1.0, 0.0],
+    solver = _pose_solver(
+        objectives=[
+            NewtonIKPoseObjectiveCfg(body_name="ee"),
+            NewtonIKJointLimitObjectiveCfg(weight=0.1),
         ]
     )
-    env_origins = torch.tensor([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]])
+    # Only the pose objective is named and command-driven; the joint limit is a
+    # pure constraint (no name, no action dimensions).
+    assert list(solver.objectives_by_name) == ["ee"]
+    assert [obj.action_dim for obj in solver.objectives] == [6, 0]
 
-    solver.set_pose_targets_from_body_q(body_q, names=["torso"], env_origins=env_origins)
 
-    target_pos = wp.to_torch(solver.position_objectives["torso"].target)
-    target_quat = wp.to_torch(solver.rotation_objectives["torso"].target)
-    assert torch.allclose(target_pos, torch.tensor([[4.0, 5.0, 6.0], [3.0, 4.0, 5.0]]))
-    assert torch.allclose(target_quat, torch.tensor([[0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 1.0, 0.0]]))
+def test_multiple_pose_objectives_register_distinct_targets(monkeypatch):
+    _patch_newton_ik(monkeypatch)
+    solver = _pose_solver(
+        objectives=[
+            NewtonIKPoseObjectiveCfg(body_name="ee"),
+            NewtonIKPoseObjectiveCfg(body_name="torso"),
+            NewtonIKJointLimitObjectiveCfg(weight=0.1),
+        ]
+    )
+    assert list(solver.objectives_by_name) == ["ee", "torso"]
+    assert solver.objectives_by_name["ee"].link_index == 0
+    assert solver.objectives_by_name["torso"].link_index == 1
+
+
+def _build_pose_objective(cfg: NewtonIKPoseObjectiveCfg, num_envs: int = 2) -> NewtonIKPoseObjective:
+    ctx = NewtonIKBuildContext(model=_Model(), num_envs=num_envs, device="cpu", resolve_link=_resolver)
+    return NewtonIKPoseObjective(cfg, ctx)
+
+
+def test_pose_objective_action_dim_and_coordinate_names(monkeypatch):
+    _patch_newton_ik(monkeypatch)
+    rel_pose = _build_pose_objective(
+        NewtonIKPoseObjectiveCfg(body_name="ee", command_type="pose", use_relative_mode=True)
+    )
+    abs_pose = _build_pose_objective(
+        NewtonIKPoseObjectiveCfg(body_name="ee", command_type="pose", use_relative_mode=False)
+    )
+    position = _build_pose_objective(NewtonIKPoseObjectiveCfg(body_name="ee", command_type="position"))
+
+    assert rel_pose.action_dim == 6
+    assert abs_pose.action_dim == 7
+    assert position.action_dim == 3
+    assert position.command_coordinate_names() == ["x", "y", "z"]
+    assert rel_pose.command_coordinate_names() == ["x", "y", "z", "roll", "pitch", "yaw"]
+
+
+def test_relative_position_command_offsets_current_pose(monkeypatch):
+    _patch_newton_ik(monkeypatch)
+    obj = _build_pose_objective(
+        NewtonIKPoseObjectiveCfg(body_name="ee", command_type="position", use_relative_mode=True, scale=0.5)
+    )
+    ee_pos_b = torch.tensor([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])
+    ee_quat_b = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]])
+    action = torch.tensor([[2.0, 0.0, -2.0], [0.0, 4.0, 0.0]])
+
+    target_pos_b, target_quat_b = obj.compute_target_b(action, ee_pos_b, ee_quat_b)
+
+    # scale 0.5 applied internally, then added to the current position.
+    assert torch.allclose(target_pos_b, torch.tensor([[2.0, 1.0, 0.0], [2.0, 4.0, 2.0]]))
+    assert torch.allclose(target_quat_b, ee_quat_b)
+
+
+class _CustomObjective(NewtonIKObjective):
+    SENTINEL = object()
+
+    def __init__(self, cfg, ctx):
+        del cfg, ctx
+        self.name = "custom"
+        self.solver_objectives = [_CustomObjective.SENTINEL]
+
+
+def test_custom_objective_cfg_is_built_and_wired(monkeypatch):
+    _patch_newton_ik(monkeypatch)
+
+    @configclass
+    class _CustomObjectiveCfg(NewtonIKObjectiveCfg):
+        class_type: type | str = _CustomObjective
+
+    solver = _pose_solver(objectives=[NewtonIKPoseObjectiveCfg(body_name="ee"), _CustomObjectiveCfg()])
+
+    assert "custom" in solver.objectives_by_name
+    assert _CustomObjective.SENTINEL in solver.solver.kwargs["objectives"]
