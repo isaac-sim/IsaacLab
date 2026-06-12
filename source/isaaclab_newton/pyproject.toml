@@ -23,6 +23,16 @@ dependencies = []
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
+<<<<<<< HEAD
+=======
+[project.optional-dependencies]
+all = [
+    "prettytable>=3.3.0",
+    "PyOpenGL-accelerate>=3.1.0",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@868ec5a527ad5ff7b8cf160b5d5cc73bfa882b7b",
+]
+
+>>>>>>> 9cab5c87665 (Rebase MJWarp reset fix on latest Newton)
 [tool.setuptools]
 include-package-data = true
 

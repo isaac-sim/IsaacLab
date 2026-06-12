@@ -25,14 +25,3 @@ Changed
   its inline ``solver.reset(world_mask=...)`` from its own
   :meth:`~isaaclab_newton.physics.NewtonKaminoManager.step` override — a
   follow-up may migrate it to the same hook for uniformity.
-* Changed the dtype of ``NewtonManager._world_reset_mask`` from ``wp.int32``
-  to ``wp.bool`` so :func:`mujoco_warp.reset_data` (which strictly requires
-  ``wp.array[bool]``) consumes it without conversion.
-  :class:`~isaaclab_newton.physics.NewtonKaminoManager` maintains an int32
-  mirror (``_world_reset_mask_int32``) and copies the bool source into it
-  each step before calling ``solver.reset(world_mask=...)``, because the
-  current upstream Kamino kernels are declared ``wp.array[int32]`` despite
-  ``SolverKamino.reset``'s docstring advertising ``wp.int8 | wp.bool``.
-  Tracked upstream at newton-physics/newton#2932; once Kamino widens its
-  kernel signatures the int32 mirror can be removed and the bool mask passed
-  through zero-copy.
