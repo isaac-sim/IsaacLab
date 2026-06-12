@@ -249,7 +249,7 @@ class RigidObject(BaseRigidObject):
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
             skip_forward: Whether to skip the forward pass. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
 
     def write_root_velocity_to_sim_index(
         self,
