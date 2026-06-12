@@ -16,6 +16,8 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from pxr import Usd
 
 from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
+from isaaclab.physics import PhysicsManager
+from isaaclab.sim import SimulationContext
 
 from isaaclab_newton.physics import NewtonManager
 
@@ -57,8 +59,10 @@ def _build_newton_builder_from_mapping(
         quaternions[:, 3] = 1.0
 
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
+    sim_ctx = SimulationContext.instance()
+    manager_cls = sim_ctx.physics_manager if sim_ctx is not None else NewtonManager
 
-    builder = NewtonManager.create_builder(up_axis=up_axis)
+    builder = manager_cls.create_builder(up_axis=up_axis)
     stage_info = builder.add_usd(
         stage,
         ignore_paths=["/World/envs", *sources],
@@ -85,7 +89,7 @@ def _build_newton_builder_from_mapping(
 
     protos: dict[str, ModelBuilder] = {}
     for src_path in sources:
-        p = NewtonManager.create_builder(up_axis=up_axis)
+        p = manager_cls.create_builder(up_axis=up_axis)
         solvers.SolverMuJoCo.register_custom_attributes(p)
         p.add_usd(
             stage,
@@ -154,6 +158,12 @@ def _build_newton_builder_from_mapping(
                     local_site_map[label] = [[] for _ in range(num_worlds)]
                 for proto_shape_idx in proto_shape_indices:
                     local_site_map[label][col].append(offset + proto_shape_idx)
+
+        # Emit registered MPM particle objects into this Newton world.
+        if NewtonManager._mpm_object_registry:
+            from isaaclab_newton.assets.mpm_object.mpm_object import add_registered_mpm_objects_to_builder
+
+            add_registered_mpm_objects_to_builder(builder, col, positions[col].tolist(), quaternions[col].tolist())
 
         # Run per-world builder hooks (e.g. deformable body registration).
         if hasattr(NewtonManager, "_per_world_builder_hooks"):
@@ -308,7 +318,7 @@ class NewtonReplicateContext:
         *,
         device: str = "cpu",
         up_axis: str = "Z",
-        simplify_meshes: bool = True,
+        simplify_meshes: bool | None = None,
         commit_to_manager: bool = True,
     ):
         """Initialize the context.
@@ -317,13 +327,19 @@ class NewtonReplicateContext:
             stage: USD stage containing source assets.
             device: Device used by the finalized Newton model builder.
             up_axis: Up axis for the Newton model builder.
-            simplify_meshes: Whether to run convex-hull mesh approximation.
+            simplify_meshes: Whether to run convex-hull mesh approximation. If
+                ``None``, read from the active :class:`NewtonCfg`.
             commit_to_manager: Whether :meth:`replicate` should publish the builder to
                 :class:`NewtonManager`.
         """
         self.stage = stage
         self.device = device
         self.up_axis = up_axis
+        if simplify_meshes is None:
+            from isaaclab_newton.physics import NewtonCfg
+
+            cfg = PhysicsManager._cfg
+            simplify_meshes = cfg.simplify_meshes if isinstance(cfg, NewtonCfg) else True
         self.simplify_meshes = simplify_meshes
         self.commit_to_manager = commit_to_manager
         self._queue: list[

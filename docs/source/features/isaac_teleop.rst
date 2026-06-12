@@ -491,6 +491,14 @@ follows.
    * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0``
      - Keyboard, SpaceMouse
      - Same as left-arm gripper above with camera observations.
+   * - ``Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0``
+     - Keyboard, SpaceMouse
+     - **Arm:** left-arm end-effector pose via RMPFlow.
+       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
+   * - ``Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0``
+     - Keyboard, SpaceMouse
+     - **Arm:** right-arm end-effector pose via RMPFlow.
+       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0``
      - Keyboard, SpaceMouse
      - **Arm:** relative IK end-effector control.

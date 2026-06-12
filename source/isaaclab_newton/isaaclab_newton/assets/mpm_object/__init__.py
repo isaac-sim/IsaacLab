@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-__all__ = [
-    "mpm",
-    "materials",
-]
+from isaaclab.utils.module import lazy_export
 
-from . import materials, mpm
+lazy_export()
