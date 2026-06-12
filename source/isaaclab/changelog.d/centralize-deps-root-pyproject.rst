@@ -14,11 +14,6 @@ Changed
   The Newton interactive viewer GUI is also part of the base install, so the
   ``newton`` optional extra has been removed; the ``newton`` install token /
   ``--extra newton`` is now a no-op kept for backward compatibility.
-* **Changed:** Merged the ``rtx`` extra into a single grouped ``ov`` extra that
-  installs both Omniverse runtime wheels (``ovphysx`` + ``ovrtx``). Use
-  ``./isaaclab.sh -i ov`` (or ``--extra ov``) to install the collection. The
-  granular ``ov[ovrtx]`` / ``ov[ovphysx]`` / ``ov[all]`` selectors are removed;
-  the bracketed forms are still accepted but install the full collection.
 * Added the ``[tool.isaaclab.versions]`` table to the root ``pyproject.toml`` as
   the single source of truth for externally-pinned versions (Isaac Sim, the
   torch stack, and the OV renderer/physics wheels). The install CLI, docs, and

@@ -52,6 +52,7 @@ def test_uv_run_exposes_centralized_feature_extras():
         "viser",
         "rerun",
         "ov",
+        "rtx",
         "mimic",
         "teleop",
         "rlinf",
@@ -59,16 +60,14 @@ def test_uv_run_exposes_centralized_feature_extras():
     }
     assert expected_extras <= set(optional_dependencies)
 
-    # The Newton viewer GUI is part of the base install, so there is no ``newton``
-    # extra; the OV renderer/physics wheels are a single grouped ``ov`` extra (no
-    # separate ``rtx`` extra).
+    # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
     assert "newton" not in optional_dependencies
-    assert "rtx" not in optional_dependencies
 
     # Concrete third-party deps live in the extras (not subpackage self-references).
+    # OVPhysX and OVRTX are separate extras, selectable via ``ov[ovphysx]`` / ``ov[ovrtx]``.
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
-    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
 
 
 def test_version_single_source_matches_literal_pins():
@@ -86,9 +85,9 @@ def test_version_single_source_matches_literal_pins():
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
-    # OV collection extra mirrors the table (ovphysx exact pin, ovrtx range spec).
+    # OV extras mirror the table (ovphysx exact pin in ``ov``, ovrtx range spec in ``rtx``).
     assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
-    assert f"ovrtx{versions['ovrtx']}" in optional["ov"]
+    assert f"ovrtx{versions['ovrtx']}" in optional["rtx"]
 
     # uv torch-stack constraints mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):

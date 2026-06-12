@@ -595,11 +595,14 @@ OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
 
 # Root pyproject optional-dependency groups that carry the third-party runtime
 # requirements for each optional submodule (the submodules themselves no longer
-# declare dependencies). Mirrors OPTIONAL_ISAACLAB_SUBMODULES: ``mimic`` pulls in
-# the teleop stack as well, matching the editable-install behavior it replaces.
+# declare dependencies). Derived from OPTIONAL_ISAACLAB_SUBMODULES rather than
+# redefined: each ``isaaclab_<name>`` source dir maps to the same-named root
+# extra (so ``mimic`` pulls in the ``teleop`` stack as well, matching the
+# editable-install behavior it replaces). The extra names are validated against
+# the root pyproject by :func:`_root_extra_dependencies` at install time.
 OPTIONAL_SUBMODULE_ROOT_EXTRAS: dict[str, tuple[str, ...]] = {
-    "mimic": ("mimic", "teleop"),
-    "teleop": ("teleop",),
+    submodule: tuple(directory.removeprefix("isaaclab_") for directory in directories)
+    for submodule, directories in OPTIONAL_ISAACLAB_SUBMODULES.items()
 }
 
 # Extra feature sets that install optional heavy dependencies on top of the
@@ -703,20 +706,36 @@ def _install_contrib_extra_dependencies(selector: str) -> None:
 
 
 def _install_ov_extra_dependencies(selector: str) -> None:
-    """Install the Omniverse (OV) renderer/physics runtime wheels.
-
-    The ``ov`` extra is a grouped collection (``ovphysx`` + ``ovrtx``); both wheels
-    are installed together. A selector is accepted for backward compatibility but
-    is ignored.
+    """Install optional OV runtime dependencies.
 
     Args:
-        selector: Ignored. Previously selected individual wheels (``ov[ovrtx]`` /
-            ``ov[ovphysx]`` / ``ov[all]``).
+        selector: One or more OV selectors from ``ov[ovrtx]``,
+            ``ov[ovphysx]``, or ``ov[all]``.
     """
-    if selector:
-        print_warning(f"'ov' no longer supports selectors (got '{selector}'); installing the full ov collection.")
-    print_info("Installing OV renderer/physics runtime dependencies (ovphysx, ovrtx)...")
-    _install_root_extra("ov")
+    if not selector:
+        print_info(
+            "OV source packages are installed with the core submodules. "
+            "Use 'ov[ovrtx]', 'ov[ovphysx]', or 'ov[all]' to install OV runtime dependencies."
+        )
+        return
+
+    selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
+    valid_selectors = {"all", "ovrtx", "ovphysx"}
+    unknown_selectors = selectors - valid_selectors
+    if unknown_selectors:
+        print_warning(
+            f"Unknown ov selector(s): {', '.join(sorted(unknown_selectors))}. "
+            f"Valid selectors: {', '.join(sorted(valid_selectors))}."
+        )
+    if "all" in selectors:
+        selectors.update({"ovrtx", "ovphysx"})
+    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
+    if "ovrtx" in selectors:
+        print_info("Installing OVRTX optional dependency...")
+        _install_root_extra("rtx")
+    if "ovphysx" in selectors:
+        print_info("Installing OVPhysX optional dependency...")
+        _install_root_extra("ov")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
@@ -921,14 +940,14 @@ def command_install(install_type: str = "all") -> None:
 
               - Optional submodules: ``mimic``, ``teleop``
               - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``, ``ov``
+                ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
               Examples::
 
                   ./isaaclab.sh -i rl[rsl-rl]
                   ./isaaclab.sh -i mimic,visualizer[rerun]
-                  ./isaaclab.sh -i teleop,rl[skrl],ov
+                  ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """
 
     # Install system dependencies first.

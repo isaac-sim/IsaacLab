@@ -117,12 +117,11 @@ rerun = [
 # and CI). Co-resolves with the base install under uv via the conflicts table in
 # [tool.uv]; isaacsim narrows newton to its ``==`` pin.
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
-# Omniverse renderer / physics backends (grouped collection; ``-i ov`` installs
-# both wheels). Pins mirror ``[tool.isaaclab.versions]``.
-ov = [
-    "ovphysx==0.4.13",
-    "ovrtx>=0.3.0,<0.4.0",
-]
+# Omniverse renderer / physics backends. Installable separately or together via
+# the ``ov[ovphysx]`` / ``ov[ovrtx]`` / ``ov[all]`` install selectors. Pins mirror
+# ``[tool.isaaclab.versions]``.
+ov = ["ovphysx==0.4.13"]
+rtx = ["ovrtx>=0.3.0,<0.4.0"]
 mimic = [
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",

@@ -23,8 +23,8 @@ Clone the repo and start training immediately — no virtual environment setup r
    uv run train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
-   # Add the OV renderer/physics collection (OVPhysX + OVRTX) only when the workflow needs it
-   uv run --extra ov train --rl_library rsl_rl \
+   # Add OVRTX/OVPhysX extras only when the workflow needs them
+   uv run --extra ov --extra rtx train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # PhysX backend: --extra isaacsim pulls in Isaac Sim on the fly

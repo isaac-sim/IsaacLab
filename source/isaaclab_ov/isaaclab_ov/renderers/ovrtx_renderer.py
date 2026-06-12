@@ -48,7 +48,7 @@ except ModuleNotFoundError as exc:
         raise
     raise ModuleNotFoundError(
         "The OVRTX renderer requires the optional 'ovrtx' runtime wheel, which is not installed. "
-        "Install it with: ./isaaclab.sh -i ov "
+        "Install it with: ./isaaclab.sh -i 'ov[ovrtx]' "
         "(or, manually: pip install --extra-index-url https://pypi.nvidia.com -e 'source/isaaclab_ov[ovrtx]')."
     ) from exc
 
