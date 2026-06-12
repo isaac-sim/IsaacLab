@@ -170,6 +170,11 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._simulation_view = simulation_view
         self._rigid_body_view = None
 
+    @staticmethod
+    def _is_valid_tensor_view(view: Any | None) -> bool:
+        """Return whether a PhysX tensor view still has a live backend."""
+        return view is not None and getattr(view, "_backend", None) is not None
+
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
 
@@ -179,9 +184,12 @@ class PhysxSceneDataBackend(SceneDataBackend):
         the wildcard to the non-rigid prim.
         """
         if self._rigid_body_view is not None:
-            return self._rigid_body_view
+            if self._is_valid_tensor_view(self._rigid_body_view):
+                return self._rigid_body_view
+            self._rigid_body_view = None
 
-        if self._simulation_view is None:
+        if not self._is_valid_tensor_view(self._simulation_view):
+            self._simulation_view = None
             return None
 
         stage: Usd.Stage = omni.usd.get_context().get_stage()
@@ -212,7 +220,11 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if not body_paths:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
+        rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
+        if not self._is_valid_tensor_view(rigid_body_view):
+            return None
+
+        self._rigid_body_view = rigid_body_view
         return self._rigid_body_view
 
     @property
@@ -797,6 +809,8 @@ class PhysxManager(PhysicsManager):
         for view in (cls._view, cls._view_warp):
             if view:
                 view.invalidate()
+        if cls._scene_data_backend is not None:
+            cls._scene_data_backend.simulation_view = None
         cls._view = None
         cls._view_warp = None
         cls._view_created = False
