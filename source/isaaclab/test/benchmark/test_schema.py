@@ -132,7 +132,7 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["run"]["framework"] == "rsl_rl"
     assert data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert data["run"]["config"]["rendering_backend"] == "none"
-    assert data["run"]["config"]["sensor_dtype"] is None
+    assert data["run"]["config"]["presets"] == []
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
     # merged MeanStd: util has no peak, memory does
@@ -293,3 +293,18 @@ def test_extra_field_round_trips(tmp_path):
     with open(path2) as f:
         data2 = json.load(f)
     assert data2["extra"] is None
+
+
+def test_run_config_presets_round_trip(tmp_path):
+    """RunConfig.presets is an open-ended token list; defaults to [] and round-trips."""
+    assert RunConfig(physics_backend="physx").presets == []
+    cfg = RunConfig(physics_backend="newton_mjwarp", rendering_backend="ovrtx", presets=["rgb", "ovrtx_renderer"])
+    base = _minimal_training_bundle()
+    bundle = dataclasses.replace(base, run=dataclasses.replace(base.run, config=cfg))
+    path = os.path.join(tmp_path, "training.json")
+    write_bundle_file(bundle, path)
+    with open(path) as f:
+        data = json.load(f)
+    assert data["run"]["config"]["presets"] == ["rgb", "ovrtx_renderer"]
+    assert "sensor_dtype" not in data["run"]["config"]
+    assert "sensor_resolution" not in data["run"]["config"]

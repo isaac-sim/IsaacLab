@@ -22,7 +22,7 @@ Current version: 1.0
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 SCHEMA_VERSION = "1.0"
@@ -31,7 +31,6 @@ Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
 # "newton" selects Newton's built-in Warp renderer.
 RenderingBackend = Literal["none", "isaacsim_rtx", "ovrtx", "newton"]
-SensorDtype = Literal["rgb", "depth", "albedo", "semantic_segmentation", "normals"]
 RunStatus = Literal["completed", "interrupted", "crashed"]
 
 
@@ -117,22 +116,22 @@ class Versions:
 
 @dataclass(frozen=True)
 class RunConfig:
-    """Physics/rendering backend and sensor configuration for a run.
+    """Physics/rendering backend and active presets for a run.
 
     Args:
         physics_backend: Physics solver preset the run used.
         rendering_backend: Rendering backend, or ``"none"`` for headless runs
             with no camera sensors.
-        sensor_dtype: Camera sensor data type when a sensor is exercised, else
-            ``None``.
-        sensor_resolution: Square sensor edge length [px] when a sensor is
-            exercised, else ``None``.
+        presets: Active Hydra preset tokens applied to the run (e.g.
+            ``["rgb", "ovrtx_renderer"]``). Open-ended so sensor data types,
+            resolutions, and any other domain presets are captured without a
+            closed enum; ``physics_backend`` / ``rendering_backend`` surface the
+            two primary grouping dimensions as typed fields.
     """
 
     physics_backend: PhysicsBackend
     rendering_backend: RenderingBackend = "none"
-    sensor_dtype: SensorDtype | None = None
-    sensor_resolution: int | None = None
+    presets: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
