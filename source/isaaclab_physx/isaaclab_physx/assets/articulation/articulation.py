@@ -466,7 +466,7 @@ class Articulation(BaseArticulation):
             This method expects partial data or full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -553,7 +553,7 @@ class Articulation(BaseArticulation):
             This method expects partial data or full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -612,7 +612,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -646,7 +646,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. note::
             This method expects partial data.
@@ -680,7 +680,7 @@ class Articulation(BaseArticulation):
             This sets the velocity of the root's center of mass rather than the root's frame.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. note::
             This method expects full data.
@@ -774,7 +774,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -812,7 +812,7 @@ class Articulation(BaseArticulation):
             This method expects partial data or full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -875,7 +875,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -885,6 +885,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame.
                 Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
@@ -909,7 +910,7 @@ class Articulation(BaseArticulation):
             This method expects partial data or full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1010,7 +1011,7 @@ class Articulation(BaseArticulation):
             This method expects partial data or full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1066,7 +1067,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1101,7 +1102,7 @@ class Articulation(BaseArticulation):
             This method expects partial data or full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1157,7 +1158,7 @@ class Articulation(BaseArticulation):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API

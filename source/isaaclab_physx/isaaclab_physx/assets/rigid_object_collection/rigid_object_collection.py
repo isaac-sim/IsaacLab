@@ -259,7 +259,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -292,7 +292,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -336,7 +336,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -370,7 +370,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This sets the velocity of the body's center of mass rather than the body's frame.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. note::
             This method expects full data.
@@ -420,7 +420,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -481,7 +481,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -520,7 +520,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -584,7 +584,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -622,7 +622,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This sets the velocity of the body's center of mass rather than the body's frame.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. note::
             This method expects partial data.
@@ -694,7 +694,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -740,7 +740,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects partial data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -813,7 +813,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             This method expects full data.
 
         .. note::
-            May trigger per-environment FK recomputation and solver reset (Kamino) for the affected environments.
+            May trigger per-environment FK recomputation for the affected environments.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
