@@ -225,7 +225,7 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
 
@@ -249,7 +249,7 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
 
@@ -278,7 +278,7 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_com_velocity_to_sim_index(
             root_velocity=root_velocity, env_ids=env_ids, skip_forward=skip_forward
@@ -304,7 +304,7 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_com_velocity_to_sim_mask(
             root_velocity=root_velocity, env_mask=env_mask, skip_forward=skip_forward
@@ -333,7 +333,7 @@ class RigidObject(BaseRigidObject):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
@@ -383,7 +383,7 @@ class RigidObject(BaseRigidObject):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
@@ -417,7 +417,7 @@ class RigidObject(BaseRigidObject):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7) or (num_instances, 7),
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
@@ -470,7 +470,7 @@ class RigidObject(BaseRigidObject):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
@@ -507,7 +507,7 @@ class RigidObject(BaseRigidObject):
                 Shape is (len(env_ids), 6) or (num_instances, 6),
                 or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
@@ -562,7 +562,7 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)
@@ -599,7 +599,7 @@ class RigidObject(BaseRigidObject):
                 Shape is (len(env_ids), 6) or (num_instances, 6),
                 or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
         # resolve all indices
@@ -658,7 +658,7 @@ class RigidObject(BaseRigidObject):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_ids = self._resolve_env_mask(env_mask)

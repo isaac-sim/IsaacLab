@@ -183,7 +183,7 @@ class ArticulationData(BaseArticulationData):
         """Reset pose-dependent cached articulation properties.
 
         Writing a root or joint pose moves the body kinematic chain, so every buffer derived from
-        body poses (the body-frame poses and the composite root/body state buffers) goes stale.
+        body poses (the world-frame body poses and the composite root/body state buffers) goes stale.
 
         Args:
             from_link: Set ``True`` when the root link pose was written so the derived root

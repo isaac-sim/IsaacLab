@@ -271,7 +271,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_body_link_pose_to_sim_index(
             body_poses=body_poses, body_ids=body_ids, env_ids=env_ids, skip_forward=skip_forward
@@ -297,7 +297,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_body_link_pose_to_sim_mask(
             body_poses=body_poses, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
@@ -326,7 +326,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_body_com_velocity_to_sim_index(
             body_velocities=body_velocities, body_ids=body_ids, env_ids=env_ids, skip_forward=skip_forward
@@ -355,7 +355,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_body_com_velocity_to_sim_mask(
             body_velocities=body_velocities, body_mask=body_mask, env_mask=env_mask, skip_forward=skip_forward
@@ -381,7 +381,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -425,7 +425,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
@@ -476,7 +476,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids), 7) or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -521,7 +521,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies, 7) or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
@@ -576,7 +576,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -626,7 +626,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask
@@ -682,7 +682,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -739,7 +739,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         if env_mask is not None:
             env_mask_t = wp.to_torch(env_mask) if isinstance(env_mask, wp.array) else env_mask

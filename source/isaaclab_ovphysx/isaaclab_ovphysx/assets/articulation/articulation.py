@@ -385,7 +385,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
 
@@ -409,7 +409,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
 
@@ -435,7 +435,7 @@ class Articulation(BaseArticulation):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
@@ -474,7 +474,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
@@ -514,7 +514,7 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
@@ -554,7 +554,7 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
@@ -596,7 +596,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_com_velocity_to_sim_index(
             root_velocity=root_velocity, env_ids=env_ids, skip_forward=skip_forward
@@ -622,7 +622,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_root_com_velocity_to_sim_mask(
             root_velocity=root_velocity, env_mask=env_mask, skip_forward=skip_forward
@@ -653,7 +653,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
@@ -695,7 +695,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
@@ -737,7 +737,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
@@ -785,7 +785,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
@@ -831,7 +831,7 @@ class Articulation(BaseArticulation):
                 (len(env_ids), len(joint_ids)) with dtype wp.float32.
             joint_ids: Joint indices.  Defaults to None (all joints).
             env_ids: Environment indices.  Defaults to None (all environments).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -844,7 +844,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # The body-frame com pose and the finite-differenced joint acceleration are not covered by the
-        # shared reset helpers, so invalidate them here (always, mirroring the joint-velocity writer).
+        # shared reset helpers, so invalidate them here unconditionally. The joint-acceleration
+        # invalidation mirrors the joint-velocity writer; the body-frame com pose is specific to
+        # position writes.
         self._data._joint_acc.timestamp = -1.0
         self._data._body_com_pose_b.timestamp = -1.0
         # Let the data class handle the invalidation of the remaining pose- and velocity-dependent properties.
@@ -879,7 +881,7 @@ class Articulation(BaseArticulation):
                 (num_instances,).
             joint_mask: Joint mask.  If None, all joints are updated.  Shape is
                 (num_joints,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
@@ -892,7 +894,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         # The body-frame com pose and the finite-differenced joint acceleration are not covered by the
-        # shared reset helpers, so invalidate them here (always, mirroring the joint-velocity writer).
+        # shared reset helpers, so invalidate them here unconditionally. The joint-acceleration
+        # invalidation mirrors the joint-velocity writer; the body-frame com pose is specific to
+        # position writes.
         self._data._joint_acc.timestamp = -1.0
         self._data._body_com_pose_b.timestamp = -1.0
         # Let the data class handle the invalidation of the remaining pose- and velocity-dependent properties.
@@ -925,7 +929,7 @@ class Articulation(BaseArticulation):
                 (len(env_ids), len(joint_ids)) with dtype wp.float32.
             joint_ids: Joint indices.  Defaults to None (all joints).
             env_ids: Environment indices.  Defaults to None (all environments).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -977,7 +981,7 @@ class Articulation(BaseArticulation):
                 (num_instances,).
             joint_mask: Joint mask.  If None, all joints are updated.  Shape is
                 (num_joints,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
@@ -1031,7 +1035,7 @@ class Articulation(BaseArticulation):
                 (num_joints,).
             env_mask: Environment mask.  If None, all instances are updated.  Shape is
                 (num_instances,).
-            skip_forward: Whether to skip the forward pass. Defaults to False.
+            skip_forward: Whether to skip the post-write cache invalidation and forward pass. Defaults to False.
         """
         self.write_joint_position_to_sim_mask(
             position=position, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
