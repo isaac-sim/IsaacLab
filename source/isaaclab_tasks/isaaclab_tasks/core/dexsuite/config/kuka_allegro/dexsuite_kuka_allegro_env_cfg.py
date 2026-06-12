@@ -85,6 +85,10 @@ class KukaAllegroMixinCfg:
     observations: StateObservationCfg = StateObservationCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
 
+    def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
+        super().__post_init__()
+        self.commands.object_pose.body_name = "palm_link"
+
 
 @configclass
 class DexsuiteKukaAllegroReorientEnvCfg(KukaAllegroMixinCfg, dexsuite.DexsuiteReorientEnvCfg):
