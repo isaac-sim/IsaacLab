@@ -46,6 +46,9 @@ permissions:
   statuses: write       # post per-task verdicts back onto the PR head commit
 
 env:
+  # Lets the ecr-build-push-pull action `docker login nvcr.io` to pull the private
+  # Isaac Sim base image (nvcr.io/nvidian/isaac-sim); without it the build 403s.
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   BASELINE_BRANCH: perf-baselines
   # Docker tags forbid '/', and github.ref_name on the mirror branch is
   # `pull-request/<N>`; key the local image by run id + sha instead (both slash-free).
