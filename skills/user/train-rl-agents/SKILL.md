@@ -21,11 +21,13 @@ Do not use this skill to design environment observations, rewards, or resets fro
 2. Read the RL training guide and the training tutorial before writing commands or configs.
 3. Start from an existing agent config under `source/isaaclab_tasks/isaaclab_tasks/` that matches the framework and task family.
 4. Keep framework-specific config formats separate. Do not mix RSL-RL Python configs with RL-Games, SKRL, or SB3 YAML/config files.
-5. Use `./isaaclab.sh train` and `./isaaclab.sh play` with `--rl_library` rather than the deprecated per-library scripts under `scripts/reinforcement_learning/`.
-6. Run a small smoke training job before scaling environment count, horizon, network size, or logging integrations.
-7. For visual observations, confirm the sensor pipeline and renderer requirements before enabling large environment counts.
-8. For multi-backend tasks, validate training on one backend before introducing backend presets.
-9. Record the exact task, framework, backend, seed, and config overrides needed to reproduce the result.
+5. Use suffixless task names in commands, for example `Isaac-Cartpole`.
+6. Use `./isaaclab.sh train` and `./isaaclab.sh play` with `--rl_library` rather than the deprecated per-library scripts under `scripts/reinforcement_learning/`.
+7. Omit visualizer flags for fastest headless training. Use `--viz` only when an explicit visualizer is needed.
+8. Run a small smoke training job before scaling environment count, horizon, network size, or logging integrations.
+9. For visual observations, confirm the sensor pipeline and renderer requirements before enabling large environment counts.
+10. For multi-backend tasks, validate training on one backend before introducing backend presets.
+11. Record the exact task, framework, backend, seed, and config overrides needed to reproduce the result.
 
 ## Validation
 

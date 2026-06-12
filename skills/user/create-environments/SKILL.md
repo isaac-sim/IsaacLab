@@ -25,8 +25,9 @@ Do not use this skill for migrating Isaac Gym tasks. Use the `isaaclab-migrating
 6. Define the scene and asset configs before adding rewards or training configuration.
 7. Add observations, actions, rewards, resets, and terminations incrementally.
 8. Register the environment and connect the smallest compatible agent config.
-9. Run a random-action or short training smoke test before scaling environment count.
-10. Move reusable logic into shared MDP terms only after the behavior is stable.
+9. Use suffixless task names in smoke-test and training commands.
+10. Run a random-action or short training smoke test before scaling environment count.
+11. Move reusable logic into shared MDP terms only after the behavior is stable.
 
 ## Validation
 

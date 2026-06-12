@@ -34,13 +34,13 @@ Use the smallest command that exercises the failing layer:
 For task import and stepping:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 4
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 4
 ```
 
 For training entry points:
 
 ```bash
-./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --max_iterations 1
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations 1
 ```
 
 ## Common Failure Routing

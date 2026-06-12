@@ -21,10 +21,11 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 2. Identify OS, Python environment, GPU/driver context, Isaac Sim source, and target backend.
 3. Read the matching installation guide and troubleshooting reference before prescribing commands.
 4. Use documented Isaac Lab wrapper commands such as `./isaaclab.sh -p` for Python and tests.
-5. Ask for the smallest relevant error output when the failure mode is unclear.
-6. Prefer a minimal verification command before running examples, training, or rendering workflows.
-7. Route backend-specific setup to the relevant PhysX or Newton docs.
-8. If the docs are incomplete or stale, update the docs rather than expanding this skill.
+5. Use suffixless task names in verification and training commands.
+6. Ask for the smallest relevant error output when the failure mode is unclear.
+7. Prefer a minimal verification command before running examples, training, or rendering workflows.
+8. Route backend-specific setup to the relevant PhysX or Newton docs.
+9. If the docs are incomplete or stale, update the docs rather than expanding this skill.
 
 ## Validation
 

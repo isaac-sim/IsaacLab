@@ -12,13 +12,13 @@ Start from:
 Smoke-test pattern:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 8
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
 ```
 
 Training pattern:
 
 ```bash
-./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Direct-v0
+./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Direct
 ```
 
 ## Manager-Based Workflow
@@ -34,7 +34,7 @@ Start from:
 Smoke-test pattern:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 8
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
 ## Registration And Agent Configs

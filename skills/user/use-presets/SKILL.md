@@ -26,8 +26,9 @@ Do not use presets for simple one-backend tasks with no meaningful configuration
 4. Define a `default` variant. Add explicit named variants such as `physx`, `newton_mjwarp`, `newton_kamino`, `ovphysx`, `rgb`, or `depth` only when the task supports them.
 5. Assign the preset wrapper to the owning environment config field, for example `sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())`.
 6. Keep backend-specific values inside preset classes rather than scattering runtime conditionals through task logic.
-7. List available preset names before using them in commands.
-8. Smoke-test every preset with a small random-agent rollout before training.
+7. Use suffixless task names in commands.
+8. List available preset names before using them in commands.
+9. Smoke-test every preset with a small random-agent rollout before training.
 
 ## Validation
 

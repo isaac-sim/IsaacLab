@@ -24,8 +24,9 @@ Do not use this skill to duplicate backend reference material. Link to the multi
 5. Map simulation parameters through public cfg schemas instead of copying old simulator-specific keys.
 6. Check backend support for sensors, randomization events, terrain, contacts, and actuators before enabling them.
 7. Separate backend-specific differences using `PresetCfg` or existing preset helpers rather than runtime conditionals scattered through task code.
-8. Validate each backend with a small reset/step rollout before training.
-9. Document intentional behavior differences, especially around contacts, randomization timing, CPU/GPU data paths, and renderer requirements.
+8. Use suffixless task names in backend smoke-test and training commands.
+9. Validate each backend with a small reset/step rollout before training.
+10. Document intentional behavior differences, especially around contacts, randomization timing, CPU/GPU data paths, and renderer requirements.
 
 ## Validation
 

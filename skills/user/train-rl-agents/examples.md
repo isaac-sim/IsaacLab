@@ -4,30 +4,30 @@
 
 Use these as starting points, then confirm the task's registered agent config exists.
 
-Training runs headless by default; omit any visualizer flag for fastest training. The legacy `--headless` flag is deprecated. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers.
+Training runs headless by default; omit any visualizer flag for fastest training. The legacy `--headless` flag is deprecated. To watch a run, pass `--viz kit` (or `--viz rerun,newton,viser`); use `--viz none` to force-disable configured visualizers. Use suffixless task names, for example `Isaac-Cartpole` instead of `Isaac-Cartpole-v0`.
 
 RSL-RL:
 
 ```bash
-./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --run_name ppo
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --run_name ppo
 ```
 
 RL-Games direct Cartpole:
 
 ```bash
-./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Direct-v0
+./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Direct
 ```
 
 Stable Baselines 3:
 
 ```bash
-./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole-v0 --num_envs 64
+./isaaclab.sh train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 ```
 
 SKRL:
 
 ```bash
-./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole-v0
+./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole
 ```
 
 ## Before Training
@@ -35,10 +35,10 @@ SKRL:
 Always run a small random-action check first:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 8
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
-For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling.
+For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Do not add `--enable_cameras` unless the current task or docs explicitly require it.
 
 ## After Training
 
@@ -51,13 +51,13 @@ TensorBoard example:
 Play example:
 
 ```bash
-./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole-v0 --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
+./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
 ```
 
 Resume example:
 
 ```bash
-./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-v0 --resume --load_run RUN_NAME --checkpoint model_100.pt
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
 
 ## Config Lookup

@@ -12,7 +12,9 @@ Use these checks to route investigation, not as standalone migration docs:
 
 | Symptom or old pattern | Current source of truth |
 | --- | --- |
+| Task names include the old Gym version suffix, such as `-v0` | Current task docs and the environment catalog; use suffixless task names in examples |
 | `--headless` launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/app_launcher.py` |
+| Camera examples require `--enable_cameras` by default | Current sensor, renderer, and visualization docs; do not add the flag unless the task or docs explicitly require it |
 | Backend-specific physics or schema cfgs | `docs/source/overview/core-concepts/multi_backend_architecture.rst` and `docs/source/overview/core-concepts/schema_cfgs.rst` |
 | Quaternion order changed from WXYZ to XYZW | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `scripts/tools/find_quaternions.py` |
 | Asset or sensor data no longer behaves like plain tensors | `ProxyArray` sections in `docs/source/migration/migrating_to_isaaclab_3-0.rst` |
@@ -32,6 +34,8 @@ The external prototype migration skill called out useful search terms. Before us
 - `get_published_pretrained_checkpoint`
 - `noise_std_type`
 - `--viz`
+- `--enable_cameras`
+- `-v0`
 
 ## Documentation Gaps
 

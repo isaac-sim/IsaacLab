@@ -15,13 +15,13 @@ Preset selectors are typed tokens such as `physics=NAME`, `renderer=NAME`, and `
 Use a small random-agent rollout before training:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Ant-v0 --num_envs 4 physics=physx
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=physx
 ```
 
 For Newton, use the physics preset name exposed by `list_envs.py` for that task, for example:
 
 ```bash
-./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Ant-v0 --num_envs 4 physics=newton_mjwarp
+./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=newton_mjwarp
 ```
 
 If the preset name is not listed, do not guess. Add or update the task's backend presets first.
@@ -31,7 +31,7 @@ If the preset name is not listed, do not guess. Add or update the task's backend
 Once reset/step behavior is stable on the selected backend:
 
 ```bash
-./isaaclab.sh train --rl_library rsl_rl --task Isaac-Ant-v0 physics=physx
+./isaaclab.sh train --rl_library rsl_rl --task Isaac-Ant physics=physx
 ```
 
 Repeat the same small smoke test on every backend before comparing training curves.
