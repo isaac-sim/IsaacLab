@@ -129,13 +129,13 @@ class _ParticleVisualPrim:
 def _or_reset_masks_from_mask(
     env_mask: wp.array(dtype=wp.bool),
     articulation_ids: wp.array2d(dtype=int),
-    world_mask: wp.array(dtype=wp.int32),
+    world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
     """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
     world, arti = wp.tid()
     if env_mask[world]:
-        world_mask[world] = wp.int32(1)
+        world_mask[world] = True
         fk_mask[articulation_ids[world, arti]] = True
 
 
@@ -143,13 +143,13 @@ def _or_reset_masks_from_mask(
 def _scatter_reset_masks_from_ids(
     env_ids: wp.array(dtype=int),
     articulation_ids: wp.array2d(dtype=int),
-    world_mask: wp.array(dtype=wp.int32),
+    world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
     """Scatter-set world_mask and fk_mask from sparse env_ids."""
     i, arti = wp.tid()
     world = env_ids[i]
-    world_mask[world] = wp.int32(1)
+    world_mask[world] = True
     fk_mask[articulation_ids[world, arti]] = True
 
 
@@ -251,7 +251,7 @@ class NewtonManager(PhysicsManager):
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
     # Per-world reset masks (allocated in start_simulation, consumed in step)
-    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.int32 — for SolverKamino.reset(world_mask=...)
+    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
 
     # Newton actuator adapter (owns actuators and double-buffered states)
@@ -1077,7 +1077,7 @@ class NewtonManager(PhysicsManager):
             )
         else:
             # Fallback: no topology info — mark everything dirty
-            NewtonManager._world_reset_mask.fill_(1)
+            NewtonManager._world_reset_mask.fill_(True)
             NewtonManager._fk_reset_mask.fill_(True)
 
     @classmethod
@@ -1135,7 +1135,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._use_newton_actuators_active = False
 
         # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset)
-        NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.int32, device=device)
+        NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls._model.articulation_count, dtype=wp.bool, device=device)
 
         logger.info("Dispatching PHYSICS_READY callbacks")

@@ -100,8 +100,16 @@ class _FakeVisualizationModelBuilder:
 def _inject_builtins(builder: newton.ModelBuilder, types: tuple[str, ...], src_path: str, worlds: list[int]) -> None:
     for kind in types:
         for world in worlds:
-            getattr(builder, f"{kind}_label").append(f"{src_path}/{kind}_{world}")
-            getattr(builder, f"{kind}_world").append(world)
+            if kind == "equality_constraint":
+                builder.add_custom_values(
+                    **{
+                        "mujoco:equality_constraint_label": f"{src_path}/{kind}_{world}",
+                        "mujoco:equality_constraint_world": world,
+                    }
+                )
+            else:
+                getattr(builder, f"{kind}_label").append(f"{src_path}/{kind}_{world}")
+                getattr(builder, f"{kind}_world").append(world)
 
 
 def _inject_tendons(builder: newton.ModelBuilder, src_path: str, worlds: list[int]) -> None:
@@ -153,9 +161,15 @@ class TestRenameBuilderLabels(unittest.TestCase):
 
     def _assert_builtins(self, builder, types=_BUILTIN_LABEL_TYPES):
         for kind in types:
-            worlds = getattr(builder, f"{kind}_world")
+            if kind == "equality_constraint":
+                labels = builder.custom_attributes["mujoco:equality_constraint_label"].values
+                worlds = builder.custom_attributes["mujoco:equality_constraint_world"].values
+            else:
+                labels = getattr(builder, f"{kind}_label")
+                worlds = getattr(builder, f"{kind}_world")
             self.assertEqual(
-                getattr(builder, f"{kind}_label"), [f"{_DST.format(int(w))}/{kind}_{int(w)}" for w in worlds]
+                labels,
+                [f"{_DST.format(int(w))}/{kind}_{int(w)}" for w in worlds],
             )
 
     def test_builtin_and_tendon_labels_rewritten_per_world(self):
@@ -227,6 +241,20 @@ class TestRenameCustomAttributes(unittest.TestCase):
         rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
         _populate_custom_frequency(builder, "freqA", ["freqA_label"], self.worlds)
         self.assertEqual(len(builder.custom_attributes["syn:freqA_label"].values), len(self.worlds))
+
+    def test_custom_string_columns_ignore_unset_world_rows(self):
+        builder = newton.ModelBuilder()
+        _add_custom_frequency(builder, "freqA", ["freqA_label"])
+        builder.custom_attributes["syn:freqA_world"].values = [None, self.worlds[0]]
+        builder.custom_attributes["syn:freqA_label"].values = ["unassigned", f"{_SRC}/freqA_label_{self.worlds[0]}"]
+        builder._custom_frequency_counts["syn:freqA"] = 2
+
+        rename_builder_labels(builder, [_SRC], [_DST], self.env_ids, self.mapping)
+
+        self.assertEqual(
+            builder.custom_attributes["syn:freqA_label"].values,
+            ["unassigned", f"{_DST.format(self.worlds[0])}/freqA_label_{self.worlds[0]}"],
+        )
 
 
 class TestRenameMultiSource(unittest.TestCase):

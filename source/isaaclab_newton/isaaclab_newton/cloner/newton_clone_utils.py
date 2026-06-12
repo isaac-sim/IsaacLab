@@ -125,6 +125,8 @@ def rename_builder_labels(
 
         def _rename_pair(values, worlds, *, collect_body_bindings: bool = False):
             for index, (value, world) in enumerate(zip(values, worlds, strict=True)):
+                if world is None:
+                    continue
                 world_root = world_roots.get(int(world))
                 if isinstance(value, str) and world_root is not None:
                     renamed_value = replace_path_prefix(value, source_root, world_root)
@@ -140,9 +142,11 @@ def rename_builder_labels(
             (builder.shape_label, builder.shape_world, False),
             (builder.articulation_label, builder.articulation_world, False),
             (builder.constraint_mimic_label, builder.constraint_mimic_world, False),
-            (builder.equality_constraint_label, builder.equality_constraint_world, False),
         ):
             _rename_pair(labels, worlds, collect_body_bindings=collect_body_bindings)
+
+        if "mujoco:equality_constraint_label" not in builder.custom_attributes:
+            _rename_pair(builder.equality_constraint_label, builder.equality_constraint_world)
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
