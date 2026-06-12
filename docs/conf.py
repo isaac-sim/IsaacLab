@@ -65,18 +65,25 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
 isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "develop")
 
 
-def _read_isaacsim_version() -> str:
-    """Read the Isaac Sim version from the root pyproject (single source of truth)."""
+def _read_pinned_versions() -> dict:
+    """Read the ``[tool.isaaclab.versions]`` table from the root pyproject.
+
+    This table is the single source of truth for externally-pinned versions
+    (Isaac Sim, the torch stack, the OV renderer/physics wheels).
+    """
     pyproject = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
     with open(pyproject, "rb") as f:
-        spec = tomllib.load(f)["project"]["optional-dependencies"]["isaacsim"][0]
-    # spec looks like "isaacsim[all,extscache]==<version>"
-    return spec.split("==")[-1].strip()
+        return tomllib.load(f)["tool"]["isaaclab"]["versions"]
 
 
-# Isaac Sim version referenced by installation docs. Shared with the
-# ``isaaclab_docs`` extension via the ``isaacsim_version`` config value.
-isaacsim_version = _read_isaacsim_version()
+# Pinned external versions referenced by the installation docs. Shared with the
+# ``isaaclab_docs`` extension via config values of the same name.
+_pinned_versions = _read_pinned_versions()
+isaacsim_version = _pinned_versions["isaacsim"]
+torch_version = _pinned_versions["torch"]
+torchvision_version = _pinned_versions["torchvision"]
+ovrtx_spec = _pinned_versions["ovrtx"]
+ovphysx_version = _pinned_versions["ovphysx"]
 
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
@@ -84,6 +91,10 @@ copybutton_selector = "div.highlight pre"
 rst_prolog = f"""
 .. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
 .. |isaacsim_version| replace:: {isaacsim_version}
+.. |torch_version| replace:: {torch_version}
+.. |torchvision_version| replace:: {torchvision_version}
+.. |ovrtx_spec| replace:: {ovrtx_spec}
+.. |ovphysx_version| replace:: {ovphysx_version}
 """
 
 # -- General configuration ---------------------------------------------------

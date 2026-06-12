@@ -49,11 +49,9 @@ def test_uv_run_exposes_centralized_feature_extras():
         "skrl",
         "rl-games",
         "rsl-rl",
-        "newton",
         "viser",
         "rerun",
         "ov",
-        "rtx",
         "mimic",
         "teleop",
         "rlinf",
@@ -61,10 +59,40 @@ def test_uv_run_exposes_centralized_feature_extras():
     }
     assert expected_extras <= set(optional_dependencies)
 
+    # The Newton viewer GUI is part of the base install, so there is no ``newton``
+    # extra; the OV renderer/physics wheels are a single grouped ``ov`` extra (no
+    # separate ``rtx`` extra).
+    assert "newton" not in optional_dependencies
+    assert "rtx" not in optional_dependencies
+
     # Concrete third-party deps live in the extras (not subpackage self-references).
     assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
     assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
-    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["ov"])
+
+
+def test_version_single_source_matches_literal_pins():
+    """``[tool.isaaclab.versions]`` is the single source for externally-pinned versions.
+
+    TOML cannot interpolate, so the literal pins in ``[project.optional-dependencies]``
+    and ``[tool.uv].constraint-dependencies`` must mirror the table exactly. This test
+    fails if any of them drift apart.
+    """
+    pyproject = _root_pyproject()
+    versions = pyproject["tool"]["isaaclab"]["versions"]
+    optional = pyproject["project"]["optional-dependencies"]
+    constraints = pyproject["tool"]["uv"]["constraint-dependencies"]
+
+    # Isaac Sim extra mirrors the table.
+    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+
+    # OV collection extra mirrors the table (ovphysx exact pin, ovrtx range spec).
+    assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
+    assert f"ovrtx{versions['ovrtx']}" in optional["ov"]
+
+    # uv torch-stack constraints mirror the table.
+    for package in ("torch", "torchvision", "torchaudio"):
+        assert f"{package}=={versions[package]}" in constraints
 
 
 def test_uv_run_isaacsim_extra_is_conflict_forked():

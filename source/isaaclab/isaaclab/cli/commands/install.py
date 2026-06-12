@@ -267,9 +267,9 @@ def _ensure_cuda_torch() -> None:
     # Base index for torch.
     base_index = "https://download.pytorch.org/whl"
 
-    # Choose pins per arch.
-    torch_ver = "2.11.0"
-    tv_ver = "0.26.0"
+    # Pinned versions (single source of truth: [tool.isaaclab.versions]).
+    torch_ver = _pinned_version("torch")
+    tv_ver = _pinned_version("torchvision")
 
     if is_arm():
         cuda_ver = "130"
@@ -348,6 +348,22 @@ def _load_root_pyproject() -> dict:
     """Load the root development ``pyproject.toml`` (single source of dependency truth)."""
     with (ISAACLAB_ROOT / "pyproject.toml").open("rb") as fd:
         return tomllib.load(fd)
+
+
+def _pinned_version(package: str) -> str:
+    """Return the pinned version for ``package`` from ``[tool.isaaclab.versions]``.
+
+    This table is the single source of truth for externally-pinned versions; the
+    literal pins in the extras and uv constraints mirror it.
+
+    Args:
+        package: Key in the ``[tool.isaaclab.versions]`` table (e.g. ``"torch"``).
+    """
+    versions = _load_root_pyproject().get("tool", {}).get("isaaclab", {}).get("versions", {})
+    version = versions.get(package)
+    if not version:
+        raise KeyError(f"'{package}' is missing from [tool.isaaclab.versions] in the root pyproject.toml.")
+    return version
 
 
 def _root_core_dependencies() -> list[str]:
@@ -687,36 +703,20 @@ def _install_contrib_extra_dependencies(selector: str) -> None:
 
 
 def _install_ov_extra_dependencies(selector: str) -> None:
-    """Install optional OV runtime dependencies.
+    """Install the Omniverse (OV) renderer/physics runtime wheels.
+
+    The ``ov`` extra is a grouped collection (``ovphysx`` + ``ovrtx``); both wheels
+    are installed together. A selector is accepted for backward compatibility but
+    is ignored.
 
     Args:
-        selector: One or more OV selectors from ``ov[ovrtx]``,
-            ``ov[ovphysx]``, or ``ov[all]``.
+        selector: Ignored. Previously selected individual wheels (``ov[ovrtx]`` /
+            ``ov[ovphysx]`` / ``ov[all]``).
     """
-    if not selector:
-        print_info(
-            "OV source packages are installed with the core submodules. "
-            "Use 'ov[ovrtx]', 'ov[ovphysx]', or 'ov[all]' to install OV runtime dependencies."
-        )
-        return
-
-    selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
-    valid_selectors = {"all", "ovrtx", "ovphysx"}
-    unknown_selectors = selectors - valid_selectors
-    if unknown_selectors:
-        print_warning(
-            f"Unknown ov selector(s): {', '.join(sorted(unknown_selectors))}. "
-            f"Valid selectors: {', '.join(sorted(valid_selectors))}."
-        )
-    if "all" in selectors:
-        selectors.update({"ovrtx", "ovphysx"})
-    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
-    if "ovrtx" in selectors:
-        print_info("Installing OVRTX optional dependency...")
-        _install_root_extra("rtx")
-    if "ovphysx" in selectors:
-        print_info("Installing OVPhysX optional dependency...")
-        _install_root_extra("ov")
+    if selector:
+        print_warning(f"'ov' no longer supports selectors (got '{selector}'); installing the full ov collection.")
+    print_info("Installing OV renderer/physics runtime dependencies (ovphysx, ovrtx)...")
+    _install_root_extra("ov")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
@@ -735,11 +735,10 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         _install_contrib_extra_dependencies(selector)
     elif feature_name == "newton":
         if selector:
-            print_warning(f"'newton' does not support selectors (got '{selector}'). Installing the newton viewer.")
-        # The Newton physics engine is a core dependency; this installs the
-        # optional interactive viewer GUI (imgui-bundle, typing-extensions).
-        print_info("Installing newton interactive viewer dependencies...")
-        _install_root_extra("newton")
+            print_warning(f"'newton' does not support selectors (got '{selector}').")
+        # The Newton physics engine and its interactive viewer GUI (imgui-bundle,
+        # typing-extensions) are part of the base install; this token is a no-op.
+        print_info("Newton (engine + viewer) is part of the base install; nothing to install.")
     elif feature_name == "rl":
         extra = selector if selector else "all"
         # rl[all] installs every RL framework extra; other selectors map by name
@@ -753,8 +752,9 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
         backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
         print_info(f"Installing visualizer extras: {extra}...")
         for backend in sorted(backends):
-            # 'kit' has no third-party dependencies (Omniverse-provided).
-            if backend == "kit":
+            # 'kit' (Omniverse-provided) and 'newton' (part of the base install)
+            # have no extra to install.
+            if backend in {"kit", "newton"}:
                 continue
             _install_root_extra(backend)
     elif feature_name == "ov":
@@ -920,15 +920,15 @@ def command_install(install_type: str = "all") -> None:
               optional submodules and extra features. Valid tokens:
 
               - Optional submodules: ``mimic``, ``teleop``
-              - Extra features: ``contrib[rlinf]``, ``newton``, ``rl[<framework>]``,
-                ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
+              - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
+                ``visualizer[<backend>]``, ``ov``
               - Special: ``isaacsim``
 
               Examples::
 
-                  ./isaaclab.sh -i newton,rl[rsl-rl]
+                  ./isaaclab.sh -i rl[rsl-rl]
                   ./isaaclab.sh -i mimic,visualizer[rerun]
-                  ./isaaclab.sh -i teleop,rl[skrl],newton
+                  ./isaaclab.sh -i teleop,rl[skrl],ov
     """
 
     # Install system dependencies first.

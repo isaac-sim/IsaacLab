@@ -55,9 +55,7 @@ Ensure pip is up to date:
 
 Install the correct version of torch and torchvision:
 
-.. code-block:: bash
-
-    uv pip install -U torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cu128
+.. isaaclab-torch-install:: cu128
 
 Install Isaac Lab extensions and dependencies (this includes Newton 1.0):
 

@@ -103,26 +103,26 @@ rl-games = [
     "standard-distutils",
 ]
 rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
-# Newton interactive viewer GUI. These are now part of the base install (see
-# [project.dependencies]); the extra is retained as a no-op alias so the
-# documented ``-i newton`` / ``visualizer[newton]`` install tokens keep working.
-newton = [
-    "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.12.2",
-]
+# Note: the Newton interactive viewer GUI (imgui-bundle, typing-extensions) is
+# part of the base install (see [project.dependencies]); there is no ``newton``
+# extra. The ``-i newton`` / ``visualizer[newton]`` tokens are accepted as no-ops.
 # Other visualizer backends.
 viser = ["viser>=1.0.16"]
 rerun = [
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
-# Isaac Sim (PhysX physics backend). Single source of truth for the Isaac Sim
-# version (read by the docs and CI). Co-resolves with the base install under uv
-# via the conflicts table in [tool.uv]; isaacsim narrows newton to its ``==`` pin.
+# Isaac Sim (PhysX physics backend). The pinned version mirrors
+# ``[tool.isaaclab.versions].isaacsim`` (the single source of truth read by docs
+# and CI). Co-resolves with the base install under uv via the conflicts table in
+# [tool.uv]; isaacsim narrows newton to its ``==`` pin.
 isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
-# Omniverse renderer / physics backends.
-ov = ["ovphysx==0.4.13"]
-rtx = ["ovrtx>=0.3.0,<0.4.0"]
+# Omniverse renderer / physics backends (grouped collection; ``-i ov`` installs
+# both wheels). Pins mirror ``[tool.isaaclab.versions]``.
+ov = [
+    "ovphysx==0.4.13",
+    "ovrtx>=0.3.0,<0.4.0",
+]
 mimic = [
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
@@ -153,12 +153,25 @@ rlinf = [
 # ``teleop`` (lxml vs mimic), ``ov`` (packaging<24), ``viser`` (websockets==12.0),
 # and mimic's nvidia-srl-usd-to-urdf (numpy<2). Install those via their own extra.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,newton,rerun,rlinf]",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf]",
     # mimic without nvidia-srl-usd-to-urdf (its numpy<2 clashes with isaacsim)
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
+
+# Single source of truth for externally-pinned package versions. Read by the docs
+# (``docs/conf.py``), the install CLI (``isaaclab.cli.commands.install``), the CI
+# workflows, and the install-CI tests. TOML has no interpolation, so the literal
+# pins in ``[project.optional-dependencies]`` and ``[tool.uv].constraint-dependencies``
+# mirror these values; ``test_version_single_source`` fails CI if they ever drift.
+[tool.isaaclab.versions]
+isaacsim = "6.0.0.1"
+torch = "2.11.0"
+torchvision = "0.26.0"
+torchaudio = "2.11.0"
+ovphysx = "0.4.13"
+ovrtx = ">=0.3.0,<0.4.0"
 
 [tool.ruff]
 line-length = 120
@@ -313,6 +326,7 @@ prerelease = "allow"
 override-dependencies = ["numpy>=2"]
 # Pin the dev workspace torch stack (routed to the CUDA indexes via [tool.uv.sources]).
 # The loose [project.dependencies] specs keep the wheel resolvable against isaacsim.
+# These versions mirror ``[tool.isaaclab.versions]`` (the single source of truth).
 constraint-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
