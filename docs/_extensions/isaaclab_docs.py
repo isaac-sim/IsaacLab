@@ -111,7 +111,7 @@ class IsaacLabQuickstartInstall(SphinxDirective):
         if "kitless" in self.options:
             content = _quickstart_kitless(branch, platform)
         elif "isaacsim" in self.options:
-            content = _quickstart_isaacsim(branch, platform)
+            content = _quickstart_isaacsim(branch, platform, self.config.isaacsim_version)
         else:
             raise self.error("Specify either :kitless: or :isaacsim:.")
 
@@ -148,7 +148,22 @@ def _quickstart_kitless(branch: str, platform: str) -> str:
 """
 
 
-def _quickstart_isaacsim(branch: str, platform: str) -> str:
+class IsaacLabIsaacSimInstall(SphinxDirective):
+    """Render the ``uv pip install isaacsim`` command pinned to the pyproject version."""
+
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        version = self.config.isaacsim_version
+        content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+"""
+        return _parse_rst(self, content)
+
+
+def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str) -> str:
     """Return quickstart reST for full Isaac Sim installation."""
     if platform == "linux":
         return f"""\
@@ -160,7 +175,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv venv --python 3.12 --seed env_isaaclab
    source env_isaaclab/bin/activate
    uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]==6.0.0.1" \\
+   uv pip install "isaacsim[all,extscache]=={isaacsim_version}" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match --prerelease=allow
    uv pip install -U torch==2.11.0 torchvision==0.26.0 \\
@@ -178,7 +193,7 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv venv --python 3.12 --seed env_isaaclab
    env_isaaclab\\Scripts\\activate
    uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]==6.0.0.1" ^
+   uv pip install "isaacsim[all,extscache]=={isaacsim_version}" ^
      --extra-index-url https://pypi.nvidia.com ^
      --index-strategy unsafe-best-match --prerelease=allow
    uv pip install -U torch==2.11.0 torchvision==0.26.0 ^
@@ -190,10 +205,12 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
 def setup(app):
     """Register Isaac Lab documentation directives."""
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaacsim_version", "", "env")
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)
     app.add_directive("isaaclab-quickstart-install", IsaacLabQuickstartInstall)
+    app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
     return {
         "version": "0.1",
         "parallel_read_safe": True,

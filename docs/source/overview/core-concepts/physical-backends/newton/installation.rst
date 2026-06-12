@@ -49,11 +49,9 @@ Ensure pip is up to date:
 
     uv pip install --upgrade pip
 
-[Optional] Install Isaac Sim 6.0:
+[Optional] Install Isaac Sim:
 
-.. code-block:: bash
-
-    uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+.. isaaclab-isaacsim-install::
 
 Install the correct version of torch and torchvision:
 

@@ -91,11 +91,8 @@ def _dedup(requirements: list[str]) -> list[str]:
 deps = _dedup([d for d in _expand_self_refs(project["dependencies"]) if not _is_workspace_member(d)])
 
 # Optional dependencies: per extra, strip workspace members and dedup.
-# Wheel-only extras (e.g. isaacsim) live under [tool.isaaclab.wheel-extras]; they
-# are excluded from the uv workspace resolution but still shipped in the wheel.
-wheel_extras = root.get("tool", {}).get("isaaclab", {}).get("wheel-extras", {})
 opt_deps = {}
-for name, dep_list in {**project.get("optional-dependencies", {}), **wheel_extras}.items():
+for name, dep_list in project.get("optional-dependencies", {}).items():
     opt_deps[name] = _dedup([d for d in _expand_self_refs(dep_list) if not _is_workspace_member(d)])
 
 # Write pyproject.toml

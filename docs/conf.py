@@ -18,6 +18,8 @@
 import os
 import sys
 
+import tomllib
+
 sys.path.insert(0, os.path.abspath("_extensions"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab"))
 sys.path.insert(0, os.path.abspath("../source/isaaclab/isaaclab"))
@@ -62,11 +64,26 @@ with open(os.path.join(os.path.dirname(__file__), "..", "VERSION")) as f:
 # Latest release branch referenced by installation documentation.
 isaaclab_latest_branch = os.getenv("ISAACLAB_LATEST_BRANCH", "develop")
 
+
+def _read_isaacsim_version() -> str:
+    """Read the Isaac Sim version from the root pyproject (single source of truth)."""
+    pyproject = os.path.join(os.path.dirname(__file__), "..", "pyproject.toml")
+    with open(pyproject, "rb") as f:
+        spec = tomllib.load(f)["project"]["optional-dependencies"]["isaacsim"][0]
+    # spec looks like "isaacsim[all,extscache]==<version>"
+    return spec.split("==")[-1].strip()
+
+
+# Isaac Sim version referenced by installation docs. Shared with the
+# ``isaaclab_docs`` extension via the ``isaacsim_version`` config value.
+isaacsim_version = _read_isaacsim_version()
+
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
 
 rst_prolog = f"""
 .. |isaaclab_latest_branch| replace:: {isaaclab_latest_branch}
+.. |isaacsim_version| replace:: {isaacsim_version}
 """
 
 # -- General configuration ---------------------------------------------------

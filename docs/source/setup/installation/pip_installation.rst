@@ -49,9 +49,7 @@ Installing dependencies
 
 -  Install Isaac Sim pip packages:
 
-   .. code-block:: bash
-
-      uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+   .. isaaclab-isaacsim-install::
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 

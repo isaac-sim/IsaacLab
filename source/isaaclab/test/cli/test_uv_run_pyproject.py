@@ -67,20 +67,30 @@ def test_uv_run_exposes_centralized_feature_extras():
     assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
 
 
-def test_uv_run_keeps_isaacsim_out_of_workspace_resolution():
-    """Isaac Sim is a wheel-only extra: never a base dep, never a uv workspace extra.
+def test_uv_run_isaacsim_extra_is_conflict_forked():
+    """Isaac Sim is an opt-in uv workspace extra, forked away from clashing extras.
 
-    The source workspace uses a repo-local Isaac Sim, and isaacsim's exact pins
-    conflict with several workspace extras under uv's strict resolver, so it is
-    declared under ``[tool.isaaclab.wheel-extras]`` instead.
+    PhysX/Isaac Sim is never a base dependency, but it must be a real
+    ``optional-dependencies`` extra so ``uv run --extra isaacsim`` resolves. Its
+    exact pins clash with several other extras, so it is declared in
+    ``[tool.uv].conflicts`` (forked resolution) rather than co-resolved with them.
     """
     pyproject = _root_pyproject()
     project = pyproject["project"]
     base_dependency_names = {re.split(r"[\s<>=!~\[;]", dep, maxsplit=1)[0] for dep in project["dependencies"]}
 
+    # PhysX/Isaac Sim is opt-in, never installed by the bare ``uv run``.
     assert "isaacsim" not in base_dependency_names
-    assert "isaacsim" not in project["optional-dependencies"]
-    assert "isaacsim" in pyproject["tool"]["isaaclab"]["wheel-extras"]
+    # ...but it is a workspace extra so ``uv run --extra isaacsim`` works.
+    assert "isaacsim" in project["optional-dependencies"]
+    assert any(dep.startswith("isaacsim[") for dep in project["optional-dependencies"]["isaacsim"])
+    # The legacy wheel-only table is gone (isaacsim now lives in the extras).
+    assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
+
+    # isaacsim is forked away from every extra whose pins clash with it.
+    conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
+    for extra in ("teleop", "ov", "viser", "mimic", "all", "test"):
+        assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():

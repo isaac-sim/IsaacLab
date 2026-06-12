@@ -27,6 +27,10 @@ Clone the repo and start training immediately — no virtual environment setup r
    uv run --extra ov --extra rtx train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
+   # PhysX backend: --extra isaacsim pulls in Isaac Sim on the fly
+   uv run --extra isaacsim train --rl_library rsl_rl \
+      --task Isaac-Cartpole-Direct presets=physx
+
 ``uv`` resolves and manages the environment automatically on each invocation. Supported
 libraries for ``--rl_library`` are: ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
 

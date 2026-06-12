@@ -58,8 +58,8 @@ def test_wheel_builder_drops_workspace_members(tmp_path):
     assert not [dep for dep in dependencies if dep.lower().startswith("isaaclab")]
 
 
-def test_wheel_builder_includes_wheel_only_isaacsim_extra(tmp_path):
-    """``isaacsim`` is excluded from the workspace but must ship as a wheel extra."""
+def test_wheel_builder_includes_isaacsim_extra(tmp_path):
+    """The ``isaacsim`` extra must ship in the generated wheel metadata."""
     generated = _generate_wheel_pyproject(tmp_path)
     optional_dependencies = generated["project"]["optional-dependencies"]
 

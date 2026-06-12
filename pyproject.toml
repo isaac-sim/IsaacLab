@@ -71,10 +71,15 @@ dependencies = [
     "rsl-rl-lib==5.0.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Loose lower bound keeps the wheel resolvable; co-installing isaacsim narrows
-    # it to isaacsim's pin. Dev workspace pins the git prerelease in [tool.uv.sources].
+    # Loose lower bound keeps the wheel resolvable and lets the base install track
+    # the latest Newton from the index (prereleases allowed via [tool.uv]); adding
+    # the ``isaacsim`` extra narrows it to isaacsim's own ``==`` pin.
     "newton[sim]>=1.2.0",
     "PyOpenGL-accelerate>=3.1.0",
+    # ----- newton interactive viewer GUI (HUD controls) -----
+    # In base so the Newton viewer works out of the box (no extra required).
+    "imgui-bundle>=1.92.5",
+    "typing-extensions>=4.12.2",
 ]
 
 [project.optional-dependencies]
@@ -98,7 +103,9 @@ rl-games = [
     "standard-distutils",
 ]
 rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
-# Newton interactive viewer GUI (the Newton physics engine itself is a core dep).
+# Newton interactive viewer GUI. These are now part of the base install (see
+# [project.dependencies]); the extra is retained as a no-op alias so the
+# documented ``-i newton`` / ``visualizer[newton]`` install tokens keep working.
 newton = [
     "imgui-bundle>=1.92.5",
     "typing-extensions>=4.12.2",
@@ -109,6 +116,10 @@ rerun = [
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
+# Isaac Sim (PhysX physics backend). Single source of truth for the Isaac Sim
+# version (read by the docs and CI). Co-resolves with the base install under uv
+# via the conflicts table in [tool.uv]; isaacsim narrows newton to its ``==`` pin.
+isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 # Omniverse renderer / physics backends.
 ov = ["ovphysx==0.4.13"]
 rtx = ["ovrtx>=0.3.0,<0.4.0"]
@@ -148,12 +159,6 @@ all = [
     "ipywidgets>=8.1.5",
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
-
-# Extras shipped in the published wheel but excluded from uv workspace resolution
-# (the source workspace uses a repo-local Isaac Sim, and isaacsim's pins conflict
-# with several extras under uv). The wheel builder merges these into wheel metadata.
-[tool.isaaclab.wheel-extras]
-isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 
 [tool.ruff]
 line-length = 120
@@ -315,9 +320,17 @@ constraint-dependencies = [
 ]
 # teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
 # declaring the conflict lets uv fork the resolution instead of failing.
+# isaacsim pins clash with teleop/ov/viser/mimic/test (and ``all`` aggregates
+# several of these); forking keeps ``--extra isaacsim`` resolvable on its own.
 conflicts = [
     [{ extra = "teleop" }, { extra = "mimic" }],
     [{ extra = "teleop" }, { extra = "all" }],
+    [{ extra = "isaacsim" }, { extra = "teleop" }],
+    [{ extra = "isaacsim" }, { extra = "ov" }],
+    [{ extra = "isaacsim" }, { extra = "viser" }],
+    [{ extra = "isaacsim" }, { extra = "mimic" }],
+    [{ extra = "isaacsim" }, { extra = "all" }],
+    [{ extra = "isaacsim" }, { extra = "test" }],
 ]
 python-preference = "only-managed"
 package = false
@@ -338,9 +351,6 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
-# Dev workspace tracks the Newton prerelease; the wheel keeps the loose
-# newton[sim]>=1.2.0 spec from [project.dependencies].
-newton = { git = "https://github.com/newton-physics/newton.git", tag = "v1.2.1rc2" }
 torch = [
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'x86_64'" },
     { index = "pytorch-cu128", marker = "sys_platform == 'linux' and platform_machine == 'AMD64'" },
