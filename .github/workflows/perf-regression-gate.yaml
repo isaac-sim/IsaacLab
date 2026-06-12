@@ -22,9 +22,12 @@
 # `pull-request/<N>` branch; we trigger on `push` to that branch. The mirrored SHA
 # equals the PR HEAD, so commit statuses surface back on the originating PR.
 #
-# Runner group: defaults to the generic `[self-hosted, gpu]` labels (as build.yaml).
-# Override via repo variable PERF_GATE_RUNS_ON to pin the amd64 RTX-6000 group once
-# the enterprise-runner-configuration access PR is merged.
+# Runner: defaults to the amd64 RTX PRO 6000 single-GPU runner
+# (`linux-amd64-gpu-rtxpro6000-latest-1`, group `nv-gpu-amd64-rtxpro6000-1gpu`),
+# which the NVIDIA-Omniverse/IsaacLab fork already has access to via the `omniverse`
+# project defaults. Pinning the label (rather than the generic `[self-hosted, gpu]`)
+# keeps baselines on one GPU class — the fork is granted several (H100, A40, ...) and
+# generic labels could land elsewhere. Override via repo variable PERF_GATE_RUNS_ON.
 name: Performance Regression Gate
 
 on:
@@ -95,7 +98,7 @@ jobs:
   bench:
     name: Bench / ${{ matrix.task_id }} / ${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}
     needs: [config]
-    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["self-hosted","gpu"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
     continue-on-error: true   # advisory during bring-up; gate_config.json controls blocking
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
     strategy:
@@ -285,7 +288,7 @@ jobs:
     name: Aggregate + Verdict
     needs: [bench]
     if: always()
-    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["self-hosted","gpu"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6

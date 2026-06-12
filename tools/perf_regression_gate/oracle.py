@@ -282,13 +282,17 @@ def compare(
     # Manual pins win and enable gating even before the window fills.
     if "pin_center_fps" in overrides:
         center = float(overrides["pin_center_fps"])
-        if spread is None:
-            spread = min_spread_pct / 100.0 * center
+        # Re-floor the spread against the NEW center. The window's MAD is an absolute
+        # FPS value that can be tiny relative to a deliberately re-pinned center, which
+        # would collapse the band; keep the MAD component but never below the
+        # min_spread_pct% floor of the new center.
+        trusted = baseline is not None and baseline.sample_count >= MIN_WINDOW
+        mad_component = MAD_TO_STD * baseline.mad_fps if trusted else 0.0
+        spread = max(mad_component, min_spread_pct / 100.0 * center)
         threshold_source = "override_pin"
     if "pin_spread_fps" in overrides:
         spread = float(overrides["pin_spread_fps"])
-        if threshold_source == "seed":
-            threshold_source = "override_pin"
+        threshold_source = "override_pin"
 
     # ----- Verdict
     note: str | None = None
