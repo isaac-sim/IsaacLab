@@ -1,16 +1,16 @@
 Added
 ^^^^^
 
-* Added :mod:`isaaclab.benchmark.schema`, the public v1.0 JSON schema for
+* Added :mod:`isaaclab.test.benchmark.schema`, the public v1.0 JSON schema for
   benchmark bundles produced by the standalone scripts under
-  ``scripts/benchmarks/``. Exposes :class:`~isaaclab.benchmark.schema.TrainingBundle`
-  and :class:`~isaaclab.benchmark.schema.StartupBundle` plus the supporting
-  :class:`~isaaclab.benchmark.schema.Versions`, :class:`~isaaclab.benchmark.schema.Hardware`,
-  :class:`~isaaclab.benchmark.schema.Runtime`, :class:`~isaaclab.benchmark.schema.Resources`,
-  and :class:`~isaaclab.benchmark.schema.Learning` records, along with
-  :func:`~isaaclab.benchmark.schema.write_bundle_file` for emitting
+  ``scripts/benchmarks/``. Exposes :class:`~isaaclab.test.benchmark.schema.TrainingBundle`
+  and :class:`~isaaclab.test.benchmark.schema.StartupBundle` plus the supporting
+  :class:`~isaaclab.test.benchmark.schema.Versions`, :class:`~isaaclab.test.benchmark.schema.Hardware`,
+  :class:`~isaaclab.test.benchmark.schema.Runtime`, :class:`~isaaclab.test.benchmark.schema.Resources`,
+  and :class:`~isaaclab.test.benchmark.schema.Learning` records, along with
+  :func:`~isaaclab.test.benchmark.schema.write_bundle_file` for emitting
   schema-compliant JSON. The package root re-exports the same surface so
-  ``from isaaclab.benchmark import TrainingBundle`` works.
+  ``from isaaclab.test.benchmark import TrainingBundle`` works.
 
 Changed
 ^^^^^^^

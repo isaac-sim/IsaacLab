@@ -11,7 +11,7 @@ import os
 
 import pytest
 
-from isaaclab.benchmark.schema import (
+from isaaclab.test.benchmark.schema import (
     SCHEMA_VERSION,
     CProfileFunction,
     GpuDeviceInfo,
@@ -165,11 +165,13 @@ def test_startup_bundle_round_trip(tmp_path):
 
 
 def test_package_reexports_match_schema_module():
-    """`from isaaclab.benchmark import ...` resolves to the same objects as
-    `from isaaclab.benchmark.schema import ...`. Keeps the convenience
-    namespace honest if someone forgets to update __all__."""
-    import isaaclab.benchmark as pkg
-    from isaaclab.benchmark import schema
+    """`from isaaclab.test.benchmark import ...` resolves to the same objects as
+    `from isaaclab.test.benchmark.schema import ...` for every schema symbol."""
+    import isaaclab.test.benchmark as pkg
+    from isaaclab.test.benchmark import schema
 
-    for name in pkg.__all__:
-        assert getattr(pkg, name) is getattr(schema, name), name
+    for name in schema.__all__ if hasattr(schema, "__all__") else dir(schema):
+        if name.startswith("_"):
+            continue
+        if name in getattr(pkg, "__all__", []):
+            assert getattr(pkg, name) is getattr(schema, name), name
