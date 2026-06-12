@@ -153,14 +153,9 @@ class RigidObjectData(BaseRigidObjectData):
         if from_link:
             self._root_com_pose_w.timestamp = -1.0
         # The composite root state buffers always go stale on a pose write.
-        for attr_name in (
-            "_root_state_w",
-            "_root_link_state_w",
-            "_root_com_state_w",
-        ):
-            buffer = getattr(self, attr_name, None)
-            if buffer is not None:
-                buffer.timestamp = -1.0
+        self._root_state_w.timestamp = -1.0
+        self._root_link_state_w.timestamp = -1.0
+        self._root_com_state_w.timestamp = -1.0
 
     def reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached rigid object properties.
@@ -177,14 +172,9 @@ class RigidObjectData(BaseRigidObjectData):
         if from_com:
             self._root_link_vel_w.timestamp = -1.0
         # The composite root state buffers always go stale on a velocity write.
-        for attr_name in (
-            "_root_state_w",
-            "_root_link_state_w",
-            "_root_com_state_w",
-        ):
-            buffer = getattr(self, attr_name, None)
-            if buffer is not None:
-                buffer.timestamp = -1.0
+        self._root_state_w.timestamp = -1.0
+        self._root_link_state_w.timestamp = -1.0
+        self._root_com_state_w.timestamp = -1.0
 
     """
     Names.

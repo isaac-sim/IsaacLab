@@ -190,25 +190,19 @@ class ArticulationData(BaseArticulationData):
                 center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
                 the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
-        # Body poses and the composite state buffers always go stale on a pose write.
-        attr_names = [
-            "_body_link_pose_w",
-            "_body_com_pose_w",
-            "_root_state_w_buf",
-            "_root_link_state_w_buf",
-            "_root_com_state_w_buf",
-            "_body_state_w_buf",
-            "_body_link_state_w_buf",
-            "_body_com_state_w_buf",
-        ]
         # The root com pose is derived from the root link pose, so only invalidate it when the link
         # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
         if from_link:
-            attr_names.append("_root_com_pose_w")
-        for attr_name in attr_names:
-            buffer = getattr(self, attr_name, None)
-            if buffer is not None:
-                buffer.timestamp = -1.0
+            self._root_com_pose_w.timestamp = -1.0
+        # Body poses and the composite state buffers always go stale on a pose write.
+        self._body_link_pose_w.timestamp = -1.0
+        self._body_com_pose_w.timestamp = -1.0
+        self._root_state_w_buf.timestamp = -1.0
+        self._root_link_state_w_buf.timestamp = -1.0
+        self._root_com_state_w_buf.timestamp = -1.0
+        self._body_state_w_buf.timestamp = -1.0
+        self._body_link_state_w_buf.timestamp = -1.0
+        self._body_com_state_w_buf.timestamp = -1.0
 
     def reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
@@ -221,25 +215,19 @@ class ArticulationData(BaseArticulationData):
                 link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
                 velocity was written directly so it is not clobbered. Defaults to True.
         """
-        # Body velocities and the composite state buffers always go stale on a velocity write.
-        attr_names = [
-            "_body_com_vel_w",
-            "_body_link_vel_w",
-            "_root_state_w_buf",
-            "_root_link_state_w_buf",
-            "_root_com_state_w_buf",
-            "_body_state_w_buf",
-            "_body_link_state_w_buf",
-            "_body_com_state_w_buf",
-        ]
         # The root link velocity is derived from the root com velocity, so only invalidate it when the
         # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
         if from_com:
-            attr_names.append("_root_link_vel_w")
-        for attr_name in attr_names:
-            buffer = getattr(self, attr_name, None)
-            if buffer is not None:
-                buffer.timestamp = -1.0
+            self._root_link_vel_w.timestamp = -1.0
+        # Body velocities and the composite state buffers always go stale on a velocity write.
+        self._body_com_vel_w.timestamp = -1.0
+        self._body_link_vel_w.timestamp = -1.0
+        self._root_state_w_buf.timestamp = -1.0
+        self._root_link_state_w_buf.timestamp = -1.0
+        self._root_com_state_w_buf.timestamp = -1.0
+        self._body_state_w_buf.timestamp = -1.0
+        self._body_link_state_w_buf.timestamp = -1.0
+        self._body_com_state_w_buf.timestamp = -1.0
 
     """
     Names.
