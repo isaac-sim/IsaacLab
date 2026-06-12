@@ -168,20 +168,9 @@ class ArticulationData(BaseArticulationData):
             self._fk_timestamp = self._sim_timestamp
         if not self._is_primed:
             return
-        # trigger an update of the joint acceleration buffer via finite differencing
-        if dt > 0.0 and self._previous_joint_vel is not None:
-            cur_vel_buf = self._joint_vel_buf
-            # ensure joint vel buffer is fresh before differencing
-            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
-            wp.launch(
-                _fd_joint_acc,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / dt],
-                outputs=[self._joint_acc.data],
-                device=self.device,
-            )
-            self._joint_acc.timestamp = self._sim_timestamp
-            wp.copy(self._previous_joint_vel, cur_vel_buf.data)
+        # Trigger a finite-difference refresh of the joint acceleration at step frequency. The
+        # property recomputes lazily when stale; reading it here keeps the FD cadence at one step.
+        self.joint_acc
 
     def _ensure_fk_fresh(self) -> None:
         """Run forward kinematics if the joint / body state has changed since the last FK update.
@@ -1036,8 +1025,25 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32.
 
         .. note::
-            This quantity is computed via finite differencing of joint velocities.
+            This quantity is computed via finite differencing of joint velocities. It is recomputed
+            lazily: a read after one or more :meth:`update` steps refreshes it, while a read after a
+            manual joint-velocity write returns ``0`` until the next step, because the write resets
+            the finite-difference baseline.
         """
+        if self._joint_acc.timestamp < self._sim_timestamp:
+            # Finite-difference the joint velocities. ``_fd_joint_acc`` also advances
+            # ``_previous_joint_vel`` in place, so no separate copy is needed.
+            time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
+            cur_vel_buf = self._joint_vel_buf
+            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
+            wp.launch(
+                _fd_joint_acc,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / time_elapsed],
+                outputs=[self._joint_acc.data],
+                device=self.device,
+            )
+            self._joint_acc.timestamp = self._sim_timestamp
         if self._joint_acc_ta is None:
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
         return self._joint_acc_ta
@@ -1443,6 +1449,8 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
+        # Read-only zeros source used to clear the joint-acceleration cache on velocity writes.
+        self._joint_acc_zeros = wp.zeros((N, D), dtype=wp.float32, device=dev)
 
         # -- Joint properties (CPU-only; timestamped so they can be re-read after writes)
         self._joint_stiffness = TimestampedBuffer((N, D), dev, wp.float32)

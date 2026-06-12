@@ -210,7 +210,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -240,7 +240,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -270,7 +270,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -300,7 +300,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -331,7 +331,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -362,7 +362,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -395,7 +395,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -428,7 +428,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -461,7 +461,7 @@ class BaseRigidObjectCollection(AssetBase):
                 (len(env_ids), len(body_ids), 6) or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -494,7 +494,7 @@ class BaseRigidObjectCollection(AssetBase):
                 (num_instances, num_bodies, 6) or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -527,7 +527,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (len(env_ids), len(body_ids)) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()
@@ -560,7 +560,7 @@ class BaseRigidObjectCollection(AssetBase):
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are used. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         raise NotImplementedError()

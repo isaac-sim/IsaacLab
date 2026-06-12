@@ -385,7 +385,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
@@ -410,7 +410,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
@@ -437,7 +437,7 @@ class Articulation(BaseArticulation):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -477,7 +477,7 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
@@ -518,7 +518,7 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -559,7 +559,7 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
@@ -602,7 +602,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_root_com_velocity_to_sim_index(
@@ -629,7 +629,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_root_com_velocity_to_sim_mask(
@@ -661,7 +661,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -704,7 +704,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
@@ -747,7 +747,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -796,7 +796,7 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
@@ -843,7 +843,7 @@ class Articulation(BaseArticulation):
                 (len(env_ids), len(joint_ids)) with dtype wp.float32.
             joint_ids: Joint indices.  Defaults to None (all joints).
             env_ids: Environment indices.  Defaults to None (all environments).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -856,11 +856,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # Let the data class handle the invalidation of pose- and velocity-dependent properties. The
-        # finite-differenced joint acceleration is not covered by the shared reset helpers, so invalidate
-        # it here as well.
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        # A position write does not change joint velocities, so the joint acceleration is unaffected.
         if not skip_forward:
-            self._data._joint_acc.timestamp = -1.0
             self._data.reset_pose()
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_POSITION)
@@ -891,7 +889,7 @@ class Articulation(BaseArticulation):
                 (num_instances,).
             joint_mask: Joint mask.  If None, all joints are updated.  Shape is
                 (num_joints,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
@@ -904,11 +902,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # Let the data class handle the invalidation of pose- and velocity-dependent properties. The
-        # finite-differenced joint acceleration is not covered by the shared reset helpers, so invalidate
-        # it here as well.
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        # A position write does not change joint velocities, so the joint acceleration is unaffected.
         if not skip_forward:
-            self._data._joint_acc.timestamp = -1.0
             self._data.reset_pose()
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_POSITION)
@@ -937,7 +933,7 @@ class Articulation(BaseArticulation):
                 (len(env_ids), len(joint_ids)) with dtype wp.float32.
             joint_ids: Joint indices.  Defaults to None (all joints).
             env_ids: Environment indices.  Defaults to None (all environments).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
@@ -950,8 +946,10 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_buf.data],
             device=self._device,
         )
-        # Sync previous_joint_vel to the new values so the next FD step does not
-        # produce a spurious acceleration spike.
+        # A velocity write teleports the joint velocity, so reset the finite-difference baseline:
+        # sync previous_joint_vel to the new values and zero the cached joint acceleration. Both are
+        # unconditional (independent of skip_forward) because they are part of the write's semantics,
+        # not lazily-recomputed cache state; the next FD step then differences against the new velocity.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -959,9 +957,15 @@ class Articulation(BaseArticulation):
             outputs=[self._data._previous_joint_vel],
             device=self._device,
         )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[self._data._joint_acc_zeros, env_ids, joint_ids],
+            outputs=[self._data._joint_acc.data],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
-            # The shared reset helper does not cover the finite-differenced joint acceleration.
-            self._data._joint_acc.timestamp = -1.0
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_VELOCITY)
         binding.write(self._data._joint_vel_buf.data, indices=env_ids)
@@ -991,7 +995,7 @@ class Articulation(BaseArticulation):
                 (num_instances,).
             joint_mask: Joint mask.  If None, all joints are updated.  Shape is
                 (num_joints,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
@@ -1004,7 +1008,10 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_buf.data],
             device=self._device,
         )
-        # Sync previous_joint_vel so the next FD step does not produce a spurious spike.
+        # A velocity write teleports the joint velocity, so reset the finite-difference baseline:
+        # sync previous_joint_vel to the new values and zero the cached joint acceleration. Both are
+        # unconditional (independent of skip_forward) because they are part of the write's semantics,
+        # not lazily-recomputed cache state; the next FD step then differences against the new velocity.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1012,9 +1019,15 @@ class Articulation(BaseArticulation):
             outputs=[self._data._previous_joint_vel],
             device=self._device,
         )
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[self._data._joint_acc_zeros, env_mask_wp, joint_mask_wp],
+            outputs=[self._data._joint_acc.data],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
-            # The shared reset helper does not cover the finite-differenced joint acceleration.
-            self._data._joint_acc.timestamp = -1.0
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_VELOCITY)
         binding.write(self._data._joint_vel_buf.data, mask=env_mask_wp)
@@ -1047,7 +1060,7 @@ class Articulation(BaseArticulation):
                 (num_joints,).
             env_mask: Environment mask.  If None, all instances are updated.  Shape is
                 (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_joint_position_to_sim_mask(
@@ -1056,10 +1069,9 @@ class Articulation(BaseArticulation):
         self.write_joint_velocity_to_sim_mask(
             velocity=velocity, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
         )
-        # The sub-writers skipped their invalidation (skip_forward=True); do it once here, including the
-        # joint acceleration that the shared reset helpers do not cover.
+        # The sub-writers skipped their composite invalidation (skip_forward=True); do it once here.
+        # The velocity sub-writer already reset the joint-acceleration baseline unconditionally.
         if not skip_forward:
-            self._data._joint_acc.timestamp = -1.0
             self._data.reset_pose()
             self._data.reset_velocity()
 

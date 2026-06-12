@@ -68,6 +68,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
+        self._fk_timestamp = 0.0
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2); the
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
@@ -108,18 +109,22 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
 
     def _ensure_fk_fresh(self) -> None:
-        """Run forward kinematics if joint state has changed since the last FK update.
+        """Run forward kinematics if the root state has changed since the last FK update.
 
         Newton's ``state.body_q`` (per-body world transforms) is updated by ``eval_fk``,
-        invoked here through ``SimulationManager.forward()``. After a manual joint or root
-        write that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set
-        to ``-1.0`` to force a refresh on the next read of any property that depends on
-        body poses (``body_link_pose_w``, the Jacobian properties, ``mass_matrix``).
+        invoked here through ``SimulationManager.forward()``. After a manual root write
+        that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to
+        ``-1.0`` to force a refresh on the next read of any property that depends on
+        body poses (``body_link_pose_w``, ``body_com_pose_w`` and the composite body
+        state buffers).
         """
         if self._fk_timestamp < self._sim_timestamp:
             SimulationManager.forward()

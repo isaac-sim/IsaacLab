@@ -270,7 +270,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_body_link_pose_to_sim_index(
@@ -304,7 +304,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
@@ -350,7 +350,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         self.write_body_com_velocity_to_sim_index(
@@ -388,7 +388,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_mask: Body mask. If None, then all bodies are updated. Shape is (num_bodies,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         if env_mask is not None:
@@ -436,7 +436,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -496,7 +496,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_poses: Body link poses in simulation frame. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -538,7 +538,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.transformf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -601,7 +601,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_poses: Body center of mass poses in simulation frame. Shape is (num_instances, num_bodies, 7)
                 or (num_instances, num_bodies) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -645,7 +645,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -714,7 +714,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 Shape is (num_instances, num_bodies, 6)
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             body_ids: Body indices. If None, then all indices are used.
         """
@@ -762,7 +762,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
                 or (len(env_ids), len(body_ids)) / (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             body_ids: Body indices. If None, then all indices are used.
             env_ids: Environment indices. If None, then all indices are used.
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             full_data: Whether to expect full data. Defaults to False.
         """
@@ -834,7 +834,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             body_velocities: Body link velocities in simulation frame. Shape is (num_instances, num_bodies, 6)
                 or (num_instances, num_bodies) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
-            skip_forward: Whether to skip refreshing cached data after the write. When True, the caller
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
             body_ids: Body indices. If None, then all indices are used.
         """
