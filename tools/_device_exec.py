@@ -466,21 +466,21 @@ def merge_unit_status(prev: dict | None, new: dict) -> dict:
     }
 
 
-def run_unit(ctx: _UnitContext, unit: Unit) -> tuple[JUnitXml | None, dict, bool]:
-    """Drive one pytest subprocess for ``unit`` and return its results.
+def _build_unit_cmd(ctx: _UnitContext, unit: Unit) -> tuple[list[str], dict, str, str]:
+    """Build the pytest invocation for one unit (no subprocess).
+
+    Device-variant selection is the unit's mask, set as ``ISAACLAB_TEST_DEVICES``
+    for ``test_devices()`` to read — there is no ``-k``. A mask without cpu
+    (position 0) additionally injects the ``_agnostic_select`` plugin so
+    device-agnostic tests do not run there.
 
     Args:
-        ctx: Static per-file context (paths, timeouts, base env).
-        unit: The work unit to run; its mask becomes ``ISAACLAB_TEST_DEVICES``.
+        ctx: Static per-file context (paths, isaacsim_ci flag, base env).
+        unit: The work unit to run.
 
     Returns:
-        A 3-tuple ``(xml_report, status_dict, was_failure)``:
-            * ``xml_report``: parsed JUnit XML, or ``None`` if the unit produced
-              no report (e.g. startup hang).
-            * ``status_dict``: per-unit counters compatible with the entries
-              appended to ``test_status``.
-            * ``was_failure``: whether the unit should add ``ctx.test_file`` to
-              the ``failed_tests`` list.
+        ``(cmd, env, report_file, pass_file_label)`` — the argv, the per-unit
+        environment, the JUnit report path, and the label used in error reports.
     """
     # Split units of one file share a slug, so suffix the report with the mask to
     # keep both XMLs; a non-split unit (one per file) keeps the suffix-free name
@@ -496,13 +496,9 @@ def run_unit(ctx: _UnitContext, unit: Unit) -> tuple[JUnitXml | None, dict, bool
     report_slug = str(ctx.test_file).replace("/", "__").replace("\\", "__")
     report_file = f"tests/test-reports-{report_slug}{report_suffix}.xml"
 
-    # The mask drives device-variant selection through test_devices(); no -k needed.
     env = dict(ctx.env)
     env["ISAACLAB_TEST_DEVICES"] = unit.mask
 
-    # A mask without cpu (position 0) — an mgpu shard or the cuda unit of a split —
-    # must not run device-agnostic tests. Inject the dumb drop-paramless plugin and
-    # put tools/ on PYTHONPATH so the per-file subprocess can import it.
     inject_agnostic = unit.mask[:1] == "0"
     if inject_agnostic:
         tools_dir = os.path.join(ctx.workspace_root, "tools")
@@ -524,6 +520,27 @@ def run_unit(ctx: _UnitContext, unit: Unit) -> tuple[JUnitXml | None, dict, bool
     if ctx.isaacsim_ci:
         cmd += ["-m", "isaacsim_ci"]
     cmd.append(str(ctx.test_file))
+    return cmd, env, report_file, pass_file_label
+
+
+def run_unit(ctx: _UnitContext, unit: Unit) -> tuple[JUnitXml | None, dict, bool]:
+    """Drive one pytest subprocess for ``unit`` and return its results.
+
+    Args:
+        ctx: Static per-file context (paths, timeouts, base env).
+        unit: The work unit to run; its mask becomes ``ISAACLAB_TEST_DEVICES``.
+
+    Returns:
+        A 3-tuple ``(xml_report, status_dict, was_failure)``:
+            * ``xml_report``: parsed JUnit XML, or ``None`` if the unit produced
+              no report (e.g. startup hang).
+            * ``status_dict``: per-unit counters compatible with the entries
+              appended to ``test_status``.
+            * ``was_failure``: whether the unit should add ``ctx.test_file`` to
+              the ``failed_tests`` list.
+    """
+    cmd, env, report_file, pass_file_label = _build_unit_cmd(ctx, unit)
+    report_suffix = f"-{unit.mask}" if unit.split else ""  # display suffix for this unit's log lines
 
     # -- Run with retry on startup hang or hard timeout -----------------
     returncode, stdout_data, stderr_data, kill_reason = -1, b"", b"", ""
