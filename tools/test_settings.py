@@ -62,11 +62,8 @@ PER_TEST_TIMEOUTS = {
     "test_shadow_hand_vision_presets.py": 5000,
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
-    # For some reason kitless rendering tests take much longer on CI than local machines.
-    # After we pin OVRTX to 0.3 we need to test whether it is still reproducible.
+    # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
     "test_rendering_cartpole_kitless.py": 2000,
-    "test_rendering_dexsuite_kuka_kitless.py": 2000,
-    "test_rendering_shadow_hand_kitless.py": 2000,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.

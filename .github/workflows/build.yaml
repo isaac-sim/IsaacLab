@@ -680,7 +680,12 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        include-files: "test_rendering_cartpole.py,test_rendering_dexsuite_kuka.py,test_rendering_registered_tasks.py,test_rendering_shadow_hand.py"
+        include-files: >-
+          test_rendering_cartpole.py,
+          test_rendering_dexsuite_kuka_homo.py,
+          test_rendering_dexsuite_kuka_hetero.py,
+          test_rendering_registered_tasks.py,
+          test_rendering_shadow_hand.py
         container-name: isaac-lab-rendering-correctness-test
 
   test-rendering-correctness-kitless:
@@ -702,7 +707,11 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         extra-pip-packages: "ovrtx ovphysx==0.4.13"
-        include-files: "test_rendering_cartpole_kitless.py,test_rendering_dexsuite_kuka_kitless.py,test_rendering_shadow_hand_kitless.py"
+        include-files: >-
+          test_rendering_cartpole_kitless.py,
+          test_rendering_dexsuite_kuka_homo_kitless.py,
+          test_rendering_dexsuite_kuka_hetero_kitless.py,
+          test_rendering_shadow_hand_kitless.py
         container-name: isaac-lab-rendering-correctness-kitless-test
   #endregion
 
