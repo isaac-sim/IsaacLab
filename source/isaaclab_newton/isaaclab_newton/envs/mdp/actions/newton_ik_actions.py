@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import torch
@@ -17,7 +17,6 @@ from newton import Model as NewtonModel
 from newton.selection import ArticulationView
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.cloner import resolve_clone_plan_source
@@ -38,41 +37,125 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+@wp.kernel(enable_backward=False)
+def _ik_world_target_kernel(
+    body_pos_w: wp.array2d(dtype=wp.vec3f),
+    body_quat_w: wp.array2d(dtype=wp.quatf),
+    root_pos_w: wp.array(dtype=wp.vec3f),
+    root_quat_w: wp.array(dtype=wp.quatf),
+    body_idx: int,
+    offset: wp.transformf,
+    action: wp.array2d(dtype=wp.float32),
+    action_offset: int,
+    scale: wp.array(dtype=wp.float32),
+    command_code: int,
+    use_relative: int,
+    out_pos: wp.array(dtype=wp.vec3f),
+    out_rot: wp.array(dtype=wp.vec4f),
+):
+    """Map one pose objective's action slice to a prototype-world target pose.
+
+    Mirrors ``subtract_frame_transforms`` -> body offset -> command (position /
+    relative-pose / absolute-pose) -> ``combine_frame_transforms`` against the
+    env-0 root, writing the target straight into the objective's Warp arrays.
+    """
+    i = wp.tid()
+    # End-effector (offset) pose in the env's root frame.
+    root_t = wp.transformf(root_pos_w[i], root_quat_w[i])
+    ee_t = wp.transform_multiply(
+        wp.transform_inverse(root_t), wp.transformf(body_pos_w[i, body_idx], body_quat_w[i, body_idx])
+    )
+    ee_t = wp.transform_multiply(ee_t, offset)
+    ee_pos = wp.transform_get_translation(ee_t)
+    ee_rot = wp.transform_get_rotation(ee_t)
+
+    target_pos = ee_pos
+    target_rot = ee_rot
+    if command_code == 0:  # COMMAND_POSITION
+        disp = wp.vec3f(
+            action[i, action_offset + 0] * scale[0],
+            action[i, action_offset + 1] * scale[1],
+            action[i, action_offset + 2] * scale[2],
+        )
+        target_pos = ee_pos + disp if use_relative == 1 else disp
+    else:
+        if use_relative == 1:
+            target_pos = ee_pos + wp.vec3f(
+                action[i, action_offset + 0] * scale[0],
+                action[i, action_offset + 1] * scale[1],
+                action[i, action_offset + 2] * scale[2],
+            )
+            rot_vec = wp.vec3f(
+                action[i, action_offset + 3] * scale[3],
+                action[i, action_offset + 4] * scale[4],
+                action[i, action_offset + 5] * scale[5],
+            )
+            angle = wp.length(rot_vec)
+            delta_rot = wp.quat_identity()
+            if angle > 1.0e-6:
+                delta_rot = wp.quat_from_axis_angle(rot_vec / angle, angle)
+            target_rot = delta_rot * ee_rot
+        else:
+            target_pos = wp.vec3f(
+                action[i, action_offset + 0] * scale[0],
+                action[i, action_offset + 1] * scale[1],
+                action[i, action_offset + 2] * scale[2],
+            )
+            target_rot = wp.quatf(
+                action[i, action_offset + 3] * scale[3],
+                action[i, action_offset + 4] * scale[4],
+                action[i, action_offset + 5] * scale[5],
+                action[i, action_offset + 6] * scale[6],
+            )
+
+    # Broadcast against the env-0 prototype root (all roots identical, validated).
+    world_t = wp.transform_multiply(wp.transformf(root_pos_w[0], root_quat_w[0]), wp.transformf(target_pos, target_rot))
+    out_pos[i] = wp.transform_get_translation(world_t)
+    q = wp.transform_get_rotation(world_t)
+    out_rot[i] = wp.vec4f(q[0], q[1], q[2], q[3])
+
+
+@wp.kernel(enable_backward=False)
+def _ik_seed_scatter_kernel(
+    joint_pos: wp.array2d(dtype=wp.float32),
+    coord_ids: wp.array(dtype=wp.int32),
+    seed: wp.array2d(dtype=wp.float32),
+):
+    """Overwrite the seed's actuated coordinates with the live joint positions."""
+    i, j = wp.tid()
+    seed[i, coord_ids[j]] = joint_pos[i, j]
+
+
+@wp.kernel(enable_backward=False)
+def _ik_gather_kernel(
+    solved: wp.array2d(dtype=wp.float32),
+    coord_ids: wp.array(dtype=wp.int32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    """Gather the controlled coordinates from the full solved joint vector."""
+    i, k = wp.tid()
+    out[i, k] = solved[i, coord_ids[k]]
+
+
 @dataclass
 class _PoseDriver:
-    """Per-pose-objective binding to the live articulation and the action vector.
-
-    Holds the Isaac Lab body index used to read the current end-effector pose, the
-    target-frame offset (batched to ``num_envs``), this objective's slice of the
-    action vector, and the built solver objective. The per-step root-frame target
-    buffers are allocated in :meth:`__post_init__` from the offset's shape/device.
-    """
+    """Per-pose-objective binding: the live body to read and its action slice offset."""
 
     body_idx: int
-    offset_pos: torch.Tensor
-    offset_rot: torch.Tensor
-    slice: slice
+    action_offset: int
     objective: NewtonIKPoseObjective
-    target_pos_b: torch.Tensor = field(init=False)
-    target_quat_b: torch.Tensor = field(init=False)
-
-    def __post_init__(self):
-        num_envs, device = self.offset_pos.shape[0], self.offset_pos.device
-        self.target_pos_b = torch.zeros(num_envs, 3, device=device)
-        self.target_quat_b = torch.zeros(num_envs, 4, device=device)
-        self.target_quat_b[:, 3] = 1.0
 
 
 class NewtonInverseKinematicsAction(ActionTerm):
     """Newton inverse-kinematics action term.
 
-    The action solves IK as a single list of objectives on the single-env Newton
-    prototype model registered by the cloner, then maps the resulting actuated
-    joint coordinates back to the live batched Isaac Lab articulation. Each pose
-    objective contributes its slice of the action vector and drives one
-    end-effector body; a single pose objective is single-body IK, several are
-    multi-body IK. Constraint objectives (e.g. joint limits) add no action
-    dimensions. Fixed-base articulations only.
+    Solves IK as a single list of objectives on the cloner's single-env Newton
+    prototype model, then maps the actuated joint coordinates back to the live
+    batched articulation. Each pose objective drives one end-effector body (one is
+    single-body IK, several are multi-body); constraint objectives add no action
+    dimensions. The per-step target computation, seed assembly, solve and gather
+    run entirely in Warp -- Torch appears only as the policy action at the
+    boundary, viewed zero-copy into Warp. Fixed-base articulations only.
     """
 
     cfg: NewtonInverseKinematicsActionCfg
@@ -100,22 +183,14 @@ class NewtonInverseKinematicsAction(ActionTerm):
         # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot").
         self._source_path = source_path + asset_suffix
         prototype_model = NewtonManager._cl_protos[source_path].finalize(device=NewtonManager.get_model().device)
-        # The prototype is the cloner's env_0 source builder; its single articulation
-        # is addressed by the resolved source path.
         prototype_view = ArticulationView(
             prototype_model,
             self._source_path,
             verbose=False,
             exclude_joint_types=[JointType.FREE, JointType.FIXED],
         )
-        self._prototype_joint_coord_ids = self._resolve_prototype_joint_coord_ids(
-            prototype_view, self._asset.joint_names
-        )
-        self._prototype_controlled_coord_ids = self._resolve_prototype_joint_coord_ids(
-            prototype_view, self._joint_names
-        )
-        self._prototype_joint_seed = wp.to_torch(prototype_model.joint_q).to(device=self.device, dtype=torch.float32)
-        self._prototype_joint_seed = self._prototype_joint_seed.unsqueeze(0).repeat(self.num_envs, 1).contiguous()
+        coord_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._asset.joint_names)
+        controlled_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._joint_names)
 
         # The solver resolves each pose objective's body via the prototype view.
         self._ik_solver = self.cfg.controller.class_type(
@@ -127,23 +202,28 @@ class NewtonInverseKinematicsAction(ActionTerm):
             link_resolver=lambda body_name: self._resolve_prototype_link_index(prototype_view, body_name),
         )
 
-        # Bind each pose objective to the live articulation and the action vector.
+        # Bind each pose objective to the live body it reads and its action slice.
         self._drivers: list[_PoseDriver] = []
         offset = 0
         for pose_cfg in pose_cfgs:
             name = pose_cfg.name if pose_cfg.name is not None else pose_cfg.body_name
             objective = self._ik_solver.objectives_by_name[name]
             body_idx = self._resolve_isaac_body_index(pose_cfg.body_name)
-            offset_pos = torch.tensor(pose_cfg.body_offset_pos, device=self.device).repeat(self.num_envs, 1)
-            offset_rot = torch.tensor(pose_cfg.body_offset_rot, device=self.device).repeat(self.num_envs, 1)
-            self._drivers.append(
-                _PoseDriver(body_idx, offset_pos, offset_rot, slice(offset, offset + objective.action_dim), objective)
-            )
+            self._drivers.append(_PoseDriver(body_idx, offset, objective))
             offset += objective.action_dim
         self._action_dim = offset
 
         self._raw_actions = torch.zeros(self.num_envs, self._action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
+
+        # Warp scratch for the seed -> solve -> gather pipeline.
+        num_coords = prototype_model.joint_coord_count
+        default_seed = wp.to_torch(prototype_model.joint_q).to(device=self.device, dtype=torch.float32)
+        self._default_seed = wp.from_torch(default_seed.unsqueeze(0).repeat(self.num_envs, 1).contiguous())
+        self._seed = wp.zeros((self.num_envs, num_coords), dtype=wp.float32, device=self.device)
+        self._joint_pos_des = wp.zeros((self.num_envs, len(self._joint_ids)), dtype=wp.float32, device=self.device)
+        self._coord_ids = wp.from_torch(coord_ids.to(torch.int32).contiguous())
+        self._controlled_ids = wp.from_torch(controlled_ids.to(torch.int32).contiguous())
 
         self._clip = None
         if self.cfg.clip is not None:
@@ -193,48 +273,59 @@ class NewtonInverseKinematicsAction(ActionTerm):
             self._processed_actions = torch.clamp(
                 self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
             )
-        # Each pose objective maps its own action slice (scaled internally) onto a
-        # root-frame target from the body's current pose.
+        # Each pose objective maps its action slice to a prototype-world target,
+        # written straight into its Warp target arrays.
+        self._validate_matching_root_orientations()
+        action_wp = wp.from_torch(self._processed_actions.contiguous(), dtype=wp.float32)
+        body_pos_w = self._asset.data.body_pos_w.warp
+        body_quat_w = self._asset.data.body_quat_w.warp
+        root_pos_w = self._asset.data.root_pos_w.warp
+        root_quat_w = self._asset.data.root_quat_w.warp
         for driver in self._drivers:
-            ee_pos_b, ee_quat_b = self._compute_frame_pose(driver)
-            target_pos_b, target_quat_b = driver.objective.compute_target_b(
-                self._processed_actions[:, driver.slice], ee_pos_b, ee_quat_b
+            obj = driver.objective
+            wp.launch(
+                _ik_world_target_kernel,
+                dim=self.num_envs,
+                inputs=[
+                    body_pos_w,
+                    body_quat_w,
+                    root_pos_w,
+                    root_quat_w,
+                    driver.body_idx,
+                    obj.offset,
+                    action_wp,
+                    driver.action_offset,
+                    obj.scale,
+                    obj.command_code,
+                    obj.use_relative,
+                    obj.position_objective.target_positions,
+                    obj.rotation_objective.target_rotations,
+                ],
+                device=self.device,
             )
-            driver.target_pos_b[:] = target_pos_b
-            driver.target_quat_b[:] = target_quat_b
 
     def apply_actions(self) -> None:
-        # The IK solve runs on the single-env prototype model, so all batched
-        # root-frame targets are expressed in the prototype (env 0) world frame.
-        self._validate_matching_root_orientations()
-        root_pos_proto = self._asset.data.root_pos_w.torch[0:1].repeat(self.num_envs, 1)
-        root_quat_proto = self._asset.data.root_quat_w.torch[0:1].repeat(self.num_envs, 1)
-        for driver in self._drivers:
-            target_pos_w, target_quat_w = math_utils.combine_frame_transforms(
-                root_pos_proto, root_quat_proto, driver.target_pos_b, driver.target_quat_b
-            )
-            driver.objective.set_target_pose(target_pos_w, target_quat_w)
-
-        joint_seed = self._prototype_joint_seed.clone()
-        joint_seed[:, self._prototype_joint_coord_ids] = self._asset.data.joint_pos.torch
-        joint_pos_des_all = wp.to_torch(self._ik_solver.solve(wp.from_torch(joint_seed.contiguous(), dtype=wp.float32)))
-        joint_pos_des = joint_pos_des_all[:, self._prototype_controlled_coord_ids].contiguous()
-        self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids_warp)
+        # Seed the solver from the live joint positions on top of the prototype
+        # default, solve, and write the controlled coordinates back -- all in Warp.
+        wp.copy(self._seed, self._default_seed)
+        wp.launch(
+            _ik_seed_scatter_kernel,
+            dim=(self.num_envs, len(self._asset.joint_names)),
+            inputs=[self._asset.data.joint_pos.warp, self._coord_ids, self._seed],
+            device=self.device,
+        )
+        solved = self._ik_solver.solve(self._seed)
+        wp.launch(
+            _ik_gather_kernel,
+            dim=(self.num_envs, len(self._joint_ids)),
+            inputs=[solved, self._controlled_ids, self._joint_pos_des],
+            device=self.device,
+        )
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids_warp)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         env_ids = slice(None) if env_ids is None else env_ids
         self._raw_actions[env_ids] = 0.0
-
-    def _compute_frame_pose(self, driver: _PoseDriver) -> tuple[torch.Tensor, torch.Tensor]:
-        ee_pos_w = self._asset.data.body_pos_w.torch[:, driver.body_idx]
-        ee_quat_w = self._asset.data.body_quat_w.torch[:, driver.body_idx]
-        root_pos_w = self._asset.data.root_pos_w.torch
-        root_quat_w = self._asset.data.root_quat_w.torch
-        ee_pos_b, ee_quat_b = math_utils.subtract_frame_transforms(root_pos_w, root_quat_w, ee_pos_w, ee_quat_w)
-        ee_pos_b, ee_quat_b = math_utils.combine_frame_transforms(
-            ee_pos_b, ee_quat_b, driver.offset_pos, driver.offset_rot
-        )
-        return ee_pos_b, ee_quat_b
 
     def _validate_matching_root_orientations(self) -> None:
         """Guard the prototype-frame IK assumption for replicated fixed-base roots."""

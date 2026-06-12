@@ -100,19 +100,6 @@ def test_solve_writes_output_buffer(monkeypatch):
     assert torch.allclose(wp.to_torch(result), torch.tensor([[2.0, 3.0], [4.0, 5.0]]))
 
 
-def test_set_target_pose_updates_named_objective(monkeypatch):
-    _patch_newton_ik(monkeypatch)
-    solver = _pose_solver()
-    target_pos = torch.tensor([[0.1, 0.2, 0.3], [1.0, 1.1, 1.2]])
-    target_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 1.0, 0.0]])
-
-    pose = solver.objectives_by_name["ee"]
-    pose.set_target_pose(target_pos, target_quat)
-
-    assert torch.allclose(wp.to_torch(pose.position_objective.target), target_pos)
-    assert torch.allclose(wp.to_torch(pose.rotation_objective.target), target_quat)
-
-
 def test_constraint_objectives_carry_no_target_or_action(monkeypatch):
     _patch_newton_ik(monkeypatch)
     solver = _pose_solver(
@@ -163,20 +150,19 @@ def test_pose_objective_action_dim_and_coordinate_names(monkeypatch):
     assert rel_pose.command_coordinate_names() == ["x", "y", "z", "roll", "pitch", "yaw"]
 
 
-def test_relative_position_command_offsets_current_pose(monkeypatch):
+def test_pose_objective_exposes_warp_command_data(monkeypatch):
     _patch_newton_ik(monkeypatch)
-    obj = _build_pose_objective(
-        NewtonIKPoseObjectiveCfg(body_name="ee", command_type="position", use_relative_mode=True, scale=0.5)
+    rel_pose = _build_pose_objective(
+        NewtonIKPoseObjectiveCfg(body_name="ee", command_type="pose", use_relative_mode=True, scale=0.5)
     )
-    ee_pos_b = torch.tensor([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]])
-    ee_quat_b = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]])
-    action = torch.tensor([[2.0, 0.0, -2.0], [0.0, 4.0, 0.0]])
+    position = _build_pose_objective(
+        NewtonIKPoseObjectiveCfg(body_name="ee", command_type="position", use_relative_mode=False)
+    )
 
-    target_pos_b, target_quat_b = obj.compute_target_b(action, ee_pos_b, ee_quat_b)
-
-    # scale 0.5 applied internally, then added to the current position.
-    assert torch.allclose(target_pos_b, torch.tensor([[2.0, 1.0, 0.0], [2.0, 4.0, 2.0]]))
-    assert torch.allclose(target_quat_b, ee_quat_b)
+    # Command convention is exposed to the action's Warp kernel as plain data.
+    assert (rel_pose.command_code, rel_pose.use_relative) == (1, 1)
+    assert (position.command_code, position.use_relative) == (0, 0)
+    assert torch.allclose(wp.to_torch(rel_pose.scale), torch.full((6,), 0.5))
 
 
 class _CustomObjective(NewtonIKObjective):

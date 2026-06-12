@@ -8,17 +8,17 @@
 Each class is built by :class:`~isaaclab_newton.ik.NewtonIKSolver` from the
 matching :class:`~isaaclab_newton.ik.newton_ik_objectives_cfg.NewtonIKObjectiveCfg`
 and owns the concrete :class:`newton.ik.IKObjective` instances appended to the
-solver. Command-driven objectives (currently pose) additionally own their
-action contribution: an :attr:`~NewtonIKObjective.action_dim`, the coordinate
-names for that slice, and the mapping from a raw action slice to a target pose.
-The action term is therefore generic -- it sums :attr:`action_dim` across the
-objective list and dispatches each slice without branching on command type.
+solver. Pose objectives also describe their action contribution as Warp data:
+an :attr:`~NewtonIKObjective.action_dim`, the coordinate names for that slice,
+a numeric :attr:`~NewtonIKPoseObjective.command_code` / relative flag, a Warp
+``scale`` array and a target-frame ``offset`` transform. The action term reads
+these directly into a Warp kernel; nothing here touches Torch.
 
 Importing this module pulls ``newton`` (and ``pxr``), so it is loaded lazily via
 the package ``lazy_export`` only after Kit has launched. Custom objectives
-integrate by subclassing :class:`NewtonIKObjective`, taking
-``(cfg, ctx)`` in ``__init__`` -- pulling only the :class:`NewtonIKBuildContext`
-fields they need -- and populating :attr:`NewtonIKObjective.solver_objectives`.
+integrate by subclassing :class:`NewtonIKObjective`, taking ``(cfg, ctx)`` in
+``__init__`` -- pulling only the :class:`NewtonIKBuildContext` fields they need --
+and populating :attr:`NewtonIKObjective.solver_objectives`.
 """
 
 from __future__ import annotations
@@ -27,12 +27,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import newton.ik as ik
-import torch
 import warp as wp
 
-import isaaclab.utils.math as math_utils
-
 from .newton_ik_objectives_cfg import NewtonIKJointLimitObjectiveCfg, NewtonIKPoseObjectiveCfg
+
+# Numeric command codes consumed by the action's Warp kernel.
+COMMAND_POSITION = 0
+COMMAND_POSE = 1
 
 
 @dataclass(frozen=True)
@@ -56,9 +57,8 @@ class NewtonIKObjective:
     """Base built IK objective.
 
     Owns the concrete :class:`newton.ik.IKObjective` instances in
-    :attr:`solver_objectives`. Command-driven objectives (pose) also set a
-    :attr:`name` and a non-zero :attr:`action_dim` and add ``compute_target_b``
-    / ``command_coordinate_names``; constraint objectives leave the defaults.
+    :attr:`solver_objectives`. Pose objectives also set a :attr:`name` and a
+    non-zero :attr:`action_dim`; constraint objectives leave the defaults.
     """
 
     name: str | None = None
@@ -72,7 +72,13 @@ class NewtonIKObjective:
 
 
 class NewtonIKPoseObjective(NewtonIKObjective):
-    """Command-driven position + rotation objective tracking one end-effector body."""
+    """Command-driven position + rotation objective tracking one end-effector body.
+
+    Exposes its command convention to the action's Warp kernel as data:
+    :attr:`command_code` / :attr:`use_relative`, the per-coordinate :attr:`scale`
+    (``wp.float32``), the target-frame :attr:`offset` (``wp.transformf``), and the
+    position/rotation target arrays the kernel writes into.
+    """
 
     def __init__(self, cfg: NewtonIKPoseObjectiveCfg, ctx: NewtonIKBuildContext):
         self.name = cfg.name if cfg.name is not None else cfg.body_name
@@ -81,15 +87,16 @@ class NewtonIKPoseObjective(NewtonIKObjective):
         self.link_index = ctx.resolve_link(cfg.body_name)
         self.action_dim = len(self.command_coordinate_names())
 
-        scale = torch.as_tensor(cfg.scale, dtype=torch.float32, device=ctx.device)
-        if scale.ndim == 0:
-            scale = scale.repeat(self.action_dim)
-        if scale.shape != (self.action_dim,):
+        self.command_code = COMMAND_POSITION if cfg.command_type == "position" else COMMAND_POSE
+        self.use_relative = int(cfg.use_relative_mode)
+        scale_values = [float(cfg.scale)] * self.action_dim if _is_scalar(cfg.scale) else [float(s) for s in cfg.scale]
+        if len(scale_values) != self.action_dim:
             raise ValueError(
                 f"Newton IK pose objective '{self.name}' scale must be a float or length-{self.action_dim} "
-                f"sequence, got shape {tuple(scale.shape)}."
+                f"sequence, got {len(scale_values)} values."
             )
-        self._scale = scale
+        self.scale = wp.array(scale_values, dtype=wp.float32, device=ctx.device)
+        self.offset = wp.transformf(wp.vec3f(*cfg.body_offset_pos), wp.quatf(*cfg.body_offset_rot))
 
         target_positions = wp.zeros((ctx.num_envs,), dtype=wp.vec3, device=ctx.device)
         target_rotations = wp.array([(0.0, 0.0, 0.0, 1.0)] * ctx.num_envs, dtype=wp.vec4, device=ctx.device)
@@ -116,22 +123,6 @@ class NewtonIKPoseObjective(NewtonIKObjective):
             return ["x", "y", "z", "qx", "qy", "qz", "qw"]
         raise ValueError(f"Unsupported Newton IK command type: {self.command_type}")
 
-    def compute_target_b(
-        self, action: torch.Tensor, ee_pos_b: torch.Tensor, ee_quat_b: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        processed = action * self._scale
-        if self.command_type == "position":
-            target_pos_b = ee_pos_b + processed if self.use_relative_mode else processed
-            return target_pos_b, ee_quat_b
-        if self.use_relative_mode:
-            return math_utils.apply_delta_pose(ee_pos_b, ee_quat_b, processed)
-        return processed[:, 0:3], processed[:, 3:7]
-
-    def set_target_pose(self, target_pos_w: torch.Tensor, target_quat_w: torch.Tensor) -> None:
-        """Update the batched world-frame target pose, shape ``[num_envs, 3]`` and ``[num_envs, 4]``."""
-        self.position_objective.set_target_positions(wp.from_torch(target_pos_w.contiguous(), dtype=wp.vec3))
-        self.rotation_objective.set_target_rotations(wp.from_torch(target_quat_w.contiguous(), dtype=wp.vec4))
-
 
 class NewtonIKJointLimitObjective(NewtonIKObjective):
     """Soft joint-limit constraint reading the model's coordinate limits."""
@@ -143,3 +134,7 @@ class NewtonIKJointLimitObjective(NewtonIKObjective):
             weight=cfg.weight,
         )
         self.solver_objectives = [self.objective]
+
+
+def _is_scalar(value) -> bool:
+    return isinstance(value, (int, float))
