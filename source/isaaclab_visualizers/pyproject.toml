@@ -29,23 +29,23 @@ Repository = "https://github.com/isaac-sim/IsaacLab"
 kit = []
 newton = [
     "warp-lang",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3810655e02e941461a20ca8629bb3708036d0e2f",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@cdf38b806d6a0c3d6fe4f5abb9ab95688a383367",
     "PyOpenGL-accelerate",
     "imgui-bundle>=1.92.5",
     "typing-extensions>=4.15.0",
 ]
 rerun = [
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3810655e02e941461a20ca8629bb3708036d0e2f",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@cdf38b806d6a0c3d6fe4f5abb9ab95688a383367",
     "rerun-sdk>=0.29.0",
     "pyarrow==22.0.0",
 ]
 viser = [
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3810655e02e941461a20ca8629bb3708036d0e2f",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@cdf38b806d6a0c3d6fe4f5abb9ab95688a383367",
     "viser>=1.0.16",
 ]
 all = [
     "imgui-bundle>=1.92.5",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3810655e02e941461a20ca8629bb3708036d0e2f",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@cdf38b806d6a0c3d6fe4f5abb9ab95688a383367",
     "PyOpenGL-accelerate",
     # Match rerun-sdk's supported Arrow stack and avoid resolver drift across environments.
     "pyarrow==22.0.0",

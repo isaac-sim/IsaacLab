@@ -26,7 +26,7 @@ Repository = "https://github.com/isaac-sim/IsaacLab"
 all = [
     "prettytable>=3.3.0",
     "PyOpenGL-accelerate>=3.1.0",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@3810655e02e941461a20ca8629bb3708036d0e2f",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@cdf38b806d6a0c3d6fe4f5abb9ab95688a383367",
 ]
 
 [tool.setuptools]
