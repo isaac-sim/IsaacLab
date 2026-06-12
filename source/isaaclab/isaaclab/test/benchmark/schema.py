@@ -6,8 +6,8 @@
 """Public schema for Isaac Lab benchmark bundles (v1.0).
 
 Defines the on-disk JSON schema produced by the standalone benchmark scripts
-under ``scripts/benchmarks/``: ``benchmark_startup.py``, ``benchmark_rsl_rl.py``,
-and ``benchmark_skrl.py``. Producers populate a :class:`TrainingBundle` or
+under ``scripts/benchmarks/`` (``runtime.py``, ``training.py``, ``startup.py``).
+Producers populate a :class:`TrainingBundle` or
 :class:`StartupBundle` and call :func:`write_bundle_file` to emit
 schema-compliant JSON. Consumers (dashboards, regression-comparison tools,
 the in-tree Odin evaluation harness under ``tools/odin/``) read the same file
@@ -30,31 +30,45 @@ from typing import Any, Literal
 
 SCHEMA_VERSION = "1.0"
 
-Framework = Literal["rsl_rl", "skrl"]
-Backend = Literal["physx", "newton"]
+Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
+PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
+# "newton" selects Newton's built-in Warp renderer.
+RenderingBackend = Literal["none", "isaacsim_rtx", "ovrtx", "newton"]
+SensorDtype = Literal["rgb", "depth", "albedo", "semantic_segmentation", "normals"]
 RunStatus = Literal["completed", "interrupted", "crashed"]
 
 
 @dataclass(frozen=True)
 class MeanStd:
-    """Scalar with mean and standard deviation."""
+    """Scalar aggregate with mean, standard deviation, and optional peak.
+
+    Args:
+        mean: Sample mean.
+        std: Sample standard deviation.
+        peak: Maximum observed value, or ``None`` where a peak is not
+            meaningful (e.g. GPU utilisation, whose ceiling is always 100%).
+    """
 
     mean: float
     std: float
+    peak: float | None = None
 
-
-@dataclass(frozen=True)
-class MeanStdPeak:
-    """Scalar with mean, standard deviation, and peak."""
-
-    mean: float
-    std: float
-    peak: float
+    def __post_init__(self) -> None:
+        # peak is the max of the same samples the mean is taken over, so it is
+        # always >= mean; a small tolerance absorbs independent rounding.
+        if self.peak is not None and self.peak < self.mean - 1e-6:
+            raise ValueError(f"peak ({self.peak}) must be >= mean ({self.mean})")
 
 
 @dataclass(frozen=True)
 class GpuDeviceInfo:
-    """Information about a single GPU device."""
+    """Information about a single GPU device.
+
+    Args:
+        name: Device model name.
+        mem_gb: Total device memory [GB].
+        compute_cap: CUDA compute capability (e.g. ``"9.0"``).
+    """
 
     name: str
     mem_gb: float
@@ -63,7 +77,15 @@ class GpuDeviceInfo:
 
 @dataclass(frozen=True)
 class Hardware:
-    """Host hardware snapshot captured at run time."""
+    """Host hardware snapshot captured at run time.
+
+    Args:
+        hostname: Host machine name.
+        gpu_devices: Per-device GPU information.
+        cpu_name: CPU model name.
+        cpu_count: Physical CPU core count.
+        ram_gb: Total host RAM [GB].
+    """
 
     hostname: str
     gpu_devices: list[GpuDeviceInfo]
@@ -76,8 +98,8 @@ class Hardware:
 class Versions:
     """Software versions captured at run time.
 
-    Framework-specific fields (``rsl_rl``, ``skrl``) are ``None`` when the
-    corresponding framework is not used by the run.
+    Framework-specific fields (``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``) are
+    ``None`` when the corresponding framework is not used by the run.
     """
 
     isaaclab: str
@@ -88,31 +110,72 @@ class Versions:
     mjwarp: str | None
     torch: str
     rsl_rl: str | None
+    rl_games: str | None
     skrl: str | None
+    sb3: str | None
     git_commit: str | None
     git_branch: str | None
     git_dirty: bool
 
 
 @dataclass(frozen=True)
+class RunConfig:
+    """Physics/rendering backend and sensor configuration for a run.
+
+    Args:
+        physics_backend: Physics solver preset the run used.
+        rendering_backend: Rendering backend, or ``"none"`` for headless runs
+            with no camera sensors.
+        sensor_dtype: Camera sensor data type when a sensor is exercised, else
+            ``None``.
+        sensor_resolution: Square sensor edge length [px] when a sensor is
+            exercised, else ``None``.
+    """
+
+    physics_backend: PhysicsBackend
+    rendering_backend: RenderingBackend = "none"
+    sensor_dtype: SensorDtype | None = None
+    sensor_resolution: int | None = None
+
+
+@dataclass(frozen=True)
 class RunIdentity:
-    """Identity of a training run."""
+    """Identity of a benchmark run (training, runtime, or startup).
+
+    Args:
+        run_id: Stable identifier for the run.
+        framework: RL library for training runs; ``None`` for non-learning
+            (pure runtime, startup) runs.
+        config: Physics/rendering/sensor configuration.
+        task: Gym task id.
+        seed: Environment/agent seed.
+        start_time_utc: ISO-8601 UTC start timestamp.
+        end_time_utc: ISO-8601 UTC end timestamp.
+        duration_s: Wall-clock run duration [s].
+        status: Terminal status of the run.
+        num_envs: Number of parallel environments, or ``None`` (startup).
+        max_iterations: Training iteration budget, or ``None`` (startup, runtime).
+    """
 
     run_id: str
-    framework: Framework
-    backend: Backend
+    framework: Framework | None
+    config: RunConfig
     task: str
     seed: int
-    num_envs: int
-    max_iterations: int
     start_time_utc: str
     end_time_utc: str
     duration_s: float
     status: RunStatus
+    num_envs: int | None = None
+    max_iterations: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.duration_s < 0:
+            raise ValueError(f"duration_s must be >= 0, got {self.duration_s}")
 
 
 @dataclass(frozen=True)
-class StartupPhaseTimes:
+class StartupTime:
     """Wall-clock duration of each startup phase [s]."""
 
     app_launch: float
@@ -124,9 +187,19 @@ class StartupPhaseTimes:
 
 @dataclass(frozen=True)
 class Runtime:
-    """Aggregated runtime metrics for a training run."""
+    """Aggregated runtime metrics for a run.
 
-    startup_phase_times_s: StartupPhaseTimes
+    Args:
+        startup_time_s: Per-phase startup wall-clock durations [s].
+        iterations_completed: Number of completed iterations.
+        total_wall_time_s: Total run wall-clock time [s].
+        steps_per_iteration: Environment steps collected per iteration.
+        iteration_time_s: Per-iteration wall-clock time [s].
+        env_steps_per_s: Effective environment throughput [env-steps/s] (the run's FPS metric).
+        iterations_per_s: Iteration rate [iter/s].
+    """
+
+    startup_time_s: StartupTime
     iterations_completed: int
     total_wall_time_s: float
     steps_per_iteration: int
@@ -137,12 +210,22 @@ class Runtime:
 
 @dataclass(frozen=True)
 class Resources:
-    """Aggregated resource utilisation metrics for a training run."""
+    """Aggregated resource-utilisation metrics for a run.
+
+    Utilisation fields leave :attr:`MeanStd.peak` as ``None`` (a peak of 100% is
+    uninformative); memory fields populate ``peak``.
+
+    Args:
+        gpu_util_pct: GPU utilisation [%].
+        gpu_mem_gb: GPU memory used [GB].
+        cpu_util_pct: CPU utilisation [%].
+        ram_gb: Host RAM used [GB].
+    """
 
     gpu_util_pct: MeanStd
-    gpu_mem_gb: MeanStdPeak
+    gpu_mem_gb: MeanStd
     cpu_util_pct: MeanStd
-    ram_gb: MeanStdPeak
+    ram_gb: MeanStd
 
 
 @dataclass(frozen=True)
@@ -164,8 +247,30 @@ class Learning:
 
 
 @dataclass(frozen=True)
+class RuntimeBundle:
+    """Top-level shape of ``runtime.json`` (environment stepping, no learning).
+
+    Mirrors :class:`TrainingBundle` without the learning metrics.
+    """
+
+    run: RunIdentity
+    versions: Versions
+    hardware: Hardware
+    runtime: Runtime
+    resources: Resources
+    schema_version: str = SCHEMA_VERSION
+
+
+@dataclass(frozen=True)
 class TrainingBundle:
-    """Top-level shape of ``training.json``."""
+    """Top-level shape of ``training.json`` — a runtime bundle plus learning metrics.
+
+    Args:
+        success_rate: Final success rate [0..1] when the task tracks one, else
+            ``None``.
+        checkpoint_path: Path to the final saved policy checkpoint, if any.
+        video_path: Path to a recorded rollout video/gif, if any.
+    """
 
     run: RunIdentity
     versions: Versions
@@ -173,12 +278,22 @@ class TrainingBundle:
     runtime: Runtime
     resources: Resources
     learning: Learning
+    success_rate: float | None = None
+    checkpoint_path: str | None = None
+    video_path: str | None = None
     schema_version: str = SCHEMA_VERSION
 
 
 @dataclass(frozen=True)
 class CProfileFunction:
-    """One entry from a cProfile top-N table."""
+    """One entry from a cProfile top-N table.
+
+    Args:
+        name: Function label.
+        own_time_s: Own (exclusive) time [s].
+        cum_time_s: Cumulative (inclusive) time [s].
+        calls: Number of calls.
+    """
 
     name: str
     own_time_s: float
@@ -203,25 +318,14 @@ class StartupConfig:
 
 
 @dataclass(frozen=True)
-class StartupRunIdentity:
-    """Startup runs omit ``num_envs`` / ``max_iterations`` (not meaningful)."""
-
-    run_id: str
-    framework: Framework
-    backend: Backend
-    task: str
-    seed: int
-    start_time_utc: str
-    end_time_utc: str
-    duration_s: float
-    status: RunStatus
-
-
-@dataclass(frozen=True)
 class StartupBundle:
-    """Top-level shape of ``startup.json``."""
+    """Top-level shape of ``startup.json``.
 
-    run: StartupRunIdentity
+    Reuses :class:`RunIdentity` with ``framework``/``num_envs``/``max_iterations``
+    left unset, since they are not meaningful for a startup profile.
+    """
+
+    run: RunIdentity
     versions: Versions
     hardware: Hardware
     phases: dict[str, StartupPhase]
