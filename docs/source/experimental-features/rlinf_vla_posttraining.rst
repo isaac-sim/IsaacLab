@@ -168,6 +168,11 @@ architecture from the base model and overlays the RL-finetuned weights
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+.. note::
+
+   **Windows support is still being optimized.** For now, Linux is recommended for
+   RLinf training and evaluation.
+
 Checkpoints
 -----------
 
