@@ -104,6 +104,7 @@ class ArticulationData(BaseArticulationData):
 
         # Set initial time stamp
         self._sim_timestamp: float = 0.0
+        self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
@@ -162,6 +163,9 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step. Keep fk_timestamp in sync unless it was explicitly invalidated.
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         if not self._is_primed:
             return
         # trigger an update of the joint acceleration buffer via finite differencing
@@ -178,6 +182,21 @@ class ArticulationData(BaseArticulationData):
             )
             self._joint_acc.timestamp = self._sim_timestamp
             wp.copy(self._previous_joint_vel, cur_vel_buf.data)
+
+    def _ensure_fk_fresh(self) -> None:
+        """Run forward kinematics if the joint / body state has changed since the last FK update.
+
+        Isaac Sim's articulation link transforms and velocities are recomputed by
+        ``update_articulations_kinematic``. After a manual joint or root write that bypassed the sim
+        step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to ``-1.0`` to force a refresh on the
+        next read of any property that depends on body poses or velocities. The physics instance is
+        absent under the mocked-interface tests, in which case the refresh is skipped.
+        """
+        if self._fk_timestamp < self._sim_timestamp:
+            physx_instance = OvPhysxManager.get_physx_instance()
+            if physx_instance is not None:
+                physx_instance.update_articulations_kinematic()
+            self._fk_timestamp = self._sim_timestamp
 
     def reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached articulation properties.
@@ -203,6 +222,8 @@ class ArticulationData(BaseArticulationData):
         self._body_state_w_buf.timestamp = -1.0
         self._body_link_state_w_buf.timestamp = -1.0
         self._body_com_state_w_buf.timestamp = -1.0
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
 
     def reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
@@ -228,6 +249,8 @@ class ArticulationData(BaseArticulationData):
         self._body_state_w_buf.timestamp = -1.0
         self._body_link_state_w_buf.timestamp = -1.0
         self._body_com_state_w_buf.timestamp = -1.0
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
 
     """
     Names.
@@ -857,12 +880,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # perform forward kinematics (shouldn't cause overhead if it happened already);
-            # skip when no physics instance is bound (mocked iface tests)
-            physx_instance = OvPhysxManager.get_physx_instance()
-            if physx_instance is not None:
-                physx_instance.update_articulations_kinematic()
+        self._ensure_fk_fresh()
         self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -875,6 +893,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
         """
+        self._ensure_fk_fresh()
         self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
