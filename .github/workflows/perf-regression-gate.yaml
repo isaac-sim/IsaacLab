@@ -47,8 +47,10 @@ permissions:
 
 env:
   BASELINE_BRANCH: perf-baselines
+  # Docker tags forbid '/', and github.ref_name on the mirror branch is
+  # `pull-request/<N>`; key the local image by run id + sha instead (both slash-free).
   CI_IMAGE_TAG: >-
-    isaac-lab-ci:${{ github.ref_name }}-${{ github.sha }}
+    isaac-lab-ci:${{ github.run_id }}-${{ github.sha }}
 
 jobs:
   # ---------------------------------------------------------------------------
