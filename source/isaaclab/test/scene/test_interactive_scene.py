@@ -19,7 +19,7 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.cloner import CloneCfg, InclusionSet, make_clone_plan, sequential
 from isaaclab.physics.scene_data_requirements import SceneDataRequirement
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg, Selector, SelectorCfg
@@ -158,6 +158,60 @@ def test_reset_to_env_ids_input_types(device, setup_scene):
     scene["robot"].write_joint_velocity_to_sim_index(velocity=joint_vel)
     scene.reset_to(prev_state, env_ids=torch.arange(scene.num_envs, device=scene.device, dtype=torch.int32))
     assert_state_equal(prev_state, scene.get_state())
+
+
+@configclass
+class _HeteroStaticSceneCfg(InteractiveSceneCfg):
+    """Two task groups where only group A also carries a static (non-physics) asset."""
+
+    clone_cfg = CloneCfg(
+        clone_strategy=sequential,
+        clone_combinations=[
+            InclusionSet(assets=["robot_a", "table_a"], weight=1),
+            InclusionSet(assets=["robot_b"], weight=1),
+        ],
+    )
+    robot_a = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot_A",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
+        ),
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=1.0)},
+    )
+    robot_b = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot_B",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
+        ),
+        actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=1.0)},
+    )
+    table_a = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/Table_A",
+        spawn=sim_utils.CuboidCfg(size=(0.2, 0.2, 0.2)),
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_heterogeneous_static_asset_cloned_into_group_envs(device):
+    """A static ``AssetBaseCfg`` asset is cloned into every env of its group, not only its source env.
+
+    Static assets register no backend physics view, so the scene must queue their USD replication
+    explicitly; otherwise heterogeneous (per-asset clone-row) scenes leave them in just one env.
+    """
+    with build_simulation_context(device=device, auto_add_lighting=True, add_ground_plane=True) as sim:
+        sim._app_control_on_stop_handle = None
+        InteractiveScene(_HeteroStaticSceneCfg(num_envs=4, env_spacing=2.0))
+        sim.reset()
+
+        def env_ids(name: str) -> list[int]:
+            paths = sim_utils.find_matching_prim_paths(f"/World/envs/env_.*/{name}")
+            return sorted(int(p.split("/env_")[1].split("/")[0]) for p in paths)
+
+        # sequential round-robin over two groups: group A -> envs (0, 2), group B -> envs (1, 3).
+        assert env_ids("Robot_A") == [0, 2]
+        assert env_ids("Robot_B") == [1, 3]
+        # The static table must follow its group exactly -- present in every group-A env.
+        assert env_ids("Table_A") == [0, 2]
 
 
 def test_scene_publishes_plan_via_replicate(monkeypatch: pytest.MonkeyPatch):

@@ -107,6 +107,67 @@ def test_usd_replicate_with_positions_and_mask(sim):
     assert any(op.GetOpType() == UsdGeom.XformOp.TypeTranslate for op in ops)
 
 
+def _local_translate(stage, path: str):
+    """Return a prim's authored local ``xformOp:translate`` as a tuple, or ``None``."""
+    prim = stage.GetPrimAtPath(path)
+    assert prim.IsValid(), f"{path} does not exist"
+    for op in UsdGeom.Xformable(prim).GetOrderedXformOps():
+        if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
+            return tuple(round(float(v), 4) for v in op.Get())
+    return None
+
+
+def test_usd_replicate_positions_skip_nested_destinations(sim):
+    """Env-origin positions author only env-root prims; nested assets keep their local transform."""
+    # A source asset carrying an intra-env offset that must survive replication.
+    sim_utils.create_prim("/World/template", "Xform")
+    sim_utils.create_prim("/World/template/Table", "Xform", translation=(0.5, 0.0, 0.0))
+
+    num_envs = 3
+    env_ids = torch.arange(num_envs, dtype=torch.long)
+    sim_utils.create_prim("/World/envs", "Xform")
+    for i in range(num_envs):
+        sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
+
+    origins = torch.tensor([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]])
+
+    usd_replicate(
+        sim_utils.get_current_stage(),
+        sources=["/World/template/Table"],
+        destinations=["/World/envs/env_{}/Table"],
+        env_ids=env_ids,
+        positions=origins,
+    )
+
+    stage = sim_utils.get_current_stage()
+    # The env-origin positions are NOT applied to the nested asset; its (0.5, 0, 0) offset is kept,
+    # so the env parent (positioned separately) supplies the origin instead of double-counting it.
+    for i in range(num_envs):
+        assert _local_translate(stage, f"/World/envs/env_{i}/Table") == (0.5, 0.0, 0.0)
+
+
+def test_usd_replicate_positions_author_env_root_destinations(sim):
+    """An env-root destination template still receives its per-env origin translate."""
+    sim_utils.create_prim("/World/envs", "Xform")
+    sim_utils.create_prim("/World/envs/env_0", "Xform")
+
+    num_envs = 3
+    env_ids = torch.arange(num_envs, dtype=torch.long)
+    origins = torch.tensor([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]])
+
+    usd_replicate(
+        sim_utils.get_current_stage(),
+        sources=["/World/envs/env_0"],
+        destinations=["/World/envs/env_{}"],
+        env_ids=env_ids,
+        positions=origins,
+    )
+
+    stage = sim_utils.get_current_stage()
+    for i in range(num_envs):
+        assert _local_translate(stage, f"/World/envs/env_{i}") == (origins[i, 0].item(), 0.0, 0.0)
+
+
 def test_usd_replicate_context_queue_and_replicate(sim):
     """UsdReplicateContext queues copy specs and applies them on replicate."""
     sim_utils.create_prim("/World/template", "Xform")
@@ -808,15 +869,31 @@ def test_resolve_clone_plan_source_merges_same_template_rows(sim):
     assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
 
 
-def test_resolve_clone_plan_source_allows_partial_coverage(sim):
-    """Matching rows do not need to cover every env in heterogeneous clone plans."""
-    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 intentionally has no Object.
+def test_resolve_clone_plan_source_partial_coverage_resolves(sim):
+    """Partial-env coverage resolves to the destination glob (heterogeneous scenes)."""
+    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
     plan = ClonePlan(
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
         clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
     )
 
+    # The destination glob below resolves only to the envs that received the asset; the
+    # source is taken from the first active matching row so the walk hits a real prim.
     resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
 
     assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
+
+
+def test_resolve_clone_plan_source_single_asset_subset_of_envs(sim):
+    """A single-variant asset cloned into only some envs resolves from its first active env."""
+    # One robot type present only in envs (1, 3) -- the heterogeneous Selector layout.
+    plan = ClonePlan(
+        sources=("/World/envs/env_1/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.tensor([[False, True, False, True]], device=sim.cfg.device),
+    )
+
+    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Robot")
+
+    assert resolved == ("/World/envs/env_1/Robot", "/World/envs/env_*/Robot", "")

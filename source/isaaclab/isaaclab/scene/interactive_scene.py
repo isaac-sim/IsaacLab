@@ -833,6 +833,18 @@ class InteractiveScene:
             for asset_name, asset_cfg in self.cfg.__dict__.items()
         )
 
+    def _clone_usd_for_static_assets(self) -> bool:
+        """Whether static (non-physics) assets should be USD-replicated across envs.
+
+        USD replication runs for every backend that needs per-env USD prims (PhysX/OVPhysX,
+        and Newton when a Kit app is present for rendering). For a pure-Newton replicated
+        scene without Kit, Newton replicates physics itself and per-env USD prims are skipped.
+        """
+        from isaaclab.utils.version import has_kit  # noqa: PLC0415
+
+        is_newton_replicated_scene = self.cfg.replicate_physics and self.physics_backend.startswith("newton")
+        return not is_newton_replicated_scene or has_kit()
+
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
         from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
@@ -939,7 +951,7 @@ class InteractiveScene:
 
                 self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
             elif isinstance(asset_cfg, AssetBaseCfg):
-                # manually spawn asset
+                # manually spawn asset (into its clone-plan source env only)
                 if asset_cfg.spawn is not None:
                     asset_cfg.spawn.func(
                         asset_cfg.spawn.spawn_path,
@@ -947,6 +959,14 @@ class InteractiveScene:
                         translation=asset_cfg.init_state.pos,
                         orientation=asset_cfg.init_state.rot,
                     )
+                    # Static assets carry no backend physics view, so unlike articulations and
+                    # rigid objects nothing else registers them for replication. Queue the USD
+                    # copy here so the clone plan spreads the source prim to every env the asset
+                    # belongs to -- without this, heterogeneous scenes (per-asset clone rows)
+                    # leave the asset present only in its source env. Skipped for the pure-Newton
+                    # path, which replicates physics itself and needs no per-env USD prims.
+                    if self.env_ns in asset_cfg.prim_path and self._clone_usd_for_static_assets():
+                        cloner.queue_usd_replication(asset_cfg)
                 # store xform prim view corresponding to this asset
                 # all prims in the scene are Xform prims (i.e. have a transform component)
                 self._extras[asset_name] = FrameView(asset_cfg.prim_path, device=self.device, stage=self.stage)

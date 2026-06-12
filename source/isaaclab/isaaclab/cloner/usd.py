@@ -61,6 +61,14 @@ class UsdReplicateContext:
             quaternions: Optional per-environment orientations in xyzw order. Authored only
                 for instance-root destination templates (for example, ``.../env_{}``).
         """
+        # ``positions``/``quaternions`` place an env *instance* at its grid origin, so they are
+        # only meaningful when ``destination`` targets the env-root prim itself (its ``"{}"`` env
+        # slot is the leaf path segment). A prim nested below the env root inherits that origin
+        # from its parent; re-authoring it here would double-apply the offset and clobber the
+        # prim's own intra-env transform. Drop them for sub-env destinations.
+        if (positions is not None or quaternions is not None) and "/" in destination.rpartition("{}")[2]:
+            positions = None
+            quaternions = None
         self._queue.append((source, destination, env_ids, positions, quaternions))
 
     def queue_mapping(

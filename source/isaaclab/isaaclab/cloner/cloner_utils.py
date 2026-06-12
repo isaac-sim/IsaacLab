@@ -104,9 +104,14 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
         Three-tuple of ``(source_asset_path, dest_glob_prefix, asset_suffix)``. The
         ``asset_suffix`` is the part of ``path_expr`` beyond the matching row's
         destination template (empty when ``path_expr`` equals the row's template).
-        Returns ``None`` when ``path_expr`` matches no row in the plan, letting
-        callers fall back to direct stage resolution (e.g. for sensor frames
-        mounted at the env root rather than under a planned asset).
+        Returns ``None`` when ``path_expr`` matches no row in the plan, or when the
+        matching rows have no active env, letting callers fall back to direct stage
+        resolution (e.g. for sensor frames mounted at the env root rather than under
+        a planned asset).
+
+        Partial-env coverage is supported: when the matching rows cover only a subset
+        of envs (an asset present in some envs but not others, as in heterogeneous
+        scenes), the returned destination glob resolves to just those envs.
 
     Raises:
         ValueError: When ``path_expr`` is owned by multiple distinct, equally
@@ -136,7 +141,16 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
     matching_template = next(iter(owning_templates))
     matching_rows = [index for template, _, index in candidates if template == matching_template]
     matching_suffix = next(suffix for template, suffix, _ in candidates if template == matching_template)
-    return plan.sources[matching_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
+    # Partial-env coverage (the union of matching rows misses some envs) is expected for
+    # heterogeneous scenes: an asset present in only a subset of envs (e.g. one robot type
+    # per task group). The destination glob below resolves only to the envs that actually
+    # received the asset, and callers (via the scene Selector) map those to global env ids.
+    # Resolution must still walk a source that exists on stage, so prefer the first matching
+    # row with at least one active env over an inactive fallback source.
+    active_rows = [index for index in matching_rows if plan.clone_mask[index].any()]
+    if not active_rows:
+        return None
+    return plan.sources[active_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
 
 
 def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[str, str, str, tuple[int, ...]]]:
