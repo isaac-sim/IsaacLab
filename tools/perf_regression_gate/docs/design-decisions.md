@@ -1,6 +1,6 @@
 # Additions & Design Decisions — Unified Gate vs. the Original POC
 
-**Status:** unified-POC branch; non-GPU pipeline validated end-to-end, RTX PRO 6000 run pending
+**Status:** unified-POC branch; non-GPU pipeline validated end-to-end, live GPU run on the RTX PRO 6000 fleet in progress
 **Scope:** what we changed on top of the original perf-gate POC, and *why*
 
 ---
@@ -25,6 +25,25 @@ What follows is the layer we added: a hardened threshold/storage model, run-prov
 checks, and the operational wiring needed to actually run on the NVIDIA fleet. Every
 behavioral change below is locked by a unit or property test under `tests/`.
 
+### Key changes at a glance
+
+1. **Rolling baseline window** — most-recent 20 samples (FIFO), not unbounded history.
+2. **Nearest-baseline fallback** — on a Warp/driver/code fingerprint change, resolve to the
+   closest existing baseline instead of starting an empty bucket that auto-passes regressions.
+3. **Anti-flap spread floor** — band is floored at ≥1.5% of the baseline so low-variance
+   tasks don't flip pass/fail on tiny noise.
+4. **Relative catastrophic floor** — 40% of a per-GPU `ref_fps`, instead of a fixed absolute.
+5. **Config-drift guard** — hard-fail if the run's actual config (task / num_envs / seed /
+   frames / physics) differs from what the gate launched.
+6. **Concurrency-safe baseline writes** — `fetch → rebase → push` retry so parallel PRs
+   can't lose samples on the shared baseline branch.
+7. **Trust gate (`MIN_WINDOW=5`)** — don't gate off fewer than 5 samples; seed-PASS until then.
+8. **Operational bring-up** — container-based CI on the RTX PRO 6000 fleet, warm JIT cache,
+   per-task PR statuses.
+
+Supporting changes: per-backend warm-up windows, an overrides file (pin/skip/tail-p99),
+and a Warp-1.12 shim-free environment. Detail and rationale for each below.
+
 ---
 
 ## 1. Threshold model — six hardening fixes
@@ -37,7 +56,7 @@ of MADs (median absolute deviations). That core idea is sound; the edges were no
 | 1 | `spread = MAD` | A freakishly stable task (or a small window) drives `MAD→0`. The band collapses onto the median, so trivial run-to-run noise trips a **false BLOCK**. | **Anti-flap spread floor:** `spread = max(1.4826·MAD, min_spread_pct%·center)`. The band can never be narrower than a small % of the center. |
 | 2 | MAD trusted from sample #1 | With 1–2 samples the MAD is meaningless, yet it set the band — a single early sample could gate every later PR. | **`MIN_WINDOW = 5`:** below five samples the run *seed-PASSes* (rubber-stamp). No calibrated reference ⇒ no gating. |
 | 3 | Cumulative history | The window grew without bound, so a genuine, intended speedup took longer and longer to become the new normal (old slow samples kept dragging the median). | **Capped FIFO rolling window** (`WINDOW_MAX = 20`): oldest sample evicted on append, so stats track *recent* behavior. |
-| 4 | Absolute hard floor | The catastrophic floor was an absolute FPS number that, given unit/scale drift, could be set so low it **never fired** (a dead guardrail). | **Relative hard floor:** `fps_floor_pct%` of a per-GPU calibrated `ref_fps` in `tasks.json`. Scales with the task; `0` disables it. |
+| 4 | Absolute hard floor | The catastrophic floor was an absolute FPS number that, given unit/scale drift, could be set so low it **never fired** (a dead guardrail). | **Relative hard floor:** `fps_floor_pct%` of a per-GPU calibrated `ref_fps` in `tasks.json` (default **40%**). Scales with the task; `0` disables it. |
 | 5 | Single push to baseline branch | Two PRs finishing at once both push the orphan branch; the second clobbers or rejects the first — a **lost sample**, silently. | **Concurrency-safe push:** bounded `fetch → rebase → push` retry loop in `baseline_manager`, so concurrent runs interleave instead of racing. |
 | 6 | Single-bucket baselines | One baseline per (gpu, task, backend). A Warp/driver bump changes the performance regime but reuses the same bucket, comparing apples to oranges. | **Fingerprint bucketing + fallback chain:** baselines bucket by `{backend_version}/{runtime_hash}/{code_fingerprint}`; loads relax outward (`a/b/c → a/b → a → flat`) so a bump still gates against the *nearest* history instead of disabling the gate. |
 
@@ -152,4 +171,6 @@ that runs on NVIDIA's self-hosted runners:
 - **Non-GPU end-to-end:** seed 12 samples → inject a 47% regression → gate **BLOCKs** every
   task with no baseline write → a healthy run **PASSes** and grows the window (12 → 13).
 - **pre-commit** (ruff + format + hooks) clean on all touched files.
-- **Live 4-task Warp-1.12 GPU sweep** is the remaining step, deferred to the RTX PRO 6000 run.
+- **Live GPU sweep** (4 tasks across 6 task/backend jobs, Warp 1.12) is running on the
+  RTX PRO 6000 fleet via the container path; first run is cache-cold (builds the Isaac Sim
+  CI image from source), warm runs reuse the Docker layer + JIT caches.
