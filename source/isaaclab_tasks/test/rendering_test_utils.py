@@ -905,6 +905,11 @@ def rendering_test_dexsuite_kuka(
         get_settings_manager().set_bool("/isaaclab/runtime/has_ovrtx_renderer", True)
 
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+    elif renderer == "isaacsim_rtx_renderer":
+        # PR#5979 followup: on release/3.0.0-beta2, the flag is set in launch_simulation() as a workaround to keep
+        # USD cloning enabled when using Isaac RTX renderer. The test has to set the flag manually here to match the
+        # behavior of training.
+        get_settings_manager().set_bool("/isaaclab/runtime/needs_kit", True)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
     # The underlying point sampling uses the global numpy/torch RNG, so marker positions shift
@@ -944,6 +949,8 @@ def rendering_test_dexsuite_kuka(
             # native code could probably complain about leaks and trigger segmentation fault.
             env = None
 
+        # Reset the flags to False to avoid affecting other tests.
         if renderer == "ovrtx_renderer":
-            # Reset the flag to False to avoid affecting other tests.
             get_settings_manager().set_bool("/isaaclab/runtime/has_ovrtx_renderer", False)
+        elif renderer == "isaacsim_rtx_renderer":
+            get_settings_manager().set_bool("/isaaclab/runtime/needs_kit", False)
