@@ -141,10 +141,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/jit-cache
-          key: perf-jit-warp1.12.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_regression_gate/tasks.json') }}
+          key: perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_regression_gate/tasks.json') }}
           restore-keys: |
-            perf-jit-warp1.12.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
-            perf-jit-warp1.12.0-${{ matrix.task_id }}-
+            perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
+            perf-jit-warp1.13.0-${{ matrix.task_id }}-
 
       # Pull (or build) the Isaac Sim CI image for this commit. On the amd64
       # RTX-6000 runner this builds a native amd64 image -- no arch hacks needed.
@@ -207,8 +207,9 @@ jobs:
                 set -e
                 cd /workspace/isaaclab
                 rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
-                # Pin the validated, shim-free stack (Warp 1.12 imports replicator natively).
-                ./isaaclab.sh -p -m pip install --quiet warp-lang==1.12.0 mujoco-warp==3.8.1 || true
+                # Use the Warp/Newton/mujoco-warp stack the installed IsaacLab pins
+                # (develop now requires warp-lang==1.13.0; do not force an older Warp,
+                # which breaks the task import chain).
                 ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
                   --task "'"${TASK_ID}"'" \
                   --num_envs ${{ matrix.num_envs }} \
@@ -335,7 +336,7 @@ jobs:
           # Environment fingerprint: {backend_version}/{runtime_hash}/{code_fingerprint}.
           # Loads relax outward through this chain; writes target the exact bucket.
           CODE_FP="$(git log -1 --format=%h -- scripts/benchmarks tools/perf_regression_gate/tasks.json)"
-          FINGERPRINT="warp1.12.0/${{ needs.config.outputs.isaacsim_image_tag || 'rt' }}/${CODE_FP}"
+          FINGERPRINT="warp1.13.0/${{ needs.config.outputs.isaacsim_image_tag || 'rt' }}/${CODE_FP}"
           echo "gpu_model=${GPU_MODEL}  fingerprint=${FINGERPRINT}  allow_update=${ALLOW_UPDATE}"
           python3 tools/perf_regression_gate/aggregate.py \
             --artifacts_dir artifacts/ \
