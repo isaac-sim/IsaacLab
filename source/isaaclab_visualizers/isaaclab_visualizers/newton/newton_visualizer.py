@@ -38,6 +38,21 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
+_OPENGL_CONTEXT_ERROR_NAMES = {
+    "ContextException",
+    "MissingFunctionException",
+    "NoSuchConfigException",
+    "NoSuchDisplayException",
+}
+
+_OPENGL_CONTEXT_ERROR_TOKENS = (
+    "Cannot connect to",
+    "Could not create GL context",
+    "No GL context",
+    "OpenGL",
+    "glCreateShader",
+)
+
 CONTACT_ARROW_PATH = "/contacts"
 """Viewer path used for native and synthesized contact arrows."""
 
@@ -49,6 +64,28 @@ CONTACT_ARROW_LENGTH = 0.1
 
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
+
+
+def _is_opengl_context_error(exc: BaseException) -> bool:
+    """Return whether *exc* looks like a pyglet/OpenGL context availability error."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        exc_type = type(current)
+        module = exc_type.__module__
+        name = exc_type.__name__
+        message = str(current)
+
+        if module.startswith("pyglet.") and name in _OPENGL_CONTEXT_ERROR_NAMES:
+            return True
+        if module.startswith("pyglet.") and any(token in message for token in _OPENGL_CONTEXT_ERROR_TOKENS):
+            return True
+        if "glCreateShader" in message and "OpenGL" in message:
+            return True
+
+        current = current.__cause__ or current.__context__
+    return False
 
 
 class NewtonViewerGL(ViewerGL):
@@ -492,13 +529,25 @@ class NewtonVisualizer(BaseVisualizer):
 
             pyglet.options["headless"] = True
 
-        self._viewer = NewtonViewerGL(
-            width=self.cfg.window_width,
-            height=self.cfg.window_height,
-            headless=runtime_headless,
-            metadata=metadata,
-            update_frequency=self.cfg.update_frequency,
-        )
+        try:
+            self._viewer = NewtonViewerGL(
+                width=self.cfg.window_width,
+                height=self.cfg.window_height,
+                headless=runtime_headless,
+                metadata=metadata,
+                update_frequency=self.cfg.update_frequency,
+            )
+        except Exception as exc:
+            if not _is_opengl_context_error(exc):
+                raise
+            self._viewer = None
+            self._headless_no_viewer = True
+            logger.warning(
+                "[NewtonVisualizer] Newton OpenGL viewer is unavailable (%s: %s). "
+                "Continuing without an interactive Newton viewer.",
+                type(exc).__name__,
+                exc,
+            )
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
@@ -553,7 +602,8 @@ class NewtonVisualizer(BaseVisualizer):
                 ("tiled_cam_view", self.cfg.tiled_cam_view),
                 ("tiled_cam_num", self.cfg.tiled_cam_num),
                 ("num_visualized_envs", num_visualized_envs),
-                ("headless", self.cfg.headless),
+                ("headless", runtime_headless),
+                ("viewer", "disabled" if self._headless_no_viewer else "opengl"),
                 ("show_particles", self.cfg.show_particles),
                 ("particle_color", self.cfg.particle_color),
             ],
@@ -760,6 +810,12 @@ class NewtonVisualizer(BaseVisualizer):
     def _setup_camera_sensor_view(self, num_envs: int) -> None:
         """Resolve or create the camera sensor used by non-interactive image views."""
         if not self._uses_camera_sensor_view():
+            return
+        if self._headless_no_viewer and self._viewer is None:
+            logger.warning(
+                "[NewtonVisualizer] Tiled camera view requested, but the Newton OpenGL viewer is unavailable. "
+                "Skipping tiled camera setup."
+            )
             return
         env_ids = resolve_tiled_env_indices(
             num_envs,

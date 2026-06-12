@@ -9,7 +9,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import numpy as np
+import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
@@ -109,6 +111,67 @@ def test_newton_visualizer_cfg_exposes_particle_options():
 
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
+
+
+class _PygletMissingFunctionException(RuntimeError):
+    pass
+
+
+_PygletMissingFunctionException.__module__ = "pyglet.gl.lib"
+
+
+class _FakeSceneDataProvider:
+    num_envs = 1
+
+
+def _patch_newton_manager(monkeypatch):
+    from isaaclab_newton.physics import NewtonManager
+
+    monkeypatch.setattr(NewtonManager, "get_model", staticmethod(lambda: None))
+    monkeypatch.setattr(NewtonManager, "get_state", staticmethod(lambda *_args, **_kwargs: None))
+
+
+def test_newton_visualizer_identifies_pyglet_missing_gl_function():
+    exc = RuntimeError("viewer failed")
+    exc.__cause__ = _PygletMissingFunctionException(
+        "glCreateShader is not exported by the available OpenGL driver. OpenGL 2.0 is required."
+    )
+
+    assert newton_visualizer._is_opengl_context_error(exc)
+
+
+def test_newton_visualizer_falls_back_when_opengl_viewer_is_unavailable(monkeypatch, caplog):
+    _patch_newton_manager(monkeypatch)
+
+    def _raise_missing_gl(*_args, **_kwargs):
+        raise _PygletMissingFunctionException(
+            "glCreateShader is not exported by the available OpenGL driver. OpenGL 2.0 is required."
+        )
+
+    monkeypatch.setattr(newton_visualizer, "NewtonViewerGL", _raise_missing_gl)
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+
+    with caplog.at_level("WARNING"):
+        visualizer.initialize(_FakeSceneDataProvider())
+
+    assert visualizer.is_initialized
+    assert visualizer._viewer is None
+    assert visualizer._headless_no_viewer is True
+    assert visualizer.is_running()
+    assert "Continuing without an interactive Newton viewer" in caplog.text
+
+
+def test_newton_visualizer_reraises_non_opengl_viewer_errors(monkeypatch):
+    _patch_newton_manager(monkeypatch)
+
+    def _raise_construction_bug(*_args, **_kwargs):
+        raise RuntimeError("construction bug")
+
+    monkeypatch.setattr(newton_visualizer, "NewtonViewerGL", _raise_construction_bug)
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="construction bug"):
+        visualizer.initialize(_FakeSceneDataProvider())
 
 
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
