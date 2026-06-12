@@ -843,7 +843,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        # The body-frame com pose and the finite-differenced joint acceleration are not covered by the
+        # shared reset helpers, so invalidate them here (always, mirroring the joint-velocity writer).
+        self._data._joint_acc.timestamp = -1.0
+        self._data._body_com_pose_b.timestamp = -1.0
+        # Let the data class handle the invalidation of the remaining pose- and velocity-dependent properties.
         if not skip_forward:
             self._data.reset_pose()
             self._data.reset_velocity()
@@ -887,7 +891,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        # The body-frame com pose and the finite-differenced joint acceleration are not covered by the
+        # shared reset helpers, so invalidate them here (always, mirroring the joint-velocity writer).
+        self._data._joint_acc.timestamp = -1.0
+        self._data._body_com_pose_b.timestamp = -1.0
+        # Let the data class handle the invalidation of the remaining pose- and velocity-dependent properties.
         if not skip_forward:
             self._data.reset_pose()
             self._data.reset_velocity()
