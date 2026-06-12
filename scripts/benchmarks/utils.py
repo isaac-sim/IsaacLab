@@ -136,6 +136,25 @@ def get_preset_string(hydra_args: list[str]) -> str:
     return os.environ.get("ISAACLAB_BENCHMARK_PRESET", "") or "default"
 
 
+def get_physics_string(hydra_args: list[str]) -> str:
+    """Extract the selected physics backend from CLI hydra args or an environment variable.
+
+    The ``physics=`` Hydra group selects the simulation backend (e.g. ``physx``,
+    ``newton_mjwarp``); unlike rendering/observation modes it is a distinct group
+    from ``presets=``, so it is recorded separately for run provenance.
+
+    Checks (in order):
+        1. ``physics=...`` in *hydra_args* (e.g. ``physics=physx``)
+        2. ``ISAACLAB_BENCHMARK_PHYSICS`` environment variable
+        3. Falls back to ``"default"`` (the task's configured backend)
+    """
+    for arg in hydra_args:
+        if arg.startswith("physics="):
+            value = arg.split("=", 1)[1]
+            return value if value else "default"
+    return os.environ.get("ISAACLAB_BENCHMARK_PHYSICS", "") or "default"
+
+
 def log_rl_policy_rewards(benchmark: BaseIsaacLabBenchmark, value: list):
     measurement = ListMeasurement(name="Rewards", value=value)
     benchmark.add_measurement("train", measurement=measurement)

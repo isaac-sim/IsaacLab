@@ -1,0 +1,7 @@
+# Generated at runtime — not source
+artifacts/
+local_baselines/
+__pycache__/
+*.pyc
+.pytest_cache/
+test-reports-*.xml

@@ -1,0 +1,25 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# copy-pr-bot configuration for NVIDIA self-hosted GPU runners.
+#
+# NVIDIA's self-hosted runners do NOT run workflows triggered by `pull_request`
+# events (a ProdSec requirement so only NVIDIA employees can trigger GPU jobs).
+# Instead, copy-pr-bot mirrors a vetted PR's HEAD commit onto a
+# `pull-request/<PR_NUMBER>` branch in this repository, and workflows trigger on
+# `push` to that branch (see .github/workflows/perf-regression-gate.yaml). Because
+# the mirrored commit SHA matches the PR's HEAD SHA, the resulting check statuses
+# are reported back onto the originating pull request.
+#
+# IMPORTANT: this file only takes effect once it is committed to the repo's
+# DEFAULT branch (it is ignored while sitting on a PR), and the copy-pr-bot
+# GitHub app must be installed on the org/repo. See the runner docs:
+#   https://docs.gha-runners.nvidia.com/  (Pull Request Testing)
+enabled: true
+
+# Trusted users' PRs are mirrored automatically when marked ready for review.
+# Untrusted PRs require a vetter to comment `/ok to test <SHA>` first.
+auto_sync_draft: false
+auto_sync_ready: true

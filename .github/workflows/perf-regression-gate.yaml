@@ -1,0 +1,347 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Unified Performance Regression Gate
+#
+# Runs a matrix of benchmark tasks (from tools/perf_regression_gate/tasks.json) in
+# the Isaac Sim CI container on a self-hosted GPU runner, compares each result to a
+# rolling median+MAD baseline (orphan branch `perf-baselines`), and posts a verdict
+# table + per-task commit statuses. Non-blocking by default (gate_config.json).
+#
+# Pipeline:
+#   config     -> load isaacsim image (config.yaml) + build bench matrix     (ubuntu-latest)
+#   unit-tests -> oracle/baseline/build/aggregate unit tests, no GPU          (ubuntu-latest)
+#   bench      -> per-task/backend: pull CI image, run benchmark in Docker,
+#                 build_bench_result.py                                       (self-hosted gpu)
+#   aggregate  -> download artifacts, run oracle, update + push baselines     (self-hosted gpu)
+#
+# Trigger model: NVIDIA's shared fleet does not run `pull_request`-triggered jobs
+# (ProdSec). copy-pr-bot (.github/copy-pr-bot.yaml) mirrors a vetted PR onto a
+# `pull-request/<N>` branch; we trigger on `push` to that branch. The mirrored SHA
+# equals the PR HEAD, so commit statuses surface back on the originating PR.
+#
+# Runner group: defaults to the generic `[self-hosted, gpu]` labels (as build.yaml).
+# Override via repo variable PERF_GATE_RUNS_ON to pin the amd64 RTX-6000 group once
+# the enterprise-runner-configuration access PR is merged.
+name: Performance Regression Gate
+
+on:
+  push:
+    branches:
+      - "pull-request/[0-9]+"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write       # push baseline updates to the perf-baselines branch
+  pull-requests: read
+  statuses: write       # post per-task verdicts back onto the PR head commit
+
+env:
+  BASELINE_BRANCH: perf-baselines
+  CI_IMAGE_TAG: >-
+    isaac-lab-ci:${{ github.ref_name }}-${{ github.sha }}
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Load shared image config + build the bench matrix from tasks.json.
+  # ---------------------------------------------------------------------------
+  config:
+    name: Load Config + Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      bench_matrix: ${{ steps.build_matrix.outputs.bench_matrix }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - id: load
+        run: |
+          set -euo pipefail
+          f=.github/workflows/config.yaml
+          echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+          echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+      - id: build_matrix
+        run: |
+          set -euo pipefail
+          MATRIX=$(python3 tools/perf_regression_gate/tasks_to_ci_matrix.py)
+          echo "bench_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
+          echo "Matrix: $MATRIX"
+
+  # ---------------------------------------------------------------------------
+  # Verdict-logic unit tests (pure stdlib + pytest; no GPU / no Isaac Sim).
+  # Fast signal on the oracle/baseline/drift logic before scheduling GPU jobs.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Gate Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: python3 -m pip install --user pytest
+      - name: Run perf-gate unit tests
+        working-directory: tools/perf_regression_gate
+        run: python3 -m pytest
+
+  # ---------------------------------------------------------------------------
+  # Per-task/backend benchmark jobs.
+  # ---------------------------------------------------------------------------
+  bench:
+    name: Bench / ${{ matrix.task_id }} / ${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}
+    needs: [config]
+    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["self-hosted","gpu"]') }}
+    continue-on-error: true   # advisory during bring-up; gate_config.json controls blocking
+    timeout-minutes: ${{ matrix.job_timeout_minutes }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.config.outputs.bench_matrix) }}
+    steps:
+      # Recover PR metadata from the mirrored commit so statuses associate with the PR.
+      - name: Get PR info
+        if: github.event_name == 'push'
+        continue-on-error: true
+        uses: nv-gha-runners/get-pr-info@090577647b8ddc4e06e809e264f7881650ecdccf  # main
+
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: true
+
+      - name: Setup proxy cache
+        continue-on-error: true
+        uses: nv-gha-runners/setup-proxy-cache@14229018fe157c83e03c008f27d183d8e99bc67c  # main
+
+      # Warm JIT-cache sidecar: restore the Warp/CUDA compile cache for this
+      # task/backend so repeat runs skip cold Newton/Warp compilation. Saved
+      # automatically on job end; purely a speed optimization (never affects the verdict).
+      - name: Restore warm JIT cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/jit-cache
+          key: perf-jit-warp1.12.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_regression_gate/tasks.json') }}
+          restore-keys: |
+            perf-jit-warp1.12.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
+            perf-jit-warp1.12.0-${{ matrix.task_id }}-
+
+      # Pull (or build) the Isaac Sim CI image for this commit. On the amd64
+      # RTX-6000 runner this builds a native amd64 image -- no arch hacks needed.
+      - name: Pull CI image
+        uses: ./.github/actions/ecr-build-push-pull
+        with:
+          image-tag: ${{ env.CI_IMAGE_TAG }}
+          isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+          isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+          dockerfile-path: docker/Dockerfile.base
+          cache-tag: cache-base
+
+      - name: Run benchmark in Docker
+        id: bench
+        run: |
+          set -uo pipefail
+          TASK_ID="${{ matrix.task_id }}"
+          PHYSICS_BACKEND="${{ matrix.physics_backend }}"
+          RENDER_BACKEND="${{ matrix.render_backend }}"
+          if [ -n "${RENDER_BACKEND}" ]; then
+            BACKEND_KEY="${PHYSICS_BACKEND}_${RENDER_BACKEND}"
+          else
+            BACKEND_KEY="${PHYSICS_BACKEND}"
+          fi
+          ARTIFACT_DIR="$(pwd)/artifacts/${TASK_ID}/${BACKEND_KEY}"
+          mkdir -p "${ARTIFACT_DIR}"
+          mkdir -p "${{ github.workspace }}/jit-cache/warp" "${{ github.workspace }}/jit-cache/nv"
+          LOG_FILE="${ARTIFACT_DIR}/benchmark.log"
+
+          # Assemble the benchmark CLI exactly as local_runner does, so the run's
+          # reported config matches build_bench_result's drift guard.
+          EXTRA_ARGS=""
+          [ "${{ matrix.enable_cameras }}" = "true" ] && EXTRA_ARGS="${EXTRA_ARGS} --enable_cameras"
+          [ -n "${{ matrix.seed }}" ] && EXTRA_ARGS="${EXTRA_ARGS} --seed ${{ matrix.seed }}"
+          HYDRA="physics=${{ matrix.physics }}"
+          [ -n "${{ matrix.render_preset }}" ] && HYDRA="${HYDRA} presets=${{ matrix.render_preset }}"
+          if [ "${{ matrix.camera_width }}" -gt 0 ]; then
+            HYDRA="${HYDRA} env.tiled_camera.width=${{ matrix.camera_width }} env.tiled_camera.height=${{ matrix.camera_height }}"
+          fi
+
+          SAFE_TASK_ID="${TASK_ID//[^a-zA-Z0-9]/-}"
+          SAFE_BACKEND="${BACKEND_KEY//[^a-zA-Z0-9]/-}"
+
+          run_attempt () {
+            local name="$1"
+            docker rm -f "${name}" 2>/dev/null || true
+            docker run -d --name "${name}" \
+              --init --stop-timeout 10 \
+              --entrypoint bash --gpus all --network=host \
+              --security-opt=no-new-privileges:true \
+              --ulimit nofile=65536:65536 --ulimit nproc=4096:4096 \
+              -e OMNI_KIT_ACCEPT_EULA=YES -e ACCEPT_EULA=Y \
+              -e OMNI_KIT_DISABLE_CUP=1 -e ISAAC_SIM_HEADLESS=1 -e PYTHONUNBUFFERED=1 \
+              -e WARP_CACHE_PATH=/tmp/jit-cache/warp -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+              -e BENCH_EXTRA_ARGS="${EXTRA_ARGS}" -e BENCH_HYDRA="${HYDRA}" \
+              -v "${ARTIFACT_DIR}:/tmp/bench_out" \
+              -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
+              "${{ env.CI_IMAGE_TAG }}" \
+              -c '
+                set -e
+                cd /workspace/isaaclab
+                rm -f _isaac_sim && ln -s /isaac-sim _isaac_sim
+                # Pin the validated, shim-free stack (Warp 1.12 imports replicator natively).
+                ./isaaclab.sh -p -m pip install --quiet warp-lang==1.12.0 mujoco-warp==3.8.1 || true
+                ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
+                  --task "'"${TASK_ID}"'" \
+                  --num_envs ${{ matrix.num_envs }} \
+                  --num_frames ${{ matrix.num_frames }} \
+                  --benchmark_backend json \
+                  --output_path /tmp/bench_out \
+                  ${BENCH_EXTRA_ARGS} ${BENCH_HYDRA}
+              '
+            docker logs -f "${name}" 2>&1 | tee -a "${LOG_FILE}" &
+            local logs_pid=$!
+            local code=1
+            if docker_exit=$(timeout ${{ matrix.bench_timeout_s }} docker wait "${name}" 2>/dev/null); then
+              code="${docker_exit:-1}"
+            else
+              echo "::warning::Benchmark ${TASK_ID}/${BACKEND_KEY} timed out after ${{ matrix.bench_timeout_s }}s"
+            fi
+            kill "${logs_pid}" 2>/dev/null || true; wait "${logs_pid}" 2>/dev/null || true
+            docker kill "${name}" 2>/dev/null || true
+            docker rm "${name}" 2>/dev/null || true
+            return "${code}"
+          }
+
+          START=$(date +%s)
+          WAS_RETRIED=false
+          EXIT=0
+          run_attempt "perf-${SAFE_TASK_ID}-${SAFE_BACKEND}-${{ github.run_id }}" || EXIT=$?
+          if [ "${EXIT}" != "0" ]; then
+            echo "::notice::First attempt failed (exit=${EXIT}); retrying once"
+            rm -f "${ARTIFACT_DIR}/perf_regression_gate_info.json"
+            WAS_RETRIED=true
+            EXIT=0
+            run_attempt "perf-${SAFE_TASK_ID}-${SAFE_BACKEND}-${{ github.run_id }}-retry" || EXIT=$?
+          fi
+          WALL=$(( $(date +%s) - START ))
+
+          echo "exit_code=${EXIT}" >> "$GITHUB_OUTPUT"
+          echo "wall_time_s=${WALL}" >> "$GITHUB_OUTPUT"
+          echo "was_retried=${WAS_RETRIED}" >> "$GITHUB_OUTPUT"
+          echo "artifact_dir=${ARTIFACT_DIR}" >> "$GITHUB_OUTPUT"
+
+      - name: Build bench_result
+        if: always()
+        run: |
+          set -uo pipefail
+          EXTRA_FLAGS=""
+          if [ "${{ steps.bench.outputs.was_retried }}" = "true" ]; then
+            EXTRA_FLAGS="--was_retried --attempt 2"
+          fi
+          python3 tools/perf_regression_gate/build_bench_result.py \
+            --task_id "${{ matrix.task_id }}" \
+            --physics_backend "${{ matrix.physics_backend }}" \
+            --render_backend "${{ matrix.render_backend }}" \
+            --artifact_dir "${{ steps.bench.outputs.artifact_dir }}" \
+            --exit_code "${{ steps.bench.outputs.exit_code || '1' }}" \
+            --wall_time_s "${{ steps.bench.outputs.wall_time_s || '0' }}" \
+            --timeout_s "${{ matrix.bench_timeout_s }}" \
+            --log_file "${{ steps.bench.outputs.artifact_dir }}/benchmark.log" \
+            ${EXTRA_FLAGS}
+
+      - name: Upload bench artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-${{ matrix.task_id }}-${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}-${{ github.run_id }}
+          path: artifacts/${{ matrix.task_id }}/**
+          retention-days: 7
+          if-no-files-found: warn
+
+      # Per-task verdict on the PR head commit (one context per task = independent check).
+      - name: Report per-task status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ok = '${{ steps.bench.outcome }}' === 'success' && '${{ steps.bench.outputs.exit_code }}' === '0';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: ok ? 'success' : 'failure',
+              context: `perf-gate (${{ matrix.task_id }}/${{ matrix.physics_backend }})`,
+              description: ok ? 'benchmark completed' : 'benchmark failed — see artifact / aggregate',
+            });
+
+  # ---------------------------------------------------------------------------
+  # Aggregate: oracle verdicts, baseline update + push, step summary, status.
+  # ---------------------------------------------------------------------------
+  aggregate:
+    name: Aggregate + Verdict
+    needs: [bench]
+    if: always()
+    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["self-hosted","gpu"]') }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # Create a local baseline branch so baseline_manager's worktree can commit + push it.
+      - name: Fetch baselines branch
+        run: |
+          git fetch origin "${BASELINE_BRANCH}:${BASELINE_BRANCH}" || \
+            echo "::warning::Baseline branch '${BASELINE_BRANCH}' not found; gate runs as a seed run (no comparison)"
+
+      - name: Download bench artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bench-*-${{ github.run_id }}
+          path: artifacts/
+          merge-multiple: false
+
+      - name: Run aggregate oracle
+        id: aggregate
+        run: |
+          set -uo pipefail
+          # Baselines auto-update only from trusted integration branches (the mirrored
+          # PR ref encodes the target via the workflow run context).
+          ALLOW_UPDATE="false"
+          if [[ "${{ github.ref }}" == "refs/heads/develop" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            ALLOW_UPDATE="true"
+          fi
+          # GPU model drives the baseline bucket + relative floor lookup.
+          GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs || echo unknown-gpu)"
+          # Environment fingerprint: {backend_version}/{runtime_hash}/{code_fingerprint}.
+          # Loads relax outward through this chain; writes target the exact bucket.
+          CODE_FP="$(git log -1 --format=%h -- scripts/benchmarks tools/perf_regression_gate/tasks.json)"
+          FINGERPRINT="warp1.12.0/${{ needs.config.outputs.isaacsim_image_tag || 'rt' }}/${CODE_FP}"
+          echo "gpu_model=${GPU_MODEL}  fingerprint=${FINGERPRINT}  allow_update=${ALLOW_UPDATE}"
+          python3 tools/perf_regression_gate/aggregate.py \
+            --artifacts_dir artifacts/ \
+            --gpu_model "${GPU_MODEL}" \
+            --gate_config tools/perf_regression_gate/gate_config.json \
+            --baseline_branch "${BASELINE_BRANCH}" \
+            --fingerprint "${FINGERPRINT}" \
+            --allow_baseline_update "${ALLOW_UPDATE}" \
+            --summary_file "${GITHUB_STEP_SUMMARY}"
+
+      - name: Report gate status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const ok = '${{ steps.aggregate.outcome }}' === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.sha,
+              state: ok ? 'success' : 'failure',
+              context: 'perf-regression-gate',
+              description: ok ? 'No blocking perf regression' : 'Perf gate BLOCK / hard failure — see summary',
+            });

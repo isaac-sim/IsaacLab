@@ -1,0 +1,63 @@
+{
+  "_notes": [
+    "Single source of truth for the perf gate (task matrix + launch config + calibration).",
+    "Resolution order per field: defaults < task entry < backend entry.",
+    "excluded_frames is the warm-up exclusion (inclusive 0-based ranges); it differs by",
+    "backend: PhysX is steady after ~2 frames ([[0,1]]) while Newton/MJWarp needs ~5 for",
+    "JIT ([[0,4]]) and the RTX camera path needs ~60 ([[0,59]]).",
+    "ref_fps is the per-GPU calibrated effective FPS (post-warm-up, 300f). It seeds the",
+    "rolling window and backs the relative catastrophic floor (fps_floor_pct% of ref_fps).",
+    "Calibrated on NVIDIA L40S; recalibrate ref_fps when moving to RTX 6000."
+  ],
+  "defaults": {
+    "type": "benchmark",
+    "runs_on": "gpu-rtx6000",
+    "preset": "default",
+    "seed": 42,
+    "num_envs": 512,
+    "num_frames": 300,
+    "excluded_frames": [[0, 1]],
+    "camera_resolution": null,
+    "timeout_minutes": 10,
+    "tags": ["always"],
+    "fps_floor_pct": 40.0
+  },
+  "tasks": [
+    {
+      "task_id": "Isaac-Cartpole",
+      "num_envs": 4096,
+      "backends": [
+        {"physics": "physx", "excluded_frames": [[0, 1]], "ref_fps": {"NVIDIA L40S": 276401.7}},
+        {"physics": "newton", "excluded_frames": [[0, 4]], "ref_fps": {"NVIDIA L40S": 358461.3}}
+      ]
+    },
+    {
+      "task_id": "Isaac-Factory-GearMesh-Direct-v0",
+      "num_envs": 512,
+      "timeout_minutes": 15,
+      "backends": [
+        {"physics": "physx", "excluded_frames": [[0, 1]], "ref_fps": {"NVIDIA L40S": 880.5}}
+      ]
+    },
+    {
+      "task_id": "Isaac-Velocity-Flat-G1-v0",
+      "num_envs": 2048,
+      "timeout_minutes": 12,
+      "backends": [
+        {"physics": "physx", "excluded_frames": [[0, 1]], "ref_fps": {"NVIDIA L40S": 19213.7}},
+        {"physics": "newton", "excluded_frames": [[0, 4]], "ref_fps": {"NVIDIA L40S": 69660.2}}
+      ]
+    },
+    {
+      "task_id": "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+      "num_envs": 128,
+      "timeout_minutes": 20,
+      "tags": ["camera"],
+      "enable_cameras": true,
+      "camera_resolution": [64, 64],
+      "backends": [
+        {"physics": "physx", "render": "isaacsim_rtx_renderer", "excluded_frames": [[0, 59]], "ref_fps": {"NVIDIA L40S": 1024.6}}
+      ]
+    }
+  ]
+}
