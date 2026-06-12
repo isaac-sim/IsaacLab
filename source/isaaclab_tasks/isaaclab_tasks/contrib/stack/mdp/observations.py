@@ -292,7 +292,12 @@ def gripper_pos(
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
-            assert len(gripper_joint_ids) == 2, "Observation gripper_pos only support parallel gripper for now"
+            if len(gripper_joint_ids) == 1:
+                # single-jaw gripper (e.g. SO-101)
+                return robot.data.joint_pos.torch[:, gripper_joint_ids[0]].clone().unsqueeze(1)
+            assert len(gripper_joint_ids) == 2, (
+                "Observation gripper_pos only supports single- or parallel-jaw (2-joint) grippers for now"
+            )
             finger_joint_1 = robot.data.joint_pos.torch[:, gripper_joint_ids[0]].clone().unsqueeze(1)
             finger_joint_2 = -1 * robot.data.joint_pos.torch[:, gripper_joint_ids[1]].clone().unsqueeze(1)
             return torch.cat((finger_joint_1, finger_joint_2), dim=1)
@@ -326,24 +331,17 @@ def object_grasped(
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
-            assert len(gripper_joint_ids) == 2, "Observations only support parallel gripper for now"
+            assert len(gripper_joint_ids) >= 1, "Observations require at least one gripper joint"
 
-            grasped = torch.logical_and(
-                pose_diff < diff_threshold,
-                torch.abs(
-                    robot.data.joint_pos.torch[:, gripper_joint_ids[0]]
-                    - torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
+            # Grasped: the end-effector is close to the object and every gripper joint has moved
+            # away from the open position (i.e. the jaws have closed on the object).
+            open_val = torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
+            grasped = pose_diff < diff_threshold
+            for joint_id in gripper_joint_ids:
+                grasped = torch.logical_and(
+                    grasped,
+                    torch.abs(robot.data.joint_pos.torch[:, joint_id] - open_val) > env.cfg.gripper_threshold,
                 )
-                > env.cfg.gripper_threshold,
-            )
-            grasped = torch.logical_and(
-                grasped,
-                torch.abs(
-                    robot.data.joint_pos.torch[:, gripper_joint_ids[1]]
-                    - torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
-                )
-                > env.cfg.gripper_threshold,
-            )
 
     return grasped
 
@@ -378,25 +376,19 @@ def object_stacked(
     else:
         if hasattr(env.cfg, "gripper_joint_names"):
             gripper_joint_ids, _ = robot.find_joints(env.cfg.gripper_joint_names)
-            assert len(gripper_joint_ids) == 2, "Observations only support parallel gripper for now"
-            stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos.torch[:, gripper_joint_ids[0]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=1e-4,
-                    rtol=1e-4,
-                ),
-                stacked,
-            )
-            stacked = torch.logical_and(
-                torch.isclose(
-                    robot.data.joint_pos.torch[:, gripper_joint_ids[1]],
-                    torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device),
-                    atol=1e-4,
-                    rtol=1e-4,
-                ),
-                stacked,
-            )
+            assert len(gripper_joint_ids) >= 1, "Observations require at least one gripper joint"
+            # Stacked also requires the gripper to be released (every jaw back at the open value).
+            open_val = torch.tensor(env.cfg.gripper_open_val, dtype=torch.float32).to(env.device)
+            for joint_id in gripper_joint_ids:
+                stacked = torch.logical_and(
+                    torch.isclose(
+                        robot.data.joint_pos.torch[:, joint_id],
+                        open_val,
+                        atol=1e-4,
+                        rtol=1e-4,
+                    ),
+                    stacked,
+                )
         else:
             raise ValueError("No gripper_joint_names found in environment config")
 
