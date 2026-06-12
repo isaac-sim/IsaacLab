@@ -749,8 +749,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             ],
             device=self.device,
         )
-        # Invalidate dependent timestamps. The link velocities were just written, so they must not be
-        # invalidated. ``reset_velocity`` already triggers the simulation-side FK invalidation.
+        # Invalidate dependent timestamps.
         if not skip_forward:
             self.data.reset_velocity(env_ids=env_ids, from_com=False)
 
