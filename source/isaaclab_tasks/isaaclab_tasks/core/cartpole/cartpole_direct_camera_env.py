@@ -21,12 +21,6 @@ from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-SIMPLE_SHADING_TYPES = {
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
-}
-
 
 class CartpoleCameraEnv(CartpoleEnv):
     """Cartpole environment driven by camera observations.

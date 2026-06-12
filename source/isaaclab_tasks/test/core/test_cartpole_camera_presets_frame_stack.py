@@ -71,10 +71,11 @@ class TestFrameStackTruthTable:
         assert _policy_default(cfg) == 1
 
     def test_newton_with_default_renderer(self):
-        """Newton physics + RTX renderer — RTX provides temporal information."""
+        """Newton + RTX + default AOV (rgb) — rgb gets DLSS temporal info, so resolves to 1 (non-rgb AOVs → 2)."""
         cfg = _resolve("newton_mjwarp")
         assert isinstance(cfg.sim.physics, NewtonCfg)
         assert isinstance(cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+        assert cfg.tiled_camera.data_types == ["rgb"]
         assert _policy_default(cfg) == 1
 
     def test_newton_with_warp_renderer_stacks(self):
@@ -170,6 +171,8 @@ class TestEnvConstructionEndToEnd:
             (frozenset(), -1, 1, 3),
             # Newton + Warp: policy resolves to 2 → buffer active → 6 channels.
             (frozenset({"newton_mjwarp", "newton_renderer"}), -1, 2, 6),
+            # Newton + RTX + depth (non-rgb AOV): policy resolves to 2 → buffer active → 1ch × 2 = 2 channels.
+            (frozenset({"newton_mjwarp", "depth"}), -1, 2, 2),
             # User override (env.frame_stack=4) on Newton+Warp: policy is skipped → 12 channels.
             (frozenset({"newton_mjwarp", "newton_renderer"}), 4, 4, 12),
             # ``frame_stack=0`` is a synonym for "no stacking" → normalized to 1.
