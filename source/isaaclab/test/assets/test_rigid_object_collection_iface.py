@@ -346,7 +346,20 @@ def collection_iface(request):
     num_instances = request.getfixturevalue("num_instances")
     num_bodies = request.getfixturevalue("num_bodies")
     device = request.getfixturevalue("device")
-    return get_rigid_object_collection(backend, num_instances, num_bodies, device)
+    result = get_rigid_object_collection(backend, num_instances, num_bodies, device)
+    if backend != "newton":
+        yield result
+        return
+    # The Newton collection's ``body_link_pose_w`` triggers ``_ensure_fk_fresh()`` ->
+    # ``NewtonManager.forward()``, which runs ``eval_fk`` against a live simulation state. The mocked
+    # interface has no such state (``_state_0`` is ``None``), so stub ``forward()`` to a no-op for the
+    # test body; the mock view supplies the cached pose data directly.
+    from unittest.mock import patch
+
+    from isaaclab_newton.physics import NewtonManager
+
+    with patch.object(NewtonManager, "forward"):
+        yield result
 
 
 # ---------------------------------------------------------------------------
