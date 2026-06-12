@@ -14,7 +14,7 @@ This script demonstrates the visualizer tiled camera panel.
 
     # Newton visualizer tiled camera panel
     ./isaaclab.sh -p scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
-        --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 --num_envs 25 --viz newton
+        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
 """
 
@@ -36,7 +36,7 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
-NEWTON_DEFAULT_TASK = "Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0"
+NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
 SUPPORTED_TILED_VISUALIZERS = {"kit", "newton"}
 UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
 

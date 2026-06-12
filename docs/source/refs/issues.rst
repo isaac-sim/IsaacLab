@@ -104,7 +104,7 @@ toe push-rods on the Agility Digit -- do not currently run correctly on the
 
 * ``Isaac-Velocity-Flat-Digit`` / ``Isaac-Velocity-Flat-Digit-Play``
 * ``Isaac-Velocity-Rough-Digit`` / ``Isaac-Velocity-Rough-Digit-Play``
-* ``Isaac-Tracking-LocoManip-Digit-v0`` / ``Isaac-Tracking-LocoManip-Digit-Play-v0``
+* ``IsaacContrib-Tracking-LocoManip-Digit`` / ``IsaacContrib-Tracking-LocoManip-Digit-Play``
 
 The root cause sits inside Newton's :class:`~newton.selection.ArticulationView`. When
 it builds its per-link axis it walks each joint in the articulation's joint range and

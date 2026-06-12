@@ -54,7 +54,7 @@ fast:
       episode_length: 250
     upper_thresholds:
       duration: 600
-  rsl_rl:Isaac-Velocity-Rough-AnymalC-v0:
+  rsl_rl:IsaacContrib-Velocity-Rough-AnymalC:
     max_iterations: 300
     lower_thresholds:
       reward: 7
@@ -75,7 +75,7 @@ fast:
       episode_length: 150
     upper_thresholds:
       duration: 1400 #1200
-  rsl_rl:Isaac-Reach-OpenArm-v0:
+  rsl_rl:IsaacContrib-Reach-OpenArm:
     max_iterations: 200
     lower_thresholds:
       reward: 0.15
@@ -188,28 +188,28 @@ full:
     upper_thresholds:
       duration: 1500
   # Manipulation tasks - OpenArm
-  Isaac-Lift-Cube-OpenArm-v0:
+  IsaacContrib-Lift-Cube-OpenArm:
     max_iterations: 300
     lower_thresholds:
       reward: 80
       episode_length: 100
     upper_thresholds:
       duration: 1200
-  Isaac-Open-Drawer-OpenArm-v0:
+  IsaacContrib-Open-Drawer-OpenArm:
     max_iterations: 200
     lower_thresholds:
       reward: 50
       episode_length: 150
     upper_thresholds:
       duration: 3000
-  Isaac-Reach-OpenArm-v0:
+  IsaacContrib-Reach-OpenArm:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25
       episode_length: 150
     upper_thresholds:
       duration: 1500
-  Isaac-Reach-OpenArmBi-v0:
+  IsaacContrib-Reach-OpenArmBi:
     max_iterations: 1000
     lower_thresholds:
       reward: 0.25
@@ -376,7 +376,7 @@ full:
       episode_length: 700
     upper_thresholds:
       duration: 3500
-  Isaac-Velocity-Flat-UnitreeGo1-v0:
+  IsaacContrib-Velocity-Flat-UnitreeGo1:
     max_iterations: 1000
     lower_thresholds:
       reward: 15
@@ -412,7 +412,7 @@ full:
       episode_length: 700
     upper_thresholds:
       duration: 6000
-  Isaac-Velocity-Rough-UnitreeGo1-v0:
+  IsaacContrib-Velocity-Rough-UnitreeGo1:
     max_iterations: 1000
     lower_thresholds:
       reward: 7
@@ -427,7 +427,7 @@ full:
     upper_thresholds:
       duration: 6000
   # Locomotion-manipulation
-  Isaac-Tracking-LocoManip-Digit-v0:
+  IsaacContrib-Tracking-LocoManip-Digit:
     max_iterations: 500
     lower_thresholds:
       reward: 5

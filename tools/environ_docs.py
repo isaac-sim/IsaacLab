@@ -50,7 +50,7 @@ _INFERENCE_TASK_SUFFIXES = ("-Play-v0", "-Eval-v0")
 
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
-    "Isaac-Assemble-Trocar-G129-Dex3-v0": {"rlinf": ["PPO"]},
+    "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
 # Marker comments that delimit the auto-generated section in environments.rst.

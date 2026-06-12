@@ -85,7 +85,7 @@ The ``id`` argument is the name of the environment. As a convention, we name all
 with the prefix ``Isaac-`` to make it easier to search for them in the registry. The name of the
 environment is typically followed by the name of the task, and then the name of the robot.
 For instance, for legged locomotion with ANYmal C on flat terrain, the environment is called
-``Isaac-Velocity-Flat-AnymalC-v0``. The version number ``v<N>`` is typically used to specify different
+``IsaacContrib-Velocity-Flat-AnymalC``. The version number ``v<N>`` is typically used to specify different
 variations of the same environment. Otherwise, the names of the environments can become too long
 and difficult to read.
 

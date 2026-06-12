@@ -52,8 +52,8 @@ _REPRESENTATIVE_TASKS = [
     "Isaac-Reach-Franka",
     "Isaac-Lift-Cube-Franka",
     "Isaac-Reorient-KukaAllegro",
-    "Isaac-Navigation-Flat-AnymalC-v0",
-    "Isaac-Stack-Cube-Franka-v0",
+    "IsaacContrib-Navigation-Flat-AnymalC",
+    "IsaacContrib-Stack-Cube-Franka",
 ]
 
 

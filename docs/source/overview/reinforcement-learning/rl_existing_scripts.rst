@@ -327,7 +327,7 @@ Stable-Baselines3
 
 -  Training an agent with
    `Stable-Baselines3 <https://stable-baselines3.readthedocs.io/en/master/index.html>`__
-   on ``Isaac-Velocity-Flat-UnitreeA1-v0``:
+   on ``IsaacContrib-Velocity-Flat-UnitreeA1``:
 
    .. tab-set::
       :sync-group: os
@@ -340,13 +340,13 @@ Stable-Baselines3
             # install python module (for stable-baselines3)
             ./isaaclab.sh -i sb3
             # run command for training
-            ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0
+            ./isaaclab.sh train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1
             # run command for training with Newton backend
-            ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 physics=newton_mjwarp
+            ./isaaclab.sh train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
             # run command for playing with 32 environments
-            ./isaaclab.sh play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            ./isaaclab.sh play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
             # run command for recording video of a trained agent (requires installing `ffmpeg`)
-            ./isaaclab.sh play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --video --video_length 200
+            ./isaaclab.sh play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows
          :sync: windows
@@ -356,13 +356,13 @@ Stable-Baselines3
             :: install python module (for stable-baselines3)
             isaaclab.bat -i sb3
             :: run command for training
-            isaaclab.bat train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0
+            isaaclab.bat train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1
             :: run command for training with Newton backend
-            isaaclab.bat train --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 physics=newton_mjwarp
+            isaaclab.bat train --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 physics=newton_mjwarp
             :: run command for playing with 32 environments
-            isaaclab.bat play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --num_envs 32 --checkpoint /PATH/TO/model.zip
+            isaaclab.bat play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --num_envs 32 --checkpoint /PATH/TO/model.zip
             :: run command for recording video of a trained agent (requires installing `ffmpeg`)
-            isaaclab.bat play --rl_library sb3 --task Isaac-Velocity-Flat-UnitreeA1-v0 --video --video_length 200
+            isaaclab.bat play --rl_library sb3 --task IsaacContrib-Velocity-Flat-UnitreeA1 --video --video_length 200
 
 RLinf
 -----

@@ -506,7 +506,7 @@ Mimic and Teleoperation
 * Adds dgx spark limitations link to teleop docs by @lotusl-code in https://github.com/isaac-sim/IsaacLab/pull/3805
 * Adds Cosmos Transfer1 limitation for DGX spark by @shauryadNv in https://github.com/isaac-sim/IsaacLab/pull/3817
 * Updates DGX spark limitations for SkillGen in the documentation by @njawale42 in https://github.com/isaac-sim/IsaacLab/pull/3748
-* Adds the Isaac-PickPlace-G1-InspireFTP-Abs-v0 Task into Envs Docs by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/3479
+* Adds the IsaacContrib-PickPlace-G1-InspireFTP-Abs Task into Envs Docs by @yami007007 in https://github.com/isaac-sim/IsaacLab/pull/3479
 
 Infrastructure
 ~~~~~~~~~~~~~~
@@ -1781,13 +1781,13 @@ Before:
 
 .. code:: bash
 
-    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --device keyboard
+    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --device keyboard
 
 Now:
 
 .. code:: bash
 
-    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task Isaac-Lift-Cube-Franka-IK-Rel-v0 --num_envs 1 --teleop_device keyboard
+    ./isaaclab.sh -p source/standalone/environments/teleoperation/teleop_se3_agent.py --task IsaacContrib-Lift-Cube-Franka-IK-Rel --num_envs 1 --teleop_device keyboard
 
 
 Using Python-version of container utility script

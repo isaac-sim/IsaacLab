@@ -19,7 +19,7 @@ from mimic_test_utils import run_script
 
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
-DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0")
+DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen")
 NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(
     ISAACLAB_NUCLEUS_DIR, "Mimic", "franka_stack_datasets", "annotated_dataset_skillgen.hdf5"
 )
@@ -87,7 +87,7 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
         "--use_skillgen",
         "--headless",
         "--task",
-        "Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)

@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Velocity-Flat-AnymalC-Direct-v0",
+    id="IsaacContrib-Velocity-Flat-AnymalC-Direct",
     entry_point=f"{__name__}.anymal_c_env:AnymalCEnv",
     disable_env_checker=True,
     kwargs={
@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Rough-AnymalC-Direct-v0",
+    id="IsaacContrib-Velocity-Rough-AnymalC-Direct",
     entry_point=f"{__name__}.anymal_c_env:AnymalCEnv",
     disable_env_checker=True,
     kwargs={

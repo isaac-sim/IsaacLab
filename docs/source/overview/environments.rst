@@ -308,25 +308,25 @@ for the lift-cube environment:
 
 .. |reach-franka-link| replace:: `Isaac-Reach-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/franka/joint_pos_env_cfg.py>`__
 .. |reach-ur10-link| replace:: `Isaac-Reach-UR10 <../../../source/isaaclab_tasks/isaaclab_tasks/core/reach/config/ur_10/joint_pos_env_cfg.py>`__
-.. |deploy-reach-ur10e-link| replace:: `Isaac-Deploy-Reach-UR10e-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
+.. |deploy-reach-ur10e-link| replace:: `IsaacContrib-Deploy-Reach-UR10e <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/deploy/reach/config/ur_10e/joint_pos_env_cfg.py>`__
 .. |lift-cube-link| replace:: `Isaac-Lift-Cube-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka/joint_pos_env_cfg.py>`__
-.. |lift-cube-ik-abs-link| replace:: `Isaac-Lift-Cube-Franka-IK-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_abs_env_cfg.py>`__
-.. |lift-cube-ik-rel-link| replace:: `Isaac-Lift-Cube-Franka-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`__
+.. |lift-cube-ik-abs-link| replace:: `IsaacContrib-Lift-Cube-Franka-IK-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_abs_env_cfg.py>`__
+.. |lift-cube-ik-rel-link| replace:: `IsaacContrib-Lift-Cube-Franka-IK-Rel <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/franka/ik_rel_env_cfg.py>`__
 .. |lift-soft-franka-link| replace:: `Isaac-Lift-Soft-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py>`__
 .. |cabi-franka-link| replace:: `Isaac-Open-Drawer-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/config/franka/joint_pos_env_cfg.py>`__
 .. |franka-direct-link| replace:: `Isaac-Open-Drawer-Franka-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/cabinet/cabinet_direct_env.py>`__
 .. |cube-allegro-link| replace:: `Isaac-Reorient-Cube-Allegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_manager_env_cfg.py>`__
 .. |allegro-direct-link| replace:: `Isaac-Reorient-Cube-Allegro-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/allegro_hand/allegro_hand_direct_env_cfg.py>`__
-.. |stack-cube-link| replace:: `Isaac-Stack-Cube-Franka-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_joint_pos_env_cfg.py>`__
-.. |stack-cube-bp-link| replace:: `Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
-.. |gr1_pick_place-link| replace:: `Isaac-PickPlace-GR1T2-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_env_cfg.py>`__
-.. |g1_pick_place-link| replace:: `Isaac-PickPlace-G1-InspireFTP-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py>`__
-.. |g1_pick_place_fixed-link| replace:: `Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/fixed_base_upper_body_ik_g1_env_cfg.py>`__
-.. |g1_pick_place_lm-link| replace:: `Isaac-PickPlace-Locomanipulation-G1-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/locomanipulation_g1_env_cfg.py>`__
-.. |long-suction-link| replace:: `Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
-.. |short-suction-link| replace:: `Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
-.. |gr1_pp_waist-link| replace:: `Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
-.. |galbot_stack-link| replace:: `Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
+.. |stack-cube-link| replace:: `IsaacContrib-Stack-Cube-Franka <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_joint_pos_env_cfg.py>`__
+.. |stack-cube-bp-link| replace:: `IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/franka/stack_ik_rel_blueprint_env_cfg.py>`__
+.. |gr1_pick_place-link| replace:: `IsaacContrib-PickPlace-GR1T2-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_env_cfg.py>`__
+.. |g1_pick_place-link| replace:: `IsaacContrib-PickPlace-G1-InspireFTP-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_unitree_g1_inspire_hand_env_cfg.py>`__
+.. |g1_pick_place_fixed-link| replace:: `IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/fixed_base_upper_body_ik_g1_env_cfg.py>`__
+.. |g1_pick_place_lm-link| replace:: `IsaacContrib-PickPlace-Locomanipulation-G1-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_pick_place/locomanipulation_g1_env_cfg.py>`__
+.. |long-suction-link| replace:: `IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
+.. |short-suction-link| replace:: `IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/ur10_gripper/stack_ik_rel_env_cfg.py>`__
+.. |gr1_pp_waist-link| replace:: `IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/pick_place/pickplace_gr1t2_waist_enabled_env_cfg.py>`__
+.. |galbot_stack-link| replace:: `IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/stack/config/galbot/stack_rmp_rel_env_cfg.py>`__
 .. |kuka-allegro-lift-link| replace:: `Isaac-Lift-KukaAllegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
 .. |kuka-allegro-reorient-link| replace:: `Isaac-Reorient-KukaAllegro <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_env_cfg.py>`__
 .. |ka-lift-cam-link| replace:: `Isaac-Lift-KukaAllegro-Camera <../../../source/isaaclab_tasks/isaaclab_tasks/core/dexsuite/config/kuka_allegro/dexsuite_kuka_allegro_camera_env_cfg.py>`__
@@ -335,13 +335,13 @@ for the lift-cube environment:
 .. |cube-shadow-ff-link| replace:: `Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-lstm-link| replace:: `Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_env_cfg.py>`__
 .. |cube-shadow-vis-link| replace:: `Isaac-Reorient-Cube-Shadow-Camera-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/shadow_hand_camera_env.py>`__
-.. |agibot_place_mug-link| replace:: `Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
-.. |agibot_place_toy-link| replace:: `Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
-.. |reach_openarm_bi-link| replace:: `Isaac-Reach-OpenArmBi-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
-.. |reach_openarm_uni-link| replace:: `Isaac-Reach-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
-.. |lift_openarm_uni-link| replace:: `Isaac-Lift-Cube-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/openarm/joint_pos_env_cfg.py>`__
-.. |cabi_openarm_uni-link| replace:: `Isaac-Open-Drawer-OpenArm-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/cabinet/config/openarm/joint_pos_env_cfg.py>`__
-.. |g1_assemble_trocar-link| replace:: `Isaac-Assemble-Trocar-G129-Dex3-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/g129_dex3_env_cfg.py>`__
+.. |agibot_place_mug-link| replace:: `IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_upright_mug_rmp_rel_env_cfg.py>`__
+.. |agibot_place_toy-link| replace:: `IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/place/config/agibot/place_toy2box_rmp_rel_env_cfg.py>`__
+.. |reach_openarm_bi-link| replace:: `IsaacContrib-Reach-OpenArmBi <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/bimanual/joint_pos_env_cfg.py>`__
+.. |reach_openarm_uni-link| replace:: `IsaacContrib-Reach-OpenArm <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/reach/config/openarm/unimanual/joint_pos_env_cfg.py>`__
+.. |lift_openarm_uni-link| replace:: `IsaacContrib-Lift-Cube-OpenArm <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/lift/config/openarm/joint_pos_env_cfg.py>`__
+.. |cabi_openarm_uni-link| replace:: `IsaacContrib-Open-Drawer-OpenArm <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/cabinet/config/openarm/joint_pos_env_cfg.py>`__
+.. |g1_assemble_trocar-link| replace:: `IsaacContrib-Assemble-Trocar-G129-Dex3 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/g129_dex3_env_cfg.py>`__
 
 
 Contact-rich Manipulation
@@ -547,11 +547,11 @@ Environments based on legged locomotion tasks.
     | |tracking-loco-manip-digit|  | |tracking-loco-manip-digit-link|             | Track a root velocity and hand pose command with the Agility Digit robot     | **physics=** ``physx``       |
     +------------------------------+----------------------------------------------+------------------------------------------------------------------------------+------------------------------+
 
-.. |velocity-flat-anymal-b-link| replace:: `Isaac-Velocity-Flat-AnymalB-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-b-link| replace:: `Isaac-Velocity-Rough-AnymalB-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-b-link| replace:: `IsaacContrib-Velocity-Flat-AnymalB <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-b-link| replace:: `IsaacContrib-Velocity-Rough-AnymalB <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/rough_env_cfg.py>`__
 
-.. |velocity-flat-anymal-c-link| replace:: `Isaac-Velocity-Flat-AnymalC-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`__
-.. |velocity-rough-anymal-c-link| replace:: `Isaac-Velocity-Rough-AnymalC-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`__
+.. |velocity-flat-anymal-c-link| replace:: `IsaacContrib-Velocity-Flat-AnymalC <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/flat_env_cfg.py>`__
+.. |velocity-rough-anymal-c-link| replace:: `IsaacContrib-Velocity-Rough-AnymalC <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_c/rough_env_cfg.py>`__
 
 .. |velocity-flat-anymal-c-direct-link| replace:: `Isaac-Velocity-Flat-AnymalC-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
 .. |velocity-rough-anymal-c-direct-link| replace:: `Isaac-Velocity-Rough-AnymalC-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env.py>`__
@@ -559,11 +559,11 @@ Environments based on legged locomotion tasks.
 .. |velocity-flat-anymal-d-link| replace:: `Isaac-Velocity-Flat-AnymalD <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/flat_env_cfg.py>`__
 .. |velocity-rough-anymal-d-link| replace:: `Isaac-Velocity-Rough-AnymalD <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-a1-link| replace:: `Isaac-Velocity-Flat-UnitreeA1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-a1-link| replace:: `Isaac-Velocity-Rough-UnitreeA1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-a1-link| replace:: `IsaacContrib-Velocity-Flat-UnitreeA1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-a1-link| replace:: `IsaacContrib-Velocity-Rough-UnitreeA1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/a1/rough_env_cfg.py>`__
 
-.. |velocity-flat-unitree-go1-link| replace:: `Isaac-Velocity-Flat-UnitreeGo1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py>`__
-.. |velocity-rough-unitree-go1-link| replace:: `Isaac-Velocity-Rough-UnitreeGo1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/rough_env_cfg.py>`__
+.. |velocity-flat-unitree-go1-link| replace:: `IsaacContrib-Velocity-Flat-UnitreeGo1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/flat_env_cfg.py>`__
+.. |velocity-rough-unitree-go1-link| replace:: `IsaacContrib-Velocity-Rough-UnitreeGo1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/go1/rough_env_cfg.py>`__
 
 .. |velocity-flat-unitree-go2-link| replace:: `Isaac-Velocity-Flat-UnitreeGo2 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/flat_env_cfg.py>`__
 .. |velocity-rough-unitree-go2-link| replace:: `Isaac-Velocity-Rough-UnitreeGo2 <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py>`__
@@ -578,7 +578,7 @@ Environments based on legged locomotion tasks.
 
 .. |velocity-flat-digit-link| replace:: `Isaac-Velocity-Flat-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/flat_env_cfg.py>`__
 .. |velocity-rough-digit-link| replace:: `Isaac-Velocity-Rough-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/digit/rough_env_cfg.py>`__
-.. |tracking-loco-manip-digit-link| replace:: `Isaac-Tracking-LocoManip-Digit-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`__
+.. |tracking-loco-manip-digit-link| replace:: `IsaacContrib-Tracking-LocoManip-Digit <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/locomanip_tracking/config/digit/loco_manip_env_cfg.py>`__
 
 .. |velocity-flat-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_flat.jpg
 .. |velocity-rough-anymal-b| image:: ../_static/tasks/locomotion/anymal_b_rough.jpg
@@ -620,7 +620,7 @@ Navigation
     |                |                     |                                                                             | ``newton_mjwarp``            |
     +----------------+---------------------+-----------------------------------------------------------------------------+------------------------------+
 
-.. |anymal_c_nav-link| replace:: `Isaac-Navigation-Flat-AnymalC-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`__
+.. |anymal_c_nav-link| replace:: `IsaacContrib-Navigation-Flat-AnymalC <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/config/anymal_c/navigation_env_cfg.py>`__
 
 .. |anymal_c_nav| image:: ../_static/tasks/navigation/anymal_c_nav.jpg
 
@@ -633,11 +633,11 @@ Multirotor
     See the `drone_arl` folder and the ARL robot config
     (`ARL_ROBOT_1_CFG`) in the codebase for details.
 
-.. |arl_robot_track_position_state_based-link| replace:: `Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/track_position_state_based/config/arl_robot_1/track_position_state_based_env_cfg.py>`__
+.. |arl_robot_track_position_state_based-link| replace:: `IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/track_position_state_based/config/arl_robot_1/track_position_state_based_env_cfg.py>`__
 
 .. |arl_robot_track_position_state_based| image:: ../_static/tasks/drone_arl/arl_robot_1_track_position_state_based.jpg
 
-.. |arl_robot_navigation-link| replace:: `Isaac-Navigation-3DObstacles-ARL-Robot-1-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
+.. |arl_robot_navigation-link| replace:: `IsaacContrib-Navigation-3DObstacles-ARL-Robot-1 <../../../source/isaaclab_tasks/isaaclab_tasks/contrib/drone_arl/navigation/config/arl_robot_1/floating_obstacles_env_cfg.py>`__
 
 .. |arl_robot_navigation| image:: ../_static/tasks/drone_arl/arl_robot_1_navigation.jpg
 
@@ -885,17 +885,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Assemble-Trocar-G129-Dex3-v0
-      - Isaac-Assemble-Trocar-G129-Dex3-Eval-v0
+    * - IsaacContrib-Assemble-Trocar-G129-Dex3
+      - IsaacContrib-Assemble-Trocar-G129-Dex3-Eval
       - Manager Based
       - **rlinf** (PPO)
       -
-    * - Isaac-AutoMate-Assembly-Direct-v0
+    * - IsaacContrib-AutoMate-Assembly-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-AutoMate-Disassembly-Direct-v0
+    * - IsaacContrib-AutoMate-Disassembly-Direct
       -
       - Direct
       - **rl_games** (PPO)
@@ -919,7 +919,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - | **physics=** ``newton_kamino``, ``newton_mjwarp``, ``ovphysx``, ``physx``
           | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
           | **presets=** ``albedo``, ``depth``, ``rgb``, ``semantic_segmentation``, ``simple_shading_constant_diffuse``, ``simple_shading_diffuse_mdl``, ``simple_shading_full_mdl``
-    * - Isaac-Cartpole-Camera-Showcase-Direct
+    * - IsaacContrib-Cartpole-Camera-Showcase-Direct
       -
       - Direct
       - **skrl** (PPO, BOX_BOX, BOX_DISCRETE, BOX_MULTIDISCRETE, DICT_BOX, DICT_DISCRETE, DICT_MULTIDISCRETE, TUPLE_BOX, TUPLE_DISCRETE, TUPLE_MULTIDISCRETE)
@@ -934,7 +934,7 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Cartpole-Showcase-Direct
+    * - IsaacContrib-Cartpole-Showcase-Direct
       -
       - Direct
       - **skrl** (PPO, BOX_BOX, BOX_DISCRETE, BOX_MULTIDISCRETE, DICT_BOX, DICT_DISCRETE, DICT_MULTIDISCRETE, DISCRETE_BOX, DISCRETE_DISCRETE, DISCRETE_MULTIDISCRETE, MULTIDISCRETE_BOX, MULTIDISCRETE_DISCRETE, MULTIDISCRETE_MULTIDISCRETE, TUPLE_BOX, TUPLE_DISCRETE, TUPLE_MULTIDISCRETE)
@@ -945,87 +945,87 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0
+    * - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference
       -
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-Deploy-GearAssembly-Rizon4s-Grav-v0
-      - Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0
+    * - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav
+      - IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0
-      -
-      - Manager Based
-      - **rsl_rl** (PPO)
-      -
-    * - Isaac-Deploy-GearAssembly-UR10e-2F140-v0
-      - Isaac-Deploy-GearAssembly-UR10e-2F140-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO)
-      -
-    * - Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0
+    * - IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference
       -
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-Deploy-GearAssembly-UR10e-2F85-v0
-      - Isaac-Deploy-GearAssembly-UR10e-2F85-Play-v0
+    * - IsaacContrib-Deploy-GearAssembly-UR10e-2F140
+      - IsaacContrib-Deploy-GearAssembly-UR10e-2F140-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0
-      -
-      - Manager Based
-      - **rsl_rl** (PPO)
-      -
-    * - Isaac-Deploy-Reach-Rizon4s-v0
-      - Isaac-Deploy-Reach-Rizon4s-Play-v0
-      - Manager Based
-      - **rsl_rl** (PPO)
-      -
-    * - Isaac-Deploy-Reach-UR10e-ROS-Inference-v0
+    * - IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference
       -
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-Deploy-Reach-UR10e-v0
-      - Isaac-Deploy-Reach-UR10e-Play-v0
+    * - IsaacContrib-Deploy-GearAssembly-UR10e-2F85
+      - IsaacContrib-Deploy-GearAssembly-UR10e-2F85-Play
       - Manager Based
       - **rsl_rl** (PPO)
       -
-    * - Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0
+    * - IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - IsaacContrib-Deploy-Reach-Rizon4s
+      - IsaacContrib-Deploy-Reach-Rizon4s-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - IsaacContrib-Deploy-Reach-UR10e-ROS-Inference
+      -
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - IsaacContrib-Deploy-Reach-UR10e
+      - IsaacContrib-Deploy-Reach-UR10e-Play
+      - Manager Based
+      - **rsl_rl** (PPO)
+      -
+    * - IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-Factory-GearMesh-Direct-v0
+    * - IsaacContrib-Factory-GearMesh-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Factory-NutThread-Direct-v0
+    * - IsaacContrib-Factory-NutThread-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Factory-PegInsert-Direct-v0
+    * - IsaacContrib-Factory-PegInsert-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Forge-GearMesh-Direct-v0
+    * - IsaacContrib-Forge-GearMesh-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Forge-NutThread-Direct-v0
+    * - IsaacContrib-Forge-NutThread-Direct
       -
       - Direct
       - **rl_games** (PPO)
       -
-    * - Isaac-Forge-PegInsert-Direct-v0
+    * - IsaacContrib-Forge-PegInsert-Direct
       -
       - Direct
       - **rl_games** (PPO)
@@ -1035,17 +1035,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Humanoid-AMP-Dance-Direct-v0
+    * - IsaacContrib-Humanoid-AMP-Dance-Direct
       -
       - Direct
       - **skrl** (AMP)
       -
-    * - Isaac-Humanoid-AMP-Run-Direct-v0
+    * - IsaacContrib-Humanoid-AMP-Run-Direct
       -
       - Direct
       - **skrl** (AMP)
       -
-    * - Isaac-Humanoid-AMP-Walk-Direct-v0
+    * - IsaacContrib-Humanoid-AMP-Walk-Direct
       -
       - Direct
       - **skrl** (AMP)
@@ -1075,12 +1075,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Lift-Cube-Franka-IK-Abs-v0
+    * - IsaacContrib-Lift-Cube-Franka-IK-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-Lift-Cube-Franka-IK-Rel-v0
+    * - IsaacContrib-Lift-Cube-Franka-IK-Rel
       -
       - Manager Based
       -
@@ -1090,8 +1090,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Lift-Cube-OpenArm-v0
-      - Isaac-Lift-Cube-OpenArm-Play-v0
+    * - IsaacContrib-Lift-Cube-OpenArm
+      - IsaacContrib-Lift-Cube-OpenArm-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
@@ -1116,17 +1116,17 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp_vbd``, ``physx``
-    * - Isaac-Navigation-3DObstacles-ARL-Robot-1-v0
-      - Isaac-Navigation-3DObstacles-ARL-Robot-1-Play-v0
+    * - IsaacContrib-Navigation-3DObstacles-ARL-Robot-1
+      - IsaacContrib-Navigation-3DObstacles-ARL-Robot-1-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Navigation-Flat-AnymalC-v0
-      - Isaac-Navigation-Flat-AnymalC-Play-v0
+    * - IsaacContrib-Navigation-Flat-AnymalC
+      - IsaacContrib-Navigation-Flat-AnymalC-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-NutPour-GR1T2-Pink-IK-Abs-v0
+    * - IsaacContrib-NutPour-GR1T2-Pink-IK-Abs
       -
       - Manager Based
       -
@@ -1141,12 +1141,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Open-Drawer-Franka-IK-Abs-v0
+    * - IsaacContrib-Open-Drawer-Franka-IK-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-Open-Drawer-Franka-IK-Rel-v0
+    * - IsaacContrib-Open-Drawer-Franka-IK-Rel
       -
       - Manager Based
       -
@@ -1156,8 +1156,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Open-Drawer-OpenArm-v0
-      - Isaac-Open-Drawer-OpenArm-Play-v0
+    * - IsaacContrib-Open-Drawer-OpenArm
+      - IsaacContrib-Open-Drawer-OpenArm-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
@@ -1166,37 +1166,37 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       -
-    * - Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0
+    * - IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-PickPlace-G1-InspireFTP-Abs-v0
+    * - IsaacContrib-PickPlace-G1-InspireFTP-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-PickPlace-GR1T2-Abs-v0
+    * - IsaacContrib-PickPlace-GR1T2-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0
+    * - IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-PickPlace-Locomanipulation-G1-Abs-v0
+    * - IsaacContrib-PickPlace-Locomanipulation-G1-Abs
       -
       - Manager Based
       -
       -
-    * - Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0
+    * - IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0
+    * - IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow
       -
       - Manager Based
       -
@@ -1206,12 +1206,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-IK-Abs-v0
+    * - IsaacContrib-Reach-Franka-IK-Abs
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Reach-Franka-IK-Rel-v0
+    * - IsaacContrib-Reach-Franka-IK-Rel
       -
       - Manager Based
       -
@@ -1236,13 +1236,13 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Reach-OpenArm-v0
-      - Isaac-Reach-OpenArm-Play-v0
+    * - IsaacContrib-Reach-OpenArm
+      - IsaacContrib-Reach-OpenArm-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Reach-OpenArmBi-v0
-      - Isaac-Reach-OpenArmBi-Play-v0
+    * - IsaacContrib-Reach-OpenArmBi
+      - IsaacContrib-Reach-OpenArmBi-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO)
       -
@@ -1326,109 +1326,109 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Direct
       - **rl_games** (PPO), **skrl** (PPO, IPPO, MAPPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0
+    * - IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-IK-Abs-v0
+    * - IsaacContrib-Stack-Cube-Franka-IK-Abs
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0
+    * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0
+    * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0
+    * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0
+    * - IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-Franka-IK-Rel
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Franka-v0
+    * - IsaacContrib-Stack-Cube-Franka
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0
+    * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0
+    * - IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor
       -
       - Manager Based
       -
       - | **physics=** ``newton_mjwarp``, ``physx``
           | **renderer=** ``isaacsim_rtx_renderer``, ``newton_renderer``, ``ovrtx_renderer``
-    * - Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0
+    * - IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel
       -
       - Manager Based
       -
       -
-    * - Isaac-Stack-Cube-Instance-Randomize-Franka-v0
+    * - IsaacContrib-Stack-Cube-Instance-Randomize-Franka
       -
       - Manager Based
       -
       -
-    * - Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0
-      -
-      - Manager Based
-      -
-      - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0
+    * - IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel
       -
       - Manager Based
       -
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-TrackPositionNoObstacles-ARL-Robot-1-v0
-      - Isaac-TrackPositionNoObstacles-ARL-Robot-1-Play-v0
+    * - IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel
+      -
+      - Manager Based
+      -
+      - **physics=** ``newton_mjwarp``, ``physx``
+    * - IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1
+      - IsaacContrib-TrackPositionNoObstacles-ARL-Robot-1-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Tracking-LocoManip-Digit-v0
-      - Isaac-Tracking-LocoManip-Digit-Play-v0
+    * - IsaacContrib-Tracking-LocoManip-Digit
+      - IsaacContrib-Tracking-LocoManip-Digit-Play
       - Manager Based
       - **rsl_rl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
@@ -1437,12 +1437,12 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Flat-AnymalB-v0
-      - Isaac-Velocity-Flat-AnymalB-Play-v0
+    * - IsaacContrib-Velocity-Flat-AnymalB
+      - IsaacContrib-Velocity-Flat-AnymalB-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Flat-AnymalC-Direct-v0
+    * - IsaacContrib-Velocity-Flat-AnymalC-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
@@ -1452,8 +1452,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Flat-AnymalC-v0
-      - Isaac-Velocity-Flat-AnymalC-Play-v0
+    * - IsaacContrib-Velocity-Flat-AnymalC
+      - IsaacContrib-Velocity-Flat-AnymalC-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
@@ -1542,8 +1542,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       -
-    * - Isaac-Velocity-Flat-UnitreeA1-v0
-      - Isaac-Velocity-Flat-UnitreeA1-Play-v0
+    * - IsaacContrib-Velocity-Flat-UnitreeA1
+      - IsaacContrib-Velocity-Flat-UnitreeA1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
@@ -1552,8 +1552,8 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Flat-UnitreeGo1-v0
-      - Isaac-Velocity-Flat-UnitreeGo1-Play-v0
+    * - IsaacContrib-Velocity-Flat-UnitreeGo1
+      - IsaacContrib-Velocity-Flat-UnitreeGo1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
@@ -1572,18 +1572,18 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Rough-AnymalB-v0
-      - Isaac-Velocity-Rough-AnymalB-Play-v0
+    * - IsaacContrib-Velocity-Rough-AnymalB
+      - IsaacContrib-Velocity-Rough-AnymalB-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-AnymalC-Direct-v0
+    * - IsaacContrib-Velocity-Rough-AnymalC-Direct
       -
       - Direct
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       -
-    * - Isaac-Velocity-Rough-AnymalC-v0
-      - Isaac-Velocity-Rough-AnymalC-Play-v0
+    * - IsaacContrib-Velocity-Rough-AnymalC
+      - IsaacContrib-Velocity-Rough-AnymalC-Play
       - Manager Based
       - **rl_games** (PPO), **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
@@ -1637,13 +1637,13 @@ inferencing, including reading from an already trained checkpoint and disabling 
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-UnitreeA1-v0
-      - Isaac-Velocity-Rough-UnitreeA1-Play-v0
+    * - IsaacContrib-Velocity-Rough-UnitreeA1
+      - IsaacContrib-Velocity-Rough-UnitreeA1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO), **sb3** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``
-    * - Isaac-Velocity-Rough-UnitreeGo1-v0
-      - Isaac-Velocity-Rough-UnitreeGo1-Play-v0
+    * - IsaacContrib-Velocity-Rough-UnitreeGo1
+      - IsaacContrib-Velocity-Rough-UnitreeGo1-Play
       - Manager Based
       - **rsl_rl** (PPO), **skrl** (PPO)
       - **physics=** ``newton_mjwarp``, ``physx``

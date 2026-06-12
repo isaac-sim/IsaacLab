@@ -82,11 +82,11 @@ Limitations
     1.  Isaac-Ant-Direct
     2.  Isaac-Ant
     3.  Isaac-Cartpole-Direct
-    4.  Isaac-Cartpole-Showcase-Direct
+    4.  IsaacContrib-Cartpole-Showcase-Direct
     5.  Isaac-Cartpole
-    20. Isaac-Factory-GearMesh-Direct-v0
-    21. Isaac-Factory-NutThread-Direct-v0
-    22. Isaac-Factory-PegInsert-Direct-v0
+    20. IsaacContrib-Factory-GearMesh-Direct
+    21. IsaacContrib-Factory-NutThread-Direct
+    22. IsaacContrib-Factory-PegInsert-Direct
     23. Isaac-Open-Drawer-Franka-Direct
     24. Isaac-Humanoid-Direct
     25. Isaac-Humanoid

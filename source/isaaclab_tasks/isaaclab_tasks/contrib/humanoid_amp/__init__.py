@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Humanoid-AMP-Dance-Direct-v0",
+    id="IsaacContrib-Humanoid-AMP-Dance-Direct",
     entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
     disable_env_checker=True,
     kwargs={
@@ -26,7 +26,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Humanoid-AMP-Run-Direct-v0",
+    id="IsaacContrib-Humanoid-AMP-Run-Direct",
     entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
     disable_env_checker=True,
     kwargs={
@@ -36,7 +36,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Humanoid-AMP-Walk-Direct-v0",
+    id="IsaacContrib-Humanoid-AMP-Walk-Direct",
     entry_point=f"{__name__}.humanoid_amp_env:HumanoidAmpEnv",
     disable_env_checker=True,
     kwargs={

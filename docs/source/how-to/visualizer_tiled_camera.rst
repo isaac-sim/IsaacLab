@@ -106,7 +106,7 @@ To launch this example, run:
 
 .. code-block:: bash
 
-   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0 --num_envs 25 --viz newton
+   python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton
 
 Within the script, the ``NewtonVisualizerCfg`` is configured to stream images from the
 existing camera sensor located at

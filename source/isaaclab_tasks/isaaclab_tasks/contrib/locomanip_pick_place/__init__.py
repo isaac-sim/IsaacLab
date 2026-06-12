@@ -11,7 +11,7 @@ import gymnasium as gym
 from . import agents
 
 gym.register(
-    id="Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
+    id="IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.locomanipulation_g1_env_cfg:LocomanipulationG1EnvCfg",
@@ -21,7 +21,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0",
+    id="IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.fixed_base_upper_body_ik_g1_env_cfg:FixedBaseUpperBodyIKG1EnvCfg",

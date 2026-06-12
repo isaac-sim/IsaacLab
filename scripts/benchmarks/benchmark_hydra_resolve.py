@@ -20,7 +20,7 @@ Usage::
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py --iterations 100
     ./isaaclab.sh -p scripts/benchmarks/benchmark_hydra_resolve.py \
         --case cartpole:Isaac-Cartpole:: \
-        --case anymal:Isaac-Velocity-Rough-AnymalC-v0::env.scene.num_envs=256
+        --case anymal:IsaacContrib-Velocity-Rough-AnymalC::env.scene.num_envs=256
 
 Case format is ``name:task:agent_entry:arg[,arg...]``. Leave ``agent_entry`` or
 ``arg`` empty when not needed.
@@ -64,7 +64,7 @@ class Case:
 QUICK_CASES = (
     Case("cartpole_manager", "Isaac-Cartpole"),
     Case("cartpole_camera_presets", "Isaac-Cartpole-Camera-Direct", "rl_games_cfg_entry_point"),
-    Case("anymal_rough", "Isaac-Velocity-Rough-AnymalC-v0"),
+    Case("anymal_rough", "IsaacContrib-Velocity-Rough-AnymalC"),
     Case("franka_lift_cube", "Isaac-Lift-Cube-Franka"),
     Case(
         "cartpole_camera_newton_ovrtx",
@@ -72,7 +72,7 @@ QUICK_CASES = (
         "rl_games_cfg_entry_point",
         ("presets=newton_mjwarp,ovrtx_renderer",),
     ),
-    Case("anymal_rough_scalar", "Isaac-Velocity-Rough-AnymalC-v0", None, ("env.scene.num_envs=256",)),
+    Case("anymal_rough_scalar", "IsaacContrib-Velocity-Rough-AnymalC", None, ("env.scene.num_envs=256",)),
 )
 
 
