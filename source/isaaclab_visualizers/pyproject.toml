@@ -31,6 +31,7 @@ newton = [
     "warp-lang",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@811968bfb7cc7ff4e37b9260a2ba56930a3e605e",
     "PyOpenGL-accelerate",
+    "pyglet>=2.1.6,<3",
     "imgui-bundle>=1.92.5",
     "typing-extensions>=4.15.0",
 ]
@@ -47,6 +48,7 @@ all = [
     "imgui-bundle>=1.92.5",
     "newton[sim] @ git+https://github.com/newton-physics/newton.git@811968bfb7cc7ff4e37b9260a2ba56930a3e605e",
     "PyOpenGL-accelerate",
+    "pyglet>=2.1.6,<3",
     # Match rerun-sdk's supported Arrow stack and avoid resolver drift across environments.
     "pyarrow==22.0.0",
     "rerun-sdk>=0.29.0",
