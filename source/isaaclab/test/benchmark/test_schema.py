@@ -86,7 +86,8 @@ def _runtime() -> Runtime:
         total_wall_time_s=1946.0,
         steps_per_iteration=24,
         iteration_time_s=MeanStd(mean=3.82, std=0.04),
-        env_steps_per_s=MeanStd(mean=1_071_780.0, std=11_200.0),
+        collection_fps=MeanStd(mean=1_142_000.0, std=9_500.0),
+        total_fps=MeanStd(mean=1_071_780.0, std=11_200.0),
         iterations_per_s=MeanStd(mean=0.2618, std=0.0028),
     )
 
@@ -132,7 +133,8 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert data["run"]["config"]["rendering_backend"] == "none"
     assert data["run"]["config"]["sensor_dtype"] is None
-    assert data["runtime"]["env_steps_per_s"]["mean"] == pytest.approx(1_071_780.0)
+    assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
+    assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)

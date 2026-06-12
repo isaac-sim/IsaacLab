@@ -192,7 +192,12 @@ class Runtime:
         total_wall_time_s: Total run wall-clock time [s].
         steps_per_iteration: Environment steps collected per iteration.
         iteration_time_s: Per-iteration wall-clock time [s].
-        env_steps_per_s: Effective environment throughput [env-steps/s] (the run's FPS metric).
+        collection_fps: Environment-stepping (rollout) throughput [frames/s] — environment
+            steps per second across all environments during data collection (the scripts'
+            "Collection FPS" / "Environment + Inference FPS").
+        total_fps: End-to-end throughput [frames/s] including the policy update — the headline
+            FPS (the scripts' "Total FPS" / "effective FPS"). For pure runtime runs with no
+            learning, this equals :attr:`collection_fps`.
         iterations_per_s: Iteration rate [iter/s].
     """
 
@@ -201,7 +206,8 @@ class Runtime:
     total_wall_time_s: float
     steps_per_iteration: int
     iteration_time_s: MeanStd
-    env_steps_per_s: MeanStd
+    collection_fps: MeanStd
+    total_fps: MeanStd
     iterations_per_s: MeanStd
 
 
