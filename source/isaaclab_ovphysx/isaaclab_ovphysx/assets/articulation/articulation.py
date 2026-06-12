@@ -843,11 +843,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # The finite-differenced joint acceleration is not covered by the shared reset helpers, so
-        # invalidate it here unconditionally (mirroring the joint-velocity writer).
-        self._data._joint_acc.timestamp = -1.0
-        # Let the data class handle the invalidation of the remaining pose- and velocity-dependent properties.
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties. The
+        # finite-differenced joint acceleration is not covered by the shared reset helpers, so invalidate
+        # it here as well.
         if not skip_forward:
+            self._data._joint_acc.timestamp = -1.0
             self._data.reset_pose()
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_POSITION)
@@ -890,11 +890,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # The finite-differenced joint acceleration is not covered by the shared reset helpers, so
-        # invalidate it here unconditionally (mirroring the joint-velocity writer).
-        self._data._joint_acc.timestamp = -1.0
-        # Let the data class handle the invalidation of the remaining pose- and velocity-dependent properties.
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties. The
+        # finite-differenced joint acceleration is not covered by the shared reset helpers, so invalidate
+        # it here as well.
         if not skip_forward:
+            self._data._joint_acc.timestamp = -1.0
             self._data.reset_pose()
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_POSITION)
@@ -944,8 +944,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._previous_joint_vel],
             device=self._device,
         )
-        self._data._joint_acc.timestamp = -1.0
         if not skip_forward:
+            # The shared reset helper does not cover the finite-differenced joint acceleration.
+            self._data._joint_acc.timestamp = -1.0
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_VELOCITY)
         binding.write(self._data._joint_vel_buf.data, indices=env_ids)
@@ -995,8 +996,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._previous_joint_vel],
             device=self._device,
         )
-        self._data._joint_acc.timestamp = -1.0
         if not skip_forward:
+            # The shared reset helper does not cover the finite-differenced joint acceleration.
+            self._data._joint_acc.timestamp = -1.0
             self._data.reset_velocity()
         binding = self._get_binding(TT.DOF_VELOCITY)
         binding.write(self._data._joint_vel_buf.data, mask=env_mask_wp)
@@ -1037,7 +1039,10 @@ class Articulation(BaseArticulation):
         self.write_joint_velocity_to_sim_mask(
             velocity=velocity, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
         )
+        # The sub-writers skipped their invalidation (skip_forward=True); do it once here, including the
+        # joint acceleration that the shared reset helpers do not cover.
         if not skip_forward:
+            self._data._joint_acc.timestamp = -1.0
             self._data.reset_pose()
             self._data.reset_velocity()
 
