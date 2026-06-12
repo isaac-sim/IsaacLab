@@ -27,6 +27,7 @@ from isaaclab.sim.utils.newton_model_utils import (
     _scatter_shape_color_rows_kernel,
     replace_newton_shape_colors,
 )
+from isaaclab.test.utils import test_devices
 
 _WARNING_MESSAGE = "Newton shape color replacement is enabled; this workaround will be deprecated in a future release."
 
@@ -177,7 +178,7 @@ def _run_scatter_shape_color_rows_kernel(
         pytest.param((-0.25, 1.75, 0.5), id="oob_clamps_pow"),
     ],
 )
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_scatter_shape_color_rows_kernel(device: str, linear_rgb: tuple[float, float, float]):
     """Packed RGB per case; the two parametrized cases jointly cover every ``_linear_channel_to_srgb_warp`` branch."""
     after = _run_scatter_shape_color_rows_kernel([linear_rgb], device=device)
@@ -284,7 +285,7 @@ def test_replace_newton_shape_colors_warning():
         replace_newton_shape_colors(model)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_env_var_switch(monkeypatch: pytest.MonkeyPatch, device: str):
     """Setting ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to ``0`` disables the workaround."""
     monkeypatch.setenv("ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS", "0")
@@ -315,7 +316,7 @@ def test_replace_newton_shape_colors_env_var_switch(monkeypatch: pytest.MonkeyPa
     assert not any(issubclass(w.category, FutureWarning) for w in recorded)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_invalid_prim(device: str):
     """Invalid prim path leaves ``shape_color`` unchanged."""
     stage = Usd.Stage.CreateInMemory()
@@ -330,7 +331,7 @@ def test_replace_newton_shape_colors_invalid_prim(device: str):
     assert torch.allclose(wp.to_torch(shape_color), before)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_guide_purpose(device: str):
     """Guide-purpose mesh leaves ``shape_color`` unchanged."""
     stage = Usd.Stage.CreateInMemory()
@@ -349,7 +350,7 @@ def test_replace_newton_shape_colors_guide_purpose(device: str):
     assert torch.allclose(wp.to_torch(shape_color), before)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_no_material_binding(device: str):
     """No material: ``displayColor`` or unbound gray as linear RGB, then sRGB OETF into ``shape_color``."""
     stage = Usd.Stage.CreateInMemory()
@@ -381,7 +382,7 @@ def test_replace_newton_shape_colors_no_material_binding(device: str):
 
 
 @pytest.mark.parametrize(("diffuse_color_constant", "diffuse_tint"), _OMNIPBR_ALBEDO_INPUT_CASES)
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_omnipbr_binding(
     device: str,
     diffuse_color_constant: tuple[float, float, float] | None,
@@ -405,7 +406,7 @@ def test_replace_newton_shape_colors_omnipbr_binding(
     )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_neutral_material(device: str):
     """Bound ``UsdPreviewSurface`` material leaves ``shape_color`` unchanged."""
     stage, mesh_path = _make_preview_surface_bound_mesh_stage()
@@ -418,7 +419,7 @@ def test_replace_newton_shape_colors_neutral_material(device: str):
     assert torch.allclose(wp.to_torch(shape_color), before)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_respects_binding_strength(device: str):
     """Parent stronger-than-descendants binding overrides direct child binding."""
     # Scene graph (``ComputeBoundMaterial`` on the mesh yields ParentMat / green, not ChildMat / red):
@@ -470,7 +471,7 @@ def test_replace_newton_shape_colors_respects_binding_strength(device: str):
     )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_replace_newton_shape_colors_instanced(device: str):
     """Instance-proxy labels deduplicate via canonical prototype paths in the per-key cache."""
     stage = Usd.Stage.CreateInMemory()

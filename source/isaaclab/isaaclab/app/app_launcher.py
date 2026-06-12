@@ -1003,6 +1003,17 @@ class AppLauncher:
         device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
 
         device_explicitly_passed = launcher_args.pop("device_explicit", False)
+        # When the caller didn't pin a device, allow ISAACLAB_SIM_DEVICE to
+        # override the default. Used by the multi-GPU CI workflow to boot
+        # Kit with active_gpu=1 without editing every test's AppLauncher()
+        # call site; Kit's active_gpu is process-global and locked after
+        # SimulationApp init, so per-test selection cannot retarget it.
+        if not device_explicitly_passed:
+            env_device = os.environ.get("ISAACLAB_SIM_DEVICE")
+            if env_device:
+                device = env_device
+                launcher_args["device"] = env_device
+
         if self._xr and not device_explicitly_passed:
             # If no device is specified, default to the CPU device if we are running in XR
             device = "cpu"
@@ -1059,6 +1070,32 @@ class AppLauncher:
         # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
+
+        # Pin Kit's renderer to a single GPU when ``ISAACLAB_PIN_KIT_GPU`` is
+        # truthy. The default ``apps/isaaclab.python.headless.kit`` sets
+        # ``renderer.multiGpu.enabled = true`` + ``renderer.multiGpu.autoEnable
+        # = true``, so each Kit process enumerates every visible GPU at
+        # startup. Under concurrent multi-GPU CI shards (``--gpus all`` per
+        # container, one Kit per non-default cuda device), that produces a
+        # shared GPU-interop context across sibling processes -- surfacing as
+        # ``[Error] [omni.physx.plugin] Stage X already attached`` mid-test and
+        # ``SimulationApp.close`` hanging in teardown (see
+        # https://github.com/isaac-sim/IsaacLab/issues/3475). The mitigation is
+        # to set ``renderer.multiGpu.enabled = false`` + ``maxGpuCount = 1`` so
+        # each Kit only touches its assigned GPU.
+        if os.environ.get("ISAACLAB_PIN_KIT_GPU", "0").lower() not in {"", "0", "false", "no", "off"}:
+            sys.argv.append("--/renderer/multiGpu/enabled=False")
+            sys.argv.append("--/renderer/multiGpu/autoEnable=False")
+            sys.argv.append("--/renderer/multiGpu/maxGpuCount=1")
+            # Also disable the fabric GPU-interop path. The renderer multiGpu
+            # flags above mitigate the startup-time enumeration race; this
+            # mitigates the runtime GPU-interop race on top. Safe for the
+            # multi-GPU CI lane: it covers physics / scene / utility tests,
+            # not rendering.
+            sys.argv.append("--/physics/fabricUseGPUInterop=false")
+            logger.info(
+                "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + disabling fabric GPU-interop"
+            )
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
