@@ -879,6 +879,7 @@ def rendering_test_dexsuite_kuka(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
+    from isaaclab.app.settings_manager import get_settings_manager
     from isaaclab.envs import ManagerBasedRLEnv
 
     from isaaclab_tasks.manager_based.manipulation.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
@@ -898,6 +899,11 @@ def rendering_test_dexsuite_kuka(
     env_cfg.scene.num_envs = 4
 
     if renderer == "ovrtx_renderer":
+        # PR#5979 followup: on release/3.0.0-beta2, the flag is set in launch_simulation() as a workaround to keep
+        # USD cloning enabled when using OVRTX renderer. The test has to set the flag manually here to match the
+        # behavior of training.
+        get_settings_manager().set_bool("/isaaclab/runtime/has_ovrtx_renderer", True)
+
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
@@ -937,3 +943,7 @@ def rendering_test_dexsuite_kuka(
             # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
             # native code could probably complain about leaks and trigger segmentation fault.
             env = None
+
+        if renderer == "ovrtx_renderer":
+            # Reset the flag to False to avoid affecting other tests.
+            get_settings_manager().set_bool("/isaaclab/runtime/has_ovrtx_renderer", False)
