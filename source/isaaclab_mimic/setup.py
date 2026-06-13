@@ -25,10 +25,6 @@ INSTALL_REQUIRES = [
     "h5py==3.15.1",
 ]
 
-# nvidia-srl-usd-to-urdf depends on usd-core which has no aarch64 wheels
-if platform.machine() != "aarch64":
-    INSTALL_REQUIRES.append("nvidia-srl-usd-to-urdf")
-
 # robomimic has no Windows/macOS wheels; only add it on Linux
 if platform.system() == "Linux":
     INSTALL_REQUIRES.append("robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0")
