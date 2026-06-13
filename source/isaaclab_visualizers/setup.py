@@ -26,6 +26,7 @@ EXTRAS_REQUIRE = {
         "warp-lang",
         "newton[sim]==1.2.1",
         "PyOpenGL-accelerate",
+        "pyglet>=2.1.6,<3",
         "imgui-bundle>=1.92.601",
         "typing-extensions==4.12.2",
         "pydantic>=2.7,<2.12",

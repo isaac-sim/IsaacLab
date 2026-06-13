@@ -646,6 +646,18 @@ The visualizer will still function correctly but may experience reduced performa
 CPU copy operations instead of direct GPU memory sharing.
 
 
+**Newton Visualizer OpenGL Context Failures**
+
+The Newton visualizer is an OpenGL window. If pyglet reports that
+``glCreateShader`` is not exported or that OpenGL 2.0 is required, the Python
+process did not receive a usable OpenGL 2.0+ context from the active Windows or
+Linux display session. This usually means the process is running in a
+non-interactive/service session, through a remote desktop path without GPU
+OpenGL acceleration, or with a software/basic OpenGL provider instead of the
+NVIDIA driver. Run from a GPU-backed interactive display session, or omit
+``--visualizer newton`` for headless inference.
+
+
 **Newton Visualizer on Spark with Conda**
 
 When running the Newton visualizer on Spark inside a conda environment, conda-installed X11 libraries
