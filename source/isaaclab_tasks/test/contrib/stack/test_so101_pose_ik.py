@@ -284,11 +284,11 @@ def test_orientation_error_matches_axis_angle_xyzw():
 
 def test_action_cfg_points_at_custom_action_and_controller():
     """The action cfg wires the custom action class and the full-pose controller cfg."""
-    pytest.importorskip("pxr")  # action term imports UsdPhysics at module load
-    from isaaclab_tasks.contrib.stack.config.so101.pose_ik_action import (
-        SO101PoseIKAction,
-        SO101PoseIKActionCfg,
-    )
+    pytest.importorskip("pxr")  # the action term imports UsdPhysics at module load
+    from isaaclab.utils.string import string_to_callable
+
+    from isaaclab_tasks.contrib.stack.config.so101.pose_ik_action import SO101PoseIKActionCfg
+    from isaaclab_tasks.contrib.stack.config.so101.pose_ik_action_term import SO101PoseIKAction
 
     cfg = SO101PoseIKActionCfg(
         asset_name="robot",
@@ -296,7 +296,9 @@ def test_action_cfg_points_at_custom_action_and_controller():
         body_name="gripper",
         controller=SO101PoseIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
     )
-    assert cfg.class_type is SO101PoseIKAction
+    # ``class_type`` is a lazy ``{DIR}.pose_ik_action_term:SO101PoseIKAction`` string (so the cfg
+    # stays importable without Kit); resolve it to confirm it points at the custom term.
+    assert string_to_callable(str(cfg.class_type)) is SO101PoseIKAction
     assert isinstance(cfg.controller, SO101PoseIKControllerCfg)
 
 
