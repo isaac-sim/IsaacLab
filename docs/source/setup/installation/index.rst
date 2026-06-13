@@ -111,6 +111,8 @@ Other notable limitations with respect to Isaac Lab include...
 #. Pink IK is not supported on DGX Spark because ``nvidia-srl-usd-to-urdf`` depends
    on ``usd-core``, which does not provide aarch64 wheels.
 
+#. RLinf support has not been verified on DGX Spark.
+
 .. note::
 
    **Build prerequisites on aarch64:** Some Python packages (notably ``imgui-bundle`` and ``quadprog``) do not ship
