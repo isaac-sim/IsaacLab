@@ -108,6 +108,9 @@ Other notable limitations with respect to Isaac Lab include...
    ``pytetwild`` wheel is available for ARM (aarch64). ``pytetwild`` is required for
    automatic tetrahedral mesh generation of volume deformables.
 
+#. Pink IK is not supported on DGX Spark because ``nvidia-srl-usd-to-urdf`` depends
+   on ``usd-core``, which does not provide aarch64 wheels.
+
 .. note::
 
    **Build prerequisites on aarch64:** Some Python packages (notably ``imgui-bundle`` and ``quadprog``) do not ship
