@@ -3486,7 +3486,7 @@ class Articulation(BaseArticulation):
 
             resolve_source = sim_utils.resolve_matching_prims_from_source
             root_matches = resolve_source(self.cfg.prim_path, has_root_api, expected_num_matches=1)
-            root_prim_path_expr = root_matches[0][1]
+            _, root_prim_path_expr = root_matches[0]
         # Validate the prim exists on the live stage -- ``create_tensor_binding`` silently
         # returns a 0-count binding when the pattern matches nothing, surfacing as obscure
         # AttributeErrors deep in property accessors. Also stash the concrete source-side

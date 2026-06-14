@@ -1118,7 +1118,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         root_prim_path_exprs: list[str] = []
 
         for name, obj_cfg in self.cfg.rigid_objects.items():
-            root_expr = resolve_source(obj_cfg.prim_path, has_rigid_body_api, expected_num_matches=1)[0][1]
+            _, root_expr = resolve_source(obj_cfg.prim_path, has_rigid_body_api, expected_num_matches=1)[0]
             root_prim_path_exprs.append(root_expr.replace(".*", "*"))
             self._body_names_list.append(name)
 

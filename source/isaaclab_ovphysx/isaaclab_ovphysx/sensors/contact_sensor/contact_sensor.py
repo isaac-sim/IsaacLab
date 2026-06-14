@@ -211,7 +211,8 @@ class ContactSensor(BaseContactSensor):
 
         # Build glob patterns: one per (env, sensor body).
         # IsaacLab path forms map to ovphysx fnmatch globs the same way Articulation does.
-        body_parent = body_matches[0][1].rsplit("/", 1)[0]
+        _, body_path_expr = body_matches[0]
+        body_parent = body_path_expr.rsplit("/", 1)[0]
         base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", body_parent)
         base_glob = re.sub(r"\.\*", "*", base_glob)
         sensor_patterns = [f"{base_glob}/{name}" for name in body_names]

@@ -1049,7 +1049,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             # Resolve the rigid body root expression.
             resolve_source = sim_utils.resolve_matching_prims_from_source
             root_matches = resolve_source(obj_cfg.prim_path, has_rigid_body_api, expected_num_matches=1)
-            root_prim_path_expr = root_matches[0][1]
+            _, root_prim_path_expr = root_matches[0]
             # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
             # ``create_tensor_binding`` expects fnmatch globs.
             pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)

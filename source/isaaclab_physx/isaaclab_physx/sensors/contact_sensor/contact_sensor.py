@@ -310,7 +310,8 @@ class ContactSensor(BaseContactSensor):
             )
 
         # construct regex expression for the body names and convert to PhysX glob form
-        body_parent = body_matches[0][1].rsplit("/", 1)[0]
+        _, body_path_expr = body_matches[0]
+        body_parent = body_path_expr.rsplit("/", 1)[0]
         body_names_regex = r"(" + "|".join(body_names) + r")"
         body_names_regex = f"{body_parent}/{body_names_regex}"
         body_names_glob = body_names_regex.replace(".*", "*")

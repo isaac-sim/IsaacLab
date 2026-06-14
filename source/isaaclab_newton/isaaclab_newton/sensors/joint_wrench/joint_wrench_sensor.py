@@ -132,7 +132,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
         resolve = resolve_matching_prims_from_source
-        root_prim_path_expr = resolve(self.cfg.prim_path, has_articulation_root_api, expected_num_matches=1)[0][1]
+        _, root_prim_path_expr = resolve(self.cfg.prim_path, has_articulation_root_api, expected_num_matches=1)[0]
         self._root_view = ArticulationView(
             model,
             root_prim_path_expr.replace(".*", "*"),

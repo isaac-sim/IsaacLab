@@ -994,7 +994,7 @@ class RigidObject(BaseRigidObject):
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
         resolve_source = resolve_matching_prims_from_source
-        root_prim_path_expr = resolve_source(self.cfg.prim_path, has_rigid_body_api, expected_num_matches=1)[0][1]
+        _, root_prim_path_expr = resolve_source(self.cfg.prim_path, has_rigid_body_api, expected_num_matches=1)[0]
         # -- object view
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
