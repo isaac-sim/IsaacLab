@@ -3501,7 +3501,8 @@ class Articulation(BaseArticulation):
             def has_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, has_root_api, 1)[0][1]
+            resolve_source = resolve_matching_prims_from_source
+            root_prim_path_expr = resolve_source(self.cfg.prim_path, has_root_api, expected_num_matches=1)[0][1]
         # -- articulation
         self._root_view = ArticulationView(
             SimulationManager.get_model(),

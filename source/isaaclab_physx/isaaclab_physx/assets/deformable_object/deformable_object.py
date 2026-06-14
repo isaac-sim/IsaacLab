@@ -592,7 +592,7 @@ class DeformableObject(AssetBase):
         resolve_source = sim_utils.resolve_matching_prims_from_source
         asset_prim, root_expr = resolve_source(prim_path)[0]
         walk_root = asset_prim.GetPath().pathString
-        root_prim, root_prim_path_expr = resolve_source(prim_path, has_deformable_body_api, 1)[0]
+        root_prim, root_prim_path_expr = resolve_source(prim_path, has_deformable_body_api, expected_num_matches=1)[0]
 
         # find deformable material prims
         material_prim = None
