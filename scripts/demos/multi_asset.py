@@ -43,8 +43,6 @@ parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
-import random
-
 import isaaclab.sim as sim_utils
 
 ##
@@ -56,7 +54,6 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -66,32 +63,19 @@ if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
 
 
-##
-# Randomization events.
-##
-
-
-def randomize_shape_color(prim_path_expr: str):
-    """Randomize the color of the geometry."""
-    from pxr import Gf, Sdf
-
-    # get stage handle
-    stage = get_current_stage()
-    # resolve prim paths for spawning and cloning
-    prim_paths = sim_utils.find_matching_prim_paths(prim_path_expr)
-    # manually clone prims if the source prim path is a regex expression
-    with Sdf.ChangeBlock():
-        for prim_path in prim_paths:
-            # spawn single instance
-            prim_spec = Sdf.CreatePrimInLayer(stage.GetRootLayer(), prim_path)
-
-            # DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!
-            # Note: Just need to acquire the right attribute about the property you want to set
-            # Here is an example on setting color randomly
-            color_spec = prim_spec.GetAttributeAtPath(prim_path + "/geometry/material/Shader.inputs:diffuseColor")
-            if color_spec is not None:
-                color_spec.default = Gf.Vec3f(random.random(), random.random(), random.random())
-
+# Visual material presets for the multi-asset variants.
+GREEN_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2)}
+RED_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2)}
+BLUE_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2)}
+GOLD_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.75, 0.0), metallic=0.2)}
+PURPLE_MATERIAL = {"visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.0, 1.0), metallic=0.2)}
+OBJECT_PHYSICS = {
+    "rigid_props": sim_utils.RigidBodyPropertiesCfg(
+        solver_position_iteration_count=4, solver_velocity_iteration_count=0
+    ),
+    "mass_props": sim_utils.MassPropertiesCfg(mass=1.0),
+    "collision_props": sim_utils.CollisionPropertiesCfg(),
+}
 
 ##
 # Scene Configuration
@@ -115,26 +99,18 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         prim_path="/World/envs/env_.*/Object",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
-                (sim_utils.CylinderCfg)(
-                    radius=0.3,
-                    height=0.6,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0), metallic=0.2),
-                ),
-                sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                ),
-                sim_utils.SphereCfg(
-                    radius=0.3,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0), metallic=0.2),
-                ),
+                sim_utils.CylinderCfg(radius=0.3, height=0.6, **GREEN_MATERIAL),
+                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **RED_MATERIAL),
+                sim_utils.SphereCfg(radius=0.3, **BLUE_MATERIAL),
+                sim_utils.CylinderCfg(radius=0.3, height=0.6, **GOLD_MATERIAL),
+                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **GOLD_MATERIAL),
+                sim_utils.SphereCfg(radius=0.3, **GOLD_MATERIAL),
+                sim_utils.CylinderCfg(radius=0.3, height=0.6, **PURPLE_MATERIAL),
+                sim_utils.CuboidCfg(size=(0.3, 0.3, 0.3), **PURPLE_MATERIAL),
+                sim_utils.SphereCfg(radius=0.3, **PURPLE_MATERIAL),
             ],
-            random_choice=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            random_choice=False,
+            **OBJECT_PHYSICS,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
     )
@@ -144,42 +120,17 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
         rigid_objects={
             "object_A": RigidObjectCfg(
                 prim_path="/World/envs/env_.*/Object_A",
-                spawn=sim_utils.SphereCfg(
-                    radius=0.1,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                    ),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
+                spawn=sim_utils.SphereCfg(radius=0.1, **RED_MATERIAL, **OBJECT_PHYSICS),
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.5, 2.0)),
             ),
             "object_B": RigidObjectCfg(
                 prim_path="/World/envs/env_.*/Object_B",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.1, 0.1, 0.1),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                    ),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
+                spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1), **RED_MATERIAL, **OBJECT_PHYSICS),
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.5, 2.0)),
             ),
             "object_C": RigidObjectCfg(
                 prim_path="/World/envs/env_.*/Object_C",
-                spawn=sim_utils.CylinderCfg(
-                    radius=0.1,
-                    height=0.3,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(1.0, 0.0, 0.0), metallic=0.2),
-                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                        solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                    ),
-                    mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                    collision_props=sim_utils.CollisionPropertiesCfg(),
-                ),
+                spawn=sim_utils.CylinderCfg(radius=0.1, height=0.3, **RED_MATERIAL, **OBJECT_PHYSICS),
                 init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 2.0)),
             ),
         }
@@ -193,7 +144,7 @@ class MultiObjectSceneCfg(InteractiveSceneCfg):
                 f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-C/anymal_c.usd",
                 f"{ISAACLAB_NUCLEUS_DIR}/Robots/ANYbotics/ANYmal-D/anymal_d.usd",
             ],
-            random_choice=True,
+            random_choice=False,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
                 retain_accelerations=False,
@@ -295,17 +246,11 @@ def main():
         # Design scene
         scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, replicate_physics=True)
         if args_cli.physics == "newton_mjwarp":
-            # Newton/MJWarp requires a uniform layout, not supporting different setups across environments.
+            # Newton views currently require a uniform body layout across worlds.
             scene_cfg.object.spawn.assets_cfg = scene_cfg.object.spawn.assets_cfg[1:2]
             scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
         with Timer("[INFO] Time to create scene: "):
             scene = scene_cfg.class_type(scene_cfg)
-
-        with Timer("[INFO] Time to randomize scene: "):
-            # DO YOUR OWN OTHER KIND OF RANDOMIZATION HERE!
-            # Note: Just need to acquire the right attribute about the property you want to set
-            # Here is an example on setting color randomly
-            randomize_shape_color(scene_cfg.object.prim_path)
 
         # Play the simulator
         sim.reset()
