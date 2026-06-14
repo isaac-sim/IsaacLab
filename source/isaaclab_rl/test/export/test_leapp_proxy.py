@@ -14,6 +14,7 @@ pytest.importorskip("leapp")
 from isaaclab.envs import mdp
 from isaaclab.test.mock_interfaces.assets.mock_articulation import MockArticulationData
 from isaaclab.utils import math as math_utils
+from isaaclab.utils.leapp import leapp_input_tensor
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
 from isaaclab.utils.leapp.leapp_semantics import InputKindEnum
@@ -43,6 +44,9 @@ def _capture_leapp_inputs(monkeypatch: pytest.MonkeyPatch) -> list:
 
     def _record_input_tensor(task_name, semantics):
         annotated_inputs.append((task_name, semantics))
+        if isinstance(semantics, dict):
+            assert len(semantics) == 1
+            return next(iter(semantics.values()))
         return semantics.ref
 
     monkeypatch.setattr(leapp_utils.annotate, "input_tensors", _record_input_tensor)
@@ -102,3 +106,39 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     assert semantics.name == "robot_root_quat_w"
     assert semantics.kind == InputKindEnum.BODY_ROTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
+
+
+def test_manual_input_tensor_alias_survives_trace_cache_clear(monkeypatch: pytest.MonkeyPatch):
+    """Test manual inputs can satisfy later proxy reads after the trace cache is cleared."""
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    data = MockArticulationData(num_instances=1, num_joints=7, num_bodies=0, device="cpu")
+    joint_pos = torch.arange(7, dtype=torch.float32).reshape(1, 7)
+    data.set_joint_pos(joint_pos)
+    scene = _TestScene({"robot": SimpleNamespace(data=data)})
+    env = SimpleNamespace(scene=scene, unwrapped=SimpleNamespace(spec=SimpleNamespace(id="Task-v0")))
+    cache = {}
+    proxy_env = _EnvProxy(env, "Task-v0", {}, cache)
+    proxy_env.scene["robot"]
+
+    selected_joint_pos = data.joint_pos.torch[:, :7]
+    annotated_joint_pos = leapp_input_tensor(
+        proxy_env,
+        "robot_joint_pos",
+        selected_joint_pos,
+        kind=InputKindEnum.JOINT_POSITION,
+        element_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"],
+        connection="state:robot:joint_pos",
+        cache=("robot", "joint_pos"),
+    )
+    cache.clear()
+
+    action_side_joint_pos = proxy_env.scene["robot"].data.joint_pos.torch[:, list(range(7))]
+
+    assert torch.allclose(action_side_joint_pos, annotated_joint_pos)
+    assert len(annotated_inputs) == 1
+    semantics = annotated_inputs[0][1]
+    assert semantics.name == "robot_joint_pos"
+    assert semantics.ref is selected_joint_pos
+    assert semantics.kind == InputKindEnum.JOINT_POSITION
+    assert semantics.element_names == [["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]]
+    assert semantics.extra == {"isaaclab_connection": "state:robot:joint_pos"}

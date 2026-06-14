@@ -148,6 +148,7 @@ class _DataProxy:
         object.__setattr__(self, "_task_name", task_name)
         object.__setattr__(self, "_property_resolution_cache", property_resolution_cache)
         object.__setattr__(self, "_cache", cache)
+        object.__setattr__(self, "_manual_cache", {})
         object.__setattr__(self, "_input_name_resolver", input_name_resolver)
 
     def __getattr__(self, name):
@@ -161,6 +162,9 @@ class _DataProxy:
 
         cache = object.__getattribute__(self, "_cache")
         cache_key = (id(real_data), name)
+        manual_cache = object.__getattribute__(self, "_manual_cache")
+        if cache_key in manual_cache:
+            return manual_cache[cache_key]
         if cache_key in cache:
             return cache[cache_key]
 
