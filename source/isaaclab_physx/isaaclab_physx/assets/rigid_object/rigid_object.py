@@ -18,7 +18,7 @@ from pxr import UsdPhysics
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.cloner import queue_usd_replication
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_physx.assets import kernels as shared_kernels
@@ -906,10 +906,7 @@ class RigidObject(BaseRigidObject):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
-        walk_root = asset_prim.GetPath().pathString
-        root_prims = get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
-        root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+        root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, has_rigid_body_api, 1)[0][1]
         # -- object view
         self._root_view = self._physics_sim_view.create_rigid_body_view(root_prim_path_expr.replace(".*", "*"))
 

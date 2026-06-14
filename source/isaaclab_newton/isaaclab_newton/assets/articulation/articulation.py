@@ -26,7 +26,7 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
@@ -3498,13 +3498,10 @@ class Articulation(BaseArticulation):
             root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
         else:
 
-            def has_articulation_root_api(prim) -> bool:
+            def has_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
-            walk_root = asset_prim.GetPath().pathString
-            root_prims = get_all_matching_child_prims(walk_root, has_articulation_root_api, expected_num_matches=1)
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+            root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, has_root_api, 1)[0][1]
         # -- articulation
         self._root_view = ArticulationView(
             SimulationManager.get_model(),
