@@ -1127,15 +1127,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         combined_segments: list[str] = []
         for segments in zip(*split_paths):
-            if len(set(segments)) == 1:
-                combined_segments.append(segments[0])
-            else:
-                prefix = commonprefix(segments)
-                suffixes = [segment[len(prefix) :] for segment in segments]
-                if all(len(suffix) == 1 and suffix.isalnum() for suffix in suffixes):
-                    combined_segments.append(f"{prefix}[{''.join(sorted(set(suffixes)))}]")
-                else:
-                    combined_segments.append(f"{prefix}*")
+            choices = sorted(set(segments))
+            if len(choices) == 1:
+                combined_segments.append(choices[0])
+                continue
+
+            prefix = commonprefix(choices)
+            suffixes = [choice[len(prefix) :] for choice in choices]
+            wildcard = f"[{''.join(suffixes)}]" if all(len(s) == 1 and s.isalnum() for s in suffixes) else "*"
+            combined_segments.append(prefix + wildcard)
         combined_pattern = "/".join(combined_segments)
 
         # Create a single ArticulationView matching all body types.
