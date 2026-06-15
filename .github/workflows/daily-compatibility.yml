@@ -229,7 +229,7 @@ jobs:
         compression-level: 9
 
     - name: Report Test Results
-      uses: dorny/test-reporter@v2.6.0
+      uses: dorny/test-reporter@3d76b34a4535afbd0600d347b09a6ee5deb3ed7f # v2.6.0
       if: always()
       with:
         name: IsaacLab Compatibility Test Results (${{ github.event_name }})

@@ -68,7 +68,7 @@ jobs:
 
     - name: Run Link Checker
       if: steps.check_docs.outputs.run_job == 'true' || github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
-      uses: lycheeverse/lychee-action@v2
+      uses: lycheeverse/lychee-action@8646ba30535128ac92d33dfc9133794bfdd9b411 # v2
       with:
         # Check all markdown files and documentation
         # Excluded are known crawl blockers
