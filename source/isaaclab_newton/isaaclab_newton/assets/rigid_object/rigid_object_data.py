@@ -384,8 +384,13 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        # Refresh FK and re-derive the root com pose so a stale cache is recomputed after a write.
+        # The reshape cached below is a view of ``root_com_pose_w``'s buffer, so once that buffer is
+        # refreshed in place the cached view reflects the fresh data without reallocation.
+        self._ensure_fk_fresh()
+        root_com_pose_w = self.root_com_pose_w
         if self._body_com_pose_w_ta is None:
-            self._body_com_pose_w_ta = ProxyArray(self.root_com_pose_w.warp.reshape((self._num_instances, 1)))
+            self._body_com_pose_w_ta = ProxyArray(root_com_pose_w.warp.reshape((self._num_instances, 1)))
         return self._body_com_pose_w_ta
 
     @property
