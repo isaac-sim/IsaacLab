@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Sequence
-from os.path import commonprefix
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -1122,22 +1121,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             root_prim_path_exprs.append(root_expr.replace(".*", "*"))
             self._body_names_list.append(name)
 
-        split_paths = [path.split("/") for path in root_prim_path_exprs]
-        if len({len(path) for path in split_paths}) != 1:
-            raise ValueError(f"Cannot build a combined rigid object collection pattern from {root_prim_path_exprs}.")
-
-        combined_segments: list[str] = []
-        for segments in zip(*split_paths):
-            choices = sorted(set(segments))
-            if len(choices) == 1:
-                combined_segments.append(choices[0])
-                continue
-
-            prefix = commonprefix(choices)
-            suffixes = [choice[len(prefix) :] for choice in choices]
-            wildcard = f"[{''.join(suffixes)}]" if all(len(s) == 1 and s.isalnum() for s in suffixes) else "*"
-            combined_segments.append(prefix + wildcard)
-        combined_pattern = "/".join(combined_segments)
+        # Build a single pattern that matches ALL body types by wildcarding the differing path segment.
+        combined_pattern = self._build_combined_pattern(root_prim_path_exprs)
 
         # Create a single ArticulationView matching all body types.
         # The 2nd dimension (matches per world) corresponds to the body types.
@@ -1270,6 +1255,45 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             body_ids = self._ALL_BODY_INDICES
         return body_ids
+
+    @staticmethod
+    def _build_combined_pattern(prim_path_exprs: list[str]) -> str:
+        """Build a single fnmatch pattern that matches all body types.
+
+        Compares path segments across all expressions and wildcards the segments that differ.
+        For example, given::
+
+            ["/World/Env_*/DexCube/Cube", "/World/Env_*/DexSphere/Sphere"]
+
+        produces ``"/World/Env_*/*/*"``.
+
+        Args:
+            prim_path_exprs: List of prim path expressions, one per body type.
+
+        Returns:
+            A single fnmatch pattern string.
+
+        Raises:
+            ValueError: If the expressions have different numbers of path segments.
+        """
+        if len(prim_path_exprs) == 1:
+            return prim_path_exprs[0]
+
+        split_paths = [p.split("/") for p in prim_path_exprs]
+        lengths = {len(s) for s in split_paths}
+        if len(lengths) != 1:
+            raise ValueError(
+                f"Cannot build combined pattern: path expressions have different segment counts: {prim_path_exprs}"
+            )
+
+        combined_segments = []
+        for segments in zip(*split_paths):
+            unique = set(segments)
+            if len(unique) == 1:
+                combined_segments.append(segments[0])
+            else:
+                combined_segments.append("*")
+        return "/".join(combined_segments)
 
     """
     Internal simulation callbacks.
