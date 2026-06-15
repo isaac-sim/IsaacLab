@@ -15,12 +15,18 @@ from __future__ import annotations
 import logging
 import os
 import warnings
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
 
 from pxr import Usd, UsdGeom, UsdShade
+
+from isaaclab.sim import SimulationContext
+
+if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
+
 
 __all__ = ["replace_newton_shape_colors"]
 
@@ -195,12 +201,139 @@ def _get_primvar_display_color(shape_prim: Usd.Prim) -> tuple[float, float, floa
     return _coerce_color(primvar.Get())
 
 
+def _build_clone_source_map(missing_keys: set[str], clone_plan: ClonePlan) -> dict[str, str]:
+    """Map missing destination prim paths to their clone-plan source prim paths in one pass.
+
+    In the Newton headless path USD cloning is skipped, so only the source env (env_0) has
+    real USD prims.  Shape labels for all other envs point to paths that don't exist in the
+    stage.  This function resolves them back to the source prim that was cloned into each env
+    so the correct material color can be read from an existing prim.
+
+    Example:
+        Given a clone plan with source ``/World/envs/env_0/Robot`` cloned into envs 0-3, and
+        missing keys for envs 1-3::
+
+            missing_keys = {
+                "/World/envs/env_1/Robot/Mesh",
+                "/World/envs/env_2/Robot/Mesh",
+                "/World/envs/env_3/Robot/Mesh",
+            }
+
+        The function returns::
+
+            {
+                "/World/envs/env_1/Robot/Mesh": "/World/envs/env_0/Robot/Mesh",
+                "/World/envs/env_2/Robot/Mesh": "/World/envs/env_0/Robot/Mesh",
+                "/World/envs/env_3/Robot/Mesh": "/World/envs/env_0/Robot/Mesh",
+            }
+
+        In a heterogeneous scene where ``RobotA`` populates envs 0 and 2, and ``RobotB``
+        populates envs 1 and 3, env_2 maps to ``RobotA``'s source and env_3 to ``RobotB``'s::
+
+            {
+                "/World/envs/env_2/Robot/Mesh": "/World/envs/env_0/RobotA/Mesh",
+                "/World/envs/env_3/Robot/Mesh": "/World/envs/env_1/RobotB/Mesh",
+            }
+
+    Instead of querying the clone plan once per missing key (which scans all rows and applies a
+    compiled regex per call via :func:`~isaaclab.cloner.cloner_utils.iter_clone_plan_matches`),
+    this function iterates the clone-plan rows once and matches all missing keys against each source
+    using simple string prefix and digit checks.  The total cost is O(R × K_miss) with a low
+    constant factor, where R is the number of clone-plan rows and K_miss = ``len(missing_keys)``.
+
+    Rows are processed in decreasing order of instantiated template length so that more-specific
+    (deeper) templates take priority, matching
+    :func:`~isaaclab.cloner.cloner_utils.iter_clone_plan_matches` semantics.
+
+    Args:
+        missing_keys: Destination prim paths absent from the USD stage.
+        clone_plan: Active clone plan.
+
+    Returns:
+        Dict mapping each resolvable missing path to its clone-source prim path.
+    """
+    from dataclasses import dataclass
+
+    @dataclass
+    class _Source:
+        root: str
+        template_prefix: str  # template prefix before the "{}" env-slot
+        template_suffix: str  # template suffix after the "{}" env-slot
+        env_ids: frozenset[int]
+
+        def instantiated_length(self) -> int:
+            """Length of the template when formatted with the smallest env id."""
+            return len(self.template_prefix) + len(str(min(self.env_ids))) + len(self.template_suffix)
+
+    result: dict[str, str] = {}
+    if not missing_keys:
+        return result
+
+    # Pre-process rows: strip trailing slashes, split the template at the env-slot placeholder,
+    # and collect the populated env ids as a frozenset for O(1) membership checks.
+    sources: list[_Source] = []
+    for row_idx, (root, dest_template) in enumerate(zip(clone_plan.sources, clone_plan.destinations)):
+        if "{}" not in dest_template:
+            continue
+        env_ids: frozenset[int] = frozenset(
+            int(j) for j in clone_plan.clone_mask[row_idx].nonzero(as_tuple=False).flatten().tolist()
+        )
+        if not env_ids:
+            continue
+        template_prefix, template_suffix = dest_template.rstrip("/").split("{}", 1)
+        sources.append(
+            _Source(
+                root=root.rstrip("/"), template_prefix=template_prefix, template_suffix=template_suffix, env_ids=env_ids
+            )
+        )
+
+    # Sort by instantiated template length descending, matching iter_clone_plan_matches semantics.
+    sources.sort(key=lambda r: r.instantiated_length(), reverse=True)
+
+    # Match each destination prim path against one of the sources.
+    remaining_dest = set(missing_keys)
+    for source in sources:
+        if not remaining_dest:
+            break
+        resolved: set[str] = set()
+        for prim_path in remaining_dest:
+            # Reject paths that don't start with this source's template prefix.
+            if not prim_path.startswith(source.template_prefix):
+                continue
+
+            # Extract the env-slot token: the path segment immediately after the prefix.
+            rest = prim_path[len(source.template_prefix) :]
+            slash = rest.find("/")
+            slot_str = rest[:slash] if slash >= 0 else rest
+
+            # Reject if the slot is not a digit or doesn't belong to this source's env ids.
+            if not slot_str.isdigit() or int(slot_str) not in source.env_ids:
+                continue
+
+            # Reject if the template_suffix-slot portion of the path doesn't match the template suffix.
+            after_slot = rest[len(slot_str) :]
+            if not after_slot.startswith(source.template_suffix):
+                continue
+
+            # Everything after the instantiated template root is the asset suffix;
+            # prepend the source root to form the source prim path.
+            result[prim_path] = source.root + after_slot[len(source.template_suffix) :]
+            resolved.add(prim_path)
+
+        remaining_dest -= resolved
+
+    return result
+
+
 def _resolve_shape_color(
     stage: Usd.Stage,
     prim_path: str,
     material_color_cache: dict[str, tuple[float, float, float] | None],
 ) -> tuple[float, float, float] | None:
     """Resolve replacement linear RGB for one prim path (sRGB encoding is applied in the scatter kernel).
+
+    The caller is responsible for remapping missing destination prim paths to their clone-source
+    equivalents before calling this function (see :func:`_build_clone_source_map`).
 
     Returns:
         Linear RGB to pass to :func:`_scatter_shape_color_rows_kernel`, or ``None`` to leave the row unchanged.
@@ -305,23 +438,39 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None) -> i
 
             stage = get_current_stage()
 
-        shape_keys: list[str] = []
+        sim = SimulationContext.instance()
+        clone_plan = sim.get_clone_plan() if sim is not None else None
 
+        # Collect canonical lookup keys, tracking which labels had no prim in the stage.
+        # Missing labels are kept verbatim so _build_clone_source_map can map them back to
+        # their clone-source equivalents (Newton headless path skips USD cloning for env_1-N).
+        shape_keys: list[str] = []
+        missing_key_set: set[str] = set()
         for label in shape_labels:
             prim = stage.GetPrimAtPath(label)
-            shape_keys.append(_canonical_prim_lookup_key(prim) if prim.IsValid() else label)
+            if prim.IsValid():
+                shape_keys.append(_canonical_prim_lookup_key(prim))
+            else:
+                shape_keys.append(label)
+                missing_key_set.add(label)
 
         # shape_keys must stay the same length as shape labels, to guarantee the correctness of
         # shape indices that will be used in the scatter kernel.
         assert num_shapes == len(shape_keys)
+
+        # Pre-build the dest -> source map for all missing keys in one clone-plan pass instead of
+        # calling iter_clone_plan_matches once per key (which applies a regex per call).
+        clone_source_map = (
+            _build_clone_source_map(missing_key_set, clone_plan) if missing_key_set and clone_plan else {}
+        )
 
         resolved_color_cache: dict[str, tuple[float, float, float] | None] = {}
         material_color_cache: dict[str, tuple[float, float, float] | None] = {}
 
         unique_keys = dict.fromkeys(shape_keys)
         for key in unique_keys:
-            color = _resolve_shape_color(stage, key, material_color_cache)
-            resolved_color_cache[key] = color
+            lookup = clone_source_map.get(key, key)
+            resolved_color_cache[key] = _resolve_shape_color(stage, lookup, material_color_cache)
 
         # Prepare the indices and colors for the scatter kernel:
         # - Indices point to the slots in the shape_colors array that should be updated

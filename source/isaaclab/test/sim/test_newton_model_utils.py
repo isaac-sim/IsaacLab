@@ -19,9 +19,11 @@ import warp as wp
 
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
+from isaaclab.cloner import ClonePlan
 from isaaclab.sim.utils.newton_model_utils import (
     _OMNIPBR_DEFAULTS,
     _UNBOUND_DEFAULT_FALLBACK_GRAY,
+    _build_clone_source_map,
     _get_omnipbr_albedo,
     _resolve_shape_color,
     _scatter_shape_color_rows_kernel,
@@ -514,3 +516,60 @@ def test_replace_newton_shape_colors_instanced(device: str):
     exp = _reference_linear_to_srgb((0.1, 0.2, 0.3))
     expected = torch.tensor([exp, exp], dtype=after.dtype, device=after.device)
     torch.testing.assert_close(after, expected, rtol=1e-5, atol=1e-5)
+
+
+def test_build_clone_source_map_homogeneous():
+    """Missing dest paths are mapped to the clone source in a homogeneous scene.
+
+    Simulates the Newton headless path (USD cloning skipped): only the env_0 source
+    prim exists; envs 1-3 labels are missing and must resolve back to env_0's source.
+    """
+    clone_plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.ones((1, 4), dtype=torch.bool),
+    )
+
+    missing = {f"/World/envs/env_{i}/Robot/Mesh" for i in range(1, 4)}
+    result = _build_clone_source_map(missing, clone_plan)
+
+    assert result == {key: "/World/envs/env_0/Robot/Mesh" for key in missing}
+
+
+def test_build_clone_source_map_heterogeneous():
+    """Each missing dest path resolves to the correct variant source in a heterogeneous scene.
+
+    Two robot variants share the same destination template but populate disjoint env
+    subsets: RobotA → envs 0,2; RobotB → envs 1,3.  env_2 must map to RobotA's
+    source and env_3 to RobotB's source, not always to the first row's source.
+    """
+    mask = torch.zeros((2, 4), dtype=torch.bool)
+    mask[0, [0, 2]] = True  # RobotA populates envs 0 and 2
+    mask[1, [1, 3]] = True  # RobotB populates envs 1 and 3
+    clone_plan = ClonePlan(
+        sources=("/World/envs/env_0/RobotA", "/World/envs/env_1/RobotB"),
+        destinations=("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot"),
+        clone_mask=mask,
+    )
+
+    missing = {
+        "/World/envs/env_2/Robot/Mesh",  # env_2 → RobotA (row 0 owns env_ids {0, 2})
+        "/World/envs/env_3/Robot/Mesh",  # env_3 → RobotB (row 1 owns env_ids {1, 3})
+    }
+    result = _build_clone_source_map(missing, clone_plan)
+
+    assert result["/World/envs/env_2/Robot/Mesh"] == "/World/envs/env_0/RobotA/Mesh"
+    assert result["/World/envs/env_3/Robot/Mesh"] == "/World/envs/env_1/RobotB/Mesh"
+
+
+def test_build_clone_source_map_no_match():
+    """Paths not owned by any clone-plan row are absent from the result."""
+    clone_plan = ClonePlan(
+        sources=("/World/envs/env_0/Robot",),
+        destinations=("/World/envs/env_{}/Robot",),
+        clone_mask=torch.ones((1, 4), dtype=torch.bool),
+    )
+
+    # "Sensor" sub-tree is not under the "Robot" template, so no match.
+    result = _build_clone_source_map({"/World/envs/env_2/Sensor/Mesh"}, clone_plan)
+    assert result == {}
