@@ -3776,11 +3776,13 @@ class Articulation(BaseArticulation):
             root_prim_path_expr = self.cfg.prim_path + self.cfg.articulation_root_prim_path
         else:
 
-            def has_root_api(prim) -> bool:
+            def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
             resolve_source = resolve_matching_prims_from_source
-            _, root_prim_path_expr = resolve_source(self.cfg.prim_path, has_root_api, expected_num_matches=1)[0]
+            _, root_prim_path_expr = resolve_source(
+                self.cfg.prim_path, has_articulation_root_api, expected_num_matches=1
+            )[0]
         # -- articulation
         self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 

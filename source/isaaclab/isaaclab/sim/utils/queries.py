@@ -343,20 +343,8 @@ def _normalize_legacy_wildcard_pattern(prim_path_regex: str) -> str:
 
 
 def matches_path_expr_prefix(path_expr: str, prim_path: str) -> bool:
-    """Return whether ``prim_path`` matches ``path_expr`` up to ``prim_path`` depth.
-
-    This is useful for deletion callbacks: deleting ``/World/envs/env_0`` should invalidate
-    an asset configured at ``/World/envs/env_.*/Robot``, while deleting a sibling should not.
-    """
-    if not path_expr.startswith("/"):
-        raise ValueError(f"Path expression '{path_expr}' is not global. It must start with '/'.")
-    if not prim_path.startswith("/"):
-        raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    if prim_path == "/":
-        return True
-
-    depth = len(prim_path.strip("/").split("/"))
-    prefix_expr = "/" + "/".join(path_expr.strip("/").split("/")[:depth])
+    """Return whether ``prim_path`` matches ``path_expr`` up to ``prim_path`` depth."""
+    prefix_expr = "/".join(path_expr.split("/")[: prim_path.count("/") + 1])
     return re.match(f"^{_normalize_legacy_wildcard_pattern(prefix_expr)}$", prim_path) is not None
 
 
@@ -416,10 +404,8 @@ def resolve_matching_prims_from_source(
 
     Args:
         path_expr: Prim path expression to resolve. It may contain regex wildcards.
-        predicate: Optional filter applied to descendants under each resolved source prim. When set, returned
-            expressions include the descendant suffix.
-        expected_num_matches: Expected number of returned prims. If specified, a :class:`RuntimeError` is raised when
-            the number of matches differs. Defaults to None, which disables count validation.
+        predicate: Optional descendant filter; returned expressions include the matching descendant suffix.
+        expected_num_matches: Optional exact result count.
         env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
         traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
