@@ -202,8 +202,6 @@ Added
   ``CUDA_VISIBLE_DEVICES`` selects a subset of a node's GPUs, including the
   ``NCCL_P2P_DISABLE=1`` workaround and an explanation of why it is not needed when all GPUs
   are visible.
-* Added the ``rl-games`` optional dependency to the ``isaaclab`` wheel and
-  included it in the wheel's ``all`` extra.
 
 Changed
 ^^^^^^^

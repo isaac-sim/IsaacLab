@@ -99,12 +99,6 @@ pyproject.optional-dependencies.all = [
     # RL libraries
     { "sb3" = ["stable-baselines3>=2.6", "tqdm", "rich"] },
     { "skrl" = ["skrl>=2.1.0"] },
-    # Do not pin aiohttp here: isaacsim-kernel==6.0.0.0 pins aiohttp==3.12.14.
-    { "rl-games" = [
-        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-        "gym",
-        "standard-distutils",
-    ] },
     { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
     # ================================================================================
@@ -120,9 +114,6 @@ pyproject.optional-dependencies.all = [
         "tqdm",
         "rich",
         "skrl>=2.1.0",
-        "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-        "gym",
-        "standard-distutils",
         "rsl-rl-lib==5.0.1",
         "onnxscript>=0.5",
     ] },
