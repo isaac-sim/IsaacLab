@@ -14,9 +14,11 @@ from __future__ import annotations
 
 {% if ns.amp_selected %}
 import gymnasium as gym
-import numpy as np
-{% endif %}
 import math
+import numpy as np
+{% else %}
+import math
+{% endif %}
 import torch
 from collections.abc import Sequence
 
