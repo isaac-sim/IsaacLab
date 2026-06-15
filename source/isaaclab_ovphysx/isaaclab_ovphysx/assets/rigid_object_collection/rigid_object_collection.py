@@ -406,7 +406,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # kernel-written value rather than re-fetching the pre-step OVPhysX state.
         self.data._body_link_pose_w.timestamp = self.data._sim_timestamp
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -457,7 +457,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -503,7 +503,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -557,7 +557,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
 
@@ -608,7 +608,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # kernel-written value rather than re-fetching the pre-step OVPhysX state.
         self.data._body_com_vel_w.timestamp = self.data._sim_timestamp
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -665,7 +665,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -723,7 +723,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 
@@ -789,7 +789,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate dependent timestamps
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self._binding_write(TT.LINK_VELOCITY, self.data._body_com_vel_w.data, env_ids=env_ids)
 

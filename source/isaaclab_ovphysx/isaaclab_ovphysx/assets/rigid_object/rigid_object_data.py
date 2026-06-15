@@ -15,6 +15,7 @@ import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
@@ -138,7 +139,7 @@ class RigidObjectData(BaseRigidObjectData):
         # since we do finite differencing.
         self.body_com_acc_w
 
-    def reset_pose(self, from_link: bool = True) -> None:
+    def _reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached rigid object properties.
 
         Writing a root pose moves the body, so the composite root state buffers go stale.
@@ -150,14 +151,17 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # The root com pose is derived from the root link pose, so only invalidate it when the link
         # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
-        if from_link:
-            self._root_com_pose_w.timestamp = -1.0
         # The composite root state buffers always go stale on a pose write.
-        self._root_state_w.timestamp = -1.0
-        self._root_link_state_w.timestamp = -1.0
-        self._root_com_state_w.timestamp = -1.0
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
 
-    def reset_velocity(self, from_com: bool = True) -> None:
+    def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached rigid object properties.
 
         Writing a root velocity changes the body velocities, so the composite root state buffers go stale.
@@ -169,12 +173,15 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # The root link velocity is derived from the root com velocity, so only invalidate it when the
         # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
-        if from_com:
-            self._root_link_vel_w.timestamp = -1.0
         # The composite root state buffers always go stale on a velocity write.
-        self._root_state_w.timestamp = -1.0
-        self._root_link_state_w.timestamp = -1.0
-        self._root_com_state_w.timestamp = -1.0
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
 
     """
     Names.

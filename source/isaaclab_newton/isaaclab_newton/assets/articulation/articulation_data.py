@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -134,7 +135,7 @@ class ArticulationData(BaseArticulationData):
             SimulationManager.forward()
             self._fk_timestamp = self._sim_timestamp
 
-    def reset_pose(
+    def _reset_pose(
         self, env_ids: wp.array | None = None, env_mask: wp.array | None = None, from_link: bool = True
     ) -> None:
         """Reset the pose of the articulation.
@@ -148,33 +149,30 @@ class ArticulationData(BaseArticulationData):
                 center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
                 the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
-        # Only invalidate the derived root com pose when it was not the quantity just written.
-        if from_link:
-            self._root_com_pose_w.timestamp = -1.0
-        self._body_com_pose_w.timestamp = -1.0
-        # Force refresh on all the root states
-        if self._root_state_w is not None:
-            self._root_state_w.timestamp = -1.0
-        if self._root_link_state_w is not None:
-            self._root_link_state_w.timestamp = -1.0
-        if self._root_com_state_w is not None:
-            self._root_com_state_w.timestamp = -1.0
-        # Force refresh on all the body com states
-        if self._body_state_w is not None:
-            self._body_state_w.timestamp = -1.0
-        if self._body_link_state_w is not None:
-            self._body_link_state_w.timestamp = -1.0
-        if self._body_com_state_w is not None:
-            self._body_com_state_w.timestamp = -1.0
-        # Why do we have _fk_timestamp and invalidate_fk? _fk_timestamp is on the data-side,
-        # it's meant to force a refresh on the next outdated read. invalidate_fk is simulation-manager-side, it's meant
-        # to let the solver know things changed before it performs its next step.
+        # Invalidate the derived root com pose only when it was not the quantity just written.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_com_pose_w,
+                # root states
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        # NOTE: _fk_timestamp and invalidate_fk serve two distinct roles. _fk_timestamp is on the
+        # data side and forces a refresh on the next outdated read. invalidate_fk is on the
+        # simulation-manager side and lets the solver know state changed before its next step.
         self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
-    def reset_velocity(
+    def _reset_velocity(
         self, env_ids: wp.array | None = None, env_mask: wp.array | None = None, from_com: bool = True
     ) -> None:
         """Reset the velocity of the articulation.
@@ -188,27 +186,24 @@ class ArticulationData(BaseArticulationData):
                 link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
                 velocity was written directly so it is not clobbered. Defaults to True.
         """
-        # Only invalidate the derived root link velocity when it was not the quantity just written.
-        if from_com:
-            self._root_link_vel_w.timestamp = -1.0
-        self._body_link_vel_w.timestamp = -1.0
-        # Force a refresh on all the root states
-        if self._root_state_w is not None:
-            self._root_state_w.timestamp = -1.0
-        if self._root_link_state_w is not None:
-            self._root_link_state_w.timestamp = -1.0
-        if self._root_com_state_w is not None:
-            self._root_com_state_w.timestamp = -1.0
-        # Force refresh on all the body com states
-        if self._body_state_w is not None:
-            self._body_state_w.timestamp = -1.0
-        if self._body_link_state_w is not None:
-            self._body_link_state_w.timestamp = -1.0
-        if self._body_com_state_w is not None:
-            self._body_com_state_w.timestamp = -1.0
-        # Why do we have _fk_timestamp and invalidate_fk? _fk_timestamp is on the data-side,
-        # it's meant to force a refresh on the next outdated read. invalidate_fk is simulation-manager-side, it's meant
-        # to let the solver know things changed before it performs its next step.
+        # Invalidate the derived root link velocity only when it was not the quantity just written.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_link_vel_w,
+                # root states
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        # NOTE: _fk_timestamp and invalidate_fk serve two distinct roles. _fk_timestamp is on the
+        # data side and forces a refresh on the next outdated read. invalidate_fk is on the
+        # simulation-manager side and lets the solver know state changed before its next step.
         self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids

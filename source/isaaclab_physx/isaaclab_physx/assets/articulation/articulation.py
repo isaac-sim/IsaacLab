@@ -504,7 +504,7 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -597,7 +597,7 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -761,7 +761,7 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -864,7 +864,7 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -966,8 +966,8 @@ class Articulation(BaseArticulation):
         )
         # Invalidate buffers
         if not skip_forward:
-            self.data.reset_pose()
-            self.data.reset_velocity()
+            self.data._reset_pose()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
@@ -1063,8 +1063,8 @@ class Articulation(BaseArticulation):
         )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_pose()
-            self.data.reset_velocity()
+            self.data._reset_pose()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
 
@@ -1157,7 +1157,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
 

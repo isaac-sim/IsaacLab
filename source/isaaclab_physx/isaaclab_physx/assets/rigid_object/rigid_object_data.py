@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
@@ -125,7 +126,7 @@ class RigidObjectData(BaseRigidObjectData):
         # update the simulation timestamp
         self._sim_timestamp += dt
 
-    def reset_pose(self, from_link: bool = True) -> None:
+    def _reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached rigid object properties.
 
         Args:
@@ -133,17 +134,17 @@ class RigidObjectData(BaseRigidObjectData):
                 center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
                 the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
-        if from_link:
-            self._root_com_pose_w.timestamp = -1.0
-        # Force refresh on all the root states
-        if self._root_state_w is not None:
-            self._root_state_w.timestamp = -1.0
-        if self._root_link_state_w is not None:
-            self._root_link_state_w.timestamp = -1.0
-        if self._root_com_state_w is not None:
-            self._root_com_state_w.timestamp = -1.0
+        # Invalidate the derived root com pose only when the root link pose was the quantity just written.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
 
-    def reset_velocity(self, from_com: bool = True) -> None:
+    def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached rigid object properties.
 
         Args:
@@ -151,15 +152,15 @@ class RigidObjectData(BaseRigidObjectData):
                 link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
                 velocity was written directly so it is not clobbered. Defaults to True.
         """
-        if from_com:
-            self._root_link_vel_w.timestamp = -1.0
-        # Force refresh on all the root states
-        if self._root_state_w is not None:
-            self._root_state_w.timestamp = -1.0
-        if self._root_link_state_w is not None:
-            self._root_link_state_w.timestamp = -1.0
-        if self._root_com_state_w is not None:
-            self._root_com_state_w.timestamp = -1.0
+        # Invalidate the derived root link velocity only when the root com velocity was the quantity just written.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+            ]
+        )
 
     """
     Names.

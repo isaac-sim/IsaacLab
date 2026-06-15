@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -130,7 +131,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             SimulationManager.forward()
             self._fk_timestamp = self._sim_timestamp
 
-    def reset_pose(
+    def _reset_pose(
         self,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -145,22 +146,22 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
                 the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
         """
-        # Only invalidate the derived body com poses when they were not the quantity just written.
-        if from_link:
-            self._body_com_pose_w.timestamp = -1.0
-        # Force refresh on all the body com states
-        if self._body_state_w is not None:
-            self._body_state_w.timestamp = -1.0
-        if self._body_link_state_w is not None:
-            self._body_link_state_w.timestamp = -1.0
-        if self._body_com_state_w is not None:
-            self._body_com_state_w.timestamp = -1.0
+        # Invalidate the derived body com poses only when they were not the quantity just written.
+        reset_timestamps(
+            [
+                self._body_com_pose_w if from_link else None,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
         self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
 
-    def reset_velocity(
+    def _reset_velocity(
         self,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
@@ -175,16 +176,16 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
                 velocities were written directly so they are not clobbered. Defaults to True.
         """
-        # Only invalidate the derived body link velocities when they were not the quantity just written.
-        if from_com:
-            self._body_link_vel_w.timestamp = -1.0
-        # Force refresh on all the body com states
-        if self._body_state_w is not None:
-            self._body_state_w.timestamp = -1.0
-        if self._body_link_state_w is not None:
-            self._body_link_state_w.timestamp = -1.0
-        if self._body_com_state_w is not None:
-            self._body_com_state_w.timestamp = -1.0
+        # Invalidate the derived body link velocities only when they were not the quantity just written.
+        reset_timestamps(
+            [
+                self._body_link_vel_w if from_com else None,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
         self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids

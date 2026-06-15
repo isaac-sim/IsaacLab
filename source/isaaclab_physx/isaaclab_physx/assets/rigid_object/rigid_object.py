@@ -362,7 +362,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
@@ -450,7 +450,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=env_ids)
 
@@ -542,7 +542,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
 
@@ -640,7 +640,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self.root_view.set_velocities(self._get_root_com_vel_w_f32(), indices=env_ids)
 

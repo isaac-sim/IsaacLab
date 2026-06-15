@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -187,7 +188,7 @@ class ArticulationData(BaseArticulationData):
                 physx_instance.update_articulations_kinematic()
             self._fk_timestamp = self._sim_timestamp
 
-    def reset_pose(self, from_link: bool = True) -> None:
+    def _reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached articulation properties.
 
         Writing a root or joint pose moves the body kinematic chain, so every buffer derived from
@@ -200,21 +201,24 @@ class ArticulationData(BaseArticulationData):
         """
         # The root com pose is derived from the root link pose, so only invalidate it when the link
         # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
-        if from_link:
-            self._root_com_pose_w.timestamp = -1.0
         # Body poses and the composite state buffers always go stale on a pose write.
-        self._body_link_pose_w.timestamp = -1.0
-        self._body_com_pose_w.timestamp = -1.0
-        self._root_state_w_buf.timestamp = -1.0
-        self._root_link_state_w_buf.timestamp = -1.0
-        self._root_com_state_w_buf.timestamp = -1.0
-        self._body_state_w_buf.timestamp = -1.0
-        self._body_link_state_w_buf.timestamp = -1.0
-        self._body_com_state_w_buf.timestamp = -1.0
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_link_pose_w,
+                self._body_com_pose_w,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
         # Force a kinematic refresh on the next FK-dependent read.
         self._fk_timestamp = -1.0
 
-    def reset_velocity(self, from_com: bool = True) -> None:
+    def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
 
         Writing a root or joint velocity changes the body velocities, so every buffer derived from
@@ -227,17 +231,20 @@ class ArticulationData(BaseArticulationData):
         """
         # The root link velocity is derived from the root com velocity, so only invalidate it when the
         # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
-        if from_com:
-            self._root_link_vel_w.timestamp = -1.0
         # Body velocities and the composite state buffers always go stale on a velocity write.
-        self._body_com_vel_w.timestamp = -1.0
-        self._body_link_vel_w.timestamp = -1.0
-        self._root_state_w_buf.timestamp = -1.0
-        self._root_link_state_w_buf.timestamp = -1.0
-        self._root_com_state_w_buf.timestamp = -1.0
-        self._body_state_w_buf.timestamp = -1.0
-        self._body_link_state_w_buf.timestamp = -1.0
-        self._body_com_state_w_buf.timestamp = -1.0
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
         # Force a kinematic refresh on the next FK-dependent read.
         self._fk_timestamp = -1.0
 

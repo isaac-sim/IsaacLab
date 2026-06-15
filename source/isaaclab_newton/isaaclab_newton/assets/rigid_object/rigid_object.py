@@ -364,7 +364,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose(env_ids=env_ids)
+            self.data._reset_pose(env_ids=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -412,7 +412,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle the invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose(env_mask=env_mask)
+            self.data._reset_pose(env_mask=env_mask)
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -466,7 +466,7 @@ class RigidObject(BaseRigidObject):
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data.reset_pose(env_ids=env_ids, from_link=False)
+            self.data._reset_pose(env_ids=env_ids, from_link=False)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -517,7 +517,7 @@ class RigidObject(BaseRigidObject):
         # Let the data class handle the invalidation of pose-dependent properties.
         # The com pose was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data.reset_pose(env_mask=env_mask, from_link=False)
+            self.data._reset_pose(env_mask=env_mask, from_link=False)
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -571,7 +571,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity(env_ids=env_ids)
+            self.data._reset_velocity(env_ids=env_ids)
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -623,7 +623,7 @@ class RigidObject(BaseRigidObject):
         )
         # Let the data class handle the invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity(env_mask=env_mask)
+            self.data._reset_velocity(env_mask=env_mask)
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -682,7 +682,7 @@ class RigidObject(BaseRigidObject):
         # Let the data class handle the invalidation of velocity-dependent properties.
         # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data.reset_velocity(env_ids=env_ids, from_com=False)
+            self.data._reset_velocity(env_ids=env_ids, from_com=False)
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -738,7 +738,7 @@ class RigidObject(BaseRigidObject):
         # Let the data class handle the invalidation of velocity-dependent properties.
         # The link velocity was just written, so it must not be invalidated.
         if not skip_forward:
-            self.data.reset_velocity(env_mask=env_mask, from_com=False)
+            self.data._reset_velocity(env_mask=env_mask, from_com=False)
 
     """
     Operations - Setters.

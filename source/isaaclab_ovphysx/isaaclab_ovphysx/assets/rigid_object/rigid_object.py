@@ -360,7 +360,7 @@ class RigidObject(BaseRigidObject):
         )
         # Invalidate dependent timestamps.
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         # Push cache to the wheel via an indexed write.
         binding = self._get_binding(TT.RIGID_BODY_POSE)
         binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
@@ -400,7 +400,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         binding = self._get_binding(TT.RIGID_BODY_POSE)
         binding.write(self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
 
@@ -440,7 +440,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         binding = self._get_binding(TT.RIGID_BODY_POSE)
         binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -480,7 +480,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         binding = self._get_binding(TT.RIGID_BODY_POSE)
         binding.write(self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
 
@@ -523,7 +523,7 @@ class RigidObject(BaseRigidObject):
         )
         # Invalidate dependent timestamps.
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
         binding.write(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -565,7 +565,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
         binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
 
@@ -613,7 +613,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
         binding.write(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -655,7 +655,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
         binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
 

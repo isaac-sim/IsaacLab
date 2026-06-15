@@ -462,7 +462,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Let the data class handle invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose()
+            self.data._reset_pose()
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_transforms(
@@ -566,7 +566,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Let the data class handle invalidation of pose-dependent properties.
         if not skip_forward:
-            self.data.reset_pose(from_link=False)
+            self.data._reset_pose(from_link=False)
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_transforms(
@@ -676,7 +676,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Let the data class handle invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity()
+            self.data._reset_velocity()
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_velocities(
@@ -797,7 +797,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Let the data class handle invalidation of velocity-dependent properties.
         if not skip_forward:
-            self.data.reset_velocity(from_com=False)
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         view_ids = self._env_body_ids_to_view_ids(env_ids, body_ids, device=self.device)
         self.root_view.set_velocities(

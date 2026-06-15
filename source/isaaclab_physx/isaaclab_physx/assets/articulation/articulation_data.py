@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
@@ -144,7 +145,7 @@ class ArticulationData(BaseArticulationData):
             self._physics_sim_view.update_articulations_kinematic()
             self._fk_timestamp = self._sim_timestamp
 
-    def reset_pose(self, from_link: bool = True) -> None:
+    def _reset_pose(self, from_link: bool = True) -> None:
         """Reset pose-dependent cached articulation properties.
 
         Args:
@@ -152,36 +153,26 @@ class ArticulationData(BaseArticulationData):
                 center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
                 the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
         """
-        # Reset the root com pose only if needed.
-        if from_link:
-            self._root_com_pose_w.timestamp = -1.0
-        # Always reset the body poses
-        self._body_link_pose_w.timestamp = -1.0
-        self._body_com_pose_w.timestamp = -1.0
-        # Force refresh on all the root states
-        if self._root_state_w is not None:
-            self._root_state_w.timestamp = -1.0
-        if self._root_link_state_w is not None:
-            self._root_link_state_w.timestamp = -1.0
-        if self._root_com_state_w is not None:
-            self._root_com_state_w.timestamp = -1.0
-        # Force refresh on all the body com states
-        if self._body_state_w is not None:
-            self._body_state_w.timestamp = -1.0
-        if self._body_link_state_w is not None:
-            self._body_link_state_w.timestamp = -1.0
-        if self._body_com_state_w is not None:
-            self._body_com_state_w.timestamp = -1.0
-        # Force refresh on all the dynamics properties
-        if self._body_com_jacobian_w is not None:
-            self._body_com_jacobian_w.timestamp = -1.0
-        if self._gravity_compensation_forces is not None:
-            self._gravity_compensation_forces.timestamp = -1.0
-        if self._mass_matrix is not None:
-            self._mass_matrix.timestamp = -1.0
+        # Invalidate the derived root com pose only when the root link pose was the quantity just written.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_link_pose_w,
+                self._body_com_pose_w,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+                self._body_com_jacobian_w,
+                self._gravity_compensation_forces,
+                self._mass_matrix,
+            ]
+        )
         self._fk_timestamp = -1.0
 
-    def reset_velocity(self, from_com: bool = True) -> None:
+    def _reset_velocity(self, from_com: bool = True) -> None:
         """Reset velocity-dependent cached articulation properties.
 
         Args:
@@ -189,25 +180,20 @@ class ArticulationData(BaseArticulationData):
                 link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
                 velocity was written directly so it is not clobbered. Defaults to True.
         """
-        if from_com:
-            self._root_link_vel_w.timestamp = -1.0
-        # Always reset the body velocities
-        self._body_com_vel_w.timestamp = -1.0
-        self._body_link_vel_w.timestamp = -1.0
-        # Force a refresh on all the root states
-        if self._root_state_w is not None:
-            self._root_state_w.timestamp = -1.0
-        if self._root_link_state_w is not None:
-            self._root_link_state_w.timestamp = -1.0
-        if self._root_com_state_w is not None:
-            self._root_com_state_w.timestamp = -1.0
-        # Force refresh on all the body com states
-        if self._body_state_w is not None:
-            self._body_state_w.timestamp = -1.0
-        if self._body_link_state_w is not None:
-            self._body_link_state_w.timestamp = -1.0
-        if self._body_com_state_w is not None:
-            self._body_com_state_w.timestamp = -1.0
+        # Invalidate the derived root link velocity only when the root com velocity was the quantity just written.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
         self._fk_timestamp = -1.0
 
     """
