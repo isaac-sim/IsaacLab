@@ -40,6 +40,42 @@ def _make_env_stage(num_envs: int = 1):
     return stage
 
 
+def _set_sim_context(monkeypatch, nm, clone_plan=None, scene_data_provider=None):
+    clone_plan = clone_plan if clone_plan is not None else SimpleNamespace()
+    scene_data_provider = scene_data_provider if scene_data_provider is not None else SimpleNamespace()
+    sim = SimpleNamespace(
+        get_clone_plan=lambda: clone_plan,
+        get_scene_data_provider=lambda: scene_data_provider,
+    )
+    monkeypatch.setattr(nm.SimulationContext, "instance", classmethod(lambda cls: sim))
+    return sim
+
+
+def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
+    """Only the active physics manager can clear shared SimulationContext state."""
+    from isaaclab.physics import PhysicsManager
+
+    class _ActiveManager(PhysicsManager):
+        _callbacks = {}
+
+    class _InactiveManager(PhysicsManager):
+        pass
+
+    _ActiveManager.close()
+    assert PhysicsManager._sim is None
+
+    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
+    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
+
+    _InactiveManager.close()
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
+
+    _ActiveManager.close()
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
+
+
 def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
     """When sim backend is Newton, the manager keeps its own model/state untouched."""
     from isaaclab_newton.physics import NewtonManager
@@ -59,7 +95,8 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", SimpleNamespace(get_clone_plan=lambda: SimpleNamespace()))
+    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
+    _set_sim_context(monkeypatch, nm)
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
     monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
 
@@ -89,7 +126,8 @@ def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, ca
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", SimpleNamespace(get_clone_plan=lambda: SimpleNamespace()))
+    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
+    _set_sim_context(monkeypatch, nm)
 
     class _EmptyBuilder:
         body_count = 0
@@ -112,7 +150,8 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
     _reset_newton_manager_state()
     monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
     monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage(num_envs=4))
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", SimpleNamespace(get_clone_plan=lambda: SimpleNamespace()))
+    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
+    _set_sim_context(monkeypatch, nm)
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
     monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
 

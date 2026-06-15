@@ -40,6 +40,7 @@ from pxr import UsdGeom
 
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -53,8 +54,6 @@ from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
-
-    from isaaclab.sim.simulation_context import SimulationContext
 
     from isaaclab_newton.actuators import NewtonActuatorAdapter
 
@@ -1806,9 +1805,9 @@ class NewtonManager(PhysicsManager):
             return
 
         NewtonManager._num_envs = len(env_paths)
-        builder = build_visualization_builder_from_stage_envs(
-            stage, env_paths, PhysicsManager._sim.get_clone_plan(), up_axis=up_axis
-        )
+        sim = SimulationContext.instance()
+        assert sim is not None
+        builder = build_visualization_builder_from_stage_envs(stage, env_paths, sim.get_clone_plan(), up_axis=up_axis)
 
         if builder.body_count == 0:
             logger.error(
@@ -1837,17 +1836,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_scene_data_provider(cls) -> SceneDataProvider:
-        """Return the active scene data provider, or None if unavailable.
-
-        Prefers ``PhysicsManager._sim`` when set; otherwise falls back to
-        ``SimulationContext.instance()``.
-        """
-        sim = PhysicsManager._sim
-        if sim is None:
-            from isaaclab.sim import SimulationContext
-
-            sim = SimulationContext.instance()
-
+        """Return the active scene data provider."""
+        sim = SimulationContext.instance()
         assert sim is not None
         return sim.get_scene_data_provider()
 
