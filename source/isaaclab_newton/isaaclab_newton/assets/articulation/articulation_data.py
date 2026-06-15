@@ -938,7 +938,7 @@ class ArticulationData(BaseArticulationData):
         Newton implementation: applies the COM→origin shift kernel to
         :attr:`body_com_jacobian_w` (Newton's ``eval_jacobian`` is COM-referenced).
         """
-        # ``body_link_pose_w`` accessor triggers ``SimulationManager.forward()`` if FK is
+        # ``body_link_pose_w`` accessor triggers the active manager's ``forward()`` if FK is
         # stale (after a manual joint / root write that bypassed the sim step). Reading the
         # property here — not ``_sim_bind_body_link_pose_w`` directly — keeps the shift
         # kernel from using stale link rotations during reset / IK-warm-start paths.
