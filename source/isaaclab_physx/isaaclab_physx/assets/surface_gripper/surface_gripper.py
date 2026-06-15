@@ -464,8 +464,9 @@ class SurfaceGripper(AssetBase):
             return prim.GetTypeName() == "IsaacSurfaceGripper"
 
         resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
-        resolve_source = sim_utils.resolve_matching_prims_from_source
-        gripper_matches = resolve_source(self._cfg.prim_path, is_surface_gripper, **resolve_kwargs)
+        gripper_matches = sim_utils.resolve_matching_prims_from_source(
+            self._cfg.prim_path, is_surface_gripper, **resolve_kwargs
+        )
         if len(gripper_matches) != 1:
             matched = [prim.GetPath().pathString for prim, _ in gripper_matches]
             raise RuntimeError(

@@ -1113,11 +1113,11 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        resolve_source = sim_utils.resolve_matching_prims_from_source
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         root_prim_path_exprs: list[str] = []
 
         for name, obj_cfg in self.cfg.rigid_objects.items():
-            _, root_expr = resolve_source(obj_cfg.prim_path, has_rigid_body_api, expected_num_matches=1)[0]
+            _, root_expr = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path, **resolve_kwargs)[0]
             root_prim_path_exprs.append(root_expr.replace(".*", "*"))
             self._body_names_list.append(name)
 

@@ -589,10 +589,10 @@ class DeformableObject(AssetBase):
             return "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas()
 
         prim_path = self.cfg.prim_path
-        resolve_source = sim_utils.resolve_matching_prims_from_source
-        asset_prim, root_expr = resolve_source(prim_path)[0]
+        asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(prim_path)[0]
         walk_root = asset_prim.GetPath().pathString
-        root_prim, root_prim_path_expr = resolve_source(prim_path, has_deformable_body_api, expected_num_matches=1)[0]
+        resolve_kwargs = {"predicate": has_deformable_body_api, "expected_num_matches": 1}
+        root_prim, root_prim_path_expr = sim_utils.resolve_matching_prims_from_source(prim_path, **resolve_kwargs)[0]
 
         # find deformable material prims
         material_prim = None
