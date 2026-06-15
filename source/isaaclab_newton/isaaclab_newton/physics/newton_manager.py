@@ -41,7 +41,7 @@ from pxr import UsdGeom
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.newton_model_utils import replace_newton_shape_colors
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
@@ -1114,8 +1114,6 @@ class NewtonManager(PhysicsManager):
             cls._model.set_gravity(cls._gravity_vector)
             cls._model.num_envs = cls._num_envs
 
-            replace_newton_shape_colors(cls._model)
-
         if cls._pending_extended_contact_attributes:
             cls._model.request_contact_attributes(*cls._pending_extended_contact_attributes)
             NewtonManager._pending_extended_contact_attributes = set()
@@ -1235,6 +1233,7 @@ class NewtonManager(PhysicsManager):
         if not env_paths:
             # No env Xforms — flat loading
             builder.add_usd(stage, schema_resolvers=schema_resolvers)
+            replace_newton_builder_shape_colors(builder, stage)
             NewtonManager._world_xforms = [wp.transform()]
             for hook in cls._per_world_builder_hooks:
                 hook(builder, 0, [0.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0])
@@ -1242,10 +1241,12 @@ class NewtonManager(PhysicsManager):
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
             builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            replace_newton_builder_shape_colors(builder, stage)
 
             _, proto_path = env_paths[0]
             source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
             source_builders[proto_path].add_usd(stage, root_path=proto_path, schema_resolvers=schema_resolvers)
+            replace_newton_builder_shape_colors(source_builders[proto_path], stage)
             cls._cl_protos = source_builders
 
             global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
@@ -1824,7 +1825,6 @@ class NewtonManager(PhysicsManager):
             NewtonManager._model = builder.finalize(device=device)
             NewtonManager._state_0 = cls._model.state()
             cls._model.num_envs = cls._num_envs
-            replace_newton_shape_colors(cls._model)
 
         except Exception:
             logger.exception(

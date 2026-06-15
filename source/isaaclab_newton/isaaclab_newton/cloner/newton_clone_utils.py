@@ -15,6 +15,7 @@ from newton import ModelBuilder, solvers
 from pxr import Usd
 
 from isaaclab.cloner.cloner_utils import replace_path_prefix
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 
 def build_source_builders(
@@ -41,6 +42,7 @@ def build_source_builders(
         )
         if simplify_meshes:
             builder.approximate_meshes("convex_hull", keep_visual_shapes=True)
+        replace_newton_builder_shape_colors(builder, stage)
         builders[source] = builder
     return builders
 

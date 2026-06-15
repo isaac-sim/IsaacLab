@@ -17,6 +17,7 @@ from pxr import Usd
 
 from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab.physics import PhysicsManager
+from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
@@ -65,6 +66,7 @@ def _build_newton_builder_from_mapping(
         ignore_paths=["/World/envs", *sources],
         schema_resolvers=schema_resolvers,
     )
+    replace_newton_builder_shape_colors(builder, stage)
 
     # Deformable prim paths are handled by per_world_builder_hooks, not add_usd.
     # Resolve the regex prim_path patterns to concrete env_0 paths so add_usd
