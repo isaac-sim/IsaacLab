@@ -12,15 +12,16 @@
 
 from __future__ import annotations
 
+import math
+from collections.abc import Sequence
+
 {% if ns.amp_selected %}
 import gymnasium as gym
-import math
 import numpy as np
-{% else %}
-import math
-{% endif %}
 import torch
-from collections.abc import Sequence
+{% else %}
+import torch
+{% endif %}
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
