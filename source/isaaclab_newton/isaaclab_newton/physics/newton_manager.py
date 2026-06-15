@@ -1806,8 +1806,17 @@ class NewtonManager(PhysicsManager):
             return
 
         NewtonManager._num_envs = len(env_paths)
+        # ``PhysicsManager._sim`` can be unset during early renderer initialization
+        # on the PhysX backend (the renderer's PHYSICS_READY callback can fire
+        # before ``PhysicsManager.initialize()`` has set ``_sim``).
+        # ``SimulationContext.get_clone_plan()`` may also legitimately return
+        # ``None`` for scenes that have not yet replicated. In either case
+        # ``build_visualization_builder_from_stage_envs`` falls back to the
+        # env_0 prototype-replicate path.
+        sim_ctx = PhysicsManager._sim
+        clone_plan = sim_ctx.get_clone_plan() if sim_ctx is not None else None
         builder = build_visualization_builder_from_stage_envs(
-            stage, env_paths, PhysicsManager._sim.get_clone_plan(), up_axis=up_axis
+            stage, env_paths, clone_plan, up_axis=up_axis
         )
 
         if builder.body_count == 0:
