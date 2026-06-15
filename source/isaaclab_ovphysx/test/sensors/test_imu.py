@@ -21,16 +21,9 @@ is not loaded under the direct ./isaaclab.sh -p runner.
 Process-global wheel state: like the rigid-object test, this file mixes
 procedural USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
 ``test_attachment_validity``, ``test_sensor_print``) with Nucleus assets
-(``test_offset_calculation``, ``test_env_ids_propagation``). The ovphysx
-wheel keeps some loader state across :class:`SimulationContext` instances
-in the same process, so running both categories in a single pytest
-invocation can fail with an ``omni.client`` symbol-resolution error after
-the first Nucleus-asset test. Run them in two passes if needed:
-
-* ``pytest ... -k 'velocity or acceleration or attachment or print'``
-* ``pytest ... -k 'offset or env_ids'``
-
-Each test passes individually and within its own category.
+(``test_offset_calculation``, ``test_env_ids_propagation``). ``omni.client``
+must be loaded before the first OVPhysX scene is torn down; otherwise a later
+first import can fail native symbol resolution after ``ovphysx.reset()``.
 """
 
 from __future__ import annotations
@@ -57,6 +50,11 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
+
+# Preload Omni Client while Kit's native libraries are still in a clean loader
+# state. Importing it for the first time after an OVPhysX reset can fail with an
+# undefined symbol from omni.client's native extension.
+import omni.client  # noqa: E402,F401
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
