@@ -23,7 +23,7 @@ recordings/
 **/__pycache__/
 **/*.egg-info/
 # ignore isaac sim symlink
-_isaac_sim?
+_isaac_sim
 # Docker history
 docker/.isaac-lab-docker-history
 # ignore uv environment

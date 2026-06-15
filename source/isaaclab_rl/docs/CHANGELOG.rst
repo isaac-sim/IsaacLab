@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.5.2 (2026-06-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_rl.rsl_rl.handle_deprecated_rsl_rl_checkpoint` to convert pre-5.0 rsl-rl
+  checkpoints (single combined ``model_state_dict``) into the ``actor``/``critic`` layout expected by
+  rsl-rl >= 5.0. This lets older published pretrained checkpoints load without
+  ``KeyError: 'actor_state_dict'``.
+
+
+0.5.1 (2026-04-21)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated skrl wrapper to support the new version of skrl 2.0.
+
 0.5.0 (2026-3-04)
 ~~~~~~~~~~~~~~~~~~
 

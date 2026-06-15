@@ -1,0 +1,271 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Nightly auto-compile: rolls accumulated fragments under
+# ``source/<pkg>/changelog.d/`` into per-package ``CHANGELOG.rst`` entries,
+# bumps each ``extension.toml``, deletes consumed fragments, and pushes the
+# result back to each branch in the configured list. Keeps every tracked
+# branch's changelog current without requiring a maintainer to run
+# ``compile`` by hand.
+#
+# Scheduled workflow — must live on the default branch (``main``) for the
+# cron to register. See ``.github/workflows/README.md``.
+#
+# Adding a branch to the nightly set is a one-line edit to ``env.CRON_BRANCHES``
+# below. Each target branch uses its own ``tools/changelog/cli.py`` (the
+# same copy the PR gate already runs), so the nightly compile honours the
+# same rules that validated the fragments.
+#
+# The push uses a short-lived GitHub App installation token minted from
+# ``CHANGELOG_APP_ID`` + ``CHANGELOG_APP_PRIVATE_KEY`` (repo secrets). The
+# App must be installed on this repository with ``contents: write`` and
+# added to the bypass-actor list of each target branch's ruleset so the
+# auto-commit can push directly without satisfying required-checks /
+# required-approval gates.
+# Commits signed by an App token (unlike ``GITHUB_TOKEN``) are treated as
+# external pushes, so they DO trigger downstream workflow runs (Docker
+# rebuild, docs, etc.) without needing a separate PAT.
+
+name: Nightly Changelog Compilation
+
+# Branches the nightly cron compiles. Single source of truth — append a
+# ref here to extend the nightly set (the active release branch belongs
+# here). Each branch must carry ``tools/changelog/cli.py`` and the
+# isaaclab-bot App must be in its branch-ruleset bypass list.
+# Surrounding whitespace per entry is stripped by the resolver below.
+env:
+  CRON_BRANCHES: develop,release/3.0.0-beta2
+
+on:
+  schedule:
+    # Run nightly at 5 AM UTC (one hour after daily-compatibility, so we
+    # don't compete for runner capacity).
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        # Manual trigger is always a single branch. Free-text on purpose
+        # — scales to any branch (e.g. a new ``release/*`` cut from
+        # develop) without needing to update the workflow. A branch
+        # that lacks ``tools/changelog/cli.py`` fails the verify step
+        # below with a clear error, which is the desired failure mode.
+        description: 'Branch to compile (e.g. develop, release/3.0.0-beta2). Must carry tools/changelog/cli.py.'
+        required: true
+        type: string
+      dry_run:
+        description: 'Preview only — do not commit / push'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  # Reduced: the App installation token below carries its own write scope.
+  # GITHUB_TOKEN only needs read access for the standard checkout machinery.
+  contents: read
+
+jobs:
+  resolve-branches:
+    # CSV → JSON array bridge. ``workflow_dispatch`` inputs can only be
+    # string / bool / choice, so the branch list arrives as a comma-
+    # separated string; the matrix below needs a JSON list to fan out.
+    # Mirrors the ``setup-versions`` job in ``daily-compatibility.yml``.
+    name: Resolve branch list
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      branches: ${{ steps.b.outputs.branches }}
+    steps:
+      - id: b
+        env:
+          # Schedule → the CRON_BRANCHES list. Manual → the single branch
+          # the maintainer entered. The two paths are intentionally
+          # asymmetric: cron is the configured set, manual is exactly one
+          # branch (required input).
+          BRANCHES: ${{ github.event_name == 'schedule' && env.CRON_BRANCHES || inputs.branch }}
+          # ``EVENT_NAME`` mirrors ``github.event_name`` so the guard below
+          # branches on it without re-interpolating into the shell.
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # CSV → JSON array, trimming surrounding whitespace per entry.
+          # Manual produces a 1-element array; cron produces N elements.
+          arr=$(echo "$BRANCHES" | tr ',' '\n' | xargs -n1 | jq -R . | jq -s -c .)
+          # Manual trigger contract: exactly one branch. A maintainer who
+          # pastes a comma-separated list into the dispatch form should
+          # see a clear error, not a silent multi-branch fan-out.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$(echo "$arr" | jq 'length')" -ne 1 ]; then
+            echo "::error::Manual trigger accepts exactly one branch; got $arr. Fire the workflow separately per branch."
+            exit 1
+          fi
+          echo "branches=$arr" >> "$GITHUB_OUTPUT"
+          echo "Resolved branches: $arr"
+
+  compile-changelog:
+    name: Compile changelog fragments (${{ matrix.branch }})
+    needs: resolve-branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      # Independent branches: one failing shouldn't cancel the others.
+      # Each matrix entry shows up as a separate job tile in the Actions
+      # UI, so ``release/3.0.0-beta2`` failing doesn't hide ``develop``'s
+      # success (and ``gh run rerun --failed`` re-runs only the failed
+      # entry). Mirrors ``daily-compatibility.yml``'s matrix style.
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
+    concurrency:
+      # Per-branch group: two runs against the same ref queue, but
+      # different refs (develop and a release branch) compile in parallel.
+      group: nightly-changelog-${{ matrix.branch }}
+      cancel-in-progress: false
+
+    steps:
+      # Mint a short-lived (1 h) installation access token for the
+      # ``isaaclab-bot`` GitHub App. The App is on each target branch's
+      # ruleset bypass list, so its push lands without needing the
+      # standard required-checks / required-approval pipeline.
+      - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3  # v3.1.1
+        id: app-token
+        with:
+          # ``client-id`` (the App's OAuth client ID, ``Iv23...``) supersedes
+          # the deprecated ``app-id`` integer input as of v3.x.
+          client-id: ${{ secrets.CHANGELOG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CHANGELOG_APP_PRIVATE_KEY }}
+          # Declare the scope the App must have so token mint fails loudly
+          # if the App is misconfigured, instead of failing silently at the
+          # push step.
+          permission-contents: write
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          # Operate on the target branch, not the repo's default branch.
+          # Scheduled workflows fire from the default branch's workflow
+          # file, but the *checkout* is the branch we're compiling so the
+          # compile sees that branch's accumulated fragments and the push
+          # writes back to it.
+          ref: ${{ matrix.branch }}
+          # App token (vs. GITHUB_TOKEN) means the push is signed by
+          # ``isaaclab-bot`` — the bypass identity — and downstream CI
+          # workflows DO trigger on the resulting commit.
+          token: ${{ steps.app-token.outputs.token }}
+          # Full history so the compiler can resolve each fragment's merge
+          # time via ``git log --diff-filter=A --first-parent``.
+          fetch-depth: 0
+
+      - name: Verify changelog tooling exists on target branch
+        env:
+          TARGET_BRANCH: ${{ matrix.branch }}
+        run: |
+          # Loud-fail this matrix entry (not the whole run — ``fail-fast:
+          # false`` keeps siblings going) when the target branch lacks
+          # ``tools/changelog/cli.py``. A red tile is the desired signal:
+          # a branch in the nightly set without the compile tooling is a
+          # configuration error, not a "no-op" condition.
+          if [ ! -f tools/changelog/cli.py ]; then
+            echo "::error::Branch '$TARGET_BRANCH' is missing tools/changelog/cli.py — drop it from env.CRON_BRANCHES (or the dispatch input) or restore the tooling on that branch."
+            exit 1
+          fi
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Compile fragments
+        # Capture the compile exit code so the next step can commit/push
+        # whatever compiled successfully, then re-propagate the failure at
+        # the end. Without ``continue-on-error: true`` the workflow would
+        # short-circuit and discard the successful packages' on-disk state,
+        # which is exactly the wedge mode that motivated this design.
+        id: compile
+        continue-on-error: true
+        run: |
+          ARGS="--all"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          echo "Running: python3 tools/changelog/cli.py compile $ARGS"
+          python3 tools/changelog/cli.py compile $ARGS
+
+      - name: Commit and push if fragments were compiled
+        # Fires when compile succeeded cleanly OR raised on at least one
+        # package (``continue-on-error: true`` above turned that conclusion
+        # to success while preserving the outcome — the surviving packages
+        # still ship). Explicitly NOT ``always()``: cancellation (timeout /
+        # maintainer cancel) leaves a partial on-disk state and the
+        # re-propagate step below wouldn't fire on ``outcome == 'cancelled'``,
+        # so this guard skips the commit/push entirely on cancel.
+        if: ${{ (success() || steps.compile.outcome == 'failure') && !inputs.dry_run }}
+        env:
+          # Pass the matrix branch through an env var rather than
+          # interpolating ``${{ matrix.branch }}`` directly into ``run:``.
+          # The interpolation happens *before* shell quoting, so an
+          # adversarial input could escape the surrounding quotes; the
+          # env passthrough keeps the value inside the shell's variable
+          # space where standard quoting protects it.
+          TARGET_BRANCH: ${{ matrix.branch }}
+        run: |
+          # Author commits as the App's bot user so the GitHub UI attributes
+          # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
+          git config user.name "isaaclab-bot[bot]"
+          git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
+          # ``pyproject.toml`` is staged alongside ``extension.toml`` because
+          # ``Package.write_version`` bumps both when a ``[project]`` block
+          # exists. Missing it leaves the pyproject write unstaged, which
+          # makes the subsequent ``git pull --rebase`` refuse with
+          # ``cannot pull with rebase: You have unstaged changes``.
+          git add source/*/changelog.d/ \
+                  source/*/docs/CHANGELOG.rst \
+                  source/*/config/extension.toml \
+                  source/*/pyproject.toml
+          if git diff --staged --quiet; then
+            echo "No changelog fragments found — nothing to commit."
+          else
+            # Convention for CI-driven auto-commits on this repo:
+            #   [CI][<Specific Action>] <one-line summary>
+            # The leading ``[CI]`` tag groups every machine-driven commit
+            # (so future automations — auto image rebuilds, auto publish,
+            # etc. — all share the prefix and are easy to find/filter in
+            # ``git log --grep``). The second tag names the specific
+            # action. The trigger event suffix (``schedule`` vs
+            # ``workflow_dispatch``) is preserved for traceability.
+            #
+            # The body lists every package that bumped, derived from the
+            # staged ``extension.toml`` diff so the entries are accurate
+            # regardless of which packages happen to have pending
+            # fragments this run.
+            MSG_FILE=$(mktemp)
+            {
+              echo "[CI][Auto Version Bump] Compile changelog fragments (${{ github.event_name }})"
+              echo
+              echo "Bumped packages:"
+              for tom in $(git diff --staged --name-only -- 'source/*/config/extension.toml'); do
+                pkg=$(echo "$tom" | sed -E 's|source/([^/]+)/config/extension.toml|\1|')
+                old=$(git diff --staged "$tom" | awk -F'"' '/^-version/{print $2; exit}')
+                new=$(git diff --staged "$tom" | awk -F'"' '/^\+version/{print $2; exit}')
+                echo "- $pkg: $old → $new"
+              done
+            } > "$MSG_FILE"
+            git commit -F "$MSG_FILE"
+            # Rebase onto the target branch's current tip in case a human
+            # commit landed during this run (~2 min window between
+            # checkout and push). Without this the push fails non-fast-
+            # forward and the batch waits for the next run. ``refs/heads/``
+            # is explicit so a same-named tag (if one ever exists) can't
+            # disambiguate the wrong way.
+            git pull --rebase origin "refs/heads/$TARGET_BRANCH"
+            # Push explicitly to the target branch so we don't accidentally
+            # write to the source ref of a workflow_dispatch run.
+            git push origin "HEAD:refs/heads/$TARGET_BRANCH"
+          fi
+
+      - name: Re-propagate compile failure
+        # ``continue-on-error: true`` above lets the commit/push step run on
+        # partial success, but the job tile must still stay red so the
+        # maintainer notices the failed package. This step re-asserts the
+        # original exit code AFTER successful packages have shipped.
+        if: ${{ steps.compile.outcome == 'failure' }}
+        run: |
+          echo "::error::One or more packages failed to compile (see the Compile fragments step above)."
+          exit 1
