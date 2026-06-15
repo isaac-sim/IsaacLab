@@ -312,14 +312,15 @@ class PhysicsManager(ABC):
         Subclasses should call super().close() after backend-specific cleanup.
         """
         sim = PhysicsManager._sim
-        if sim is None or sim.physics_manager is not cls:
-            return
+        is_active_manager = sim is not None and sim.physics_manager is cls
+        if is_active_manager:
+            cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
 
-        cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
         cls.clear_callbacks()
-        PhysicsManager._sim = None
-        PhysicsManager._cfg = None
-        PhysicsManager._sim_time = 0.0
+        if is_active_manager:
+            PhysicsManager._sim = None
+            PhysicsManager._cfg = None
+            PhysicsManager._sim_time = 0.0
 
     @classmethod
     def get_physics_dt(cls) -> float:

@@ -69,7 +69,9 @@ def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
     monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
     monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
 
+    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
     _InactiveManager.close()
+    assert PhysicsManager._callbacks == {}
     assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
 
     _ActiveManager.close()
