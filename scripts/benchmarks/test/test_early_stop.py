@@ -11,6 +11,8 @@ import argparse
 
 import pytest
 
+from isaaclab.test.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
+
 from scripts.benchmarks.early_stop import (
     DEFAULT_SUCCESS_THRESHOLD,
     DEFAULT_SUCCESS_WINDOW,
@@ -21,32 +23,10 @@ from scripts.benchmarks.early_stop import (
     build_success_kwargs,
     get_success_tracker,
 )
-from scripts.benchmarks.utils import SUCCESS_RATE_LOG_TAGS, log_success
 
 DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
 
 # -- fakes ------------------------------------------------------------------
-
-
-class _FakeTensor:
-    """Stand-in for ``torch.Tensor`` with only the ``.item()`` path exercised."""
-
-    def __init__(self, value: float):
-        self._value = value
-
-    def item(self) -> float:
-        return self._value
-
-
-class _FakeBenchmark:
-    def __init__(self):
-        self.measurements: list[tuple[str, str, object, str]] = []
-
-    def add_measurement(self, phase, measurement):
-        self.measurements.append((phase, measurement.name, measurement.value, measurement.unit))
-
-    def by_name(self, name: str):
-        return next(m for m in self.measurements if m[1] == name)
 
 
 class _FakeLogger:
@@ -116,145 +96,6 @@ def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser()
     add_success_cli_args(p)
     return p
-
-
-# -- SuccessRateTracker -----------------------------------------------------
-
-
-class TestSuccessRateTracker:
-    """Test cases for the per-iteration metric accumulator and convergence check."""
-
-    def test_records_metric_from_extras_log(self):
-        """Test that a present metric is accumulated into the iteration sum."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.9}})
-        assert t._iter_sum == pytest.approx(0.9)
-        assert t._iter_count == 1
-
-    def test_ignores_missing_metric_key(self):
-        """Test that a foreign key in extras["log"] is ignored."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {"other": 1.0}})
-        assert t._iter_count == 0
-
-    def test_missing_log_subdict_does_not_raise(self):
-        """Test that an extras dict without a "log" sub-dict is handled gracefully."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.record_step({})
-        assert t._iter_count == 0
-        assert t._step_count == 1
-
-    def test_tensor_value_uses_item_method(self):
-        """Test that tensor-like values are extracted via ``.item()``."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {DEFAULT_SUCCESS_TAG: _FakeTensor(0.7)}})
-        assert t._iter_sum == pytest.approx(0.7)
-
-    def test_step_count_increments_even_without_metric(self):
-        """Test that ``_step_count`` tracks every call regardless of metric presence."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.record_step({})
-        t.record_step({"log": {"other": 1.0}})
-        assert t._step_count == 2
-        assert t._iter_count == 0
-
-    def test_end_iteration_averages_and_resets(self):
-        """Test that ``end_iteration`` averages recorded values and resets counters."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.4}})
-        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.6}})
-        assert t.end_iteration() == pytest.approx(0.5)
-        assert t.history == [pytest.approx(0.5)]
-        assert t._iter_sum == 0.0
-        assert t._iter_count == 0
-
-    def test_end_iteration_no_data_returns_none_without_recording(self):
-        """Test that ``end_iteration`` returns None and skips history append when no data was seen."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        assert t.end_iteration() is None
-        assert t.history == []
-
-    def test_at_iteration_boundary_respects_num_steps_per_env(self):
-        """Test that the boundary flag fires only after exactly ``num_steps_per_env`` calls."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        for _ in range(3):
-            t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.1}})
-        assert t.at_iteration_boundary is False
-        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.1}})
-        assert t.at_iteration_boundary is True
-
-    def test_at_iteration_boundary_false_when_num_steps_zero(self):
-        """Test that a post-hoc tracker (``num_steps_per_env=0``) never reports a boundary."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=0)
-        t.record_step({"log": {DEFAULT_SUCCESS_TAG: 0.1}})
-        assert t.at_iteration_boundary is False
-
-    def test_not_converged_when_history_shorter_than_window(self):
-        """Test that convergence is False when there aren't yet enough history entries."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.9, 0.9]
-        assert t.converged is False
-
-    def test_not_converged_when_history_empty(self):
-        """Test that convergence is False on a freshly-created tracker."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        assert t.history == []
-        assert t.converged is False
-
-    def test_converged_when_window_all_above_threshold(self):
-        """Test that convergence is True when the trailing window is all above threshold."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.1, 0.9, 0.9, 0.9]
-        assert t.converged is True
-
-    def test_converged_when_history_length_equals_window(self):
-        """Test the window boundary: history length == window (minimum qualifying case)."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.9, 0.9, 0.9]
-        assert t.converged is True
-
-    def test_converged_at_exact_threshold(self):
-        """Test the threshold boundary: values equal to the threshold satisfy ``>= threshold``."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.5, 0.5, 0.5]
-        assert t.converged is True
-
-    def test_not_converged_when_any_window_value_below(self):
-        """Test that a single sub-threshold value in the trailing window blocks convergence."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.9, 0.9, 0.4]
-        assert t.converged is False
-
-    def test_converged_with_window_of_one(self):
-        """Test the degenerate ``window=1`` case: only the last value matters."""
-        t = SuccessRateTracker(0.5, 1, num_steps_per_env=4)
-        t.history = [0.1, 0.2, 0.9]
-        assert t.converged is True
-        t.history = [0.9, 0.9, 0.1]
-        assert t.converged is False
-
-    def test_tail_mean_empty_history_is_zero(self):
-        """Test that ``tail_mean`` returns 0.0 for an empty history."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        assert t.tail_mean == 0.0
-
-    def test_tail_mean_shorter_than_window_uses_all_values(self):
-        """Test that ``tail_mean`` averages the full history when it's shorter than the window."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.2, 0.4]
-        assert t.tail_mean == pytest.approx(0.3)
-
-    def test_tail_mean_longer_than_window_uses_tail(self):
-        """Test that ``tail_mean`` averages only the last ``window`` entries."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.9, 0.9, 0.1, 0.2, 0.3]
-        assert t.tail_mean == pytest.approx(0.2)
-
-    def test_current_iteration_equals_history_length(self):
-        """Test that ``current_iteration`` reports the history length."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = [0.1, 0.2, 0.3]
-        assert t.current_iteration == 3
 
 
 # -- CLI helpers ------------------------------------------------------------
@@ -601,106 +442,3 @@ class TestRlGamesEarlyStopObserver:
         obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         obs.after_init(_FakeAlgo(horizon_length=1, epoch_num=7))
         assert obs.framework_iteration_count == 7
-
-
-# -- log_success (scripts.benchmarks.utils) ---------------------------------
-
-
-class TestLogSuccess:
-    """Test cases for the benchmark-side success-metric logging helper."""
-
-    def _tracker_with(self, history: list[float]) -> SuccessRateTracker:
-        """Build a tracker with a pre-populated history for testing."""
-        t = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        t.history = history
-        return t
-
-    def test_noop_when_tracker_is_none(self):
-        """Test that ``log_success`` emits nothing when no tracker is supplied."""
-        bench = _FakeBenchmark()
-        log_success(bench, None)
-        assert bench.measurements == []
-
-    def test_noop_when_history_empty(self):
-        """Test that an empty tracker history is a silent no-op."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([]))
-        assert bench.measurements == []
-
-    def test_logs_full_measurement_set(self):
-        """Test that a populated tracker produces the full measurement set."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.9, 0.9, 0.9]))
-        names = {m[1] for m in bench.measurements}
-        assert names == {"Success Rate (tail mean)", "Success Converged At Iter", "Success Passed"}
-
-    def test_converged_path(self):
-        """Test that a converged run reports ``Passed=1`` with the true converged iter + tail mean."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.9, 0.9, 0.9]))
-        assert bench.by_name("Success Passed")[2] == 1
-        assert bench.by_name("Success Converged At Iter")[2] == 3
-        assert bench.by_name("Success Rate (tail mean)")[2] == pytest.approx(0.9)
-
-    def test_failed_path(self):
-        """Test that a non-converged run reports ``Passed=0`` and ``Converged At Iter=-1``."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.1, 0.2, 0.3]))
-        assert bench.by_name("Success Passed")[2] == 0
-        assert bench.by_name("Success Converged At Iter")[2] == -1
-
-    def test_cadence_warning_fires_on_cadence_violation(self, capsys):
-        """Test that a 2x tracker/framework ratio triggers the cadence warning."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.5] * 100), framework_iteration_count=50)
-        captured = capsys.readouterr().out
-        assert "[WARN]" in captured
-        assert "check record_step cadence" in captured
-
-    def test_no_cadence_warning_on_exact_agreement(self, capsys):
-        """Test that an exact tracker-vs-framework match (rl_games case) is silent."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.5] * 50), framework_iteration_count=50)
-        assert "[WARN]" not in capsys.readouterr().out
-
-    def test_no_cadence_warning_on_rsl_rl_early_stop_offset(self, capsys):
-        """Test that the rsl_rl early-stop +1 offset (tracker=51, framework=50) is within slack."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.5] * 51), framework_iteration_count=50)
-        assert "[WARN]" not in capsys.readouterr().out
-
-    def test_no_cadence_warning_when_framework_count_not_provided(self, capsys):
-        """Test that the cadence check is skipped entirely when no framework count is supplied."""
-        bench = _FakeBenchmark()
-        log_success(bench, self._tracker_with([0.5] * 999))
-        assert "[WARN]" not in capsys.readouterr().out
-
-    def test_cadence_violation_end_to_end_via_wrapper(self, capsys):
-        """Test that a simulated 2x env.step bug manifests as an overcounted tracker and is caught.
-
-        The wrapper can't distinguish "2 env.step calls that should have been 1" from normal
-        traffic — but the tracker overcounts iterations by 2x, and comparing against the
-        runner's independent counter catches the discrepancy.
-        """
-        env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.5}}] * 100)
-        runner = _FakeRunner()
-        runner.current_learning_iteration = 9  # rsl_rl thinks 10 iterations completed
-        with RslRlEarlyStopWrapper(
-            env,
-            runner,
-            0.5,
-            3,
-            num_steps_per_env=2,
-            stop_on_convergence=False,
-        ) as ctx:
-            # simulate the bug: upstream calls env.step 2x per real rollout step
-            for _ in range(10 * 2 * 2):  # 10 iters * 2 steps/iter * 2x-bug
-                env.step(None)
-        # 40 calls with num_steps_per_env=2 => tracker.current_iteration = 20
-        assert ctx.tracker.current_iteration == 20
-        # framework's counter is independent: reports 10 iterations actually ran
-        assert ctx.framework_iteration_count == 10
-        bench = _FakeBenchmark()
-        log_success(bench, ctx.tracker, framework_iteration_count=ctx.framework_iteration_count)
-        captured = capsys.readouterr().out
-        assert "[WARN]" in captured

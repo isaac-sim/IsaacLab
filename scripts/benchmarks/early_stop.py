@@ -16,12 +16,13 @@ from __future__ import annotations
 
 import argparse
 import os
-import statistics
 from typing import TYPE_CHECKING
 
-from scripts.benchmarks.utils import get_success_rate_log
+from isaaclab.test.benchmark.metrics import SuccessRateTracker, get_success_rate_log
 
 if TYPE_CHECKING:
+    from types import TracebackType
+
     from rl_games.common.algo_observer import AlgoObserver
     from rsl_rl.runners import OnPolicyRunner
 
@@ -33,73 +34,6 @@ DEFAULT_SUCCESS_WINDOW = 20
 
 class EarlyStopConverged(Exception):
     """Raised by :class:`RslRlEarlyStopWrapper` when the metric has converged."""
-
-
-class SuccessRateTracker:
-    """Accumulates a per-iteration success-rate metric and checks trailing-window convergence.
-
-    Args:
-        threshold: Minimum value to consider a pass.
-        window: Consecutive iterations above *threshold* to trigger convergence.
-        num_steps_per_env: Steps per RL iteration (for boundary detection).
-    """
-
-    def __init__(self, threshold: float, window: int, num_steps_per_env: int):
-        self.threshold = threshold
-        self.window = window
-        self.num_steps_per_env = num_steps_per_env
-
-        self.history: list[float] = []
-        self._step_count = 0
-        self._iter_sum = 0.0
-        self._iter_count = 0
-
-    def record_step(self, extras: dict) -> None:
-        """Record one env step."""
-        val = get_success_rate_log(extras.get("log", {}))
-        if val is not None:
-            self._iter_sum += val.item() if hasattr(val, "item") else float(val)
-            self._iter_count += 1
-        self._step_count += 1
-
-    def end_iteration(self) -> float | None:
-        """Finalize the current iteration. Returns mean metric, or ``None`` if no data."""
-        if self._iter_count == 0:
-            return None
-        mean = self._iter_sum / self._iter_count
-        self.history.append(mean)
-        self._iter_sum = 0.0
-        self._iter_count = 0
-        return mean
-
-    @property
-    def at_iteration_boundary(self) -> bool:
-        """Whether the tracker has seen exactly a full iteration's worth of steps.
-
-        Assumes :meth:`record_step` is called exactly once per env step. This holds for
-        all current framework integrations (rsl_rl's patched ``env.step`` and rl_games'
-        ``AlgoObserver.process_infos``) — both pair a single step with a single record.
-        Integrations that call :meth:`record_step` more or fewer times per env step will
-        break iteration accounting.
-        """
-        return self.num_steps_per_env > 0 and self._step_count % self.num_steps_per_env == 0
-
-    @property
-    def converged(self) -> bool:
-        if len(self.history) < self.window:
-            return False
-        return all(v >= self.threshold for v in self.history[-self.window :])
-
-    @property
-    def current_iteration(self) -> int:
-        return len(self.history)
-
-    @property
-    def tail_mean(self) -> float:
-        if not self.history:
-            return 0.0
-        tail = self.history[-self.window :] if len(self.history) >= self.window else self.history
-        return statistics.mean(tail)
 
 
 class RslRlEarlyStopWrapper:
@@ -136,11 +70,16 @@ class RslRlEarlyStopWrapper:
         self.stop_on_convergence = stop_on_convergence
         self._orig_step = env.step
 
-    def __enter__(self):
+    def __enter__(self) -> RslRlEarlyStopWrapper:
         self.env.step = self._step
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> bool:
         self.env.step = self._orig_step
         if exc_type is EarlyStopConverged:
             self._runner_cleanup()
@@ -151,7 +90,7 @@ class RslRlEarlyStopWrapper:
             return True
         return False
 
-    def _step(self, actions):
+    def _step(self, actions) -> tuple:
         result = self._orig_step(actions)
         self.tracker.record_step(result[3])  # rsl_rl: (obs, rew, dones, extras)
         if self.tracker.at_iteration_boundary:
@@ -211,22 +150,22 @@ class RlGamesEarlyStopObserver:
         self.algo = None
         self.tracker: SuccessRateTracker | None = None
 
-    def before_init(self, base_name, config, experiment_name):
+    def before_init(self, base_name: str, config: dict, experiment_name: str) -> None:
         self._base.before_init(base_name, config, experiment_name)
 
-    def after_init(self, algo):
+    def after_init(self, algo) -> None:
         self._base.after_init(algo)
         self.algo = algo
         num_steps = getattr(algo, "horizon_length", algo.config.get("horizon_length", 16))
         self.tracker = SuccessRateTracker(self.threshold, self.window, num_steps)
 
-    def process_infos(self, infos, done_indices):
+    def process_infos(self, infos, done_indices) -> None:
         self._base.process_infos(infos, done_indices)
         if self.tracker is not None and isinstance(infos, dict) and "episode" in infos:
             # rl_games remaps extras["log"] → extras["episode"]
             self.tracker.record_step({"log": infos["episode"]})
 
-    def after_steps(self):
+    def after_steps(self) -> None:
         self._base.after_steps()
         if self.tracker is None:
             return
@@ -238,10 +177,11 @@ class RlGamesEarlyStopObserver:
             )
             self.algo.max_epochs = self.tracker.current_iteration
 
-    def after_clear_stats(self):
-        self._base.after_clear_stats()
+    def after_clear_stats(self) -> None:
+        if hasattr(self._base, "after_clear_stats"):
+            self._base.after_clear_stats()
 
-    def after_print_stats(self, frame, epoch_num, total_time):
+    def after_print_stats(self, frame: int, epoch_num: int, total_time: float) -> None:
         self._base.after_print_stats(frame, epoch_num, total_time)
 
     @property
@@ -279,11 +219,14 @@ def add_success_cli_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def build_success_kwargs(args_cli: argparse.Namespace) -> dict:
+def build_success_kwargs(args_cli: argparse.Namespace) -> dict[str, float | int | bool]:
     """Resolve success-metric CLI args into kwargs for the wrapper constructors.
 
     Returns a dict with ``threshold``, ``window``, and ``stop_on_convergence``, suitable
     to splat into :class:`RslRlEarlyStopWrapper` or :class:`RlGamesEarlyStopObserver`.
+
+    Returns:
+        A dict with ``threshold``, ``window``, and ``stop_on_convergence`` keys.
     """
     return {
         "threshold": (
@@ -303,12 +246,15 @@ def get_success_tracker(
 
     Prefers *live_tracker* (from the training wrapper/observer). If it never ran or recorded
     no iterations, falls back to building a post-hoc tracker by replaying the success metric
-    series out of TensorBoard *log_data* (from :func:`scripts.benchmarks.utils.parse_tf_logs`).
+    series out of TensorBoard *log_data* (from :func:`isaaclab.test.benchmark.metrics.parse_tf_logs`).
 
     Args:
         args_cli: Parsed arg namespace with the ``--success_*`` flags.
         live_tracker: Tracker attached to the early-stop wrapper/observer (or ``None``).
         log_data: Mapping of TB tag -> list of scalars for the current run.
+
+    Returns:
+        A :class:`SuccessRateTracker` populated with history, or ``None`` if no data is available.
     """
     if live_tracker is not None and live_tracker.history:
         return live_tracker
