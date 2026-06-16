@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
 
 import pytest
@@ -23,6 +24,16 @@ from isaaclab.sim.utils.newton_model_utils import (
     _resolve_shape_color,
     replace_newton_builder_shape_colors,
 )
+
+_WARNING_MESSAGE = "Newton shape color replacement is enabled; this workaround will be deprecated in a future release."
+
+
+def _replace_newton_builder_shape_colors_wrapper(builder: object, stage: Usd.Stage) -> int:
+    """Call :func:`replace_newton_builder_shape_colors` with :class:`FutureWarning` suppressed in test reports."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=_WARNING_MESSAGE, category=FutureWarning)
+        return replace_newton_builder_shape_colors(builder, stage)
+
 
 _OMNIPBR_ALBEDO_INPUT_CASES = [
     pytest.param((0.2, 0.4, 0.6), (0.5, 0.25, 2.0), id="both_authored"),
@@ -225,6 +236,14 @@ def test_resolve_shape_color_neutral_material_binding():
     assert _resolve_shape_color(stage, mesh_path, {}) is None
 
 
+def test_replace_newton_builder_shape_colors_warning():
+    """A :exc:`FutureWarning` is expected by default."""
+    builder = SimpleNamespace(shape_label=None, shape_color=None)
+
+    with pytest.warns(FutureWarning, match=_WARNING_MESSAGE):
+        replace_newton_builder_shape_colors(builder, stage=Usd.Stage.CreateInMemory())
+
+
 def test_replace_newton_builder_shape_colors_invalid_prim():
     """Invalid prim path leaves ``shape_color`` entry unchanged."""
     stage = Usd.Stage.CreateInMemory()
@@ -232,7 +251,7 @@ def test_replace_newton_builder_shape_colors_invalid_prim():
     initial = (0.1, 0.2, 0.3)
     builder = SimpleNamespace(shape_label=["/World/Missing"], shape_color=[wp.vec3(*initial)])
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 0
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 0
     assert tuple(builder.shape_color[0]) == pytest.approx(initial)
 
 
@@ -248,7 +267,7 @@ def test_replace_newton_builder_shape_colors_guide_purpose():
     initial = (0.1, 0.2, 0.3)
     builder = SimpleNamespace(shape_label=["/World/GuideMesh"], shape_color=[wp.vec3(*initial)])
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 0
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 0
     assert tuple(builder.shape_color[0]) == pytest.approx(initial)
 
 
@@ -272,7 +291,7 @@ def test_replace_newton_builder_shape_colors_no_material_binding():
         shape_color=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.0, 0.0, 0.0)],
     )
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 2
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 2
     assert tuple(builder.shape_color[0]) == pytest.approx(_reference_linear_to_srgb(color_a), rel=1e-5)
     assert tuple(builder.shape_color[1]) == pytest.approx(
         _reference_linear_to_srgb(_UNBOUND_DEFAULT_FALLBACK_GRAY), rel=1e-5
@@ -289,7 +308,7 @@ def test_replace_newton_builder_shape_colors_omnipbr_binding(
 
     builder = SimpleNamespace(shape_label=[mesh_path], shape_color=[wp.vec3(0.0, 0.0, 0.0)])
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 1
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 1
     exp = _reference_linear_to_srgb(_expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint))
     assert tuple(builder.shape_color[0]) == pytest.approx(exp, rel=1e-5)
 
@@ -301,7 +320,7 @@ def test_replace_newton_builder_shape_colors_neutral_material():
     initial = (0.1, 0.2, 0.3)
     builder = SimpleNamespace(shape_label=[mesh_path], shape_color=[wp.vec3(*initial)])
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 0
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 0
     assert tuple(builder.shape_color[0]) == pytest.approx(initial)
 
 
@@ -342,7 +361,7 @@ def test_replace_newton_builder_shape_colors_respects_binding_strength():
     UsdShade.MaterialBindingAPI(mesh_prim).Bind(child_mat)
 
     builder = SimpleNamespace(shape_label=["/World/Parent/Mesh"], shape_color=[wp.vec3(0.0, 0.0, 0.0)])
-    assert replace_newton_builder_shape_colors(builder, stage) == 1
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 1
 
     # Expected color is green which is inherited from the parent xform prim
     assert tuple(builder.shape_color[0]) == pytest.approx((0.0, 1.0, 0.0))
@@ -383,7 +402,7 @@ def test_replace_newton_builder_shape_colors_instanced():
         shape_label=proxy_paths,
         shape_color=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.0, 0.0, 0.0)],
     )
-    assert replace_newton_builder_shape_colors(builder, stage) == 2
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 2
 
     exp = _reference_linear_to_srgb((0.1, 0.2, 0.3))
     assert tuple(builder.shape_color[0]) == pytest.approx(exp, rel=1e-5)
@@ -405,7 +424,7 @@ def test_replace_newton_builder_shape_colors_updates_source_builder():
         shape_color=[wp.vec3(0.0, 0.0, 0.0), wp.vec3(0.0, 0.0, 0.0)],
     )
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 1
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 1
     assert tuple(builder.shape_color[0]) == pytest.approx(_reference_linear_to_srgb(color))
     assert tuple(builder.shape_color[1]) == pytest.approx((0.0, 0.0, 0.0))
 
@@ -425,5 +444,5 @@ def test_replace_newton_builder_shape_colors_skips_missing_prim_labels():
         shape_color=[wp.vec3(*initial)],
     )
 
-    assert replace_newton_builder_shape_colors(builder, stage) == 0
+    assert _replace_newton_builder_shape_colors_wrapper(builder, stage) == 0
     assert tuple(builder.shape_color[0]) == pytest.approx(initial)

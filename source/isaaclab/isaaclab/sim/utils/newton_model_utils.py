@@ -13,6 +13,7 @@ to be deprecated and removed.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Any
 
 import numpy as np
@@ -177,7 +178,7 @@ def _resolve_shape_color(
     """Resolve replacement linear RGB for one prim path (sRGB encoding is applied in the scatter kernel).
 
     Returns:
-        Linear RGB to pass to :func:`_scatter_shape_color_rows_kernel`, or ``None`` to leave the row unchanged.
+        Linear RGB to pass, or ``None`` to leave the row unchanged.
     """
     shape_prim = stage.GetPrimAtPath(prim_path)
     if not shape_prim.IsValid():
@@ -206,10 +207,46 @@ def _resolve_shape_color(
 
 
 def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
-    """Align a Newton ``ModelBuilder``'s source shape colors before clone replication."""
+    """Align a Newton ``ModelBuilder``'s shape colors with the USD stage before clone replication.
 
-    shape_labels = builder.shape_label
-    shape_colors = builder.shape_color
+    Overwrites entries in ``builder.shape_color`` so that colors match the authored USD data:
+
+    - **No bound material**: use authored ``primvars:displayColor`` (treated as linear RGB), or a
+      neutral 18% linear gray if ``displayColor`` is not authored.
+    - **OmniPBR**: use ``diffuse_color_constant`` × ``diffuse_tint`` (linear RGB, with MDL defaults
+      when inputs are not authored).
+    - **Other materials**: leave the existing Newton color for that shape unchanged.
+    - **Guide purpose** prims (``UsdGeom.Tokens.guide``): leave unchanged so guide visualization
+      stays on the Newton palette.
+
+    Linear RGB values are encoded to sRGB before being written into ``builder.shape_color``.
+
+    Args:
+        builder: Object with ``shape_label`` (``list`` of USD prim paths) and ``shape_color``
+            (``list`` of ``wp.vec3``), typically a Newton ``ModelBuilder`` before finalization.
+        stage: USD stage to read material and primvar data from.
+
+    Returns:
+        Number of shapes that had their colors replaced.
+    """
+    warnings.warn(
+        "Newton shape color replacement is enabled; this workaround will be deprecated in a future release.",
+        FutureWarning,
+        stacklevel=2,
+    )
+
+    # Use duck typing to avoid introducing hard dependencies on newton.
+    shape_labels = getattr(builder, "shape_label", None)
+    shape_colors = getattr(builder, "shape_color", None)
+
+    if not isinstance(shape_labels, list):
+        logger.debug("shape_label must be a list, got %s", type(shape_labels))
+        return 0
+
+    if not isinstance(shape_colors, list):
+        logger.debug("shape_color must be a list, got %s", type(shape_colors))
+        return 0
+
     if len(shape_labels) != len(shape_colors):
         raise ValueError(
             f"Mismatching length of shape_label and shape_color: {len(shape_labels)} != {len(shape_colors)}"
