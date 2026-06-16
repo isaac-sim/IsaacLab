@@ -143,8 +143,8 @@ TEST_RL_ENVS = [
     # dexterous manipulation
     "Isaac-Reorient-Cube-Allegro",
     # locomotion
-    "Isaac-Velocity-Flat-Unitree-Go2-v0",
-    "Isaac-Velocity-Rough-Anymal-D-v0",
-    "Isaac-Velocity-Rough-G1-v0",
+    "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Rough-AnymalD",
+    "Isaac-Velocity-Rough-G1",
 ]
 """A list of RL environments to test training on by run_train_envs.py"""

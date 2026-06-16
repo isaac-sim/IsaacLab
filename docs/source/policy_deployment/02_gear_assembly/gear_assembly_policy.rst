@@ -264,7 +264,7 @@ These friction values were determined through iterative visual comparison:
            .. code-block:: bash
 
                ./isaaclab.sh train --rl_library rsl_rl \
-                   --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+                   --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                    --video --video_length 800 --video_interval 5000
 
        .. tab-item:: Flexiv Rizon 4s
@@ -272,7 +272,7 @@ These friction values were determined through iterative visual comparison:
            .. code-block:: bash
 
                ./isaaclab.sh train --rl_library rsl_rl \
-                   --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                   --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                    --video --video_length 800 --video_interval 5000
 
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
@@ -649,7 +649,7 @@ First, launch the training with a small number of environments and visualization
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -658,7 +658,7 @@ First, launch the training with a small number of environments and visualization
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -667,7 +667,7 @@ First, launch the training with a small number of environments and visualization
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -696,7 +696,7 @@ Now launch the full training run with more parallel environments in headless mod
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -705,7 +705,7 @@ Now launch the full training run with more parallel environments in headless mod
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -714,7 +714,7 @@ Now launch the full training run with more parallel environments in headless mod
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -818,7 +818,7 @@ CUDA Out of Memory
    .. code-block:: bash
 
        ./isaaclab.sh train --rl_library rsl_rl \
-           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+           --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
 
    **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
@@ -848,7 +848,7 @@ CUDA Out of Memory
    .. code-block:: bash
 
        ./isaaclab.sh train --rl_library rsl_rl \
-           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
+           --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
            --num_envs 256
 
    You can always evaluate the trained policy later with visualization.
@@ -857,7 +857,7 @@ CUDA Out of Memory
 Deterministic Debugging (Play Environment)
 -------------------------------------------
 
-The ``Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0`` environment provides a fully
+The ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play`` environment provides a fully
 deterministic setup for debugging policy behavior against a specific real-world scenario.
 All randomization is disabled and observation noise is turned off, so the simulation is
 identical on every reset.
@@ -867,7 +867,7 @@ To use it, run the standard play command:
 .. code-block:: bash
 
     ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \
+        --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
         --num_envs 1 \
         --checkpoint <path_to_model.pt>
 

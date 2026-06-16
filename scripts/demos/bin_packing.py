@@ -50,19 +50,20 @@ import math
 
 import torch
 
+import isaaclab.sim as sim_utils
+import isaaclab.utils.math as math_utils
+
 ##
 # Pre-defined configs
 ##
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObjectCollection
@@ -348,7 +349,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         scene.update(sim_dt)
 
 
-def main() -> None:
+def main():
     """Main function.
 
     Returns:

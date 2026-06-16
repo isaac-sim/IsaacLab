@@ -48,6 +48,7 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
     class Env(DirectRLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
             self.env: DirectMARLEnv = env.unwrapped
+            self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as single-agent observation
             self._state_as_observation = state_as_observation
@@ -133,7 +134,9 @@ def multi_agent_to_single_agent(env: DirectMARLEnv, state_as_observation: bool =
             return self.env.render(recompute)
 
         def close(self) -> None:
-            self.env.close()
+            if not self._is_closed:
+                self.env.close()
+                self._is_closed = True
 
     return Env(env)
 
@@ -168,6 +171,7 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
     class Env(DirectMARLEnv):
         def __init__(self, env: DirectMARLEnv) -> None:
             self.env: DirectMARLEnv = env.unwrapped
+            self._is_closed = False
 
             # check if it is possible to use the multi-agent environment state as agent observation
             self._state_as_observation = state_as_observation
@@ -272,6 +276,8 @@ def multi_agent_with_one_agent(env: DirectMARLEnv, state_as_observation: bool = 
             self.env.render(recompute)
 
         def close(self) -> None:
-            self.env.close()
+            if not self._is_closed:
+                self.env.close()
+                self._is_closed = True
 
     return Env(env)

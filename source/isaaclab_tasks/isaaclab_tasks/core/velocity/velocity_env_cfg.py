@@ -62,7 +62,7 @@ class RoughPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
         # 1 cm shape margin is the single most important Newton setting for rough
-        # terrain — without it, non-Anymal-D robots fail to learn stable contact
+        # terrain — without it, non-AnymalD robots fail to learn stable contact
         # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )

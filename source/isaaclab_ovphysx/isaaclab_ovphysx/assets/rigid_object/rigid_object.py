@@ -20,7 +20,7 @@ from pxr import UsdPhysics
 
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -908,10 +908,8 @@ class RigidObject(BaseRigidObject):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-        asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
-        walk_root = asset_prim.GetPath().pathString
-        root_prims = get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
-        root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
+        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
 
         # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
         # ``create_tensor_binding`` expects fnmatch globs.

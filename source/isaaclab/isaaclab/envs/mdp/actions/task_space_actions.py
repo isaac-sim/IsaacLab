@@ -20,7 +20,7 @@ from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -340,17 +340,12 @@ class OperationalSpaceControllerAction(ActionTerm):
             def has_rigid_body_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-            matches = resolve_matching_prims_from_source(self._asset.cfg.prim_path, raise_if_no_matches=False)
-            if not matches:
-                raise ValueError(f"No prim found at '{self._asset.cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
-            walk_root = asset_prim.GetPath().pathString
-            rigid_prims = get_all_matching_child_prims(
-                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
-            )
-            if not rigid_prims:
+            prim_path = self._asset.cfg.prim_path
+            resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+            rigid_matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, **resolve_kwargs)
+            if not rigid_matches:
                 raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
-            root_rigidbody_path = root_expr + rigid_prims[0].GetPath().pathString[len(walk_root) :]
+            _, root_rigidbody_path = rigid_matches[0]
             task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,

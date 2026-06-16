@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import re
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -1151,18 +1150,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         def has_rigid_body_api(prim) -> bool:
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
+        resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
         root_prim_path_exprs: list[str] = []
 
-        for name, rigid_body_cfg in self.cfg.rigid_objects.items():
-            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(rigid_body_cfg.prim_path)[0]
-            walk_root = asset_prim.GetPath().pathString
-            root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_rigid_body_api, expected_num_matches=1)
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
-            root_prim_path_exprs.append(root_prim_path_expr.replace(".*", "*"))
+        for name, obj_cfg in self.cfg.rigid_objects.items():
+            _, root_expr = sim_utils.resolve_matching_prims_from_source(obj_cfg.prim_path, **resolve_kwargs)[0]
+            root_prim_path_exprs.append(root_expr.replace(".*", "*"))
             self._body_names_list.append(name)
 
-        # Build a single pattern that matches ALL body types by wildcarding the differing path segment
-        # TODO: Remove when https://github.com/newton-physics/newton/pull/3071 lands.
+        # Build a single pattern that matches ALL body types by wildcarding the differing path segment.
         combined_pattern = self._build_combined_pattern(root_prim_path_exprs)
 
         # Create a single ArticulationView matching all body types.
@@ -1360,10 +1356,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self._clear_callbacks()
             return
         for prim_path_expr in [obj.prim_path for obj in self.cfg.rigid_objects.values()]:
-            result = re.match(
-                pattern="^" + "/".join(prim_path_expr.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
-            )
-            if result:
+            if sim_utils.matches_path_expr_prefix(prim_path_expr, prim_path):
                 self._clear_callbacks()
                 return
 

@@ -13,14 +13,19 @@ from isaaclab.app import AppLauncher
 simulation_app = AppLauncher(headless=True).app
 
 import os
-
-# Import the function to test
+import sys
 import tempfile
+import xml.etree.ElementTree as ET
+from types import ModuleType
 
 import pytest
 import torch
 
-from isaaclab.controllers.utils import change_revolute_to_fixed, change_revolute_to_fixed_regex
+from isaaclab.controllers.utils import (
+    change_revolute_to_fixed,
+    change_revolute_to_fixed_regex,
+    convert_usd_to_urdf,
+)
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
 
@@ -119,6 +124,66 @@ def test_urdf_file(mock_urdf_content):
     import shutil
 
     shutil.rmtree(test_dir)
+
+
+def _mock_module(monkeypatch, name: str) -> ModuleType:
+    module = ModuleType(name)
+    monkeypatch.setitem(sys.modules, name, module)
+    return module
+
+
+def _mock_isaacsim_app(monkeypatch):
+    for module_name in (
+        "isaacsim",
+        "isaacsim.core",
+        "isaacsim.core.experimental",
+        "isaacsim.core.experimental.utils",
+    ):
+        _mock_module(monkeypatch, module_name).__path__ = []
+    enabled_extensions = []
+    app_module = _mock_module(monkeypatch, "isaacsim.core.experimental.utils.app")
+    app_module.enable_extension = enabled_extensions.append
+    return enabled_extensions
+
+
+def test_convert_usd_to_urdf_uses_isaacsim_exporter(monkeypatch, tmp_path):
+    """Test that USD-to-URDF conversion uses Isaac Sim's URDF exporter."""
+    enabled_extensions = _mock_isaacsim_app(monkeypatch)
+    for module_name in ("isaacsim.asset", "isaacsim.asset.exporter"):
+        _mock_module(monkeypatch, module_name).__path__ = []
+
+    converter_args = {}
+
+    class MockUsdToUrdfConverter:
+        def __init__(self, **kwargs):
+            converter_args.update(kwargs)
+
+        def convert(self, output_path):
+            with open(output_path, "w") as file:
+                file.write(
+                    '<robot><joint name="j" type="revolute">'
+                    '<limit lower="-inf" upper="inf" velocity="inf"/></joint></robot>'
+                )
+
+    urdf_module = _mock_module(monkeypatch, "isaacsim.asset.exporter.urdf")
+    urdf_module.UsdToUrdfConverter = MockUsdToUrdfConverter
+
+    urdf_path, mesh_path = convert_usd_to_urdf("/assets/gr1.usd", str(tmp_path))
+
+    assert enabled_extensions == ["isaacsim.asset.exporter.urdf"]
+    assert converter_args == {
+        "stage": "/assets/gr1.usd",
+        "root_prim_path": None,
+        "mesh_dir_name": "../meshes",
+        "mesh_path_prefix": "../meshes/",
+        "visualize_collision_meshes": False,
+    }
+    assert (urdf_path, mesh_path) == (str(tmp_path / "urdf" / "gr1.urdf"), str(tmp_path / "meshes"))
+    limit = ET.parse(urdf_path).find("joint/limit")
+    assert limit.attrib["lower"] == "-inf"
+    assert limit.attrib["upper"] == "inf"
+    assert limit.attrib["effort"] == "0."
+    assert limit.attrib["velocity"] == "0."
 
 
 # =============================================================================

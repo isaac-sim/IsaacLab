@@ -24,11 +24,7 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.cloner import queue_usd_replication
-from isaaclab.sim.utils.queries import (
-    find_first_matching_prim,
-    get_all_matching_child_prims,
-    resolve_matching_prims_from_source,
-)
+from isaaclab.sim.utils.queries import find_first_matching_prim, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -3861,10 +3857,8 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
-            walk_root = asset_prim.GetPath().pathString
-            root_prims = get_all_matching_child_prims(walk_root, has_articulation_root_api, expected_num_matches=1)
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+            resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
+            _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- articulation
         self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 

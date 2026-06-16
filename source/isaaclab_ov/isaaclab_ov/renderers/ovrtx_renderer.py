@@ -287,15 +287,16 @@ class OVRTXRenderer(BaseRenderer):
         the RTX exposure model OVRTX embeds does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
         """
-        if not spec.camera_prim_paths or spec.cfg.isp_cfg is None:
+        if spec.cfg.isp_cfg is None:
             return
         try:
             from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
         except ModuleNotFoundError as exc:
             _raise_missing_ppisp_error(exc)
 
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
-        if spec.cfg.isp_cfg is None:
+        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 

@@ -70,7 +70,7 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     )
     setattr(env_cfg.scene, "moving_wall", wall_cfg)
 
-    env: ManagerBasedEnv = gym.make("Isaac-Stack-Cube-Franka-v0", cfg=env_cfg, headless=headless).unwrapped
+    env: ManagerBasedEnv = gym.make("IsaacContrib-Stack-Cube-Franka", cfg=env_cfg, headless=headless).unwrapped
     env.reset()
 
     robot = env.scene["robot"]

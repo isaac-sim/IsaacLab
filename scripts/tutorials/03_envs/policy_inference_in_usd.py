@@ -7,7 +7,7 @@
 This script demonstrates policy inference in a prebuilt USD environment.
 
 In this example, we use a locomotion policy to control the H1 robot. The robot was trained
-using Isaac-Velocity-Rough-H1-v0. The robot is commanded to move forward at a constant velocity.
+using Isaac-Velocity-Rough-H1. The robot is commanded to move forward at a constant velocity.
 
 .. code-block:: bash
 

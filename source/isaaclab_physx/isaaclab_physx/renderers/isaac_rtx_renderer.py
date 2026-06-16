@@ -128,15 +128,16 @@ class IsaacRtxRenderer(BaseRenderer):
         RTX's physical-camera exposure model does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
         """
-        if not spec.camera_prim_paths or spec.cfg.isp_cfg is None:
+        if spec.cfg.isp_cfg is None:
             return
         try:
             from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
         except ModuleNotFoundError as exc:
             _raise_missing_ppisp_error(exc)
 
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
-        if spec.cfg.isp_cfg is None:
+        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
@@ -363,7 +364,7 @@ class IsaacRtxRenderer(BaseRenderer):
             except ModuleNotFoundError as exc:
                 _raise_missing_ppisp_error(exc)
 
-            ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg, stage=stage)
+            ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
         return IsaacRtxRenderData(
             annotators=annotators,

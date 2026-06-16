@@ -32,7 +32,7 @@ For example, if you have a complex mesh, you can create a simplified collision g
 of the mesh. This can be done in Isaac Sim through the UI by modifying the collision mesh and approximation methods.
 
 Additionally, we can often remove collision geometries on areas of the robot that are not important for training.
-In the Anymal-C robot, we keep the collision geometries for the kneeds and feet, but remove the collision geometries
+In the AnymalC robot, we keep the collision geometries for the kneeds and feet, but remove the collision geometries
 on other parts of the legs to optimize for performance.
 
 Simpler collision geometries such as primitive shapes like spheres will also yield better performance than complex meshes.

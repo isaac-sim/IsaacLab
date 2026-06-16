@@ -7,32 +7,33 @@
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/deformables.py
+
+    # Usage with Newton MJWarp backend and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_mjwarp
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # create argparser
-parser = argparse.ArgumentParser(description="This script demonstrates how to spawn deformable prims into the scene.")
-parser.add_argument("--backend", type=str, default="physx", choices=["physx", "newton"], help="Physics backend.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
+parser = argparse.ArgumentParser(
+    description="This script demonstrates how to spawn deformable prims into the scene.",
+    conflict_handler="resolve",
+)
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+# Newton visualizer not supported for deformables
+parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import random
 
@@ -41,10 +42,20 @@ import torch
 import tqdm
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import DeformableObject, DeformableObjectCfg
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-if args_cli.backend == "newton":
+##
+# Pre-defined configs
+##
+from isaaclab_newton.physics import NewtonCfg  # isort:skip
+from isaaclab.assets import DeformableObjectCfg  # isort:skip
+from isaaclab.physics import PhysicsCfg  # isort:skip
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import DeformableObject
+
+if args_cli.physics == "newton_mjwarp":
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
@@ -165,13 +176,13 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         obj_name = random.choice(list(objects_cfg.keys()))
         obj_cfg = objects_cfg[obj_name]
         # randomize the deformable material stiffness
-        if args_cli.backend == "newton" and obj_name == "cloth":
+        if args_cli.physics == "newton_mjwarp" and obj_name == "cloth":
             obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
             obj_cfg.physics_material.tri_ka = random.uniform(5e3, 5e4)
         else:
             youngs_modulus = random.uniform(5e5, 1e8)
             poissons_ratio = random.uniform(0.25, 0.45)
-            if args_cli.backend == "newton":
+            if args_cli.physics == "newton_mjwarp":
                 obj_cfg.physics_material.k_mu = youngs_modulus / (2.0 * (1.0 + poissons_ratio))
                 obj_cfg.physics_material.k_lambda = (
                     youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
@@ -189,7 +200,7 @@ def design_scene() -> tuple[dict, list[list[float]]]:
                 spawn=obj_cfg,
                 init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
             )
-            scene_entities[f"Surface{idx:02d}"] = DeformableObject(cfg=cfg)
+            scene_entities[f"Surface{idx:02d}"] = cfg.class_type(cfg)
         else:
             prim_path = f"/World/Origin/Volume{idx:02d}"
             cfg = DeformableObjectCfg(
@@ -197,21 +208,21 @@ def design_scene() -> tuple[dict, list[list[float]]]:
                 spawn=obj_cfg,
                 init_state=DeformableObjectCfg.InitialStateCfg(pos=origin),
             )
-            scene_entities[f"Volume{idx:02d}"] = DeformableObject(cfg=cfg)
+            scene_entities[f"Volume{idx:02d}"] = cfg.class_type(cfg)
 
     # return the scene information
     return scene_entities, origins
 
 
-def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, DeformableObject]):
+def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "DeformableObject"]):
     """Runs the simulation loop."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
 
-    # Simulate physics
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         # reset
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
@@ -236,42 +247,33 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, Deformab
 
 def main():
     """Main function."""
-    # Initialize the simulation context
-    if args_cli.backend == "newton":
-        from isaaclab_newton.physics import NewtonCfg
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        if args_cli.physics == "newton_mjwarp":
+            physics_cfg = NewtonCfg(
+                solver_cfg=VBDSolverCfg(
+                    iterations=5,
+                    particle_enable_self_contact=True,
+                    particle_self_contact_radius=0.0001,
+                    particle_self_contact_margin=0.1,
+                ),
+                num_substeps=4,
+            )
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
-        from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
-
-        physics_cfg = NewtonCfg(
-            solver_cfg=VBDSolverCfg(
-                iterations=5,
-                particle_enable_self_contact=True,
-                particle_self_contact_radius=0.0001,
-                particle_self_contact_margin=0.1,
-            ),
-            num_substeps=4,
-        )
-    else:
-        from isaaclab_physx.physics import PhysxCfg
-
-        physics_cfg = PhysxCfg()
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
-
-    # Design scene by adding assets to it
-    scene_entities, _ = design_scene()
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    run_simulator(sim, scene_entities)
-    print("[INFO]: Simulation complete...")
+        # Design scene by adding assets to it
+        scene_entities, _ = design_scene()
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        run_simulator(sim, scene_entities)
+        print("[INFO]: Simulation complete...")
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()
