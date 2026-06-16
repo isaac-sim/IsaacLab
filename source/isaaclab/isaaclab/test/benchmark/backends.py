@@ -10,9 +10,12 @@ import os
 import textwrap
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
+
+if TYPE_CHECKING:
+    from .schema import RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +66,7 @@ class MetricsBackend:
         """Get or create a backend instance by type name.
 
         Args:
-            instance_type: Type of backend to create ("json", "osmo", or "omniperf").
+            instance_type: Type of backend to create ("json", "osmo", "omniperf", "summary", or "schema").
 
         Returns:
             Backend instance of the requested type.
@@ -77,6 +80,7 @@ class MetricsBackend:
                 "osmo": OsmoKPIFile,
                 "omniperf": OmniPerfKPIFile,
                 "summary": SummaryMetrics,
+                "schema": SchemaBundleFile,
             }
             if instance_type not in backend_map:
                 raise ValueError(f"Unknown backend type: {instance_type}. Available: {list(backend_map.keys())}")
@@ -623,3 +627,51 @@ class OmniPerfKPIFile(MetricsBackendInterface):
         with open(metrics_path, "w") as f:
             f.write(json_data)
         print(f"Results written to: {metrics_path}")
+
+
+class SchemaBundleFile(MetricsBackendInterface):
+    """Serialize a typed benchmark bundle to schema-v1 JSON.
+
+    Unlike the other backends, this one does not consume the flat measurement
+    phases collected during a run. Instead it serializes the typed bundle
+    attached via :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`.
+    """
+
+    def add_metrics(self, test_phase: TestPhase) -> None:
+        """Ignore the provided test phase.
+
+        This backend serializes the typed bundle attached via
+        :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`,
+        not the flat measurement phases, so accumulated phases are ignored by design.
+
+        Args:
+            test_phase: Test phase to ignore.
+        """
+        pass
+
+    def finalize(
+        self,
+        output_path: str,
+        output_filename: str,
+        bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None" = None,
+        **kwargs,
+    ) -> None:
+        """Write the attached bundle to a schema-v1 JSON file.
+
+        Args:
+            output_path: Output path in which the schema file will be stored.
+            output_filename: Output filename (without extension).
+            bundle: Typed benchmark bundle to serialize. When ``None``, no file
+                is written.
+            **kwargs: Additional backend-specific options (ignored).
+        """
+        if bundle is None:
+            logger.warning("SchemaBundleFile selected but no bundle was attached; skipping schema file.")
+            return
+
+        # Lazy import keeps backends.py free of the schema layer at module import time.
+        from isaaclab.test.benchmark.serialize import write_bundle_file
+
+        path = os.path.join(output_path, f"{output_filename}.json")
+        write_bundle_file(bundle, path)
+        logger.info("Wrote schema bundle to %s", path)

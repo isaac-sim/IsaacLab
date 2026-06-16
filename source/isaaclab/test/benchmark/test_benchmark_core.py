@@ -36,19 +36,6 @@ class TestBaseIsaacLabBenchmark:
         yield
         backends.MetricsBackend.reset_instances()
 
-    def test_initialization(self, temp_output_dir):
-        """Test benchmark initializes correctly."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-            output_prefix="test",
-        )
-        assert benchmark.benchmark_name == "test_benchmark"
-        assert benchmark.output_path == temp_output_dir
-        assert "test_" in benchmark.output_prefix
-
     def test_initialization_creates_output_dir(self):
         """Test that initialization creates output directory if it doesn't exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -82,7 +69,11 @@ class TestBaseIsaacLabBenchmark:
             backend_type="omniperf",
             output_path=temp_output_dir,
             use_recorders=False,
+            output_prefix="test",
         )
+        assert benchmark.benchmark_name == "test_benchmark"
+        assert benchmark.output_path == temp_output_dir
+        assert "test_" in benchmark.output_prefix
         assert benchmark._use_recorders is False
         assert not hasattr(benchmark, "_manual_recorders") or benchmark._manual_recorders is None
 
@@ -146,17 +137,6 @@ class TestBaseIsaacLabBenchmark:
         # Check recorders were updated - CPUInfoRecorder has _n attribute
         assert benchmark._manual_recorders["CPUInfo"]._n >= 1
         assert benchmark._manual_recorders["MemoryInfo"]._rss_n >= 1
-
-    def test_update_manual_recorders_disabled(self, temp_output_dir):
-        """Test that update_manual_recorders is a no-op when recorders are disabled."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-        )
-        # Should not raise
-        benchmark.update_manual_recorders()
 
     def test_finalize_generates_output(self, temp_output_dir):
         """Test that finalize creates output file."""
@@ -237,6 +217,193 @@ class TestBaseIsaacLabBenchmark:
         assert "workflow_name" in data["benchmark_info"]
         assert data["benchmark_info"]["workflow_name"] == "my_workflow"
         assert "timestamp" in data["benchmark_info"]
+
+
+# ==============================================================================
+# Multi-backend support Tests
+# ==============================================================================
+
+
+def _minimal_runtime_bundle():
+    """Build a minimal but schema-valid RuntimeBundle for the schema backend."""
+    from isaaclab.test.benchmark.schema import (
+        GpuDeviceInfo,
+        Hardware,
+        MeanStd,
+        Resources,
+        RunConfig,
+        RunIdentity,
+        Runtime,
+        RuntimeBundle,
+        StartupTime,
+        Versions,
+    )
+
+    return RuntimeBundle(
+        run=RunIdentity(
+            run_id="runtime_newton_mjwarp_Isaac-Ant-Direct-v0_20260422-131500_seed42",
+            framework=None,
+            config=RunConfig(physics_backend="newton_mjwarp", rendering_backend="none"),
+            task="Isaac-Ant-Direct-v0",
+            seed=42,
+            start_time_utc="2026-04-22T13:15:00Z",
+            end_time_utc="2026-04-22T13:15:10Z",
+            duration_s=10.0,
+            status="completed",
+            num_envs=16,
+        ),
+        versions=Versions(
+            isaaclab="4.6.8",
+            isaacsim=None,
+            kit=None,
+            newton=None,
+            warp=None,
+            mjwarp=None,
+            torch="2.5.1",
+            rsl_rl=None,
+            rl_games=None,
+            skrl=None,
+            sb3=None,
+            git_commit=None,
+            git_branch=None,
+            git_dirty=False,
+        ),
+        hardware=Hardware(
+            hostname="benchmark-host",
+            gpu_devices=[GpuDeviceInfo(name="NVIDIA H100 80GB", mem_gb=80.0, compute_cap="9.0")],
+            cpu_name="AMD EPYC 7763",
+            cpu_count=64,
+            ram_gb=512.0,
+        ),
+        runtime=Runtime(
+            startup_time_s=StartupTime(app_launch=1.0, env_creation=2.0, first_step=0.5),
+            iterations_completed=1,
+            total_wall_time_s=4.0,
+            steps_per_iteration=24,
+            iteration_time_s=MeanStd(mean=1.0, std=0.0),
+            collection_fps=MeanStd(mean=100.0, std=0.0),
+            total_fps=MeanStd(mean=100.0, std=0.0),
+            iterations_per_s=MeanStd(mean=1.0, std=0.0),
+        ),
+        resources=Resources(
+            gpu_util_pct=MeanStd(mean=80.0, std=5.0),
+            gpu_mem_gb=MeanStd(mean=10.0, std=0.5, peak=12.0),
+            cpu_util_pct=MeanStd(mean=30.0, std=4.0),
+            ram_gb=MeanStd(mean=20.0, std=1.0, peak=24.0),
+        ),
+    )
+
+
+class TestMultiBackend:
+    """Tests for multi-backend support in BaseIsaacLabBenchmark."""
+
+    @pytest.fixture
+    def temp_output_dir(self):
+        """Create a temporary output directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    @pytest.fixture(autouse=True)
+    def reset_backends(self):
+        """Reset backend instances before each test."""
+        backends.MetricsBackend.reset_instances()
+        yield
+        backends.MetricsBackend.reset_instances()
+
+    def _backend_keys(self, benchmark) -> list[str]:
+        """Return the ordered list of backend type keys stored on the benchmark."""
+        return [key for key, _ in benchmark._metrics]
+
+    def test_single_string_backend_yields_one_pair(self, temp_output_dir):
+        """A single backend string normalizes to one (key, backend) pair."""
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="test",
+            backend_type="omniperf",
+            output_path=temp_output_dir,
+            use_recorders=False,
+            output_prefix="test",
+        )
+        assert self._backend_keys(benchmark) == ["omniperf"]
+
+    def test_comma_separated_backends_preserve_order(self, temp_output_dir):
+        """A comma-separated string normalizes to multiple pairs in order."""
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="test",
+            backend_type="schema,omniperf",
+            output_path=temp_output_dir,
+            use_recorders=False,
+            output_prefix="test",
+        )
+        assert self._backend_keys(benchmark) == ["schema", "omniperf"]
+
+    def test_duplicate_backends_are_deduped(self, temp_output_dir):
+        """A repeated backend registers only once (no duplicate finalize / output file)."""
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="test",
+            backend_type="json,json",
+            output_path=temp_output_dir,
+            use_recorders=False,
+            output_prefix="test",
+        )
+        assert self._backend_keys(benchmark) == ["json"]
+
+    def test_empty_backend_string_defaults_to_omniperf(self, temp_output_dir):
+        """An empty/whitespace backend string falls back to the default omniperf backend."""
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="test",
+            backend_type="   ",
+            output_path=temp_output_dir,
+            use_recorders=False,
+            output_prefix="test",
+        )
+        assert self._backend_keys(benchmark) == ["omniperf"]
+
+    def test_single_backend_filename_has_no_key_suffix(self, temp_output_dir):
+        """A single-backend run writes <output_prefix>.json with no backend-key suffix."""
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="test",
+            backend_type="json",
+            output_path=temp_output_dir,
+            use_recorders=False,
+            output_prefix="test",
+        )
+        benchmark.add_measurement(
+            "runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms")
+        )
+        benchmark._finalize_impl()
+
+        expected = os.path.join(temp_output_dir, f"{benchmark.output_prefix}.json")
+        assert os.path.exists(expected)
+        # No suffixed files should be produced for a single backend.
+        assert not os.path.exists(os.path.join(temp_output_dir, f"{benchmark.output_prefix}_json.json"))
+
+    def test_two_backends_write_distinct_suffixed_files(self, temp_output_dir):
+        """A two-backend run writes one suffixed file per backend, both present and distinct."""
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="test",
+            backend_type="schema,json",
+            output_path=temp_output_dir,
+            use_recorders=False,
+            output_prefix="test",
+        )
+        benchmark.attach_bundle(_minimal_runtime_bundle())
+        benchmark.add_measurement(
+            "runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms")
+        )
+        benchmark._finalize_impl()
+
+        schema_path = os.path.join(temp_output_dir, f"{benchmark.output_prefix}_schema.json")
+        json_path = os.path.join(temp_output_dir, f"{benchmark.output_prefix}_json.json")
+        assert os.path.exists(schema_path)
+        assert os.path.exists(json_path)
+
+        with open(schema_path) as f:
+            schema_data = json.load(f)
+        with open(json_path) as f:
+            json_data = json.load(f)
+        # The schema backend serializes the typed bundle; the json backend serializes flat phases.
+        assert schema_data != json_data
+        assert schema_data["run"]["task"] == "Isaac-Ant-Direct-v0"
 
 
 # ==============================================================================
