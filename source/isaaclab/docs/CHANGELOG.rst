@@ -482,8 +482,6 @@ Added
   :func:`~isaaclab.sim.utils.resolve_matching_prims_from_source` to allow callers to opt out of
   the default no-match error.
 * Added Kit version, kernel version, and git hash logging to :class:`~isaaclab.app.AppLauncher` startup.
-* Added the ``rl-games`` optional dependency to the ``isaaclab`` wheel and
-  included it in the wheel's ``all`` extra.
 * Added :attr:`~isaaclab.managers.EventTermCfg.resample_interval_on_reset` to allow ``"interval"``
   event terms to keep their per-environment timer across resets while still firing asynchronously
   per environment. Defaults to ``True`` to preserve the existing behavior.
