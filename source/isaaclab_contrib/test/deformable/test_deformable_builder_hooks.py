@@ -17,6 +17,7 @@ from isaaclab.assets.deformable_object.base_deformable_object import BaseDeforma
 from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
 from isaaclab.cloner.usd import UsdReplicateContext
 
+import isaaclab_contrib.deformable.deformable_object as deformable_object_module
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
@@ -161,6 +162,53 @@ def test_newton_deformable_queues_usd_and_newton_replication(monkeypatch):
         REPLICATION_QUEUE.clear()
 
     assert queued_contexts == [UsdReplicateContext, NewtonReplicateContext]
+
+
+def test_register_deformable_uses_collision_api_as_newton_sim_mesh_marker(monkeypatch):
+    """Test that Newton surface sim mesh discovery uses UsdPhysics.CollisionAPI."""
+    from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, Vt
+
+    def _define_triangle_mesh(stage: Usd.Stage, path: str) -> UsdGeom.Mesh:
+        mesh = UsdGeom.Mesh.Define(stage, path)
+        mesh.GetPointsAttr().Set(
+            Vt.Vec3fArray([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
+        )
+        mesh.GetFaceVertexCountsAttr().Set([3])
+        mesh.GetFaceVertexIndicesAttr().Set([0, 1, 2])
+        return mesh
+
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    root_prim = UsdGeom.Xform.Define(stage, "/World/cloth").GetPrim()
+    _define_triangle_mesh(stage, "/World/cloth/visual_mesh")
+    sim_mesh = _define_triangle_mesh(stage, "/World/cloth/sim_mesh")
+    sim_mesh.GetPrim().ApplyAPI(UsdPhysics.CollisionAPI)
+
+    root_prim.ApplyAPI(UsdShade.MaterialBindingAPI)
+    material_prim = UsdShade.Material.Define(stage, "/World/materials/cloth").GetPrim()
+    material_prim.CreateAttribute("newton:density", Sdf.ValueTypeNames.Float).Set(1.0)
+    root_prim.CreateRelationship("material:binding:physics").SetTargets([material_prim.GetPath()])
+
+    def _get_matching_child_prims(root_path, predicate):
+        root = stage.GetPrimAtPath(root_path)
+        return [prim for prim in Usd.PrimRange(root) if prim.GetPath() != root.GetPath() and predicate(prim)]
+
+    monkeypatch.setattr(deformable_object_module.sim_utils, "find_first_matching_prim", lambda _path: root_prim)
+    monkeypatch.setattr(deformable_object_module.sim_utils, "get_all_matching_child_prims", _get_matching_child_prims)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+
+    deformable = DeformableObject.__new__(DeformableObject)
+    deformable.cfg = SimpleNamespace(prim_path="/World/envs/env_.*/cloth", spawn=None)
+    deformable._initialize_handle = None
+    deformable._invalidate_initialize_handle = None
+    deformable._prim_deletion_handle = None
+    deformable._debug_vis_handle = None
+    deformable._physics_ready_handle = None
+
+    entry = deformable._register_deformable()
+
+    assert entry.sim_mesh_prim_path == "/World/envs/env_.*/cloth/sim_mesh"
+    assert entry.vis_mesh_prim_path == "/World/envs/env_.*/cloth/visual_mesh"
 
 
 def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):

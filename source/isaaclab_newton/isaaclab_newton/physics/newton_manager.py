@@ -527,6 +527,21 @@ class NewtonManager(PhysicsManager):
             logger.exception("[NewtonManager] sync_transforms_to_usd FAILED")
 
     @classmethod
+    def particles_dirty(cls) -> bool:
+        """Return whether particle positions changed since the last render sync."""
+        return cls._particles_dirty
+
+    @classmethod
+    def transforms_dirty(cls) -> bool:
+        """Return whether rigid-body transforms changed since the last render sync."""
+        return cls._transforms_dirty
+
+    @classmethod
+    def clear_particles_dirty(cls) -> None:
+        """Clear the particle dirty flag after a render consumer syncs ``particle_q``."""
+        NewtonManager._particles_dirty = False
+
+    @classmethod
     def sync_particles_to_usd(cls) -> None:
         """Write Newton particle positions to USD/Fabric for Kit viewport rendering.
 
@@ -540,21 +555,29 @@ class NewtonManager(PhysicsManager):
           world-frame points via :meth:`_sync_particle_points_prims`.
 
         No-op when there is no particle state or nothing changed since the
-        last sync.
+        last sync. Clears :attr:`_particles_dirty` only when a sync path
+        actually wrote data so kitless render consumers (e.g. OVRTX) can sync
+        later in the same frame.
         """
         if not cls._particles_dirty or cls._state_0 is None or cls._state_0.particle_q is None:
             return
         try:
-            cls._sync_fabric_mesh_particles()
-            NewtonManager._particles_dirty = cls._sync_particle_points_prims()
+            synced_fabric = cls._sync_fabric_mesh_particles()
+            synced_points_prims = cls._sync_particle_points_prims()
+            if synced_fabric or synced_points_prims:
+                NewtonManager._particles_dirty = synced_points_prims
         except Exception:
             logger.exception("[NewtonManager] sync_particles_to_usd FAILED")
 
     @classmethod
-    def _sync_fabric_mesh_particles(cls) -> None:
-        """Write ``state_0.particle_q`` into Fabric mesh point arrays as local-frame points."""
+    def _sync_fabric_mesh_particles(cls) -> bool:
+        """Write ``state_0.particle_q`` into Fabric mesh point arrays as local-frame points.
+
+        Returns:
+            ``True`` when at least one Fabric mesh prim was updated.
+        """
         if cls._usdrt_stage is None:
-            return
+            return False
         import usdrt  # noqa: PLC0415
 
         selection = cls._usdrt_stage.SelectPrims(
@@ -567,7 +590,7 @@ class NewtonManager(PhysicsManager):
             device=str(PhysicsManager._device),
         )
         if selection.GetCount() == 0:
-            return
+            return False
         wp.launch(
             _sync_particle_points,
             dim=selection.GetCount(),
@@ -580,10 +603,15 @@ class NewtonManager(PhysicsManager):
             ],
             device=PhysicsManager._device,
         )
+        return True
 
     @classmethod
     def _sync_particle_points_prims(cls) -> bool:
-        """Write registered ``UsdGeom.Points`` prims; return ``True`` while throttled prims remain."""
+        """Write registered ``UsdGeom.Points`` prims.
+
+        Returns:
+            ``True`` while throttled prims remain and the dirty flag should stay set.
+        """
         if not cls._particle_visual_prims:
             return False
 
@@ -601,7 +629,8 @@ class NewtonManager(PhysicsManager):
                 for record in due:
                     points = particle_q[record.offset : record.offset + record.count]
                     record.points_attr.Set(Vt.Vec3fArray.FromNumpy(points))
-        return len(due) < len(cls._particle_visual_prims)
+            return len(due) < len(cls._particle_visual_prims)
+        return False
 
     @classmethod
     def _mark_transforms_dirty(cls) -> None:
@@ -626,6 +655,11 @@ class NewtonManager(PhysicsManager):
         which runs at render cadence via :meth:`pre_render`.
         """
         NewtonManager._particles_dirty = True
+
+    @classmethod
+    def _has_surface_deformable_registry_entries(cls) -> bool:
+        """Return whether the deformable registry has surface entries for render sync."""
+        return any(getattr(entry, "deformable_type", None) == "surface" for entry in cls._deformable_registry)
 
     @classmethod
     def _mark_state_dirty(cls) -> None:
@@ -746,7 +780,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._usdrt_stage is not None:
             cls._mark_state_dirty()
-        elif cls._particle_visual_prims:
+        elif cls._particle_visual_prims or cls._has_surface_deformable_registry_entries():
             cls._mark_particles_dirty()
 
         # Launch solver-specific debug logging after stepping.

@@ -11,8 +11,11 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
+    compute_deformable_mesh_extent_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
+    sync_newton_deformable_points_batched_kernel,
+    sync_newton_deformable_points_kernel,
 )
 
 DEVICE = "cuda:0"
@@ -214,6 +217,142 @@ class TestExtractAllMotionVectorTilesKernel:
 
         expected = _reference_extract_all_motion_vector_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
         np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
+
+
+class TestSyncNewtonDeformablePointsKernel:
+    """Tests for ``sync_newton_deformable_points_kernel``."""
+
+    def test_non_identity_inverse_matrix_and_particle_offset(self):
+        particle_q = wp.array(
+            [
+                wp.vec3f(-1.0, -1.0, -1.0),
+                wp.vec3f(11.0, 22.0, 33.0),
+                wp.vec3f(14.0, 25.0, 36.0),
+                wp.vec3f(17.0, 28.0, 39.0),
+                wp.vec3f(100.0, 100.0, 100.0),
+            ],
+            dtype=wp.vec3f,
+            device=DEVICE,
+        )
+        particle_offsets = wp.array([1], dtype=wp.int32, device=DEVICE)
+        inverse_world_matrices = wp.array(
+            [
+                wp.mat44f(
+                    1.0,
+                    0.0,
+                    0.0,
+                    -10.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    -20.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    -30.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                )
+            ],
+            dtype=wp.mat44f,
+            device=DEVICE,
+        )
+        points = wp.empty(3, dtype=wp.vec3f, device=DEVICE)
+
+        wp.launch(
+            kernel=sync_newton_deformable_points_kernel,
+            dim=3,
+            inputs=[points, particle_q, particle_offsets, inverse_world_matrices, 0],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        np.testing.assert_allclose(
+            points.numpy(),
+            np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=np.float32),
+            rtol=0,
+            atol=1e-6,
+        )
+
+
+class TestSyncNewtonDeformablePointsBatchedKernel:
+    """Tests for ``sync_newton_deformable_points_batched_kernel``."""
+
+    def test_two_meshes_with_distinct_offsets(self):
+        particle_q = wp.array(
+            [
+                wp.vec3f(0.0, 0.0, 0.0),
+                wp.vec3f(1.0, 2.0, 3.0),
+                wp.vec3f(4.0, 5.0, 6.0),
+                wp.vec3f(7.0, 8.0, 9.0),
+                wp.vec3f(10.0, 11.0, 12.0),
+            ],
+            dtype=wp.vec3f,
+            device=DEVICE,
+        )
+        particle_offsets = wp.array([1, 3], dtype=wp.int32, device=DEVICE)
+        particles_per_mesh = wp.array([2, 2], dtype=wp.int32, device=DEVICE)
+        identity = wp.mat44f(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
+        inverse_world_matrices = wp.array([identity, identity], dtype=wp.mat44f, device=DEVICE)
+        stacked_points = wp.zeros((2, 2), dtype=wp.vec3f, device=DEVICE)
+
+        wp.launch(
+            kernel=sync_newton_deformable_points_batched_kernel,
+            dim=(2, 2),
+            inputs=[
+                stacked_points,
+                particle_q,
+                particle_offsets,
+                inverse_world_matrices,
+                particles_per_mesh,
+            ],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        np.testing.assert_allclose(
+            stacked_points.numpy(),
+            np.array(
+                [[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]],
+                dtype=np.float32,
+            ),
+            rtol=0,
+            atol=1e-6,
+        )
+
+
+class TestComputeDeformableMeshExtentKernel:
+    """Tests for ``compute_deformable_mesh_extent_kernel``."""
+
+    def test_axis_aligned_bounds(self):
+        points = wp.array(
+            [
+                wp.vec3f(1.0, 2.0, 3.0),
+                wp.vec3f(7.0, 8.0, 9.0),
+                wp.vec3f(4.0, 5.0, 6.0),
+            ],
+            dtype=wp.vec3f,
+            device=DEVICE,
+        )
+        extent_min = wp.zeros(1, dtype=wp.vec3f, device=DEVICE)
+        extent_max = wp.zeros(1, dtype=wp.vec3f, device=DEVICE)
+
+        wp.launch(
+            kernel=compute_deformable_mesh_extent_kernel,
+            dim=1,
+            inputs=[points, extent_min, extent_max],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        np.testing.assert_allclose(
+            extent_min.numpy()[0], np.array([1.0, 2.0, 3.0], dtype=np.float32), rtol=0, atol=1e-6
+        )
+        np.testing.assert_allclose(
+            extent_max.numpy()[0], np.array([7.0, 8.0, 9.0], dtype=np.float32), rtol=0, atol=1e-6
+        )
 
 
 class TestExtractAllDepthTilesKernel:

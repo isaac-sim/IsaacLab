@@ -55,6 +55,69 @@ def create_camera_transforms_kernel(
 
 
 @wp.kernel
+def sync_newton_deformable_points_kernel(
+    ovrtx_points: wp.array(dtype=wp.vec3f),  # type: ignore
+    newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
+    particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
+    inverse_world_matrices: wp.array(dtype=wp.mat44f),  # type: ignore
+    mesh_index: int,
+):
+    """Sync one Newton deformable particle slice to an OVRTX mesh ``points`` array.
+
+    Newton stores deformable particles in world space. USD mesh ``points`` are
+    local-space, so each position is transformed by the visual mesh's inverse
+    world matrix before being written to OVRTX.
+    """
+    point_index = wp.tid()
+    particle_index = int(particle_offsets[mesh_index]) + point_index
+    ovrtx_points[point_index] = wp.transform_point(
+        inverse_world_matrices[mesh_index], newton_particle_q[particle_index]
+    )
+
+
+@wp.kernel
+def sync_newton_deformable_points_batched_kernel(
+    ovrtx_points: wp.array(dtype=wp.vec3f, ndim=2),  # type: ignore
+    newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
+    particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
+    inverse_world_matrices: wp.array(dtype=wp.mat44f),  # type: ignore
+    particles_per_mesh: wp.array(dtype=wp.int32),  # type: ignore
+):
+    """Sync all Newton deformable particle slices to OVRTX mesh ``points`` arrays.
+
+    Launched with a 2D grid ``(num_meshes, max_particles_per_mesh)``. Threads
+    whose local point index exceeds the mesh particle count exit early.
+    """
+    mesh_index, point_index = wp.tid()
+    if point_index >= int(particles_per_mesh[mesh_index]):
+        return
+    particle_index = int(particle_offsets[mesh_index]) + point_index
+    ovrtx_points[mesh_index, point_index] = wp.transform_point(
+        inverse_world_matrices[mesh_index], newton_particle_q[particle_index]
+    )
+
+
+@wp.kernel
+def compute_deformable_mesh_extent_kernel(
+    points: wp.array(dtype=wp.vec3f),  # type: ignore
+    extent_min: wp.array(dtype=wp.vec3f),  # type: ignore
+    extent_max: wp.array(dtype=wp.vec3f),  # type: ignore
+):
+    """Compute axis-aligned bounds for one deformable mesh point buffer on the GPU."""
+    count = points.shape[0]
+    if count == 0:
+        return
+    min_v = points[0]
+    max_v = points[0]
+    for point_index in range(1, count):
+        p = points[point_index]
+        min_v = wp.vec3f(wp.min(min_v[0], p[0]), wp.min(min_v[1], p[1]), wp.min(min_v[2], p[2]))
+        max_v = wp.vec3f(wp.max(max_v[0], p[0]), wp.max(max_v[1], p[1]), wp.max(max_v[2], p[2]))
+    extent_min[0] = min_v
+    extent_max[0] = max_v
+
+
+@wp.kernel
 def extract_tile_from_tiled_buffer_kernel(
     tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
     tile_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore

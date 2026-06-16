@@ -1,0 +1,2 @@
+Internal: added Franka cloth rendering regression coverage, including kit-based
+and kit-less golden-image tests plus shared rendering-test helpers.
