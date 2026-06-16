@@ -100,7 +100,6 @@ def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monk
     monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
     _set_sim_context(monkeypatch, nm)
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-    monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
 
     finalize_calls: list[str] = []
 
@@ -155,7 +154,6 @@ def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(mon
     monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
     _set_sim_context(monkeypatch, nm)
     monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-    monkeypatch.setattr(nm, "replace_newton_shape_colors", lambda model, *a, **kw: 0)
 
     class _FakeBuilder:
         body_count = 3
