@@ -55,6 +55,27 @@ def create_camera_transforms_kernel(
 
 
 @wp.kernel
+def sync_newton_deformable_points_kernel(
+    ovrtx_points: wp.array(dtype=wp.vec3f),  # type: ignore
+    newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
+    particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
+    inverse_world_matrices: wp.array(dtype=wp.mat44f),  # type: ignore
+    mesh_index: int,
+):
+    """Sync one Newton deformable particle slice to an OVRTX mesh ``points`` array.
+
+    Newton stores deformable particles in world space. USD mesh ``points`` are
+    local-space, so each position is transformed by the visual mesh's inverse
+    world matrix before being written to OVRTX.
+    """
+    point_index = wp.tid()
+    particle_index = int(particle_offsets[mesh_index]) + point_index
+    ovrtx_points[point_index] = wp.transform_point(
+        inverse_world_matrices[mesh_index], newton_particle_q[particle_index]
+    )
+
+
+@wp.kernel
 def extract_tile_from_tiled_buffer_kernel(
     tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
     tile_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore

@@ -53,7 +53,7 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """Build a concrete physics config for the requested backend.
 
     Args:
-        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, or ``"ovphysx"``.
+        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, ``"newton_vbd"``, or ``"ovphysx"``.
 
     Returns:
         A new physics config instance for the requested backend.
@@ -63,11 +63,13 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """
     if physics_cfg_str == "physx":
         return PhysxCfg()
-    if physics_cfg_str == "newton_mjwarp":
+    if physics_cfg_str in ["newton_mjwarp", "newton_vbd"]:
         return NewtonCfg()
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
-    raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', or 'ovphysx').")
+    raise ValueError(
+        f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
+    )
 
 
 """

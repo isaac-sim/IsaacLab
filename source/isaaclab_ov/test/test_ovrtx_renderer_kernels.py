@@ -13,6 +13,7 @@ import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
+    sync_newton_deformable_points_kernel,
 )
 
 DEVICE = "cuda:0"
@@ -211,6 +212,64 @@ class TestExtractAllMotionVectorTilesKernel:
 
         expected = _reference_extract_all_motion_vector_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
         np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
+
+
+class TestSyncNewtonDeformablePointsKernel:
+    """Tests for ``sync_newton_deformable_points_kernel``."""
+
+    def test_non_identity_inverse_matrix_and_particle_offset(self):
+        particle_q = wp.array(
+            [
+                wp.vec3f(-1.0, -1.0, -1.0),
+                wp.vec3f(11.0, 22.0, 33.0),
+                wp.vec3f(14.0, 25.0, 36.0),
+                wp.vec3f(17.0, 28.0, 39.0),
+                wp.vec3f(100.0, 100.0, 100.0),
+            ],
+            dtype=wp.vec3f,
+            device=DEVICE,
+        )
+        particle_offsets = wp.array([1], dtype=wp.int32, device=DEVICE)
+        inverse_world_matrices = wp.array(
+            [
+                wp.mat44f(
+                    1.0,
+                    0.0,
+                    0.0,
+                    -10.0,
+                    0.0,
+                    1.0,
+                    0.0,
+                    -20.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                    -30.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                )
+            ],
+            dtype=wp.mat44f,
+            device=DEVICE,
+        )
+        points = wp.empty(3, dtype=wp.vec3f, device=DEVICE)
+
+        wp.launch(
+            kernel=sync_newton_deformable_points_kernel,
+            dim=3,
+            inputs=[points, particle_q, particle_offsets, inverse_world_matrices, 0],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        np.testing.assert_allclose(
+            points.numpy(),
+            np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=np.float32),
+            rtol=0,
+            atol=1e-6,
+        )
 
 
 class TestExtractAllDepthTilesKernel:

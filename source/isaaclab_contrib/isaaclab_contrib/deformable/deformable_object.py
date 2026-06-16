@@ -702,7 +702,7 @@ class DeformableObject(BaseDeformableObject):
             ``resolve_task_config`` can import the env-cfg module before Kit
             starts without polluting the ``pxr`` module cache.
         """
-        from pxr import Gf, UsdGeom, UsdShade
+        from pxr import Gf, UsdGeom, UsdPhysics, UsdShade
 
         # Resolve the path of the actually-spawned template prim. This must mirror
         # :meth:`AssetBase.__init__`: ``spawn_path`` is set by ``InteractiveScene``
@@ -726,10 +726,10 @@ class DeformableObject(BaseDeformableObject):
 
         # Discover sim / visual mesh prims under the template.
         # The spawner authors a visual UsdGeom.Mesh and a separate simulation mesh
-        # (UsdGeom.TetMesh for volume, UsdGeom.Mesh for surface) with a
-        # ``*DeformableSimAPI`` applied, so we split candidates by that schema.
+        # (UsdGeom.TetMesh for volume, UsdGeom.Mesh for surface). The sim mesh
+        # carries ``UsdPhysics.CollisionAPI``.
         def _is_sim_mesh(prim) -> bool:
-            return any("DeformableSimAPI" in api for api in prim.GetAppliedSchemas())
+            return prim.HasAPI(UsdPhysics.CollisionAPI)
 
         tet_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "TetMesh")
         mesh_prims = sim_utils.get_all_matching_child_prims(template_prim_path, lambda p: p.GetTypeName() == "Mesh")

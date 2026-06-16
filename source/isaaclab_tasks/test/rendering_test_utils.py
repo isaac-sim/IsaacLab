@@ -33,6 +33,8 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
+    # Cloth and soft-body edges show more anti-aliasing noise than rigid cartpole geometry.
+    "franka_cloth": 5.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -103,17 +105,20 @@ _DEFAULT_SENSOR_DATA_TYPES = (
 
 
 def _make_sensor_data_type_params(
-    physics_backend: str, renderer: str, sensor_data_types: list[str] = None
+    physics_backend: str,
+    renderer: str,
+    sensor_data_types: list[str] | None = None,
+    extra_marks: tuple[Any, ...] = (),
 ) -> list[pytest.param]:
     """Create golden-image parameter entries for every supported output type."""
-    sensor_data_types = sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES
+    sensor_data_types = list(sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES)
     return [
         pytest.param(
             physics_backend,
             f"{renderer}_renderer",
             data_type,
             id=f"{physics_backend}-{renderer}-{data_type}",
-            marks=_FLAKY_MARK,
+            marks=(_FLAKY_MARK, *extra_marks),
         )
         for data_type in sensor_data_types
     ]
@@ -231,7 +236,7 @@ def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
     # manager-based envs
     scene = getattr(env_cfg, "scene", None)
     if scene is not None:
-        for camera_name in ("base_camera", "wrist_camera"):
+        for camera_name in ("base_camera", "wrist_camera", "tiled_camera"):
             camera_cfg = getattr(scene, camera_name, None)
             if camera_cfg is not None:
                 camera_cfgs.append(camera_cfg)
@@ -287,6 +292,11 @@ def _physics_preset_name(physics_backend: str) -> str:
     ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
     """
     return "newton_mjwarp" if physics_backend == "newton" else physics_backend
+
+
+def _physics_preset_name_deformable(physics_backend: str) -> str:
+    """Map deformable-test physics labels to Hydra preset names."""
+    return "newton_mjwarp_vbd" if physics_backend == "newton" else physics_backend
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
@@ -1009,6 +1019,160 @@ def rendering_test_dexsuite_kuka(
             physics_backend,
             renderer,
             env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _make_franka_cloth_camera_env_cfg(data_type: str):
+    """Create a test-local Franka cloth camera env cfg without exposing a production task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg, FrankaClothSceneCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    @configclass
+    class TestFrankaClothCameraSceneCfg(FrankaClothSceneCfg):
+        """Franka cloth scene with a test-only camera sensor."""
+
+        tiled_camera: CameraCfg = CameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.85, -0.55, 0.42),
+                rot=(0.52, 0.18, 0.27, 0.79),
+                convention="opengl",
+            ),
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 2.5)),
+            width=100,
+            height=100,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+
+    @configclass
+    class TestFrankaClothCameraObservationsCfg:
+        """Image-only observations for the local rendering test env."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    @configclass
+    class TestFrankaClothCameraEnvCfg(FrankaClothEnvCfg):
+        """Test-only camera variant of ``Isaac-Lift-Cloth-Franka``."""
+
+        scene: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
+            num_envs=4, env_spacing=2.5, replicate_physics=True
+        )
+        observations: TestFrankaClothCameraObservationsCfg = TestFrankaClothCameraObservationsCfg()
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.commands.deformable_pose.debug_vis = False
+            self.events.reset_deformable.params["position_range"] = {
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+            }
+
+    return TestFrankaClothCameraEnvCfg()
+
+
+def rendering_test_franka_cloth(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("ovphysx is not supported yet.")
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name_deformable(physics_backend)},{renderer}"]
+    )
+
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    test_name = "franka_cloth"
+    env = None
+
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+
+        # #region agent log (TEMP: instancing A/B confirmation)
+        if os.environ.get("ISAAC_LAB_DISABLE_INSTANCING") == "1":
+            import json as _json
+            import time as _time
+
+            from pxr import Usd
+
+            from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
+
+            _stage = get_current_stage()
+            _before = sum(1 for p in _stage.Traverse(Usd.TraverseInstanceProxies()) if p.IsInstance())
+            make_uninstanceable("/World", _stage)
+            _after = sum(1 for p in _stage.Traverse(Usd.TraverseInstanceProxies()) if p.IsInstance())
+            # Pump a render so FSD/RTX picks up the topology (de-instancing) change.
+            env.sim.render()
+            with open("/home/huidongc/git/isaac/IsaacLab/.cursor/debug-881e7c.log", "a") as _f:
+                _f.write(
+                    _json.dumps({
+                        "sessionId": "881e7c",
+                        "hypothesisId": "INSTANCING",
+                        "location": "rendering_test_utils.py:rendering_test_franka_cloth",
+                        "message": "de-instanced /World before stepping",
+                        "data": {
+                            "backend": physics_backend,
+                            "renderer": renderer,
+                            "data_type": data_type,
+                            "instances_before": _before,
+                            "instances_after": _after,
+                        },
+                        "timestamp": int(_time.time() * 1000),
+                    })
+                    + "\n"
+                )
+        # #endregion
+
+        # After 15 steps, the cloth should have fallen down on top of the cube and deformed.
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        for _ in range(15):
+            env.step(zero_actions)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            {data_type: env.scene.sensors["tiled_camera"].data.output[data_type]},
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
