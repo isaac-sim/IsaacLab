@@ -133,9 +133,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     def _reset_pose(
         self,
+        from_link: bool = True,
+        *,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
-        from_link: bool = True,
     ) -> None:
         """Reset pose-dependent cached rigid object collection properties.
 
@@ -163,9 +164,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     def _reset_velocity(
         self,
+        from_com: bool = True,
+        *,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
-        from_com: bool = True,
     ) -> None:
         """Reset velocity-dependent cached rigid object collection properties.
 

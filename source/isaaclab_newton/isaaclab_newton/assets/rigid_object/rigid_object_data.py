@@ -140,7 +140,11 @@ class RigidObjectData(BaseRigidObjectData):
             self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(
-        self, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None, from_link: bool = True
+        self,
+        from_link: bool = True,
+        *,
+        env_ids: wp.array | torch.Tensor | None = None,
+        env_mask: wp.array | None = None,
     ) -> None:
         """Reset pose-dependent cached rigid object properties.
 
@@ -167,7 +171,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
 
     def _reset_velocity(
-        self, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None, from_com: bool = True
+        self, from_com: bool = True, *, env_ids: wp.array | torch.Tensor | None = None, env_mask: wp.array | None = None
     ) -> None:
         """Reset velocity-dependent cached rigid object properties.
 
