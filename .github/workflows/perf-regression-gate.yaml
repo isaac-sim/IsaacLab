@@ -50,6 +50,7 @@ permissions:
   contents: write
   pull-requests: write   # post/update the sticky verdict comment on the PR
   statuses: write        # post per-task benchmark commit statuses on the PR head
+  packages: read         # pull the prebuilt CI image from GHCR (PERF_GATE_CI_IMAGE)
 
 env:
   # Lets the ecr-build-push-pull action `docker login nvcr.io` to pull the Isaac Sim
@@ -154,9 +155,61 @@ jobs:
           perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
           perf-jit-warp1.13.0-${{ matrix.task_id }}-
 
-    # Pull the CI image built (or cached) by the build workflow for this commit.
-    # ecr-build-push-pull will build the image if it is not already in ECR.
-    - name: Pull CI image
+    # Image source — two mutually exclusive paths:
+    #
+    #  (A) Prebuilt-image override (temporary fast path). When the repo variable
+    #      PERF_GATE_CI_IMAGE is set, every matrix cell just `docker pull`s that
+    #      already-built image (~seconds) instead of cold-building it (~26 min).
+    #      This sidesteps the NVIDIA-managed RTX PRO 6000 fleet having no provisioned
+    #      ECR/registry cache. Publish the image once with perf-gate-publish-image.yaml,
+    #      point PERF_GATE_CI_IMAGE at it (GHCR first, NGC/NVCR fallback), and refresh
+    #      it whenever docker/Dockerfile.base or the pinned deps change. The pulled
+    #      image is retagged to the workflow-local CI_IMAGE_TAG so nothing downstream
+    #      changes. Remove the variable to fall back to path (B).
+    #
+    #  (B) Build-or-cache via ecr-build-push-pull (default). Builds the image if it is
+    #      not already in ECR; on the RTX fleet ECR never resolves, so it relies on the
+    #      opt-in gha layer cache scope below.
+    - name: Pull prebuilt CI image (override)
+      if: ${{ vars.PERF_GATE_CI_IMAGE != '' }}
+      env:
+        OVERRIDE_IMAGE: ${{ vars.PERF_GATE_CI_IMAGE }}
+      run: |
+        set -euo pipefail
+
+        # The runner's docker credential store backend is broken ("not implemented"),
+        # so disable credsStore before any login (same trick as ecr-build-push-pull).
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        REGISTRY="${OVERRIDE_IMAGE%%/*}"
+        case "${REGISTRY}" in
+          ghcr.io)
+            echo "🔵 Logging into ghcr.io..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            ;;
+          nvcr.io)
+            if [ -n "${NGC_API_KEY:-}" ]; then
+              echo "🔵 Logging into nvcr.io..."
+              echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+            else
+              echo "::warning::NGC_API_KEY not set; attempting anonymous pull from nvcr.io"
+            fi
+            ;;
+          *)
+            echo "::notice::No known login for registry '${REGISTRY}'; attempting anonymous pull"
+            ;;
+        esac
+
+        echo "🔵 Pulling prebuilt image ${OVERRIDE_IMAGE}..."
+        docker pull "${OVERRIDE_IMAGE}"
+        docker tag "${OVERRIDE_IMAGE}" "${{ env.CI_IMAGE_TAG }}"
+        echo "🟢 Tagged ${OVERRIDE_IMAGE} as ${{ env.CI_IMAGE_TAG }}"
+        rm -rf "${DOCKER_CONFIG_DIR}"
+
+    - name: Build/Pull CI image (ECR + gha cache)
+      if: ${{ vars.PERF_GATE_CI_IMAGE == '' }}
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
