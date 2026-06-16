@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import torch
 
+    from .schema import MeanStd
+
 
 def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
     """Sample random actions for a single-agent or multi-agent environment.
@@ -109,7 +111,7 @@ def _extract_success(extras: dict) -> float | None:
     return None
 
 
-def run_play_loop(env, policy, num_frames: int):
+def run_play_loop(env, policy, num_frames: int) -> tuple[list[float], MeanStd | None, MeanStd | None, float | None]:
     """Roll out *policy* in *env* for *num_frames* steps and aggregate episode metrics.
 
     Resets the environment, then on each frame runs the policy under
