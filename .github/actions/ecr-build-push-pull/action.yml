@@ -37,6 +37,16 @@ inputs:
     description: Tag used for the ECR layer cache image (e.g. "cache-base", "cache-curobo").
     required: false
     default: 'cache'
+  gha-cache-scope:
+    description: >
+      When non-empty, enables a GitHub Actions (type=gha) buildx layer cache with
+      this scope on the full-build path. Acts as a registry-free fallback when ECR
+      is unavailable (e.g. on non-AWS fleets), and as an extra cache source when
+      ECR is present. Leave empty (default) to preserve the original ECR-only
+      behavior for callers that do not opt in. The scope isolates this cache from
+      other workflows sharing the repository's Actions cache.
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -270,6 +280,17 @@ runs:
             --cache-from "type=registry,ref=${CACHE_IMAGE}"
             --cache-to   "type=registry,ref=${CACHE_IMAGE},mode=max"
             -t "${ECR_IMAGE}"
+          )
+        fi
+
+        # Opt-in GitHub Actions layer cache. Registry-free fallback for fleets
+        # where ECR cannot be resolved (the block above is skipped), keeping the
+        # build in line with how publish-images.yaml / docker-build cache this
+        # same Dockerfile. The scope isolates it from other workflows' gha caches.
+        if [ -n "${{ inputs.gha-cache-scope }}" ]; then
+          BUILD_ARGS+=(
+            --cache-from "type=gha,scope=${{ inputs.gha-cache-scope }}"
+            --cache-to   "type=gha,scope=${{ inputs.gha-cache-scope }},mode=max"
           )
         fi
 

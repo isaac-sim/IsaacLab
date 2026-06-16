@@ -31,6 +31,7 @@ _GATE_DIR = _MODULE_DIR.parent  # tools/perf_regression_gate/
 sys.path.insert(0, str(_GATE_DIR))
 sys.path.insert(0, str(_GATE_DIR.parent))
 
+from baseline_manager import load_baseline  # noqa: E402
 from task_config import load_tasks  # noqa: E402
 
 
@@ -114,13 +115,12 @@ def main() -> int:
 
     generated = 0
     for task in tasks:
-        stats_path = args.baselines_dir / args.gpu_model / task.task_id / task.backend_key / "stats.json"
-        if not stats_path.exists():
+        baseline = load_baseline(args.baselines_dir, args.gpu_model, task.task_id, task.backend_key)
+        if baseline is None:
             print(f"  SKIP (no baseline): {task.task_id}/{task.backend_key}")
             continue
 
-        stats = json.loads(stats_path.read_text())
-        baseline_fps = stats["median_fps"]
+        baseline_fps = baseline.median_fps
         regressed_fps = baseline_fps * args.fps_scale
 
         art_dir = args.out_dir / task.task_id / task.backend_key

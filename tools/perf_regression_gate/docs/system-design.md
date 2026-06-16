@@ -1,54 +1,14 @@
 # IsaacLab CI Performance Regression Gate — System Design
-**Status:** POC / MVP complete: pipeline runs end-to-end locally, CI integration pending
-**Date:** 2026-06-10
+**Status:** POC / MVP running locally, pending productionization, deployment, deployment features
+**Date:** 2026-06-15
 **Owners:** Angelina Hu, Neil Mehta
-
----
-
-## 0. Unified POC (what this branch is)
-
-This branch merges two prototypes into one gate. It keeps the **modular 3-phase
-architecture** (`tasks.json` -> `benchmark_non_rl.py` -> `build_bench_result.py` ->
-`aggregate.py` -> `oracle.py`, with git orphan-branch `baseline_manager` storage) as
-the spine, and hardens the threshold/storage layer plus the run-provenance checks.
-
-### What came from where
-| Area | Source | Notes |
-|---|---|---|
-| 3-phase pipeline, `tasks.json` single source, oracle/aggregate/build split, failure-phase taxonomy, bisect verdicts, git orphan-branch storage | architecture spine | adopted wholesale |
-| Spread floor, MAD-sample-count gate, capped rolling window, fingerprint fallback chain, baseline-push concurrency safety, relative hard floor | threshold/storage hardening | the core of this work |
-| Config-drift guard, tail-p99 + warm-up step-time KPIs, `baseline_overrides.json`, `--cache-dir` warm-cache sidecar | robustness ports | folded into `build_bench_result` / `aggregate` / `local_runner` |
-
-### Hardening changelog (the six real fixes)
-1. **Spread floor (anti-flap):** `spread = max(1.4826*MAD, min_spread_pct%*center)` so a
-   `MAD->0` window can't collapse the band onto the median and BLOCK on noise.
-2. **No MAD at n<5:** the window must hold `MIN_WINDOW=5` samples before its median+MAD
-   is trusted; below that the run seed-PASSes (rubber-stamp, team decision).
-3. **Actual rolling window:** `window.ndjson` is a capped FIFO (`WINDOW_MAX=20`); the
-   oldest sample is evicted on append so stats track recent behavior.
-4. **Relative hard floor:** the catastrophic floor is `fps_floor_pct%` of a per-GPU
-   calibrated `ref_fps` (not a unit-mismatched absolute that could never fire).
-5. **Baseline-push concurrency safety:** orphan-branch writes use a bounded
-   fetch -> rebase -> push retry loop so concurrent runs can't lose a sample.
-6. **Finished fingerprint bucketing + fallback chain:** baselines bucket by
-   `{backend_version}/{runtime_hash}/{code_fingerprint}`; loads relax outward to looser
-   buckets so a dependency/driver bump still gates against the nearest history.
-
-### Environment (Warp 1.12, shim-free)
-Pinned stack: `isaacsim==6.0.0.1`, `warp-lang==1.12.0`, `mujoco-warp==3.8.1`. On Warp 1.12
-`omni.replicator.core` imports natively, so the old `warp_replicator_shim.py` is **dropped**.
-Trade-off: no Warp-1.13-only `wp.tile_query_valid` (rough-terrain Newton) — not used by our
-task set (Cartpole + G1-flat Newton).
-
-### Explicitly deferred
-- Memory-regression gating (`gpu_mem` ceiling/WARN) — data is captured; gating is a clean follow-up.
 
 ---
 
 ## 1. Purpose and Use Cases
 
 The performance regression gate runs a fixed benchmark matrix on every PR and blocks merge
-when throughput drops below a MAD-derived threshold relative to a rolling baseline.
+when throughput drops below an explicit hard floor or a MAD-derived threshold relative to compatible rolling baseline samples.
 
 **Use cases:**
 
@@ -58,8 +18,8 @@ when throughput drops below a MAD-derived threshold relative to a rolling baseli
 | PR touches camera/rendering paths | 5 additional Shadow-Vision camera benchmarks added |
 | Any task regresses > k_block × MAD below baseline | Aggregate exits 1; GitHub required check fails |
 | Gate is in advisory mode (`blocking: false`) | Verdicts print but PR is not blocked |
-| Baseline does not yet exist | Seed run: PASS unconditionally (no regression to measure) |
-| Protected branch (main/develop) merges | Baseline window extended with the new FPS sample |
+| Baseline does not yet exist | Seed run: WARN with `no_baseline` (transparent, non-blocking in advisory mode) |
+| Protected branch (main/develop/release) merges | Baseline history extended with structured PASS/WARN samples |
 
 ---
 
@@ -68,7 +28,7 @@ when throughput drops below a MAD-derived threshold relative to a rolling baseli
 1. **One source of truth** Task and backend parameters live in `tasks.json`.
    Python, shell, and GitHub Actions YAML all read from it so there is no duplication of info.
 
-2. **Modularizable** Logic should be back-end and task agnostic; backend is a data dimension in
+2. **Modularizable** Logic should be back-end and task agnostic; backend is a data dimension in 
    `tasks.json`, not a logic branch in `oracle.py`, `subprocess_runner.py`, or `task_config.py`.
    Each pipeline stage should have proper separation of concerns. Individual components should
    be agnostic to environment/call method as long as contract is maintained.
@@ -79,7 +39,7 @@ when throughput drops below a MAD-derived threshold relative to a rolling baseli
 4. **Traceability** Every stage leaves informative artifacts. Every bench job writes `perf_regression_gate_result.json`
    regardless of success or failure so the aggregator always has a structured artifact to read.
 
-5. **Lightweight** Bench jobs are only run when necessary and with minimally sufficient configs.
+5. **Lightweight** Bench jobs are only run when necessary and with minimally sufficient configs. 
   Warmed caches are pulled when needed (Newton).
 
 ---
@@ -91,7 +51,7 @@ PR opened (to main / release / develop)
     │
     ▼
 ┌─────────────────────────────────────────┐
-│  .github/workflows/perf-gate.yml        │
+│  .github/workflows/perf-regression-gate.yaml │
 │                                         │
 │  1. Expand task matrix from tasks.json  │
 │  2. Activate tags from changed files    │
@@ -152,6 +112,13 @@ IsaacLab/
         ├── __init__.py
         ├── tasks.json                    SINGLE SOURCE OF TRUTH — task/backend matrix
         ├── task_config.py                TaskConfig dataclass, load_tasks(), get_task()
+        ├── backend_identity.py           canonical physics/render backend identity
+        ├── gpu_identity.py               canonical GPU buckets + legacy floor aliases
+        ├── runtime_contract.py           runtime compatibility contract/hash builder
+        ├── launch_config.py              artifact-carried launch intent + hashes
+        ├── write_launch_config.py        CI/local helper to write launch_config.json
+        ├── github_gate_context.py        PR/merge/push context + baseline write policy
+        ├── gate_types.py                 verdict/failure/threshold enums
         ├── tasks_to_ci_matrix.py         Converts tasks.json → GitHub Actions matrix JSON
         │                                 (called by perf-regression-gate.yaml build_matrix step)
         ├── oracle.py                     compare() → OracleResult; PASS/WARN/BLOCK/HARD_FAILURE
@@ -161,15 +128,15 @@ IsaacLab/
         ├── aggregate.py                  Phase 3: scans result JSONs, calls oracle,
         │                                 prints table, updates baselines, exits 0/1/2
         ├── baseline_manager.py           load/update baseline, flat-file + git variants
-        ├── gate_config.py                load_gate_config() — reads {"blocking": bool}
-        ├── local_runner.py               LOCAL END-TO-END RUNNER: orchestrates Phase 1+2+3
+        ├── gate_config.py                policy constants + runtime compatibility defaults
+        ├── local_runner.py               LOCAL END-TO-END RUNNER: orchestrates Phase 1+2+3 
         |                                 without Github/Docker/cloud platform dependencies
         │
         ├── dev/
         │   ├── stub_benchmark.py         Simulates benchmark_non_rl.py for unit tests
         │   └── sim_regression.py         Injects regressed FPS artifacts for demos
         │
-        ├── docs/
+        ├── docs/ 
         │   ├── system-design.md          High-level overview
         │   ├── module-interfaces.md      Full function/CLI interface reference
         │
@@ -182,15 +149,12 @@ IsaacLab/
 Local (testing):
 tools/perf_regression_gate/local_baselines/
   {gpu_model}/{task_id}/{backend_key}/
-    stats.json      {"median_fps", "mad_fps", "k_warn", "k_block", "sample_count"}
-    window.ndjson   append-only rolling window, one FPS float per line
+    samples.ndjson  append-only structured baseline samples
 
-Production (planned):
+Production:
 perf-baselines branch (git orphan)
-  {gpu_model}/{task_id}/{backend_key}/{backend_version}/{runtime_hash}/{code_fingerprint}/
-    stats.json
-    window.ndjson
-    meta.json
+  {gpu_model}/{task_id}/{backend_key}/
+    samples.ndjson  append-only structured samples; compatibility fields live in each sample
 ```
 
 ---
@@ -219,7 +183,7 @@ Called via `./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py`:
 
 Output: `benchmark_non_rl_{task_id}_{timestamp}.json` in `artifact_dir`.
 
-- Only step that depends on IsaacLab run-time.
+- Only step that depends on IsaacLab run-time.  
 - Need the `--benchmark_backend json` because the JSON backend preserves `DictMeasurement`
 objects including the raw per-step FPS list but the OmniPerf backend drops these.
 
@@ -230,6 +194,7 @@ Runs once per task after Phase 1 completes:
 - Renames `benchmark_non_rl_*.json` → `perf_regression_gate_info.json`
 - Classifies failure phase by scanning the benchmark log
 - Parses the info artifact to extract FPS distribution statistics, startup time, GPU diagnostics, and full SW/HW/git provenance
+- Computes `runtime_contract_hash` and publish-only runtime info
 - Writes `perf_regression_gate_result.json` (always written, even on failure)
 
 ### Phase 3: `aggregate.py`
@@ -263,44 +228,40 @@ only a signal when camera code changes to save test time cost.
 
 ## 7. Full Task Matrix
 
-The migrated unified matrix: 6 (task, backend) combinations. "Effective FPS" =
-per-env FPS × num_envs. `ref_fps` is the per-GPU calibrated reference (L40S; 300f,
-post-warm-up); the catastrophic floor is `fps_floor_pct` (40%) of it. Warm-up
-(`excluded_frames`) is **per-backend**: PhysX `[[0,1]]`, Newton `[[0,4]]`, camera `[[0,59]]`.
+10 (task, backend) combinations. "Effective FPS" = per-env FPS × num_envs.
 
-| task_id | backend_key | num_envs | frames | timeout | tags | ref_fps (L40S) |
+| task_id | backend_key | num_envs | frames | timeout | tags | floor (L40S) |
 |---|---|---|---|---|---|---|
-| Isaac-Cartpole | physx | 4096 | 300 | 10 min | always | 276401.7 |
-| Isaac-Cartpole | newton | 4096 | 300 | 10 min | always | 358461.3 |
-| Isaac-Factory-GearMesh-Direct-v0 | physx | 512 | 300 | 15 min | always | 880.5 |
-| Isaac-Velocity-Flat-G1-v0 | physx | 2048 | 300 | 12 min | always | 19213.7 |
-| Isaac-Velocity-Flat-G1-v0 | newton | 2048 | 300 | 12 min | always | 69660.2 |
-| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx_isaacsim_rtx_renderer | 128 | 300 | 20 min | camera | 1024.6 |
+| Isaac-Cartpole-Direct-v0 | physx | 4096 | 300 | 10 min | always | 100 |
+| Isaac-Cartpole-Direct-v0 | newton | 4096 | 300 | 10 min | always | 0 |
+| Isaac-Factory-GearMesh-Direct-v0 | physx | 512 | 300 | 15 min | always | 30 |
+| Isaac-Velocity-Flat-G1-v0 | physx | 512 | 300 | 12 min | always | 40 |
+| Isaac-Velocity-Flat-G1-v0 | newton | 512 | 300 | 12 min | always | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx | 512 | 300 | 20 min | camera | 20 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx_newton_renderer | 512 | 300 | 20 min | camera | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton | 512 | 300 | 20 min | camera | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton_newton_renderer | 512 | 300 | 20 min | camera | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton_ovrtx_renderer | 512 | 300 | 20 min | camera | 0 |
 
-`backend_key` = `{physics}` or `{physics}_{render}`. The launch passes an explicit
-`physics=` token (`physx` / `newton_mjwarp`) plus `presets=` for the renderer, so the
-run's reported backend is verifiable by the config-drift guard.
+`backend_key` = `{physics}` or `{physics}_{render}`. Preset tokens are derived automatically
+by `local_runner.py` and the CI workflow.
 
-The hard floor is `fps_floor_pct% × ref_fps`; with no `ref_fps` for the GPU it is 0
-(disabled) and only the baseline median+MAD bands apply.
+Floor = 0 means "no hard floor"; baseline MAD thresholds apply only.
 
 ---
 
 ## 8. Oracle Logic
 
 ```
-compare(bench_result, baseline, fps_mean_floor, excluded_frames, artifact_dir, overrides=None)
+compare(bench_result, baseline, fps_mean_floor, excluded_frames, artifact_dir)
   → OracleResult
 ```
 
-**Verdict decision tree (hardened):**
+**Verdict decision tree:**
 
 ```
 perf_regression_gate_info_present == False?
     → HARD_FAILURE (file-based check skipped)
-
-failure_phase == "config_mismatch"?
-    → HARD_FAILURE (run used a different config than the gate launched)
 
 Load perf_regression_gate_info.json, extract fps_series from runtime phase
 Apply excluded_frames filter
@@ -308,25 +269,22 @@ filtered empty?
     → HARD_FAILURE
 
 mean_fps = statistics.mean(filtered)
-spread   = max(1.4826 * baseline.mad, min_spread_pct% * center)   # spread floor
 
-overrides.skip?
-    → PASS (quarantine)
 mean_fps < fps_mean_floor?
-    → BLOCK (relative catastrophic floor: fps_floor_pct% of ref_fps)
-
-baseline is None or baseline.sample_count < MIN_WINDOW (5)? (and no pin)
-    → PASS (seed run)
-
-mean_fps < center - k_block (6.0) * spread?
     → BLOCK
-mean_fps < center - k_warn (3.0) * spread?
+
+baseline is None?
+    → WARN (no_baseline)
+baseline.sample_count < MIN_BASELINE_SAMPLES?
+    → WARN (insufficient_baseline)
+
+mean_fps < baseline.median - 4.0 * baseline.mad AND regression_pct <= -MIN_BLOCK_REGRESSION_PCT?
+    → BLOCK
+mean_fps < baseline.median - 2.5 * baseline.mad?
     → WARN
 else
     → PASS
 
-verdict == PASS and tail_p99_warn set and p99_over_median exceeds it?
-    → WARN (advisory tail check)
 verdict == PASS and was_retried?
     → downgrade to WARN
 ```
@@ -370,18 +328,24 @@ order. Classification is entirely string-pattern-based — no backend branching.
 
 ```
 local_baselines/{gpu_model}/{task_id}/{backend_key}/
-  stats.json      {"median_fps", "mad_fps", "k_warn", "k_block", "sample_count"}
-  window.ndjson   one FPS float per line, append-only
+  samples.ndjson  append-only structured baseline samples
 ```
 
-`baseline_manager.update_baseline()` appends to `window.ndjson`, recomputes median and MAD,
-and rewrites `stats.json`. BLOCK results are never written.
+`baseline_manager.update_baseline()` appends one structured sample per accepted result.
+The rolling median/MAD thresholds are computed from the newest compatible samples at read time.
+BLOCK results are never written.
 
-**Git branch (production):** `perf-baselines` orphan branch. `baseline_manager.update_baseline_git()`
-uses a temporary git worktree to write and commit atomically.
+**Git branch (production):** `perf-baselines` orphan branch. `aggregate.py` reads from a
+freshly fetched baseline branch SHA. Accepted PASS/WARN samples are pushed through
+`baseline_manager.update_baselines_git()`, which refetches before writing, commits
+append-only `samples.ndjson` updates in a temporary worktree, and retries the push
+if another runner updates the branch first.
 
-**Write policy:** Writes occur only on protected branches (main/develop/release/*) or with
-`--allow_baseline_update` (local testing flag). Feature branch runs are read-only.
+**Trigger/write policy:** Non-draft PRs and merge-queue candidates run the gate but do
+not publish baselines. Protected-branch push events (main/develop/release/*, plus the
+POC branch while enabled) publish accepted PASS/WARN samples through the transactional
+git writer. Feature branch runs are read-only unless `--allow_baseline_update` is set
+for local testing.
 
 ---
 
@@ -437,7 +401,7 @@ the `"hardware_info"`, `"version_info"`, and `"startup"` phases for provenance e
 
 ## 12. Environment Requirements (Local Testing)
 
-Validated configuration as of 2026-06-10:
+Validated local smoke configuration as of 2026-06-15:
 
 | Component | Version |
 |---|---|
@@ -446,7 +410,7 @@ Validated configuration as of 2026-06-10:
 | warp-lang | 1.12.0 (NOT 1.13.0 — `warp.context` removed, breaks omni.replicator.core) |
 | mujoco-warp | 3.8.1 |
 | Python | 3.12 |
-| GPU | RTX 5090 (local) / L40S (production CI) |
+| GPU | RTX 5090 (local) / RTX PRO 6000 target runners / L40S historical reference |
 
 **Installation after fresh `./isaaclab.sh -i --extra rl`:**
 
@@ -462,10 +426,11 @@ pip install warp-lang==1.12.0
 ### 13.1 PR-gated runs vs. nightly-authoritative runs
 
 **Principle:** Authoritative runs SHOULD execute on a nightly schedule.
-**Deviation:** We run per-PR and write baselines from protected branches.
-**Defense:** We use wide tolerance bands (k_warn=2.5, k_block=4.0 MAD) to
-absorb inter-run variance. and the purpose of our tests is to catch issues live rather
-than nightly (existing OmniPerf test suite).
+**Deviation:** We run on non-draft PRs and merge-queue candidates, and publish baselines
+from protected-branch pushes.
+**Defense:** The gate is intended to catch merge-time regressions before they land. Baseline
+publication remains restricted to trusted protected-branch states, and matching prefers
+compatible nearest-ancestor samples when a base SHA is available.
 
 ### 13.2 Single FPS sample per run vs. N=10 iterations
 

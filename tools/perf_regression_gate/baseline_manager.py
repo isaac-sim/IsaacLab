@@ -3,178 +3,405 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Baseline storage for the CI performance regression gate.
+"""Baseline storage for the CI performance regression gate
 
-Baselines live per ``{gpu_model}/{task_id}/{backend}/[{fingerprint}/]`` bucket as a
-``stats.json`` (median/MAD/sample_count) plus an append-only ``window.ndjson`` of
-raw FPS samples. Two backends share the same layout: a flat directory (local /
-offline testing) and a git **orphan branch** (production), the latter written
-atomically through a temporary worktree.
-
-Hardening over the original POC:
-
-* **Actual rolling window** -- ``window.ndjson`` is capped at :data:`WINDOW_MAX`
-  samples (oldest evicted on append), so the median+MAD track *recent* behavior
-  instead of an unbounded all-time average.
-* **Fingerprint fallback chain** -- a baseline is bucketed by an environment
-  fingerprint (``{backend_version}/{runtime_hash}/{code_fingerprint}``). Loads
-  resolve from the most specific bucket outward to looser ones (then the flat
-  bucket), so a dependency/driver bump that creates a fresh empty bucket still
-  gates against the nearest compatible history instead of silently seed-passing.
-* **Concurrency-safe writes** -- git pushes use a bounded fetch -> rebase -> push
-  retry loop so two near-simultaneous protected-branch runs cannot lose a sample.
+The baseline store keeps immutable structured samples in ``samples.ndjson``.
+Threshold stats are calculated over the newest compatible samples instead of
+truncating history on write. Git-backed updates are append-only transactions:
+the manager refetches the remote branch, reapplies queued samples, and retries
+the push to prevent races across CI runners
 """
 
 import contextlib
+import hashlib
 import json
+import os
 import shutil
 import statistics
 import subprocess
 import tempfile
-import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
-from oracle import DEFAULT_K_BLOCK, DEFAULT_K_WARN, Baseline  # noqa: E402
+try:
+    from .gate_config import BASELINE_PUSH_RETRIES, DEFAULT_K_BLOCK, DEFAULT_K_WARN, MAX_BASELINE_SAMPLES
+    from .oracle import Baseline
+except ImportError:  # pragma: no cover - supports direct script imports
+    from gate_config import BASELINE_PUSH_RETRIES, DEFAULT_K_BLOCK, DEFAULT_K_WARN, MAX_BASELINE_SAMPLES
+    from oracle import Baseline
 
-WINDOW_MAX = 20  # rolling window length: keep only the most recent N samples
-PUSH_RETRIES = 5  # bounded fetch->rebase->push attempts for the baselines branch
-
-
-def _stats_path(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> Path:
-    if fingerprint is None:
-        return baselines_dir / gpu_model / task_id / backend / "stats.json"
-    return baselines_dir / gpu_model / task_id / backend / fingerprint / "stats.json"
-
-
-def _window_path(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> Path:
-    if fingerprint is None:
-        return baselines_dir / gpu_model / task_id / backend / "window.ndjson"
-    return baselines_dir / gpu_model / task_id / backend / fingerprint / "window.ndjson"
-
-
-# ---------------------------------------------------------------------------
-# Fingerprint fallback chain
-# ---------------------------------------------------------------------------
+SAMPLES_FILENAME = "samples.ndjson"
+_REPO_DIR = Path(__file__).resolve().parent
+_COMMIT_ENV_DEFAULTS = {
+    "GIT_AUTHOR_NAME": "perf-regression-gate",
+    "GIT_AUTHOR_EMAIL": "perf-regression-gate@localhost",
+    "GIT_COMMITTER_NAME": "perf-regression-gate",
+    "GIT_COMMITTER_EMAIL": "perf-regression-gate@localhost",
+}
 
 
-def fingerprint_candidates(fingerprint: str | None) -> list[str | None]:
-    """Ordered fingerprint buckets to try, most specific first, flat (None) last.
-
-    A fingerprint is a path like ``{backend_version}/{runtime_hash}/{code_fingerprint}``.
-    We relax it one trailing segment at a time -- dropping ``code_fingerprint``, then
-    ``runtime_hash``, then ``backend_version`` -- so a load falls back to the nearest
-    compatible history when the exact bucket is empty (e.g. just after a dep bump).
-
-    Args:
-        fingerprint: The most-specific bucket path, or None for the flat bucket.
-
-    Returns:
-        Candidate buckets in resolution order; always ends with ``None``.
-    """
-    if not fingerprint:
-        return [None]
-    segments = [s for s in fingerprint.split("/") if s]
-    candidates: list[str | None] = []
-    for end in range(len(segments), 0, -1):
-        candidates.append("/".join(segments[:end]))
-    candidates.append(None)
-    return candidates
+@dataclass(frozen=True)
+class BaselineUpdateRecord:
+    gpu_model: str
+    task_id: str
+    backend: str
+    fps: float
+    fingerprint: str | None = None
+    sample_metadata: dict[str, Any] | None = None
 
 
-def _baseline_from_stats(d: dict) -> Baseline:
+@dataclass(frozen=True)
+class BaselinePushResult:
+    branch: str
+    remote: str | None
+    base_sha: str | None
+    pushed_sha: str | None
+    attempts: int
+    update_count: int
+    pushed: bool
+
+
+def _bucket_dir(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> Path:
+    base = baselines_dir / gpu_model / task_id / backend
+    return base if fingerprint is None else base / fingerprint
+
+
+def _samples_path(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> Path:
+    return _bucket_dir(baselines_dir, gpu_model, task_id, backend, fingerprint) / SAMPLES_FILENAME
+
+
+def _baseline_from_values(values: list[float], *, source: str, total_sample_count: int | None = None) -> Baseline | None:
+    if not values:
+        return None
+    selected = values[-MAX_BASELINE_SAMPLES:]
+    median = statistics.median(selected)
+    deviations = [abs(v - median) for v in selected]
+    mad = statistics.median(deviations) if len(deviations) > 1 else 0.0
     return Baseline(
-        median_fps=d["median_fps"],
-        mad_fps=d["mad_fps"],
-        k_warn=d.get("k_warn", DEFAULT_K_WARN),
-        k_block=d.get("k_block", DEFAULT_K_BLOCK),
-        sample_count=d.get("sample_count", 0),
+        median_fps=median,
+        mad_fps=mad,
+        k_warn=DEFAULT_K_WARN,
+        k_block=DEFAULT_K_BLOCK,
+        sample_count=len(selected),
+        source=source,
+        total_sample_count=total_sample_count if total_sample_count is not None else len(values),
     )
 
 
-# ---------------------------------------------------------------------------
-# Flat-file backend (local / offline testing)
-# ---------------------------------------------------------------------------
+def _load_sample_records_from_text(content: str) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict) and isinstance(record.get("fps"), (int, float)):
+            records.append(record)
+    return records
 
 
-def load_baseline(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> Baseline | None:
-    """Load stats.json for a task/backend/fingerprint bucket, or None if it does not exist."""
-    sp = _stats_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
-    if not sp.exists():
+def _commit_env() -> dict[str, str]:
+    env = os.environ.copy()
+    for key, value in _COMMIT_ENV_DEFAULTS.items():
+        env.setdefault(key, value)
+    return env
+
+
+def _git(
+    args: list[str],
+    *,
+    cwd: Path | None = None,
+    check: bool = False,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess:
+    result = subprocess.run(
+        ["git", *args],
+        cwd=str(cwd or _REPO_DIR),
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    if check and result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, ["git", *args], result.stdout, result.stderr)
+    return result
+
+
+def _git_error(result: subprocess.CompletedProcess) -> str:
+    return (result.stderr or result.stdout or "unknown git error").strip()
+
+
+def _remote_ref_missing(result: subprocess.CompletedProcess) -> bool:
+    message = _git_error(result).lower()
+    return "couldn't find remote ref" in message or "could not find remote ref" in message
+
+
+def _resolve_git_ref(ref: str, *, repo_dir: Path | None = None) -> str | None:
+    result = _git(["rev-parse", "--verify", ref], cwd=repo_dir)
+    if result.returncode != 0:
         return None
-    with sp.open() as fh:
-        return _baseline_from_stats(json.load(fh))
+    return result.stdout.strip()
 
 
-def load_baseline_resolved(
-    baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint: str | None
-) -> tuple[Baseline | None, str | None]:
-    """Load the baseline using the fingerprint fallback chain.
+def refresh_baseline_branch(
+    branch: str,
+    *,
+    remote: str | None = "origin",
+    repo_dir: Path | None = None,
+    allow_missing: bool = True,
+) -> str | None:
+    """Fetch and return the exact baseline branch SHA to read.
 
-    Returns the first non-empty bucket walking from the exact fingerprint outward,
-    along with the fingerprint that actually matched (None = flat bucket).
+    Returning a SHA instead of the branch name makes aggregate comparisons traceable
+    and prevents a stale local branch from being used after the remote moved.
     """
-    for candidate in fingerprint_candidates(fingerprint):
-        bl = load_baseline(baselines_dir, gpu_model, task_id, backend, fingerprint=candidate)
-        if bl is not None:
-            return bl, candidate
-    return None, None
+    if not remote:
+        return _resolve_git_ref(branch, repo_dir=repo_dir)
+
+    remote_ref = f"refs/remotes/{remote}/{branch}"
+    refspec = f"+refs/heads/{branch}:{remote_ref}"
+    result = _git(["fetch", remote, refspec], cwd=repo_dir)
+    if result.returncode != 0:
+        if allow_missing and _remote_ref_missing(result):
+            return None
+        raise RuntimeError(f"Failed to fetch baseline branch {branch!r} from {remote!r}: {_git_error(result)}")
+    return _resolve_git_ref(remote_ref, repo_dir=repo_dir)
+
+
+def _git_is_ancestor(commit_sha: str, base_sha: str, *, repo_dir: Path | None = None) -> bool:
+    result = _git(["merge-base", "--is-ancestor", commit_sha, base_sha], cwd=repo_dir)
+    return result.returncode == 0
+
+
+def _git_distance(commit_sha: str, base_sha: str, *, repo_dir: Path | None = None) -> int:
+    result = _git(["rev-list", "--count", f"{commit_sha}..{base_sha}"], cwd=repo_dir)
+    if result.returncode != 0:
+        return 10**9
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return 10**9
+
+
+def _sample_matches(record: dict[str, Any], context: dict[str, Any] | None) -> bool:
+    if context is None:
+        return True
+    exact_fields = (
+        "gpu_model",
+        "task_id",
+        "backend_key",
+        "launch_config_hash",
+        "baseline_epoch",
+        "benchmark_contract_hash",
+        "runtime_contract_hash",
+    )
+    for field in exact_fields:
+        expected = context.get(field)
+        if expected is not None and record.get(field) != expected:
+            return False
+    base_sha = context.get("base_sha")
+    commit_sha = record.get("commit_sha")
+    repo_dir = context.get("_repo_dir")
+    if base_sha:
+        if not commit_sha:
+            return False
+        if not _git_is_ancestor(str(commit_sha), str(base_sha), repo_dir=repo_dir):
+            return False
+    return True
+
+
+def _select_records(records: list[dict[str, Any]], context: dict[str, Any] | None) -> list[dict[str, Any]]:
+    compatible = [r for r in records if _sample_matches(r, context)]
+    base_sha = context.get("base_sha") if context else None
+    if base_sha:
+        repo_dir = context.get("_repo_dir") if context else None
+        compatible.sort(
+            key=lambda r: (_git_distance(str(r.get("commit_sha", "")), str(base_sha), repo_dir=repo_dir), r.get("timestamp", ""))
+        )
+        return compatible[:MAX_BASELINE_SAMPLES]
+    return compatible[-MAX_BASELINE_SAMPLES:]
+
+
+def _load_baseline_from_contents(
+    samples_content: str | None,
+    *,
+    match_context: dict[str, Any] | None = None,
+) -> Baseline | None:
+    if not samples_content:
+        return None
+    records = _load_sample_records_from_text(samples_content)
+    selected = _select_records(records, match_context)
+    return _baseline_from_values(
+        [float(r["fps"]) for r in selected],
+        source="samples",
+        total_sample_count=len(records),
+    )
+
+
+def load_baseline(
+    baselines_dir: Path,
+    gpu_model: str,
+    task_id: str,
+    backend: str,
+    fingerprint=None,
+    match_context: dict[str, Any] | None = None,
+) -> Baseline | None:
+    """Load compatible baseline stats for a task/backend pair."""
+    samples = _samples_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
+    return _load_baseline_from_contents(
+        samples.read_text() if samples.exists() else None,
+        match_context=match_context,
+    )
+
+
+def _stable_sample_id(metadata: dict[str, Any]) -> str:
+    keys = (
+        "ci_run_id",
+        "ci_run_attempt",
+        "commit_sha",
+        "task_id",
+        "backend_key",
+        "launch_config_hash",
+        "benchmark_contract_hash",
+        "runtime_contract_hash",
+        "baseline_epoch",
+        "fps",
+        "attempt",
+        "was_retried",
+    )
+    payload = {key: metadata.get(key) for key in keys if metadata.get(key) is not None}
+    if not payload.get("ci_run_id"):
+        payload["timestamp"] = metadata.get("timestamp")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:24]
+
+
+def _sample_id_exists(samples_path: Path, sample_id: str | None) -> bool:
+    if not sample_id or not samples_path.exists():
+        return False
+    for record in _load_sample_records_from_text(samples_path.read_text()):
+        if record.get("sample_id") == sample_id:
+            return True
+    return False
+
+
+def make_sample_metadata(
+    *,
+    gpu_model: str,
+    task_id: str,
+    backend: str,
+    fps: float,
+    bench_result: dict | None = None,
+    target_branch: str | None = None,
+    source_branch: str | None = None,
+    trusted_source: str = "protected_branch",
+) -> dict[str, Any]:
+    bench_result = bench_result or {}
+    launch_config = bench_result.get("launch_config") or {}
+    provenance = bench_result.get("provenance") or {}
+    git_info = provenance.get("git") or {}
+    software = provenance.get("software") or {}
+    gpu_diag = bench_result.get("gpu_diag") or {}
+    metadata = {
+        "schema_version": 1,
+        "fps": float(fps),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "trusted_source": trusted_source,
+        "gpu_model": gpu_model,
+        "task_id": task_id,
+        "backend_key": backend,
+        "physics_backend": launch_config.get("physics_backend") or bench_result.get("physics_backend"),
+        "render_backend": launch_config.get("render_backend") or bench_result.get("render_backend"),
+        "commit_sha": git_info.get("commit_hash"),
+        "branch": git_info.get("branch") or source_branch,
+        "target_branch": target_branch,
+        "launch_config_hash": bench_result.get("launch_config_hash") or launch_config.get("launch_config_hash"),
+        "benchmark_contract_hash": bench_result.get("benchmark_contract_hash")
+        or launch_config.get("benchmark_contract_hash"),
+        "runtime_contract_hash": bench_result.get("runtime_contract_hash"),
+        "runtime_contract": bench_result.get("runtime_contract"),
+        "runtime_info": bench_result.get("runtime_info"),
+        "baseline_epoch": bench_result.get("baseline_epoch") or launch_config.get("baseline_epoch", 1),
+        "attempt": bench_result.get("attempt"),
+        "was_retried": bench_result.get("was_retried"),
+        "ci_run_id": os.environ.get("GITHUB_RUN_ID"),
+        "ci_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+        "ci_workflow": os.environ.get("GITHUB_WORKFLOW"),
+        "ci_job": os.environ.get("GITHUB_JOB"),
+        "launch_config": launch_config,
+        "runtime": {
+            "isaacsim": software.get("isaacsim"),
+            "warp": software.get("warp"),
+            "cuda": (gpu_diag or {}).get("cuda_version"),
+            "driver": (gpu_diag or {}).get("nvidia_driver_version"),
+        },
+    }
+    metadata["sample_id"] = _stable_sample_id(metadata)
+    return metadata
+
+
+def match_context_from_bench_result(
+    bench_result: dict,
+    *,
+    gpu_model: str,
+    base_sha: str | None = None,
+    target_branch: str | None = None,
+) -> dict[str, Any]:
+    launch_config = bench_result.get("launch_config") or {}
+    return {
+        "gpu_model": gpu_model,
+        "task_id": bench_result.get("task_id"),
+        "backend_key": bench_result.get("backend_key") or bench_result.get("backend"),
+        "launch_config_hash": bench_result.get("launch_config_hash") or launch_config.get("launch_config_hash"),
+        "benchmark_contract_hash": bench_result.get("benchmark_contract_hash")
+        or launch_config.get("benchmark_contract_hash"),
+        "runtime_contract_hash": bench_result.get("runtime_contract_hash"),
+        "baseline_epoch": bench_result.get("baseline_epoch") or launch_config.get("baseline_epoch", 1),
+        "base_sha": base_sha,
+        "target_branch": target_branch,
+    }
 
 
 def update_baseline(
-    baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fps: float, fingerprint=None
-) -> None:
-    """Append fps to the rolling window (capped at WINDOW_MAX), recompute stats, write stats.json.
+    baselines_dir: Path,
+    gpu_model: str,
+    task_id: str,
+    backend: str,
+    fps: float,
+    fingerprint=None,
+    sample_metadata: dict[str, Any] | None = None,
+) -> bool:
+    """Append a structured baseline sample. Returns False when already present."""
+    bucket = _bucket_dir(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
+    bucket.mkdir(parents=True, exist_ok=True)
+    samples = _samples_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
 
-    The window is an *actual* rolling window: the oldest samples are evicted so the
-    retained set never exceeds :data:`WINDOW_MAX`, and the file is rewritten with the
-    capped window (not blindly appended). Median + MAD are recomputed over the
-    retained samples.
-    """
-    wp = _window_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
-    sp = _stats_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
-    wp.parent.mkdir(parents=True, exist_ok=True)
+    metadata = dict(sample_metadata or {})
+    metadata.setdefault("schema_version", 1)
+    metadata.setdefault("fps", float(fps))
+    metadata.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+    metadata.setdefault("gpu_model", gpu_model)
+    metadata.setdefault("task_id", task_id)
+    metadata.setdefault("backend_key", backend)
+    metadata.setdefault("sample_id", _stable_sample_id(metadata))
 
-    fps_window: list[float] = []
-    if wp.exists():
-        with wp.open() as fh:
-            for line in fh:
-                line = line.strip()
-                if line:
-                    fps_window.append(float(line))
+    if _sample_id_exists(samples, metadata.get("sample_id")):
+        return False
 
-    fps_window.append(fps)
-    # Roll: keep only the most recent WINDOW_MAX samples.
-    if len(fps_window) > WINDOW_MAX:
-        fps_window = fps_window[-WINDOW_MAX:]
-
-    # Rewrite the window file with the (capped) retained samples.
-    with wp.open("w") as fh:
-        for v in fps_window:
-            fh.write(f"{v}\n")
-
-    median = statistics.median(fps_window)
-    deviations = [abs(v - median) for v in fps_window]
-    mad = statistics.median(deviations) if len(deviations) > 1 else 0.0
-
-    stats = {
-        "median_fps": median,
-        "mad_fps": mad,
-        "k_warn": DEFAULT_K_WARN,
-        "k_block": DEFAULT_K_BLOCK,
-        "sample_count": len(fps_window),
-    }
-    with sp.open("w") as fh:
-        json.dump(stats, fh, indent=2)
+    with samples.open("a") as fh:
+        fh.write(json.dumps(metadata, sort_keys=True) + "\n")
+    return True
 
 
 def delete_baseline_files(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> None:
-    """Delete stats.json and window.ndjson for a task/backend/fingerprint bucket."""
-    for p in (
-        _stats_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint),
-        _window_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint),
-    ):
-        if p.exists():
-            p.unlink()
+    """Delete structured samples for a task/backend pair."""
+    samples = _samples_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
+    if samples.exists():
+        samples.unlink()
 
 
 def seed_baseline_with_spread(
@@ -188,8 +415,7 @@ def seed_baseline_with_spread(
     seed: int = 0,
     fingerprint=None,
 ) -> None:
-    """Populate the baseline window with n_samples of varied FPS data around center_fps and compute stats.json.
-    For testing tasks/backends with no existing baseline or when a deterministic baseline is needed."""
+    """Populate a deterministic structured baseline window for tests and demos."""
     import random as _random
 
     rng = _random.Random(seed)
@@ -199,126 +425,127 @@ def seed_baseline_with_spread(
         update_baseline(baselines_dir, gpu_model, task_id, backend, fps, fingerprint=fingerprint)
 
 
-# ---------------------------------------------------------------------------
-# Git orphan-branch backend (production)
-# ---------------------------------------------------------------------------
-
-
-def _git_show_file(branch: str, rel_path: str) -> str | None:
-    try:
-        r = subprocess.run(
-            ["git", "show", f"{branch}:{rel_path}"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=str(Path(__file__).parent),
-        )
-        return r.stdout
-    except subprocess.CalledProcessError:
-        return None
-
-
-@contextlib.contextmanager
-def baseline_worktree(branch: str, *, remote: str | None = "origin", push: bool = True):
-    """Check out ``branch`` in a temp worktree; commit and (optionally) push on exit.
-
-    Pushes use a bounded fetch -> rebase -> push retry loop so two near-simultaneous
-    protected-branch CI runs cannot lose a sample or wedge on a non-fast-forward
-    rejection. A push that still fails after :data:`PUSH_RETRIES` attempts is logged
-    (not raised): the run's verdict already stands; only the baseline append is lost.
-    """
-    tmpdir = tempfile.mkdtemp(prefix="perf-bl-wt-")
-    committed = False
-    cwd = str(Path(__file__).parent)
-    try:
-        subprocess.run(
-            ["git", "worktree", "add", tmpdir, branch],
-            check=True,
-            capture_output=True,
-            cwd=cwd,
-        )
-        yield Path(tmpdir)
-        status = subprocess.run(
-            ["git", "-C", tmpdir, "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-        )
-        if status.stdout.strip():
-            subprocess.run(["git", "-C", tmpdir, "add", "-A"], check=True, capture_output=True)
-            subprocess.run(
-                ["git", "-C", tmpdir, "commit", "-m", "[baseline_manager] Update baselines"],
-                check=True,
-                capture_output=True,
-            )
-            committed = True
-            if push and remote:
-                _push_with_retry(tmpdir, branch, remote)
-    except subprocess.CalledProcessError as exc:
-        if b"not found" in (exc.stderr or b"") or b"unknown" in (exc.stderr or b""):
-            raise RuntimeError(
-                f"Baseline branch {branch!r} not found. "
-                "Create the orphan branch first, or use the flat-file backend (--baselines_dir)."
-            ) from exc
-        raise
-    finally:
-        subprocess.run(
-            ["git", "worktree", "remove", "--force", tmpdir],
-            cwd=cwd,
-            capture_output=True,
-        )
-        shutil.rmtree(tmpdir, ignore_errors=True)
-    if committed:
-        print(f"[baseline_manager]   -> committed baseline update to {branch!r}")
-
-
-def _push_with_retry(wt_dir: str, branch: str, remote: str) -> None:
-    """Fetch -> rebase -> push the baselines branch, retrying on non-fast-forward."""
-    for attempt in range(1, PUSH_RETRIES + 1):
-        push = subprocess.run(
-            ["git", "-C", wt_dir, "push", remote, f"HEAD:{branch}"],
-            capture_output=True,
-            text=True,
-        )
-        if push.returncode == 0:
-            if attempt > 1:
-                print(f"[baseline_manager]   -> pushed {branch!r} on attempt {attempt}")
-            return
-        # Someone else advanced the branch: integrate their samples and retry.
-        subprocess.run(["git", "-C", wt_dir, "fetch", remote, branch], capture_output=True, text=True)
-        rebase = subprocess.run(
-            ["git", "-C", wt_dir, "rebase", f"{remote}/{branch}"],
-            capture_output=True,
-            text=True,
-        )
-        if rebase.returncode != 0:
-            # Window files are append/rewrite only; a content conflict is not expected,
-            # but if it happens, abort the rebase and bail rather than wedge the gate.
-            subprocess.run(["git", "-C", wt_dir, "rebase", "--abort"], capture_output=True, text=True)
-            print(f"[baseline_manager] WARNING: baseline rebase conflict on {branch!r}; skipping push")
-            return
-        time.sleep(0.5 * attempt)  # small backoff before the next attempt
-    print(f"[baseline_manager] WARNING: could not push {branch!r} after {PUSH_RETRIES} attempts; sample dropped")
+def _git_show_file(ref: str, rel_path: str, *, repo_dir: Path | None = None) -> str | None:
+    result = _git(["show", f"{ref}:{rel_path}"], cwd=repo_dir)
+    return result.stdout if result.returncode == 0 else None
 
 
 def load_baseline_git(
-    branch: str, gpu_model: str, task_id: str, backend: str, fingerprint: str | None
+    ref: str,
+    gpu_model: str,
+    task_id: str,
+    backend: str,
+    fingerprint: str | None,
+    match_context: dict[str, Any] | None = None,
+    *,
+    repo_dir: Path | None = None,
 ) -> Baseline | None:
-    rel = str(_stats_path(Path(""), gpu_model, task_id, backend, fingerprint))
-    content = _git_show_file(branch, rel)
-    if content is None:
+    """Load compatible baseline stats from an exact git ref or SHA."""
+    samples = str(_samples_path(Path(""), gpu_model, task_id, backend, fingerprint))
+    context = dict(match_context or {})
+    if repo_dir is not None:
+        context["_repo_dir"] = repo_dir
+    return _load_baseline_from_contents(
+        _git_show_file(ref, samples, repo_dir=repo_dir),
+        match_context=context or None,
+    )
+
+
+@contextlib.contextmanager
+def _baseline_update_worktree(base_ref: str | None, *, repo_dir: Path | None = None):
+    repo_dir = repo_dir or _REPO_DIR
+    tmpdir = tempfile.mkdtemp(prefix="perf-bl-wt-")
+    orphan_branch = None
+    try:
+        if base_ref:
+            _git(["worktree", "add", "--detach", tmpdir, base_ref], cwd=repo_dir, check=True)
+        else:
+            orphan_branch = f"perf-baseline-seed-{os.getpid()}-{Path(tmpdir).name}"
+            _git(["worktree", "add", "--detach", tmpdir, "HEAD"], cwd=repo_dir, check=True)
+            _git(["checkout", "--orphan", orphan_branch], cwd=Path(tmpdir), check=True)
+            rm_result = _git(["rm", "-rf", "."], cwd=Path(tmpdir))
+            if rm_result.returncode not in (0, 128):
+                raise RuntimeError(f"Failed to clear orphan baseline worktree: {_git_error(rm_result)}")
+        yield Path(tmpdir)
+    finally:
+        _git(["worktree", "remove", "--force", tmpdir], cwd=repo_dir)
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        if orphan_branch:
+            _git(["branch", "-D", orphan_branch], cwd=repo_dir)
+
+
+def _commit_baseline_worktree(worktree: Path) -> str | None:
+    status = _git(["status", "--porcelain"], cwd=worktree, check=True)
+    if not status.stdout.strip():
         return None
-    return _baseline_from_stats(json.loads(content))
+    _git(["add", "-A"], cwd=worktree, check=True)
+    _git(
+        ["commit", "-m", "[baseline_manager] Append baseline samples"],
+        cwd=worktree,
+        check=True,
+        env=_commit_env(),
+    )
+    commit = _git(["rev-parse", "HEAD"], cwd=worktree, check=True)
+    return commit.stdout.strip()
 
 
-def load_baseline_git_resolved(
-    branch: str, gpu_model: str, task_id: str, backend: str, fingerprint: str | None
-) -> tuple[Baseline | None, str | None]:
-    """Git equivalent of :func:`load_baseline_resolved` using the fingerprint fallback chain."""
-    for candidate in fingerprint_candidates(fingerprint):
-        bl = load_baseline_git(branch, gpu_model, task_id, backend, candidate)
-        if bl is not None:
-            return bl, candidate
-    return None, None
+def _apply_updates(root: Path, updates: list[BaselineUpdateRecord]) -> int:
+    appended = 0
+    for update in updates:
+        if update_baseline(
+            root,
+            update.gpu_model,
+            update.task_id,
+            update.backend,
+            update.fps,
+            fingerprint=update.fingerprint,
+            sample_metadata=update.sample_metadata,
+        ):
+            appended += 1
+    return appended
+
+
+def update_baselines_git(
+    branch: str,
+    updates: list[BaselineUpdateRecord],
+    *,
+    remote: str | None = "origin",
+    max_retries: int = BASELINE_PUSH_RETRIES,
+    repo_dir: Path | None = None,
+) -> BaselinePushResult:
+    """Append samples to a git-backed baseline branch and push safely.
+
+    Each attempt starts from the latest remote branch SHA. If the push loses a
+    race, the next attempt refetches and reapplies the same sample IDs, making
+    retries idempotent.
+    """
+    if not updates:
+        return BaselinePushResult(branch, remote, None, None, 0, 0, False)
+    if max_retries < 1:
+        raise ValueError("max_retries must be >= 1")
+
+    last_error = "unknown push failure"
+    for attempt in range(1, max_retries + 1):
+        base_sha = refresh_baseline_branch(branch, remote=remote, repo_dir=repo_dir, allow_missing=True)
+        with _baseline_update_worktree(base_sha, repo_dir=repo_dir) as worktree:
+            appended = _apply_updates(worktree, updates)
+            commit_sha = _commit_baseline_worktree(worktree)
+            if commit_sha is None:
+                return BaselinePushResult(branch, remote, base_sha, base_sha, attempt, appended, False)
+            push_ref = f"HEAD:refs/heads/{branch}"
+            if remote:
+                push = _git(["push", remote, push_ref], cwd=worktree)
+            else:
+                push = _git(["branch", "--force", branch, "HEAD"], cwd=worktree)
+            if push.returncode == 0:
+                return BaselinePushResult(branch, remote, base_sha, commit_sha, attempt, appended, bool(remote))
+            last_error = _git_error(push)
+            print(
+                f"[baseline_manager] baseline push attempt {attempt}/{max_retries} failed; "
+                "refetching and retrying"
+            )
+
+    raise RuntimeError(f"Failed to push baseline branch {branch!r} after {max_retries} attempts: {last_error}")
 
 
 def update_baseline_git(
@@ -328,41 +555,11 @@ def update_baseline_git(
     backend: str,
     fps: float,
     fingerprint: str | None,
+    sample_metadata: dict[str, Any] | None = None,
     *,
     remote: str | None = "origin",
-    push: bool = True,
-) -> None:
-    with baseline_worktree(branch, remote=remote, push=push) as wt:
-        update_baseline(wt, gpu_model, task_id, backend, fps, fingerprint)
-
-
-def seed_baseline_with_spread_git(
-    branch: str,
-    gpu_model: str,
-    task_id: str,
-    backend: str,
-    center_fps: float,
-    noise_fps: float,
-    n_samples: int,
-    seed: int,
-    fingerprint: str | None,
-    *,
-    remote: str | None = "origin",
-    push: bool = True,
-) -> None:
-    with baseline_worktree(branch, remote=remote, push=push) as wt:
-        seed_baseline_with_spread(wt, gpu_model, task_id, backend, center_fps, noise_fps, n_samples, seed, fingerprint)
-
-
-def delete_baseline_files_git(
-    branch: str,
-    gpu_model: str,
-    task_id: str,
-    backend: str,
-    fingerprint: str | None,
-    *,
-    remote: str | None = "origin",
-    push: bool = True,
-) -> None:
-    with baseline_worktree(branch, remote=remote, push=push) as wt:
-        delete_baseline_files(wt, gpu_model, task_id, backend, fingerprint)
+    max_retries: int = BASELINE_PUSH_RETRIES,
+    repo_dir: Path | None = None,
+) -> BaselinePushResult:
+    update = BaselineUpdateRecord(gpu_model, task_id, backend, fps, fingerprint, sample_metadata)
+    return update_baselines_git(branch, [update], remote=remote, max_retries=max_retries, repo_dir=repo_dir)

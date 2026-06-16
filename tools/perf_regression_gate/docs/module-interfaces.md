@@ -5,6 +5,52 @@ All commands run from the `IsaacLab/` repository root unless otherwise noted.
 
 ---
 
+## `backend_identity.py`
+
+Canonical backend identity helpers. `backend_key` is always derived as `physics_backend` for physics-only runs, or `{physics_backend}_{render_backend}` when a render backend is set.
+
+```python
+def make_backend_key(physics_backend: str, render_backend: str | None = None) -> str
+def backend_identity_from_launch_config(config: dict) -> BackendIdentity | None
+def backend_identity_from_benchmark_info(info: dict) -> BackendIdentity | None
+```
+
+This is used by task loading, launch config generation, Phase 2 config-drift checks, aggregate baseline lookup, and baseline sample metadata. Render backends are workload identity, so `physx_newton_renderer`, `newton_newton_renderer`, and `newton_ovrtx_renderer` are separate baseline buckets.
+
+## `gpu_identity.py`
+
+Canonical GPU identity helpers. `gpu_model` is the baseline bucket key; `gpu_model_raw` is preserved for display/provenance. Existing `tasks.json` hard-floor maps can keep legacy keys such as `L40S` because floor lookup tries canonical, raw, and known legacy aliases.
+
+```python
+def canonical_gpu_model(value: Any) -> str
+def normalize_gpu_fields(value: Any) -> dict[str, str]
+def gpu_model_config_keys(value: Any) -> list[str]
+```
+
+Examples: `NVIDIA L40S -> l40s`, `RTX6000 -> rtx_6000`, `NVIDIA GeForce RTX 5090 -> geforce_rtx_5090`.
+
+## `runtime_contract.py`
+
+Builds the runtime compatibility contract used for baseline matching. The matching code only sees `runtime_contract_hash`; package/version field selection stays in `gate_config.py`.
+
+```python
+def build_runtime_contract(*, provenance: dict | None, gpu_diag: dict | None, backend: BackendIdentity, policy: Mapping[str, Any]) -> tuple[dict, str]
+def build_runtime_publish_info(*, provenance: dict | None, gpu_diag: dict | None, policy: Mapping[str, Any]) -> dict
+```
+
+Default compatibility fields gate on top-level active-path packages: IsaacSim, IsaacLab, Torch, Warp, the active physics package (`isaaclab_physx` or `isaaclab_newton`/`newton`), and `isaaclab_ov` for renderer backends. CUDA version, NVIDIA driver, GPU memory, and compute capability are published for humans but do not affect the compatibility hash by default.
+
+## `github_gate_context.py`
+
+Resolves GitHub event metadata into the aggregate arguments used for baseline matching and publication policy.
+
+```python
+def resolve_gate_context(env=None, event=None, fetch_pr=None) -> GateContext
+```
+
+Outputs: `base_sha`, `target_branch`, `source_branch`, `allow_update`, `trusted_source`, and `event_kind`.
+Mirrored PR pushes under `pull-request/<number>` use the GitHub PR API to recover the real PR base/source branches. They are read-only unless `PERF_GATE_ALLOW_MIRROR_BASELINE_UPDATE`/`ALLOW_MIRROR_UPDATE` is explicitly true.
+
 ## `oracle.py`
 
 ### `compare()`
@@ -16,23 +62,19 @@ def compare(
     fps_mean_floor: float,
     excluded_frames: frozenset[int],
     artifact_dir: Path,
-    overrides: dict | None = None,
 ) -> OracleResult
 ```
 
 The central verdict function. Reads `perf_regression_gate_info.json` from `artifact_dir`,
-applies `excluded_frames`, computes mean FPS, and returns an `OracleResult`. Uses the
-floored median+MAD bands (`spread = max(1.4826*MAD, min_spread_pct%*center)`), trusts the
-window only at `sample_count >= MIN_WINDOW` (5), and applies per-task `overrides`.
+applies `excluded_frames`, computes mean FPS, and returns an `OracleResult`.
 
 | Parameter | Type | Description |
 |---|---|---|
 | `bench_result` | `dict` | Loaded `perf_regression_gate_result.json` |
 | `baseline` | `Baseline \| None` | Rolling baseline stats; `None` for seed run |
-| `fps_mean_floor` | `float` | Relative hard floor (`fps_floor_pct%*ref_fps`); 0.0 = disabled |
+| `fps_mean_floor` | `float` | Hard minimum FPS; 0.0 = disabled |
 | `excluded_frames` | `frozenset[int]` | 0-based frame indices to drop before computing mean |
 | `artifact_dir` | `Path` | Directory containing `perf_regression_gate_info.json` |
-| `overrides` | `dict \| None` | Merged per-task/gpu overrides (`k_warn`/`k_block`/`min_spread_pct`/`pin_center_fps`/`pin_spread_fps`/`skip`/`tail_p99_warn`) |
 
 ### `apply_excluded_frames()`
 
@@ -135,14 +177,12 @@ class TaskConfig:
     preset: str                     # Hydra preset base (usually "default")
     num_envs: int
     num_frames: int
-    excluded_frames_raw: list[int | list[int]]  # Raw JSON; use .excluded_frames (per-backend)
+    excluded_frames_raw: list[int | list[int]]  # Raw JSON; use .excluded_frames
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
-    ref_fps: dict[str, float]       # per-GPU calibrated reference, e.g. {"NVIDIA L40S": 276401.7}
-    fps_floor_pct: float            # catastrophic floor as % of ref_fps; use .fps_floor(gpu)
+    fps_mean_floor: dict            # {"L40S": {"physx": 100.0, ...}}
     caches: list[str]               # Cache identifiers from caches_for_backend()
     tags: list[str]                 # ["always"] or ["camera"]
-    enable_cameras: bool            # pass --enable_cameras (camera tasks)
     task_type: str                  # "benchmark"
     runs_on: str                    # "gpu-l40s"
     seed: int | None                # Random seed for benchmark (default 42)
@@ -173,14 +213,14 @@ def load_baseline(
     baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None
 ) -> Baseline | None
 ```
-Loads `stats.json` for a task/backend pair. Returns `None` if file does not exist (seed run).
+Loads `samples.ndjson` for a task/backend pair and computes thresholds from compatible samples. Matching can require exact `gpu_model`, `task_id`, `backend_key`, `launch_config_hash`, `benchmark_contract_hash`, `runtime_contract_hash`, and `baseline_epoch`; with `base_sha`, samples must also come from ancestor commits. Returns `None` if no structured compatible samples exist.
 
 ```python
 def update_baseline(
     baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fps: float, fingerprint=None
 ) -> None
 ```
-Appends `fps` to `window.ndjson`, recomputes `median` and `MAD`, writes `stats.json`.
+Appends one structured sample to `samples.ndjson`. Thresholds are computed at read time.
 Only call for PASS/WARN results — aggregate.py enforces this policy.
 
 ```python
@@ -188,7 +228,7 @@ def delete_baseline_files(
     baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None
 ) -> None
 ```
-Removes `stats.json` and `window.ndjson` for a task/backend pair. Used in tests and resets.
+Removes `samples.ndjson` for a task/backend pair. Used in tests and resets.
 
 ```python
 def seed_baseline_with_spread(
@@ -203,25 +243,26 @@ Used in tests to create deterministic baselines without running real benchmarks.
 ### Git operations (production)
 
 ```python
-def load_baseline_git(branch: str, gpu_model: str, task_id: str, backend: str, fingerprint: str | None) -> Baseline | None
-def update_baseline_git(branch: str, gpu_model: str, task_id: str, backend: str, fps: float, fingerprint: str | None) -> None
-def seed_baseline_with_spread_git(branch, gpu_model, task_id, backend, center_fps, noise_fps, n_samples, seed, fingerprint) -> None
-def delete_baseline_files_git(branch, gpu_model, task_id, backend, fingerprint) -> None
+def refresh_baseline_branch(branch: str, remote: str | None = "origin") -> str | None
+def load_baseline_git(ref: str, gpu_model: str, task_id: str, backend: str, fingerprint: str | None) -> Baseline | None
+def update_baselines_git(branch: str, updates: list[BaselineUpdateRecord], remote: str | None = "origin") -> BaselinePushResult
+def update_baseline_git(branch: str, gpu_model: str, task_id: str, backend: str, fps: float, fingerprint: str | None) -> BaselinePushResult
 ```
 
-Git variants use `baseline_worktree()` — a context manager that creates a temporary git
-worktree on `branch`, yields the worktree path, then commits any changes and removes the
-worktree. Raises `RuntimeError` if `branch` is not found locally.
+`refresh_baseline_branch()` fetches the remote baseline branch and returns the exact SHA
+used for reads. When `base_sha` is supplied, baseline matching requires each selected sample
+to have a `commit_sha` that is an ancestor of that base. `update_baselines_git()` is the
+production writer: it refetches the branch, applies queued structured samples in a temporary
+worktree, commits once, and retries on non-fast-forward push races. Sample IDs make retries
+idempotent if a previous push outcome was ambiguous.
 
 ### File paths (flat-file)
 
 ```
-{baselines_dir}/{gpu_model}/{task_id}/{backend}/stats.json
-{baselines_dir}/{gpu_model}/{task_id}/{backend}/window.ndjson
+{baselines_dir}/{gpu_model}/{task_id}/{backend}/samples.ndjson
 
 With fingerprint:
-{baselines_dir}/{gpu_model}/{task_id}/{backend}/{fingerprint}/stats.json
-{baselines_dir}/{gpu_model}/{task_id}/{backend}/{fingerprint}/window.ndjson
+{baselines_dir}/{gpu_model}/{task_id}/{backend}/{fingerprint}/samples.ndjson
 ```
 
 ---
@@ -294,7 +335,7 @@ one object per `(task_id, backend)` combination. Used by the `build_matrix` step
 `perf-regression-gate.yaml` to populate the GitHub Actions job matrix.
 
 Each object contains: `task_id`, `physics_backend`, `render_backend` (empty string if none),
-`num_envs`, `num_frames`, `bench_timeout_s`, `job_timeout_minutes`.
+`num_envs`, `num_frames`, `seed`, `hydra_args`, `bench_timeout_s`, and `job_timeout_minutes`.
 
 ---
 
@@ -310,6 +351,8 @@ python3 tools/perf_regression_gate/build_bench_result.py \
     --wall_time_s <float>     Phase 1 wall-clock time in seconds (required)
     --timeout_s <float>       Phase 1 timeout in seconds (required)
     --log_file <path>         combined stdout+stderr log from Phase 1 (default: none)
+    --launch_config <path>    launch_config.json from Phase 1 (default: artifact_dir/launch_config.json)
+    --gate_config <path>      gate_config.json for runtime compatibility policy
     --attempt <int>           attempt number: 1 = first try, 2 = after retry (default: 1)
     --was_retried             flag: set when this result comes from a retry
 ```
@@ -322,6 +365,8 @@ python3 tools/perf_regression_gate/build_bench_result.py \
 When `perf_regression_gate_info.json` is present, `build_bench_result.py` also
 calls `_extract_info_provenance()` to populate the FPS distribution, startup time,
 GPU diagnostics, and full software/hardware/git provenance directly into the result JSON.
+It also compares observed benchmark identity to `launch_config.json`, records `observed_backend`,
+computes `runtime_contract_hash`, and publishes non-matching runtime diagnostics such as CUDA and driver version.
 `nvidia-smi` is queried once at post-processing time to capture the driver version.
 
 ---
@@ -333,10 +378,16 @@ python3 tools/perf_regression_gate/aggregate.py \
     --artifacts_dir <path>         root directory containing per-task artifact subdirectories (required)
     --gpu_model <str>              GPU model label for baseline lookup (default: L40S)
     --gate_config <path>           path to gate_config.json (default: perf_regression_gate/gate_config.json)
-    --baseline_branch <str>        git branch for baseline storage (default: angehu/perf-baselines)
+    --baseline_branch <str>        git branch for baseline storage (default: perf-baselines)
+    --baseline_remote <str>        git remote that owns the baseline branch (default: origin; empty = local only)
+    --baseline_push_retries <int>  max retry attempts for transactional baseline pushes (default: config)
     --baselines_dir <path>         flat-file baseline directory; bypasses git (default: None = use git)
     --allow_baseline_update <str>  "true"/"false": extend baseline window for PASS/WARN (default: false)
     --summary_file <path>          append step-summary markdown to this path (default: none)
+    --base_sha <sha>               PR/protected branch base SHA for ancestry-aware matching
+    --target_branch <str>          protected target branch name
+    --source_branch <str>          source branch name recorded in baseline metadata
+    --trusted_source <str>         audit label for written samples
 ```
 
 **Exit codes:**
@@ -344,8 +395,10 @@ python3 tools/perf_regression_gate/aggregate.py \
 - `1` — any BLOCK verdict and `gate_config.blocking == true`
 - `2` — any HARD_FAILURE verdict and `gate_config.blocking == true`
 
-**Environment variable:** When `GITHUB_OUTPUT` is set, writes `baselines_updated=true` to
-it after a successful baseline update. Used by the CI workflow to decide whether to push.
+**Environment variable:** When `GITHUB_OUTPUT` is set, aggregate writes baseline trace
+outputs such as `baseline_read_sha`, `baseline_pushed_sha`, `baseline_push_attempts`, and
+`baselines_updated`. The push has already happened inside aggregate when these outputs are
+written.
 
 ---
 
@@ -354,7 +407,7 @@ it after a successful baseline update. Used by the CI workflow to decide whether
 ```
 python3 tools/perf_regression_gate/local_runner.py \
     --tags <tag ...>          task tags to run (default: always)
-    --gpu_model <str>         GPU model label for baselines (default: L40S)
+    --gpu_model <str>         GPU model label for baselines (default: auto-detect with nvidia-smi)
     --artifacts_dir <path>    root for per-task artifacts (default: perf_regression_gate/artifacts/)
     --baselines_dir <path>    flat-file baseline dir (default: perf_regression_gate/local_baselines/)
     --allow_baseline_update   extend baseline window for PASS/WARN results
@@ -379,10 +432,11 @@ Returns aggregate.py's exit code.
 def load_gate_config(path: Path | str) -> dict
 ```
 
-Loads `gate_config.json`. Currently a stub that returns `{"blocking": False}`.
-When the CI workflow PR lands, this will read the JSON file from disk.
-
-The dict contract: `{"blocking": bool}`. `aggregate.py` uses `gate_config.get("blocking", False)`.
+Loads `gate_config.json` when present and otherwise returns conservative defaults.
+The dict contract includes `blocking`, `min_baseline_samples`, `max_baseline_samples`,
+`min_block_regression_pct`, `baseline_push_retries`, and `runtime_compatibility`.
+`runtime_compatibility` owns the policy for fields included in `runtime_contract_hash` vs
+publish-only diagnostic fields.
 
 ---
 
@@ -424,7 +478,7 @@ python3 tools/perf_regression_gate/dev/sim_regression.py \
     --out_dir <path>       output artifacts directory (default: /tmp/sim_artifacts)
 ```
 
-For each task with an existing baseline, reads `stats.json`, computes
+For each task with an existing baseline, loads `samples.ndjson`, computes
 `regressed_fps = baseline.median_fps × fps_scale`, and writes:
 - `{out_dir}/{task_id}/{backend_key}/perf_regression_gate_info.json`
 - `{out_dir}/{task_id}/{backend_key}/perf_regression_gate_result.json`
@@ -540,6 +594,26 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
       "dirty": false
     }
   },
+  "launch_config": {
+    "gpu_model": "l40s",
+    "gpu_model_raw": "NVIDIA L40S",
+    "launch_config_hash": "...",
+    "benchmark_contract_hash": "..."
+  },
+  "observed_backend": {
+    "physics_backend": "physx",
+    "render_backend": null,
+    "backend_key": "physx"
+  },
+  "runtime_contract_hash": "...",
+  "runtime_contract": {
+    "runtime_contract_version": 1,
+    "fields": {"software.warp": "1.6.0"}
+  },
+  "runtime_info": {
+    "software": {"warp": "1.6.0"},
+    "publish_only": {"gpu_diag.cuda_version": "12.1"}
+  },
   "task_config_snapshot": {
     "task_id": "Isaac-Velocity-Flat-G1-v0",
     "backend": "physx",
@@ -647,25 +721,11 @@ The oracle looks for `phase_name == "runtime"`, then the measurement whose `name
 `"Step Frametimes"`, then extracts `value["Environment step effective FPS"]` as the raw series.
 `build_bench_result.py` reads the remaining phases for provenance extraction.
 
-### `stats.json` (baseline statistics)
+### `samples.ndjson` (baseline history)
+
+One JSON object per accepted baseline sample, append-only. The exact metadata can grow
+without changing the file contract; the required fields for threshold calculation are:
 
 ```json
-{
-  "median_fps": 1667482.3,
-  "mad_fps": 8337.4,
-  "k_warn": 2.5,
-  "k_block": 4.0,
-  "sample_count": 8
-}
-```
-
-### `window.ndjson` (baseline raw window)
-
-One FPS float per line, append-only:
-
-```
-1644720.5
-1668000.1
-1655000.0
-...
+{"fps": 1667482.3, "gpu_model": "l40s", "task_id": "Isaac-Cartpole-Direct-v0", "backend_key": "physx", "launch_config_hash": "...", "benchmark_contract_hash": "...", "runtime_contract_hash": "...", "baseline_epoch": 1}
 ```

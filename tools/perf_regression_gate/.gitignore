@@ -4,4 +4,3 @@ local_baselines/
 __pycache__/
 *.pyc
 .pytest_cache/
-test-reports-*.xml

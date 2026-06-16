@@ -3,18 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Task matrix loader -- the single source of truth for the perf gate.
-
-``tasks.json`` defines each benchmark task and its backend combinations. Most
-fields are inherited from a top-level ``defaults`` block; a per-backend entry may
-override ``num_envs``, ``excluded_frames`` (warm-up differs by backend -- e.g.
-Newton JIT needs more warm-up frames than PhysX), and carries a per-GPU
-``ref_fps`` calibration used for the relative catastrophic floor.
-"""
-
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:
+    from .backend_identity import make_backend_key, normalize_physics_backend, normalize_render_backend
+except ImportError:  # pragma: no cover - supports direct script imports
+    from backend_identity import make_backend_key, normalize_physics_backend, normalize_render_backend
 
 _DEFAULT_TASKS_JSON = Path(__file__).parent / "tasks.json"
 
@@ -56,14 +52,13 @@ class TaskConfig:
     excluded_frames_raw: list[int | list[int]]
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
-    ref_fps: dict[str, float]  # per-GPU calibrated reference FPS (for the relative hard floor)
-    fps_floor_pct: float  # catastrophic floor as % of ref_fps (0 disables it)
+    fps_mean_floor: dict
     caches: list[str]
     tags: list[str] = field(default_factory=lambda: ["always"])
     task_type: str = "benchmark"
-    runs_on: str = "gpu-rtx6000"
+    runs_on: str = "gpu-l40s"
     seed: int | None = None
-    enable_cameras: bool = False  # pass --enable_cameras (camera/rendering tasks)
+    baseline_epoch: int = 1
 
     @property
     def backend_key(self) -> str:
@@ -72,13 +67,11 @@ class TaskConfig:
         Returns f"{physics_backend}_{render_backend}" when render_backend is set,
         otherwise returns physics_backend.
         """
-        if self.render_backend:
-            return f"{self.physics_backend}_{self.render_backend}"
-        return self.physics_backend
+        return make_backend_key(self.physics_backend, self.render_backend)
 
     @property
     def excluded_frames(self) -> frozenset[int]:
-        """Expand raw excluded_frames entries (single index or inclusive range) to a
+        """Expand raw excluded_frames entries (single index or inclusive range) to a 
         frozenset of integer frame indices.
         """
         indices: set[int] = set()
@@ -93,25 +86,6 @@ class TaskConfig:
             else:
                 indices.add(int(entry))
         return frozenset(indices)
-
-    def fps_floor(self, gpu_model: str) -> float:
-        """Absolute catastrophic FPS floor for this task on ``gpu_model``.
-
-        Derived as ``fps_floor_pct%`` of the per-GPU calibrated ``ref_fps``. Returns
-        ``0.0`` (disabled) when no reference is calibrated for the GPU. Expressing the
-        floor relative to the reference keeps it meaningful across tasks whose
-        effective FPS spans several orders of magnitude.
-        """
-        ref = self.ref_fps.get(gpu_model)
-        if ref is None:
-            # tolerate substring GPU keys (e.g. "NVIDIA L40S" vs "L40S")
-            for key, val in self.ref_fps.items():
-                if key in gpu_model or gpu_model in key:
-                    ref = val
-                    break
-        if ref is None or self.fps_floor_pct <= 0:
-            return 0.0
-        return self.fps_floor_pct / 100.0 * float(ref)
 
 
 def _load_tasks_json(path: Path) -> tuple[dict, list[dict]]:
@@ -138,9 +112,6 @@ def _load_tasks_json(path: Path) -> tuple[dict, list[dict]]:
 def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
     """Load all benchmark tasks from tasks.json, producing a TaskConfig for each backend combination.
 
-    Field resolution is ``defaults`` < task entry < backend entry, so a backend may
-    override ``num_envs`` and ``excluded_frames`` (warm-up) and carry its own ``ref_fps``.
-
     Args:
         tasks_json_path: Path to tasks.json. Defaults to the tasks.json next to this module.
 
@@ -160,35 +131,32 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
         camera_resolution: tuple[int, int] | None = (
             tuple(camera_raw) if camera_raw is not None else None  # type: ignore[assignment]
         )
-        fps_floor_pct = float(merged.get("fps_floor_pct", 0.0))
+        fps_mean_floor: dict = merged.get("fps_mean_floor", {})
         backends: list[dict] = merged.get("backends", [])
 
         for backend_entry in backends:
-            physics = backend_entry["physics"]
-            render = backend_entry.get("render")
-            # Backend-level overrides fall back to the task/default value.
-            excluded = backend_entry.get("excluded_frames", merged["excluded_frames"])
-            num_envs = int(backend_entry.get("num_envs", merged["num_envs"]))
-            ref_fps = {k: float(v) for k, v in (backend_entry.get("ref_fps", {}) or {}).items()}
+            physics = normalize_physics_backend(backend_entry["physics"])
+            if physics is None:
+                raise ValueError(f"backend entry in {path} must define a non-default physics backend")
+            render = normalize_render_backend(backend_entry.get("render"))
             tasks.append(
                 TaskConfig(
                     task_id=merged["task_id"],
                     physics_backend=physics,
                     render_backend=render,
                     preset=merged["preset"],
-                    num_envs=num_envs,
+                    num_envs=merged["num_envs"],
                     num_frames=merged["num_frames"],
-                    excluded_frames_raw=excluded,
+                    excluded_frames_raw=merged["excluded_frames"],
                     camera_resolution=camera_resolution,
                     timeout_minutes=int(merged["timeout_minutes"]),
-                    ref_fps=ref_fps,
-                    fps_floor_pct=fps_floor_pct,
+                    fps_mean_floor=fps_mean_floor,
                     caches=caches_for_backend(physics),
                     tags=merged["tags"],
                     task_type=merged["type"],
                     runs_on=merged["runs_on"],
                     seed=merged.get("seed"),
-                    enable_cameras=bool(merged.get("enable_cameras", False)),
+                    baseline_epoch=int(merged.get("baseline_epoch", 1)),
                 )
             )
     return tasks

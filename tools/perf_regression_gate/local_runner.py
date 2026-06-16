@@ -31,7 +31,6 @@ Preconditions:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 import time
@@ -46,7 +45,10 @@ if str(_MODULE_DIR) not in sys.path:
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
+from launch_config import hydra_args_for_task, task_to_launch_config, write_launch_config  # noqa: E402
 from task_config import TaskConfig, load_tasks  # noqa: E402
+
 
 # ---------------------------------------------------------------------------
 # CLI
@@ -64,7 +66,11 @@ def _parse_args() -> argparse.Namespace:
         default=["always"],
         help="Run only tasks whose tag list overlaps this set (default: always)",
     )
-    p.add_argument("--gpu_model", default="L40S", help="GPU model label for baseline bucket (default: L40S)")
+    p.add_argument(
+        "--gpu_model",
+        default=None,
+        help="GPU model label for baseline bucket (default: auto-detect with nvidia-smi)",
+    )
     p.add_argument(
         "--artifacts_dir",
         type=Path,
@@ -90,7 +96,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--skip_existing",
         action="store_true",
-        help="Skip tasks whose bench_result.json already exists in --artifacts_dir",
+        help="Skip tasks whose perf_regression_gate_result.json already exists in --artifacts_dir",
     )
     p.add_argument(
         "--gate_config",
@@ -98,40 +104,29 @@ def _parse_args() -> argparse.Namespace:
         default=_MODULE_DIR / "gate_config.json",
         help="Path to gate_config.json (controls advisory vs blocking mode)",
     )
-    p.add_argument(
-        "--cache-dir",
-        dest="cache_dir",
-        default=None,
-        help="Persist Warp/CUDA JIT caches here for warm runs (local stand-in for the S3 "
-        "sidecar; in CI this dir is restored from / saved to object storage). Omit to run "
-        "cold -- purely additive, never changes the verdict.",
-    )
     return p.parse_args()
-
-
-def _cache_env(cache_dir: str | None) -> dict[str, str] | None:
-    """Build the JIT-cache env overlay for a warm run, or None to run cold.
-
-    Persisting ``WARP_CACHE_PATH`` / ``CUDA_CACHE_PATH`` across runs is the whole of
-    the sidecar mechanism: the first run populates the dir (cold), later runs reuse it
-    (warm). The dominant cold-start cost is Newton/Warp JIT compilation.
-    """
-    if not cache_dir:
-        return None
-    root = Path(cache_dir).resolve()
-    warp_dir = root / "warp"
-    cuda_dir = root / "nv"
-    warp_dir.mkdir(parents=True, exist_ok=True)
-    cuda_dir.mkdir(parents=True, exist_ok=True)
-    env = dict(os.environ)
-    env["WARP_CACHE_PATH"] = str(warp_dir)
-    env["CUDA_CACHE_PATH"] = str(cuda_dir)
-    return env
 
 
 # ---------------------------------------------------------------------------
 # Phase 1 helpers: matrix expansion and benchmark execution
 # ---------------------------------------------------------------------------
+
+
+def _detect_gpu_model() -> str:
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except Exception:
+        return "unknown-gpu"
+    for line in result.stdout.splitlines():
+        gpu_model = line.strip()
+        if gpu_model:
+            return gpu_model
+    return "unknown-gpu"
 
 
 def _print_matrix(tasks: list[TaskConfig], tags: list[str]) -> None:
@@ -146,10 +141,16 @@ def _print_matrix(tasks: list[TaskConfig], tags: list[str]) -> None:
     print()
 
 
-# Physics Hydra group value per backend. Launching with an explicit ``physics=``
-# (rather than folding Newton into a preset bundle) lets the run echo the backend
-# back via benchmark_info.physics, which the config-drift guard verifies.
-_PHYSICS_TOKEN = {"physx": "physx", "newton": "newton_mjwarp"}
+def _hydra_args(task: TaskConfig) -> list[str]:
+    return hydra_args_for_task(task)
+
+
+def _fps_mean_floor(task: TaskConfig, gpu_model: str) -> float:
+    for key in gpu_model_config_keys(gpu_model):
+        value = task.fps_mean_floor.get(key, {}).get(task.backend_key)
+        if value is not None:
+            return float(value)
+    return 0.0
 
 
 def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> list[str]:
@@ -158,34 +159,19 @@ def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> l
         str(_REPO_ROOT / "isaaclab.sh"),
         "-p",
         str(bench_script),
-        "--task",
-        task.task_id,
-        "--num_envs",
-        str(task.num_envs),
-        "--num_frames",
-        str(task.num_frames),
-        "--benchmark_backend",
-        "json",
-        "--output_path",
-        str(artifact_dir),
+        "--task", task.task_id,
+        "--num_envs", str(task.num_envs),
+        "--num_frames", str(task.num_frames),
+        "--benchmark_backend", "json",
+        "--output_path", str(artifact_dir),
     ]
-    if task.enable_cameras:
-        cmd.append("--enable_cameras")
     if task.seed is not None:
         cmd.extend(["--seed", str(task.seed)])
-    # Hydra overrides (appended after the argparse flags).
-    cmd.append(f"physics={_PHYSICS_TOKEN.get(task.physics_backend, task.physics_backend)}")
-    if task.render_backend:
-        cmd.append(f"presets={task.render_backend}")
-    if task.camera_resolution:
-        w, h = task.camera_resolution
-        cmd.extend([f"env.tiled_camera.width={w}", f"env.tiled_camera.height={h}"])
+    cmd.extend(_hydra_args(task))
     return cmd
 
 
-def _run_benchmark(
-    task: TaskConfig, artifact_dir: Path, bench_script: Path, cache_env: dict[str, str] | None = None
-) -> tuple[int, float]:
+def _run_benchmark(task: TaskConfig, artifact_dir: Path, bench_script: Path) -> tuple[int, float]:
     """Run benchmark_non_rl.py for one task, streaming output live + writing to log.
 
     Returns (exit_code, wall_time_s).
@@ -199,7 +185,7 @@ def _run_benchmark(
 
     start = time.monotonic()
     with open(log_file, "w") as log_fh:
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=cache_env)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         assert proc.stdout is not None
         for raw_line in proc.stdout:
             line = raw_line.decode(errors="replace")
@@ -224,33 +210,29 @@ def _run_build_bench_result(
     *,
     was_retried: bool = False,
     attempt: int = 1,
+    gate_config: Path | None = None,
 ) -> None:
     """Run build_bench_result.py for one task (plain Python, no IsaacSim needed)"""
     build_script = _MODULE_DIR / "build_bench_result.py"
     cmd = [
         sys.executable,
         str(build_script),
-        "--task_id",
-        task.task_id,
-        "--physics_backend",
-        task.physics_backend,
-        "--render_backend",
-        task.render_backend or "",
-        "--artifact_dir",
-        str(artifact_dir),
-        "--exit_code",
-        str(exit_code),
-        "--wall_time_s",
-        f"{wall_time:.1f}",
-        "--timeout_s",
-        str(task.timeout_minutes * 60),
-        "--log_file",
-        str(artifact_dir / "benchmark.log"),
-        "--attempt",
-        str(attempt),
+        "--task_id", task.task_id,
+        "--physics_backend", task.physics_backend,
+        "--render_backend", task.render_backend or "",
+        "--artifact_dir", str(artifact_dir),
+        "--exit_code", str(exit_code),
+        "--wall_time_s", f"{wall_time:.1f}",
+        "--timeout_s", str(task.timeout_minutes * 60),
+        "--log_file", str(artifact_dir / "benchmark.log"),
+        "--launch_config", str(artifact_dir / "launch_config.json"),
+        "--attempt", str(attempt),
     ]
+    if gate_config is not None:
+        cmd.extend(["--gate_config", str(gate_config)])
     if was_retried:
         cmd.append("--was_retried")
+    sys.stdout.flush()
     subprocess.run(cmd, check=True)
 
 
@@ -259,25 +241,20 @@ def _run_build_bench_result(
 # ---------------------------------------------------------------------------
 
 
-def _run_aggregate(
-    artifacts_dir: Path, baselines_dir: Path, gpu_model: str, gate_config: Path, allow_baseline_update: bool
-) -> int:
+def _run_aggregate(artifacts_dir: Path, baselines_dir: Path, gpu_model: str,
+                   gate_config: Path, allow_baseline_update: bool) -> int:
     """Run aggregate.py over all artifacts and return its exit code."""
     agg_script = _MODULE_DIR / "aggregate.py"
     cmd = [
         sys.executable,
         str(agg_script),
-        "--artifacts_dir",
-        str(artifacts_dir),
-        "--gpu_model",
-        gpu_model,
-        "--baselines_dir",
-        str(baselines_dir),
-        "--gate_config",
-        str(gate_config),
-        "--allow_baseline_update",
-        "true" if allow_baseline_update else "false",
+        "--artifacts_dir", str(artifacts_dir),
+        "--gpu_model", gpu_model,
+        "--baselines_dir", str(baselines_dir),
+        "--gate_config", str(gate_config),
+        "--allow_baseline_update", "true" if allow_baseline_update else "false",
     ]
+    sys.stdout.flush()
     result = subprocess.run(cmd)
     return result.returncode
 
@@ -289,6 +266,8 @@ def _run_aggregate(
 
 def main() -> int:
     args = _parse_args()
+    gpu_model_raw = args.gpu_model or _detect_gpu_model()
+    gpu_model = canonical_gpu_model(gpu_model_raw)
 
     # Expand matrix from tasks.json
     all_tasks = load_tasks()
@@ -301,6 +280,8 @@ def main() -> int:
 
     _print_matrix(tasks, args.tags)
 
+    print(f"[local_runner] GPU model bucket: {gpu_model} (raw={gpu_model_raw})")
+
     if args.dry_run:
         print("[local_runner] --dry_run: exiting without running benchmarks.")
         return 0
@@ -309,10 +290,6 @@ def main() -> int:
     if not bench_script.exists():
         print(f"[local_runner] ERROR: benchmark script not found at {bench_script}")
         return 1
-
-    cache_env = _cache_env(args.cache_dir)
-    if cache_env is not None:
-        print(f"[local_runner] warm-cache overlay: {args.cache_dir}")
 
     # -----------------------------------------------------------------------
     # Phase 1 + 2: benchmark → build_bench_result, one task at a time
@@ -325,15 +302,23 @@ def main() -> int:
         artifact_dir = args.artifacts_dir / task.task_id / task.backend_key
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
-        bench_result_path = artifact_dir / "bench_result.json"
+        bench_result_path = artifact_dir / "perf_regression_gate_result.json"
         if args.skip_existing and bench_result_path.exists():
-            print(f"[{i}/{len(tasks)}] SKIP (bench_result.json exists): {task.task_id} / {task.backend_key}")
+            print(f"[{i}/{len(tasks)}] SKIP (perf_regression_gate_result.json exists): {task.task_id} / {task.backend_key}")
             continue
+
+        launch_config = task_to_launch_config(
+            task,
+            fps_mean_floor=_fps_mean_floor(task, gpu_model),
+            gpu_model=gpu_model_raw,
+            hydra_args=_hydra_args(task),
+        )
+        write_launch_config(artifact_dir, launch_config)
 
         print(f"[{i}/{len(tasks)}] {task.task_id} / {task.backend_key}")
         print(f"  envs={task.num_envs}  frames={task.num_frames}  timeout={task.timeout_minutes}m")
 
-        exit_code, wall_time = _run_benchmark(task, artifact_dir, bench_script, cache_env)
+        exit_code, wall_time = _run_benchmark(task, artifact_dir, bench_script)
 
         was_retried = False
         if exit_code != 0:
@@ -342,12 +327,20 @@ def main() -> int:
             stale = artifact_dir / "perf_regression_gate_info.json"
             if stale.exists():
                 stale.unlink()
-            exit_code, wall_time = _run_benchmark(task, artifact_dir, bench_script, cache_env)
+            exit_code, wall_time = _run_benchmark(task, artifact_dir, bench_script)
             was_retried = True
 
         attempt = 2 if was_retried else 1
         print(f"\n[{i}/{len(tasks)}] exit={exit_code}  wall={wall_time:.0f}s  attempt={attempt}  → build_bench_result")
-        _run_build_bench_result(task, artifact_dir, exit_code, wall_time, was_retried=was_retried, attempt=attempt)
+        _run_build_bench_result(
+            task,
+            artifact_dir,
+            exit_code,
+            wall_time,
+            was_retried=was_retried,
+            attempt=attempt,
+            gate_config=args.gate_config,
+        )
         print()
 
     # -----------------------------------------------------------------------
@@ -365,7 +358,7 @@ def main() -> int:
     rc = _run_aggregate(
         args.artifacts_dir,
         args.baselines_dir,
-        args.gpu_model,
+        gpu_model,
         args.gate_config,
         args.allow_baseline_update,
     )
