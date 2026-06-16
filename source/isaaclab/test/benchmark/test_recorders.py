@@ -5,6 +5,9 @@
 
 """Unit tests for benchmark recorder classes."""
 
+import sys
+import types
+
 import pytest
 
 from isaaclab.test.benchmark.interfaces import MeasurementData
@@ -522,6 +525,57 @@ class TestVersionInfoRecorder:
             dev_meta = next(m for m in data.metadata if m.name == "dev")
             assert hasattr(dev_meta, "data")
             assert isinstance(dev_meta.data, dict)
+
+    def test_captures_isaac_sim_version_from_utility(self, monkeypatch):
+        """Test that Isaac Sim version is captured from Isaac Lab's version utility."""
+        import isaaclab.utils.version as version_utils
+
+        monkeypatch.setattr(version_utils, "get_isaac_sim_version", lambda: "5.1.0")
+        recorder = VersionInfoRecorder()
+
+        assert recorder.get_initial_data()["version_metadata"]["isaacsim"] == "5.1.0"
+
+    def test_captures_kit_version_from_running_app(self, monkeypatch):
+        """Test that Kit version is captured from a running Kit app."""
+
+        class _App:
+            def get_kit_version(self):
+                return "106.5.0+release"
+
+        kit_app = types.SimpleNamespace(get_app=lambda: _App())
+        monkeypatch.setitem(sys.modules, "omni.kit.app", kit_app)
+
+        recorder = VersionInfoRecorder()
+
+        assert recorder.get_initial_data()["version_metadata"]["kit"] == "106.5.0+release"
+
+    def test_captures_kit_version_from_carb_settings(self, monkeypatch):
+        """Test that Kit version falls back to Carb settings."""
+
+        class _Settings:
+            def get(self, key):
+                return {"/app/kit/version": "107.0.0"}.get(key)
+
+        monkeypatch.delitem(sys.modules, "omni.kit.app", raising=False)
+        monkeypatch.setitem(sys.modules, "carb.settings", types.SimpleNamespace(get_settings=lambda: _Settings()))
+
+        recorder = VersionInfoRecorder()
+
+        assert recorder.get_initial_data()["version_metadata"]["kit"] == "107.0.0"
+
+    def test_kit_version_is_skipped_without_running_kit(self, monkeypatch):
+        """Test that kitless runs do not import Kit or record a Kit version."""
+        monkeypatch.delitem(sys.modules, "omni.kit.app", raising=False)
+        monkeypatch.delitem(sys.modules, "carb", raising=False)
+        monkeypatch.delitem(sys.modules, "carb.settings", raising=False)
+
+        recorder = VersionInfoRecorder()
+        versions = recorder.get_initial_data()["version_metadata"]
+
+        assert "kit" not in versions
+        assert "omni.kit.app" not in sys.modules
+        assert "carb" not in sys.modules
+        assert "carb.settings" not in sys.modules
 
 
 # ==============================================================================

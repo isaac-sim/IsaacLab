@@ -3,9 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import importlib
 import importlib.metadata
 import os
 import subprocess
+import sys
 
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
@@ -32,10 +34,12 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             Version string or None if not available.
         """
         try:
-            module = __import__(module_name)
+            module = importlib.import_module(module_name)
             # Handle nested attributes like "config.version"
             for attr in version_attr.split("."):
                 module = getattr(module, attr)
+            if callable(module):
+                module = module()
             return str(module)
         except Exception:
             return None
@@ -52,6 +56,68 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         if version:
             self._version_info[key] = version
 
+    def _get_isaac_sim_version(self) -> str | None:
+        """Get the Isaac Sim runtime version."""
+        try:
+            from isaaclab.utils.version import get_isaac_sim_version
+
+            return str(get_isaac_sim_version())
+        except Exception:
+            return self._get_version("isaacsim") or self._get_pkg_version("isaacsim")
+
+    def _get_kit_version(self) -> str | None:
+        """Get the Omniverse Kit runtime build version when Kit is running."""
+        version = self._get_kit_app_version()
+        if version:
+            return version
+        return self._get_kit_settings_version()
+
+    def _get_kit_app_version(self) -> str | None:
+        """Get Kit version from the running ``omni.kit.app`` instance."""
+        kit_app = sys.modules.get("omni.kit.app")
+        if kit_app is None:
+            return None
+
+        try:
+            app = kit_app.get_app()
+        except Exception:
+            return None
+        if app is None:
+            return None
+
+        for getter_name in ("get_kit_version", "get_build_version", "get_kernel_version"):
+            try:
+                getter = getattr(app, getter_name, None)
+                version = getter() if callable(getter) else getter
+                if version:
+                    return str(version)
+            except Exception:
+                pass
+        return None
+
+    def _get_kit_settings_version(self) -> str | None:
+        """Get Kit version from Carb settings when available."""
+        carb = sys.modules.get("carb")
+        carb_settings = sys.modules.get("carb.settings")
+        if carb_settings is None and carb is not None:
+            carb_settings = getattr(carb, "settings", None)
+        if carb_settings is None:
+            return None
+
+        try:
+            settings = carb_settings.get_settings()
+        except Exception:
+            return None
+
+        for key in ("/app/kit/version", "/app/buildVersion"):
+            try:
+                version = settings.get(key)
+            except Exception:
+                continue
+            if version:
+                return str(version)
+        return None
+
     def _get_version_info(self) -> None:
         # isaaclab
         self._record("isaaclab", self._get_version("isaaclab"))
@@ -61,13 +127,10 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         self._record("warp", version)
 
         # isaacsim
-        self._record("isaacsim", self._get_version("isaacsim"))
+        self._record("isaacsim", self._get_isaac_sim_version())
 
-        # kit (from omni.kit if available)
-        version = self._get_version("omni.kit", "app.get_app().get_build_version")
-        if not version:
-            version = self._get_version("carb", "settings.get_settings().get('/app/version')")
-        self._record("kit", version)
+        # kit (from the running Omniverse Kit app if available)
+        self._record("kit", self._get_kit_version())
 
         # torch
         self._record("torch", self._get_version("torch"))

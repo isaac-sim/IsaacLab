@@ -213,6 +213,9 @@ class SummaryMetrics(MetricsBackendInterface):
         num_cpus = hardware_meta.get("physical_cores")
         commit = dev_meta.get("commit_hash_short") or dev_meta.get("commit_hash")
         branch = dev_meta.get("branch")
+        isaacsim_version = version_meta.get("isaacsim_version")
+        kit_version = version_meta.get("kit_version")
+        isaaclab_ov_version = version_meta.get("isaaclab_ov_version")
 
         gpu_name, gpu_total_mem = self._get_gpu_summary(hardware_meta)
 
@@ -229,6 +232,9 @@ class SummaryMetrics(MetricsBackendInterface):
         self._print_box_kv("num_cpus", num_cpus)
         self._print_box_kv("commit", commit)
         self._print_box_kv("branch", branch)
+        self._print_box_kv("isaacsim_version", isaacsim_version)
+        self._print_box_kv("kit_version", kit_version)
+        self._print_box_kv("isaaclab_ov_version", isaaclab_ov_version)
         self._print_box_kv("gpu_name", gpu_name)
         if gpu_total_mem is not None:
             self._print_box_kv("gpu_total_memory_gb", gpu_total_mem)
