@@ -10,6 +10,7 @@ import os
 
 import pytest
 
+from isaaclab.test.benchmark import builders
 from isaaclab.test.benchmark.schema import (
     SCHEMA_VERSION,
     GpuDeviceInfo,
@@ -124,3 +125,27 @@ def test_play_bundle_round_trip(tmp_path):
     assert data["checkpoint_path"].endswith("model_499.pt")
     assert data["video_path"] is None
     assert "learning" not in data
+
+
+def test_build_play_bundle_passes_fields_through():
+    """build_play_bundle forwards every field unchanged onto the PlayBundle."""
+    reward = MeanStd(mean=12.0, std=1.0, peak=15.0)
+    ep_length = MeanStd(mean=100.0, std=5.0, peak=120.0)
+    b = builders.build_play_bundle(
+        run=_run_identity(),
+        versions=_versions(),
+        hardware=_hardware(),
+        runtime=_runtime(),
+        resources=_resources(),
+        success_rate=0.7,
+        reward=reward,
+        ep_length=ep_length,
+        checkpoint_path="/tmp/m.pt",
+    )
+    assert isinstance(b, PlayBundle)
+    assert b.run.framework == "rsl_rl"
+    assert b.success_rate == pytest.approx(0.7)
+    assert b.reward is reward
+    assert b.ep_length is ep_length
+    assert b.checkpoint_path == "/tmp/m.pt"
+    assert b.video_path is None
