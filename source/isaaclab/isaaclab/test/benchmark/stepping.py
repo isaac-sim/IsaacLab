@@ -87,20 +87,25 @@ def run_runtime_loop(env, num_frames: int) -> list[float]:
     return step_times
 
 
-def _extract_success(extras: dict) -> float | None:
+def _extract_success(extras) -> float | None:
     """Pull a scalar success value out of a step's ``extras`` mapping.
 
     Scans the ``"log"`` and ``"episode"`` sub-dicts of *extras* for the first
     key whose name contains ``"success"`` (case-insensitive) and returns its
     value as a ``float`` (calling ``.item()`` when the value is a tensor).
+    Returns ``None`` when *extras* is not a dict (e.g. the per-env list of info
+    dicts that Stable-Baselines3 vec envs return), since no single scannable
+    mapping is available in that case.
 
     Args:
-        extras: The per-step ``extras``/``info`` mapping returned by ``env.step``.
+        extras: The per-step ``extras``/``info`` value returned by ``env.step``.
 
     Returns:
         The success value as a ``float``, or ``None`` when no success key is
         present.
     """
+    if not isinstance(extras, dict):
+        return None
     for sub_key in ("log", "episode"):
         sub = extras.get(sub_key)
         if not isinstance(sub, dict):
@@ -171,14 +176,16 @@ def run_play_loop(env, policy, num_frames: int) -> tuple[list[float], MeanStd | 
 
         if len(result) == 5:
             obs, reward, terminated, truncated, extras = result
-            dones = torch.as_tensor(terminated) | torch.as_tensor(truncated)
+            dones = torch.as_tensor(terminated, device=device) | torch.as_tensor(truncated, device=device)
         else:
             obs, reward, dones, extras = result
-            dones = torch.as_tensor(dones)
-        reward = torch.as_tensor(reward, dtype=torch.float32)
+            dones = torch.as_tensor(dones, device=device)
+        reward = torch.as_tensor(reward, dtype=torch.float32, device=device)
 
         # Reshape to one value per environment. Some wrappers (e.g. skrl) return reward and
-        # done tensors of shape ``(num_envs, 1)`` rather than ``(num_envs,)``.
+        # done tensors of shape ``(num_envs, 1)`` rather than ``(num_envs,)``. The accumulators
+        # live on ``device``; coercing here keeps NumPy returns (e.g. from Stable-Baselines3),
+        # which land on the CPU, from clashing with the on-device accumulators.
         reward = reward.reshape(num_envs)
         dones = dones.reshape(num_envs)
 
