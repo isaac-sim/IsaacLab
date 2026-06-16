@@ -1,0 +1,256 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Publish Docker Images
+
+on:
+  # Nightly build + publish from develop and the active release branches listed
+  # in CRON_BRANCHES below. No push triggers — workflow_dispatch also accepts any
+  # publishable branch. main is intentionally excluded: main images are built
+  # by postmerge-ci.yml on push instead.
+  schedule:
+    - cron: '0 2 * * *'  # 6pm PST / 7pm PDT
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build and publish (e.g. develop, release/3.0.0-beta2)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Branches the nightly cron publishes. Single source of truth — append a ref
+# here when a new release/* is cut and drop it once that release is retired, so
+# stale branches aren't rebuilt nightly. Mirrors CRON_BRANCHES in
+# nightly-changelog.yml. Whitespace per entry is stripped. main is excluded on
+# purpose (it builds on the public isaac-sim base via postmerge-ci.yml).
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  CRON_BRANCHES: develop,release/3.0.0-beta2
+
+jobs:
+  resolve-branches:
+    name: Resolve publish branches
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    outputs:
+      branches: ${{ steps.b.outputs.branches }}
+    steps:
+    - id: b
+      env:
+        # Schedule → the CRON_BRANCHES list. Manual → the single branch the
+        # maintainer entered (required input). Same pattern as nightly-changelog.yml.
+        BRANCHES: ${{ github.event_name == 'schedule' && env.CRON_BRANCHES || inputs.branch }}
+      run: |
+        # CSV → newline, trimming surrounding whitespace per entry, then to a
+        # compact JSON array. Manual produces a 1-element array; cron N elements.
+        arr=$(echo "$BRANCHES" | tr ',' '\n' | xargs -n1 | jq -R . | jq -s -c .)
+        if [ "$(echo "$arr" | jq 'length')" -eq 0 ]; then
+          echo "::error::No branches resolved for publishing"
+          exit 1
+        fi
+        echo "branches=$arr" >> "$GITHUB_OUTPUT"
+        echo "Resolved branches: $arr"
+
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+
+  build-and-push-images:
+    name: Build and Push (${{ matrix.branch }})
+    needs: [config, resolve-branches]
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: ${{ fromJson(needs.resolve-branches.outputs.branches) }}
+    concurrency:
+      group: publish-images-${{ matrix.branch }}
+      cancel-in-progress: true
+    environment:
+      name: postmerge-production
+      url: https://github.com/${{ github.repository }}
+    env:
+        DOCKER_HOST: unix:///var/run/docker.sock
+        DOCKER_TLS_CERTDIR: ""
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+        ref: ${{ matrix.branch }}
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: linux/arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      with:
+        platforms: linux/amd64,linux/arm64
+        driver-opts: |
+          image=moby/buildkit:buildx-stable-1
+
+    - name: Login to NGC
+      run: |
+        # Only attempt NGC login if API key is available
+        if [ -n "$NGC_API_KEY" ]; then
+          echo "🔵 Logging into NGC registry..."
+          if ! echo "$NGC_API_KEY" | docker login -u '$oauthtoken' --password-stdin nvcr.io; then
+            echo "🔴 Failed to log into NGC registry"
+            exit 1
+          fi
+          echo "🟢 Successfully logged into NGC registry"
+        else
+          echo "🟠 NGC_API_KEY not set - skipping NGC login (normal when secrets are not configured)"
+        fi
+
+    - name: Build and Push Docker Images
+      run: |
+        BRANCH_NAME="${{ matrix.branch }}"
+        IMAGE_BASE_VERSION="${{ needs.config.outputs.isaacsim_image_tag }}"
+        IMAGE="${{ needs.config.outputs.isaaclab_image_name }}"
+
+        # Use the SHA actually checked out for this branch (the matrix ref), not
+        # github.sha — on a scheduled run github.sha is the default branch (main)
+        # HEAD, which would mis-tag every nightly image.
+        FULL_SHA="$(git rev-parse HEAD)"
+
+        echo "Branch: $BRANCH_NAME"
+        echo "Commit: $FULL_SHA"
+        echo "IsaacSim base image: ${{ needs.config.outputs.isaacsim_image_name }}:$IMAGE_BASE_VERSION"
+        echo "Target Isaac Lab image: $IMAGE"
+
+        # Build the tag list for the branch (main is published separately via
+        # postmerge-ci.yml, so it is not handled here).
+        #
+        # Tagging scheme:
+        #   - develop:    $IMAGE:latest-develop               (moves to newest develop build)
+        #                 $IMAGE:latest-develop-<full-sha>    (immutable per-commit)
+        #   - release/X:  $IMAGE:latest-release-X             (moves to newest build on that release branch)
+        #                 $IMAGE:latest-release-X-<full-sha>  (immutable per-commit)
+        #
+        # The immutable per-commit tag doubles as the "already published" marker:
+        # if it exists in the registry the branch has not advanced since the last
+        # publish, so the nightly build is skipped (see the guard below).
+        MOVING_TAG=""
+        IMMUTABLE_TAG=""
+
+        case "$BRANCH_NAME" in
+          develop)
+            MOVING_TAG="$IMAGE:latest-develop"
+            IMMUTABLE_TAG="$IMAGE:latest-develop-$FULL_SHA"
+            ;;
+          release/*)
+            # Sanitize the part after release/ for use as a Docker tag suffix.
+            RELEASE_SUFFIX=$(echo "${BRANCH_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')
+            MOVING_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX"
+            IMMUTABLE_TAG="$IMAGE:latest-release-$RELEASE_SUFFIX-$FULL_SHA"
+            ;;
+          main)
+            # main is intentionally not published here; see postmerge-ci.yml for main.
+            echo "Branch 'main' is not published by this workflow; skipping. See postmerge-ci.yml for main."
+            exit 0
+            ;;
+          *)
+            echo "Branch '$BRANCH_NAME' is not configured for publishing; skipping."
+            exit 0
+            ;;
+        esac
+
+        # Skip the (expensive) build when this exact commit was already published.
+        # The immutable per-commit tag is the source of truth for "git advanced":
+        # if it already exists in the registry, nothing new to build for this branch.
+        if docker manifest inspect "$IMMUTABLE_TAG" >/dev/null 2>&1; then
+          echo "🟢 $IMMUTABLE_TAG already exists — $BRANCH_NAME has not advanced since the last publish. Skipping."
+          exit 0
+        fi
+
+        TAGS=("$MOVING_TAG" "$IMMUTABLE_TAG")
+
+        # Determine if multiarch is supported by inspecting the base image manifest
+        echo "🔵 Checking if base image supports multiarch..."
+        BASE_IMAGE_FULL="${{ needs.config.outputs.isaacsim_image_name }}:${IMAGE_BASE_VERSION}"
+        ARCHITECTURES=$(docker manifest inspect "$BASE_IMAGE_FULL" 2>/dev/null | grep -o '"architecture": "[^"]*"' | cut -d'"' -f4 | sort -u)
+
+        if [ -z "$ARCHITECTURES" ]; then
+          echo "🟠 Could not inspect base image manifest: $BASE_IMAGE_FULL - defaulting to linux/amd64 only"
+          BUILD_PLATFORMS="linux/amd64"
+        else
+          echo "Base image architectures found:"
+          echo "$ARCHITECTURES" | sed 's/^/  - /'
+
+          HAS_AMD64=$(echo "$ARCHITECTURES" | grep -c "amd64" || true)
+          HAS_ARM64=$(echo "$ARCHITECTURES" | grep -c "arm64" || true)
+
+          if [ "$HAS_AMD64" -gt 0 ] && [ "$HAS_ARM64" -gt 0 ]; then
+            echo "🟢 Base image supports multiarch (amd64 + arm64)"
+            BUILD_PLATFORMS="linux/amd64,linux/arm64"
+          elif [ "$HAS_AMD64" -gt 0 ]; then
+            echo "Base image only supports amd64"
+            BUILD_PLATFORMS="linux/amd64"
+          elif [ "$HAS_ARM64" -gt 0 ]; then
+            echo "Base image only supports arm64"
+            BUILD_PLATFORMS="linux/arm64"
+          else
+            echo "🟠 Unknown architecture support for $BASE_IMAGE_FULL - defaulting to linux/amd64"
+            BUILD_PLATFORMS="linux/amd64"
+          fi
+        fi
+
+        echo "Target platforms: $BUILD_PLATFORMS"
+        echo "Tags to publish:"
+        printf '  - %s\n' "${TAGS[@]}"
+
+        # Compose -t flags for buildx
+        TAG_ARGS=()
+        for t in "${TAGS[@]}"; do
+          TAG_ARGS+=("-t" "$t")
+        done
+
+        echo "🔵 Building and pushing image with tags listed above..."
+        if ! docker buildx build \
+          --platform "$BUILD_PLATFORMS" \
+          --progress=plain \
+          "${TAG_ARGS[@]}" \
+          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }} \
+          --build-arg ISAACSIM_VERSION_ARG="$IMAGE_BASE_VERSION" \
+          --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
+          --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
+          --build-arg DOCKER_USER_HOME_ARG=/root \
+          --cache-from type=gha \
+          --cache-to type=gha,mode=max \
+          -f docker/Dockerfile.base \
+          --push .; then
+          echo "🔴 docker buildx build/push failed for tags:"
+          printf '  - %s\n' "${TAGS[@]}"
+          exit 1
+        fi
+
+        for t in "${TAGS[@]}"; do
+          echo "🟢 Successfully built and pushed: $t (platforms: $BUILD_PLATFORMS)"
+        done

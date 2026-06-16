@@ -75,6 +75,8 @@ jobs:
           --exclude 'user@'
           --exclude 'helm\.ngc\.nvidia\.com'
           --exclude 'slurm\.schedmd\.com'
+          --exclude '^https://unitree\.com/h1$'
+          --exclude '^https://bostondynamics\.com/reinforcement-learning-researcher-kit/?$'
           --max-retries 3
           --retry-wait-time 5
           --timeout 30
