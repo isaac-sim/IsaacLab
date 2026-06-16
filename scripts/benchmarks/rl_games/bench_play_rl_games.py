@@ -167,13 +167,16 @@ def run(argv: list[str]) -> None:
         rl_device = agent_cfg["params"]["config"]["device"]
         clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
         clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)
+        obs_groups = agent_cfg["params"]["env"].get("obs_groups")
+        concate_obs_groups = agent_cfg["params"]["env"].get("concate_obs_groups", True)
 
         env_t0 = time.perf_counter_ns()
         env = gym.make(args_cli.task, cfg=env_cfg)
         env_t1 = time.perf_counter_ns()
 
-        # Wrap for rl_games.
-        env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions)
+        # Wrap for rl_games (pass obs groups so tasks with non-default/asymmetric observation
+        # layouts feed the policy the same observation it was trained on).
+        env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
 
         # Register with rl_games vecenv registry.
         vecenv.register(
@@ -201,8 +204,8 @@ def run(argv: list[str]) -> None:
             """Map an observation batch to a deterministic action batch via the rl_games player.
 
             Mirrors the inference path in ``scripts/reinforcement_learning/rl_games/play.py``:
-            extracts the ``"obs"`` tensor from the wrapper's dict observation, runs the player's
-            deterministic action, and resets the player's RNN states on done environments.
+            extracts the ``"obs"`` tensor from the wrapper's dict observation and runs the
+            player's deterministic action.
 
             Args:
                 obs: Observation returned by the rl_games-wrapped env (dict or tensor).

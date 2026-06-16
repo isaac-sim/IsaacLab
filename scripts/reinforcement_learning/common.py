@@ -224,7 +224,8 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
     from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
     logger.warning("No --checkpoint given; using the published checkpoint for %s / %s.", framework, task)
-    path = get_published_pretrained_checkpoint(framework, task)
+    published_task = task.split(":")[-1].replace("-Play", "")
+    path = get_published_pretrained_checkpoint(framework, published_task)
     if path is None:
         raise FileNotFoundError(
             f"No checkpoint available for framework {framework!r} and task {task!r}; pass --checkpoint"
