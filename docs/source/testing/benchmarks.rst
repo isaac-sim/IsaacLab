@@ -151,6 +151,41 @@ Measure training performance.  Use ``--rl_library`` to select the RL library
        --benchmark_formatter json \
        --output_path ./results
 
+RL Play Benchmarks
+~~~~~~~~~~~~~~~~~~
+
+Load a trained checkpoint and benchmark policy inference (the *play* workflow).
+The same ``--rl_library`` dispatch selects the backend (``rsl_rl``, ``rl_games``,
+``skrl``, or ``sb3``).  In addition to the inference throughput, the emitted
+``PlayBundle`` reports the rolled-out policy's reward, episode length, and success
+rate.  The checkpoints consumed here are produced by ``training.py``.
+
+.. code-block:: bash
+
+   # Benchmark inference of a trained RSL-RL policy
+   ./isaaclab.sh -p scripts/benchmarks/play.py \
+       --rl_library rsl_rl \
+       --task Isaac-Cartpole \
+       --num_envs 4096 \
+       --num_frames 1000 \
+       --checkpoint /path/to/model.pt \
+       --benchmark_backend json \
+       --output_path ./results
+
+The checkpoint is resolved in the following order:
+
+#. ``--checkpoint`` — a local filesystem path or a Nucleus URI.
+#. Otherwise, the published Nucleus checkpoint for the task is downloaded
+   (a warning is logged).
+#. If neither is available, an error is raised.
+
+.. note::
+
+   ``reward``, ``ep_length``, and ``success_rate`` aggregate only **completed**
+   episodes.  Set ``--num_frames`` larger than the task's episode length so at
+   least one episode finishes during the rollout; otherwise these fields remain
+   ``null`` (the inference throughput is still reported).
+
 PhysX Micro-Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
@@ -319,6 +354,35 @@ RL Training Arguments
    * - ``--max_iterations``
      - ``None`` (task config)
      - Number of training iterations
+
+RL Play Arguments
+~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Argument
+     - Default
+     - Description
+   * - ``--task``
+     - required
+     - Environment task name
+   * - ``--rl_library``
+     - required
+     - RL backend that produced the checkpoint: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
+   * - ``--num_envs``
+     - ``None`` (task config)
+     - Number of parallel environments
+   * - ``--num_frames``
+     - ``100``
+     - Number of inference steps to roll out
+   * - ``--checkpoint``
+     - ``None`` (published Nucleus checkpoint)
+     - Local path or Nucleus URI of the checkpoint to roll out
+   * - ``--benchmark_backend``
+     - ``schema``
+     - Output backend(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
 
 Measurement Types
 -----------------
