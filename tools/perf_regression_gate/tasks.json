@@ -13,7 +13,7 @@
   },
   "tasks": [
     {
-      "task_id": "Isaac-Cartpole-Direct-v0",
+      "task_id": "Isaac-Cartpole-Direct",
       "num_envs": 4096,
       "backends": [
         {"physics": "physx"},
@@ -46,16 +46,14 @@
         {"physics": "physx"},
         {"physics": "physx", "render": "newton_renderer"},
         {"physics": "newton"},
-        {"physics": "newton", "render": "newton_renderer"},
-        {"physics": "newton", "render": "ovrtx_renderer"}
+        {"physics": "newton", "render": "newton_renderer"}
       ],
       "fps_mean_floor": {
         "L40S": {
           "physx": 20.0,
           "physx_newton_renderer": 0.0,
           "newton": 0.0,
-          "newton_newton_renderer": 0.0,
-          "newton_ovrtx_renderer": 0.0
+          "newton_newton_renderer": 0.0
         }
       }
     },

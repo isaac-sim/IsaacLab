@@ -48,6 +48,7 @@ if str(_TOOLS_DIR) not in sys.path:
 from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
 from launch_config import hydra_args_for_task, task_to_launch_config, write_launch_config  # noqa: E402
 from task_config import TaskConfig, load_tasks  # noqa: E402
+from validate_tasks import validate as validate_tasks  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,17 @@ def _parse_args() -> argparse.Namespace:
         nargs="+",
         default=["always"],
         help="Run only tasks whose tag list overlaps this set (default: always)",
+    )
+    p.add_argument(
+        "--task",
+        nargs="+",
+        default=None,
+        help="Run only these task_id(s); overrides --tags filtering (useful for debugging one task)",
+    )
+    p.add_argument(
+        "--validate",
+        action="store_true",
+        help="Statically validate tasks.json (schema + registered env ids) and exit",
     )
     p.add_argument(
         "--gpu_model",
@@ -266,19 +278,35 @@ def _run_aggregate(artifacts_dir: Path, baselines_dir: Path, gpu_model: str,
 
 def main() -> int:
     args = _parse_args()
+
+    if args.validate:
+        problems = [p for p in validate_tasks() if not p.startswith("warning:")]
+        for problem in problems:
+            print(f"[local_runner] validate ERROR: {problem}")
+        if problems:
+            return 1
+        print("[local_runner] validate OK: all task_ids resolve to registered environments.")
+        return 0
+
     gpu_model_raw = args.gpu_model or _detect_gpu_model()
     gpu_model = canonical_gpu_model(gpu_model_raw)
 
     # Expand matrix from tasks.json
     all_tasks = load_tasks()
-    tag_set = frozenset(args.tags)
-    tasks = [t for t in all_tasks if tag_set.intersection(frozenset(t.tags))]
+    if args.task:
+        wanted = frozenset(args.task)
+        tasks = [t for t in all_tasks if t.task_id in wanted]
+        if not tasks:
+            print(f"[local_runner] No tasks match task_id(s) {args.task}.")
+            return 1
+    else:
+        tag_set = frozenset(args.tags)
+        tasks = [t for t in all_tasks if tag_set.intersection(frozenset(t.tags))]
+        if not tasks:
+            print(f"[local_runner] No tasks match tags {args.tags}.")
+            return 1
 
-    if not tasks:
-        print(f"[local_runner] No tasks match tags {args.tags}.")
-        return 1
-
-    _print_matrix(tasks, args.tags)
+    _print_matrix(tasks, args.task if args.task else args.tags)
 
     print(f"[local_runner] GPU model bucket: {gpu_model} (raw={gpu_model_raw})")
 

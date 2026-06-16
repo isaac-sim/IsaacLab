@@ -48,7 +48,8 @@ concurrency:
 
 permissions:
   contents: write
-  pull-requests: read
+  pull-requests: write   # post/update the sticky verdict comment on the PR
+  statuses: write        # post per-task benchmark commit statuses on the PR head
 
 env:
   # Lets the ecr-build-push-pull action `docker login nvcr.io` to pull the Isaac Sim
@@ -98,13 +99,27 @@ jobs:
         echo "Matrix: $MATRIX"
 
   # ---------------------------------------------------------------------------
+  # Static pre-flight: catch stale task_ids / bad task config before burning a
+  # GPU runner (no Isaac Sim needed). Fails fast with a clear message.
+  # ---------------------------------------------------------------------------
+  validate:
+    name: Validate tasks.json
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - run: python3 tools/perf_regression_gate/validate_tasks.py
+
+  # ---------------------------------------------------------------------------
   # Per-task/backend benchmark jobs
   # ---------------------------------------------------------------------------
   bench:
     name: Bench / ${{ matrix.task_id }} / ${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
     runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
-    needs: [config]
+    needs: [config, validate]
     continue-on-error: true
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
     strategy:
@@ -180,14 +195,22 @@ jobs:
 
         mkdir -p "${ARTIFACT_DIR}"
         mkdir -p "${{ github.workspace }}/jit-cache/warp" "${{ github.workspace }}/jit-cache/nv"
+        mkdir -p "${{ github.workspace }}/kit-cache"
 
         # The CI image runs as non-root user `isaaclab` (uid 1000), but these host
         # dirs are created by the runner user (root on the NVIDIA fleet), so the
         # in-container user can't write them by default. That manifests as a
         # PermissionError in wp.init() creating WARP_CACHE_PATH/<ver>, which the
         # lazy task loader then masks as a misleading `mdp.<attr>` AttributeError.
-        # World-writable bind mounts fix both, independent of the runner's uid.
-        chmod -R 0777 "${ARTIFACT_DIR}" "${{ github.workspace }}/jit-cache"
+        #
+        # kit-cache covers the Omniverse Kit / RTX shader cache (mounted over
+        # /isaac-sim/kit/cache, which is root-owned 755 in the image). Without a
+        # writable location the RTX renderer cannot create its shader DB
+        # ("Failed to initialize rtx::shaderdb::ContextManager"), leaving the
+        # renderer broken and crashing later with cudaErrorIllegalAddress. Only
+        # the RTX-renderer camera configs need it; the Warp renderer does not.
+        # World-writable bind mounts fix all of these, independent of runner uid.
+        chmod -R 0777 "${ARTIFACT_DIR}" "${{ github.workspace }}/jit-cache" "${{ github.workspace }}/kit-cache"
 
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
         if [[ -z "${GPU_MODEL}" ]]; then
@@ -225,6 +248,7 @@ jobs:
           -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
           -v "${ARTIFACT_DIR}:/tmp/bench_out" \
           -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
+          -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
           "${{ env.CI_IMAGE_TAG }}" \
           -c "
             set -e
@@ -317,6 +341,7 @@ jobs:
           -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
           -v "${ARTIFACT_DIR}:/tmp/bench_out" \
           -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
+          -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
           "${{ env.CI_IMAGE_TAG }}" \
           -c "
             set -e
@@ -398,6 +423,42 @@ jobs:
           --gate_config tools/perf_regression_gate/gate_config.json \
           ${EXTRA_FLAGS}
 
+    # Surface per-task benchmark execution health as an independent commit status
+    # on the PR head. This reads build_bench_result's structured result so a green
+    # job (bench is continue-on-error) can no longer hide a benchmark that failed.
+    # Note: this reports whether the benchmark *ran*, not the regression verdict —
+    # that is the separate `perf-regression-gate` status posted by aggregate.
+    - name: Report per-task status
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const taskId = ${{ toJSON(matrix.task_id) }};
+          const physics = ${{ toJSON(matrix.physics_backend) }};
+          const render = ${{ toJSON(matrix.render_backend) }};
+          const backendKey = render ? `${physics}_${render}` : physics;
+          const resultPath = `artifacts/${taskId}/${backendKey}/perf_regression_gate_result.json`;
+          let ok = false;
+          let description = 'no benchmark result produced';
+          try {
+            const r = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
+            ok = r.exit_code === 0 && !r.failure_phase && r.perf_regression_gate_info_present === true;
+            description = ok
+              ? 'benchmark completed'
+              : `benchmark failed (${r.failure_phase || 'exit ' + r.exit_code})`;
+          } catch (e) {
+            description = 'benchmark result missing — job crashed before build_bench_result';
+          }
+          await github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: context.sha,
+            state: ok ? 'success' : 'failure',
+            context: `perf-gate (${taskId}/${backendKey})`,
+            description: description.slice(0, 140),
+          });
+
     - name: Upload bench artifacts
       if: always()
       uses: actions/upload-artifact@v7
@@ -470,6 +531,9 @@ jobs:
         if [[ -z "${GPU_MODEL}" ]]; then
           GPU_MODEL="unknown-gpu"
         fi
+        # Write the verdict table to a dedicated file so it can be reused for the
+        # sticky PR comment, then mirror it into the run's step summary.
+        SUMMARY_FILE="${{ github.workspace }}/verdict_summary.md"
         python3 tools/perf_regression_gate/aggregate.py \
           --artifacts_dir artifacts/ \
           --gpu_model "${GPU_MODEL}" \
@@ -482,4 +546,39 @@ jobs:
           --source_branch "${{ steps.gate_context.outputs.source_branch }}" \
           --allow_baseline_update "${{ steps.gate_context.outputs.allow_update }}" \
           --trusted_source "${{ steps.gate_context.outputs.trusted_source }}" \
-          --summary_file "${GITHUB_STEP_SUMMARY}"
+          --summary_file "${SUMMARY_FILE}"
+        cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}" || true
+
+    # Post the verdict table as a single sticky comment on the PR (updated in place
+    # each run), so reviewers see regressions without opening the Actions tab. Only
+    # runs on the copy-pr-bot mirror branches (pull-request/<N>); skipped on manual
+    # dispatch / protected-branch pushes where there is no PR to comment on.
+    - name: Post verdict PR comment
+      if: always()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          const ref = context.ref || '';
+          const m = ref.match(/^refs\/heads\/pull-request\/(\d+)$/);
+          if (!m) {
+            core.info(`ref ${ref} is not a pull-request/<N> mirror; skipping PR comment`);
+            return;
+          }
+          const issue_number = parseInt(m[1], 10);
+          let table = '_No verdict summary was produced._';
+          try {
+            table = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/verdict_summary.md`, 'utf8');
+          } catch (e) {
+            core.info('verdict_summary.md not found; posting placeholder');
+          }
+          const marker = '<!-- perf-regression-gate-verdict -->';
+          const body = `${marker}\n## Performance Regression Gate\n\n${table}\n\n_Updated for ${context.sha.slice(0, 8)} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
+          const { owner, repo } = context.repo;
+          const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+          const existing = comments.find(c => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
+          }
