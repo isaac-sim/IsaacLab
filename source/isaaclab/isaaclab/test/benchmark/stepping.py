@@ -177,6 +177,11 @@ def run_play_loop(env, policy, num_frames: int) -> tuple[list[float], MeanStd | 
             dones = torch.as_tensor(dones)
         reward = torch.as_tensor(reward, dtype=torch.float32)
 
+        # Reshape to one value per environment. Some wrappers (e.g. skrl) return reward and
+        # done tensors of shape ``(num_envs, 1)`` rather than ``(num_envs,)``.
+        reward = reward.reshape(num_envs)
+        dones = dones.reshape(num_envs)
+
         running_return += reward
         running_length += 1.0
 
