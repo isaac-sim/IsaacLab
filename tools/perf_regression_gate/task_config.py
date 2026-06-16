@@ -71,7 +71,7 @@ class TaskConfig:
 
     @property
     def excluded_frames(self) -> frozenset[int]:
-        """Expand raw excluded_frames entries (single index or inclusive range) to a 
+        """Expand raw excluded_frames entries (single index or inclusive range) to a
         frozenset of integer frame indices.
         """
         indices: set[int] = set()

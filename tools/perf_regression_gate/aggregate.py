@@ -30,8 +30,8 @@ from baseline_manager import (  # noqa: E402
     update_baselines_git,
 )
 from gate_config import BASELINE_PUSH_RETRIES, load_gate_config  # noqa: E402
-from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
 from gate_types import OracleVerdict  # noqa: E402
+from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
 from oracle import compare  # noqa: E402
 from task_config import get_task  # noqa: E402
 
@@ -42,7 +42,9 @@ def _parse_args():
     parser.add_argument("--gpu_model", default="L40S")
     parser.add_argument("--gate_config", type=Path, default=_MODULE_DIR / "gate_config.json")
     parser.add_argument("--baseline_branch", default=DEFAULT_BASELINE_BRANCH)
-    parser.add_argument("--baseline_remote", default="origin", help="Git remote that owns the baseline branch; empty = local only")
+    parser.add_argument(
+        "--baseline_remote", default="origin", help="Git remote that owns the baseline branch; empty = local only"
+    )
     parser.add_argument("--baseline_push_retries", type=int, default=None)
     parser.add_argument("--baselines_dir", type=Path, default=None, help="Flat-file baseline directory; bypasses git")
     parser.add_argument("--allow_baseline_update", default="false")
@@ -50,7 +52,9 @@ def _parse_args():
     parser.add_argument("--base_sha", default=None, help="PR base SHA for ancestry-aware baseline matching")
     parser.add_argument("--target_branch", default=None, help="Target protected branch, e.g. main/develop/release/x")
     parser.add_argument("--source_branch", default=None, help="Branch that produced baseline updates")
-    parser.add_argument("--trusted_source", default="protected_branch", help="Audit label for baseline samples written by this run")
+    parser.add_argument(
+        "--trusted_source", default="protected_branch", help="Audit label for baseline samples written by this run"
+    )
     return parser.parse_args()
 
 
@@ -107,7 +111,8 @@ def _hard_floor(bench_result: dict, gpu_model: str, backend: str) -> float:
 
 def _build_summary_table(rows: list[tuple]) -> str:
     lines = [
-        "| Task | Backend | Verdict | FPS | Baseline | Samples | Regression% | Floor | Threshold | Phase | Retry | GPU | Runtime | Note |",
+        "| Task | Backend | Verdict | FPS | Baseline | Samples | Regression% | Floor | Threshold | Phase | "
+        "Retry | GPU | Runtime | Note |",
         "|---|---|---|---:|---:|---:|---:|---:|---|---|---|---|---|---|",
     ]
     for result, bench_result in rows:
@@ -159,7 +164,9 @@ def main() -> int:
     gate_config = load_gate_config(args.gate_config)
     blocking = bool(gate_config.get("blocking", False))
     min_block_regression_pct = float(gate_config.get("min_block_regression_pct", 3.0))
-    baseline_push_retries = int(args.baseline_push_retries or gate_config.get("baseline_push_retries", BASELINE_PUSH_RETRIES))
+    baseline_push_retries = int(
+        args.baseline_push_retries or gate_config.get("baseline_push_retries", BASELINE_PUSH_RETRIES)
+    )
 
     items = _find_bench_results(args.artifacts_dir)
     if not items:
@@ -170,7 +177,9 @@ def main() -> int:
     baseline_read_ref = None
     if not use_flat:
         try:
-            baseline_read_sha = refresh_baseline_branch(args.baseline_branch, remote=baseline_remote, allow_missing=True)
+            baseline_read_sha = refresh_baseline_branch(
+                args.baseline_branch, remote=baseline_remote, allow_missing=True
+            )
             baseline_read_ref = baseline_read_sha
         except Exception as exc:
             print(f"::error::Failed to refresh baseline branch before reading: {exc}")
@@ -201,7 +210,9 @@ def main() -> int:
         baseline = None
         try:
             if use_flat:
-                baseline = load_baseline(args.baselines_dir, bench_gpu_model, task_id, backend, match_context=match_context)
+                baseline = load_baseline(
+                    args.baselines_dir, bench_gpu_model, task_id, backend, match_context=match_context
+                )
             elif baseline_read_ref:
                 baseline = load_baseline_git(
                     baseline_read_ref,

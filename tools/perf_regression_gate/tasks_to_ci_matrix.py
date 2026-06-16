@@ -25,16 +25,18 @@ from task_config import load_tasks  # noqa: E402
 tasks = load_tasks()
 rows = []
 for task in tasks:
-    rows.append({
-        "task_id": task.task_id,
-        "physics_backend": task.physics_backend,
-        "render_backend": task.render_backend or "",
-        "num_envs": task.num_envs,
-        "num_frames": task.num_frames,
-        "seed": task.seed if task.seed is not None else "",
-        "hydra_args": " ".join(hydra_args_for_task(task)),
-        "bench_timeout_s": task.timeout_minutes * 60,
-        "job_timeout_minutes": max(30, task.timeout_minutes + 15),
-    })
+    rows.append(
+        {
+            "task_id": task.task_id,
+            "physics_backend": task.physics_backend,
+            "render_backend": task.render_backend or "",
+            "num_envs": task.num_envs,
+            "num_frames": task.num_frames,
+            "seed": task.seed if task.seed is not None else "",
+            "hydra_args": " ".join(hydra_args_for_task(task)),
+            "bench_timeout_s": task.timeout_minutes * 60,
+            "job_timeout_minutes": max(30, task.timeout_minutes + 15),
+        }
+    )
 
 print(json.dumps(rows))

@@ -6,7 +6,6 @@
 import json
 from pathlib import Path
 
-
 DEFAULT_K_WARN = 2.5
 DEFAULT_K_BLOCK = 4.0
 MIN_BASELINE_SAMPLES = 5

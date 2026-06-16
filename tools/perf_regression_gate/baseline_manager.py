@@ -72,7 +72,9 @@ def _samples_path(baselines_dir: Path, gpu_model: str, task_id: str, backend: st
     return _bucket_dir(baselines_dir, gpu_model, task_id, backend, fingerprint) / SAMPLES_FILENAME
 
 
-def _baseline_from_values(values: list[float], *, source: str, total_sample_count: int | None = None) -> Baseline | None:
+def _baseline_from_values(
+    values: list[float], *, source: str, total_sample_count: int | None = None
+) -> Baseline | None:
     if not values:
         return None
     selected = values[-MAX_BASELINE_SAMPLES:]
@@ -220,7 +222,10 @@ def _select_records(records: list[dict[str, Any]], context: dict[str, Any] | Non
     if base_sha:
         repo_dir = context.get("_repo_dir") if context else None
         compatible.sort(
-            key=lambda r: (_git_distance(str(r.get("commit_sha", "")), str(base_sha), repo_dir=repo_dir), r.get("timestamp", ""))
+            key=lambda r: (
+                _git_distance(str(r.get("commit_sha", "")), str(base_sha), repo_dir=repo_dir),
+                r.get("timestamp", ""),
+            )
         )
         return compatible[:MAX_BASELINE_SAMPLES]
     return compatible[-MAX_BASELINE_SAMPLES:]
@@ -540,10 +545,7 @@ def update_baselines_git(
             if push.returncode == 0:
                 return BaselinePushResult(branch, remote, base_sha, commit_sha, attempt, appended, bool(remote))
             last_error = _git_error(push)
-            print(
-                f"[baseline_manager] baseline push attempt {attempt}/{max_retries} failed; "
-                "refetching and retrying"
-            )
+            print(f"[baseline_manager] baseline push attempt {attempt}/{max_retries} failed; refetching and retrying")
 
     raise RuntimeError(f"Failed to push baseline branch {branch!r} after {max_retries} attempts: {last_error}")
 

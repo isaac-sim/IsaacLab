@@ -88,10 +88,7 @@ def build_runtime_publish_info(
 ) -> dict[str, Any]:
     """Return debug/runtime fields published for humans but not used for matching."""
     source = runtime_source(provenance, gpu_diag)
-    publish_only = {
-        str(field): _get_path(source, str(field))
-        for field in policy.get("publish_only", [])
-    }
+    publish_only = {str(field): _get_path(source, str(field)) for field in policy.get("publish_only", [])}
     publish_only = {key: value for key, value in publish_only.items() if value is not None}
     return {
         "software": source["software"],

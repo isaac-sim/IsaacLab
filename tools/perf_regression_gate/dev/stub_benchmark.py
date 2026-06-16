@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 import argparse
 import json
-import math
 import random
 import sys
 from pathlib import Path
@@ -54,7 +58,7 @@ def main():
     if args.failure_phase == "import":
         # Emit a fake traceback and exit non-zero without writing perf file
         print("Traceback (most recent call last):")
-        print("  File \"<string>\", line 1, in <module>")
+        print('  File "<string>", line 1, in <module>')
         print("ImportError: simulated import failure")
         sys.exit(1)
 

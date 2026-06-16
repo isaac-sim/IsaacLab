@@ -96,13 +96,15 @@ def _make_bench_result(task, fps_mean: float) -> dict:
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Inject simulated regression artifacts.")
-    p.add_argument("--fps_scale", type=float, default=0.53,
-                   help="Multiply baseline FPS by this factor (0.53 = 47%% regression, default)")
-    p.add_argument("--tags", nargs="+", default=["always"],
-                   help="Task tags to include (default: always)")
+    p.add_argument(
+        "--fps_scale",
+        type=float,
+        default=0.53,
+        help="Multiply baseline FPS by this factor (0.53 = 47%% regression, default)",
+    )
+    p.add_argument("--tags", nargs="+", default=["always"], help="Task tags to include (default: always)")
     p.add_argument("--gpu_model", default="L40S")
-    p.add_argument("--baselines_dir", type=Path,
-                   default=_GATE_DIR / "local_baselines")
+    p.add_argument("--baselines_dir", type=Path, default=_GATE_DIR / "local_baselines")
     p.add_argument("--out_dir", type=Path, default=Path("/tmp/sim_artifacts"))
     args = p.parse_args()
 
@@ -110,7 +112,7 @@ def main() -> int:
     tag_set = frozenset(args.tags)
     tasks = [t for t in all_tasks if tag_set.intersection(frozenset(t.tags))]
 
-    print(f"\n[sim_regression] fps_scale={args.fps_scale} ({(1-args.fps_scale)*100:.0f}% regression)")
+    print(f"\n[sim_regression] fps_scale={args.fps_scale} ({(1 - args.fps_scale) * 100:.0f}% regression)")
     print(f"[sim_regression] writing artifacts to {args.out_dir}\n")
 
     generated = 0
@@ -136,12 +138,12 @@ def main() -> int:
         generated += 1
 
     print(f"\n[sim_regression] wrote {generated} artifact sets")
-    print(f"\nNow run aggregate.py:")
+    print("\nNow run aggregate.py:")
     print(f"  python3 {_GATE_DIR}/aggregate.py \\")
     print(f"      --artifacts_dir {args.out_dir} \\")
     print(f"      --gpu_model {args.gpu_model} \\")
     print(f"      --baselines_dir {args.baselines_dir} \\")
-    print(f"      --allow_baseline_update false")
+    print("      --allow_baseline_update false")
     return 0
 
 

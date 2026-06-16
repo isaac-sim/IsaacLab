@@ -50,7 +50,6 @@ from launch_config import hydra_args_for_task, task_to_launch_config, write_laun
 from task_config import TaskConfig, load_tasks  # noqa: E402
 from validate_tasks import validate as validate_tasks  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -171,11 +170,16 @@ def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> l
         str(_REPO_ROOT / "isaaclab.sh"),
         "-p",
         str(bench_script),
-        "--task", task.task_id,
-        "--num_envs", str(task.num_envs),
-        "--num_frames", str(task.num_frames),
-        "--benchmark_backend", "json",
-        "--output_path", str(artifact_dir),
+        "--task",
+        task.task_id,
+        "--num_envs",
+        str(task.num_envs),
+        "--num_frames",
+        str(task.num_frames),
+        "--benchmark_backend",
+        "json",
+        "--output_path",
+        str(artifact_dir),
     ]
     if task.seed is not None:
         cmd.extend(["--seed", str(task.seed)])
@@ -229,16 +233,26 @@ def _run_build_bench_result(
     cmd = [
         sys.executable,
         str(build_script),
-        "--task_id", task.task_id,
-        "--physics_backend", task.physics_backend,
-        "--render_backend", task.render_backend or "",
-        "--artifact_dir", str(artifact_dir),
-        "--exit_code", str(exit_code),
-        "--wall_time_s", f"{wall_time:.1f}",
-        "--timeout_s", str(task.timeout_minutes * 60),
-        "--log_file", str(artifact_dir / "benchmark.log"),
-        "--launch_config", str(artifact_dir / "launch_config.json"),
-        "--attempt", str(attempt),
+        "--task_id",
+        task.task_id,
+        "--physics_backend",
+        task.physics_backend,
+        "--render_backend",
+        task.render_backend or "",
+        "--artifact_dir",
+        str(artifact_dir),
+        "--exit_code",
+        str(exit_code),
+        "--wall_time_s",
+        f"{wall_time:.1f}",
+        "--timeout_s",
+        str(task.timeout_minutes * 60),
+        "--log_file",
+        str(artifact_dir / "benchmark.log"),
+        "--launch_config",
+        str(artifact_dir / "launch_config.json"),
+        "--attempt",
+        str(attempt),
     ]
     if gate_config is not None:
         cmd.extend(["--gate_config", str(gate_config)])
@@ -253,18 +267,24 @@ def _run_build_bench_result(
 # ---------------------------------------------------------------------------
 
 
-def _run_aggregate(artifacts_dir: Path, baselines_dir: Path, gpu_model: str,
-                   gate_config: Path, allow_baseline_update: bool) -> int:
+def _run_aggregate(
+    artifacts_dir: Path, baselines_dir: Path, gpu_model: str, gate_config: Path, allow_baseline_update: bool
+) -> int:
     """Run aggregate.py over all artifacts and return its exit code."""
     agg_script = _MODULE_DIR / "aggregate.py"
     cmd = [
         sys.executable,
         str(agg_script),
-        "--artifacts_dir", str(artifacts_dir),
-        "--gpu_model", gpu_model,
-        "--baselines_dir", str(baselines_dir),
-        "--gate_config", str(gate_config),
-        "--allow_baseline_update", "true" if allow_baseline_update else "false",
+        "--artifacts_dir",
+        str(artifacts_dir),
+        "--gpu_model",
+        gpu_model,
+        "--baselines_dir",
+        str(baselines_dir),
+        "--gate_config",
+        str(gate_config),
+        "--allow_baseline_update",
+        "true" if allow_baseline_update else "false",
     ]
     sys.stdout.flush()
     result = subprocess.run(cmd)
@@ -332,7 +352,10 @@ def main() -> int:
 
         bench_result_path = artifact_dir / "perf_regression_gate_result.json"
         if args.skip_existing and bench_result_path.exists():
-            print(f"[{i}/{len(tasks)}] SKIP (perf_regression_gate_result.json exists): {task.task_id} / {task.backend_key}")
+            print(
+                f"[{i}/{len(tasks)}] SKIP (perf_regression_gate_result.json exists): "
+                f"{task.task_id} / {task.backend_key}"
+            )
             continue
 
         launch_config = task_to_launch_config(

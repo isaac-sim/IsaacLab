@@ -97,7 +97,7 @@ def split_backend_key(backend_key: Any) -> BackendIdentity | None:
             return BackendIdentity(physics, None)
         prefix = f"{physics}_"
         if key.startswith(prefix):
-            return BackendIdentity(physics, normalize_render_backend(key[len(prefix):]))
+            return BackendIdentity(physics, normalize_render_backend(key[len(prefix) :]))
     if "_" in key:
         physics, render = key.split("_", 1)
         return identity_from_parts(physics, render)

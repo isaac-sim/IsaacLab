@@ -28,7 +28,7 @@ when throughput drops below an explicit hard floor or a MAD-derived threshold re
 1. **One source of truth** Task and backend parameters live in `tasks.json`.
    Python, shell, and GitHub Actions YAML all read from it so there is no duplication of info.
 
-2. **Modularizable** Logic should be back-end and task agnostic; backend is a data dimension in 
+2. **Modularizable** Logic should be back-end and task agnostic; backend is a data dimension in
    `tasks.json`, not a logic branch in `oracle.py`, `subprocess_runner.py`, or `task_config.py`.
    Each pipeline stage should have proper separation of concerns. Individual components should
    be agnostic to environment/call method as long as contract is maintained.
@@ -39,7 +39,7 @@ when throughput drops below an explicit hard floor or a MAD-derived threshold re
 4. **Traceability** Every stage leaves informative artifacts. Every bench job writes `perf_regression_gate_result.json`
    regardless of success or failure so the aggregator always has a structured artifact to read.
 
-5. **Lightweight** Bench jobs are only run when necessary and with minimally sufficient configs. 
+5. **Lightweight** Bench jobs are only run when necessary and with minimally sufficient configs.
   Warmed caches are pulled when needed (Newton).
 
 ---
@@ -129,14 +129,14 @@ IsaacLab/
         │                                 prints table, updates baselines, exits 0/1/2
         ├── baseline_manager.py           load/update baseline, flat-file + git variants
         ├── gate_config.py                policy constants + runtime compatibility defaults
-        ├── local_runner.py               LOCAL END-TO-END RUNNER: orchestrates Phase 1+2+3 
+        ├── local_runner.py               LOCAL END-TO-END RUNNER: orchestrates Phase 1+2+3
         |                                 without Github/Docker/cloud platform dependencies
         │
         ├── dev/
         │   ├── stub_benchmark.py         Simulates benchmark_non_rl.py for unit tests
         │   └── sim_regression.py         Injects regressed FPS artifacts for demos
         │
-        ├── docs/ 
+        ├── docs/
         │   ├── system-design.md          High-level overview
         │   ├── module-interfaces.md      Full function/CLI interface reference
         │
@@ -183,7 +183,7 @@ Called via `./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py`:
 
 Output: `benchmark_non_rl_{task_id}_{timestamp}.json` in `artifact_dir`.
 
-- Only step that depends on IsaacLab run-time.  
+- Only step that depends on IsaacLab run-time.
 - Need the `--benchmark_backend json` because the JSON backend preserves `DictMeasurement`
 objects including the raw per-step FPS list but the OmniPerf backend drops these.
 

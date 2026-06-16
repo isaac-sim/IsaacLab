@@ -43,7 +43,7 @@ class GateContext:
 
 def _strip_heads_ref(value: str) -> str:
     prefix = "refs/heads/"
-    return value[len(prefix):] if value.startswith(prefix) else value
+    return value[len(prefix) :] if value.startswith(prefix) else value
 
 
 def _truthy(value: str | None) -> bool:

@@ -36,7 +36,6 @@ if str(_MODULE_DIR) not in sys.path:
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from subprocess_runner import classify_failure_phase  # noqa: E402
 from backend_identity import (  # noqa: E402
     backend_identity_from_benchmark_info,
     backend_identity_from_launch_config,
@@ -50,6 +49,7 @@ from gate_types import FailurePhase  # noqa: E402
 from gpu_identity import normalize_gpu_fields  # noqa: E402
 from launch_config import fallback_launch_config, load_launch_config  # noqa: E402
 from runtime_contract import build_runtime_contract, build_runtime_publish_info  # noqa: E402
+from subprocess_runner import classify_failure_phase  # noqa: E402
 from task_config import get_task  # noqa: E402
 
 
@@ -192,13 +192,17 @@ def _extract_info_provenance(info_path: Path) -> dict:
                         startup_time_s = _duration_to_seconds(float(val), m.get("unit"))
                     break
 
-    gpu_diag: dict = {k: v for k, v in {
-        "gpu_name": hardware.get("gpu_name"),
-        "gpu_total_memory_gb": hardware.get("gpu_total_memory_gb"),
-        "cuda_version": hardware.get("cuda_version"),
-        "nvidia_driver_version": _gpu_driver_version(),
-        "gpu_mem_used_mb": round(gpu_mem_used_gb * 1024, 2) if gpu_mem_used_gb is not None else None,
-    }.items() if v is not None}
+    gpu_diag: dict = {
+        k: v
+        for k, v in {
+            "gpu_name": hardware.get("gpu_name"),
+            "gpu_total_memory_gb": hardware.get("gpu_total_memory_gb"),
+            "cuda_version": hardware.get("cuda_version"),
+            "nvidia_driver_version": _gpu_driver_version(),
+            "gpu_mem_used_mb": round(gpu_mem_used_gb * 1024, 2) if gpu_mem_used_gb is not None else None,
+        }.items()
+        if v is not None
+    }
 
     result: dict = {}
     result.update(fps_stats)
@@ -212,7 +216,6 @@ def _extract_info_provenance(info_path: Path) -> dict:
         "git": git,
     }
     return result
-
 
 
 # ---------------------------------------------------------------------------
@@ -336,16 +339,23 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--wall_time_s", required=True, type=float)
     p.add_argument("--timeout_s", required=True, type=float)
     p.add_argument("--log_file", type=Path, default=None)
-    p.add_argument("--launch_config", type=Path, default=None, help="Path to launch_config.json (default: artifact_dir/launch_config.json)")
+    p.add_argument(
+        "--launch_config",
+        type=Path,
+        default=None,
+        help="Path to launch_config.json (default: artifact_dir/launch_config.json)",
+    )
     p.add_argument("--gate_config", type=Path, default=_MODULE_DIR / "gate_config.json")
     p.add_argument("--attempt", type=int, default=1, help="Attempt number (1 = first run, 2 = after one retry)")
-    p.add_argument("--was_retried", action="store_true", help="Set when this result comes from a retry of a failed first attempt")
+    p.add_argument(
+        "--was_retried", action="store_true", help="Set when this result comes from a retry of a failed first attempt"
+    )
     return p.parse_args()
 
 
 def _normalize_benchmark_output(artifact_dir: Path, task_id: str) -> bool:
     """Rename the timestamped benchmark JSON to ``perf_regression_gate_info.json``
-    
+
     benchmark_non_rl.py writes ``benchmark_non_rl_{task_id}_{timestamp}.json``.
     The oracle reads ``perf_regression_gate_info.json``.  This function bridges the gap.
 
@@ -384,7 +394,8 @@ def main() -> int:
             task = get_task(args.task_id, cli_backend_key)
         except KeyError:
             print(
-                f"[build_bench_result] Warning: ({args.task_id!r}, {cli_backend_key!r}) not found in tasks.json; using defaults"
+                f"[build_bench_result] Warning: ({args.task_id!r}, {cli_backend_key!r}) not found in "
+                "tasks.json; using defaults"
             )
             task = None
         launch_config = fallback_launch_config(
