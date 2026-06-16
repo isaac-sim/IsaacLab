@@ -288,9 +288,14 @@ runs:
         # build in line with how publish-images.yaml / docker-build cache this
         # same Dockerfile. The scope isolates it from other workflows' gha caches.
         if [ -n "${{ inputs.gha-cache-scope }}" ]; then
+          # mode=min (not max): Dockerfile.base is single-stage, so there are no
+          # intermediate-stage layers for mode=max to additionally capture. min keeps
+          # the same cache-hit rate while writing far less into the repo-shared 10 GB
+          # GitHub Actions cache budget. The large Isaac Sim base image is referenced
+          # by digest and re-pulled from the registry, not stored in this cache.
           BUILD_ARGS+=(
             --cache-from "type=gha,scope=${{ inputs.gha-cache-scope }}"
-            --cache-to   "type=gha,scope=${{ inputs.gha-cache-scope }},mode=max"
+            --cache-to   "type=gha,scope=${{ inputs.gha-cache-scope }},mode=min"
           )
         fi
 
