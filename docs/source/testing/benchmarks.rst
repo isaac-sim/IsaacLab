@@ -96,20 +96,20 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides shell scripts for running benchmark suites:
+Isaac Lab provides unified entry points under ``scripts/benchmarks/``.  They default to
+``--benchmark_backend schema``, which emits a schema-v1 JSON bundle via
+:mod:`isaaclab.test.benchmark`.  ``--benchmark_backend`` accepts a comma-separated list
+(e.g. ``schema,omniperf``) to emit several formats in a single run; each backend writes its
+own timestamped output file.
 
-Non-RL Benchmarks
-~~~~~~~~~~~~~~~~~
+Non-RL / Runtime Benchmarks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Measure environment stepping performance without training:
+Measure environment stepping performance without any RL library:
 
 .. code-block:: bash
 
-   # Run all non-RL benchmarks
-   ./scripts/benchmarks/run_non_rl_benchmarks.sh ./output_dir
-
-   # Run a single benchmark manually
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
+   ./isaaclab.sh -p scripts/benchmarks/runtime.py \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --num_frames 100 \
@@ -141,10 +141,7 @@ Measure asset method and property performance using mock interfaces:
 
 .. code-block:: bash
 
-   # Run PhysX micro-benchmarks
-   ./scripts/benchmarks/run_physx_benchmarks.sh ./output_dir
-
-   # Run articulation benchmarks manually
+   # Run articulation benchmarks
    ./isaaclab.sh -p source/isaaclab_physx/benchmark/assets/benchmark_articulation.py \
        --num_iterations 1000 \
        --num_instances 4096
@@ -163,7 +160,7 @@ understanding where time is spent during initialization.
 .. code-block:: bash
 
    # Basic usage — reports top 30 functions per phase
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
+   ./isaaclab.sh -p scripts/benchmarks/startup.py \
        --task Isaac-Ant \
        --num_envs 4096 \
        --benchmark_formatter summary
@@ -201,7 +198,7 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
+   ./isaaclab.sh -p scripts/benchmarks/startup.py \
        --task Isaac-Ant \
        --num_envs 4096 \
        --benchmark_formatter omniperf \
@@ -234,8 +231,8 @@ A default whitelist is provided at ``scripts/benchmarks/startup_whitelist.yaml``
      - None
      - Path to YAML whitelist file
    * - ``--benchmark_formatter``
-     - ``omniperf``
-     - Output formatter (``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``)
+     - ``schema``
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
    * - ``--output_path``
      - ``.``
      - Directory for output files
@@ -254,14 +251,14 @@ Common Arguments
      - Default
      - Description
    * - ``--benchmark_formatter``
-     - ``json``
-     - Output formatter: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
+     - ``schema``
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
    * - ``--output_path``
      - ``./``
      - Directory for output files
 
-Non-RL Benchmark Arguments
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Non-RL / Runtime Benchmark Arguments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -274,7 +271,7 @@ Non-RL Benchmark Arguments
      - required
      - Environment task name (e.g., ``Isaac-Cartpole``)
    * - ``--num_envs``
-     - ``4096``
+     - ``None`` (task config)
      - Number of parallel environments
    * - ``--num_frames``
      - ``100``
@@ -632,14 +629,16 @@ Step 4: Finalize
 Integration with CI/CD
 ----------------------
 
-The shell scripts in ``scripts/benchmarks/`` are designed for CI/CD integration:
+The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD integration:
 
 .. code-block:: bash
 
    # GitHub Actions / GitLab CI example
-   - name: Run Benchmarks
+   - name: Run Runtime Benchmark
      run: |
-       ./scripts/benchmarks/run_non_rl_benchmarks.sh ./benchmark_results
+       ./isaaclab.sh -p scripts/benchmarks/runtime.py \
+           --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
+           --benchmark_backend json --output_path ./benchmark_results
 
    - name: Upload Results
      uses: actions/upload-artifact@v3
@@ -651,7 +650,9 @@ For Osmo integration, use the ``osmo`` formatter:
 
 .. code-block:: bash
 
-   ./scripts/benchmarks/run_non_rl_benchmarks.sh ./results
+   ./isaaclab.sh -p scripts/benchmarks/runtime.py \
+       --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
+       --benchmark_backend osmo --output_path ./results
    # Results are in Osmo-compatible JSON format
 
 Troubleshooting
@@ -697,7 +698,7 @@ Ensure ``_finalize_impl()`` is called before the script exits:
 Formatter Not Recognized
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-Valid formatter types are: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
+Valid formatter types are: ``schema``, ``json``, ``osmo``, ``omniperf``, or ``summary``
 
 .. code-block:: bash
 

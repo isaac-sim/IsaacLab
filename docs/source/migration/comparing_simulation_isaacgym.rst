@@ -40,7 +40,7 @@ arguments. It is important that the ``omniPvdOvdRecordingDirectory`` variable is
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task <task_name> \
+    ./isaaclab.sh -p scripts/benchmarks/runtime.py --task <task_name> \
         --kit_args="--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/myovds/ \
         --/physics/omniPvdOutputEnabled=true"
 
