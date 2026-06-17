@@ -489,11 +489,6 @@
     "comment": "NVIDIA"
   },
   {
-    "package": "cumotion",
-    "license": "NVIDIA Proprietary",
-    "comment": "NVIDIA cuMotion Isaac Sim extension."
-  },
-  {
     "package": "omniverseclient",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
     "comment": "NVIDIA"
@@ -512,47 +507,5 @@
     "package": "pytetwild",
     "license": "Mozilla Public License 2.0 (MPL 2.0)",
     "comment": "MPL-2.0 / OSRB"
-  },
-  {
-    "package": "build-essential",
-    "source": "apt",
-    "license": "GPL",
-    "comment": "Docker build dependency for the compiler toolchain."
-  },
-  {
-    "package": "cmake",
-    "source": "apt",
-    "license": "Apache-2.0; BSD-0-Clause; BSD-2-Clause; BSD-2-Clause or ISC; BSD-3-Clause; BSD-3-clause; BSD-4-Clause; Expat; FSFAP; GPL-2+ with Bison exception; GPL-3+ with Bison exception; ISC; Zlib",
-    "comment": "Docker build dependency for CMake-based packages."
-  },
-  {
-    "package": "git",
-    "source": "apt",
-    "license": "Apache-2.0; BSD-3-clause; Boost; EDL-1.0; Expat; GPL-1+ or Artistic-1; GPL-2; GPL-2+; ISC; LGPL-2+; LGPL-2.1+; Zlib; dlmalloc; mingw-runtime",
-    "comment": "Docker build dependency used to support source-based workflows."
-  },
-  {
-    "package": "libglib2.0-0",
-    "source": "apt",
-    "license": "AFL-2.0; AFL-2.0 or LGPL-2.1+; Apache-2.0 with LLVM exception; CC-BY-SA-3.0; CC0-1.0; CC0-1.0 or Mingw-PD; Expat; FSFULLR; GPL-2+; Iconv-PD; Janik-permissive; Janik-permissive and old-glib-tests; Kuchling-PD; LGPL-2+; LGPL-2.1+; LGPL-2.1+ and Kuchling-PD and Plumb-PD; LGPL-3+; Mingw-PD; Plumb-PD; Unicode-DFS-2016; bzip2-1.0.6; cmph; old-glib-tests",
-    "comment": "Docker runtime dependency required by Isaac Sim."
-  },
-  {
-    "package": "libglib2.0-0t64",
-    "source": "apt",
-    "license": "AFL-2.0; AFL-2.0 or LGPL-2.1+; Apache-2.0 with LLVM exception; CC-BY-SA-3.0; CC0-1.0; CC0-1.0 or Mingw-PD; Expat; FSFULLR; GPL-2+; Iconv-PD; Janik-permissive; Janik-permissive and old-glib-tests; Kuchling-PD; LGPL-2+; LGPL-2.1+; LGPL-2.1+ and Kuchling-PD and Plumb-PD; LGPL-3+; Mingw-PD; Plumb-PD; Unicode-DFS-2016; bzip2-1.0.6; cmph; old-glib-tests",
-    "comment": "Ubuntu 24.04 binary package for the libglib2.0-0 dependency."
-  },
-  {
-    "package": "ncurses-term",
-    "source": "apt",
-    "license": "BSD-3-clause; MIT/X11; X11",
-    "comment": "Docker runtime dependency for terminal definitions."
-  },
-  {
-    "package": "wget",
-    "source": "apt",
-    "license": "GPL",
-    "comment": "Docker build dependency used for fetching artifacts."
   }
 ]

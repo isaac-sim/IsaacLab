@@ -238,10 +238,6 @@ runs:
           echo "🔵 Tagging as commit image ${ECR_IMAGE}..."
           docker buildx imagetools create -t "${ECR_IMAGE}" "${DEPS_ECR_IMAGE}"
           echo "🟢 Tagged ${ECR_IMAGE} >> ${DEPS_ECR_IMAGE}"
-          echo "🔵 Pulling ${DEPS_ECR_IMAGE} for local Docker use..."
-          docker pull "${DEPS_ECR_IMAGE}"
-          docker tag "${DEPS_ECR_IMAGE}" "${{ inputs.image-tag }}"
-          echo "🟢 Image pulled and tagged as ${{ inputs.image-tag }}"
           echo "deps-cache-hit=true" >> "$GITHUB_OUTPUT"
         else
           echo "🟠 Deps cache MISS 😿😿😿 (${DEPS_HASH}). Will build now. 🐢🐢🐢"
