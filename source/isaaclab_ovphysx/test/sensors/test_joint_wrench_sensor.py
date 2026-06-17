@@ -52,6 +52,10 @@ from isaaclab_assets.robots.ant import ANT_CFG  # noqa: E402
 
 wp.init()
 
+# OVPhysX/Warp and the PyTorch reference use different float32 operation order on CUDA.
+_OVPHYSX_WRENCH_RTOL = 5e-6
+_OVPHYSX_WRENCH_ATOL = 1e-5
+
 # ---------------------------------------------------------------------------
 # Device-lock autouse fixture (copied from test_contact_sensor.py)
 # ---------------------------------------------------------------------------
@@ -219,8 +223,12 @@ def _assert_sensor_matches_ovphysx_tensor(sensor: JointWrenchSensor) -> None:
     sensor_data = sensor.data
 
     expected_force, expected_torque = _ovphysx_incoming_joint_wrench_in_joint_frame(sensor, raw_wrench)
-    torch.testing.assert_close(sensor_data.force.torch, expected_force)
-    torch.testing.assert_close(sensor_data.torque.torch, expected_torque)
+    torch.testing.assert_close(
+        sensor_data.force.torch, expected_force, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
+    )
+    torch.testing.assert_close(
+        sensor_data.torque.torch, expected_torque, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
+    )
 
 
 def _ovphysx_incoming_joint_wrench_in_joint_frame(
@@ -376,8 +384,12 @@ def test_non_identity_joint_frame_transform(sim, device):
 
     raw_wrench = _ovphysx_incoming_joint_wrench(sensor)
     expected_force, expected_torque = _ovphysx_incoming_joint_wrench_in_joint_frame(sensor, raw_wrench)
-    torch.testing.assert_close(sensor.data.force.torch, expected_force)
-    torch.testing.assert_close(sensor.data.torque.torch, expected_torque)
+    torch.testing.assert_close(
+        sensor.data.force.torch, expected_force, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
+    )
+    torch.testing.assert_close(
+        sensor.data.torque.torch, expected_torque, rtol=_OVPHYSX_WRENCH_RTOL, atol=_OVPHYSX_WRENCH_ATOL
+    )
 
     raw_force = raw_wrench[:, arm_idx, :3]
     raw_torque = raw_wrench[:, arm_idx, 3:]

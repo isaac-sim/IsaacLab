@@ -16,9 +16,9 @@ from pxr import UsdGeom
 import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
-from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_physx.physics import PhysxManager as SimulationManager
+import isaaclab_ovphysx.tensor_types as TT
+from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
 
 from .kernels import pva_reset_kernel, pva_update_kernel
 from .pva_data import PvaData
@@ -28,38 +28,32 @@ if TYPE_CHECKING:
 
 
 class Pva(BasePva):
-    """The PhysX Pose Velocity Acceleration (PVA) sensor.
+    """The OVPhysX Pose Velocity Acceleration (PVA) sensor.
 
-    The sensor can be attached to any prim path with a rigid ancestor in its tree and produces body-frame
-    linear acceleration and angular velocity, along with world-frame pose and body-frame linear and angular
-    accelerations/velocities.
+    The sensor reports world-frame pose, body-frame linear and angular velocities,
+    body-frame linear and angular accelerations, and projected gravity. Unlike the
+    :class:`~isaaclab.sensors.imu.BaseImu` sensor, linear acceleration here is the
+    coordinate acceleration of the sensor frame (zero at rest, ``-g`` in freefall)
+    and does not include the gravity bias.
 
-    If the provided path is not a rigid body, the closest rigid-body ancestor is used for simulation queries.
-    The fixed transform from that ancestor to the target prim is computed once during initialization and
-    composed with the configured sensor offset.
-
-    .. note::
-
-        We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        PVA sensor accuracy depends on the chosen physx timestep. For a sufficient accuracy, we recommend to keep the
-        timestep at least as 200Hz.
+    The sensor can be attached to any prim path with a rigid ancestor in its tree.
+    If the provided path is not a rigid body, the closest rigid-body ancestor is
+    used for simulation queries. The fixed transform from that ancestor to the
+    target prim is computed once during initialization and composed with the
+    configured sensor offset.
 
     .. note::
 
-        The user can configure the sensor offset in the configuration file. The offset is applied relative to the
-        rigid source prim. If the target prim is not a rigid body, the offset is composed with the fixed transform
-        from the rigid ancestor to the target prim. The offset is applied in the body frame of the rigid source prim.
-        The offset is defined as a position vector and a quaternion rotation, which
-        are applied in the order: position, then rotation. The position is applied as a translation
-        in the body frame of the rigid source prim, and the rotation is applied as a rotation
-        in the body frame of the rigid source prim.
-
+        Linear and angular accelerations are computed using numerical differentiation
+        of the corresponding velocities. Consequently, the PVA sensor accuracy
+        depends on the chosen physics timestep. For sufficient accuracy, we
+        recommend keeping the timestep at least 200 Hz.
     """
 
     cfg: PvaCfg
     """The configuration parameters."""
 
-    __backend_name__: str = "physx"
+    __backend_name__: str = "ovphysx"
     """The name of the backend for the PVA sensor."""
 
     def __init__(self, cfg: PvaCfg):
@@ -68,21 +62,20 @@ class Pva(BasePva):
         Args:
             cfg: The configuration parameters.
         """
-        # initialize base class
         super().__init__(cfg)
-        # Create empty variables for storing output data
         self._data = PvaData()
-
-        # Internal: expression used to build the rigid body view (may be different from cfg.prim_path)
         self._rigid_parent_expr: str | None = None
+        # Sentinel — set in :meth:`_initialize_impl`; ``None`` means the sensor has not been bound yet
+        # (used by :meth:`_debug_vis_callback` to safely no-op before init).
+        self._pose_binding = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
         return (
-            f"PVA sensor @ '{self.cfg.prim_path}': \n"
-            f"\tview type         : {self._view.__class__}\n"
+            f"Pva sensor @ '{self.cfg.prim_path}': \n"
+            f"\tbinding pattern   : {self._rigid_parent_expr}\n"
             f"\tupdate period (s) : {self.cfg.update_period}\n"
-            f"\tnumber of sensors : {self._view.count}\n"
+            f"\tnumber of sensors : {self._num_bodies}\n"
         )
 
     """
@@ -91,23 +84,19 @@ class Pva(BasePva):
 
     @property
     def data(self) -> PvaData:
-        # update sensors if needed
         self._update_outdated_buffers()
-        # return the data
         return self._data
 
     @property
     def num_instances(self) -> int:
-        return self._view.count
+        return self._num_bodies
 
     """
     Operations
     """
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
-        # resolve indices and mask
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
-        # reset the timestamps
         super().reset(None, env_mask)
 
         wp.launch(
@@ -129,9 +118,7 @@ class Pva(BasePva):
         )
 
     def update(self, dt: float, force_recompute: bool = False):
-        # save timestamp
         self._dt = dt
-        # execute updating
         super().update(dt, force_recompute)
 
     """
@@ -141,36 +128,46 @@ class Pva(BasePva):
     def _initialize_impl(self):
         """Initializes the sensor handles and internal buffers.
 
-        - If the target prim path is a rigid body, build the view directly on it.
-        - Otherwise find the closest rigid-body ancestor, cache the fixed transform from that ancestor
-          to the target prim, and build the view on the ancestor expression.
+        - If the target prim path is a rigid body, bind directly to it.
+        - Otherwise find the closest rigid-body ancestor, cache the fixed transform
+          from that ancestor to the target prim, and bind to the ancestor pattern.
         """
-        # Initialize parent class
         super()._initialize_impl()
-        # obtain global simulation view
-        self._physics_sim_view = SimulationManager.get_physics_sim_view()
+
+        physx_instance = SimulationManager.get_physx_instance()
+        if physx_instance is None:
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
 
         self._rigid_parent_expr, fixed_pos_b, fixed_quat_b = self._resolve_rigid_body_ancestor_expr()
-        # Create the rigid body view on the ancestor
-        self._view = self._physics_sim_view.create_rigid_body_view(self._rigid_parent_expr.replace(".*", "*"))
 
-        # Get world gravity
-        gravity = self._physics_sim_view.get_gravity()
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
+        # Translate the regex-style path expression to an ovphysx fnmatch glob.
+        pattern = self._rigid_parent_expr.replace(".*", "*")
+
+        self._pose_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
+        self._vel_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_VELOCITY)
+        self._com_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_COM_POSE)
+        self._num_bodies = self._pose_binding.count
+
+        if self._num_bodies != self._num_envs:
+            raise ValueError(
+                f"OvPhysx Pva: pattern '{pattern}' matched {self._num_bodies} rigid bodies; expected exactly one"
+                f" body per environment (num_envs={self._num_envs}). Check that the prim path or its rigid-body"
+                " ancestor is unique per env."
+            )
+
+        # PVA reports projected gravity as the unit direction vector (not the bias the IMU uses).
+        gravity = SimulationManager.get_gravity()
+        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self._device)
         gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
-        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
+        gravity_dir_repeated = gravity_dir.repeat(self._num_bodies, 1)
+        self._gravity_vec_w = wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f)
 
-        # Create internal buffers
         self._initialize_buffers_impl()
 
-        # Compose the configured offset with the fixed ancestor->target transform (done once)
-        # new_offset = fixed * cfg.offset
-        # where composition is: p = p_fixed + R_fixed * p_cfg, q = q_fixed * q_cfg
+        # Compose the configured offset with the fixed ancestor->target transform (done once).
         if fixed_pos_b is not None and fixed_quat_b is not None:
-            # Broadcast fixed transform across instances
-            fixed_p = torch.tensor(fixed_pos_b, device=self._device).repeat(self._view.count, 1)
-            fixed_q = torch.tensor(fixed_quat_b, device=self._device).repeat(self._view.count, 1)
+            fixed_p = torch.tensor(fixed_pos_b, device=self._device).repeat(self._num_bodies, 1)
+            fixed_q = torch.tensor(fixed_quat_b, device=self._device).repeat(self._num_bodies, 1)
 
             cfg_p = wp.to_torch(self._offset_pos_b).clone()
             cfg_q = wp.to_torch(self._offset_quat_b).clone()
@@ -185,23 +182,27 @@ class Pva(BasePva):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # Fetch view data as warp typed arrays
-        transforms = self._view.get_transforms().view(wp.transformf)
-        velocities = self._view.get_velocities().view(wp.spatial_vectorf)
-        # get_coms() returns a CPU warp array; copy to pre-allocated GPU buffer
-        wp.copy(self._coms_buffer, self._view.get_coms().view(wp.transformf))
+        # ovphysx ``binding.read(dst)`` writes into the pre-allocated dst buffer;
+        # ``_*_view`` are float32 aliases of the structured-dtype buffers below.
+        self._pose_binding.read(self._transforms_view)
+        self._vel_binding.read(self._velocities_view)
+        # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
+        # For GPU simulations, stage on CPU then copy into the kernel buffer.
+        self._com_binding.read(self._coms_read_view)
+        if self._coms_read_view is not self._coms_gpu_view:
+            wp.copy(self._coms_gpu_view, self._coms_read_view)
 
         wp.launch(
             pva_update_kernel,
             dim=self._num_envs,
             inputs=[
                 env_mask,
-                transforms,
-                velocities,
+                self._transforms,
+                self._velocities,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
-                self.GRAVITY_VEC_W,
+                self._gravity_vec_w,
                 1.0 / self._dt,
                 self._timestamp,
                 self._prev_lin_vel_w,
@@ -219,40 +220,60 @@ class Pva(BasePva):
 
     def _initialize_buffers_impl(self):
         """Create buffers for storing data."""
-        # Create data buffers via data class
-        self._data.create_buffers(num_envs=self._view.count, device=self._device)
+        self._data.create_buffers(num_envs=self._num_bodies, device=self._device)
 
-        # Sensor-internal buffers for velocity tracking (not exposed via data)
-        self._prev_lin_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
-        self._prev_ang_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
+        # Sensor-internal buffers for velocity tracking (not exposed via data).
+        self._prev_lin_vel_w = wp.zeros(self._num_bodies, dtype=wp.vec3f, device=self._device)
+        self._prev_ang_vel_w = wp.zeros(self._num_bodies, dtype=wp.vec3f, device=self._device)
 
-        # Store sensor offset (applied relative to rigid source).
-        # This may be composed later with a fixed ancestor->target transform.
-        offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
-        offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._view.count, 1)
+        offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._num_bodies, 1)
+        offset_quat_torch = torch.tensor(list(self.cfg.offset.rot), device=self._device).repeat(self._num_bodies, 1)
         self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
         self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
 
-        # Pre-allocate GPU buffer for COMs (get_coms() returns CPU array)
-        self._coms_buffer = wp.zeros(self._view.count, dtype=wp.transformf, device=self._device)
+        # Structured-dtype buffers consumed by the kernel.
+        self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
+        self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
+        self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
+
+        self._transforms_view = wp.array(
+            ptr=self._transforms.ptr,
+            shape=self._pose_binding.shape,
+            dtype=wp.float32,
+            device=self._device,
+            copy=False,
+        )
+        self._velocities_view = wp.array(
+            ptr=self._velocities.ptr,
+            shape=self._vel_binding.shape,
+            dtype=wp.float32,
+            device=self._device,
+            copy=False,
+        )
+        self._coms_gpu_view = wp.array(
+            ptr=self._coms_buffer.ptr,
+            shape=self._com_binding.shape,
+            dtype=wp.float32,
+            device=self._device,
+            copy=False,
+        )
+        if self._device == "cpu":
+            self._coms_read_view = self._coms_gpu_view
+        else:
+            self._coms_read_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu", pinned=True)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        # set visibility of markers
-        # note: parent only deals with callbacks. not their visibility
         if debug_vis:
-            # create markers if necessary for the first time
             if not hasattr(self, "acceleration_visualizer"):
                 self.acceleration_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
-            # set their visibility to true
             self.acceleration_visualizer.set_visibility(True)
         else:
             if hasattr(self, "acceleration_visualizer"):
                 self.acceleration_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
-        # safely return if view becomes invalid
-        # note: this invalidity happens because of isaac sim view callbacks
-        if self._view is None:
+        # safely return if the sensor has not been bound yet (matches the PhysX `_view is None` idiom)
+        if self._pose_binding is None:
             return
         # get marker location
         # -- base state (convert warp -> torch for visualization)
