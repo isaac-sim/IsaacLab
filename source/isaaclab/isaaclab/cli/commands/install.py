@@ -80,20 +80,13 @@ def _install_system_deps() -> None:
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
         # nlopt has no aarch64 manylinux wheel for the version pinned by
-        # isaacteleop[retargeters], so pip falls back to a CMake source build
-        # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
+        # isaacteleop[retargeters]. The installer pre-installs nlopt below to
+        # avoid the CMake source-build fallback that would require SWIG.
         if not shutil.which("swig"):
-            if os.geteuid() != 0 and not shutil.which("sudo"):
-                print_info(
-                    "swig is missing and sudo is unavailable; skipping swig install. "
-                    "Pre-install swig in your image if you need to build nlopt from source."
-                )
-            else:
-                print_info("Installing swig (required for building nlopt on ARM)...")
-                cmd = ["apt-get", "update"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-                cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
+            print_info(
+                "swig is missing; continuing because nlopt is pre-installed on ARM before optional "
+                "dependencies are resolved. Pre-install swig manually only if you need to build nlopt from source."
+            )
 
         # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a
         # CMake source build that needs GL/X11 dev headers (via glfw).
