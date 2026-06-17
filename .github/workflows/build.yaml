@@ -234,29 +234,44 @@ jobs:
         set -euo pipefail
         rm -rf license-reports
         mkdir -p license-reports
-        chmod 0777 license-reports
-        docker run --rm --network=host \
+        container_id="$(docker create --network=host \
           -e OMNI_KIT_ACCEPT_EULA=Y \
           -e ACCEPT_EULA=Y \
           -e ISAACSIM_ACCEPT_EULA=YES \
-          -v "$PWD":/workspace/isaaclab \
+          -v "$PWD":/workspace/isaaclab:ro \
           --entrypoint bash \
           "${CI_IMAGE_TAG}" \
           -lc '
             set -euo pipefail
+            mkdir -p /tmp/license-reports
             cd /workspace/isaaclab
-            cat "${ISAACLAB_BASE_APT_MANUAL_FILE}" > license-reports/base-apt-manual.txt
-            apt-mark showmanual | sort > license-reports/docker-apt-manual.txt
-            dpkg-query -W -f="\${binary:Package}\t\${Version}\n" | sort > license-reports/docker-apt-versions.txt
+            cat "${ISAACLAB_BASE_APT_MANUAL_FILE}" > /tmp/license-reports/base-apt-manual.txt
+            apt-mark showmanual | sort > /tmp/license-reports/docker-apt-manual.txt
+            dpkg-query -W -f="\${binary:Package}\t\${Version}\n" | sort > /tmp/license-reports/docker-apt-versions.txt
             /isaac-sim/python.sh tools/check_dependency_licenses.py pip \
               --collector importlib \
-              --output-json license-reports/docker-pip-licenses.json \
-              --output-markdown license-reports/docker-pip-licenses.md \
-              --skipped-metadata-output license-reports/docker-pip-skipped-metadata.txt \
+              --output-json /tmp/license-reports/docker-pip-licenses.json \
+              --output-markdown /tmp/license-reports/docker-pip-licenses.md \
+              --skipped-metadata-output /tmp/license-reports/docker-pip-skipped-metadata.txt \
               --exceptions-file .github/workflows/license-exceptions.json \
               --report-label "docker pip metadata capture" \
               --report-only
-          '
+            test -s /tmp/license-reports/base-apt-manual.txt
+            test -s /tmp/license-reports/docker-pip-licenses.json
+          ')"
+        set +e
+        docker start -a "${container_id}"
+        status="$(docker inspect "${container_id}" --format "{{.State.ExitCode}}")"
+        docker cp "${container_id}:/tmp/license-reports/." license-reports/
+        copy_status="$?"
+        docker rm -f "${container_id}" >/dev/null 2>&1
+        set -e
+        if [ "${copy_status}" -ne 0 ]; then
+          exit "${copy_status}"
+        fi
+        if [ "${status}" -ne 0 ]; then
+          exit "${status}"
+        fi
 
     - name: Check Docker pip package licenses
       shell: bash
