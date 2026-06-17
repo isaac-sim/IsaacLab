@@ -1,0 +1,189 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Seed the perf-baselines branch from real commit history.
+#
+# This is the deployment-simulation counterpart to the live gate: instead of
+# benchmarking one PR head, it walks a slice of a protected branch's history,
+# re-runs each commit's own benchmark inside the CI image (source-mounted so the
+# container git-tags the real commit), and appends the results to perf-baselines.
+# The samples are keyed by their real commit SHA, so the gate's merge-base /
+# ancestry isolation has a populated, branch-correct baseline to compare against.
+#
+# Requires the prebuilt-image fast path: set repo variable PERF_GATE_CI_IMAGE to
+# the published CI image (GHCR first, NGC/NVCR fallback). Without it there is no
+# image to source-mount into, and the job fails fast with a clear message.
+#
+# Manual dispatch only — seeding writes to perf-baselines and burns GPU time, so
+# it should never run automatically.
+
+name: Performance Gate - Seed Baselines
+
+on:
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Branches to seed in one run (comma/space separated). Use 'branch:target' to override the stamp. Empty = use commit_branch/commits."
+        required: false
+        default: "develop, unified-POC"
+      commits:
+        description: "Explicit commit SHAs/refs (space/comma separated). Used only when branches is empty."
+        required: false
+        default: ""
+      commit_branch:
+        description: "Single branch to seed when branches and commits are empty."
+        required: false
+        default: "develop"
+      commit_count:
+        description: "Number of recent commits to seed from commit_branch."
+        required: false
+        default: "5"
+      samples_per_commit:
+        description: "Benchmark repetitions per commit/backend."
+        required: false
+        default: "5"
+      tasks:
+        description: "Comma-separated task_id allowlist (empty = all tasks.json tasks)."
+        required: false
+        default: "Isaac-Cartpole-Direct"
+      backends:
+        description: "Comma-separated backend_key allowlist (empty = all backends)."
+        required: false
+        default: ""
+      target_branch:
+        description: "Protected branch stamped onto each seeded sample."
+        required: false
+        default: "develop"
+      dry_run:
+        description: "Run benchmarks + build samples but DO NOT push to perf-baselines."
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  # Serialize seeding so concurrent pushes can't race the append-only baseline branch.
+  group: perf-gate-seed
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # push appended samples to the perf-baselines branch
+  packages: read    # pull the prebuilt CI image from GHCR (PERF_GATE_CI_IMAGE)
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  CI_IMAGE_TAG: isaac-lab-ci:seed-${{ github.run_id }}
+
+jobs:
+  seed:
+    name: Seed baselines (${{ inputs.commit_branch }} x${{ inputs.commit_count }})
+    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    timeout-minutes: 600
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        # Full history so historical commits are resolvable and ancestry checks work.
+        fetch-depth: 0
+        lfs: true
+
+    # Make the seed/target branch history and the baseline branch available to the
+    # orchestrator. The repo only auto-fetches the checked-out ref, so pull these
+    # explicitly; the clone the orchestrator makes draws its objects from here.
+    - name: Fetch seed + baseline refs
+      env:
+        SEED_BRANCHES: ${{ inputs.branches }}
+        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch }}
+      run: |
+        set -euo pipefail
+        # Collect every branch we might seed from: the multi-branch list (stripping
+        # any ':target' suffix) plus the single-branch fallback. Fetch each so the
+        # orchestrator's clone can resolve their commits offline.
+        BRANCHES="${SEED_BRANCHES//,/ } ${SEED_COMMIT_BRANCH}"
+        for entry in ${BRANCHES}; do
+          BRANCH="${entry%%:*}"
+          [ -z "${BRANCH}" ] && continue
+          git fetch --no-tags origin "+refs/heads/${BRANCH}:refs/remotes/origin/${BRANCH}" || \
+            echo "::warning::Could not fetch ${BRANCH}; skipping (explicit commits may still work)"
+        done
+        git fetch --no-tags origin "+refs/heads/perf-baselines:refs/remotes/origin/perf-baselines" || \
+          echo "::notice::perf-baselines not found yet; first seed run will create it"
+
+    - name: Require prebuilt CI image
+      if: ${{ vars.PERF_GATE_CI_IMAGE == '' }}
+      run: |
+        echo "::error::PERF_GATE_CI_IMAGE is not set. Seeding source-mounts the published"
+        echo "::error::CI image; publish one (perf-gate-publish-image) and set the variable."
+        exit 1
+
+    # Pull the published CI image and retag it locally (mirrors the gate's override path).
+    - name: Pull prebuilt CI image
+      env:
+        OVERRIDE_IMAGE: ${{ vars.PERF_GATE_CI_IMAGE }}
+      run: |
+        set -euo pipefail
+
+        # The runner's docker credential store backend is broken ("not implemented"),
+        # so disable credsStore before any login (same trick as ecr-build-push-pull).
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        REGISTRY="${OVERRIDE_IMAGE%%/*}"
+        case "${REGISTRY}" in
+          ghcr.io)
+            echo "🔵 Logging into ghcr.io..."
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            ;;
+          nvcr.io)
+            if [ -n "${NGC_API_KEY:-}" ]; then
+              echo "🔵 Logging into nvcr.io..."
+              echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+            else
+              echo "::warning::NGC_API_KEY not set; attempting anonymous pull from nvcr.io"
+            fi
+            ;;
+          *)
+            echo "::notice::No known login for registry '${REGISTRY}'; attempting anonymous pull"
+            ;;
+        esac
+
+        echo "🔵 Pulling prebuilt image ${OVERRIDE_IMAGE}..."
+        docker pull "${OVERRIDE_IMAGE}"
+        docker tag "${OVERRIDE_IMAGE}" "${{ env.CI_IMAGE_TAG }}"
+        echo "🟢 Tagged ${OVERRIDE_IMAGE} as ${{ env.CI_IMAGE_TAG }}"
+        rm -rf "${DOCKER_CONFIG_DIR}"
+
+    - name: Seed baselines from commit history
+      run: |
+        set -euo pipefail
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        python3 tools/perf_regression_gate/seed_baselines.py \
+          --branches "${{ inputs.branches }}" \
+          --commits "${{ inputs.commits }}" \
+          --commit_branch "${{ inputs.commit_branch }}" \
+          --commit_count "${{ inputs.commit_count }}" \
+          --samples_per_commit "${{ inputs.samples_per_commit }}" \
+          --tasks "${{ inputs.tasks }}" \
+          --backends "${{ inputs.backends }}" \
+          --image "${{ env.CI_IMAGE_TAG }}" \
+          --gpu_model "${GPU_MODEL}" \
+          --target_branch "${{ inputs.target_branch }}" \
+          --baseline_branch perf-baselines \
+          --baseline_remote origin \
+          --baseline_push_retries 3 \
+          --workdir "${{ github.workspace }}" \
+          --artifacts_root seed-artifacts \
+          --source_mount true \
+          --dry_run "${{ inputs.dry_run }}"
+
+    - name: Upload seed artifacts
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: seed-baselines-${{ github.run_id }}
+        path: seed-artifacts/
+        retention-days: 7
+        if-no-files-found: warn
