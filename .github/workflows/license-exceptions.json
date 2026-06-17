@@ -304,6 +304,11 @@
     "comment": "SciPy wheel metadata includes BSD SciPy/OpenBLAS notices plus bundled GCC runtime exception and libquadmath notices."
   },
   {
+    "package": "docutils",
+    "license": "BSD License; GNU General Public License (GPL); Public Domain; Python Software Foundation License",
+    "comment": "Docutils is multi-licensed; Isaac Lab uses the permissive Public Domain/BSD/PSF license options."
+  },
+  {
     "package": "Markdown",
     "license": "UNKNOWN",
     "comment": "BSD"
