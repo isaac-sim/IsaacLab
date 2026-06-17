@@ -9,28 +9,15 @@
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_pva.py
 but runs kitless under ./isaaclab.sh -p -m pytest — no AppLauncher needed.
-SimulationContext is instantiated directly (it does not require Kit), and
-UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
-omni.client (which works standalone in Kit's Python).
+SimulationContext is instantiated directly (it does not require Kit).
 
 Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
 ``test_indirect_attachment``) are skipped pending a USD-converted pendulum
 asset. URDF→USD conversion requires the Kit URDF importer extension, which
 is not loaded under the direct ./isaaclab.sh -p runner.
 
-Process-global wheel state: like the IMU test, this file mixes procedural
-USD assets (``test_constant_velocity``, ``test_constant_acceleration``,
-``test_attachment_validity``, ``test_sensor_print``) with Nucleus assets
-(``test_offset_calculation``, ``test_env_ids_propagation``). The ovphysx
-wheel keeps some loader state across :class:`SimulationContext` instances
-in the same process, so running both categories in a single pytest
-invocation can fail with an ``omni.client`` symbol-resolution error after
-the first Nucleus-asset test. Run them in two passes if needed:
-
-* ``pytest ... -k 'velocity or acceleration or attachment or print'``
-* ``pytest ... -k 'offset or env_ids'``
-
-Each test passes individually and within its own category.
+All tests use procedural USD assets so the kitless suite does not depend on
+Nucleus or ``omni.client`` loader state.
 """
 
 from __future__ import annotations
@@ -60,13 +47,11 @@ from isaaclab_ovphysx.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
-from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E402
+from isaaclab.assets import RigidObject, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.pva import Pva, PvaCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
-
-from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
 wp.init()
 
@@ -79,13 +64,15 @@ pytestmark = pytest.mark.device_split
 NUM_ENVS = 2
 """Number of environment instances spawned in each test scene."""
 
-# offset of imu_link from base_link on anymal_c
-POS_OFFSET = (0.2488, 0.00835, 0.04628)
-ROT_OFFSET = (0, 0, 0.7071068, 0.7071068)
+MOUNT_POS_OFFSET = (0.4, 0.0, 0.1)
+"""Known position offset from the rigid cube to the procedural PVA child frame [m]."""
+
+MOUNT_ROT_OFFSET = (0.5, 0.5, 0.5, 0.5)
+"""Known rotation offset from the rigid cube to the procedural PVA child frame."""
 
 
 # ---------------------------------------------------------------------------
-# Scene-builder helpers (real backend, Nucleus / procedural USD assets)
+# Scene-builder helpers (real backend, procedural USD assets)
 # ---------------------------------------------------------------------------
 
 
@@ -141,20 +128,15 @@ def _spawn_cubes(num_envs: int, height: float = 0.5) -> RigidObject:
     return RigidObject(cfg)
 
 
-def _spawn_anymal(num_envs: int) -> Articulation:
-    """Spawn the Anymal-C articulation at ``/World/env_<i>/robot`` for each env.
-
-    Uses :data:`~isaaclab_assets.robots.anymal.ANYMAL_C_CFG` directly so the
-    actuator and init-state configuration matches the PhysX reference test.
-    The :class:`Articulation` performs the per-env spawn itself once the env
-    Xform containers exist; :func:`_spawn_envs` must be called first.
-    """
-    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_.*/robot")
-    cfg.init_state.pos = (0.0, 2.0, 1.0)
-    # bump solver iteration counts to match the PhysX test's scene cfg
-    cfg.spawn.articulation_props.solver_position_iteration_count = 32
-    cfg.spawn.articulation_props.solver_velocity_iteration_count = 32
-    return Articulation(cfg)
+def _add_pva_mount_xforms(num_envs: int, parent_name: str = "cube", child_name: str = "pva_mount") -> None:
+    """Add a procedural non-physics child Xform under each rigid body."""
+    for i in range(num_envs):
+        sim_utils.create_prim(
+            f"/World/env_{i}/{parent_name}/{child_name}",
+            "Xform",
+            translation=MOUNT_POS_OFFSET,
+            orientation=MOUNT_ROT_OFFSET,
+        )
 
 
 def _make_pva(prim_path: str, offset: PvaCfg.OffsetCfg | None = None) -> Pva:
@@ -266,8 +248,8 @@ def test_constant_velocity(sim_ctx, device):
         velocity = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
             NUM_ENVS, 1
         )
-        balls.write_root_velocity_to_sim(velocity)
-        cubes.write_root_velocity_to_sim(velocity)
+        balls.write_root_velocity_to_sim_index(root_velocity=velocity)
+        cubes.write_root_velocity_to_sim_index(root_velocity=velocity)
         # write data to sim
         balls.write_data_to_sim()
         cubes.write_data_to_sim()
@@ -350,7 +332,7 @@ def test_constant_acceleration(sim_ctx, device):
         velocity = torch.tensor([[0.1, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
             NUM_ENVS, 1
         ) * (idx + 1)
-        balls.write_root_velocity_to_sim(velocity)
+        balls.write_root_velocity_to_sim_index(root_velocity=velocity)
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
@@ -381,7 +363,7 @@ def test_constant_acceleration(sim_ctx, device):
 
 
 # ===========================================================================
-# Articulation tests (anymal-C, USD asset from Nucleus)
+# Offset and env-id tests (procedural USD assets)
 # ===========================================================================
 
 
@@ -389,32 +371,32 @@ def test_constant_acceleration(sim_ctx, device):
 def test_offset_calculation(sim_ctx, device):
     """Test offset configuration argument.
 
-    Two PVA sensors on the anymal-C robot — one at ``base`` with a configured
-    offset matching the location of ``imu_link``, and one directly at
-    ``imu_link`` — should produce identical readings across all 8 outputs.
+    Two PVA sensors on the same cube -- one attached to a non-physics child
+    Xform and one attached to the cube with the same configured offset -- should
+    produce identical readings across all outputs.
     """
     _spawn_envs(NUM_ENVS)
-    robot = _spawn_anymal(NUM_ENVS)
-    pva_robot_imu_link = _make_pva("/World/env_*/robot/base/imu_link")
-    pva_robot_base = _make_pva(
-        "/World/env_*/robot/base",
-        offset=PvaCfg.OffsetCfg(pos=POS_OFFSET, rot=ROT_OFFSET),
+    cubes = _spawn_cubes(NUM_ENVS)
+    _add_pva_mount_xforms(NUM_ENVS)
+    pva_child = _make_pva("/World/env_*/cube/pva_mount")
+    pva_direct = _make_pva(
+        "/World/env_*/cube",
+        offset=PvaCfg.OffsetCfg(pos=MOUNT_POS_OFFSET, rot=MOUNT_ROT_OFFSET),
     )
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
 
-    for idx in range(500):
-        # apply increasing root velocity
+    for idx in range(50):
         velocity = torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
             NUM_ENVS, 1
         ) * (idx + 1)
-        robot.write_root_velocity_to_sim(velocity)
-        robot.write_data_to_sim()
+        cubes.write_root_velocity_to_sim_index(root_velocity=velocity)
+        cubes.write_data_to_sim()
         sim_ctx.step()
-        robot.update(dt)
-        pva_robot_imu_link.update(dt, force_recompute=True)
-        pva_robot_base.update(dt, force_recompute=True)
+        cubes.update(dt)
+        pva_child.update(dt, force_recompute=True)
+        pva_direct.update(dt, force_recompute=True)
 
         # skip first step where initial velocity is zero
         if idx < 1:
@@ -422,47 +404,47 @@ def test_offset_calculation(sim_ctx, device):
 
         # accelerations
         torch.testing.assert_close(
-            pva_robot_base.data.lin_acc_b.torch,
-            pva_robot_imu_link.data.lin_acc_b.torch,
+            pva_direct.data.lin_acc_b.torch,
+            pva_child.data.lin_acc_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            pva_robot_base.data.ang_acc_b.torch,
-            pva_robot_imu_link.data.ang_acc_b.torch,
+            pva_direct.data.ang_acc_b.torch,
+            pva_child.data.ang_acc_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # velocities
         torch.testing.assert_close(
-            pva_robot_base.data.lin_vel_b.torch,
-            pva_robot_imu_link.data.lin_vel_b.torch,
+            pva_direct.data.lin_vel_b.torch,
+            pva_child.data.lin_vel_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            pva_robot_base.data.ang_vel_b.torch,
-            pva_robot_imu_link.data.ang_vel_b.torch,
+            pva_direct.data.ang_vel_b.torch,
+            pva_child.data.ang_vel_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # pose
         torch.testing.assert_close(
-            pva_robot_base.data.pos_w.torch,
-            pva_robot_imu_link.data.pos_w.torch,
+            pva_direct.data.pos_w.torch,
+            pva_child.data.pos_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         torch.testing.assert_close(
-            pva_robot_base.data.quat_w.torch,
-            pva_robot_imu_link.data.quat_w.torch,
+            pva_direct.data.quat_w.torch,
+            pva_child.data.quat_w.torch,
             rtol=1e-4,
             atol=1e-4,
         )
         # projected gravity
         torch.testing.assert_close(
-            pva_robot_base.data.projected_gravity_b.torch,
-            pva_robot_imu_link.data.projected_gravity_b.torch,
+            pva_direct.data.projected_gravity_b.torch,
+            pva_child.data.projected_gravity_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
@@ -472,8 +454,8 @@ def test_offset_calculation(sim_ctx, device):
 def test_env_ids_propagation(sim_ctx, device):
     """Test that ``env_ids`` argument propagates through update and reset methods."""
     _spawn_envs(NUM_ENVS)
-    robot = _spawn_anymal(NUM_ENVS)
-    pva_robot_imu_link = _make_pva("/World/env_*/robot/base/imu_link")
+    cubes = _spawn_cubes(NUM_ENVS)
+    pva_cube = _make_pva("/World/env_*/cube")
     sim_ctx.reset()
 
     dt = sim_ctx.get_physics_dt()
@@ -482,17 +464,25 @@ def test_env_ids_propagation(sim_ctx, device):
         velocity = torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(
             NUM_ENVS, 1
         ) * (idx + 1)
-        robot.write_root_velocity_to_sim(velocity)
-        robot.write_data_to_sim()
+        cubes.write_root_velocity_to_sim_index(root_velocity=velocity)
+        cubes.write_data_to_sim()
         sim_ctx.step()
-        robot.update(dt)
-        pva_robot_imu_link.update(dt, force_recompute=True)
+        cubes.update(dt)
+        pva_cube.update(dt, force_recompute=True)
+
+    assert torch.any(pva_cube.data.lin_vel_b.torch[1] != 0), "expected env 1 to have non-zero data before reset"
 
     # reset only env 1
-    pva_robot_imu_link.reset(env_ids=[1])
-    pva_robot_imu_link.update(dt, force_recompute=True)
+    pva_cube.reset(env_ids=[1])
+    torch.testing.assert_close(
+        wp.to_torch(pva_cube._data._lin_vel_b)[1],
+        torch.zeros(3, dtype=torch.float32, device=device),
+    )
+    assert torch.any(wp.to_torch(pva_cube._data._lin_vel_b)[0] != 0), "env 0 should not be reset"
+
+    pva_cube.update(dt, force_recompute=True)
     sim_ctx.step()
-    pva_robot_imu_link.update(dt, force_recompute=True)
+    pva_cube.update(dt, force_recompute=True)
 
 
 # ===========================================================================
@@ -572,7 +562,7 @@ def test_projected_gravity_at_rest(sim_ctx, device):
     dt = sim_ctx.get_physics_dt()
     zero_vel = torch.zeros((NUM_ENVS, 6), dtype=torch.float32, device=device)
     for _ in range(5):
-        balls.write_root_velocity_to_sim(zero_vel)
+        balls.write_root_velocity_to_sim_index(root_velocity=zero_vel)
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
@@ -631,7 +621,7 @@ def test_reset(sim_ctx, device):
     dt = sim_ctx.get_physics_dt()
     nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1)
     for _ in range(5):
-        balls.write_root_velocity_to_sim(nonzero_vel)
+        balls.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
@@ -685,14 +675,17 @@ def test_no_stale_data_after_scene_reset(sim_ctx, device):
 
     sensor: Pva = scene["pva_cube"]
 
-    # Let the cube fall so the native rigid-body velocity buffer becomes non-zero.
-    for _ in range(30):
-        scene.write_data_to_sim()
-        sim_ctx.step()
-        scene.update(dt=sim_ctx.get_physics_dt())
+    # Drive the native rigid-body velocity buffer non-zero. Freefall can make
+    # acceleration assertions depend on the exact step, so assert the cached
+    # finite-difference state instead.
+    cube: RigidObject = scene["cube"]
+    nonzero_vel = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device)
+    cube.write_root_velocity_to_sim_index(root_velocity=nonzero_vel)
+    scene.write_data_to_sim()
+    sim_ctx.step()
+    scene.update(dt=sim_ctx.get_physics_dt())
 
-    assert torch.any(sensor.data.lin_acc_b.torch != 0), "expected non-zero data before reset"
-    assert torch.any(sensor.data.lin_vel_b.torch != 0), "expected non-zero velocity before reset"
+    assert torch.any(wp.to_torch(sensor._prev_lin_vel_w) != 0), "expected non-zero cached velocity before reset"
 
     # Reset without another physics step. The public accessor must keep reset outputs
     # instead of lazy-refetching stale native velocity.
@@ -744,7 +737,7 @@ def test_indirect_attachment_usd(sim_ctx, device):
     dt = sim_ctx.get_physics_dt()
     drive_vel = torch.tensor([[0.05, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=device).repeat(NUM_ENVS, 1)
     for idx in range(50):
-        balls.write_root_velocity_to_sim(drive_vel * (idx + 1))
+        balls.write_root_velocity_to_sim_index(root_velocity=drive_vel * (idx + 1))
         balls.write_data_to_sim()
         sim_ctx.step()
         balls.update(dt)
