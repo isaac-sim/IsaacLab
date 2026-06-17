@@ -50,7 +50,7 @@ with warnings.catch_warnings():
 
 from isaaclab_tasks.utils.hydra import resolve_task_config
 
-from scripts.benchmarks.utils import get_backend_type
+from scripts.benchmarks._common import get_backend_type
 
 
 @dataclass(frozen=True)
