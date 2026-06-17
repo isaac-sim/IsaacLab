@@ -135,6 +135,11 @@ def _matches_exception_license(package_license: str, exception_license: str) -> 
         return True
     normalized_package = _normalize_license_for_match(package_license)
     normalized_exception = _normalize_license_for_match(exception_license)
+    if ";" in exception_license:
+        normalized_exception_parts = [
+            _normalize_license_for_match(part) for part in exception_license.split(";") if part.strip()
+        ]
+        return all(part in normalized_package for part in normalized_exception_parts)
     return normalized_exception in normalized_package or normalized_package in normalized_exception
 
 
