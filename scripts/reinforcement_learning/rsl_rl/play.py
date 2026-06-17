@@ -10,7 +10,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/rsl_rl/play.py is deprecated. Use "
     "`./isaaclab.sh play --rl_library rsl_rl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )
@@ -27,6 +27,7 @@ import torch
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -44,10 +45,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     setup_preset_cli,
 )
 from isaaclab_tasks.utils.hydra import hydra_task_config
@@ -100,7 +98,7 @@ if args_cli.external_callback:
 # intersection are pre-fold (the callback reads the user's original sys.argv), so
 # preset tokens like ``physics=NAME`` compare correctly here. Fold runs after.
 remaining_args = list_intersection(remaining_args, remaining_args_env_registration)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(remaining_args)
+sys.argv = [sys.argv[0]] + remaining_args
 
 # Check for installed RSL-RL version
 installed_version = metadata.version("rsl-rl-lib")

@@ -20,17 +20,17 @@ Before adding Kamino, first make sure the task runs with the Newton backend:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --viz newton presets=newton_mjwarp
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp
 
 Then run the same task with the Kamino preset if it is available:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --viz newton presets=newton_kamino
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_kamino
 
 At the time of writing, the ``newton_kamino`` preset is defined for
-``Isaac-Cartpole-Direct-v0``, ``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``,
-and ``Isaac-Ant-v0``. Passing ``presets=newton_kamino`` to another task does not
+``Isaac-Cartpole-Direct``, ``Isaac-Ant-Direct``, ``Isaac-Cartpole``,
+and ``Isaac-Ant``. Passing ``physics=newton_kamino`` to another task does not
 automatically enable Kamino; the task must define and validate its own ``newton_kamino``
 preset.
 
@@ -49,7 +49,7 @@ solver config types used by the presets:
 Then add a ``newton_kamino`` entry beside the existing ``default``, ``physx``, and
 ``newton_mjwarp`` entries:
 
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/direct/cartpole/cartpole_env_cfg.py
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py
     :language: python
     :start-at: class CartpolePhysicsCfg
     :end-at: ovphysx: OvPhysxCfg = OvPhysxCfg()
@@ -66,18 +66,18 @@ You can select the preset globally:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 presets=newton_kamino
+    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole physics=newton_kamino
 
 or select the physics field directly:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task=Isaac-Cartpole-v0 env.sim.physics=newton_kamino
+    ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.sim.physics=newton_kamino
 
 Use the direct path override when only one task field should use the Kamino preset.
-Use ``presets=newton_kamino`` when you want every matching preset field in the task config
+Use ``physics=newton_kamino`` when you want every matching preset field in the task config
 to resolve to ``newton_kamino``.
-Isaac Lab training scripts accept these Hydra overrides after the regular command
+Isaac Lab training commands accept these Hydra overrides after the regular command
 line flags; no separator is needed for the examples above.
 
 
@@ -87,7 +87,7 @@ Check Task and Asset Compatibility
 Kamino uses the Newton model built from the task assets. When adding Kamino to a
 new task, validate the following before tuning solver parameters:
 
-* The task must already be compatible with the Newton backend. If ``presets=newton_mjwarp``
+* The task must already be compatible with the Newton backend. If ``physics=newton_mjwarp``
   fails during model construction, fix the asset or task configuration first.
 * The assets should use Newton-supported rigid bodies, articulations, and collision
   geometry. PhysX-only features, unsupported schemas, or missing collision shapes
@@ -226,7 +226,7 @@ Tuning Workflow
 
 Use the following sequence when bringing up a new Kamino task:
 
-1. Run the task with ``presets=newton_mjwarp`` and fix Newton model construction or task
+1. Run the task with ``physics=newton_mjwarp`` and fix Newton model construction or task
    compatibility issues first.
 2. Add a ``newton_kamino`` preset with conservative values copied from the closest
    validated task.

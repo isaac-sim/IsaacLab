@@ -144,18 +144,18 @@ For environments that need to support both backends, use
         renderer_cfg=MultiBackendRendererCfg(),  # selects RTX or Newton Warp via presets= CLI arg
     )
 
-The active preset is selected at launch via the ``presets=`` CLI argument:
+The active preset is selected at launch via ``physics=``, ``renderer=``, or ``presets=`` CLI arguments:
 
 .. code-block:: bash
 
    # Use Newton Warp renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=newton_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0 presets=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx_renderer
 
    # Use default (Isaac RTX)
-   python train.py task=Isaac-Cartpole-RGB-Camera-Direct-v0
+   python train.py task=Isaac-Cartpole-Camera-Direct
 
 
 Accessing camera data
@@ -173,8 +173,8 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
 
 .. code-block:: shell
 
-    python scripts/reinforcement_learning/rl_games/train.py \
-        --task=Isaac-Cartpole-RGB-Camera-Direct-v0 --headless --enable_cameras
+    ./isaaclab.sh train --rl_library rl_games \
+        --task=Isaac-Cartpole-Camera-Direct --enable_cameras
 
 
 Annotators (RTX only)
@@ -213,6 +213,158 @@ RGB and RGBA
 ``rgba`` returns a 4-channel RGBA image of type ``torch.uint8``, shape ``(B, H, W, 4)``.
 
 To convert to ``torch.float32``, divide by 255.0.
+
+``rgb_hdr`` returns a 3-channel scene-linear HDR image of type ``torch.float32``, shape ``(B, H, W, 3)``.
+
+Post-render Camera ISP
+~~~~~~~~~~~~~~~~~~~~~~
+
+A camera Image Signal Processing (ISP) pipeline models the chain that maps
+the scene-linear radiance captured by a sensor to the LDR pixel values a
+downstream consumer sees.
+The camera ISP pipeline is usually part of the renderer.
+In Isaac Lab we expose a post-render camera ISP pipeline which is applied on top of the renderer's HDR scene-linear AOV.
+This makes it possible to implement additional post-render processing not currently supported by the renderer backends.
+The pass is configured via :attr:`~sensors.CameraCfg.isp_cfg`
+on every camera and runs once per render tick.
+
+PPISP
+^^^^^
+
+The shipped ISP implementation is **PPISP** (Physically Plausible Image
+Signal Processing), an NVIDIA Spatial Intelligence Lab pipeline designed
+to bring synthetic imagery — most notably 3D Gaussian splat reconstructions
+— closer to real-camera output without re-training the upstream model. See
+the project page: https://research.nvidia.com/labs/sil/projects/ppisp .
+
+PPISP is typically authored alongside a `ParticleField3DGaussianSplat
+<https://openusd.org/release/user_guides/schemas/usdVol/ParticleField3DGaussianSplat.html>`__
+USD asset: its camera prim authors ``ppisp:*`` attributes calibrated against
+the real capture rig that produced the splats. Configuring the camera with
+the matching PPISP coefficients makes the rendered tile match the calibration
+target.
+
+With static coefficients, the image pass applies, in order: responsivity →
+exposure → vignetting → color homography → camera response function → uint8
+clamp. It runs as a single Warp image kernel.
+
+When the camera also authors ``ppisp:controllerWeights``, Isaac Lab runs the
+exported PPISP controller before the image pass. The controller reads the
+current HDR image, prior exposure, and controller responsivity, then predicts
+``exposureOffset`` and the four color-latent pairs for each camera view. The
+image pass then uses those predicted exposure and color-latent values while
+static PPISP inputs still provide responsivity, vignetting, and CRF.
+
+Configuration
+^^^^^^^^^^^^^
+
+:attr:`~sensors.CameraCfg.isp_cfg` accepts three forms:
+
+* ``None`` (default) — ISP disabled.
+* :class:`~isaaclab_ppisp.PpispCfg` — explicit PPISP coefficients
+  (:attr:`~isaaclab_ppisp.PpispCfg.inputs`) and, optionally, controller
+  weights. Use :attr:`~isaaclab_ppisp.PpispCfg.camera_prim_path` to import
+  static coefficients and camera-authored controller weights from a USD camera
+  already on the stage.
+* :class:`~sensors.CameraISPMode` — auto-discover ISP camera attributes on the
+  stage (see below).
+
+The cfg applies once per Camera sensor batch. Static PPISP inputs are scalar
+coefficients shared by every cloned view in a tiled batch. When controller
+weights are present, the controller predicts per-view exposure and color-latent
+values from each HDR image, while responsivity, vignetting, and CRF remain
+shared by the batch.
+
+.. code-block:: python
+
+   from isaaclab.sensors.camera import CameraCfg, CameraISPMode
+   from isaaclab_ppisp import PpispCfg
+
+   # default — ISP disabled
+   cfg = CameraCfg(...)
+
+   # explicit coefficients
+   cfg = CameraCfg(..., isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
+
+   # import coefficients from a USD camera path
+   cfg = CameraCfg(..., isp_cfg=PpispCfg(camera_prim_path="/World/Camera_ppisp"))
+
+   # auto-discover from the stage
+   cfg = CameraCfg(..., isp_cfg=CameraISPMode.AUTO_ANY)
+
+Auto-discovery
+^^^^^^^^^^^^^^
+
+Auto-discovery is opt-in via :class:`~sensors.CameraISPMode`. Discovery runs
+once at camera construction using the first matched camera prim in the Camera
+sensor batch:
+
+1. Check the first matched camera prim for ``ppisp:*`` attributes.
+2. ``AUTO_ANY`` only, or when no camera path is available: fall back to the
+   first camera anywhere on the stage with ``ppisp:*`` attributes.
+3. Otherwise the ISP stays disabled for the whole Camera sensor batch.
+
+In practice this means: if the stage carries a ``ParticleField3DGaussianSplat``
+together with a camera that authors ``ppisp:*`` attributes, the Camera sensor
+picks up the matching ISP automatically, including controller weights when
+authored, and no Python-side coefficient authoring is required.
+
+``AUTO_CAMERA`` runs only the camera-local discovery steps — useful when the
+stage carries multiple PPISP cameras and you want the Camera sensor batch to use
+the attributes authored on its first matched camera prim.
+
+Renderer support
+^^^^^^^^^^^^^^^^
+
+All three shipped backends advertise the HDR AOV
+(:attr:`~renderers.RenderBufferKind.RGB_HDR`) and compose the ISP pipeline
+internally: the Isaac RTX renderer sources HDR from the Replicator
+``HdrColor`` annotator, the OVRTX renderer from its HDR render var, the
+Newton Warp renderer from its native scene-linear color buffer. Each
+backend allocates its own HDR scratch buffer when the user did not request
+``"rgb_hdr"`` in :attr:`~sensors.CameraCfg.data_types`, and dispatches the
+PPISP pipeline into ``rgb`` / ``rgba`` after every render tick. For controller
+configs, this is the controller pass followed by the PPISP image pass.
+
+Usage example
+^^^^^^^^^^^^^
+
+For a runnable usage example, see ``scripts/demos/sensors/ppisp_camera.py``.
+It loads a PPISP-authored USD or USDZ Gaussian scene, creates baseline and
+PPISP camera sensors for the selected camera, and saves baseline, PPISP, and
+absolute-difference images.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p scripts/demos/sensors/ppisp_camera.py \
+       --renderer newton --max_steps 60
+
+Use ``--renderer isaac_rtx`` to run the same workflow with Isaac RTX. Pass
+``--input_scene`` for a custom scene and ``--camera_prim_path`` if the stage
+contains multiple cameras with PPISP attributes. If a config or command selects
+a visualizer, force-disable all visualizers with ``--visualizer none`` or
+``--viz none``. Images are written to
+``scripts/demos/sensors/output/ppisp_camera`` unless ``--output_dir`` is set.
+
+Known limitations
+^^^^^^^^^^^^^^^^^
+
+* The ISP writes back into the ``rgb`` / ``rgba`` buffers. If neither is
+  requested, configuring ``isp_cfg`` raises at camera init.
+* Static PPISP inputs and controller weights are fixed for the lifetime of the
+  camera. Animated USD camera attributes are collapsed to their first authored
+  time sample.
+* Static coefficients are global per Camera sensor batch — no per-pixel or
+  per-region authoring beyond the radial vignetting term.
+* PPISP is the only ISP implementation today. Other ISP families would
+  need a new config type and discoverer entry.
+* On the Isaac RTX and OVRTX backends, enabling ``isp_cfg`` forces RTX-side
+  tonemapping off (``/rtx/rtpt/gaussian/skipTonemapping/enabled=False``)
+  and authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each
+  camera prim so the post-render ISP is the only path that processes
+  color. Mixing this with RTX-side exposure authoring is not supported.
+* Auto-discovery resolves at camera construction; later authoring of
+  ``ppisp:*`` camera attributes on the stage is not picked up.
 
 Depth and Distances
 ~~~~~~~~~~~~~~~~~~~
@@ -281,7 +433,7 @@ An ``info`` dictionary is available via ``tiled_camera.data.info['instance_id_se
   The ``idToLabels`` dict maps instance ID to USD prim path.
 
 Instance Segmentation
-"""""""""""""""""""""
+~~~~~~~~~~~~~~~~~~~~~
 
 .. figure:: ../../../_static/overview/sensors/camera_instance.jpg
     :align: center

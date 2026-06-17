@@ -267,6 +267,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._wrench_buf,
                 self._joint_pos_b,
                 self._joint_quat_b,
+                self._timestamp,
                 self._data._force,
                 self._data._torque,
             ],

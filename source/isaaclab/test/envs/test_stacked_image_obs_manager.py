@@ -40,7 +40,9 @@ CHANNELS = 3
 DEVICE = "cuda:0"
 
 
-def _fake_image(env, sensor_cfg=None, data_type="rgb", convert_perspective_to_orthogonal=False, normalize=True):
+def _fake_image(
+    env, sensor_cfg=None, data_type="rgb", convert_perspective_to_orthogonal=False, normalize=True, clone=True
+):
     """Stand-in for ``isaaclab.envs.mdp.observations.image`` — returns a constant frame.
 
     The value is keyed to the call count so consecutive calls produce distinct frames

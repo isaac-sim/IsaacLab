@@ -66,6 +66,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RSL-RL training arguments."""
     from isaaclab.utils.string import list_intersection, string_to_callable
 
+    from isaaclab_tasks.utils import setup_preset_cli
+
     parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
     add_common_train_args(
         parser,
@@ -79,7 +81,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     )
     CLI_ARGS.add_rsl_rl_args(parser)
     add_isaaclab_launcher_args(parser)
-    args_cli, remaining_args = parser.parse_known_args(argv)
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
 
     remaining_args_env_registration = None
@@ -87,6 +90,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
         remaining_args_env_registration = external_callback_function()
 
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later
     set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli
 
@@ -96,11 +100,12 @@ def run(argv: list[str]) -> None:
     import torch
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
-    from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True

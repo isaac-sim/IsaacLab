@@ -25,6 +25,21 @@ class BaseRenderer(ABC):
         """Post-physics one-time initialization hook. Called only once."""
         return
 
+    def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
+        """Pre-render per-camera setup the backend needs.
+
+        The default implementation is a no-op. Renderer subclasses override
+        to perform whatever per-camera initialization their backend requires
+        — e.g. authoring stage attributes on the resolved camera prims,
+        configuring per-tile GPU buffers, or any other state setup.
+
+        Args:
+            stage: Scene stage the camera prims live on, or ``None``
+                when no stage context applies. Stage-less backends ignore it.
+            spec: Immutable description of the tiled camera bundle.
+        """
+        return
+
     @abstractmethod
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Per-output layout (channels + dtype) this renderer can produce.

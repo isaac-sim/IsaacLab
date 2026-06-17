@@ -11,7 +11,9 @@ import importlib.util
 from types import SimpleNamespace
 
 import pytest
+import torch
 
+from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -25,6 +27,13 @@ def test_create_visualizer_raises_for_base_cfg():
     cfg = VisualizerCfg()
     with pytest.raises(ValueError, match="Cannot create visualizer from base VisualizerCfg class"):
         cfg.create_visualizer()
+
+
+def test_visualizer_cfg_tiled_camera_view_is_opt_in():
+    cfg = VisualizerCfg()
+    assert cfg.focal_length == 12.0
+    assert cfg.tiled_cam_view is False
+    assert cfg.tiled_cam_num == 16
 
 
 def test_create_visualizer_raises_for_unknown_type():
@@ -88,6 +97,56 @@ class _FakeProvider:
 
     def get_camera_transforms(self):
         return self._transforms
+
+
+class _FakeCamera:
+    device = "cpu"
+
+    def __init__(self):
+        self.set_world_poses_from_view_calls = []
+        self.update_poses_calls = []
+
+    def set_world_poses_from_view(self, eyes, targets, env_ids=None):
+        self.set_world_poses_from_view_calls.append((eyes.clone(), targets.clone(), env_ids))
+
+    def _update_poses(self, dt):
+        self.update_poses_calls.append(dt)
+
+
+def test_apply_camera_view_from_origins_forwards_env_ids():
+    camera = _FakeCamera()
+    origins = torch.tensor([[1.0, 2.0, 3.0]])
+
+    apply_camera_view_from_origins(camera, origins, eye=(0.5, 0.0, 1.0), lookat=(0.0, 0.0, 0.0), env_ids=[2])
+
+    eyes, targets, env_ids = camera.set_world_poses_from_view_calls[0]
+    assert eyes.tolist() == [[1.5, 2.0, 4.0]]
+    assert targets.tolist() == [[1.0, 2.0, 3.0]]
+    assert env_ids == [2]
+    assert camera.update_poses_calls == [None]
+
+
+def test_prim_world_positions_prefers_scene_articulation_state():
+    body_pos_w = torch.tensor(
+        [
+            [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]],
+            [[4.0, 5.0, 6.0], [40.0, 50.0, 60.0]],
+        ]
+    )
+    articulation = SimpleNamespace(
+        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot"),
+        body_names=["base", "foot"],
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
+            body_pos_w=SimpleNamespace(torch=body_pos_w),
+        ),
+        find_bodies=lambda name: ([0], [name]),
+    )
+    scene = SimpleNamespace(articulations={"robot": articulation})
+
+    positions = prim_world_positions(None, "/World/envs/*/Robot/base", [1, 0], scene=scene)
+
+    assert torch.equal(positions, torch.tensor([[4.0, 5.0, 6.0], [1.0, 2.0, 3.0]]))
 
 
 def test_compute_visualized_env_ids_cap_only_returns_none():

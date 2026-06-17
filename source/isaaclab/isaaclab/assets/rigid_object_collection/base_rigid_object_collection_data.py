@@ -60,6 +60,34 @@ class BaseRigidObjectCollectionData(ABC):
         """
         raise NotImplementedError()
 
+    @abstractmethod
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Invalidate cached pose-dependent quantities after a pose write to the simulation.
+
+        Backends implement this to mark the affected pose buffers stale (and trigger any
+        forward-kinematics refresh) so the next read recomputes from the freshly written state.
+
+        Args:
+            from_link: Set ``True`` when the body link pose was written so the derived
+                center-of-mass pose (:attr:`body_com_pose_w`) is also invalidated; set ``False``
+                when the center-of-mass pose was written directly so it is not clobbered.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Invalidate cached velocity-dependent quantities after a velocity write to the simulation.
+
+        Backends implement this to mark the affected velocity buffers stale (and trigger any
+        forward-kinematics refresh) so the next read recomputes from the freshly written state.
+
+        Args:
+            from_com: Set ``True`` when the body center-of-mass velocity was written so the derived
+                link velocity (:attr:`body_link_vel_w`) is also invalidated; set ``False`` when the
+                link velocity was written directly so it is not clobbered.
+        """
+        raise NotImplementedError()
+
     ##
     # Names.
     ##

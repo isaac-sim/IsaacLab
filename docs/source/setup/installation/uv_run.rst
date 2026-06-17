@@ -15,21 +15,21 @@ Install ``uv`` if you do not have it already:
 
 Clone the repo and start training immediately — no virtual environment setup required:
 
-.. code-block:: bash
+.. isaaclab-clone-commands::
 
-   git clone https://github.com/isaac-sim/IsaacLab.git
-   cd IsaacLab
+.. code-block:: bash
 
    # Newton backend training without Isaac Sim
    uv run train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
+      --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # Add OVRTX/OVPhysX extras only when the workflow needs them
    uv run --extra ov --extra rtx train --rl_library rsl_rl \
-      --task Isaac-Cartpole-Direct-v0 --headless presets=newton_mjwarp
+      --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
 ``uv`` resolves and manages the environment automatically on each invocation. Supported
 libraries for ``--rl_library`` are: ``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``, and ``rlinf``.
+
 
 Play / Evaluation
 -----------------

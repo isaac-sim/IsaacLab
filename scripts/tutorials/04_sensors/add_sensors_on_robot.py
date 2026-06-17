@@ -15,7 +15,7 @@ We add the following sensors on the quadruped robot, ANYmal-C (ANYbotics):
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras
+    ./isaaclab.sh -p scripts/tutorials/04_sensors/add_sensors_on_robot.py --enable_cameras --viz kit
 
 """
 

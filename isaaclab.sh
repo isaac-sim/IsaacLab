@@ -28,6 +28,9 @@ fi
 # Add source/isaaclab to PYTHONPATH so we can import isaaclab.cli.
 export PYTHONPATH="$ISAACLAB_PATH/source/isaaclab:$PYTHONPATH"
 
+# Let Kit associate direct wrapper launches with the Isaac Sim desktop icon.
+export RESOURCE_NAME="${RESOURCE_NAME:-IsaacSim}"
+
 # If a local Isaac Sim binary is present, source its env setup so that
 # PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
 # activate.d hook (those don't fire reliably under e.g. `conda run`).

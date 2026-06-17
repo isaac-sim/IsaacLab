@@ -22,8 +22,8 @@ from isaaclab_mimic.locomanipulation_sdg.data_classes import LocomanipulationSDG
 from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
 from isaaclab_mimic.locomanipulation_sdg.scene_utils import HasPose, SceneBody, SceneFixture
 
-from isaaclab_tasks.manager_based.locomanipulation.pick_place import mdp as locomanip_mdp
-from isaaclab_tasks.manager_based.locomanipulation.pick_place.locomanipulation_g1_env_cfg import (
+from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
+from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
     LocomanipulationG1SceneCfg,
     ObservationsCfg,

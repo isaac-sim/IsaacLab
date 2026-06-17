@@ -49,7 +49,7 @@ Stage in memory can be toggled by setting the :attr:`isaaclab.sim.SimulationCfg.
     env = ManagerBasedRLEnv(cfg=cfg)
 
 When using stage in memory without an existing RL environment class, wrap the stage creation steps
-in a :py:keyword:`with` statement to set the stage context. The stage is automatically attached
+in a ``with`` statement to set the stage context. The stage is automatically attached
 to the USD context when ``SimulationContext`` is created with ``create_stage_in_memory=True``.
 
 **Using Stage in Memory with a manual scene setup**
@@ -79,38 +79,23 @@ Limitations
 
 .. code-block:: none
 
-    1.  Isaac-Ant-Direct-v0
-    2.  Isaac-Ant-v0
-    3.  Isaac-Cartpole-Direct-v0
-    4.  Isaac-Cartpole-Showcase-Box-Box-Direct-v0
-    5.  Isaac-Cartpole-Showcase-Box-Discrete-Direct-v0
-    6.  Isaac-Cartpole-Showcase-Box-MultiDiscrete-Direct-v0
-    7.  Isaac-Cartpole-Showcase-Dict-Box-Direct-v0
-    8.  Isaac-Cartpole-Showcase-Dict-Discrete-Direct-v0
-    9.  Isaac-Cartpole-Showcase-Dict-MultiDiscrete-Direct-v0
-    10. Isaac-Cartpole-Showcase-Discrete-Box-Direct-v0
-    11. Isaac-Cartpole-Showcase-Discrete-Discrete-Direct-v0
-    12. Isaac-Cartpole-Showcase-Discrete-MultiDiscrete-Direct-v0
-    13. Isaac-Cartpole-Showcase-MultiDiscrete-Box-Direct-v0
-    14. Isaac-Cartpole-Showcase-MultiDiscrete-Discrete-Direct-v0
-    15. Isaac-Cartpole-Showcase-MultiDiscrete-MultiDiscrete-Direct-v0
-    16. Isaac-Cartpole-Showcase-Tuple-Box-Direct-v0
-    17. Isaac-Cartpole-Showcase-Tuple-Discrete-Direct-v0
-    18. Isaac-Cartpole-Showcase-Tuple-MultiDiscrete-Direct-v0
-    19. Isaac-Cartpole-v0
-    20. Isaac-Factory-GearMesh-Direct-v0
-    21. Isaac-Factory-NutThread-Direct-v0
-    22. Isaac-Factory-PegInsert-Direct-v0
-    23. Isaac-Franka-Cabinet-Direct-v0
-    24. Isaac-Humanoid-Direct-v0
-    25. Isaac-Humanoid-v0
+    1.  Isaac-Ant-Direct
+    2.  Isaac-Ant
+    3.  Isaac-Cartpole-Direct
+    4.  IsaacContrib-Cartpole-Showcase-Direct
+    5.  Isaac-Cartpole
+    20. IsaacContrib-Factory-GearMesh-Direct
+    21. IsaacContrib-Factory-NutThread-Direct
+    22. IsaacContrib-Factory-PegInsert-Direct
+    23. Isaac-Open-Drawer-Franka-Direct
+    24. Isaac-Humanoid-Direct
+    25. Isaac-Humanoid
     26. Isaac-Quadcopter-Direct-v0
-    27. Isaac-Repose-Cube-Allegro-Direct-v0
-    28. Isaac-Repose-Cube-Allegro-NoVelObs-v0
-    29. Isaac-Repose-Cube-Allegro-v0
-    30. Isaac-Repose-Cube-Shadow-Direct-v0
-    31. Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0
-    32. Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0
+    27. Isaac-Reorient-Cube-Allegro-Direct
+    28. Isaac-Reorient-Cube-Allegro
+    29. Isaac-Reorient-Cube-Shadow-Direct
+    30. Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct
+    31. Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct
 
 **Stage in Memory**
 

@@ -19,11 +19,10 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.assets import Articulation
-
 from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 

@@ -1,6 +1,558 @@
 Changelog
 ---------
 
+7.0.3 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.assets.retrieve_git_asset_path` to pull assets
+  from a git repository into a local cache, and
+  :data:`~isaaclab.utils.assets.NEWTON_ASSET_DIR` for Newton asset defaults.
+* Added the public v1.0 benchmark schema under :mod:`isaaclab.test.benchmark`
+  (``schema`` and ``serialize`` submodules): the JSON contract for benchmark
+  bundles produced by the standalone scripts under ``scripts/benchmarks/``.
+  Exposes :class:`~isaaclab.test.benchmark.schema.RuntimeBundle`,
+  :class:`~isaaclab.test.benchmark.schema.TrainingBundle`, and
+  :class:`~isaaclab.test.benchmark.schema.StartupBundle` plus the supporting
+  :class:`~isaaclab.test.benchmark.schema.Versions`,
+  :class:`~isaaclab.test.benchmark.schema.Hardware`,
+  :class:`~isaaclab.test.benchmark.schema.RunConfig`,
+  :class:`~isaaclab.test.benchmark.schema.Runtime`,
+  :class:`~isaaclab.test.benchmark.schema.Resources`, and
+  :class:`~isaaclab.test.benchmark.schema.Learning` records, along with
+  :func:`~isaaclab.test.benchmark.serialize.write_bundle_file` for emitting
+  schema-compliant JSON atomically.
+  Each bundle also carries an optional ``extra`` mapping of free-form scalar
+  values for producer-specific data outside the stable contract.
+* Added :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_builder_shape_colors` to
+  propagate USD material and ``displayColor`` values into a Newton ``ModelBuilder``'s shape colors
+  before clone replication, so cloned environments inherit correct colors without a separate
+  post-finalize pass.
+* Added a ``skip_forward`` argument to the abstract root, body, and joint state writers of
+  :class:`~isaaclab.assets.BaseArticulation`, :class:`~isaaclab.assets.BaseRigidObject`, and
+  :class:`~isaaclab.assets.BaseRigidObjectCollection` to defer cached-buffer invalidation when
+  several writes are batched before a single forward pass.
+* Added :func:`~isaaclab.utils.buffers.reset_timestamps` to invalidate a list of timestamped
+  buffers in one call, shared by the backend asset data classes' cache-reset helpers.
+
+Changed
+^^^^^^^
+
+* Extended :class:`~isaaclab.test.benchmark.recorders.GPUInfoRecorder` and the
+  system memory recorder to also report per-device **peak** memory alongside
+  the existing mean/std rows. New rows are ``"GPU Memory Used peak"``
+  (``"GPU {i} Memory Used peak"`` for multi-GPU), ``"System Memory RSS peak"``,
+  ``"System Memory VMS peak"``, and ``"System Memory USS peak"``. These peak
+  rows are always emitted (initialised to ``0.0``) so downstream consumers see
+  a consistent key set regardless of whether any sample was recorded.
+* **Breaking:** Added abstract ``_reset_pose`` and ``_reset_velocity`` cache-invalidation hooks to
+  :class:`~isaaclab.assets.BaseArticulationData`, :class:`~isaaclab.assets.BaseRigidObjectData`,
+  and :class:`~isaaclab.assets.BaseRigidObjectCollectionData`. Custom simulation-backend subclasses
+  must now implement both methods to remain instantiable: ``_reset_pose`` invalidates the
+  pose-derived cached buffers and ``_reset_velocity`` the velocity-derived ones (see the Newton,
+  PhysX, and OV PhysX data classes for reference implementations).
+
+
+7.0.2 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the multi-asset demo to use the shared simulation launcher and multi-backend physics selection path.
+* Added shared utilities for resolving source-instance schema roots and matching deleted prim prefixes.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab.physics.PhysicsManager` shutdown so inactive manager classes do not clear the active simulation context binding.
+
+
+7.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the ``newton`` extra installation message to list the Newton GL
+  viewer's ``pyglet`` dependency.
+
+Fixed
+^^^^^
+
+* Fixed SimulationContext reset ordering so initial visualizers are created before the timeline play event pump can invalidate freshly created PhysX tensor views.
+* Fixed Pink IK USD-to-URDF conversion to use Isaac Sim's URDF exporter instead of the unavailable ``nvidia.srl`` package.
+
+
+7.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the core ``warp-lang`` dependency pin for compatibility with latest Newton.
+* Fixed the core ``usd-core`` dependency pin to stay on the Isaac Sim compatible USD ABI.
+* Fixed the wheel-builder ``newton[sim]`` dependency pin to use Newton commit
+  ``811968bfb7cc7ff4e37b9260a2ba56930a3e605e``.
+* Prevented MARL adapter wrappers from raising destructor tracebacks when destroyed by setting their environment lifecycle state explicitly.
+
+
+6.8.0 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.utils.warp.ParticleMeshCounter` for fast, training-time counting of
+  particles inside closed (watertight) region meshes via robust winding-number point queries.
+  The counter supports multiple, independently posed region meshes per environment, sanitizes
+  non-finite particle positions, and returns both per-region counts and the per-particle
+  containment mask.
+* Added the :func:`~isaaclab.utils.warp.make_box_region_mesh` and
+  :func:`~isaaclab.utils.warp.make_frustum_region_mesh` helpers for building watertight,
+  outward-oriented region meshes (axis-aligned boxes and capped circular frusta / cup cavities).
+
+
+6.7.0 (2026-06-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.envs.mdp.events.reset_joints_within_limits_range`, an event term that
+  resets an articulation's joints to random positions/velocities sampled within absolute or
+  scaled joint-limit ranges. Promoted from the in-hand reorientation task so other tasks can reuse it.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab.controllers.rmp_flow.RmpFlowController` to load RMPFlow directly from the
+  ``lula`` library on every backend, instead of going through the Isaac Sim Kit motion-generation
+  extension. ``lula`` is importable both under Kit and kitless (e.g. the Newton visualizer), giving a
+  single code path. The ``rmp_flow_smoothed`` variant is now available in both modes as well.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.controllers.utils.import_lula` failing to locate the ``lula`` module on
+  pip-based Isaac Sim installs by extending :func:`~isaaclab.controllers.utils.find_lula_prebundle_dir`
+  to also search the ``extscache/<name>-<version>`` and ``extsDeprecated/<name>`` layouts used by pip
+  installs (the Isaac Sim 6.0 pip packages ship ``isaacsim.robot_motion.lula`` under
+  ``extsDeprecated``, where the Kit resolver reports it as unavailable), in addition to the
+  ``exts/<name>`` layout used by binary installs. :func:`~isaaclab.controllers.utils.import_lula` now
+  adds the prebundle to ``sys.path`` before attempting to enable the Kit extension, avoiding a spurious
+  ``Failed to resolve extension dependencies`` error logged when Kit tries to enable the deprecated
+  ``isaacsim.robot_motion.lula`` extension even though ``lula`` itself loads correctly. When ``lula``
+  still cannot be found, a clear, actionable :class:`ModuleNotFoundError` is raised instead of the bare
+  import error.
+* Fixed a quaternion convention bug in :class:`~isaaclab.controllers.rmp_flow.RmpFlowController`
+  where the end-effector orientation target was re-converted to ``(x, y, z, w)`` even though
+  IsaacLab quaternions are already in that order. The spurious conversion scrambled the target
+  orientation handed to RMPFlow, causing the arm to drift away from its commanded pose (e.g. the
+  Agibot RMPFlow place tasks no longer hold their reset pose under a zero relative command).
+* Fixed :func:`isaaclab.utils.string.string_to_callable` to validate lambda
+  expression strings before evaluating them and to evaluate them without
+  Python builtins.
+
+
+6.6.2 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed rigid-body ancestor resolution for sensor paths whose terminal child path
+  is repeated earlier in the prim path.
+* Fixed :func:`isaaclab.sim.build_simulation_context` silently ignoring the
+  ``device`` kwarg when ``sim_cfg`` is also provided. Most test callers pass
+  both kwargs together; the helper now applies the explicit ``device`` over
+  ``sim_cfg.device`` so the caller's choice wins. Without this, warp kernel
+  launches in :mod:`isaaclab_newton.assets.articulation` raised device
+  mismatch errors on non-default GPUs (``env_ids`` allocated on the test's
+  device while the articulation's resolved device came from the untouched
+  ``sim_cfg`` default ``cuda:0``).
+* Fixed :func:`~isaaclab.cloner.disabled_fabric_change_notifies` to no-op
+  when ``usdrt`` is unavailable in kitless runtimes.
+* Fixed :func:`~isaaclab.cloner.usd.usd_replicate` authoring environment grid
+  positions on nested replicated prims (e.g. cameras), overwriting their local
+  transforms.
+* Fixed livestream launch handling to reject Isaac Sim full-app experiences
+  that depend on ``isaacsim.exp.full`` and to ensure Kit-backed examples open
+  a Kit visualizer by default when needed.
+
+
+6.6.1 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab[all]`` extra to include ``isaaclab_ppisp`` as a peer extension.
+* Fixed LEAPP export of :func:`isaaclab.envs.mdp.projected_gravity` to expose
+  root orientation as the graph input and compute projected gravity inside the
+  exported graph.
+* Fixed local asset retrieval for MDL files that import sibling MDL modules, such as Hospital materials importing OmniUe4 modules.
+* Prevented environment destructors from emitting cleanup tracebacks after Python import shutdown begins.
+* Fixed the ``isaaclab.python.kit`` GUI experience failing to start with a Kit
+  dependency-solver error on Isaac Sim builds that do not ship
+  ``isaacsim.robot.experimental.wheeled_robots`` or
+  ``isaacsim.robot.wheeled_robots.nodes``. These extensions are not imported by
+  Isaac Lab and are now declared optional, so the experience loads regardless of
+  the Isaac Sim build.
+
+
+6.6.0 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab.scene.InteractiveSceneCfg.class_type` so scene configs
+  can instantiate custom scene classes.
+* Added :meth:`~isaaclab.sim.SimulationContext.is_headless_or_exist_active_visualizer`
+  to let kitless and external-visualizer demos share a visualizer-aware stepping
+  condition.
+* Added :data:`~isaaclab.cloner.REPLICATION_QUEUE` and the free function
+  :func:`~isaaclab.cloner.replicate`, the explicit registry-and-drain pair
+  that backends now hook into for replication.
+* Added :meth:`~isaaclab.cloner.ClonePlan.from_env_0` for direct envs that
+  clone a single env-0 prototype across every env.
+* Added :attr:`~isaaclab.cloner.CloneCfg.clone_regex` as the single source
+  of truth for the env-namespace convention (default ``"/World/envs/env_.*"``).
+
+Changed
+^^^^^^^
+
+* Updated demo scripts to support selectable PhysX or Newton MJWarp physics
+  backends and Kit or Newton visualizers.
+* **Breaking:** Rewrote :class:`~isaaclab.cloner.ReplicateSession` as a thin
+  context manager around :func:`~isaaclab.cloner.make_clone_plan` and
+  :func:`~isaaclab.cloner.replicate`. The no-arg form and the cached
+  ``plan`` / ``cfg_rows`` / ``replicate_on_exit`` fields are gone. Direct
+  envs migrate to ``cloner.replicate(cloner.ClonePlan.from_env_0(...))``.
+* **Breaking:** Changed :func:`~isaaclab.cloner.make_clone_plan` to take
+  ``cfgs`` and absorb the cfg-driven planning logic previously inside
+  :class:`~isaaclab.scene.InteractiveScene`, returning a self-contained
+  :class:`~isaaclab.cloner.ClonePlan`.
+* **Breaking:** :func:`~isaaclab.cloner.replicate` and
+  :class:`~isaaclab.cloner.ReplicateSession` now require an explicit
+  ``stage=`` keyword; the :class:`~isaaclab.cloner.ClonePlan` is
+  stage-agnostic.
+* Changed :attr:`~isaaclab.scene.InteractiveScene.env_origins` to read from
+  the published :class:`~isaaclab.cloner.ClonePlan`, making the plan the
+  single source of truth for env placement.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.cloner.replicate_session_defaults`` and
+  ``isaaclab.cloner.replicate_session``. Use
+  :data:`~isaaclab.cloner.REPLICATION_QUEUE` and
+  :func:`~isaaclab.cloner.replicate` instead.
+* **Breaking:** Removed :meth:`InteractiveScene.clone_environments`; direct
+  envs should use ``cloner.replicate(cloner.ClonePlan.from_env_0(...))``.
+* **Breaking:** Removed :attr:`InteractiveScene.env_ns` and
+  :attr:`InteractiveScene.env_regex_ns`; read
+  :attr:`~isaaclab.cloner.CloneCfg.clone_regex` instead.
+
+Fixed
+^^^^^
+
+* Fixed remote asset mirroring to include textures referenced by downloaded MDL materials.
+* Fixed :data:`~isaaclab.cloner.REPLICATION_QUEUE` leaking stale entries
+  when a backend or asset construction raised mid-session.
+
+
+6.5.0 (2026-06-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the pose-tracking reward terms :func:`~isaaclab.envs.mdp.rewards.position_command_error`,
+  :func:`~isaaclab.envs.mdp.rewards.position_command_error_tanh` and
+  :func:`~isaaclab.envs.mdp.rewards.orientation_command_error` to the shared MDP reward terms. They
+  track a body pose against a pose command and complement the existing velocity-tracking terms. The
+  reach task previously defined these locally.
+
+
+6.4.0 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :paramref:`~isaaclab.utils.buffers.CircularBuffer.stack_dim` constructor argument
+  and :attr:`~isaaclab.utils.buffers.CircularBuffer.stacked` property: when ``stack_dim`` is
+  set, the internal storage is rearranged so ``stacked`` returns the ``K`` frames merged
+  along the chosen dim as a free contiguous view.
+* Added :mod:`isaaclab.utils.images` with :func:`~isaaclab.utils.images.normalize_camera_image`
+  and the ``is_rgb_like`` / ``is_depth_like`` / ``is_normals_like`` predicates, shared
+  between the DirectRLEnv and ManagerBasedEnv camera observation paths.
+* Added :func:`isaaclab.utils.warp.ops.normalize_image_uint8`, a fused Warp-kernel
+  implementation of ``(uint8 / 255) - per-image-channel mean`` for RGB-like camera
+  observations. Supports both ``(B, H, W, C)`` and ``(B, C, H, W)`` inputs via a
+  ``channel_dim`` argument (``-1`` / ``3`` for BHWC, ``-3`` / ``1`` for BCHW); the
+  argument is also forwarded by :func:`~isaaclab.utils.images.normalize_camera_image`.
+* Added a ``clone`` kwarg to :func:`isaaclab.envs.mdp.observations.image`; callers that
+  immediately copy the result into their own storage (e.g. a frame-stack buffer) can pass
+  ``clone=False`` to skip the redundant allocation.
+* Added a scene-data backend hook for active ``InteractiveScene`` access so
+  backends can source scene-owned entity transforms without relying on global
+  rigid-body views, and visualizers can discover scene-owned contact sensors.
+
+Changed
+^^^^^^^
+
+* Updated the visualizer tiled camera tutorial to show generated Kit cameras and
+  existing Newton robot-mounted camera streams with matching documentation figures.
+* Changed :class:`~isaaclab.envs.mdp.observations.stacked_image` to use the new ``stack_dim``
+  ``CircularBuffer`` layout and defer normalization past the frame-stack buffer for RGB-like
+  data types, eliminating a per-frame float32 upcast and large transpose.
+* Clarified ``--video`` behavior when multiple video-capable visualizers are active:
+  Gymnasium video recording captures one ``env.render()`` stream, with Kit taking
+  priority over Newton.
+
+Fixed
+^^^^^
+
+* Fixed a memory leak in :meth:`~isaaclab.envs.ManagerBasedEnv.close`,
+  :meth:`~isaaclab.envs.DirectRLEnv.close` and :meth:`~isaaclab.envs.DirectMARLEnv.close`
+  where the cached observation buffers and the :class:`gym.spaces` observation/action
+  spaces were never released, causing host and GPU memory to accumulate on each
+  environment construct/teardown cycle.
+* Fixed the ``create_cube_base_env`` tutorial crashing at startup with a ``RuntimeError``
+  because its prestartup USD-level randomization terms ran while scene replication was enabled.
+* Improved visualizer tiled-camera errors when ``tiled_cam_prim_path`` is set but
+  the scene has no Isaac Lab ``Camera`` sensors, and clarified the camera-mode
+  documentation for Cartpole camera tasks.
+
+
+6.3.1 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed obsolete ``scripts/tools/wrap_warp_to_torch.py`` migration helper. Use
+  :attr:`~isaaclab.utils.warp.ProxyArray.torch` when tensor interop is needed.
+
+
+6.3.0 (2026-06-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added shim exports for ``NewtonSDFCollisionPropertiesCfg`` in ``isaaclab.sim`` and ``isaaclab.sim.schemas``.
+* Added a ``permute`` argument to :func:`~isaaclab.envs.mdp.image` that returns
+  image observations in channel-first ``[num_envs, channel, height, width]``
+  layout. Defaults to ``False``, preserving the existing channel-last output.
+
+Fixed
+^^^^^
+
+* Fixed compliant-contact USD spawning to use
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`
+  instead of the deprecated rigid-body material alias.
+* Fixed :func:`~isaaclab.cloner.cloner_utils.resolve_clone_plan_source` raising a
+  ``ValueError`` when a path expression was owned by nested clone-plan destination
+  templates (e.g. a camera cloned under a robot at
+  ``/World/envs/env_{}/Robot/ee_link/palm_link/Camera``). It now selects the most
+  specific (longest-matching) template, mirroring
+  :func:`~isaaclab.cloner.cloner_utils.iter_clone_plan_matches`, and only raises when
+  a path is owned by multiple distinct, equally specific templates.
+
+
+6.2.1 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.app.sim_launcher.make_physics_cfg` so a script can build a
+  physics config for the backend selected via ``--physics``.
+* Added a physics config as the value yielded by
+  :func:`~isaaclab.app.sim_launcher.launch_simulation`, so callers can write
+  ``with launch_simulation(PhysicsCfg(), args) as physics_cfg:`` and reuse the resolved backend.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab.sim.views.BaseFrameView.get_scales` now returns
+  a :class:`~isaaclab.utils.warp.ProxyArray` instead of a raw ``wp.array``,
+  matching :meth:`~isaaclab.sim.views.BaseFrameView.get_world_poses` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_local_poses`. Callers that
+  passed the return value straight into Warp kernels or ``set_scales`` need to
+  extract the underlying array via ``.warp``; callers that read ``.torch`` are
+  unaffected.
+
+Fixed
+^^^^^
+
+* Fixed missing :mod:`isaaclab.cloner` lazy exports for clone-plan source resolution.
+* Enabled RTX scene partitioning in Isaac Lab Kit app files and added top-level scene partitioning regression coverage.
+
+
+6.2.0 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Auto-install ``libgl1-mesa-dev``, ``libopengl-dev``, ``libglx-dev``,
+  ``libx11-dev``, ``libxcursor-dev``, ``libxi-dev``, ``libxinerama-dev``,
+  and ``libxrandr-dev`` on ARM when sudo is available, so
+  ``./isaaclab.sh -i`` can build ``imgui-bundle`` from source without a
+  separate provisioning step.
+* Added the ``train_multigpu`` entry point for launching distributed RL training with
+  ``torch.distributed.run`` or the skrl JAX distributed launcher.
+*  Updates tendon randomization events to support newton tendons
+*  Adds support to modify MJC usd schema
+* Added :func:`~isaaclab.utils.string.compile_template_pattern` to compile a slotted template
+  (with ``{}`` slots expanding to a caller-provided regex fragment) into a regular expression.
+* Added :func:`~isaaclab.utils.string.strip_templated_prefix` to strip a templated prefix
+  (with ``{}`` slots matching one path segment each) from a string and return the remainder.
+* Added multi-GPU troubleshooting documentation describing the NCCL hang that can occur when
+  ``CUDA_VISIBLE_DEVICES`` selects a subset of a node's GPUs, including the
+  ``NCCL_P2P_DISABLE=1`` workaround and an explanation of why it is not needed when all GPUs
+  are visible.
+* Added the ``expected_num_matches`` argument to
+  :func:`~isaaclab.sim.utils.get_all_matching_child_prims` to validate match counts.
+* Added the ``raise_if_no_matches`` argument to
+  :func:`~isaaclab.sim.utils.resolve_matching_prims_from_source` to allow callers to opt out of
+  the default no-match error.
+* Added Kit version, kernel version, and git hash logging to :class:`~isaaclab.app.AppLauncher` startup.
+* Added the ``rl-games`` optional dependency to the ``isaaclab`` wheel and
+  included it in the wheel's ``all`` extra.
+* Added :attr:`~isaaclab.managers.EventTermCfg.resample_interval_on_reset` to allow ``"interval"``
+  event terms to keep their per-environment timer across resets while still firing asynchronously
+  per environment. Defaults to ``True`` to preserve the existing behavior.
+
+Changed
+^^^^^^^
+
+* Renamed the ``./isaaclab.sh -i none`` core-only install selector to
+  ``./isaaclab.sh -i core`` for clarity (the install still ships the
+  core submodules, so ``"core"`` describes the result better than
+  ``"none"``).
+* ``./isaaclab.sh -i mimic`` now also installs ``isaaclab_teleop`` as an editable
+  submodule, since :mod:`isaaclab_mimic` declares it as a required dependency.
+* Replaced third-party ``toml`` dependency with stdlib :mod:`tomllib` in
+  :class:`~isaaclab.sim.SimulationContext` and its test, removing an undeclared
+  runtime dependency.
+* Migrated package build declaration from ``setup.py`` to ``pyproject.toml``
+  only; no public API changes.
+* :data:`~isaaclab.ISAACLAB_EXT_DIR` and :data:`~isaaclab.ISAACLAB_METADATA`
+  are preserved; they now read ``config/extension.toml`` via :mod:`tomllib`
+  instead of the removed ``toml`` package.
+* Moved test dependencies (``pytest``, ``pytest-mock``, ``junitparser``,
+  ``flatdict``, ``flaky``) from base ``install_requires`` to the new
+  ``test`` optional extra. Install with ``pip install isaaclab[test]``
+  to get the full test environment.
+* Updated shared visualizer tiled camera defaults for the visualizer integration test coverage.
+* Updated installation, quickstart, and pip documentation to match ``./isaaclab.sh -i``
+  install tokens and pip wheel extras.
+* Regenerated the environments overview table from task configuration metadata.
+
+Fixed
+^^^^^
+
+* Fixed ``scripts/tutorials/01_assets/add_new_robot.py`` failing at the Jetbot
+  velocity-target setter when the action was a CPU ``torch.Tensor``. The
+  tutorial now allocates the wheel-velocity templates on ``sim.device`` and
+  uses :meth:`~isaaclab.assets.BaseArticulation.set_joint_velocity_target_index`.
+* Restricted the ``pytetwild`` install requirement to x86_64 platforms.
+  PyPI ships no aarch64 wheel and the sdist build fails on ARM
+  (``-m64`` hardcoded in CMake), which broke the ARM64 docker image
+  build.  Tetrahedralization of volume deformables now degrades
+  gracefully on ARM64 with the existing "install pytetwild" message
+  instead of failing the install outright.
+* Made ``./isaaclab.sh -i`` skip the ARM-only swig auto-install when
+  ``sudo`` is unavailable instead of crashing with a ``FileNotFoundError``.
+  Users on locked-down ARM containers can now run the install and
+  pre-provision swig themselves if they need to build nlopt from source.
+* Fixed lazy-eval sensors (contact, IMU, PVA, joint-wrench across PhysX and Newton)
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each step-dependent sensor's
+  update kernel now skips envs whose ``timestamp`` is still ``0`` (the signal that no
+  physics step has occurred since the last reset), so the next ``data`` access returns
+  the values that the sensor's ``reset()`` populated rather than re-reading a physics
+  buffer that holds pre-reset values.
+* Fixed ``--viz none`` parsing to use the internal disable-all sentinel.
+* Fixed Kit launches hiding Isaac Lab Python ``INFO`` logs, including joint
+  wrench sensor initialization messages.
+* Fixed translational Jacobian drift in
+  :meth:`~isaaclab.envs.mdp.actions.DifferentialInverseKinematicsAction._compute_frame_jacobian`
+  when called multiple times per step with non-``None`` ``body_offset``.
+* Fixed Hydra space deserialization for direct MARL environment configs so
+  per-agent observation and action spaces remain populated for skrl multi-agent
+  wrappers.
+* Fixed :func:`~isaaclab.envs.mdp.body_projected_gravity_b` to normalize
+  ``GRAVITY_VEC_W`` before projecting it into the body frame, so the observation
+  stays a unit direction when the Newton backend exposes gravity as a raw
+  m/s\ :sup:`2` vector. This is a no-op for the PhysX/OvPhysX backends, whose
+  ``GRAVITY_VEC_W`` is already unit length.
+* Fixed Newton replicated-scene cloning so source clone plans are available
+  before sensor construction and asset USD replication is skipped for Newton
+  physics replication.
+* Fixed ignored shutdown traceback from environment destructors when Python import
+  machinery has already finalized.
+* Fixed :class:`~isaaclab.sim.converters.MjcfConverter` to enable the Isaac Sim MJCF importer
+  extension before importing MJCF assets.
+* Fixed module-import-time ``from pxr import …`` in :mod:`isaaclab.sim.simulation_context`,
+  :mod:`isaaclab.assets.asset_base`, :mod:`isaaclab.scene.interactive_scene`,
+  :mod:`isaaclab.sim.spawners.from_files.from_files`, :mod:`isaaclab.sim.utils.prims`,
+  :mod:`isaaclab.sim.utils.queries`, :mod:`isaaclab.sim.utils.semantics`,
+  :mod:`isaaclab.sim.utils.stage`, and :mod:`isaaclab.sim.utils.transforms`.  Previously,
+  ``from isaaclab.assets import Articulation`` or ``from isaaclab.sim import SimulationContext``
+  forced ``pxr`` (USD) into ``sys.modules`` before :class:`~isaaclab.app.AppLauncher`,
+  which broke Kit's USD binding registration with a cascade of
+  ``TfNotice`` / ``UsdAPISchemaBase`` / ``GfVec3f`` converter errors during
+  ``SimulationApp.startup``.  Kit-less env-cfg parsing followed by ``--visualizer kit``
+  now succeeds without any pxr modules preloaded.  Type hints stay under
+  ``TYPE_CHECKING``; where pxr is used at runtime, the ``from pxr import …`` is deferred
+  into the function body that needs it.
+* Fixed the pip wheel build so that extensions promoted to top-level packages
+  (e.g. ``isaaclab_assets``, ``isaaclab_tasks``, ``isaaclab_rl``) keep their
+  ``config/extension.toml`` under ``isaaclab/source/`` where the bundled Kit
+  experience files search for them. Without this, launching a Kit app from the
+  wheel failed during dependency resolution with
+  ``isaaclab_assets ... (none found)`` before the simulator started.
+
+
+6.1.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.sim.ServiceLocator` and exposed it as
+  :attr:`~isaaclab.sim.SimulationContext.services`.
+
+  Backend-specific caches can be registered and retrieved using subscript
+  syntax (``services[cls] = instance``, ``services[cls]``).  Services with
+  a ``close()`` method are automatically closed on ``clear_instance()``.
+* Added :class:`~isaaclab.sensors.camera.CameraISPMode` (values ``AUTO_CAMERA`` and ``AUTO_ANY``) and the :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` field to author or auto-discover an ISP cfg (:class:`~isaaclab_ppisp.PpispCfg`) from a USD ``RenderProduct`` bound to the camera (or anywhere on the stage as a fallback).
+* Added :attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR` to the renderer output contract so backends can advertise a 3-channel float HDR AOV.
+* Added :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` hook so backends can author per-camera USD overrides.
+* Added :class:`~isaaclab.renderers.CameraRenderSpec`, an immutable description of a tiled camera passed to render backends so they no longer hold a reference to the camera sensor instance.
+* Added shared visualizer defaults for CLI-created visualizer configs.
+
+Changed
+^^^^^^^
+
+* Updated the ``usd-core`` dependency to 25.11.0 to match Kit 110.1.1.
+
+Fixed
+^^^^^
+
+* Fixed visualizer tiled camera defaults and camera pose helpers so tiled camera views remain opt-in and respect selected environment ids.
+
+
 6.0.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 

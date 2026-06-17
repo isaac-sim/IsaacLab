@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 import random
 
 import pytest
@@ -59,6 +60,32 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case", to="CC") == "SnakeCase"
     assert string_utils.to_camel_case("snake_case_string", to="CC") == "SnakeCaseString"
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
+
+
+def test_string_to_callable_allows_safe_lambdas():
+    """Test that simple lambda expressions and module references resolve to callables."""
+    assert string_utils.string_to_callable("lambda x: x + 1")(5) == 6
+    assert string_utils.string_to_callable("lambda x: x**2")(3) == 9
+    assert string_utils.string_to_callable("lambda x: x[0] if x else 0")([7, 8]) == 7
+    assert string_utils.string_to_callable("lambda x: x > 0 and x < 10")(5) is True
+    assert string_utils.string_to_callable("math:sqrt") is math.sqrt
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        'lambda x: __import__("os").system("id")',
+        'lambda x: eval("1")',
+        "lambda x: (lambda: 1)()",
+        "lambda x: x.__class__",
+        "lambda x: __builtins__",
+        "lambda x: (y := 1)",
+    ],
+)
+def test_string_to_callable_blocks_unsafe_lambdas(payload):
+    """Test that lambda strings cannot execute code or traverse Python internals."""
+    with pytest.raises(ValueError, match="Unsafe lambda expression"):
+        string_utils.string_to_callable(payload)
 
 
 def test_resolve_matching_names_with_basic_strings():
@@ -121,7 +148,8 @@ def test_resolve_matching_names_with_joint_name_strings():
     assert names_list == [robot_joint_names[i] for i in ground_truth_index_list]
     # test matching names with regex but shuffled
     # randomize order of previous query list
-    random.shuffle(query_list)
+    rng = random.Random(0)
+    rng.shuffle(query_list)
     index_list, names_list = string_utils.resolve_matching_names(query_list, robot_joint_names)
     ground_truth_index_list = [0, 1, 4, 5, 8, 9]
     assert names_list != query_list

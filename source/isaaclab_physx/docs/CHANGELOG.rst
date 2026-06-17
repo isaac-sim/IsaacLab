@@ -1,6 +1,146 @@
 Changelog
 ---------
 
+2.0.2 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``skip_forward`` argument to the root, body, and joint state writers (e.g.
+  ``write_root_link_pose_to_sim_index``) to defer cached-buffer invalidation when several
+  writes are batched before a single forward pass.
+
+Fixed
+^^^^^
+
+* Fixed stale cached asset pose and velocity state after simulation state writes.
+
+
+2.0.1 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused shared path-expression helpers when deriving PhysX schema-root view expressions and deletion invalidation matches.
+
+
+2.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the optional ``newton[sim]`` dependency pin to use Newton commit
+  ``811968bfb7cc7ff4e37b9260a2ba56930a3e605e``.
+
+
+1.1.6 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed PhysX scene-data rigid-body view discovery to ignore USD joint prims
+  even when an asset authors ``RigidBodyAPI`` on them.
+
+
+1.1.5 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Isaac RTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
+1.1.4 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Fabric topology rebuild logging to debug level when tiled camera
+  visualizer updates refresh view mappings.
+
+Fixed
+^^^^^
+
+* Fixed excessive PhysX tensor warnings from Ant tasks with ``JointWrenchSensor``
+  by sourcing scene-data transforms for articulation links from Isaac Lab
+  articulation views instead of a global PhysX rigid-body view.
+
+
+1.1.3 (2026-06-05)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``newton[sim]`` pin used by the optional ``[newton]`` extra from ``v1.2.0`` to ``v1.2.1rc2``.
+
+
+1.1.2 (2026-06-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added torch tensor input support to
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.reshape_data_to_view_3d`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** :meth:`~isaaclab_physx.sim.views.FabricFrameView.get_scales`
+  now returns a :class:`~isaaclab.utils.warp.ProxyArray`, matching the updated
+  :class:`~isaaclab.sim.views.BaseFrameView` contract. Callers that fed the
+  return value into Warp kernels or ``set_scales`` need to extract the
+  underlying array via ``.warp``.
+
+
+1.1.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sensors.ContactSensor`, :class:`~isaaclab_physx.sensors.Imu`,
+  :class:`~isaaclab_physx.sensors.Pva`, and :class:`~isaaclab_physx.sensors.JointWrenchSensor`
+  returning stale pre-reset data when :meth:`~isaaclab.scene.InteractiveScene.reset` was
+  called inside an environment step without a subsequent physics step (e.g. inside
+  :meth:`~isaaclab.envs.ManagerBasedRLEnv._reset_idx`). Each sensor's ``reset()`` now marks
+  the reset envs as up to date after zeroing ``_data``, so an immediate read returns those
+  zeros rather than re-fetching a physics buffer that has not been stepped since the reset.
+* Fixed PhysX scene-data rigid-body view creation to use exact rigid-body prim
+  paths, avoiding spurious warnings for assets whose joint prims share body names.
+* Restored wildcard PhysX scene-data rigid-body view patterns to keep Newton
+  visualizers updating live PhysX transforms.
+* Fixed PhysX tensor imports when using wheel-installed Isaac Sim packages.
+
+
+1.1.0 (2026-05-21)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an HDR output (:attr:`~isaaclab.renderers.RenderBufferKind.RGB_HDR`) to :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`, sourced from the Replicator ``HdrColor`` annotator.
+* Added internal :class:`~isaaclab.renderers.PpispPipeline` composition in :class:`~isaaclab_physx.renderers.IsaacRtxRenderer`: when :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg` is set the renderer allocates its own HDR scratch buffer and dispatches the PPISP kernel into the camera's ``rgb`` / ``rgba`` output after each render.
+* Added a :meth:`~isaaclab.renderers.BaseRenderer.prepare_cameras` override on :class:`~isaaclab_physx.renderers.IsaacRtxRenderer` that authors a neutral ``OmniRtxCameraExposureAPI_1`` schema on each camera prim so RTX-side tonemapping does not double-process the ISP output.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.sim.views.FabricFrameView` falling back to
+  the slow USD path on every CUDA device other than ``cuda:0``.  USDRT
+  ``SelectPrims`` now accepts any CUDA device index, so Fabric acceleration
+  runs on the simulation device the view was constructed with (e.g.
+  ``cuda:1``).  This unblocks distributed training where each rank is
+  pinned to a non-primary GPU.
+
+
 1.0.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 

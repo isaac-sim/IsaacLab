@@ -18,6 +18,7 @@ import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 
@@ -25,7 +26,11 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation, resolve_task_config
+from isaaclab_tasks.utils import (
+    get_checkpoint_path,
+    resolve_task_config,
+    setup_preset_cli,
+)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -50,11 +55,6 @@ parser.add_argument(
     action="store_true",
     help="Use the pre-trained checkpoint from Nucleus.",
 )
-parser.add_argument(
-    "--use_last_checkpoint",
-    action="store_true",
-    help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--keep_all_info",
@@ -63,7 +63,7 @@ parser.add_argument(
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
 add_launcher_args(parser)
-args_cli, hydra_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -98,11 +98,11 @@ def main():
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
         elif args_cli.checkpoint is None:
-            if args_cli.use_last_checkpoint:
-                checkpoint = "model_.*.zip"
-            else:
-                checkpoint = "model.zip"
-            checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint, sort_alpha=False)
+            # prefer the final model (``model.zip``); fall back to the latest periodic checkpoint when it has
+            # not been written yet (e.g. short or interrupted runs)
+            checkpoint_path = get_checkpoint_path(
+                log_root_path, ".*", r"model_.*\.zip", sort_alpha=False, preferred_checkpoint=r"model\.zip"
+            )
         else:
             checkpoint_path = args_cli.checkpoint
         log_dir = os.path.dirname(checkpoint_path)

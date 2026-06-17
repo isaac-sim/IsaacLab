@@ -24,6 +24,8 @@ parser.add_argument("--num_envs", type=int, default=16, help="Number of environm
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# tutorials should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 
@@ -37,7 +39,7 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 
 
 def main():

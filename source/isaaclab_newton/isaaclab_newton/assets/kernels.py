@@ -442,6 +442,46 @@ def quat_apply_inverse_2D_kernel(
 
 
 @wp.kernel
+def projected_gravity_b_kernel(
+    gravity_w: wp.array(dtype=wp.vec3f),
+    quat: wp.array(dtype=wp.quatf),
+    projected_gravity_b: wp.array(dtype=wp.vec3f),
+):
+    """Project per-env world-frame gravity into the base frame as a unit vector.
+
+    ``gravity_w`` carries magnitude (m/s^2) and is normalized internally, so the
+    result stays direction-only under per-env gravity randomization.
+    ``wp.normalize`` maps a zero vector to zero, so disabled gravity is safe.
+
+    Args:
+        gravity_w: World-frame gravity vector per env. Shape is (num_envs,).
+        quat: Per-env body quaternion. Shape is (num_envs,).
+        projected_gravity_b: Output unit-vector projection. Shape is (num_envs,).
+    """
+    i = wp.tid()
+    projected_gravity_b[i] = wp.quat_rotate_inv(quat[i], wp.normalize(gravity_w[i]))
+
+
+@wp.kernel
+def projected_gravity_b_2D_kernel(
+    gravity_w: wp.array(dtype=wp.vec3f),
+    quat: wp.array2d(dtype=wp.quatf),
+    projected_gravity_b: wp.array2d(dtype=wp.vec3f),
+):
+    """Project per-env world-frame gravity into per-body base frame as a unit vector.
+
+    Broadcasts the per-env ``gravity_w[i]`` across all bodies of env ``i``.
+
+    Args:
+        gravity_w: World-frame gravity vector per env. Shape is (num_envs,).
+        quat: Per-body quaternion. Shape is (num_envs, num_bodies).
+        projected_gravity_b: Output unit-vector projection. Shape is (num_envs, num_bodies).
+    """
+    i, j = wp.tid()
+    projected_gravity_b[i, j] = wp.quat_rotate_inv(quat[i, j], wp.normalize(gravity_w[i]))
+
+
+@wp.kernel
 def body_heading_w(
     forward_vec: wp.array2d(dtype=wp.vec3f),
     quat: wp.array2d(dtype=wp.quatf),
@@ -719,8 +759,6 @@ def set_body_link_pose_to_sim(
     body_ids: wp.array(dtype=wp.int32),
     from_mask: bool,
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
-    body_link_state_w: wp.array2d(dtype=vec13f),
-    body_state_w: wp.array2d(dtype=vec13f),
 ):
     """Write body link pose data to simulation buffers.
 
@@ -735,32 +773,12 @@ def set_body_link_pose_to_sim(
         from_mask: Input flag indicating whether to use masked indexing.
         body_link_pose_w: Output array where body link poses are written.
             Shape is (num_envs, num_bodies).
-        body_link_state_w: Output array where body link states are updated (pose portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
-        body_state_w: Output array where body states are updated (pose portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
     """
     i, j = wp.tid()
     if from_mask:
         body_link_pose_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
-        if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-                body_link_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
-            )
-        if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-                body_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
-            )
     else:
         body_link_pose_w[env_ids[i], body_ids[j]] = data[i, j]
-        if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-                body_link_state_w[env_ids[i], body_ids[j]], data[i, j]
-            )
-        if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-                body_state_w[env_ids[i], body_ids[j]], data[i, j]
-            )
 
 
 @wp.kernel
@@ -772,9 +790,6 @@ def set_body_com_pose_to_sim(
     from_mask: bool,
     body_com_pose_w: wp.array2d(dtype=wp.transformf),
     body_link_pose_w: wp.array2d(dtype=wp.transformf),
-    body_com_state_w: wp.array2d(dtype=vec13f),
-    body_link_state_w: wp.array2d(dtype=vec13f),
-    body_state_w: wp.array2d(dtype=vec13f),
 ):
     """Write body COM pose data to simulation buffers.
 
@@ -794,38 +809,16 @@ def set_body_com_pose_to_sim(
             Shape is (num_envs, num_bodies).
         body_link_pose_w: Output array where body link poses (derived from COM) are written.
             Shape is (num_envs, num_bodies).
-        body_com_state_w: Output array where body COM states are updated (pose portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
-        body_link_state_w: Output array where body link states are updated (pose portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
-        body_state_w: Output array where body states are updated (pose portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
     """
     i, j = wp.tid()
     if from_mask:
         body_com_pose_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
-        if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-                body_com_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
-            )
     else:
         body_com_pose_w[env_ids[i], body_ids[j]] = data[i, j]
-        if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-                body_com_state_w[env_ids[i], body_ids[j]], data[i, j]
-            )
     # Get the link pose from com pose
     body_link_pose_w[env_ids[i], body_ids[j]] = get_com_pose_in_link_frame_func(
         body_com_pose_w[env_ids[i], body_ids[j]], body_com_pos_b[env_ids[i], body_ids[j]]
     )
-    if body_link_state_w:
-        body_link_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-            body_link_state_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]]
-        )
-    if body_state_w:
-        body_state_w[env_ids[i], body_ids[j]] = set_state_transforms_func(
-            body_state_w[env_ids[i], body_ids[j]], body_link_pose_w[env_ids[i], body_ids[j]]
-        )
 
 
 @wp.kernel
@@ -836,8 +829,6 @@ def set_body_com_velocity_to_sim(
     from_mask: bool,
     body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    body_state_w: wp.array2d(dtype=vec13f),
-    body_com_state_w: wp.array2d(dtype=vec13f),
 ):
     """Write body COM velocity data to simulation buffers.
 
@@ -855,32 +846,12 @@ def set_body_com_velocity_to_sim(
             Shape is (num_envs, num_bodies).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
-        body_state_w: Output array where body states are updated (velocity portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
-        body_com_state_w: Output array where body COM states are updated (velocity portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
     """
     i, j = wp.tid()
     if from_mask:
         body_com_velocity_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
-        if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-                body_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
-            )
-        if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-                body_com_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
-            )
     else:
         body_com_velocity_w[env_ids[i], body_ids[j]] = data[i, j]
-        if body_state_w:
-            body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-                body_state_w[env_ids[i], body_ids[j]], data[i, j]
-            )
-        if body_com_state_w:
-            body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-                body_com_state_w[env_ids[i], body_ids[j]], data[i, j]
-            )
     # Make the acceleration zero to prevent reporting old values
     body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
@@ -896,9 +867,6 @@ def set_body_link_velocity_to_sim(
     body_link_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_com_velocity_w: wp.array2d(dtype=wp.spatial_vectorf),
     body_acc_w: wp.array2d(dtype=wp.spatial_vectorf),
-    body_link_state_w: wp.array2d(dtype=vec13f),
-    body_state_w: wp.array2d(dtype=vec13f),
-    body_com_state_w: wp.array2d(dtype=vec13f),
 ):
     """Write body link velocity data to simulation buffers.
 
@@ -922,40 +890,18 @@ def set_body_link_velocity_to_sim(
             are written. Shape is (num_envs, num_bodies).
         body_acc_w: Output array where body accelerations are zeroed.
             Shape is (num_envs, num_bodies).
-        body_link_state_w: Output array where body link states are updated (velocity portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
-        body_state_w: Output array where body states are updated (velocity portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
-        body_com_state_w: Output array where body COM states are updated (velocity portion).
-            Shape is (num_envs, num_bodies). Can be None if not needed.
     """
     i, j = wp.tid()
     if from_mask:
         body_link_velocity_w[env_ids[i], body_ids[j]] = data[env_ids[i], body_ids[j]]
-        if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-                body_link_state_w[env_ids[i], body_ids[j]], data[env_ids[i], body_ids[j]]
-            )
     else:
         body_link_velocity_w[env_ids[i], body_ids[j]] = data[i, j]
-        if body_link_state_w:
-            body_link_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-                body_link_state_w[env_ids[i], body_ids[j]], data[i, j]
-            )
     # Get the link velocity in the com frame
     body_com_velocity_w[env_ids[i], body_ids[j]] = get_link_velocity_in_com_frame_func(
         body_link_velocity_w[env_ids[i], body_ids[j]],
         body_link_pose_w[env_ids[i], body_ids[j]],
         body_com_pos_b[env_ids[i], body_ids[j]],
     )
-    if body_com_state_w:
-        body_com_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-            body_com_state_w[env_ids[i], body_ids[j]], body_com_velocity_w[env_ids[i], body_ids[j]]
-        )
-    if body_state_w:
-        body_state_w[env_ids[i], body_ids[j]] = set_state_velocities_func(
-            body_state_w[env_ids[i], body_ids[j]], body_com_velocity_w[env_ids[i], body_ids[j]]
-        )
     # Make the acceleration zero to prevent reporting old values
     body_acc_w[env_ids[i], body_ids[j]] = wp.spatial_vectorf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 

@@ -17,7 +17,7 @@ currently supports Newton:
 
     grep -rln "newton_mjwarp" source/isaaclab_tasks/
 
-Passing ``presets=newton_mjwarp`` to a task without that preset will raise an
+Passing ``physics=newton_mjwarp`` to a task without that preset will raise an
 error at launch. The :doc:`mjwarp-solver` page covers how to add a Newton
 preset to your own task.
 
@@ -56,7 +56,7 @@ and work transparently with Newton:
 isaaclab_assets
 ^^^^^^^^^^^^^^^
 
-* Quadrupeds: Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree
+* Quadrupeds: AnymalB, AnymalC, AnymalD, Unitree A1, Unitree Go1, Unitree
   Go2, Spot
 * Humanoids: Unitree H1, Unitree G1, Cassie
 * Arms and hands: Franka, UR10, Allegro Hand, Shadow Hand
@@ -75,9 +75,9 @@ Direct workflows:
 Manager-based workflows:
 
 * Classic: Cartpole, Ant, Humanoid
-* Locomotion velocity, flat terrain: A1, Anymal-B, Anymal-C, Anymal-D, Cassie,
+* Locomotion velocity, flat terrain: A1, AnymalB, AnymalC, AnymalD, Cassie,
   Unitree G1, Go1, Go2, Unitree H1, Spot
-* Locomotion velocity, rough terrain: Anymal-C, Cassie, Go1, Go2
+* Locomotion velocity, rough terrain: AnymalC, Cassie, Go1, Go2
 * Manipulation: reach (Franka, UR10), cabinet, dexsuite
 * Manipulation lift with deformable objects: Franka soft-body lift, Franka cloth
   lift (via coupled MJWarp + VBD)
@@ -87,8 +87,8 @@ Solver Coverage
 ---------------
 
 * **MuJoCo-Warp solver**: the primary, validated path for every supported task.
-* **Kamino solver**: beta. Currently validated on ``Isaac-Cartpole-Direct-v0``,
-  ``Isaac-Ant-Direct-v0``, ``Isaac-Cartpole-v0``, and ``Isaac-Ant-v0``. See
+* **Kamino solver**: beta. Currently validated on ``Isaac-Cartpole-Direct``,
+  ``Isaac-Ant-Direct``, ``Isaac-Cartpole``, and ``Isaac-Ant``. See
   :doc:`kamino-solver`.
 * **VBD solver**: experimental, exposed through :mod:`isaaclab_contrib.deformable`
   for cloth and soft-body simulation. Most often used inside the coupled

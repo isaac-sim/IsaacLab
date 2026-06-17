@@ -12,9 +12,7 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
-    description=(
-        "Test Isaac-Cartpole-RGB-Camera-Direct-v0 environment with different resolutions and number of environments."
-    )
+    description=("Test Isaac-Cartpole-Camera-Direct environment with different resolutions and number of environments.")
 )
 parser.add_argument("--save_images", action="store_true", default=False, help="Save out renders to file.")
 parser.add_argument("unittest_args", nargs="*")
@@ -105,7 +103,7 @@ def test_tiled_num_envs_edge_cases():
 def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
     """Run through different resolutions for tiled rendering"""
     device = "cuda:0"
-    task_name = "Isaac-Cartpole-RGB-Camera-Direct-v0"
+    task_name = "Isaac-Cartpole-Camera-Direct"
     # iterate over all registered environments
     for width in tile_widths:
         for height in tile_heights:
@@ -126,7 +124,7 @@ def _launch_tests(tile_widths: range, tile_heights: range, num_envs: int):
 def _run_environment(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg):
     """Run environment and capture a rendered image."""
     # create environment
-    env: ManagerBasedRLEnv | DirectRLEnv = gym.make("Isaac-Cartpole-RGB-Camera-Direct-v0", cfg=env_cfg)
+    env: ManagerBasedRLEnv | DirectRLEnv = gym.make("Isaac-Cartpole-Camera-Direct", cfg=env_cfg)
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
     env.sim.set_setting("/physics/cooking/ujitsoCollisionCooking", False)

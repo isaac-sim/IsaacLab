@@ -19,7 +19,7 @@ import time
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 # -- CLI arguments -----------------------------------------------------------
 
@@ -60,7 +60,6 @@ parser.add_argument(
 # append AppLauncher cli args (provides --device, --headless, etc.)
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-hydra_args = fold_preset_tokens(hydra_args)
 sys.argv = [sys.argv[0]] + hydra_args
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
@@ -84,9 +83,10 @@ import gymnasium as gym  # noqa: E402
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
+from isaaclab.app import launch_simulation  # noqa: E402
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg  # noqa: E402
 
-from isaaclab_tasks.utils import launch_simulation, resolve_task_config  # noqa: E402
+from isaaclab_tasks.utils import resolve_task_config  # noqa: E402
 
 imports_profile.disable()
 
@@ -233,7 +233,8 @@ def main(
         first_step_time_begin = time.perf_counter_ns()
         first_step_profile.enable()
         try:
-            env.step(actions)
+            with torch.inference_mode():
+                env.step(actions)
         finally:
             first_step_profile.disable()
 

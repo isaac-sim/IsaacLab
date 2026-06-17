@@ -16,7 +16,7 @@ import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg
+from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.sim import SimulationCfg
@@ -330,3 +330,38 @@ def test_offset_and_rotated_body(sim):
     # Projected gravity: R_x(-90) * (0, 0, -1) = (0, -1, 0)
     expected_grav = torch.tensor([[0.0, -1.0, 0.0]], dtype=proj_grav.dtype, device=proj_grav.device).repeat(2, 1)
     torch.testing.assert_close(proj_grav, expected_grav, atol=0.05, rtol=0.0)
+
+
+def test_no_stale_data_after_scene_reset(sim):
+    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset PVA values (Newton).
+
+    Mirrors the PhysX equivalent. The PVA sensor's lazy ``data`` accessor must not refetch from
+    the Newton rigid-body view here (the velocity buffer reflects the previous step and would
+    produce spurious finite-difference accelerations).
+    """
+    scene_cfg = PvaTestSceneCfg(num_envs=1)
+    scene = InteractiveScene(scene_cfg)
+    sim.reset()
+    scene.reset()
+
+    pva: Pva = scene["pva"]
+    cube: RigidObject = scene["cube"]
+
+    # Let the cube fall so the PVA sensor has a non-zero velocity to read.
+    for _ in range(30):
+        scene.write_data_to_sim()
+        sim.step(render=False)
+        scene.update(dt=sim.get_physics_dt())
+
+    pre_reset_vel_mag = torch.linalg.norm(pva.data.lin_vel_b.torch, dim=-1).item()
+    assert pre_reset_vel_mag > 0.05, f"Expected non-zero velocity before reset; got {pre_reset_vel_mag!r}"
+
+    # Reset the scene without writing fresh velocity/transform. The Newton velocity buffer
+    # therefore still holds the pre-reset (falling) value.
+    env_ids = torch.tensor([0], device=cube.device)
+    scene.reset(env_ids=env_ids)
+
+    post_reset_vel = pva.data.lin_vel_b.torch
+    post_reset_acc = pva.data.lin_acc_b.torch
+    torch.testing.assert_close(post_reset_vel, torch.zeros_like(post_reset_vel))
+    torch.testing.assert_close(post_reset_acc, torch.zeros_like(post_reset_acc))

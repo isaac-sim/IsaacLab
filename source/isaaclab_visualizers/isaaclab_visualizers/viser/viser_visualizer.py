@@ -16,12 +16,18 @@ import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import newton
+import numpy as np
 from newton.viewer import ViewerViser
 
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import (
+    apply_viewer_visible_worlds,
+    log_geo_with_expanded_plane_scale,
+    resolve_visible_env_indices,
+)
 
 from .viser_visualizer_cfg import ViserVisualizerCfg
 
@@ -108,11 +114,84 @@ class NewtonViewerViser(ViewerViser):
                 record_to_viser=record_to_viser,
             )
         self._metadata = metadata or {}
+        self._isaaclab_plane_grid_cache: dict[str, tuple] = {}
 
     @property
     def share_url(self) -> str | None:
         """Return the public share URL created by Viser, if any."""
         return self._share_url
+
+    def clear_model(self) -> None:
+        """Clear cached static plane-grid signatures with the viewer model."""
+        cache = getattr(self, "_isaaclab_plane_grid_cache", None)
+        if cache is not None:
+            cache.clear()
+        return super().clear_model()
+
+    @staticmethod
+    def _array_signature(array) -> tuple[tuple[int, ...], bytes] | None:
+        """Return a stable signature for small transform/scale arrays."""
+        if array is None:
+            return None
+        array_np = np.ascontiguousarray(np.asarray(array, dtype=np.float32))
+        return tuple(int(dim) for dim in array_np.shape), array_np.tobytes()
+
+    def _log_plane_instances(
+        self,
+        name: str,
+        plane_info: dict[str, float | bool],
+        xforms,
+        scales,
+        hidden: bool = False,
+    ) -> None:
+        """Avoid removing/re-adding unchanged Viser plane grids every frame."""
+        cache = getattr(self, "_isaaclab_plane_grid_cache", None)
+        if hidden or xforms is None:
+            if cache is not None:
+                cache.pop(name, None)
+            return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
+
+        xforms_np = self._to_numpy(xforms)
+        if xforms_np is None or len(xforms_np) == 0:
+            if cache is not None:
+                cache.pop(name, None)
+            return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
+
+        scales_np = self._to_numpy(scales) if scales is not None else None
+        signature = (
+            float(plane_info["width"]),
+            float(plane_info["length"]),
+            self._array_signature(xforms_np),
+            self._array_signature(scales_np),
+        )
+        if cache is not None and cache.get(name) == signature and name in self._plane_handles:
+            return None
+        if cache is not None:
+            cache[name] = signature
+        return super()._log_plane_instances(name, plane_info, xforms, scales, hidden=hidden)
+
+    def log_geo(
+        self,
+        name: str,
+        geo_type: int,
+        geo_scale: tuple[float, ...],
+        geo_thickness: float,
+        geo_is_solid: bool,
+        geo_src=None,
+        hidden: bool = False,
+    ):
+        """Log geometry, preserving large render extents for infinite ground planes."""
+        return log_geo_with_expanded_plane_scale(
+            super().log_geo,
+            newton.GeoType.PLANE,
+            name,
+            geo_type,
+            geo_scale,
+            geo_thickness,
+            geo_is_solid,
+            geo_src,
+            hidden,
+        )
 
 
 class ViserVisualizer(BaseVisualizer):
@@ -130,7 +209,6 @@ class ViserVisualizer(BaseVisualizer):
         self._model: Any | None = None
         self._state = None
         self._sim_time = 0.0
-        self._scene_data_provider = None
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -148,10 +226,8 @@ class ViserVisualizer(BaseVisualizer):
         if self._is_initialized:
             logger.debug("[ViserVisualizer] initialize() called while already initialized.")
             return
-        if scene_data_provider is None:
-            raise RuntimeError("Viser visualizer requires a scene_data_provider.")
 
-        self._scene_data_provider = scene_data_provider
+        scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -171,7 +247,6 @@ class ViserVisualizer(BaseVisualizer):
                 ("eye", self.cfg.eye),
                 ("lookat", self.cfg.lookat),
                 ("focal_length", self.cfg.focal_length),
-                ("cam_source", self.cfg.cam_source),
                 ("num_visualized_envs", num_visualized_envs),
                 ("bind_address", self.cfg.bind_address),
                 ("display_address", self.cfg.display_address),
@@ -192,8 +267,6 @@ class ViserVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None or self._scene_data_provider is None:
             return
 
-        if self.cfg.cam_source == "prim_path":
-            self._update_camera_from_usd_path()
         self._apply_pending_camera_pose()
 
         self._state = NewtonManager.get_state(self._scene_data_provider)
@@ -317,15 +390,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = None
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
-        """Resolve initial camera pose from config or USD camera path."""
-        if self.cfg.cam_source == "prim_path":
-            pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-            if pose is not None:
-                return pose
-            raise RuntimeError(
-                "[ViserVisualizer] cam_source='prim_path' requires a resolvable camera prim path, "
-                f"but no camera pose was found for '{self.cfg.cam_prim_path}'."
-            )
+        """Resolve initial camera pose from config."""
         return self._resolve_cfg_camera_pose("ViserVisualizer")
 
     def _try_apply_viser_camera_view(self, pose: tuple[tuple[float, float, float], tuple[float, float, float]]) -> bool:
@@ -383,12 +448,3 @@ class ViserVisualizer(BaseVisualizer):
         if self._try_apply_viser_camera_view(self._pending_camera_pose):
             self._last_camera_pose = self._pending_camera_pose
             self._pending_camera_pose = None
-
-    def _update_camera_from_usd_path(self) -> None:
-        """Refresh camera pose from configured USD camera path when it changes."""
-        pose = self._resolve_camera_pose_from_usd_path(self.cfg.cam_prim_path)
-        if pose is None:
-            return
-        if self._last_camera_pose == pose or self._pending_camera_pose == pose:
-            return
-        self._set_viser_camera_view(pose)

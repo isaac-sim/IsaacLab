@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/open_cabinet_sm.py --num_envs 32
+    ./isaaclab.sh -p scripts/environments/state_machine/open_cabinet_sm.py --num_envs 32 --viz kit
 
 """
 
@@ -33,7 +33,7 @@ AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app
-app_launcher = AppLauncher(headless=args_cli.headless)
+app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 """Rest everything else."""
@@ -47,7 +47,7 @@ import warp as wp
 from isaaclab.sensors import FrameTransformer
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.manager_based.manipulation.cabinet.cabinet_env_cfg import CabinetEnvCfg
+from isaaclab_tasks.core.cabinet.cabinet_env_cfg import CabinetEnvCfg
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # initialize warp
@@ -272,13 +272,13 @@ class OpenDrawerSm:
 def main():
     # parse configuration
     env_cfg: CabinetEnvCfg = parse_env_cfg(
-        "Isaac-Open-Drawer-Franka-IK-Abs-v0",
+        "IsaacContrib-Open-Drawer-Franka-IK-Abs",
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Open-Drawer-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)
     # reset environment at start
     env.reset()
 

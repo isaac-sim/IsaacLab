@@ -44,7 +44,6 @@ def make_sim_cfg(
         njmax=200,
         ls_iterations=20,
         cone="elliptic",
-        ls_parallel=False,
         integrator="implicitfast",
         use_mujoco_contacts=use_mujoco_contacts,
     )

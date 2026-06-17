@@ -54,7 +54,7 @@ Step 1: Human Data Collection
 Environment Introduction
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-The environment we will be using in this tutorial is ``Isaac-Stack-Cube-Franka-IK-Rel-v0`` and its variations.
+The environment we will be using in this tutorial is ``IsaacContrib-Stack-Cube-Franka-IK-Rel`` and its variations.
 This environment contains a Franka robot attached to a table with three cubes.
 The task is to stack the cubes in the following order: blue (bottom), red (middle), green (top). As you proceed through
 the rest of this tutorial, you will encounter variations of this environment with different observation spaces
@@ -68,7 +68,7 @@ Press and hold the alt key while clicking and dragging to pan around the scene.
 .. code:: bash
 
    ./isaaclab.sh -p scripts/environments/zero_agent.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1
 
@@ -81,7 +81,7 @@ directions.
 .. code:: bash
 
    ./isaaclab.sh -p scripts/environments/random_agent.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1
 
@@ -108,7 +108,7 @@ the environment by quitting the script with Ctrl+C.
 .. code:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
    --sensitivity 4 \
@@ -139,7 +139,7 @@ To use a SpaceMouse, simply change ``--teleop_device`` accordingly:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
    --sensitivity 4 \
@@ -190,12 +190,12 @@ to immersively stream the scene to compatible XR devices for teleoperation.
 Follow the steps in :ref:`cloudxr-teleoperation` to learn how to install Isaac Teleop and set up CloudXR for
 teleoperation. Once you have set it up, you can launch the cube stacking environment with the follow command to try it out
 with an XR headset. Note that when using hand tracking, we recommend using the absolute action space
-variant of the task (``Isaac-Stack-Cube-Franka-IK-Abs-v0``):
+variant of the task (``IsaacContrib-Stack-Cube-Franka-IK-Abs``):
 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-   --task Isaac-Stack-Cube-Franka-IK-Abs-v0 \
+   --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
    --viz kit \
    --xr
 
@@ -216,17 +216,52 @@ Make a new folder in the ``IsaacLab`` root directory to store datasets:
 
    mkdir -p datasets
 
-Change ``<teleop_device>`` to the teleoperation device you want to use (e.g. ``spacemouse``, ``keyboard``) and
-run the record demos script to collect a set of 10 human demonstrations for the cube stacking task.
+Run the record demos script to collect a set of 10 human demonstrations for the cube stacking task.
+Select the tab that matches your input device:
 
-.. code:: bash
+.. tab-set::
 
-   ./isaaclab.sh -p scripts/tools/record_demos.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
-   --viz kit \
-   --dataset_file ./datasets/dataset.hdf5 \
-   --num_demos 10 \
-   --teleop_device <teleop_device>
+   .. tab-item:: Keyboard
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
+         --viz kit \
+         --dataset_file ./datasets/dataset.hdf5 \
+         --num_demos 10 \
+         --teleop_device keyboard
+
+   .. tab-item:: SpaceMouse
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
+         --viz kit \
+         --dataset_file ./datasets/dataset.hdf5 \
+         --num_demos 10 \
+         --teleop_device spacemouse
+
+   .. tab-item:: XR Headset (Meta Quest / Pico)
+
+      When using hand tracking via an XR headset, use the absolute action space
+      variant of the task and omit ``--teleop_device``. The IsaacTeleop pipeline
+      is activated automatically via the ``--xr`` flag.
+
+      .. code:: bash
+
+         ./isaaclab.sh -p scripts/tools/record_demos.py \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Abs \
+         --viz kit \
+         --dataset_file ./datasets/dataset.hdf5 \
+         --num_demos 10 \
+         --xr
+
+      .. note::
+
+         Ensure CloudXR is configured and the headset is connected before running.
+         See :ref:`cloudxr-teleoperation` for setup instructions.
 
 .. important::
    The order of the stacked cubes should be blue (bottom), red (middle), green (top).
@@ -245,7 +280,7 @@ You can replay the collected demonstrations by running:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/replay_demos.py \
-   --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+   --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
    --viz kit \
    --num_envs 1 \
    --reset_sim_buffer_each_episode \
@@ -264,7 +299,7 @@ Step 2: Synthetic Data Generation using Isaac Lab Mimic
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 We provide a pre-recorded HDF5 dataset containing 10 human demonstrations for the cube stacking task
-here: `[Cube Stacking Human Dataset] <https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
+here: `[Cube Stacking Human Dataset] <https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0/Isaac/IsaacLab/Mimic/franka_stack_datasets/dataset.hdf5>`__.
 If you skipped :ref:`Step 1: Human Data Collection <teleop-imitation-step-1-human-data-collection>`, you can download this dataset and use it in the remaining tutorial steps.
 
 Place the dataset in the ``IsaacLab/datasets`` folder. You may need to create the folder if you skipped Step 1 and
@@ -376,7 +411,6 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-         --headless \
          --num_envs 1000 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -389,7 +423,6 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
          ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
          --enable_cameras \
-         --headless \
          --num_envs 300 \
          --generation_num_trials 1000 \
          --input_file ./datasets/annotated_dataset.hdf5 \
@@ -438,8 +471,8 @@ Train an Agent
 ^^^^^^^^^^^^^^
 
 Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN agent for
-``Isaac-Stack-Cube-Franka-IK-Rel-v0``, or a visuomotor BC RNN agent for
-``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0``:
+``IsaacContrib-Stack-Cube-Franka-IK-Rel``, or a visuomotor BC RNN agent for
+``IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor``:
 
 .. tab-set::
    :sync-group: policy_type
@@ -450,7 +483,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
 
@@ -460,7 +493,7 @@ Using the Isaac Lab Mimic generated data we can now train a state-based BC RNN a
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --algo bc \
          --dataset ./datasets/generated_dataset.hdf5
 
@@ -483,7 +516,7 @@ Run the trained policy to visualize the results:
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-v0 \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Rel \
          --viz kit \
          --num_rollouts 50 \
          --checkpoint /PATH/TO/desired_model_checkpoint.pth
@@ -494,7 +527,7 @@ Run the trained policy to visualize the results:
       .. code:: bash
 
          ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-         --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0 \
+         --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor \
          --viz kit \
          --enable_cameras \
          --num_rollouts 50 \
@@ -585,7 +618,7 @@ Once the subtasks are defined, they need to be annotated in the source data. The
 
 It is often easiest to perform manual annotations, since the number of input demonstrations is usually very small. To perform manual annotations, use the ``annotate_demos.py`` script without the ``--auto`` flag. Then press ``B`` to pause, ``N`` to continue, and ``S`` to annotate a subtask boundary.
 
-For more accurate boundaries, or to speed up repeated processing of a given task for experiments, heuristics can be implemented to perform the same task. Heuristics are observations in the environment. An example how to add subtask terms can be found in ``source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/stack_env_cfg.py``, where they are added as an observation group called ``SubtaskCfg``. This example is using prebuilt heuristics, but custom heuristics are easily implemented.
+For more accurate boundaries, or to speed up repeated processing of a given task for experiments, heuristics can be implemented to perform the same task. Heuristics are observations in the environment. An example how to add subtask terms can be found in ``source/isaaclab_tasks/isaaclab_tasks/contrib/stack/stack_env_cfg.py``, where they are added as an observation group called ``SubtaskCfg``. This example is using prebuilt heuristics, but custom heuristics are easily implemented.
 
 
 Helpers for demonstration generation

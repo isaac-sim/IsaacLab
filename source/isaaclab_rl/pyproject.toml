@@ -1,3 +1,69 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 [build-system]
-requires = ["setuptools<82.0.0", "wheel", "toml"]
+requires = ["setuptools>=70.0,<82.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "isaaclab_rl"
+version = "0.6.1"
+description = "Extension containing reinforcement learning related utilities."
+license = {text = "BSD-3-Clause"}
+authors = [{name = "Isaac Lab Project Developers"}]
+maintainers = [{name = "Isaac Lab Project Developers"}]
+keywords = ["robotics", "rl", "wrappers", "learning"]
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "torch>=2.10",
+    "torchvision>=0.25.0",
+    "protobuf>=4.25.8,!=5.26.0",
+    # configuration management
+    "hydra-core",
+    # data collection
+    "h5py>=3.15.0",
+    # basic logger
+    "tensorboard",
+    # video recording
+    "moviepy",
+    "packaging<24",
+    "tqdm>=4.67.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/isaac-sim/IsaacLab"
+Repository = "https://github.com/isaac-sim/IsaacLab"
+
+[project.optional-dependencies]
+sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
+skrl = ["skrl>=2.1.0"]
+rl-games = [
+    "aiohttp==3.13.3",
+    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+    "gym",
+    "standard-distutils",
+]
+rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
+all = [
+    "stable-baselines3>=2.6", "tqdm", "rich",
+    "skrl>=2.1.0",
+    "aiohttp==3.13.3",
+    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+    "gym",
+    "standard-distutils",
+    "rsl-rl-lib==5.0.1",
+    "onnxscript>=0.5",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["isaaclab_rl", "isaaclab_rl.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.pyi"]

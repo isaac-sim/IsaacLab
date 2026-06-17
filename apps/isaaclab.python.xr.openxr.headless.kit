@@ -21,6 +21,7 @@ app.version = "3.0.0"
 app.useFabricSceneDelegate = true
 # Temporary, should be enabled by default in Kit soon
 rtx.hydra.readTransformsFromFabricInRenderDelegate = true
+renderer.scenePartitioning.enabled = true # Enable before RTX initialization so env-root partitions are honored
 
 # xr optimizations
 xr.skipInputDeviceUSDWrites = true
@@ -70,6 +71,6 @@ UJITSO.geometry = true
 UJITSO.enabled = true
 
 [settings]
-persistent.isaac.asset_root.default = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
-persistent.isaac.asset_root.cloud = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
-persistent.isaac.asset_root.nvidia = "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.default = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.cloud = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"
+persistent.isaac.asset_root.nvidia = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/6.0"

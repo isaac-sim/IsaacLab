@@ -214,7 +214,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         # extend UI elements
         # we need to do this here after all the managers are initialized
         # this is because they dictate the sensors and commands right now
-        if bool(self.sim.settings.get("/isaaclab/visualizer")) and self.cfg.ui_window_class_type is not None:
+        if self.sim.has_gui and self.cfg.ui_window_class_type is not None:
             self._window = self.cfg.ui_window_class_type(self, window_name="IsaacLab")
         else:
             # if no window, then we don't need to store the window
@@ -417,9 +417,8 @@ class DirectRLEnvWarp(DirectRLEnv):
             )  # Creates a tensor and discards it. Not graphable unless training loop reuses the same pointer.
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        _has_rtx = hasattr(self.sim, "has_rtx_sensors") and self.sim.has_rtx_sensors()
-        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or _has_rtx
+        # note: hoisted out of the decimation loop; is_rendering does live settings lookups
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):

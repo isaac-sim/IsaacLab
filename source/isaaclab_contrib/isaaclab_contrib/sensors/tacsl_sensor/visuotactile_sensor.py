@@ -319,7 +319,12 @@ class VisuoTactileSensor(SensorBase):
             c. Creates rigid body view for object
 
         """
-        elastomer_pattern = self._parent_prims[0].GetPath().pathString.replace("env_0", "env_*")
+        # Resolve the elastomer's destination expression (multi-env glob form for PhysX views).
+        # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
+        # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
+        elastomer_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+        elastomer_dest_expr = sim_utils.resolve_matching_prims_from_source(elastomer_expr)[0][1]
+        elastomer_pattern = elastomer_dest_expr.replace(".*", "*")
         self._elastomer_body_view = self._physics_sim_view.create_rigid_body_view([elastomer_pattern])
         # Get elastomer COM for velocity correction
         self._elastomer_com_b = (
@@ -416,8 +421,11 @@ class VisuoTactileSensor(SensorBase):
 
         """
 
-        # Get the elastomer prim path
-        elastomer_prim_path = self._parent_prims[0].GetPath().pathString
+        # Resolve the elastomer's source-side env prim and use it as the walk root.
+        # The sensor's cfg.prim_path lives under the elastomer; the parent expression is the
+        # elastomer body itself (matching :attr:`SensorBase._parent_prims`).
+        elastomer_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+        elastomer_prim_path = sim_utils.resolve_matching_prims_from_source(elastomer_expr)[0][0].GetPath().pathString
 
         def is_visual_mesh(prim) -> bool:
             """Check if a mesh prim has visual properties (visual mesh, not collision mesh)."""
