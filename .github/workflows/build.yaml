@@ -217,7 +217,7 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
-    - name: Ensure Docker image is available locally
+    - name: Verify Docker image is available locally
       shell: bash
       run: |
         set -euo pipefail
@@ -225,13 +225,8 @@ jobs:
           echo "Docker image ${CI_IMAGE_TAG} is available locally."
           exit 0
         fi
-        if [ -z "${ECR_IMAGE:-}" ]; then
-          echo "::error::Docker image ${CI_IMAGE_TAG} is not local and ECR_IMAGE is unavailable."
-          exit 1
-        fi
-        echo "Pulling ${ECR_IMAGE} for license checks."
-        docker pull "${ECR_IMAGE}"
-        docker tag "${ECR_IMAGE}" "${CI_IMAGE_TAG}"
+        echo "::error::Docker image ${CI_IMAGE_TAG} is not local after ecr-build-push-pull."
+        exit 1
 
     - name: Capture Docker license reports
       shell: bash
