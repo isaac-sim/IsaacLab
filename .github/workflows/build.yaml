@@ -217,6 +217,105 @@ jobs:
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
 
+    - name: Verify Docker image is available locally
+      shell: bash
+      run: |
+        set -euo pipefail
+        if docker image inspect "${CI_IMAGE_TAG}" >/dev/null 2>&1; then
+          echo "Docker image ${CI_IMAGE_TAG} is available locally."
+          exit 0
+        fi
+        echo "::error::Docker image ${CI_IMAGE_TAG} is not local after ecr-build-push-pull."
+        exit 1
+
+    - name: Capture Docker license reports
+      shell: bash
+      run: |
+        set -euo pipefail
+        rm -rf license-reports
+        mkdir -p license-reports
+        container_id="$(docker create --network=host \
+          -e OMNI_KIT_ACCEPT_EULA=Y \
+          -e ACCEPT_EULA=Y \
+          -e ISAACSIM_ACCEPT_EULA=YES \
+          -v "$PWD":/workspace/isaaclab:ro \
+          --entrypoint bash \
+          "${CI_IMAGE_TAG}" \
+          -lc '
+            set -euo pipefail
+            mkdir -p /tmp/license-reports
+            cd /workspace/isaaclab
+            cat "${ISAACLAB_BASE_APT_MANUAL_FILE}" > /tmp/license-reports/base-apt-manual.txt
+            apt-mark showmanual | sort > /tmp/license-reports/docker-apt-manual.txt
+            dpkg-query -W -f="\${binary:Package}\t\${Version}\n" | sort > /tmp/license-reports/docker-apt-versions.txt
+            /isaac-sim/python.sh tools/check_dependency_licenses.py pip \
+              --collector importlib \
+              --output-json /tmp/license-reports/docker-pip-licenses.json \
+              --output-markdown /tmp/license-reports/docker-pip-licenses.md \
+              --skipped-metadata-output /tmp/license-reports/docker-pip-skipped-metadata.txt \
+              --exceptions-file .github/workflows/license-exceptions.json \
+              --report-label "docker pip metadata capture" \
+              --report-only
+            test -s /tmp/license-reports/base-apt-manual.txt
+            test -s /tmp/license-reports/docker-pip-licenses.json
+          ')"
+        set +e
+        docker start -a "${container_id}"
+        status="$(docker inspect "${container_id}" --format "{{.State.ExitCode}}")"
+        docker cp "${container_id}:/tmp/license-reports/." license-reports/
+        copy_status="$?"
+        docker rm -f "${container_id}" >/dev/null 2>&1
+        set -e
+        if [ "${copy_status}" -ne 0 ]; then
+          exit "${copy_status}"
+        fi
+        if [ "${status}" -ne 0 ]; then
+          exit "${status}"
+        fi
+
+    - name: Check Docker pip package licenses
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker run --rm \
+          -v "$PWD":/workspace/isaaclab \
+          --entrypoint bash \
+          "${CI_IMAGE_TAG}" \
+          -lc '
+            set -euo pipefail
+            cd /workspace/isaaclab
+            /isaac-sim/python.sh tools/check_dependency_licenses.py pip \
+              --license-json license-reports/docker-pip-licenses.json \
+              --exceptions-file .github/workflows/license-exceptions.json \
+              --report-label "docker pip"
+          '
+
+    - name: Check Docker apt package licenses
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker run --rm \
+          -v "$PWD":/workspace/isaaclab \
+          --entrypoint bash \
+          "${CI_IMAGE_TAG}" \
+          -lc '
+            set -euo pipefail
+            cd /workspace/isaaclab
+            /isaac-sim/python.sh tools/check_dependency_licenses.py apt \
+              --apt-manual-only \
+              --apt-baseline-file license-reports/base-apt-manual.txt \
+              --exceptions-file .github/workflows/license-exceptions.json \
+              --report-label "docker apt"
+          '
+
+    - name: Upload Docker license reports
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: docker-license-reports
+        path: license-reports/
+        if-no-files-found: ignore
+
   build-curobo:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
