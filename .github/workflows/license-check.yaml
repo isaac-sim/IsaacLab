@@ -13,7 +13,30 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  LICENSE_CHECK_IMAGE_TAG: isaac-lab-license-check:pr-${{ github.event.pull_request.number }}-${{ github.sha }}
+
 jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+
   license-check:
     runs-on: ubuntu-24.04
 
@@ -22,9 +45,6 @@ jobs:
       uses: actions/checkout@v6
       with:
         filter: tree:0
-
-    # - name: Install jq
-    #   run: sudo apt-get update && sudo apt-get install -y jq
 
     - name: Clean up disk space
       run: |
@@ -48,7 +68,6 @@ jobs:
         docker volume prune -f
         docker system prune -af
 
-
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -70,94 +89,135 @@ jobs:
 
     - name: Install pip-licenses
       run: |
-        pip install --no-cache-dir pip-licenses
-        pip install --no-cache-dir -r tools/template/requirements.txt
-        pip install --no-cache-dir -r docs/requirements.txt
+        ./isaaclab.sh -p -m pip install --no-cache-dir pip-licenses
+        ./isaaclab.sh -p -m pip install --no-cache-dir -r tools/template/requirements.txt
+        ./isaaclab.sh -p -m pip install --no-cache-dir -r docs/requirements.txt
 
     # Optional: Print the license report for visibility
     - name: Print License Report
-      run: pip-licenses --from=mixed --format=markdown
+      run: ./isaaclab.sh -p -m piplicenses --from=mixed --format=markdown
 
     # Print pipdeptree
     - name: Print pipdeptree
       run: |
         # clean up pip cache
-        pip cache purge
-        pip install pipdeptree
-        pipdeptree
+        ./isaaclab.sh -p -m pip cache purge
+        ./isaaclab.sh -p -m pip install pipdeptree
+        ./isaaclab.sh -p -m pipdeptree
 
     - name: Check licenses against whitelist and exceptions
       run: |
-        # Define the whitelist of allowed licenses
-        ALLOWED_LICENSES="MIT Apache BSD ISC zlib"
+        ./isaaclab.sh -p tools/check_dependency_licenses.py pip \
+          --exceptions-file .github/workflows/license-exceptions.json \
+          --report-label "host pip"
 
-        # Load the exceptions list from the exceptions.json file
-        EXCEPTIONS_FILE=".github/workflows/license-exceptions.json"
+  docker-license-check:
+    name: Docker Image Licenses Check
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    needs: [config]
+    env:
+      ISAACSIM_BASE_IMAGE_NAME: ${{ needs.config.outputs.isaacsim_image_name }}
+      ISAACSIM_BASE_IMAGE_TAG: ${{ needs.config.outputs.isaacsim_image_tag }}
 
-        # Initialize counter for failed packages
-        FAILED_PACKAGES=0
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
 
-        # Get the list of installed packages and their licenses
-        pip-licenses --from=mixed --format=json > licenses.json
+    - name: Prepare Docker disk space
+      shell: bash
+      run: |
+        set -euo pipefail
+        isaacsim_base_image="${ISAACSIM_BASE_IMAGE_NAME}:${ISAACSIM_BASE_IMAGE_TAG}"
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${isaacsim_base_image}" \
+          "isaacsim-pin-license-check-${{ github.run_id }}-${{ github.run_attempt }}-pre" \
+          "pre-license-check-cleanup" \
+          "true"
 
-        # Check the output of pip-licenses to ensure it is valid JSON
-        if ! jq empty licenses.json; then
-          echo "ERROR: Failed to parse pip-licenses output. Exiting..."
-          exit 1
-        fi
+    - name: Collect base apt package baseline
+      shell: bash
+      run: |
+        set -euo pipefail
+        isaacsim_base_image="${ISAACSIM_BASE_IMAGE_NAME}:${ISAACSIM_BASE_IMAGE_TAG}"
+        mkdir -p license-reports
 
-        # Split ALLOWED_LICENSES into individual words
-        IFS=' ' read -r -a allowed_licenses <<< "$ALLOWED_LICENSES"
+        docker_config_dir="$(mktemp -d)"
+        trap 'rm -rf "${docker_config_dir}"' EXIT
+        echo '{"credsStore":""}' > "${docker_config_dir}/config.json"
 
-        # Loop through the installed packages and their licenses
-        for pkg in $(jq -r '.[].Name' licenses.json); do
-          # Skip packages starting with nvidia (case-insensitive)
-          if [[ "${pkg,,}" == nvidia* ]]; then
-            continue
-          fi
-
-          LICENSE=$(jq -r --arg pkg "$pkg" '.[] | select(.Name == $pkg) | .License' licenses.json)
-
-          # Check if any of the allowed licenses are a substring of the package's license
-          match_found=false
-          for allowed_license in "${allowed_licenses[@]}"; do
-            if [[ "$LICENSE" == *"$allowed_license"* ]]; then
-              match_found=true
-              break
-            fi
-          done
-
-          if [ "$match_found" = false ]; then
-            # Check if the package is in the exceptions list
-            EXCEPTION=$(jq -r --arg pkg "$pkg" --arg license "$LICENSE" \
-              '.[] | select(.package == $pkg)' "$EXCEPTIONS_FILE")
-
-            # If the package is in the exceptions list
-            if [ -n "$EXCEPTION" ]; then
-              # If the license is provided in the exceptions list, check the license
-              EXCEPTION_LICENSE=$(echo "$EXCEPTION" | jq -r '.license')
-
-              # echo "Comparing licenses for $pkg:"
-              # echo "  EXCEPTION_LICENSE='${EXCEPTION_LICENSE}' (len=${#EXCEPTION_LICENSE})"
-              # echo "  LICENSE='${LICENSE}' (len=${#LICENSE})"
-
-              # If the exceptions list has a license and doesn't match the current license
-              if [ "$EXCEPTION_LICENSE" != "null" ] && [ "$EXCEPTION_LICENSE" != "$LICENSE" ]; then
-                echo "ERROR: $pkg has license: $LICENSE"
-                FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
-              fi
-            else
-              # If the package is not in the exceptions list
-              echo "ERROR: $pkg has license: $LICENSE"
-              FAILED_PACKAGES=$((FAILED_PACKAGES + 1))  # Increment the counter
-            fi
-          fi
-        done
-
-        # After all packages are processed, check if there were any errors
-        if [ "$FAILED_PACKAGES" -gt 0 ]; then
-          echo "ERROR: $FAILED_PACKAGES packages were flagged."
-          exit 1  # Fail the build
+        if [ -n "${NGC_API_KEY}" ]; then
+          printf '%s' "${NGC_API_KEY}" | docker --config "${docker_config_dir}" login \
+            -u '$oauthtoken' --password-stdin nvcr.io
         else
-          echo "All packages were checked."
+          echo "NGC_API_KEY not set - attempting to read the base image without registry login."
         fi
+
+        # The Isaac Sim base image is outside this repository's control. Use it
+        # as the baseline so the apt check covers system packages introduced by
+        # the Isaac Lab Docker build.
+        docker --config "${docker_config_dir}" run --rm --entrypoint bash "${isaacsim_base_image}" \
+          -lc 'apt-mark showmanual | sort' > license-reports/base-apt-manual.txt
+
+    - name: Build Docker Image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: ${{ env.LICENSE_CHECK_IMAGE_TAG }}
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+
+    - name: Check Docker pip package licenses
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker run --rm --network=host \
+          -e OMNI_KIT_ACCEPT_EULA=Y \
+          -e ACCEPT_EULA=Y \
+          -e ISAACSIM_ACCEPT_EULA=YES \
+          -v "$PWD":/workspace/isaaclab \
+          --entrypoint bash \
+          "${LICENSE_CHECK_IMAGE_TAG}" \
+          -lc '
+            set -euo pipefail
+            cd /workspace/isaaclab
+            /isaac-sim/python.sh -m pip install --no-cache-dir pip-licenses
+            /isaac-sim/python.sh -m piplicenses --from=mixed --format=markdown
+            /isaac-sim/python.sh tools/check_dependency_licenses.py pip \
+              --exceptions-file .github/workflows/license-exceptions.json \
+              --report-label "docker pip"
+          '
+
+    - name: Check Docker apt package licenses
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker run --rm \
+          -v "$PWD":/workspace/isaaclab \
+          --entrypoint bash \
+          "${LICENSE_CHECK_IMAGE_TAG}" \
+          -lc '
+            set -euo pipefail
+            cd /workspace/isaaclab
+            /isaac-sim/python.sh tools/check_dependency_licenses.py apt \
+              --apt-manual-only \
+              --apt-baseline-file license-reports/base-apt-manual.txt \
+              --exceptions-file .github/workflows/license-exceptions.json \
+              --report-label "docker apt"
+          '
+
+    - name: Cleanup old Docker images
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        isaacsim_base_image="${ISAACSIM_BASE_IMAGE_NAME}:${ISAACSIM_BASE_IMAGE_TAG}"
+        bash .github/actions/run-package-tests/cleanup_docker_storage.sh \
+          "${isaacsim_base_image}" \
+          "isaacsim-pin-license-check-${{ github.run_id }}-${{ github.run_attempt }}-post" \
+          "post-license-check-cleanup" \
+          "false"
