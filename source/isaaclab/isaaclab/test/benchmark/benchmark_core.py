@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from isaaclab.test.benchmark.schema import (
         LearningCurve,
         MeanStd,
+        PlayBundle,
         Runtime,
         RuntimeBundle,
         StartupBundle,
@@ -121,7 +122,7 @@ def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) ->
 
 
 def _measurements_from_bundle(
-    bundle: "RuntimeBundle | TrainingBundle | StartupBundle",
+    bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
     """Project a typed bundle into flat phases for non-schema formatters."""
     from isaaclab.test.benchmark.schema import StartupBundle, TrainingBundle
@@ -341,11 +342,11 @@ class BaseIsaacLabBenchmark:
                     metadata.append(curr_meta)
         return metadata
 
-    def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None") -> None:
+    def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle | None") -> None:
         """Attach a typed bundle for schema serialization and flat-formatter projection.
 
         Args:
-            bundle: Runtime, training, or startup benchmark bundle.
+            bundle: Runtime, training, startup, or play benchmark bundle.
         """
         self._bundle = bundle
         if bundle is not None:
