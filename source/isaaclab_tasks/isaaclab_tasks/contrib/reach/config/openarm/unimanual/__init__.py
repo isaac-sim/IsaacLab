@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Reach-OpenArm-v0",
+    id="IsaacContrib-Reach-OpenArm",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-OpenArm-Play-v0",
+    id="IsaacContrib-Reach-OpenArm-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

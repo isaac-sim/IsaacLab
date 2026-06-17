@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
@@ -80,6 +81,7 @@ class ArticulationData(BaseArticulationData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
+        self._fk_timestamp = 0.0
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
@@ -126,9 +128,73 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step. Keep fk_timestamp in sync unless it was explicitly invalidated.
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the joint acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.joint_acc
+
+    def _ensure_fk_fresh(self) -> None:
+        """Run forward kinematics if the joint / body state has changed since the last FK update.
+
+        Cheap to call repeatedly: the ``_fk_timestamp`` guard skips the recomputation when the
+        kinematic state is already up to date.
+        """
+        if self._fk_timestamp < self._sim_timestamp:
+            self._physics_sim_view.update_articulations_kinematic()
+            self._fk_timestamp = self._sim_timestamp
+
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Reset pose-dependent cached articulation properties.
+
+        Args:
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
+        """
+        # Invalidate the derived root com pose only when the root link pose was the quantity just written.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_link_pose_w,
+                self._body_com_pose_w,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+                self._body_com_jacobian_w,
+                self._gravity_compensation_forces,
+                self._mass_matrix,
+            ]
+        )
+        self._fk_timestamp = -1.0
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Reset velocity-dependent cached articulation properties.
+
+        Args:
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
+        """
+        # Invalidate the derived root link velocity only when the root com velocity was the quantity just written.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        self._fk_timestamp = -1.0
 
     """
     Names.
@@ -738,8 +804,7 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # perform forward kinematics (shouldn't cause overhead if it happened already)
-            self._physics_sim_view.update_articulations_kinematic()
+            self._ensure_fk_fresh()
             # set the buffer data and timestamp
             self._body_link_pose_w.data = self._root_view.get_link_transforms().view(wp.transformf)
             self._body_link_pose_w.timestamp = self._sim_timestamp
@@ -815,6 +880,7 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
+            self._ensure_fk_fresh()
             self._body_com_vel_w.data = self._root_view.get_link_velocities().view(wp.spatial_vectorf)
             self._body_com_vel_w.timestamp = self._sim_timestamp
 
@@ -869,6 +935,10 @@ class ArticulationData(BaseArticulationData):
         natively Center-Of-Mass-referenced. Refresh is gated by ``_sim_timestamp`` and
         invalidated by ``write_*_to_sim_index``; the ``ProxyArray`` wrapper is lazy-init
         once and reused thereafter.
+
+        Unlike the world-frame pose buffers, this does not need an explicit
+        :meth:`_ensure_fk_fresh`: PhysX recomputes the Jacobian from the current joint
+        state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             self._body_com_jacobian_w.data = self._root_view.get_jacobians()
@@ -905,6 +975,10 @@ class ArticulationData(BaseArticulationData):
         PhysX implementation: passthrough of ``_root_view.get_generalized_mass_matrices()``.
         Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
         the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
+
+        Unlike the world-frame pose buffers, this does not need an explicit
+        :meth:`_ensure_fk_fresh`: PhysX recomputes the mass matrix from the current joint
+        state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
         if self._mass_matrix.timestamp < self._sim_timestamp:
             self._mass_matrix.data = self._root_view.get_generalized_mass_matrices()
@@ -920,6 +994,10 @@ class ArticulationData(BaseArticulationData):
         PhysX implementation: passthrough of ``_root_view.get_gravity_compensation_forces()``.
         Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
         the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
+
+        Unlike the world-frame pose buffers, this does not need an explicit
+        :meth:`_ensure_fk_fresh`: PhysX recomputes these forces from the current joint
+        state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
         if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
             self._gravity_compensation_forces.data = self._root_view.get_gravity_compensation_forces()

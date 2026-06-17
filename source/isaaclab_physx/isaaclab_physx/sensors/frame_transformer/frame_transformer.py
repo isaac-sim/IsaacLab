@@ -188,9 +188,7 @@ class FrameTransformer(BaseFrameTransformer):
             def has_rigid_body_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-            matches = resolve_matching_prims_from_source(
-                prim_path, predicate=has_rigid_body_api, raise_if_no_matches=False
-            )
+            matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, raise_if_no_matches=False)
             if not matches:
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."

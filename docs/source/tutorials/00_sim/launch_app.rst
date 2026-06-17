@@ -66,7 +66,7 @@ Understanding the output of --help
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 While executing the script, we can pass the ``--help`` argument and see the combined outputs of the
-custom arguments and those from :class:`~app.AppLauncher`.
+custom arguments and the non-deprecated options from :class:`~app.AppLauncher`.
 
 .. code-block:: console
 
@@ -75,7 +75,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
    [INFO] Using python from: /isaac-sim/python.sh
    [INFO][AppLauncher]: The argument 'width' will be used to configure the SimulationApp.
    [INFO][AppLauncher]: The argument 'height' will be used to configure the SimulationApp.
-   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--headless] [--livestream {0,1,2}]
+   usage: launch_app.py [-h] [--size SIZE] [--width WIDTH] [--height HEIGHT] [--livestream {0,1,2}]
                         [--enable_cameras] [--visualizer VISUALIZER] [--verbose] [--experience EXPERIENCE]
 
    Tutorial on running IsaacSim via the AppLauncher.
@@ -87,7 +87,6 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --height HEIGHT       Height of the viewport and generated images. Defaults to 720
 
    app_launcher arguments:
-   --headless            [DEPRECATED] Disable visualizers and force headless mode (display off).
    --livestream {0,1,2}
                          Force enable livestreaming. Mapping corresponds to that for the "LIVESTREAM" environment variable.
    --enable_cameras      Enable cameras when running without a GUI.
@@ -97,7 +96,7 @@ custom arguments and those from :class:`~app.AppLauncher`.
    --experience EXPERIENCE
                          The experience file to load when launching the SimulationApp.
 
-                         * If an empty string is provided, the experience file is determined based on the headless flag.
+                         * If an empty string is provided, the experience file is determined based on the launch mode.
                          * If a relative path is provided, it is resolved relative to the `apps` folder in Isaac Sim and
                            Isaac Lab (in that order).
 
@@ -114,8 +113,7 @@ for more examples.
 Using environment variables
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-As noted in the help message, the :class:`~app.AppLauncher` arguments (for example ``--livestream``
-and deprecated ``--headless``)
+As noted in the help message, :class:`~app.AppLauncher` arguments such as ``--livestream``
 have corresponding environment variables (envar) as well. These are detailed in :mod:`isaaclab.app`
 documentation. Providing any of these arguments through CLI is equivalent to running the script in a shell
 environment where the corresponding envar is set.

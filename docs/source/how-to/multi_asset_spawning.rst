@@ -101,21 +101,22 @@ the same names for them. If that is not the case, the physics parsing of the pri
 The main purpose of this functionality is to enable the user to create randomized versions of the same asset,
 for example robots with different link lengths, or rigid objects with different collider shapes.
 
-Disabling physics replication in interactive scene
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Physics replication in interactive scene
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 By default, the flag :attr:`scene.InteractiveScene.replicate_physics` is set to True. This flag informs the physics
 engine that the simulation environments are copies of one another so it just needs to parse the first environment
 to understand the entire simulation scene. This helps speed up the simulation scene parsing.
 
 However, in the case of spawning different assets in different environments, this assumption does not hold
-anymore. Hence the flag :attr:`scene.InteractiveScene.replicate_physics` must be disabled.
+anymore. Hence the flag :attr:`scene.InteractiveScene.replicate_physics` must be disabled when the spawned assets
+do not share the same structure.
 For a full guide on the template-based cloning system including strategies and collision filtering,
 see :doc:`cloning`.
 
 .. literalinclude:: ../../../scripts/demos/multi_asset.py
    :language: python
-   :lines: 280-283
+   :lines: 247-251
    :dedent:
 
 The Code Execution

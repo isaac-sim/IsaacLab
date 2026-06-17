@@ -55,7 +55,7 @@ Train a robot!
 ~~~~~~~~~~~~~~
 
 You can now use Isaac Lab to train a robot through Reinforcement Learning! The quickest way to use Isaac Lab is through the predefined workflows using one of our **Batteries-included** robot tasks. Execute the following command to quickly train an ant to walk!
-We recommend adding ``--headless`` for faster training.
+These commands do not select a visualizer, so they run without a viewer for faster training.
 
 .. tab-set::
    :sync-group: os
@@ -65,14 +65,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Ant
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Ant --headless
+         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Ant
 
 ... Or a robot dog!
 
@@ -84,14 +84,14 @@ We recommend adding ``--headless`` for faster training.
 
       .. code:: bash
 
-         ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         ./isaaclab.sh train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code:: batch
 
-         isaaclab.bat train --rl_library rsl_rl --task=Isaac-Velocity-Rough-Anymal-C-v0 --headless
+         isaaclab.bat train --rl_library rsl_rl --task=IsaacContrib-Velocity-Rough-AnymalC
 
 Isaac Lab provides the tools you'll need to create your own **Tasks** and **Workflows** for whatever your project needs may be.
 Take a look at our :ref:`how-to` like :ref:`Adding your own learning Library <how-to-add-library>` or :ref:`Wrapping Environments <how-to-env-wrappers>` for details.

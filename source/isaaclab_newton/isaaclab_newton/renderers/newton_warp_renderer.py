@@ -278,14 +278,15 @@ class NewtonWarpRenderer(BaseRenderer):
         owns the sentinel-resolution + cfg-normalization step. Newton has no
         USD-side overrides to author beyond this.
         """
-        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
+        if spec.cfg.isp_cfg is None:
             return
         try:
             from isaaclab_ppisp import resolve_and_normalize
         except ModuleNotFoundError as exc:
             _raise_missing_ppisp_error(exc)
 
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
+        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.

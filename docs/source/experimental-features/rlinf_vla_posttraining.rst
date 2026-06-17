@@ -168,12 +168,17 @@ architecture from the base model and overlays the RL-finetuned weights
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+.. note::
+
+   **Windows support is still being optimized.** For now, Linux is recommended for
+   RLinf training and evaluation.
+
 Checkpoints
 -----------
 
 Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
 
-   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-Isaac-Assemble-Trocar-G129-Dex3-v0/<experiment_name>/checkpoints/global_step_<N>/
+   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
 
 The placeholders are configurable in the task YAML
 (``source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):

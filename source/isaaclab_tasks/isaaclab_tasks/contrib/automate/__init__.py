@@ -12,7 +12,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-AutoMate-Assembly-Direct-v0",
+    id="IsaacContrib-AutoMate-Assembly-Direct",
     entry_point=f"{__name__}.assembly_env:AssemblyEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,7 +23,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-AutoMate-Disassembly-Direct-v0",
+    id="IsaacContrib-AutoMate-Disassembly-Direct",
     entry_point=f"{__name__}.disassembly_env:DisassemblyEnv",
     disable_env_checker=True,
     kwargs={

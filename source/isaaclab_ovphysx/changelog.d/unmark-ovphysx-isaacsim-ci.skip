@@ -1,4 +1,0 @@
-Test-only: removed the ``isaacsim_ci`` marker from all isaaclab_ovphysx tests
-so they no longer run in the Isaac Sim short CI (kitless OVPhysX locks onto the
-first device, so mixing CPU and CUDA in one process is unsupported). No
-user-facing change, no version bump.

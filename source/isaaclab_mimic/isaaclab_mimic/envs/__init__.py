@@ -66,7 +66,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
     entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_stack_ik_rel_skillgen_env_cfg:FrankaCubeStackIKRelSkillgenEnvCfg",
@@ -75,7 +75,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0",
+    id="IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
     entry_point=f"{__name__}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.franka_bin_stack_ik_rel_mimic_env_cfg:FrankaBinStackIKRelMimicEnvCfg",

@@ -20,7 +20,7 @@ import omni.physics.tensors as physx
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
@@ -300,10 +300,9 @@ class ContactSensor(BaseContactSensor):
             )
 
         # Resolve the asset subtree (clone-plan aware) and collect contact-reporting descendants.
-        asset_prim, body_parent = resolve_matching_prims_from_source(parent_expr)[0]
-        walk_root = asset_prim.GetPath().pathString
-        prims = get_all_matching_child_prims(walk_root, predicate=has_contact_report, traverse_instance_prims=False)
-        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim in prims]
+        resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+        body_matches = resolve_matching_prims_from_source(parent_expr, has_contact_report, **resolve_kwargs)
+        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim, _ in body_matches]
         if not body_names:
             raise RuntimeError(
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
@@ -311,6 +310,8 @@ class ContactSensor(BaseContactSensor):
             )
 
         # construct regex expression for the body names and convert to PhysX glob form
+        _, body_path_expr = body_matches[0]
+        body_parent = body_path_expr.rsplit("/", 1)[0]
         body_names_regex = r"(" + "|".join(body_names) + r")"
         body_names_regex = f"{body_parent}/{body_names_regex}"
         body_names_glob = body_names_regex.replace(".*", "*")

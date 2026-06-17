@@ -87,7 +87,7 @@ Training Performance
 --------------------
 
 We performed training with each RL library on the same ``Isaac-Humanoid`` environment
-with ``--headless`` on a single NVIDIA GeForce RTX 4090 and logged the total training time
+in headless mode on a single NVIDIA GeForce RTX 4090 and logged the total training time
 for 65.5M steps (4096 environments x 32 rollout steps x 500 iterations).
 
 +--------------------+-----------------+
@@ -106,7 +106,7 @@ Training commands (check for the *'Training time: XXX seconds'* line in the term
 
 .. code:: bash
 
-    ./isaaclab.sh train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500 --headless
-    ./isaaclab.sh train --rl_library skrl --task Isaac-Humanoid --max_iterations 500 --headless
-    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Humanoid --max_iterations 500 --headless
-    ./isaaclab.sh train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500 --headless
+    ./isaaclab.sh train --rl_library rl_games --task Isaac-Humanoid --max_iterations 500
+    ./isaaclab.sh train --rl_library skrl --task Isaac-Humanoid --max_iterations 500
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Humanoid --max_iterations 500
+    ./isaaclab.sh train --rl_library sb3 --task Isaac-Humanoid --max_iterations 500

@@ -8,6 +8,10 @@ __all__ = [
     "NewtonDeformableBodyMaterialCfg",
     "NewtonDeformableMaterialCfg",
     "NewtonSurfaceDeformableBodyMaterialCfg",
+    "MPMGridCfg",
+    "MPMParticleMaterialCfg",
+    "MPMParticleSpawnerCfg",
+    "MPMPointsCfg",
     "schemas",
     "spawners",
     "views",
@@ -20,3 +24,4 @@ from .spawners.materials import (
     NewtonDeformableMaterialCfg,
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
+from .spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMParticleSpawnerCfg, MPMPointsCfg

@@ -12,7 +12,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Velocity-Flat-Cassie-v0",
+    id="Isaac-Velocity-Flat-Cassie",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -23,7 +23,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Cassie-Play-v0",
+    id="Isaac-Velocity-Flat-Cassie-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -34,7 +34,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Rough-Cassie-v0",
+    id="Isaac-Velocity-Rough-Cassie",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -45,7 +45,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Rough-Cassie-Play-v0",
+    id="Isaac-Velocity-Rough-Cassie-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
