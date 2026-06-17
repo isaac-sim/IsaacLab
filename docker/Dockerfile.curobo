@@ -34,10 +34,17 @@ ENV HOME=${DOCKER_USER_HOME}
 # Set environment variables
 ENV LANG=C.UTF-8
 ENV DEBIAN_FRONTEND=noninteractive
+ENV ISAACLAB_BASE_APT_MANUAL_FILE=/usr/local/share/isaaclab/base-apt-manual.txt
 
 # Base image may end with a non-root user; switch to root for system-level
 # setup and package installation.
 USER root
+
+# Record manually installed packages from the Isaac Sim base image before
+# Isaac Lab adds its own apt dependencies. License CI uses this as its apt
+# baseline without needing to run the private base image separately.
+RUN mkdir -p "$(dirname "${ISAACLAB_BASE_APT_MANUAL_FILE}")" && \
+    apt-mark showmanual | sort > "${ISAACLAB_BASE_APT_MANUAL_FILE}"
 
 # Install dependencies
 RUN apt-get update && \
