@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import json
 import re
 import subprocess
@@ -20,6 +21,12 @@ from typing import Any
 
 ALLOWED_LICENSE_SUBSTRINGS = ("MIT", "Apache", "BSD", "ISC", "zlib")
 DEFAULT_EXCLUDED_PACKAGE_PREFIXES = ("nvidia",)
+GENERIC_LICENSE_VALUES = ("", "dual license", "unknown")
+MAX_LICENSE_DISPLAY_LENGTH = 500
+COPYLEFT_LICENSE_RE = re.compile(
+    r"\b(?:AGPL|Affero General Public License|LGPL|Lesser General Public License|GPL|General Public License)\b",
+    re.IGNORECASE,
+)
 
 _DEBIAN_LICENSE_RE = re.compile(r"^License:[^\S\r\n]*(\S.*)?$", re.MULTILINE)
 _FALLBACK_LICENSE_PATTERNS = (
@@ -107,6 +114,30 @@ def _find_exception(
     return None
 
 
+def _normalize_license_for_match(license_text: str) -> str:
+    """Normalize license text for exception comparisons."""
+    normalized = license_text.lower()
+    normalized = normalized.replace("license :: osi approved ::", "")
+    replacements = {
+        "psf-2.0": "python software foundation license",
+        "mpl-2.0": "mozilla public license 2.0",
+        "lgplv3": "gnu lesser general public license v3",
+    }
+    for old, new in replacements.items():
+        normalized = normalized.replace(old, new)
+    normalized = re.sub(r"[^a-z0-9]+", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _matches_exception_license(package_license: str, exception_license: str) -> bool:
+    """Return whether package and exception license strings are compatible."""
+    if exception_license == package_license:
+        return True
+    normalized_package = _normalize_license_for_match(package_license)
+    normalized_exception = _normalize_license_for_match(exception_license)
+    return normalized_exception in normalized_package or normalized_package in normalized_exception
+
+
 def _is_excluded_package(package: PackageLicense) -> bool:
     """Return whether package should be excluded from license checks."""
     package_name = package.name.lower()
@@ -119,9 +150,14 @@ def _has_allowed_license_substring(license_text: str) -> bool:
     return any(allowed.lower() in normalized for allowed in ALLOWED_LICENSE_SUBSTRINGS)
 
 
+def _has_copyleft_license_substring(license_text: str) -> bool:
+    """Return whether the license text contains a GPL-family license substring."""
+    return COPYLEFT_LICENSE_RE.search(license_text) is not None
+
+
 def _is_allowed_pip_license(license_text: str) -> bool:
     """Return whether a pip license satisfies the permissive-license policy."""
-    return _has_allowed_license_substring(license_text)
+    return _has_allowed_license_substring(license_text) and not _has_copyleft_license_substring(license_text)
 
 
 def _is_allowed_apt_license(license_text: str) -> bool:
@@ -155,9 +191,14 @@ def _check_packages(
 
         exception = _find_exception(package, exceptions)
         if exception is None:
-            failures.append(LicenseFailure(package=package, reason="no exception found"))
+            reason = (
+                "contains GPL-family license text"
+                if _has_copyleft_license_substring(package.license)
+                else "no exception found"
+            )
+            failures.append(LicenseFailure(package=package, reason=reason))
             continue
-        if exception.license is not None and exception.license != package.license:
+        if exception.license is not None and not _matches_exception_license(package.license, exception.license):
             failures.append(
                 LicenseFailure(
                     package=package,
@@ -165,6 +206,14 @@ def _check_packages(
                 )
             )
     return failures
+
+
+def _format_license_for_error(license_text: str) -> str:
+    """Return a compact license string for CI error output."""
+    license_text = re.sub(r"\s+", " ", license_text).strip()
+    if len(license_text) <= MAX_LICENSE_DISPLAY_LENGTH:
+        return license_text
+    return f"{license_text[:MAX_LICENSE_DISPLAY_LENGTH].rstrip()} ... [truncated]"
 
 
 def _load_pip_license_json(license_json: Path | None) -> list[dict[str, Any]]:
@@ -177,9 +226,8 @@ def _load_pip_license_json(license_json: Path | None) -> list[dict[str, Any]]:
     return json.loads(output)
 
 
-def _collect_pip_packages(license_json: Path | None) -> list[PackageLicense]:
-    """Collect installed pip package licenses."""
-    records = _load_pip_license_json(license_json)
+def _collect_pip_packages_from_records(records: list[dict[str, Any]]) -> list[PackageLicense]:
+    """Collect installed pip package licenses from pip-licenses-style records."""
     packages: list[PackageLicense] = []
     for record in records:
         packages.append(
@@ -190,7 +238,105 @@ def _collect_pip_packages(license_json: Path | None) -> list[PackageLicense]:
                 license=record.get("License") or "UNKNOWN",
             )
         )
-    return packages
+    return _deduplicate_packages(packages)
+
+
+def _collect_importlib_license_text(metadata: importlib.metadata.PackageMetadata) -> str:
+    """Collect the best available license text from package metadata."""
+    classifiers = [c for c in metadata.get_all("Classifier") or [] if "License" in c]
+    license_text = metadata.get("License-Expression") or metadata.get("License")
+    if classifiers and (not license_text or license_text.strip().lower() in GENERIC_LICENSE_VALUES):
+        return "; ".join(classifiers)
+    return license_text or "UNKNOWN"
+
+
+def _deduplicate_packages(packages: list[PackageLicense]) -> list[PackageLicense]:
+    """Deduplicate package records from repeated prebundled distribution paths."""
+    deduplicated: list[PackageLicense] = []
+    seen: set[tuple[str, str, str | None, str]] = set()
+    for package in packages:
+        key = (package.manager, _canonical_package_name(package.name), package.version, package.license)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduplicated.append(package)
+    return deduplicated
+
+
+def _collect_pip_packages_from_importlib() -> tuple[list[PackageLicense], list[str]]:
+    """Collect installed pip package licenses from importlib metadata."""
+    packages: list[PackageLicense] = []
+    skipped: list[str] = []
+    for dist in importlib.metadata.distributions():
+        metadata = dist.metadata
+        name = metadata.get("Name")
+        if not name:
+            skipped.append(str(getattr(dist, "_path", "UNKNOWN")))
+            continue
+
+        license_text = _collect_importlib_license_text(metadata)
+
+        packages.append(
+            PackageLicense(
+                manager="pip",
+                name=name,
+                version=dist.version,
+                license=license_text,
+            )
+        )
+    packages.sort(key=lambda package: package.name.lower())
+    return _deduplicate_packages(packages), skipped
+
+
+def _collect_pip_packages(license_json: Path | None, collector: str) -> tuple[list[PackageLicense], list[str]]:
+    """Collect installed pip package licenses."""
+    if license_json is not None:
+        return _collect_pip_packages_from_records(_load_pip_license_json(license_json)), []
+    if collector == "importlib":
+        return _collect_pip_packages_from_importlib()
+    if collector != "pip-licenses":
+        raise ValueError(f"Unsupported pip license collector: {collector}")
+    records = _load_pip_license_json(license_json)
+    return _collect_pip_packages_from_records(records), []
+
+
+def _write_pip_license_json(packages: list[PackageLicense], output: Path) -> None:
+    """Write pip package license metadata in pip-licenses-compatible JSON."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    records = [
+        {
+            "Name": package.name,
+            "Version": package.version,
+            "License": package.license,
+        }
+        for package in packages
+    ]
+    output.write_text(json.dumps(records, indent=2) + "\n", encoding="utf-8")
+
+
+def _escape_markdown_cell(value: str | None) -> str:
+    """Escape a value for a markdown table cell."""
+    return str(value or "").replace("|", "&#124;").replace("\n", " ")
+
+
+def _write_pip_license_markdown(packages: list[PackageLicense], output: Path) -> None:
+    """Write pip package license metadata as a markdown table."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8") as stream:
+        stream.write("| Name | Version | License |\n")
+        stream.write("|---|---|---|\n")
+        for package in packages:
+            stream.write(
+                f"| {_escape_markdown_cell(package.name)}"
+                f" | {_escape_markdown_cell(package.version)}"
+                f" | {_escape_markdown_cell(package.license)} |\n"
+            )
+
+
+def _write_skipped_metadata(skipped: list[str], output: Path) -> None:
+    """Write skipped distribution metadata paths."""
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text("\n".join(skipped) + ("\n" if skipped else ""), encoding="utf-8")
 
 
 def _collect_apt_versions() -> dict[str, str]:
@@ -282,7 +428,10 @@ def _print_results(label: str, packages: list[PackageLicense], failures: list[Li
     for failure in failures:
         package = failure.package
         version = f"=={package.version}" if package.version else ""
-        print(f"ERROR: {package.manager}:{package.name}{version} has license: {package.license}")
+        print(
+            f"ERROR: {package.manager}:{package.name}{version} has license: "
+            f"{_format_license_for_error(package.license)}"
+        )
         print(f"       Reason: {failure.reason}")
     print(f"ERROR: {len(failures)} {label} packages were flagged.")
 
@@ -311,6 +460,35 @@ def _parse_args() -> argparse.Namespace:
         default=None,
         help="Optional pip-licenses JSON report to check instead of invoking pip-licenses.",
     )
+    pip_parser.add_argument(
+        "--collector",
+        choices=("pip-licenses", "importlib"),
+        default="pip-licenses",
+        help="Collector to use when --license-json is not provided.",
+    )
+    pip_parser.add_argument(
+        "--output-json",
+        type=Path,
+        default=None,
+        help="Optional path to write collected pip license metadata as JSON.",
+    )
+    pip_parser.add_argument(
+        "--output-markdown",
+        type=Path,
+        default=None,
+        help="Optional path to write collected pip license metadata as markdown.",
+    )
+    pip_parser.add_argument(
+        "--skipped-metadata-output",
+        type=Path,
+        default=None,
+        help="Optional path to write importlib distributions skipped because metadata was incomplete.",
+    )
+    pip_parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Only collect and write reports; do not fail on license policy violations.",
+    )
 
     apt_parser = subparsers.add_parser("apt", help="Check installed apt package licenses.")
     _add_common_arguments(apt_parser)
@@ -335,13 +513,25 @@ def main() -> int:
     exceptions = _load_exceptions(args.exceptions_file)
 
     if args.manager == "pip":
-        packages = _collect_pip_packages(args.license_json)
+        packages, skipped = _collect_pip_packages(args.license_json, args.collector)
+        if args.output_json is not None:
+            _write_pip_license_json(packages, args.output_json)
+        if args.output_markdown is not None:
+            _write_pip_license_markdown(packages, args.output_markdown)
+        if args.skipped_metadata_output is not None:
+            _write_skipped_metadata(skipped, args.skipped_metadata_output)
         label = args.report_label or "pip"
     elif args.manager == "apt":
         packages = _collect_apt_packages(args.apt_manual_only, args.apt_baseline_file)
         label = args.report_label or "apt"
     else:
         raise ValueError(f"Unsupported package manager: {args.manager}")
+
+    if getattr(args, "report_only", False):
+        print(f"Collected {len(packages)} {label} packages.")
+        if args.manager == "pip" and skipped:
+            print(f"Skipped {len(skipped)} pip distributions with incomplete metadata.")
+        return 0
 
     failures = _check_packages(packages, exceptions)
     _print_results(label, packages, failures)

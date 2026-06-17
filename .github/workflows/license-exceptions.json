@@ -489,6 +489,11 @@
     "comment": "NVIDIA"
   },
   {
+    "package": "cumotion",
+    "license": "NVIDIA Proprietary",
+    "comment": "NVIDIA cuMotion Isaac Sim extension."
+  },
+  {
     "package": "omniverseclient",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
     "comment": "NVIDIA"

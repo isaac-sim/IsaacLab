@@ -237,7 +237,9 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
+        rm -rf license-reports
         mkdir -p license-reports
+        chmod 0777 license-reports
         docker run --rm --network=host \
           -e OMNI_KIT_ACCEPT_EULA=Y \
           -e ACCEPT_EULA=Y \
@@ -250,10 +252,15 @@ jobs:
             cd /workspace/isaaclab
             cat "${ISAACLAB_BASE_APT_MANUAL_FILE}" > license-reports/base-apt-manual.txt
             apt-mark showmanual | sort > license-reports/docker-apt-manual.txt
-            dpkg-query -W -f="${binary:Package}\t${Version}\n" | sort > license-reports/docker-apt-versions.txt
-            /isaac-sim/python.sh -m pip install --no-cache-dir pip-licenses
-            /isaac-sim/python.sh -m piplicenses --from=mixed --format=json > license-reports/docker-pip-licenses.json
-            /isaac-sim/python.sh -m piplicenses --from=mixed --format=markdown > license-reports/docker-pip-licenses.md
+            dpkg-query -W -f="\${binary:Package}\t\${Version}\n" | sort > license-reports/docker-apt-versions.txt
+            /isaac-sim/python.sh tools/check_dependency_licenses.py pip \
+              --collector importlib \
+              --output-json license-reports/docker-pip-licenses.json \
+              --output-markdown license-reports/docker-pip-licenses.md \
+              --skipped-metadata-output license-reports/docker-pip-skipped-metadata.txt \
+              --exceptions-file .github/workflows/license-exceptions.json \
+              --report-label "docker pip metadata capture" \
+              --report-only
           '
 
     - name: Check Docker pip package licenses
