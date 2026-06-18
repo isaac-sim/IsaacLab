@@ -327,6 +327,20 @@ class PhysxManager(PhysicsManager):
         return PhysicsManager.get_device()
 
     @classmethod
+    def _get_backend_utils(cls):
+        """Get Isaac Sim backend utilities for legacy core prim wrappers."""
+        backend = cls.get_backend()
+        if backend == "numpy":
+            import isaacsim.core.utils.numpy as backend_utils
+        elif backend == "torch":
+            import isaacsim.core.utils.torch as backend_utils
+        elif backend == "warp":
+            import isaacsim.core.utils.warp as backend_utils
+        else:
+            raise ValueError(f"Unsupported backend: {backend}. Supported: torch, numpy, warp.")
+        return backend_utils
+
+    @classmethod
     def assets_loading(cls) -> bool:
         return not cls._assets_loaded
 
@@ -376,6 +390,10 @@ class PhysxManager(PhysicsManager):
         cls, callback_id: int, callback: Callable, event: PhysicsEvent, order: int, name: str | None
     ) -> Any:
         """Subscribe to PhysX events. Maps PhysicsEvent → IsaacEvents."""
+        if event == PhysicsEvent.PHYSICS_READY:
+            # PHYSICS_READY is dispatched synchronously after tensor views are created in reset().
+            # The legacy event bus can emit readiness while PhysX is still warming up.
+            return None
         isaac_event = _PHYSICS_EVENT_TO_ISAAC_EVENT.get(event)
         if isaac_event is None:
             isaac_event = _PHYSICS_EVENT_VALUE_TO_ISAAC_EVENT.get(getattr(event, "value", event))
