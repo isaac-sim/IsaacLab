@@ -81,9 +81,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--commit_count", type=int, default=5, help="Number of recent commits to seed from the branch.")
     parser.add_argument("--samples_per_commit", type=int, default=5, help="Benchmark repetitions per commit/backend.")
     parser.add_argument("--tasks", default="", help="Comma-separated task_id allowlist (empty = all tasks.json tasks).")
-    parser.add_argument(
-        "--backends", default="", help="Comma-separated backend_key allowlist (empty = all backends)."
-    )
+    parser.add_argument("--backends", default="", help="Comma-separated backend_key allowlist (empty = all backends).")
     parser.add_argument("--image", required=True, help="Local docker image tag to run (already pulled/tagged).")
     parser.add_argument("--gpu_model", default="", help="GPU model label; auto-detected via nvidia-smi when empty.")
     parser.add_argument("--target_branch", default="develop", help="Protected branch stamped onto each sample.")
@@ -221,9 +219,7 @@ def _select_tasks(args: argparse.Namespace) -> list[TaskConfig]:
         and (not backend_filter or task.backend_key in backend_filter)
     ]
     if not selected:
-        raise RuntimeError(
-            f"No tasks matched filters tasks={sorted(task_filter)} backends={sorted(backend_filter)}."
-        )
+        raise RuntimeError(f"No tasks matched filters tasks={sorted(task_filter)} backends={sorted(backend_filter)}.")
     return selected
 
 
@@ -239,11 +235,20 @@ def _prepare_seed_source(workdir: Path, seed_src_dir: Path, sha: str) -> None:
         _run(["git", "clone", "--no-checkout", str(workdir.resolve()), str(seed_src_dir)])
     _run(["git", "fetch", "--no-tags", str(workdir.resolve()), sha], cwd=seed_src_dir)
     _run(["git", "checkout", "-f", "--detach", sha], cwd=seed_src_dir)
-    _run(["git", "clean", "-fdx"], cwd=seed_src_dir)
+    # Best-effort: a prior commit's container can leave behind files the runner
+    # user cannot delete (e.g. root-owned ``__pycache__`` written into the
+    # bind-mount). ``checkout -f`` already restored every tracked file, so leftover
+    # untracked residue is harmless to the benchmark; never let cleanup abort the
+    # whole seed run. Open up permissions first so files the runner *can* chmod
+    # become removable.
+    subprocess.run(["chmod", "-R", "a+rwX", str(seed_src_dir)], check=False)
+    clean = _run(["git", "clean", "-fdx"], cwd=seed_src_dir, check=False)
+    if clean.returncode != 0:
+        print(f"[seed] warning: git clean left undeletable residue (exit {clean.returncode}); continuing", flush=True)
     # The in-container user is uid 1000 (isaaclab); the clone is created by the
     # runner user. Open it up so the benchmark can read the source and write the
     # throwaway _isaac_sim symlink, mirroring the gate's bind-mount chmod.
-    _run(["chmod", "-R", "a+rwX", str(seed_src_dir)])
+    subprocess.run(["chmod", "-R", "a+rwX", str(seed_src_dir)], check=False)
 
 
 def _docker_run_benchmark(
@@ -268,28 +273,54 @@ def _docker_run_benchmark(
         f"--task '{task.task_id}' "
         f"--num_envs {task.num_envs} "
         f"--num_frames {task.num_frames} "
-        "--benchmark_backend json "
+        "--benchmark_backend JSONFileMetrics "
         "--output_path /tmp/bench_out "
         f"{seed_token} {hydra_args}\n"
     )
 
     cmd = [
-        "docker", "run", "--rm", "--name", container_name,
-        "--init", "--stop-timeout", "10",
-        "--entrypoint", "bash", "--gpus", "all", "--network=host",
+        "docker",
+        "run",
+        "--rm",
+        "--name",
+        container_name,
+        "--init",
+        "--stop-timeout",
+        "10",
+        "--entrypoint",
+        "bash",
+        "--gpus",
+        "all",
+        "--network=host",
         "--security-opt=no-new-privileges:true",
-        "--ulimit", "nofile=65536:65536",
-        "--ulimit", "nproc=4096:4096",
-        "-e", "OMNI_KIT_ACCEPT_EULA=yes",
-        "-e", "ACCEPT_EULA=Y",
-        "-e", "OMNI_KIT_DISABLE_CUP=1",
-        "-e", "ISAAC_SIM_HEADLESS=1",
-        "-e", "PYTHONUNBUFFERED=1",
-        "-e", "WARP_CACHE_PATH=/tmp/jit-cache/warp",
-        "-e", "CUDA_CACHE_PATH=/tmp/jit-cache/nv",
-        "-v", f"{artifact_dir}:/tmp/bench_out",
-        "-v", f"{jit_cache}:/tmp/jit-cache",
-        "-v", f"{kit_cache}:/isaac-sim/kit/cache",
+        "--ulimit",
+        "nofile=65536:65536",
+        "--ulimit",
+        "nproc=4096:4096",
+        "-e",
+        "OMNI_KIT_ACCEPT_EULA=yes",
+        "-e",
+        "ACCEPT_EULA=Y",
+        "-e",
+        "OMNI_KIT_DISABLE_CUP=1",
+        "-e",
+        "ISAAC_SIM_HEADLESS=1",
+        "-e",
+        "PYTHONUNBUFFERED=1",
+        # Keep the bind-mounted source clean: writing __pycache__ here leaves
+        # root-owned files the runner user cannot remove on the next git clean.
+        "-e",
+        "PYTHONDONTWRITEBYTECODE=1",
+        "-e",
+        "WARP_CACHE_PATH=/tmp/jit-cache/warp",
+        "-e",
+        "CUDA_CACHE_PATH=/tmp/jit-cache/nv",
+        "-v",
+        f"{artifact_dir}:/tmp/bench_out",
+        "-v",
+        f"{jit_cache}:/tmp/jit-cache",
+        "-v",
+        f"{kit_cache}:/isaac-sim/kit/cache",
     ]
     if seed_src_dir is not None:
         # Bind-mount the historical source over the image's IsaacLab tree so the
@@ -306,16 +337,26 @@ def _build_bench_result(task: TaskConfig, artifact_dir: Path, exit_code: int, wa
         [
             "python3",
             str(_TOOL_DIR / "build_bench_result.py"),
-            "--task_id", task.task_id,
-            "--physics_backend", task.physics_backend,
-            "--render_backend", task.render_backend or "",
-            "--artifact_dir", str(artifact_dir),
-            "--exit_code", str(exit_code),
-            "--wall_time_s", str(wall_time_s),
-            "--timeout_s", str(task.timeout_minutes * 60),
-            "--log_file", str(artifact_dir / "benchmark.log"),
-            "--launch_config", str(artifact_dir / "launch_config.json"),
-            "--gate_config", str(_TOOL_DIR / "gate_config.json"),
+            "--task_id",
+            task.task_id,
+            "--physics_backend",
+            task.physics_backend,
+            "--render_backend",
+            task.render_backend or "",
+            "--artifact_dir",
+            str(artifact_dir),
+            "--exit_code",
+            str(exit_code),
+            "--wall_time_s",
+            str(wall_time_s),
+            "--timeout_s",
+            str(task.timeout_minutes * 60),
+            "--log_file",
+            str(artifact_dir / "benchmark.log"),
+            "--launch_config",
+            str(artifact_dir / "launch_config.json"),
+            "--gate_config",
+            str(_TOOL_DIR / "gate_config.json"),
         ],
         check=False,
     )
@@ -326,18 +367,21 @@ def _write_launch_config(task: TaskConfig, artifact_dir: Path, gpu_model: str) -
         [
             "python3",
             str(_TOOL_DIR / "write_launch_config.py"),
-            "--task_id", task.task_id,
-            "--physics_backend", task.physics_backend,
-            "--render_backend", task.render_backend or "",
-            "--gpu_model", gpu_model,
-            "--artifact_dir", str(artifact_dir),
+            "--task_id",
+            task.task_id,
+            "--physics_backend",
+            task.physics_backend,
+            "--render_backend",
+            task.render_backend or "",
+            "--gpu_model",
+            gpu_model,
+            "--artifact_dir",
+            str(artifact_dir),
         ]
     )
 
 
-def _record_from_result(
-    artifact_dir: Path, gpu_model: str, target_branch: str
-) -> BaselineUpdateRecord | None:
+def _record_from_result(artifact_dir: Path, gpu_model: str, target_branch: str) -> BaselineUpdateRecord | None:
     """Turn one built ``perf_regression_gate_result.json`` into a baseline sample.
 
     Returns ``None`` when the run was unhealthy (no benchmark info / no FPS) so the
@@ -384,8 +428,7 @@ def _record_from_result(
     )
     short = (commit_sha or "????????")[:8]
     print(
-        f"[seed] sample {task_id}/{backend} commit={short} "
-        f"target={target_branch} fps={oracle_result.measured_fps:.1f}"
+        f"[seed] sample {task_id}/{backend} commit={short} target={target_branch} fps={oracle_result.measured_fps:.1f}"
     )
     return BaselineUpdateRecord(
         gpu_model=bench_gpu_model,
