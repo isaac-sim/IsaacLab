@@ -166,6 +166,16 @@ class TerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
+    success = DoneTerm(
+        func=mdp.position_command_error,  
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="openarm_left_ee_tcp"), 
+            "target_pos": (0.2, 0.88, 0.0203),
+            "threshold": 0.5,  
+            #"command_name": "ee_pose",
+        },
+    )
+
 
 @configclass
 class CurriculumCfg:

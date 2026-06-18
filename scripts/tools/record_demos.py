@@ -425,6 +425,16 @@ def run_simulation_loop(
         should_reset_recording_instance = True
         print("Recording instance reset requested")
 
+    def save_recording_instance():
+        nonlocal should_reset_recording_instance
+        env.recorder_manager.record_pre_reset([0], force_export_or_skip=False)
+        env.recorder_manager.set_success_to_episodes(
+            [0], torch.tensor([[True]], dtype=torch.bool, device=env.device)
+        )
+        env.recorder_manager.export_episodes([0])
+        print("Episode saved successfully!")
+        should_reset_recording_instance = True
+
     def start_recording_instance():
         nonlocal running_recording_instance
         running_recording_instance = True
@@ -438,6 +448,7 @@ def run_simulation_loop(
     # Set up teleoperation callbacks
     teleoperation_callbacks = {
         "R": reset_recording_instance,
+        "N": save_recording_instance,
         "START": start_recording_instance,
         "STOP": stop_recording_instance,
         "RESET": reset_recording_instance,
@@ -445,6 +456,7 @@ def run_simulation_loop(
 
     teleop_interface = setup_teleop_device(teleoperation_callbacks)
     teleop_interface.add_callback("R", reset_recording_instance)
+    teleop_interface.add_callback("N", save_recording_instance)
 
     # Reset before starting
     env.sim.reset()
