@@ -67,6 +67,7 @@ class DirectMARLEnv(gym.Env):
 
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
 
@@ -224,6 +225,7 @@ class DirectMARLEnv(gym.Env):
 
         # allocate dictionary to store metrics
         self.extras = {agent: {} for agent in self.cfg.possible_agents}
+        self.last_terminal_obs: dict[AgentID, ObsType] | None = None
 
         # initialize data and constants
         # -- counter for simulation steps
@@ -480,6 +482,9 @@ class DirectMARLEnv(gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
+            self.last_terminal_obs = self._get_observations()
+            for agent, obs in self.last_terminal_obs.items():
+                self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)
 
         # post-step: step interval event

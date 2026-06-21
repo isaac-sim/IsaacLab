@@ -72,6 +72,7 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
 
@@ -230,6 +231,7 @@ class DirectRLEnv(gym.Env):
 
         # allocate dictionary to store metrics
         self.extras = {}
+        self.last_terminal_obs: VecEnvObs | None = None
 
         # initialize data and constants
         # -- counter for simulation steps
@@ -471,6 +473,8 @@ class DirectRLEnv(gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
+            self.last_terminal_obs = self._get_observations()
+            self.extras["final_obs"] = self.last_terminal_obs
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
