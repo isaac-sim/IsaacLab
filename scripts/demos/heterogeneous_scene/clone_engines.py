@@ -92,7 +92,16 @@ class CloneEngine:
     PRIM_PREFIX = ""  # set by each subclass; the caller harvests with it
 
     def __init__(
-        self, sim, simulation_app, tasks, prototypes, num_envs, env_spacing, device, clone_strategy=sequential
+        self,
+        sim,
+        simulation_app,
+        tasks,
+        prototypes,
+        num_envs,
+        env_spacing,
+        device,
+        clone_strategy=sequential,
+        max_steps: int | None = None,
     ):
         self.sim = sim
         self.simulation_app = simulation_app
@@ -102,6 +111,7 @@ class CloneEngine:
         self.env_spacing = env_spacing
         self.device = device
         self.clone_strategy = clone_strategy
+        self.max_steps = max_steps
         self.origins: torch.Tensor | None = None  # [num_envs, 3] world env origins (set in build)
         self._by_name = {p.name: p for p in prototypes}
 
@@ -143,7 +153,7 @@ class CloneEngine:
     # ----------------------------------------------------------------
 
     def run(self) -> None:
-        """Build once, then alternate the locomotion / manipulation groups forever."""
+        """Build once, then alternate groups until the app closes or ``max_steps`` is reached."""
         self.build()
         envs_by_category = self._envs_by_category()
         categories = list(envs_by_category)
@@ -153,7 +163,7 @@ class CloneEngine:
         self.reset(list(range(self.num_envs)))
         self.flush()
         step, turn, active = 0, 0, envs_by_category[categories[0]]
-        while self.simulation_app.is_running():
+        while self.simulation_app.is_running() and (self.max_steps is None or step < self.max_steps):
             if step % self.SWITCH_INTERVAL == 0:
                 category = categories[turn % len(categories)]
                 turn += 1

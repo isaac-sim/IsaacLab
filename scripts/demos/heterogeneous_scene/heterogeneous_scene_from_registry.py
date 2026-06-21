@@ -73,6 +73,7 @@ parser.add_argument(
     help="Prototype-combination -> env assignment (both round-robin); see registry_harvest.STRATEGIES.",
 )
 parser.add_argument("--list_only", action="store_true", help="Print the pre-processing report and exit (no sim).")
+parser.add_argument("--max_steps", type=int, default=None, help="Stop after this many simulation steps.")
 parser.add_argument(
     "--randomize_object_variants",
     action="store_true",
@@ -155,7 +156,17 @@ def main() -> None:
 
     # 4) Run the simulation
     strategy = common.STRATEGIES[args_cli.clone_strategy]
-    engine_cls(sim, simulation_app, tasks, prototypes, num_envs, args_cli.env_spacing, args_cli.device, strategy).run()
+    engine_cls(
+        sim,
+        simulation_app,
+        tasks,
+        prototypes,
+        num_envs,
+        args_cli.env_spacing,
+        args_cli.device,
+        clone_strategy=strategy,
+        max_steps=args_cli.max_steps,
+    ).run()
 
 
 if __name__ == "__main__":

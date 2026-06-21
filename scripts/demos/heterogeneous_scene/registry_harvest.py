@@ -29,7 +29,7 @@ from dataclasses import MISSING
 import gymnasium as gym
 
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.cloner import interleaved, sequential
+from isaaclab.cloner import sequential
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -63,7 +63,7 @@ ARM_HINTS = ("panda", "franka", "ur5", "ur10", "kinova", "sawyer", "flexiv", "al
 # is omitted on purpose. This demo relies on the analytic ``env i -> task i % n`` map for
 # per-task reset, grouping, and the report, and on every task getting envs -- ``random`` breaks
 # both (non-deterministic split, uneven coverage). ``interleaved`` is a readability alias.
-STRATEGIES = {"sequential": sequential, "interleaved": interleaved}
+STRATEGIES = {"sequential": sequential, "interleaved": sequential}
 
 # Per-model display tweaks, matched against the spawn's USD basename. Robots that are
 # oversized or sit high above the floor (cartpole / cart-double-pendulum at z=2, ant)
