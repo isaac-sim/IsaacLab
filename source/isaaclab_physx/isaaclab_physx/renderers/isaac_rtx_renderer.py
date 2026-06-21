@@ -187,7 +187,14 @@ class IsaacRtxRenderer(BaseRenderer):
         non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
+
+        Also fills any clone-plan rows whose USD destination prims are absent from the stage
+        (e.g. Newton articulations skip :func:`~isaaclab.cloner.usd.queue_usd_replication`
+        by design — ovrtx clones internally, but this renderer reads the USD stage via Fabric
+        and requires prims to be present in all envs).
+
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+        self._fill_missing_clone_rows(stage, num_envs)
         root_layer = stage.GetRootLayer()
         token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
@@ -213,6 +220,46 @@ class IsaacRtxRenderer(BaseRenderer):
                         )
                         attr_spec = root_layer.GetAttributeAtPath(attr_path)
                     attr_spec.default = token
+
+    def _fill_missing_clone_rows(self, stage: Usd.Stage, num_envs: int) -> None:
+        """USD-replicate clone-plan rows whose destination prims are absent from the stage.
+
+        Iterates the clone plan published on :class:`~isaaclab.sim.SimulationContext` and
+        calls :func:`~isaaclab.cloner.usd.usd_replicate` for every row where at least one
+        target env is missing its destination prim. This compensates for physics backends
+        (e.g. Newton) that skip USD replication and handle cloning internally, but whose
+        prims must exist in the USD stage for Fabric-based renderers.
+        """
+        from isaaclab.cloner.usd import usd_replicate
+        from isaaclab.sim import SimulationContext
+
+        clone_plan = SimulationContext.instance().get_clone_plan()
+        if clone_plan is None or num_envs <= 1 or clone_plan.env_ids is None:
+            return
+
+        missing_sources: list[str] = []
+        missing_destinations: list[str] = []
+        missing_mask_rows: list[int] = []
+
+        for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations)):
+            row_env_ids = clone_plan.env_ids[clone_plan.clone_mask[row_idx]]
+            for env_id in row_env_ids.tolist():
+                if not stage.GetPrimAtPath(destination.format(int(env_id))).IsValid():
+                    missing_sources.append(source)
+                    missing_destinations.append(destination)
+                    missing_mask_rows.append(row_idx)
+                    break
+
+        if not missing_sources:
+            return
+
+        usd_replicate(
+            stage,
+            missing_sources,
+            missing_destinations,
+            clone_plan.env_ids,
+            mask=clone_plan.clone_mask[missing_mask_rows],
+        )
 
     def create_render_data(self, spec: CameraRenderSpec) -> IsaacRtxRenderData:
         """Create render product and annotators for the tiled camera.
