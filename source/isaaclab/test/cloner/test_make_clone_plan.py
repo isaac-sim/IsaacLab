@@ -132,6 +132,54 @@ def test_make_valid_clone_combinations_keeps_unclaimed_assets_global():
     assert combos.tolist() == [[0, 0], [0, 0]]
 
 
+def test_make_valid_clone_combinations_rejects_unknown_assets():
+    """Clone-combination asset names must match planned scene assets."""
+    try:
+        make_valid_clone_combinations(
+            ["robot"],
+            [1],
+            [InclusionSet(assets=["cabinet"], weight=1)],
+            device="cpu",
+        )
+    except ValueError as exc:
+        assert "Unknown assets" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
+def test_make_valid_clone_combinations_allows_selector_only_scene_assets():
+    """Full-scene validation allows non-cloned assets in clone-combination entries."""
+    combos = make_valid_clone_combinations(
+        ["robot"],
+        [1],
+        [InclusionSet(assets=["robot", "ee_frame"], weight=1)],
+        device="cpu",
+        all_asset_names=["robot", "ee_frame"],
+    )
+
+    assert combos.tolist() == [[0]]
+
+
+def test_make_clone_plan_rejects_invalid_valid_set_entries():
+    """Valid-set entries must reference existing source variants or -1."""
+    robot = _single_cfg("/World/envs/env_.*/Robot")
+    invalid_set = torch.tensor([[1]], dtype=torch.long)
+
+    try:
+        make_clone_plan(
+            [robot],
+            num_clones=1,
+            env_spacing=1.0,
+            device="cpu",
+            clone_strategy=sequential,
+            valid_set=invalid_set,
+        )
+    except ValueError as exc:
+        assert "outside [-1, group_size)" in str(exc)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
 def test_make_clone_plan_skips_absent_valid_set_entries():
     """Valid-set -1 entries leave a source row unspawned for that env."""
     robot = _single_cfg("/World/envs/env_.*/Robot")

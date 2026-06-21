@@ -253,6 +253,7 @@ class InteractiveScene:
                 variant_counts,
                 self.cloner_cfg.clone_combinations,
                 self.device,
+                all_asset_names=self._scene_asset_names,
             )
         else:
             self._clone_valid_set = None

@@ -792,7 +792,7 @@ def test_resolve_clone_plan_source_ambiguous_templates_raise(sim):
 
 
 def test_resolve_clone_plan_source_merges_same_template_rows(sim):
-    """Heterogeneous source rows sharing one template OR-merge their masks for the coverage check."""
+    """Heterogeneous source rows sharing one template resolve to the nearest owner."""
     # One logical asset cloned from two source variants onto the same destination template.
     # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> envs (1, 3).
     plan = ClonePlan(
@@ -801,20 +801,22 @@ def test_resolve_clone_plan_source_merges_same_template_rows(sim):
         clone_mask=torch.tensor([[True, False, True, False], [False, True, False, True]], device=sim.cfg.device),
     )
 
-    # The union of both rows covers every env, so resolution succeeds and reports the first row's source.
+    # Resolution reports the first row's source. Callers use the destination expression
+    # to create views over whatever matching destination prims exist.
     resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
 
     assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")
 
 
-def test_resolve_clone_plan_source_partial_coverage_raises(sim):
-    """When the matching rows' merged mask misses an env, partial coverage is rejected."""
-    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
+def test_resolve_clone_plan_source_allows_partial_coverage(sim):
+    """Matching rows do not need to cover every env in heterogeneous clone plans."""
+    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 intentionally has no Object.
     plan = ClonePlan(
         sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
         clone_mask=torch.tensor([[True, False, True, False], [False, True, False, False]], device=sim.cfg.device),
     )
 
-    with pytest.raises(NotImplementedError, match="partial-env heterogeneous coverage"):
-        resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
+    resolved = resolve_clone_plan_source(plan=plan, path_expr="/World/envs/env_.*/Object/Body/Camera")
+
+    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_*/Object", "/Body/Camera")

@@ -18,7 +18,7 @@ import torch
 from pxr import Sdf, Usd, UsdGeom
 
 from .clone_plan import ClonePlan
-from .cloner_cfg import CloneGroup
+from .cloner_cfg import InclusionSet
 from .cloner_strategies import sequential
 
 logger = logging.getLogger(__name__)
@@ -113,8 +113,6 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
             specific destination templates (a genuine ambiguity). Nested
             templates do not conflict: the most specific (longest-matching) one
             wins, mirroring :func:`iter_clone_plan_matches`.
-        NotImplementedError: When the union of matching rows' clone masks does not
-            cover every env (partial-env heterogeneous coverage is unsupported).
     """
     # Collect every template that owns ``path_expr`` together with the suffix below it.
     # A shorter suffix means a longer matched prefix, i.e. a more specific (nearer) owner.
@@ -138,11 +136,6 @@ def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str
     matching_template = next(iter(owning_templates))
     matching_rows = [index for template, _, index in candidates if template == matching_template]
     matching_suffix = next(suffix for template, suffix, _ in candidates if template == matching_template)
-    if not plan.clone_mask[matching_rows].any(dim=0).all():
-        raise NotImplementedError(
-            f"path_expr {path_expr!r}: partial-env heterogeneous coverage is unsupported;"
-            " matching rows must collectively cover all envs."
-        )
     return plan.sources[matching_rows[0]], matching_template.replace("{}", "*"), matching_suffix or ""
 
 
@@ -195,18 +188,22 @@ def iter_clone_plan_matches(plan: ClonePlan, path_expr: str) -> Iterator[tuple[s
 def make_valid_clone_combinations(
     asset_names: Sequence[str],
     variant_counts: Sequence[int],
-    clone_combinations: Sequence[CloneGroup] | None = None,
+    clone_combinations: Sequence[InclusionSet] | None = None,
     device: str = "cpu",
+    *,
+    all_asset_names: Sequence[str] | None = None,
 ) -> torch.Tensor:
     """Build the valid clone-combination variant tensor.
 
     Args:
-        asset_names: Unique scene asset names, one per tensor column.
-        variant_counts: Number of spawn variants for each asset.
+        asset_names: Clone-planned scene asset names, one per tensor column.
+        variant_counts: Number of spawn variants for each clone-planned asset.
         clone_combinations: Legal clone combinations. Each combination marks
             which assets are active; assets not mentioned by any combination
             are active in every row.
         device: Torch device for the output tensor. Defaults to ``"cpu"``.
+        all_asset_names: Optional full scene asset-name list used to validate
+            clone-combination entries that may include selector-only assets.
 
     Returns:
         A ``[num_valid_combinations, num_assets]`` tensor. Each entry is the
@@ -227,13 +224,22 @@ def make_valid_clone_combinations(
         rows = itertools.product(*[range(count) for count in variant_counts])
         return torch.tensor(list(rows), dtype=torch.long, device=device)
 
-    all_asset_names = list(asset_names)
-    combination_assets = [set(combination.resolve_assets(all_asset_names)) for combination in clone_combinations]
+    clone_asset_names = set(asset_names)
+    known_assets = set(all_asset_names) if all_asset_names is not None else clone_asset_names
+    combination_assets: list[set[str]] = []
+    for combination in clone_combinations:
+        if combination.weight < 0:
+            raise ValueError("Clone combination weights must be non-negative.")
+        unknown_assets = sorted(set(combination.assets) - known_assets)
+        if unknown_assets:
+            raise ValueError(f"Unknown assets in clone combination: {unknown_assets}.")
+        combination_assets.append(set(combination.assets) & clone_asset_names)
+
     claimed_assets = set().union(*combination_assets) if combination_assets else set()
 
     rows = []
     for combination, active_assets in zip(clone_combinations, combination_assets):
-        if combination.weight <= 0:
+        if combination.weight == 0:
             continue
         variant_ranges = []
         for asset_name, count in zip(asset_names, variant_counts):
@@ -353,15 +359,31 @@ def make_clone_plan(
 
     # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
     group_sizes = [count for _, _, _, count in groups]
+
+    def validate_combo_tensor(combos: torch.Tensor, name: str, expected_rows: int | None = None) -> torch.Tensor:
+        if combos.dtype == torch.bool or torch.is_floating_point(combos):
+            raise ValueError(f"{name} must contain integer prototype indices.")
+        combos = combos.to(device=device, dtype=torch.long)
+        if combos.ndim != 2:
+            raise ValueError(f"{name} must be a 2-D tensor, got shape {tuple(combos.shape)}.")
+        if combos.shape[0] == 0:
+            raise ValueError(f"{name} must contain at least one row.")
+        if expected_rows is not None and combos.shape[0] != expected_rows:
+            raise ValueError(f"{name} must contain {expected_rows} rows, got {combos.shape[0]}.")
+        if combos.shape[1] != len(group_sizes):
+            raise ValueError(f"{name} must contain {len(group_sizes)} columns, got {combos.shape[1]}.")
+        group_sizes_tensor = torch.tensor(group_sizes, dtype=torch.long, device=device).view(1, -1)
+        invalid = (combos < -1) | ((combos >= group_sizes_tensor) & (combos != -1))
+        if invalid.any():
+            raise ValueError(f"{name} contains prototype indices outside [-1, group_size).")
+        return combos
+
     if valid_set is None:
         all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
         combos = torch.tensor(all_combos, dtype=torch.long, device=device)
     else:
-        combos = valid_set.to(device=device, dtype=torch.long)
-    chosen = clone_strategy(combos, num_clones, device)
-
-    if chosen.shape[1] != len(group_sizes):
-        raise ValueError(f"Expected clone strategy to return {len(group_sizes)} columns, got {chosen.shape[1]}.")
+        combos = validate_combo_tensor(valid_set, "valid_set")
+    chosen = validate_combo_tensor(clone_strategy(combos, num_clones, device), "clone_strategy result", num_clones)
 
     group_offsets = torch.tensor([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=torch.long, device=device)
     active = chosen >= 0
