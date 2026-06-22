@@ -76,14 +76,15 @@ class _FakeBinding:
 class _FakePhysX:
     """Fake ``PhysX`` whose ``create_tensor_binding`` hands back ``_FakeBinding`` instances."""
 
-    def __init__(self, n: int = 3, unavailable: set | None = None):
+    def __init__(self, n: int = 3, unavailable: set | None = None, all_unavailable: bool = False):
         self.n = n
         self._unavailable = unavailable or set()
+        self._all_unavailable = all_unavailable
         self.created: list[tuple] = []
 
     def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
         self.created.append((tensor_type, pattern, prim_paths))
-        if tensor_type in self._unavailable:
+        if self._all_unavailable or tensor_type in self._unavailable:
             return _FakeBinding(tensor_type, 0)  # wheel returns a 0-count binding on no match
         return _FakeBinding(tensor_type, self.n)
 
@@ -166,10 +167,11 @@ def test_eager_creates_requested_and_exposes_metadata():
     assert view.count == 5  # metadata works without an explicit get_attribute call
 
 
-def test_eager_empty_view_raises():
-    physx = _FakePhysX(n=3, unavailable={TensorType.RIGID_BODY_POSE})
+def test_eager_default_sweep_empty_view_raises():
+    # Default sweep (no tensor_types) on a pattern that matches nothing -> aggregate raise.
+    physx = _FakePhysX(all_unavailable=True)
     with pytest.raises(OvPhysxViewError, match="Could not create any bindings"):
-        OvPhysxView(physx, pattern="/no/match", device="cpu", tensor_types=[TensorType.RIGID_BODY_POSE], eager=True)
+        OvPhysxView(physx, pattern="/no/match", device="cpu", eager=True)
 
 
 # -----------------------------------------------------------------------------
@@ -411,3 +413,100 @@ def test_resolve_rejects_non_str_non_tensortype():
     view = _make_view()
     with pytest.raises(OvPhysxView.UnknownAttribute):
         view.get_attribute(123)
+
+
+def test_set_attribute_rejects_non_contiguous_source():
+    # A strided slice has the right element count but non-contiguous memory; the ptr-based
+    # reinterpret would read the wrong elements, so it must be rejected.
+    view = _make_view(n=3)
+    base = wp.zeros((3, 14), dtype=wp.float32, device="cpu")
+    strided = base[:, :7]
+    assert not strided.is_contiguous
+    with pytest.raises(OvPhysxView.ShapeMismatch, match="contiguous"):
+        view.set_attribute("rigid_body_pose", strided)
+
+
+# -----------------------------------------------------------------------------
+# API hardening — adversarial construction / resolution
+# -----------------------------------------------------------------------------
+
+
+def test_invalid_tensortype_member_rejected():
+    view = _make_view()
+    with pytest.raises(OvPhysxView.UnknownAttribute):
+        view.get_attribute(TensorType.INVALID)
+
+
+def test_string_keyed_aliases_are_honored():
+    # Passing string alias keys/values must be normalized to TensorType, not silently dropped.
+    physx = _FakePhysX(n=6)
+    view = OvPhysxView(
+        physx,
+        prim_paths=["/World/env_*/cube"],
+        device="cpu",
+        key_aliases={"articulation_link_pose": "rigid_body_pose"},
+    )
+    view.binding_for("articulation_link_pose")
+    assert physx.created[0][0] is TensorType.RIGID_BODY_POSE  # alias applied
+
+
+def test_key_alias_crossing_residency_is_rejected():
+    # LINK_POSE is GPU state; RIGID_BODY_MASS is CPU-only -> the device guard would be wrong.
+    with pytest.raises(ValueError, match="residency"):
+        OvPhysxView(
+            _FakePhysX(),
+            pattern="/p",
+            device="cpu",
+            key_aliases={TensorType.ARTICULATION_LINK_POSE: TensorType.RIGID_BODY_MASS},
+        )
+
+
+def test_tensor_types_without_eager_raises():
+    with pytest.raises(ValueError, match="eager"):
+        OvPhysxView(_FakePhysX(), pattern="/p", device="cpu", tensor_types=[TensorType.RIGID_BODY_POSE])
+
+
+def test_empty_target_is_rejected():
+    with pytest.raises(ValueError):
+        OvPhysxView(_FakePhysX(), prim_paths=[], device="cpu")
+    with pytest.raises(ValueError):
+        OvPhysxView(_FakePhysX(), pattern="", device="cpu")
+
+
+def test_eager_explicit_unavailable_type_raises_loud():
+    # When the caller names exact types, a failing one is surfaced (not silently dropped).
+    physx = _FakePhysX(n=3, unavailable={TensorType.RIGID_BODY_VELOCITY})
+    with pytest.raises(OvPhysxView.AttributeUnavailable):
+        OvPhysxView(
+            physx,
+            pattern="/World/env_*/body",
+            device="cpu",
+            tensor_types=[TensorType.RIGID_BODY_POSE, TensorType.RIGID_BODY_VELOCITY],
+            eager=True,
+        )
+
+
+def test_get_attribute_cpu_only_property_returns_cpu_buffer_on_gpu_sim():
+    # No-out allocation path must use the native device: CPU for a CPU-only property even
+    # though the sim device is a GPU. (CPU allocation -> runs without a GPU.)
+    view = _make_view(n=3, device="cuda:0")
+    buf = view.get_attribute("rigid_body_mass")
+    assert str(buf.device) == "cpu"
+
+
+def test_binding_for_is_idempotent_and_unguarded():
+    view = _make_view(n=3)
+    # Returns a binding even for a read-only attribute (raw access bypasses the write guard)...
+    b1 = view.binding_for("rigid_body_acceleration")
+    b2 = view.binding_for("rigid_body_acceleration")
+    assert b1 is b2  # cached / created once
+    assert len(view._physx.created) == 1
+
+
+@pytest.mark.skipif(not _HAS_CUDA, reason="needs a CUDA device for the cuda:0 buffer")
+def test_device_cuda_alias_is_canonicalized():
+    # A view built with the bare "cuda" alias must accept a canonical "cuda:0" buffer.
+    view = _make_view(n=3, device="cuda")
+    gpu_buf = wp.zeros((3, 7), dtype=wp.float32, device="cuda:0")
+    view.read_into("rigid_body_pose", gpu_buf)  # must not raise
+    assert view._bindings[TensorType.RIGID_BODY_POSE].read_calls == 1

@@ -217,21 +217,52 @@ class OvPhysxView:
     ) -> None:
         if (pattern is None) == (prim_paths is None):
             raise ValueError("Provide exactly one of 'pattern' or 'prim_paths'.")
+        if pattern is not None and not pattern:
+            raise ValueError("'pattern' must be a non-empty glob string.")
+        if prim_paths is not None and not prim_paths:
+            raise ValueError("'prim_paths' must contain at least one glob.")
+        if tensor_types is not None and not eager:
+            raise ValueError("'tensor_types' is only honored with eager=True; pass eager=True or omit it.")
         self._physx = physx
         self._pattern = pattern
         self._prim_paths = prim_paths
-        self._device = device
-        self._key_aliases: dict[Any, Any] = dict(key_aliases or {})
+        # Canonicalize the device so a "cuda" alias compares equal to a buffer's "cuda:0"
+        # (warp canonicalizes buffer devices). Fall back to the raw string when the device
+        # cannot be resolved here (e.g. constructing a cuda view on a CPU-only CI box) -- the
+        # string is only used for comparison, so construction must not fail on it.
+        try:
+            self._device = str(wp.get_device(device))
+        except Exception:  # noqa: BLE001 -- unresolvable device: keep the raw string for comparison
+            self._device = device
+        # Normalize key_aliases to TensorType members (accepts str names too) so string keys are
+        # honored rather than silently dropped, and reject aliases that cross the CPU/GPU residency
+        # or read-only boundary -- the device and read-only guards key on the requested type.
+        self._key_aliases: dict[Any, Any] = {}
+        for requested_type, created_type in (key_aliases or {}).items():
+            req_tt, made_tt = self._resolve(requested_type), self._resolve(created_type)
+            if (req_tt in _CPU_ONLY_TYPES) != (made_tt in _CPU_ONLY_TYPES):
+                raise ValueError(
+                    f"key_alias {tensor_type_name(req_tt)!r} -> {tensor_type_name(made_tt)!r} crosses the "
+                    "CPU/GPU residency boundary; the device policy would apply to the wrong type."
+                )
+            if is_read_only(tensor_type_name(req_tt)) != is_read_only(tensor_type_name(made_tt)):
+                raise ValueError(
+                    f"key_alias {tensor_type_name(req_tt)!r} -> {tensor_type_name(made_tt)!r} mixes a read-only "
+                    "and a writable type."
+                )
+            self._key_aliases[req_tt] = made_tt
         self._bindings: dict[Any, Any] = {}
 
         if eager:
-            requested = tensor_types if tensor_types is not None else [t for t in TensorType if t.name != "INVALID"]
+            explicit = tensor_types is not None
+            requested = tensor_types if explicit else [t for t in TensorType if t.name != "INVALID"]
             for tt in requested:
                 try:
-                    self._binding(tt)
+                    self._binding(self._resolve(tt))
                 except OvPhysxView.AttributeUnavailable:
-                    # Not applicable to these prims; skip and keep going.
-                    logger.debug("eager binding skipped for %s", tt)
+                    if explicit:
+                        raise  # caller named this exact type; surface the failure rather than drop it
+                    logger.debug("eager binding skipped for %s", tt)  # default sweep: skip inapplicable types
             if not self._bindings:
                 raise OvPhysxView.AttributeUnavailable(
                     f"Could not create any bindings for {self._target_repr()}; "
@@ -253,8 +284,10 @@ class OvPhysxView:
                 ``float32`` :class:`warp.array` on the native device is returned.
 
         Returns:
-            A :class:`warp.array` holding the attribute values. When ``out`` is omitted
-            this is a fresh, caller-owned array (no aliasing of view state).
+            A :class:`warp.array` holding the attribute values, on the attribute's native
+            device -- ``cpu`` for CPU-only property types even on a GPU sim (see
+            :func:`is_cpu_only`). When ``out`` is omitted this is a fresh, caller-owned array
+            (no aliasing of view state).
         """
         tt = self._resolve(name)
         binding = self._binding(tt)
@@ -328,14 +361,25 @@ class OvPhysxView:
     # -- raw binding access (for asset/data-container adoption) ----------------
 
     def binding_for(self, name: str | Any) -> _BindingLike:
-        """Return the underlying ``TensorBinding`` for an attribute, creating it on first use."""
+        """Return the underlying ``TensorBinding`` for an attribute, creating it on first use.
+
+        This is a raw escape hatch for asset-internal binding management: the returned
+        binding's ``read``/``write`` **bypass** the view's device, dtype-reinterpret, shape,
+        and read-only guards. Prefer :meth:`get_attribute` / :meth:`read_into` /
+        :meth:`set_attribute` unless you are deliberately managing bindings directly.
+        """
         return self._binding(self._resolve(name))
 
     # -- discoverability -------------------------------------------------------
 
     @property
     def attribute_names(self) -> list[str]:
-        """All valid attribute names addressable by this view (the full vocabulary)."""
+        """Every valid attribute name (the full ``TensorType`` vocabulary).
+
+        This is name *validity*, not availability for this view's prims -- a rigid-body view
+        still lists ``"articulation_*"`` names. Use :attr:`available_attributes` for what is
+        actually instantiated.
+        """
         return attribute_vocabulary()
 
     @property
@@ -344,7 +388,12 @@ class OvPhysxView:
         return sorted(tensor_type_name(tt) for tt in self._bindings)
 
     def has_attribute(self, name: str | Any) -> bool:
-        """Return whether ``name`` resolves to a valid ``TensorType``."""
+        """Return whether ``name`` is a valid attribute name (resolves to a ``TensorType``).
+
+        This checks name *validity* for any view, not availability for these prims: it can
+        return ``True`` for a name whose binding does not apply to this view's prims (in which
+        case :meth:`get_attribute` raises :class:`AttributeUnavailable`).
+        """
         try:
             self._resolve(name)
         except OvPhysxView.UnknownAttribute:
@@ -418,6 +467,8 @@ class OvPhysxView:
         if isinstance(name, str):
             return resolve_tensor_type(name)
         if isinstance(name, TensorType):
+            if name.name == "INVALID":  # mirror the string path's INVALID rejection
+                raise OvPhysxView.UnknownAttribute(f"{name!r} is not an addressable attribute.")
             return name
         raise OvPhysxView.UnknownAttribute(
             f"Attribute key must be a str name or a TensorType member, got {type(name).__name__}."
@@ -493,6 +544,11 @@ class OvPhysxView:
                 f"{role} must have float32 scalar elements (got dtype "
                 f"{getattr(arr.dtype, '__name__', arr.dtype)}); the view reinterprets bits, "
                 "not values, so a non-float32 dtype would silently corrupt the buffer."
+            )
+        if not arr.is_contiguous:
+            raise OvPhysxView.ShapeMismatch(
+                f"{role} must be a contiguous array; the view reinterprets the buffer's raw memory, "
+                "so a strided/sliced view would read or write the wrong elements."
             )
         expected = math.prod(tuple(binding.shape))
         actual = arr.size * (wp.types.type_size_in_bytes(arr.dtype) // 4)  # scalar is float32 -> exact
