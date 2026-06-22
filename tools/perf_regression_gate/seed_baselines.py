@@ -391,7 +391,9 @@ def _write_launch_config(task: TaskConfig, artifact_dir: Path, gpu_model: str) -
     )
 
 
-def _record_from_result(artifact_dir: Path, gpu_model: str, target_branch: str) -> BaselineUpdateRecord | None:
+def _record_from_result(
+    artifact_dir: Path, gpu_model: str, target_branch: str, known_commit: str | None = None
+) -> BaselineUpdateRecord | None:
     """Turn one built ``perf_regression_gate_result.json`` into a baseline sample.
 
     Returns ``None`` when the run was unhealthy (no benchmark info / no FPS) so the
@@ -406,7 +408,11 @@ def _record_from_result(artifact_dir: Path, gpu_model: str, target_branch: str) 
     task_id = bench_result.get("task_id")
     backend = bench_result.get("backend_key") or bench_result.get("backend")
     bench_gpu_model = _bench_gpu_model(bench_result, gpu_model)
-    commit_sha = ((bench_result.get("provenance") or {}).get("git") or {}).get("commit_hash")
+    # The seeder checks out each commit by SHA, so it authoritatively knows the
+    # commit even when the in-container benchmark cannot capture git provenance
+    # (detached HEAD on a runner-owned bind mount). Prefer the known SHA so the
+    # sample stays ancestry-selectable by the gate.
+    commit_sha = known_commit or ((bench_result.get("provenance") or {}).get("git") or {}).get("commit_hash")
 
     if not bench_result.get("perf_regression_gate_info_present", False):
         print(f"[seed] skip {task_id}/{backend} @ {artifact_dir.name}: no benchmark info (run failed)")
@@ -435,6 +441,7 @@ def _record_from_result(artifact_dir: Path, gpu_model: str, target_branch: str) 
         bench_result=bench_result,
         target_branch=target_branch,
         trusted_source="seed",
+        commit_sha=commit_sha,
     )
     short = (commit_sha or "????????")[:8]
     print(
@@ -564,7 +571,7 @@ def main() -> int:
                 wall_time_s = int(time.time() - start)
                 _build_bench_result(task, artifact_dir, exit_code, wall_time_s)
 
-                record = _record_from_result(artifact_dir, gpu_model, target_branch)
+                record = _record_from_result(artifact_dir, gpu_model, target_branch, known_commit=commit)
                 if record is not None:
                     records.append(record)
                     continue

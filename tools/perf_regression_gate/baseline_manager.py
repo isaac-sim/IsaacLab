@@ -304,6 +304,7 @@ def make_sample_metadata(
     target_branch: str | None = None,
     source_branch: str | None = None,
     trusted_source: str = "protected_branch",
+    commit_sha: str | None = None,
 ) -> dict[str, Any]:
     bench_result = bench_result or {}
     launch_config = bench_result.get("launch_config") or {}
@@ -321,7 +322,10 @@ def make_sample_metadata(
         "backend_key": backend,
         "physics_backend": launch_config.get("physics_backend") or bench_result.get("physics_backend"),
         "render_backend": launch_config.get("render_backend") or bench_result.get("render_backend"),
-        "commit_sha": git_info.get("commit_hash"),
+        # An explicit ``commit_sha`` (e.g. from the seeder, which checks out each
+        # commit by SHA) takes precedence over benchmark-captured provenance, which
+        # can be empty when git cannot read the source tree inside the container.
+        "commit_sha": commit_sha or git_info.get("commit_hash"),
         "branch": git_info.get("branch") or source_branch,
         "target_branch": target_branch,
         "launch_config_hash": bench_result.get("launch_config_hash") or launch_config.get("launch_config_hash"),
