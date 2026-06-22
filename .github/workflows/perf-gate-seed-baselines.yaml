@@ -25,9 +25,9 @@ on:
   workflow_dispatch:
     inputs:
       branches:
-        description: "Branches to seed in one run (comma/space separated). Use 'branch:target' to override the stamp. Empty = use commit_branch/commits."
+        description: "Branches to seed in one run (comma/space separated). Use 'branch:target' to override the stamp. Empty = use commit_branch/commits. NOTE: only seed branches whose code matches the prebuilt CI image's era (the image is built from unified-POC); seeding a divergent branch such as main/develop yields incompatible extensions or unregistered task ids."
         required: false
-        default: "develop, unified-POC"
+        default: "unified-POC"
       commits:
         description: "Explicit commit SHAs/refs (space/comma separated). Used only when branches is empty."
         required: false
@@ -35,7 +35,7 @@ on:
       commit_branch:
         description: "Single branch to seed when branches and commits are empty."
         required: false
-        default: "develop"
+        default: "unified-POC"
       commit_count:
         description: "Number of recent commits to seed from commit_branch."
         required: false
@@ -55,7 +55,7 @@ on:
       target_branch:
         description: "Protected branch stamped onto each seeded sample."
         required: false
-        default: "develop"
+        default: "unified-POC"
       dry_run:
         description: "Run benchmarks + build samples but DO NOT push to perf-baselines."
         type: boolean
