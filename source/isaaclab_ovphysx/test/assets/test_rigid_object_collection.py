@@ -106,8 +106,9 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 _MATERIAL_GAP_REASON = (
     "Requires RIGID_BODY_MATERIAL TensorType (or a view-helper) on the ovphysx "
-    "wheel side.  RigidObjectCollection.root_view is a per-tensor-type bindings dict on "
-    "OVPhysX, so root_view.get_material_properties() / set_material_properties() "
+    "wheel side.  RigidObjectCollection.root_view is an OvPhysxView over fused "
+    "per-tensor-type bindings on OVPhysX, so root_view.get_material_properties() / "
+    "set_material_properties() "
     "are not available.  See "
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
