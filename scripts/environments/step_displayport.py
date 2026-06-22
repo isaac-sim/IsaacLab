@@ -1,3 +1,8 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
 """Interactive runner for DisplayPort basic drop test.
 
 Usage:
@@ -31,15 +36,20 @@ from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_t
 
 TASK = "Isaac-Deploy-DisplayportBasic-v0"
 
-# Insertion pose: plug tip at socket opening (simready assets)
-# Recompute with diagnose_dp_insertion.py if assets change
-INSERTION_POSE_POS = (0.0, 0.066, 0.2305)
-INSERTION_POSE_ROT = (0.70711, 0.70711, 0.00000, 0.00000)
+# Full-insert pose (geometrically correct): overmold on the socket face, blade
+# ~11 mm into the cavity. NOTE: not yet DYNAMICALLY stable — the plug's thin shell
+# walls (Body2/Body3) and filled overmold recess have poor SDF collision, so under
+# physics it floats up / topples. Use `i` then `k` (freeze/kinematic) to hold this
+# pose for visualization until the plug colliders are re-authored (bake phase).
+# Rotation is (w, x, y, z).
+INSERTION_POSE_POS = (0.0, 0.0, 0.2096)
+INSERTION_POSE_ROT = (0.70711, 0.70711, 0.0, 0.0)
 
 parser = argparse.ArgumentParser(description="Interactive DisplayPort drop test.")
 parser.add_argument("--num_envs", type=int, default=1)
-parser.add_argument("--step_delay", type=float, default=0.5,
-                    help="Seconds between physics steps in slow mode (default 0.5).")
+parser.add_argument(
+    "--step_delay", type=float, default=0.5, help="Seconds between physics steps in slow mode (default 0.5)."
+)
 add_launcher_args(parser)
 args_cli, hydra_args = parser.parse_known_args()
 sys.argv = [sys.argv[0]] + hydra_args
@@ -129,6 +139,7 @@ def _rotate_plug(env, axis: int, deg: float):
 def _toggle_gravity(env):
     """Toggle gravity on the plug rigid body."""
     from pxr import PhysxSchema
+
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
@@ -146,6 +157,7 @@ def _toggle_gravity(env):
 def _set_gravity(env, disable: bool):
     """Explicitly set gravity on the plug."""
     from pxr import PhysxSchema
+
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
@@ -160,6 +172,7 @@ def _set_gravity(env, disable: bool):
 def _freeze_plug(env):
     """Toggle kinematic mode on the plug to freeze/unfreeze it in place."""
     from pxr import UsdPhysics
+
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
@@ -193,15 +206,18 @@ def _insert_plug(env):
 def _inspect_collisions(env):
     """Walk the prim tree for plug and socket and print collision mesh info."""
     from pxr import Usd, UsdGeom, UsdPhysics
+
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
-    for label, path in [("PLUG", "/World/envs/env_0/DisplayPortPlug"),
-                        ("SOCKET", "/World/envs/env_0/DisplayPortSocket")]:
+    for label, path in [
+        ("PLUG", "/World/envs/env_0/DisplayPortPlug"),
+        ("SOCKET", "/World/envs/env_0/DisplayPortSocket"),
+    ]:
         print(f"\n  === {label}: {path} ===")
         root = stage.GetPrimAtPath(path)
         if not root.IsValid():
-            print(f"    (prim not found)")
+            print("    (prim not found)")
             continue
         for prim in Usd.PrimRange(root):
             ppath = str(prim.GetPath())
@@ -238,13 +254,14 @@ def _inspect_collisions(env):
 def _toggle_body_collision(env, body_name: str, enable: bool):
     """Enable or disable collision on a specific socket body by name."""
     from pxr import Usd, UsdGeom, UsdPhysics
+
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
     socket_path = "/World/envs/env_0/DisplayPortSocket"
     root = stage.GetPrimAtPath(socket_path)
     if not root.IsValid():
-        print(f"  Socket prim not found.")
+        print("  Socket prim not found.")
         return
 
     found = False
@@ -253,7 +270,15 @@ def _toggle_body_collision(env, body_name: str, enable: bool):
         if parent_name == body_name and prim.IsA(UsdGeom.Mesh) and prim.HasAPI(UsdPhysics.CollisionAPI):
             col_attr = prim.GetAttribute("physics:collisionEnabled")
             if not col_attr.IsValid():
-                col_attr = prim.CreateAttribute("physics:collisionEnabled", prim.GetStage().GetRootLayer().GetPropertyAtPath(prim.GetPath().AppendProperty("physics:collisionEnabled")).typeName if False else None)
+                col_attr = prim.CreateAttribute(
+                    "physics:collisionEnabled",
+                    prim.GetStage()
+                    .GetRootLayer()
+                    .GetPropertyAtPath(prim.GetPath().AppendProperty("physics:collisionEnabled"))
+                    .typeName
+                    if False
+                    else None,
+                )
             prim.GetAttribute("physics:collisionEnabled").Set(enable)
             state = "ENABLED" if enable else "DISABLED"
             print(f"  {body_name}: collision {state} on {prim.GetPath()}")
@@ -270,6 +295,7 @@ def _toggle_body_collision(env, body_name: str, enable: bool):
 def _toggle_body_visibility(env, body_name: str):
     """Toggle visibility of a socket body to visually identify it."""
     from pxr import Usd, UsdGeom
+
     from isaaclab.sim.utils import get_current_stage
 
     stage = get_current_stage()
@@ -299,8 +325,6 @@ def _toggle_body_visibility(env, body_name: str):
 
 def _show_contacts(env):
     """Show contact forces on the plug using Isaac Lab's built-in data."""
-    from pxr import Usd, UsdGeom, UsdPhysics, PhysxSchema
-    from isaaclab.sim.utils import get_current_stage
     import omni.physx
     from carb import Float3
 
@@ -314,35 +338,39 @@ def _show_contacts(env):
         force_data = plug.data.net_forces_w
         if force_data is not None:
             net_force = wp.to_torch(force_data)[0].cpu().tolist()
-            force_mag = (net_force[0]**2 + net_force[1]**2 + net_force[2]**2)**0.5
-            print(f"  Plug net force: ({net_force[0]:.4f}, {net_force[1]:.4f}, {net_force[2]:.4f}) N  |F|={force_mag:.4f} N")
+            force_mag = (net_force[0] ** 2 + net_force[1] ** 2 + net_force[2] ** 2) ** 0.5
+            print(
+                f"  Plug net force: ({net_force[0]:.4f}, {net_force[1]:.4f}, {net_force[2]:.4f}) N  |F|={force_mag:.4f} N"
+            )
             force_found = True
             if force_mag > 1e-6:
-                fx, fy, fz = net_force[0]/force_mag, net_force[1]/force_mag, net_force[2]/force_mag
+                fx, fy, fz = net_force[0] / force_mag, net_force[1] / force_mag, net_force[2] / force_mag
                 print(f"  → Force direction: ({fx:.3f}, {fy:.3f}, {fz:.3f})")
                 if fz > 0.5:
-                    print(f"  → Plug is being pushed UPWARD (blocked from below)")
+                    print("  → Plug is being pushed UPWARD (blocked from below)")
                 if abs(fx) > 0.3 or abs(fy) > 0.3:
-                    print(f"  → Plug has lateral contact (misaligned)")
+                    print("  → Plug has lateral contact (misaligned)")
     except Exception:
         pass
 
     if not force_found:
         # List available data attributes for debugging
         try:
-            data_attrs = [a for a in dir(plug.data) if not a.startswith('_')
-                         and ('force' in a.lower() or 'contact' in a.lower())]
+            data_attrs = [
+                a for a in dir(plug.data) if not a.startswith("_") and ("force" in a.lower() or "contact" in a.lower())
+            ]
             print(f"  Available force/contact attrs: {data_attrs}")
         except Exception:
             pass
 
-    print(f"\n  Plug pos: ({plug_pos[0]*1e3:.2f}, {plug_pos[1]*1e3:.2f}, {plug_pos[2]*1e3:.2f}) mm")
+    print(f"\n  Plug pos: ({plug_pos[0] * 1e3:.2f}, {plug_pos[1] * 1e3:.2f}, {plug_pos[2] * 1e3:.2f}) mm")
 
     # Overlap sphere query with correct API
     try:
         physx_sq = omni.physx.get_physx_scene_query_interface()
 
         hits = []
+
         def report_hit(hit):
             hits.append(str(hit.rigid_body))
             return True
@@ -351,18 +379,18 @@ def _show_contacts(env):
         physx_sq.overlap_sphere(0.02, pos, report_hit, False)
 
         if hits:
-            print(f"\n  Bodies within 20mm of plug center:")
+            print("\n  Bodies within 20mm of plug center:")
             for h in hits:
                 print(f"    → {h}")
         else:
-            print(f"\n  No bodies found within 20mm sphere of plug center.")
+            print("\n  No bodies found within 20mm sphere of plug center.")
     except Exception as e:
         print(f"\n  Overlap query failed: {e}")
 
-    print(f"\n  TIP: To identify the blocker, try:")
-    print(f"    1. Freeze plug with 'k'")
-    print(f"    2. Disable bodies one at a time: 'd Body4', 'd Body5', etc.")
-    print(f"    3. Unfreeze with 'k' — if plug moves further, that body was blocking")
+    print("\n  TIP: To identify the blocker, try:")
+    print("    1. Freeze plug with 'k'")
+    print("    2. Disable bodies one at a time: 'd Body4', 'd Body5', etc.")
+    print("    3. Unfreeze with 'k' — if plug moves further, that body was blocking")
 
 
 def _check_stdin():
@@ -468,7 +496,7 @@ def main():
                 result = _handle_command(line, env)
                 if result is True:
                     break
-                elif result == "fast":
+                if result == "fast":
                     slow_mode = False
                 elif result == "slow":
                     slow_mode = True
