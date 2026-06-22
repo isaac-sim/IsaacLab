@@ -454,6 +454,34 @@ def _safe_path_component(name: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "-_." else "-" for ch in name)
 
 
+# Log fragments that mean "this commit is incompatible with the baked container"
+# rather than a genuine performance failure. A seeded historical commit can ship a
+# kit experience / Python that references Isaac Sim extensions or APIs absent from
+# the era-fixed image; in an offline image that surfaces as a dependency-solver
+# failure at startup. We treat these as skips, not hard failures, so a divergent or
+# pre-migration commit cannot sink a seed run that also has compatible commits.
+_INCOMPATIBLE_ENV_SIGNATURES = (
+    "registry cache path is not set",
+    "because of dependency solver failure",
+    "Can't pull extension",
+    "Failed to resolve extension",
+)
+
+
+def _detect_incompatible_env(artifact_dir: Path) -> str | None:
+    """Return a short reason if the benchmark log shows the run was incompatible with
+    the container (an Isaac Sim extension/API the image does not contain), else ``None``.
+    """
+    try:
+        text = (artifact_dir / "benchmark.log").read_text(errors="replace")
+    except OSError:
+        return None
+    for sig in _INCOMPATIBLE_ENV_SIGNATURES:
+        if sig in text:
+            return sig
+    return None
+
+
 def main() -> int:
     import time
 
@@ -490,12 +518,22 @@ def main() -> int:
     print("[seed] ----------------------------------------------------------------")
 
     records: list[BaselineUpdateRecord] = []
+    incompatible_skips: list[str] = []
+    prep_skips: list[str] = []
+    other_failures = 0
     total = 0
     for target_branch, commit in plan:
         short = commit[:8]
         target_dir = _safe_path_component(target_branch)
         if source_mount:
-            _prepare_seed_source(workdir, seed_src_dir, commit)
+            try:
+                _prepare_seed_source(workdir, seed_src_dir, commit)
+            except (RuntimeError, OSError) as exc:
+                # Don't let one un-checkout-able commit (e.g. a broken LFS object or
+                # rewritten history) abort commits that would otherwise seed cleanly.
+                print(f"::warning::[seed] skip commit {short} on {target_branch}: source prep failed: {exc}")
+                prep_skips.append(f"{target_branch}/{short}")
+                continue
         for task in tasks:
             for sample_idx in range(args.samples_per_commit):
                 total += 1
@@ -529,8 +567,20 @@ def main() -> int:
                 record = _record_from_result(artifact_dir, gpu_model, target_branch)
                 if record is not None:
                     records.append(record)
+                    continue
+                label = f"{target_branch}/{short} {task.task_id}/{task.backend_key}"
+                reason = _detect_incompatible_env(artifact_dir)
+                if reason is not None:
+                    print(f"[seed] skip {label}: incompatible with container ({reason})")
+                    incompatible_skips.append(label)
+                else:
+                    other_failures += 1
 
-    print(f"[seed] collected {len(records)} baseline sample(s) from {total} benchmark run(s)")
+    print(
+        f"[seed] collected {len(records)} baseline sample(s) from {total} benchmark run(s); "
+        f"skipped {len(incompatible_skips)} incompatible, {len(prep_skips)} prep-failed, "
+        f"{other_failures} other failure(s)"
+    )
 
     summary_path = artifacts_root / "seed_records.json"
     summary_path.write_text(
@@ -552,7 +602,15 @@ def main() -> int:
     print(f"[seed] wrote sample summary -> {summary_path}")
 
     if not records:
-        print("::warning::No healthy samples collected; nothing to push.")
+        if incompatible_skips and not other_failures:
+            print(
+                "::warning::No samples seeded: every commit was incompatible with this container. "
+                "A baseline run only works against commits from the same simulator era as the image "
+                "(one container = one era). Seed the branch the image was built from (e.g. develop / "
+                "unified-POC), not a divergent or pre-migration branch such as main."
+            )
+        else:
+            print("::warning::No healthy samples collected; nothing to push.")
         return 1
     if dry_run:
         print("[seed] dry_run=true; skipping baseline push.")
