@@ -23,11 +23,6 @@ class IsaacRtxRendererCfg(RendererCfg):
     renderer_type: str = "isaac_rtx"
     """Type identifier for Isaac RTX renderer."""
 
-    def provides_temporal_camera_data(self, data_type: str) -> bool:
-        # Only the rgb/rgba beauty buffer is temporally accumulated by DLSS; the depth,
-        # albedo, simple_shading, and segmentation AOVs bypass it.
-        return data_type in ("rgb", "rgba")
-
     semantic_filter: str | list[str] = "*:*"
     """A string or a list specifying a semantic filter predicate. Defaults to ``"*:*"``.
 

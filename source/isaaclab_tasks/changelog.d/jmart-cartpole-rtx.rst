@@ -7,5 +7,7 @@ Fixed
   (Newton's symplectic integrator has no implicit damping). The ``frame_stack`` default resolver
   now enables 2-frame stacking for these Newton + RTX AOVs, matching the existing Newton + Warp
   behavior; Newton + RTX ``rgb`` keeps single-frame observations as DLSS already supplies the cue.
-  The resolver now reads the backend capability flags (``PhysicsCfg.provides_implicit_damping``,
-  ``RendererCfg.provides_temporal_camera_data``) instead of hard-coding backend types.
+  The resolver reads backend capability classmethods
+  (:meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping`,
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`) resolved
+  from the configs, instead of hard-coding backend types in the task.

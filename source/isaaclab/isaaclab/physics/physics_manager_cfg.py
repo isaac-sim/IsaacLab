@@ -30,14 +30,3 @@ class PhysicsCfg:
 
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
-
-    def provides_implicit_damping(self) -> bool:
-        """Whether this backend's integrator has implicit numerical damping.
-
-        With implicit damping (PhysX, OV-PhysX) a camera policy can infer velocity from a
-        single frame. Without it (Newton's symplectic integrator) the policy needs a temporal
-        cue in the observation (e.g. frame stacking).
-
-        The base default is ``True``; backends without implicit damping override to ``False``.
-        """
-        return True

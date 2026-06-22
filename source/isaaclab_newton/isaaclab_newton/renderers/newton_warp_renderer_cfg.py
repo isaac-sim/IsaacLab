@@ -16,10 +16,6 @@ class NewtonWarpRendererCfg(RendererCfg):
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
 
-    def provides_temporal_camera_data(self, data_type: str) -> bool:
-        # Pure rasterizer: no temporal accumulation on any output.
-        return False
-
     enable_textures: bool = True
     """Enable texture-mapped rendering for meshes."""
 

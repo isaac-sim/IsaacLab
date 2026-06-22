@@ -107,6 +107,11 @@ class IsaacRtxRenderer(BaseRenderer):
     Requires Isaac Sim.
     """
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        # Only the rgb/rgba beauty buffer is temporally accumulated by DLSS; other AOVs bypass it.
+        return data_type in ("rgb", "rgba")
+
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
         # RTX rendering requires the app to be launched with ``--enable_cameras``.
