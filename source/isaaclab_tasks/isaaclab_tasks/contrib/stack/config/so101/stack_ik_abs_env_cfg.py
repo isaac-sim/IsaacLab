@@ -53,9 +53,14 @@ _BASE_T_GRIPPER_HOME[:3, 3] = (0.01918, -0.18852, 0.18887)
 # Derivation: with ``q_grip`` the controller grip orientation and ``q_G0`` the gripper_link
 # orientation in the base frame (both xyzw) at the reset pose, the offset is
 # ``quat_inv(q_grip) (x) q_G0`` (xyzw); tuning it here needs no Teleop rebuild.
-# Set to RPY (roll, pitch, yaw) = (-90, 0, 180) degrees (intrinsic XYZ), i.e.
-# ``Rotation.from_euler("XYZ", [-90, 0, 180], degrees=True).as_quat()``.
-_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (0.0, 0.70710678, 0.70710678, 0.0)
+# Set to RPY (roll, pitch, yaw) = (-90, 0, 60) degrees (intrinsic XYZ), i.e.
+# ``Rotation.from_euler("XYZ", [-90, 0, 60], degrees=True).as_quat()``.
+_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (
+    -0.61237244,
+    0.35355339,
+    0.35355339,
+    0.61237244,
+)
 
 
 def _build_so101_stack_pipeline():
