@@ -23,6 +23,7 @@ from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axi
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .frame_transformer_data import FrameTransformerData
 from .kernels import frame_transformer_update_kernel, gather_body_pose_kernel
@@ -61,7 +62,7 @@ class FrameTransformer(BaseFrameTransformer):
         super().__init__(cfg)
         self._data: FrameTransformerData = FrameTransformerData()
         self._physx_instance: Any = None
-        self._body_bindings: list[Any] = []
+        self._body_views: list[OvPhysxView] = []
         self._body_read_bufs: list[wp.array] = []
         self._body_dst_flat_indices: list[wp.array] = []
         self._raw_transforms: wp.array | None = None
@@ -228,7 +229,7 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_prim_paths = [body_names_to_frames[body_name]["prim_path"] for body_name in body_names_to_frames.keys()]
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
-        # --- OVPhysX: create one TT.RIGID_BODY_POSE binding per unique tracked body ---
+        # --- OVPhysX: create one TT.RIGID_BODY_POSE view per unique tracked body ---
         physx_instance = SimulationManager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError(
@@ -236,20 +237,22 @@ class FrameTransformer(BaseFrameTransformer):
                 " Reset the simulation context before adding the FrameTransformer."
             )
         self._physx_instance = physx_instance
-        self._body_bindings = []
-        self._body_read_bufs = []  # one (num_envs, 7) float32 buffer per body
+        self._body_views = []
+        self._body_read_bufs = []  # one (num_envs,) wp.transformf buffer per body
         self._body_dst_flat_indices = []  # (num_envs,) int32 destination slots per body
 
         num_unique_bodies = len(tracked_body_names)
 
         for body_slot, tracked_path in enumerate(tracked_prim_paths):
             pattern = self._env_wildcardify(tracked_path)
-            binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
-            if binding.count == 0:
+            view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
+            try:
+                binding = view.binding_for(TT.RIGID_BODY_POSE)
+            except OvPhysxView.AttributeUnavailable as exc:
                 raise RuntimeError(
                     f"FrameTransformer: TT.RIGID_BODY_POSE binding for pattern {pattern!r} matched zero bodies."
                     " Verify the prim has UsdPhysics.RigidBodyAPI."
-                )
+                ) from exc
 
             if binding.count != self._num_envs:
                 # OVPhysX's InteractiveScene defaults to clone_usd=True on develop, so this branch is
@@ -270,13 +273,13 @@ class FrameTransformer(BaseFrameTransformer):
                 self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
                 self._timestamp_last_update = wp.zeros_like(self._timestamp)
 
-            read_buf = wp.zeros((self._num_envs, 7), dtype=wp.float32, device=self._device)
+            read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(
                 [env_id * num_unique_bodies + body_slot for env_id in range(self._num_envs)],
                 dtype=torch.int32,
                 device=self._device,
             )
-            self._body_bindings.append(binding)
+            self._body_views.append(view)
             self._body_read_bufs.append(read_buf)
             self._body_dst_flat_indices.append(wp.from_torch(dst_torch.contiguous(), dtype=wp.int32))
 
@@ -423,16 +426,15 @@ class FrameTransformer(BaseFrameTransformer):
                 " Access sensor data only after sim.reset() has been called."
             )
 
-        # Step 1: refresh each per-body RIGID_BODY_POSE binding and gather rows into _raw_transforms.
-        for binding, read_buf, dst_indices in zip(
-            self._body_bindings, self._body_read_bufs, self._body_dst_flat_indices
-        ):
-            binding.read(read_buf)
-            pose_buf_tf = read_buf.view(wp.transformf)  # (num_envs, 7) float32 -> (num_envs,) transformf
+        # Step 1: refresh each per-body RIGID_BODY_POSE view and gather rows into _raw_transforms.
+        # read_into fills the structured (num_envs,) wp.transformf buffer directly via a cached
+        # float32 reinterpret, so no manual .view(wp.transformf) is needed here.
+        for view, read_buf, dst_indices in zip(self._body_views, self._body_read_bufs, self._body_dst_flat_indices):
+            view.read_into(TT.RIGID_BODY_POSE, read_buf)
             wp.launch(
                 gather_body_pose_kernel,
                 dim=self._num_envs,
-                inputs=[env_mask, pose_buf_tf, dst_indices, self._raw_transforms],
+                inputs=[env_mask, read_buf, dst_indices, self._raw_transforms],
                 device=self._device,
             )
 
@@ -519,7 +521,7 @@ class FrameTransformer(BaseFrameTransformer):
         super()._invalidate_initialize_callback(event)
         self._body_read_bufs = []
         self._body_dst_flat_indices = []
-        self._body_bindings = []
+        self._body_views = []
         self._physx_instance = None
         self._raw_transforms = None
         self._source_raw_indices = None
