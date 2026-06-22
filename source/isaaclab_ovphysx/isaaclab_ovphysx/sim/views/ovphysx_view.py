@@ -370,6 +370,20 @@ class OvPhysxView:
         """
         return self._binding(self._resolve(name))
 
+    def try_binding_for(self, name: str | Any) -> _BindingLike | None:
+        """Like :meth:`binding_for`, but return ``None`` instead of raising when the attribute
+        is valid yet **not available for this view's prims** (e.g. tendon types on a
+        tendon-less articulation, or a not-yet-created optional binding).
+
+        An invalid *name* still raises :class:`UnknownAttribute` -- that is a programming
+        error, not an availability question. Use this for the asset's ``binding or None``
+        pattern over optional bindings.
+        """
+        try:
+            return self._binding(self._resolve(name))
+        except OvPhysxView.AttributeUnavailable:
+            return None
+
     # -- discoverability -------------------------------------------------------
 
     @property

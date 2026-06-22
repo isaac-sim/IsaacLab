@@ -503,6 +503,16 @@ def test_binding_for_is_idempotent_and_unguarded():
     assert len(view._physx.created) == 1
 
 
+def test_try_binding_for_returns_none_when_unavailable():
+    view = _make_view(n=3, unavailable={TensorType.RIGID_BODY_VELOCITY})
+    # Available for these prims -> the (cached) binding; unavailable -> None, no raise.
+    assert view.try_binding_for("rigid_body_pose") is view._bindings[TensorType.RIGID_BODY_POSE]
+    assert view.try_binding_for("rigid_body_velocity") is None
+    # An invalid name is still a hard error, not an availability question.
+    with pytest.raises(OvPhysxView.UnknownAttribute):
+        view.try_binding_for("not_a_real_attribute")
+
+
 @pytest.mark.skipif(not _HAS_CUDA, reason="needs a CUDA device for the cuda:0 buffer")
 def test_device_cuda_alias_is_canonicalized():
     # A view built with the bare "cuda" alias must accept a canonical "cuda:0" buffer.
