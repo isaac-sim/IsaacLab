@@ -41,6 +41,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -112,9 +113,11 @@ def _as_bool(value: str) -> bool:
     return str(value).strip().lower() in ("true", "1", "yes", "on")
 
 
-def _run(cmd: list[str], *, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
+def _run(
+    cmd: list[str], *, cwd: Path | None = None, check: bool = True, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess:
     print(f"[seed] $ {' '.join(cmd)}", flush=True)
-    result = subprocess.run(cmd, cwd=str(cwd) if cwd else None, text=True)
+    result = subprocess.run(cmd, cwd=str(cwd) if cwd else None, text=True, env=env)
     if check and result.returncode != 0:
         raise RuntimeError(f"command failed (exit {result.returncode}): {' '.join(cmd)}")
     return result
@@ -230,11 +233,18 @@ def _prepare_seed_source(workdir: Path, seed_src_dir: Path, sha: str) -> None:
     from the (full-history) workspace by SHA and hard-checked-out so leftover
     files from a previous commit cannot leak in.
     """
+    # Skip Git LFS smudge for every git op below. The benchmark only needs the
+    # Python source, never the LFS-tracked binaries (e.g. rendering golden-image
+    # test fixtures). A branch whose tip references a missing/orphaned LFS object
+    # (common after a force-update) would otherwise abort ``checkout`` with a
+    # smudge-filter failure and sink the whole seed run. With smudge skipped, LFS
+    # files materialize as harmless pointer files instead.
+    git_env = {**os.environ, "GIT_LFS_SKIP_SMUDGE": "1"}
     if not (seed_src_dir / ".git").exists():
         seed_src_dir.parent.mkdir(parents=True, exist_ok=True)
-        _run(["git", "clone", "--no-checkout", str(workdir.resolve()), str(seed_src_dir)])
-    _run(["git", "fetch", "--no-tags", str(workdir.resolve()), sha], cwd=seed_src_dir)
-    _run(["git", "checkout", "-f", "--detach", sha], cwd=seed_src_dir)
+        _run(["git", "clone", "--no-checkout", str(workdir.resolve()), str(seed_src_dir)], env=git_env)
+    _run(["git", "fetch", "--no-tags", str(workdir.resolve()), sha], cwd=seed_src_dir, env=git_env)
+    _run(["git", "checkout", "-f", "--detach", sha], cwd=seed_src_dir, env=git_env)
     # Best-effort: a prior commit's container can leave behind files the runner
     # user cannot delete (e.g. root-owned ``__pycache__`` written into the
     # bind-mount). ``checkout -f`` already restored every tracked file, so leftover
