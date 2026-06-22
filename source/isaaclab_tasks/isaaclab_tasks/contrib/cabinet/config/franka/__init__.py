@@ -14,7 +14,7 @@ import gymnasium as gym
 ##
 
 gym.register(
-    id="Isaac-Open-Drawer-Franka-IK-Abs-v0",
+    id="IsaacContrib-Open-Drawer-Franka-IK-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaCabinetEnvCfg",
@@ -27,7 +27,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Open-Drawer-Franka-IK-Rel-v0",
+    id="IsaacContrib-Open-Drawer-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCabinetEnvCfg",

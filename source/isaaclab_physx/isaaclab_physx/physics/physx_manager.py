@@ -191,6 +191,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         rigid_body_paths: list[str] = []
         non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
+            if prim.IsA(UsdPhysics.Joint):
+                continue
             prim_path = prim.GetPath().pathString
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
                 rigid_body_paths.append(prim_path)

@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -104,6 +105,7 @@ class ArticulationData(BaseArticulationData):
 
         # Set initial time stamp
         self._sim_timestamp: float = 0.0
+        self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
@@ -162,22 +164,89 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step. Keep fk_timestamp in sync unless it was explicitly invalidated.
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         if not self._is_primed:
             return
-        # trigger an update of the joint acceleration buffer via finite differencing
-        if dt > 0.0 and self._previous_joint_vel is not None:
-            cur_vel_buf = self._joint_vel_buf
-            # ensure joint vel buffer is fresh before differencing
-            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
-            wp.launch(
-                _fd_joint_acc,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / dt],
-                outputs=[self._joint_acc.data],
-                device=self.device,
-            )
-            self._joint_acc.timestamp = self._sim_timestamp
-            wp.copy(self._previous_joint_vel, cur_vel_buf.data)
+        # Trigger a finite-difference refresh of the joint acceleration at step frequency. The
+        # property recomputes lazily when stale; reading it here keeps the FD cadence at one step.
+        self.joint_acc
+
+    def _ensure_fk_fresh(self) -> None:
+        """Run forward kinematics if the joint / body state has changed since the last FK update.
+
+        Isaac Sim's articulation link transforms and velocities are recomputed by
+        ``update_articulations_kinematic``. After a manual joint or root write that bypassed the sim
+        step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to ``-1.0`` to force a refresh on the
+        next read of any property that depends on body poses or velocities. The physics instance is
+        absent under the mocked-interface tests, in which case the refresh is skipped.
+        """
+        if self._fk_timestamp < self._sim_timestamp:
+            physx_instance = OvPhysxManager.get_physx_instance()
+            if physx_instance is not None:
+                physx_instance.update_articulations_kinematic()
+            self._fk_timestamp = self._sim_timestamp
+
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Reset pose-dependent cached articulation properties.
+
+        Writing a root or joint pose moves the body kinematic chain, so every buffer derived from
+        body poses (the world-frame body poses and the composite root/body state buffers) goes stale.
+
+        Args:
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
+        """
+        # The root com pose is derived from the root link pose, so only invalidate it when the link
+        # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
+        # Body poses and the composite state buffers always go stale on a pose write.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_link_pose_w,
+                self._body_com_pose_w,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Reset velocity-dependent cached articulation properties.
+
+        Writing a root or joint velocity changes the body velocities, so every buffer derived from
+        them (the body velocities and the composite root/body state buffers) goes stale.
+
+        Args:
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
+        """
+        # The root link velocity is derived from the root com velocity, so only invalidate it when the
+        # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
+        # Body velocities and the composite state buffers always go stale on a velocity write.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
 
     """
     Names.
@@ -807,12 +876,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # perform forward kinematics (shouldn't cause overhead if it happened already);
-            # skip when no physics instance is bound (mocked iface tests)
-            physx_instance = OvPhysxManager.get_physx_instance()
-            if physx_instance is not None:
-                physx_instance.update_articulations_kinematic()
+        self._ensure_fk_fresh()
         self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -825,6 +889,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
         """
+        self._ensure_fk_fresh()
         self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
@@ -917,23 +982,6 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
 
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Incoming joint wrenches on each body in the body frame [N, N*m].
-
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
-        In torch this resolves to (num_instances, num_bodies, 6).
-
-        All body reaction wrenches are provided including the root body to the world of an articulation.
-        """
-        self._read_spatial_vector_binding(
-            TT.LINK_INCOMING_JOINT_FORCE,
-            self._body_incoming_joint_wrench_buf,
-        )
-        if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_buf.data)
-        return self._body_incoming_joint_wrench_b_ta
-
     """
     Joint state properties.
     """
@@ -967,8 +1015,25 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32.
 
         .. note::
-            This quantity is computed via finite differencing of joint velocities.
+            This quantity is computed via finite differencing of joint velocities. It is recomputed
+            lazily: a read after one or more :meth:`update` steps refreshes it, while a read after a
+            manual joint-velocity write returns ``0`` until the next step, because the write resets
+            the finite-difference baseline.
         """
+        if self._joint_acc.timestamp < self._sim_timestamp:
+            # Finite-difference the joint velocities. ``_fd_joint_acc`` also advances
+            # ``_previous_joint_vel`` in place, so no separate copy is needed.
+            time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
+            cur_vel_buf = self._joint_vel_buf
+            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
+            wp.launch(
+                _fd_joint_acc,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / time_elapsed],
+                outputs=[self._joint_acc.data],
+                device=self.device,
+            )
+            self._joint_acc.timestamp = self._sim_timestamp
         if self._joint_acc_ta is None:
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
         return self._joint_acc_ta
@@ -1368,12 +1433,13 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-        self._body_incoming_joint_wrench_buf = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
+        # Read-only zeros source used to clear the joint-acceleration cache on velocity writes.
+        self._joint_acc_zeros = wp.zeros((N, D), dtype=wp.float32, device=dev)
 
         # -- Joint properties (CPU-only; timestamped so they can be re-read after writes)
         self._joint_stiffness = TimestampedBuffer((N, D), dev, wp.float32)
@@ -1752,7 +1818,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None

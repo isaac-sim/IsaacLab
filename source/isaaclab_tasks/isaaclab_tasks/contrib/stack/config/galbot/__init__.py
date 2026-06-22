@@ -15,7 +15,7 @@ import gymnasium as gym
 # you can use for both absolute and relative mode, by given the USE_RELATIVE_MODE environment variable
 ##
 gym.register(
-    id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0",
+    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:RmpFlowGalbotLeftArmCubeStackEnvCfg",
@@ -25,7 +25,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0",
+    id="IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:RmpFlowGalbotRightArmCubeStackEnvCfg",
@@ -38,7 +38,7 @@ gym.register(
 # Visuomotor Task for Galbot Left ArmCube Stack Task
 ##
 gym.register(
-    id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0",
+    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:RmpFlowGalbotLeftArmCubeStackVisuomotorEnvCfg",
@@ -50,7 +50,7 @@ gym.register(
 # Policy Close-loop Evaluation Task for Galbot Left Arm Cube Stack Task (in Joint Space)
 ##
 gym.register(
-    id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position-Play-v0",
+    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-Joint-Position-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": (
@@ -64,7 +64,7 @@ gym.register(
 # Policy Close-loop Evaluation Task for Galbot Left Arm Cube Stack Task (in Task Space)
 ##
 gym.register(
-    id="Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow-Play-v0",
+    id="IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-RmpFlow-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_rmp_rel_env_cfg:GalbotLeftArmRmpFlowCubeStackVisuomotorEnvCfg_PLAY",

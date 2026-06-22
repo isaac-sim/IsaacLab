@@ -179,6 +179,21 @@ def test_frame_transformer_factory_dispatch(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_frame_transformer_debug_vis_callback_noops_before_init(device):
+    """Test debug visualization callback is safe before physics initialization."""
+    with _ovphysx_sim_context(device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/base",
+            target_frames=[FrameTransformerCfg.FrameCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_SHANK")],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        scene.sensors["frame_transformer"]._debug_vis_callback(None)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 def test_frame_transformer_feet_wrt_base(device):
     """Test feet transformations w.r.t. base source frame.
 

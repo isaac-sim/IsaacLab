@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -68,6 +69,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
+        self._fk_timestamp = 0.0
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2); the
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
@@ -108,9 +110,88 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
+
+    def _ensure_fk_fresh(self) -> None:
+        """Run forward kinematics if the root state has changed since the last FK update.
+
+        Newton's ``state.body_q`` (per-body world transforms) is updated by ``eval_fk``,
+        invoked here through ``SimulationManager.forward()``. After a manual root write
+        that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to
+        ``-1.0`` to force a refresh on the next read of any property that depends on
+        body poses (``body_link_pose_w``, ``body_com_pose_w`` and the composite body
+        state buffers).
+        """
+        if self._fk_timestamp < self._sim_timestamp:
+            SimulationManager.forward()
+            self._fk_timestamp = self._sim_timestamp
+
+    def _reset_pose(
+        self,
+        from_link: bool = True,
+        *,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Reset pose-dependent cached rigid object collection properties.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            from_link: Set ``True`` when the body link poses were written so the derived body
+                center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
+                the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
+        """
+        # Invalidate the derived body com poses only when they were not the quantity just written.
+        reset_timestamps(
+            [
+                self._body_com_pose_w if from_link else None,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        self._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(
+            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+        )
+
+    def _reset_velocity(
+        self,
+        from_com: bool = True,
+        *,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Reset velocity-dependent cached rigid object collection properties.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
+                link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
+                velocities were written directly so they are not clobbered. Defaults to True.
+        """
+        # Invalidate the derived body link velocities only when they were not the quantity just written.
+        reset_timestamps(
+            [
+                self._body_link_vel_w if from_com else None,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        self._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(
+            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+        )
 
     """
     Names.
@@ -184,6 +265,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        self._ensure_fk_fresh()
         return self._body_link_pose_w_ta
 
     @property
@@ -248,6 +330,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
+        self._ensure_fk_fresh()
         return self._body_com_vel_w_ta
 
     @property

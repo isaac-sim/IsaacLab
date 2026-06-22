@@ -14,8 +14,8 @@ from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Deploy-GearAssembly-UR10e-2F140-v0",
-        "Isaac-Deploy-GearAssembly-UR10e-2F85-v0",
+        "IsaacContrib-Deploy-GearAssembly-UR10e-2F140",
+        "IsaacContrib-Deploy-GearAssembly-UR10e-2F85",
     ],
 )
 def test_ur10e_gear_assembly_default_num_envs(task_name: str):

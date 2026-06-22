@@ -3,6 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+{% set ns = namespace(amp_selected=false) %}
+{% for rl_library in rl_libraries %}
+{% if rl_library.name == "skrl" and "amp" in rl_library.algorithms %}
+{% set ns.amp_selected = true %}
+{% endif %}
+{% endfor %}
+
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
 from isaaclab.assets import ArticulationCfg
@@ -21,6 +28,11 @@ class {{ task.classname }}EnvCfg(DirectRLEnvCfg):
     action_space = 1
     observation_space = 4
     state_space = 0
+    {% if ns.amp_selected %}
+    # -- AMP observation space
+    num_amp_observations = 2
+    amp_observation_space = 4
+    {% endif %}
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation)

@@ -5,6 +5,7 @@
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -20,6 +21,8 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransf
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.utils import PresetCfg
 
 from . import mdp
 
@@ -163,6 +166,58 @@ class TerminationsCfg:
 
 
 @configclass
+class PhysicsCfg(PresetCfg):
+    """Physics backend presets for stack tasks."""
+
+    default = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=2**21,
+        friction_correlation_distance=0.00625,
+    )
+    newton_mjwarp = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            solver="newton",
+            integrator="implicitfast",
+            njmax=300,
+            nconmax=200,
+            impratio=10.0,
+            cone="elliptic",
+            update_data_interval=2,
+            iterations=100,
+            ls_iterations=15,
+            ls_parallel=False,
+            use_mujoco_contacts=False,
+            ccd_iterations=35,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=2,
+        debug_mode=False,
+    )
+    physx = default
+
+
+def raise_if_surface_gripper_on_newton(env_cfg) -> None:
+    """Reject Newton physics for scenes that configure a surface gripper.
+
+    Surface grippers are a PhysX/Isaac Sim feature (:class:`~isaaclab_physx.assets.SurfaceGripperCfg`)
+    with no Newton equivalent. This raises an actionable error at config-validation time
+    instead of failing later during scene creation with an opaque ``isaacsim.core`` import error.
+
+    Args:
+        env_cfg: The resolved environment config to inspect.
+    """
+    if getattr(env_cfg.scene, "surface_gripper", None) is None:
+        return
+    if isinstance(env_cfg.sim.physics, NewtonCfg):
+        raise ValueError(
+            "Surface grippers are only supported by the PhysX backend; the Newton backend has no "
+            "surface-gripper implementation. Re-run this task with physics=physx (the default)."
+        )
+
+
+@configclass
 class StackEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the stacking environment."""
 
@@ -193,10 +248,4 @@ class StackEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = 2
-
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
-            gpu_total_aggregate_pairs_capacity=2**21,
-            friction_correlation_distance=0.00625,
-        )
+        self.sim.physics = PhysicsCfg()

@@ -295,11 +295,11 @@ _TRAIN_CMD = [
     "--num_envs", "16",
     "presets=newton_mjwarp",
     "--max_iterations", "5",
-    "--headless",
 ]
 ```
 
 Invoke via `self.run_in_uv_env([str(self.cli_script)] + _TRAIN_CMD, ...)` (or the conda equivalent). This is the canonical "did training run" probe; do not redefine the args list per file.
+The command intentionally omits `--visualizer` / `--viz` so it runs headless by default; use `--viz none` only if a future config or command would otherwise select a visualizer.
 
 ### Debugging Warp kernels
 

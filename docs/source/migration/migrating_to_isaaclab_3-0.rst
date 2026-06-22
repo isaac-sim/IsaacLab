@@ -45,10 +45,10 @@ and play. Instead of launching library-specific scripts under
 .. code-block:: bash
 
    # Isaac Lab 2.x/deprecated
-   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole --headless
+   ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py --task Isaac-Cartpole
 
    # Isaac Lab 3.0
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --headless
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
 
 The same pattern applies to the play workflow:
 
@@ -67,7 +67,7 @@ script path and pass ``--rl_library`` to it:
 .. code-block:: bash
 
    python -m torch.distributed.run --nproc_per_node=2 scripts/reinforcement_learning/train.py \
-      --rl_library rsl_rl --task Isaac-Cartpole --headless --distributed
+      --rl_library rsl_rl --task Isaac-Cartpole --distributed
 
 
 Multi-Backend Architecture

@@ -37,6 +37,9 @@ class GPUInfoRecorder(MeasurementDataRecorder):
         self._util_n = []
         self._util_m2 = []
 
+        # Per-device peak (running max) for memory (bytes)
+        self._mem_peak = []
+
         # pynvml device handles (one per GPU)
         self._handles = []
         self._nvml_available = False
@@ -75,6 +78,8 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             self._util_std.append(0)
             self._util_n.append(0)
             self._util_m2.append(0)
+            # Peak state (running max)
+            self._mem_peak.append(0.0)
 
         # CUDA version
         with contextlib.suppress(Exception):
@@ -163,9 +168,11 @@ class GPUInfoRecorder(MeasurementDataRecorder):
             self._mem_m2[i] += delta * delta2
             if self._mem_n[i] > 1:
                 self._mem_std[i] = math.sqrt(self._mem_m2[i] / (self._mem_n[i] - 1))
+            self._mem_peak[i] = max(self._mem_peak[i], float(memory_bytes))
 
             self._gpu_runtime_info["devices"][i]["memory_used_mean_bytes"] = self._mem_mean[i]
             self._gpu_runtime_info["devices"][i]["memory_used_std_bytes"] = self._mem_std[i]
+            self._gpu_runtime_info["devices"][i]["memory_used_peak_bytes"] = self._mem_peak[i]
             self._gpu_runtime_info["devices"][i]["memory_n"] = self._mem_n[i]
 
             # GPU utilization from pynvml or nvidia-smi fallback
@@ -189,7 +196,6 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                 self._util_m2[i] += delta * delta2
                 if self._util_n[i] > 1:
                     self._util_std[i] = math.sqrt(self._util_m2[i] / (self._util_n[i] - 1))
-
                 self._gpu_runtime_info["devices"][i]["utilization_mean_percent"] = self._util_mean[i]
                 self._gpu_runtime_info["devices"][i]["utilization_std_percent"] = self._util_std[i]
                 self._gpu_runtime_info["devices"][i]["utilization_n"] = self._util_n[i]
@@ -252,7 +258,7 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                 runtime = device_runtime[i]
                 prefix = f"GPU {i} " if self._device_count > 1 else "GPU "
 
-                # Memory used
+                # Memory used (mean/std/n only when updates have been recorded)
                 if "memory_used_mean_bytes" in runtime:
                     measurements.append(
                         SingleMeasurement(
@@ -275,6 +281,14 @@ class GPUInfoRecorder(MeasurementDataRecorder):
                             unit="",
                         )
                     )
+                # Peak is always emitted (initialised to 0.0, rises on first update)
+                measurements.append(
+                    SingleMeasurement(
+                        name=f"{prefix}Memory Used peak",
+                        value=self._bytes_to_gb(self._mem_peak[i]),
+                        unit="GB",
+                    )
+                )
 
                 # GPU Utilization
                 if "utilization_mean_percent" in runtime:

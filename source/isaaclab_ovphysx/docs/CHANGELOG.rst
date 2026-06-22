@@ -1,6 +1,73 @@
 Changelog
 ---------
 
+3.1.0 (2026-06-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.sensors.Imu` and
+  :class:`~isaaclab_ovphysx.sensors.ImuData` implementing the
+  :class:`~isaaclab.sensors.imu.BaseImu` /
+  :class:`~isaaclab.sensors.imu.BaseImuData` contracts on the OVPhysX
+  backend. Reports angular velocity and proper linear acceleration in
+  the sensor body frame using ovphysx tensor bindings on the rigid-body
+  ancestor of the sensor prim path.
+* Added :mod:`isaaclab_ovphysx.sensors.ray_caster` with
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.RayCaster`,
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.RayCasterCamera`,
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.MultiMeshRayCaster`, and
+  :class:`~isaaclab_ovphysx.sensors.ray_caster.MultiMeshRayCasterCamera`.
+  Mirrors :mod:`isaaclab_physx.sensors.ray_caster` structure: a single
+  ``_OvPhysxRayCasterMixin`` carries the backend-specific pose-tracking
+  surface, reading body poses via the ovphysx
+  ``create_tensor_binding(pattern=..., tensor_type=RIGID_BODY_POSE)``
+  API. Static (non-physics) sensor frames fall back to a one-time USD
+  pose snapshot. Unblocks ``Isaac-Velocity-Rough-Anymal-D-v0`` (the
+  height_scanner now dispatches under OVPhysX).
+* Added :class:`~isaaclab_ovphysx.sensors.Pva` and
+  :class:`~isaaclab_ovphysx.sensors.PvaData` implementing the
+  :class:`~isaaclab.sensors.pva.BasePva` /
+  :class:`~isaaclab.sensors.pva.BasePvaData` contracts on the OVPhysX
+  backend. Reports world-frame pose, body-frame linear and angular
+  velocities, body-frame coordinate linear and angular accelerations,
+  and projected gravity using ovphysx tensor bindings on the rigid-body
+  ancestor of the sensor prim path. Linear and angular accelerations
+  are coordinate accelerations (zero at rest, ``-g`` in freefall) and
+  do not include the IMU's gravity bias — projected gravity is reported
+  separately as the unit gravity direction vector.
+* Added :meth:`~isaaclab_ovphysx.physics.OvPhysxManager.get_gravity`
+  classmethod mirroring PhysX's ``SimulationView.get_gravity()`` so
+  backend-agnostic sensor code can read scene gravity through a single
+  entry point.
+
+
+3.0.6 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``skip_forward`` argument to the root, body, and joint state writers (e.g.
+  ``write_root_link_pose_to_sim_index``) to defer cached-buffer invalidation when several
+  writes are batched before a single forward pass.
+
+Fixed
+^^^^^
+
+* Fixed stale cached asset pose and velocity state after simulation state writes.
+
+
+3.0.5 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused shared path-expression helpers when deriving OVPhysX schema-root view expressions.
+
+
 3.0.4 (2026-06-10)
 ~~~~~~~~~~~~~~~~~~
 

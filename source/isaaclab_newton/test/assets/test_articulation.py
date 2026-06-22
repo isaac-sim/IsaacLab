@@ -2120,6 +2120,108 @@ def test_write_root_state(
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
 
 
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("with_offset", [True])
+@pytest.mark.parametrize("state_location", ["com", "link", "root"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_write_root_state_functions_data_consistency(
+    sim, num_articulations, device, with_offset, state_location, gravity_enabled, articulation_type
+):
+    """A root pose/velocity write must refresh the derived cross-frame caches without a sim step.
+
+    Regression coverage for the velocity invalidation cleanup: writing the root center-of-mass
+    (or link) velocity must invalidate the derived root link (or com) velocity so the next read
+    re-derives it. Linear velocity differs between the two frames, so - as in the rigid object
+    test - we compare angular velocity, which is frame-independent and therefore only matches when
+    the derived velocity was actually refreshed.
+    """
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
+
+    # Play sim
+    sim.reset()
+
+    # Resolve root body index by name (ordering may differ across physics backends)
+    root_idx = articulation.find_bodies("base")[0][0]
+
+    # change center of mass offset from link frame on the root body
+    if with_offset:
+        offset = torch.tensor([1.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
+    else:
+        offset = torch.tensor([0.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
+    com = wp.to_torch(articulation.root_view.get_attribute("body_com", SimulationManager.get_model()))
+    com[:, 0, root_idx, :] = offset.squeeze(-2)
+    articulation.root_view.set_attribute("body_com", SimulationManager.get_model(), wp.from_torch(com, dtype=wp.vec3f))
+    with wp.ScopedDevice(device):
+        SimulationManager._solver.notify_model_changed(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
+
+    rand_state = torch.rand(num_articulations, 13, device=device)
+    rand_state[..., :3] += env_pos
+    # make quaternion a unit vector
+    rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
+
+    # perform a step then update the buffers
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # Prime the lazily-derived caches at the current sim timestamp. Without this they would
+    # recompute on first access after the write regardless of invalidation; priming them makes a
+    # missing reset_pose/reset_velocity observable as a stale read in the assertions below.
+    _ = articulation.data.root_link_pose_w.torch
+    _ = articulation.data.root_com_pose_w.torch
+    _ = articulation.data.root_link_vel_w.torch
+    _ = articulation.data.root_com_vel_w.torch
+
+    if state_location == "com":
+        articulation.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7])
+        articulation.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
+    elif state_location == "link":
+        articulation.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7])
+        articulation.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
+    elif state_location == "root":
+        articulation.write_root_pose_to_sim_index(root_pose=rand_state[..., :7])
+        articulation.write_root_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
+
+    body_com_pose_b = articulation.data.body_com_pose_b.torch
+    if state_location == "com":
+        # the com pose/vel was written, so the derived link pose/vel must be refreshed
+        root_com_pose_w = articulation.data.root_com_pose_w.torch
+        root_com_vel_w = articulation.data.root_com_vel_w.torch
+        expected_root_link_pos, expected_root_link_quat = math_utils.combine_frame_transforms(
+            root_com_pose_w[:, :3],
+            root_com_pose_w[:, 3:],
+            math_utils.quat_rotate(
+                math_utils.quat_inv(body_com_pose_b[:, root_idx, 3:7]), -body_com_pose_b[:, root_idx, :3]
+            ),
+            math_utils.quat_inv(body_com_pose_b[:, root_idx, 3:7]),
+        )
+        expected_root_link_pose = torch.cat((expected_root_link_pos, expected_root_link_quat), dim=1)
+        root_link_pose_w = articulation.data.root_link_pose_w.torch
+        root_link_vel_w = articulation.data.root_link_vel_w.torch
+        torch.testing.assert_close(expected_root_link_pose, root_link_pose_w)
+        # skip lin_vel because it differs from the link frame; angular velocity is frame-independent
+        # and only matches when the derived velocity was actually refreshed after the write
+        torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
+    else:
+        # the link pose/vel was written, so the derived com pose/vel must be refreshed
+        root_link_pose_w = articulation.data.root_link_pose_w.torch
+        root_link_vel_w = articulation.data.root_link_vel_w.torch
+        expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
+            root_link_pose_w[:, :3],
+            root_link_pose_w[:, 3:],
+            body_com_pose_b[:, root_idx, :3],
+            body_com_pose_b[:, root_idx, 3:7],
+        )
+        expected_com_pose = torch.cat((expected_com_pos, expected_com_quat), dim=1)
+        root_com_pose_w = articulation.data.root_com_pose_w.torch
+        root_com_vel_w = articulation.data.root_com_vel_w.torch
+        torch.testing.assert_close(expected_com_pose, root_com_pose_w)
+        torch.testing.assert_close(root_link_vel_w[:, 3:], root_com_vel_w[:, 3:])
+
+
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["humanoid"])
 def test_setting_articulation_root_prim_path(sim, device, articulation_type):

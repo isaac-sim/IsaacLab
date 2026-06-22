@@ -342,6 +342,12 @@ def _normalize_legacy_wildcard_pattern(prim_path_regex: str) -> str:
     return fixed_regex
 
 
+def matches_path_expr_prefix(path_expr: str, prim_path: str) -> bool:
+    """Return whether ``prim_path`` matches ``path_expr`` up to ``prim_path`` depth."""
+    prefix_expr = "/".join(path_expr.split("/")[: prim_path.count("/") + 1])
+    return re.match(f"^{_normalize_legacy_wildcard_pattern(prefix_expr)}$", prim_path) is not None
+
+
 def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
     """Find all the matching prims in the stage based on input regex expression.
 
@@ -385,10 +391,11 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
 
 def resolve_matching_prims_from_source(
     path_expr: str,
-    *,
     predicate: Callable[[Usd.Prim], bool] | None = None,
+    expected_num_matches: int | None = None,
     env_regex_ns: str = "/World/envs/env_.*",
     raise_if_no_matches: bool = True,
+    traverse_instance_prims: bool = True,
 ) -> list[tuple[Usd.Prim, str]]:
     """Resolve matching prims from a single(source) instance when multiple instances are present.
 
@@ -397,9 +404,11 @@ def resolve_matching_prims_from_source(
 
     Args:
         path_expr: Prim path expression to resolve. It may contain regex wildcards.
-        predicate: Optional filter applied to resolved prims.
+        predicate: Optional descendant filter; returned expressions include the matching descendant suffix.
+        expected_num_matches: Optional exact result count.
         env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
+        traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
 
     Returns:
         A list of ``(source_prim, destination_expr)`` pairs. Empty only when
@@ -456,7 +465,16 @@ def resolve_matching_prims_from_source(
                 or prim.GetPath().pathString.startswith(instance_root + "/")
             ]
     if predicate is not None:
-        results = [(prim, dest) for prim, dest in results if predicate(prim)]
+        results = [
+            (child, dest + child.GetPath().pathString[len(source.GetPath().pathString) :])
+            for source, dest in results
+            for child in get_all_matching_child_prims(
+                source.GetPath(), predicate, traverse_instance_prims=traverse_instance_prims
+            )
+        ]
+
+    if expected_num_matches is not None and len(results) != expected_num_matches:
+        raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")
     if raise_if_no_matches and not results:
         raise RuntimeError(f"No prim found at '{path_expr}'.")
     return results

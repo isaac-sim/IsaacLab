@@ -27,14 +27,20 @@ Example usage:
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+from __future__ import annotations
+
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates procedural terrain generation.")
+parser = argparse.ArgumentParser(
+    description="This script demonstrates procedural terrain generation.",
+    conflict_handler="resolve",
+)
 parser.add_argument(
     "--color_scheme",
     type=str,
@@ -54,32 +60,29 @@ parser.add_argument(
     default=False,
     help="Whether to show the flat patches computed during the terrain generation.",
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
+parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import random
 
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBase
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.terrains import FlatPatchSamplingCfg, TerrainImporter, TerrainImporterCfg
 
 ##
 # Pre-defined configs
 ##
+from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.physics import PhysicsCfg
+from isaaclab.terrains.sub_terrain_cfg import FlatPatchSamplingCfg
+from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
+
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import AssetBase
 
 
 def design_scene() -> tuple[dict, torch.Tensor]:
@@ -115,7 +118,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     if args_cli.color_scheme in ["height", "random"]:
         terrain_importer_cfg.visual_material = None
     # Create terrain importer
-    terrain_importer = TerrainImporter(terrain_importer_cfg)
+    terrain_importer = terrain_importer_cfg.class_type(terrain_importer_cfg)
 
     # Show the flat patches computed
     if args_cli.show_flat_patches:
@@ -127,7 +130,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
                 height=0.1,
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(random.random(), random.random(), random.random())),
             )
-        flat_patches_visualizer = VisualizationMarkers(vis_cfg)
+        flat_patches_visualizer = vis_cfg.class_type(vis_cfg)
 
         # Visualize the flat patches
         all_patch_locations = []
@@ -147,31 +150,30 @@ def design_scene() -> tuple[dict, torch.Tensor]:
 
 def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBase], origins: torch.Tensor):
     """Runs the simulation loop."""
-    # Simulate physics
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         # perform step
         sim.step()
 
 
 def main():
     """Main function."""
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[5.0, 5.0, 5.0], target=[0.0, 0.0, 0.0])
-    # design scene
-    scene_entities, scene_origins = design_scene()
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene_entities, scene_origins)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # Initialize the simulation context
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
+        # design scene
+        scene_entities, scene_origins = design_scene()
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

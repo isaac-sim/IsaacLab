@@ -120,7 +120,7 @@ rendering without blocking.
 | `retargeters_to_tune` | `Callable[[], list[BaseRetargeter]] \| None` | `None` | Retargeters to expose in the tuning UI |
 | `plugins` | `list[PluginConfig]` | `[]` | IsaacTeleop plugin configurations |
 | `sim_device` | `str` | `"cuda:0"` | Torch device for output action tensors |
-| `retargeting_execution` | `RetargetingExecutionConfig` | `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)` | IsaacTeleop retargeting execution settings |
+| `retargeting_execution` | `RetargetingExecutionConfig \| None` | `None` (resolved at session start to `mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025)`) | IsaacTeleop retargeting execution settings; deferred so the config imports without `isaacteleop` |
 | `teleoperation_active_default` | `bool` | `False` | Whether teleoperation is active on session start |
 | `app_name` | `str` | `"IsaacLabTeleop"` | Application name for the IsaacTeleop session |
 
@@ -156,12 +156,13 @@ Inside the container: install Isaac Teleop once (`./isaaclab.sh -p -m pip instal
 ```bash
 ./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
 source ~/.cloudxr/run/cloudxr.env
-./isaaclab.sh -p scripts/tools/record_demos.py --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
+./isaaclab.sh -p scripts/tools/record_demos.py --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
 ```
 
 In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html).
 
-For a fully headless experience, replace `--visualizer kit` with `--headless` when running docker and XR teleop session will run automatically.
+For a fully headless experience, replace `--visualizer kit` with `--visualizer none` or
+`--viz none` when running Docker, and the XR teleop session will run automatically.
 
 ## Dependencies
 

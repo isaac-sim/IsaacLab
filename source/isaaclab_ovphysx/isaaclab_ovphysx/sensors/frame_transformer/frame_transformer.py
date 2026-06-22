@@ -22,7 +22,7 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
 
 import isaaclab_ovphysx.tensor_types as TT
-from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
 
 from .frame_transformer_data import FrameTransformerData
 from .kernels import frame_transformer_update_kernel, gather_body_pose_kernel
@@ -60,6 +60,17 @@ class FrameTransformer(BaseFrameTransformer):
         """
         super().__init__(cfg)
         self._data: FrameTransformerData = FrameTransformerData()
+        self._physx_instance: Any = None
+        self._body_bindings: list[Any] = []
+        self._body_read_bufs: list[wp.array] = []
+        self._body_dst_flat_indices: list[wp.array] = []
+        self._raw_transforms: wp.array | None = None
+        self._source_raw_indices: wp.array | None = None
+        self._target_raw_indices: wp.array | None = None
+        self._source_offset_pos_wp: wp.array | None = None
+        self._source_offset_quat_wp: wp.array | None = None
+        self._target_offset_pos_wp: wp.array | None = None
+        self._target_offset_quat_wp: wp.array | None = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -106,7 +117,7 @@ class FrameTransformer(BaseFrameTransformer):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
         env_mask = self._resolve_indices_and_mask(env_ids, env_mask)
         super().reset(None, env_mask)
 
@@ -114,7 +125,7 @@ class FrameTransformer(BaseFrameTransformer):
     Implementation.
     """
 
-    def _initialize_impl(self):
+    def _initialize_impl(self) -> None:
         super()._initialize_impl()
 
         # resolve source frame offset
@@ -218,16 +229,16 @@ class FrameTransformer(BaseFrameTransformer):
         tracked_body_names = [body_name for body_name in body_names_to_frames.keys()]
 
         # --- OVPhysX: create one TT.RIGID_BODY_POSE binding per unique tracked body ---
-        physx_instance = OvPhysxManager.get_physx_instance()
+        physx_instance = SimulationManager.get_physx_instance()
         if physx_instance is None:
             raise RuntimeError(
                 "OvPhysxManager has not been initialized yet."
                 " Reset the simulation context before adding the FrameTransformer."
             )
-
-        self._body_bindings: list[Any] = []
-        self._body_read_bufs: list[wp.array] = []  # one (num_envs, 7) float32 buffer per body
-        self._body_dst_flat_indices: list[wp.array] = []  # (num_envs,) int32 destination slots per body
+        self._physx_instance = physx_instance
+        self._body_bindings = []
+        self._body_read_bufs = []  # one (num_envs, 7) float32 buffer per body
+        self._body_dst_flat_indices = []  # (num_envs,) int32 destination slots per body
 
         num_unique_bodies = len(tracked_body_names)
 
@@ -395,9 +406,22 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
-    def _update_buffers_impl(self, env_mask: wp.array | None = None):
+    def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        if (
+            self._raw_transforms is None
+            or self._source_raw_indices is None
+            or self._target_raw_indices is None
+            or self._source_offset_pos_wp is None
+            or self._source_offset_quat_wp is None
+            or self._target_offset_pos_wp is None
+            or self._target_offset_quat_wp is None
+        ):
+            raise RuntimeError(
+                f"FrameTransformer '{self.cfg.prim_path}': not initialized."
+                " Access sensor data only after sim.reset() has been called."
+            )
 
         # Step 1: refresh each per-body RIGID_BODY_POSE binding and gather rows into _raw_transforms.
         for binding, read_buf, dst_indices in zip(
@@ -435,7 +459,7 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
-    def _set_debug_vis_impl(self, debug_vis: bool):
+    def _set_debug_vis_impl(self, debug_vis: bool) -> None:
         # set visibility of markers
         # note: parent only deals with callbacks. not their visibility
         if debug_vis:
@@ -448,7 +472,10 @@ class FrameTransformer(BaseFrameTransformer):
             if hasattr(self, "frame_visualizer"):
                 self.frame_visualizer.set_visibility(False)
 
-    def _debug_vis_callback(self, event):
+    def _debug_vis_callback(self, event) -> None:
+        if not self.is_initialized or self._raw_transforms is None or not hasattr(self, "frame_visualizer"):
+            return
+
         # Convert warp -> torch at the boundary for visualization
         source_pos_w = wp.to_torch(self._data._source_pos_w)
         source_quat_w = wp.to_torch(self._data._source_quat_w)
@@ -487,15 +514,33 @@ class FrameTransformer(BaseFrameTransformer):
     Internal simulation callbacks.
     """
 
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Drop OVPhysX handles and cached buffers when physics stops."""
         super()._invalidate_initialize_callback(event)
-        # release the per-body ovphysx bindings + their read buffers so re-initialize starts fresh
-        self._body_bindings = []
         self._body_read_bufs = []
         self._body_dst_flat_indices = []
+        self._body_bindings = []
+        self._physx_instance = None
         self._raw_transforms = None
+        self._source_raw_indices = None
+        self._target_raw_indices = None
+        self._source_offset_pos_wp = None
+        self._source_offset_quat_wp = None
+        self._target_offset_pos_wp = None
+        self._target_offset_quat_wp = None
+        for attr_name in (
+            "_target_pose_source_ta",
+            "_target_pos_source_ta",
+            "_target_quat_source_ta",
+            "_target_pose_w_ta",
+            "_target_pos_w_ta",
+            "_target_quat_w_ta",
+            "_source_pose_w_ta",
+            "_source_pos_w_ta",
+            "_source_quat_w_ta",
+        ):
+            if hasattr(self._data, attr_name):
+                setattr(self._data, attr_name, None)
 
     """
     Internal helpers.

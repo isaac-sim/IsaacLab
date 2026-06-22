@@ -1193,12 +1193,18 @@ class AppLauncher:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pyproject.toml
+        # do a mark and sweep to remove any -m pytest, -m isaacsim_ci, -m windows_ci, -m arm_ci,
+        # and -c **/pyproject.toml
         indexes_to_remove = []
         for idx, arg in enumerate(sys.argv[:-1]):
             if arg == "-m":
                 value_for_dash_m = sys.argv[idx + 1]
-                if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
+                if (
+                    "pytest" in value_for_dash_m
+                    or "isaacsim_ci" in value_for_dash_m
+                    or "windows_ci" in value_for_dash_m
+                    or "arm_ci" in value_for_dash_m
+                ):
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
             if arg.startswith("--config-file=") and "pyproject.toml" in arg:
