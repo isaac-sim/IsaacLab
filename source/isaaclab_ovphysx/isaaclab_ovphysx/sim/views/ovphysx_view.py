@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 
 import warp as wp
 
@@ -79,9 +79,13 @@ _READ_ONLY_NAMES: frozenset[str] = frozenset(
 _CPU_ONLY_NAMES: frozenset[str] = frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES)
 
 
-@runtime_checkable
 class _BindingLike(Protocol):
-    """Structural type of an ovphysx ``TensorBinding`` as used by this view."""
+    """Structural type of an ovphysx ``TensorBinding`` as used by this view.
+
+    ``read`` fills the passed array in place; ``write`` consumes ``indices``/``mask``
+    for partial writes. ``shape`` is the binding's flat tensor shape; ``count`` is the
+    number of matched prims.
+    """
 
     shape: tuple[int, ...]
     count: int
@@ -379,26 +383,32 @@ class OvPhysxView:
 
     @property
     def dof_count(self) -> int:
+        """Number of DOFs per articulation (articulation views only)."""
         return self._sample().dof_count
 
     @property
     def body_count(self) -> int:
+        """Number of bodies (links) per articulation (articulation views only)."""
         return self._sample().body_count
 
     @property
     def joint_count(self) -> int:
+        """Number of joints per articulation (articulation views only)."""
         return self._sample().joint_count
 
     @property
     def is_fixed_base(self) -> bool:
+        """Whether the articulation has a fixed base (articulation views only)."""
         return self._sample().is_fixed_base
 
     @property
     def fixed_tendon_count(self) -> int:
+        """Number of fixed tendons per articulation (articulation views only)."""
         return self._sample().fixed_tendon_count
 
     @property
     def spatial_tendon_count(self) -> int:
+        """Number of spatial tendons per articulation (articulation views only)."""
         return self._sample().spatial_tendon_count
 
     # -- internals -------------------------------------------------------------
@@ -407,7 +417,11 @@ class OvPhysxView:
         """Resolve a string name or a ``TensorType`` member to a ``TensorType``."""
         if isinstance(name, str):
             return resolve_tensor_type(name)
-        return name
+        if isinstance(name, TensorType):
+            return name
+        raise OvPhysxView.UnknownAttribute(
+            f"Attribute key must be a str name or a TensorType member, got {type(name).__name__}."
+        )
 
     def _binding(self, tensor_type: Any) -> Any:
         """Return the cached ``TensorBinding`` for ``tensor_type``, creating it on first use."""
@@ -422,12 +436,18 @@ class OvPhysxView:
             kwargs["pattern"] = self._pattern
         try:
             binding = self._physx.create_tensor_binding(**kwargs)
-        except Exception as exc:  # noqa: BLE001 -- wheel raises bare exceptions; re-wrapped below
+        except Exception as exc:  # noqa: BLE001 -- wheel raises bare exceptions; surface the cause below
+            # The wheel raises both for "type not applicable to these prims" and for genuine
+            # failures (init/ABI/OOM); we can't tell them apart without a wheel-side exception
+            # type, so the underlying error is surfaced in the message (and chained) rather than
+            # hidden behind a generic "not available". TODO(ovphysx): a typed no-match error.
             raise OvPhysxView.AttributeUnavailable(
-                f"Attribute {tensor_type_name(tensor_type)!r} is not available for {self._target_repr()}."
+                f"Could not create the {tensor_type_name(tensor_type)!r} binding for "
+                f"{self._target_repr()}: create_tensor_binding raised {type(exc).__name__}: {exc}"
             ) from exc
-        # The wheel returns a 0-count binding when nothing matches.
-        if binding is None or getattr(binding, "count", 0) == 0:
+        # The wheel returns a 0-count binding when nothing matches. Access ``count`` directly so a
+        # malformed binding (missing ``count``) surfaces as an error rather than a phantom no-match.
+        if binding is None or binding.count == 0:
             raise OvPhysxView.AttributeUnavailable(
                 f"Attribute {tensor_type_name(tensor_type)!r} is not available for {self._target_repr()} "
                 "(no matching prims)."
@@ -459,15 +479,26 @@ class OvPhysxView:
     def _as_binding_view(self, arr: wp.array, binding: Any, role: str) -> wp.array:
         """Return a ``float32`` view of ``arr`` matching the binding's flat shape.
 
-        Validates that ``arr``'s element count matches the binding, then returns ``arr``
-        directly if it is already ``float32`` with the binding's shape, or a zero-copy
-        reinterpret view otherwise (for structured dtypes such as ``wp.transformf``).
+        ``arr`` must have a ``float32`` scalar element type (``float32`` itself or a
+        composite built on it, e.g. ``wp.transformf``/``wp.vec3f``): the view
+        **reinterprets bits, not values**, so a non-``float32`` dtype (``int32``,
+        ``float64``, ``float16``) would corrupt the data and is rejected. Given a matching
+        scalar, validates the flat ``float32`` element count and returns ``arr`` directly
+        when it is already ``float32`` with the binding's shape, else a zero-copy
+        reinterpret view.
         """
+        scalar = getattr(arr.dtype, "_wp_scalar_type_", arr.dtype)
+        if scalar is not wp.float32:
+            raise OvPhysxView.ShapeMismatch(
+                f"{role} must have float32 scalar elements (got dtype "
+                f"{getattr(arr.dtype, '__name__', arr.dtype)}); the view reinterprets bits, "
+                "not values, so a non-float32 dtype would silently corrupt the buffer."
+            )
         expected = math.prod(tuple(binding.shape))
-        actual = arr.size * (wp.types.type_size_in_bytes(arr.dtype) // 4)
+        actual = arr.size * (wp.types.type_size_in_bytes(arr.dtype) // 4)  # scalar is float32 -> exact
         if actual != expected:
             raise OvPhysxView.ShapeMismatch(
-                f"Shape mismatch for {role}: {actual} float32-equivalent elements, "
+                f"Shape mismatch for {role}: {actual} float32 elements, "
                 f"binding expects {expected} (shape {tuple(binding.shape)})."
             )
         if arr.dtype == wp.float32 and tuple(arr.shape) == tuple(binding.shape):

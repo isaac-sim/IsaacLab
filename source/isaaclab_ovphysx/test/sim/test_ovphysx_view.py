@@ -113,8 +113,16 @@ def test_resolve_roundtrips_name_and_enum():
 
 
 def test_resolve_unknown_name_raises():
-    with pytest.raises(OvPhysxViewError):
+    with pytest.raises(OvPhysxView.UnknownAttribute):
         resolve_tensor_type("not_a_real_attribute")
+
+
+def test_read_only_names_are_valid_vocabulary():
+    # Every read-only name must resolve to a real TensorType, so the hand-maintained
+    # set stays coupled to the wheel enum (no dead names).
+    from isaaclab_ovphysx.sim.views import ovphysx_view as mod
+
+    assert set(attribute_vocabulary()) >= mod._READ_ONLY_NAMES
 
 
 def test_read_only_and_cpu_only_classification():
@@ -313,6 +321,9 @@ def test_prim_paths_with_key_alias_creates_remapped_type():
     assert created_type is TensorType.RIGID_BODY_POSE
     assert pattern is None and prim_paths == ["/World/env_*/cube", "/World/env_*/sphere"]
     assert view._bindings[TensorType.ARTICULATION_LINK_POSE] is binding
+    # And a write through the aliased key resolves to that same cached binding.
+    view.set_attribute("articulation_link_pose", wp.zeros((6, 7), dtype=wp.float32, device="cpu"))
+    assert len(binding.write_calls) == 1 and binding is view._bindings[TensorType.ARTICULATION_LINK_POSE]
 
 
 # -----------------------------------------------------------------------------
@@ -353,3 +364,50 @@ def test_metadata_passthrough_from_sample_binding():
     assert view.body_names == ["body"]
     assert view.is_fixed_base is True
     assert view.joint_count == 0 and view.fixed_tendon_count == 0
+
+
+# -----------------------------------------------------------------------------
+# dtype safety — the view reinterprets bits, so non-float32 scalars must be rejected
+# -----------------------------------------------------------------------------
+
+
+def test_set_attribute_rejects_same_byte_size_wrong_dtype():
+    # int32 has the same 4-byte width as float32: it would pass a byte-count-only guard
+    # and get bit-reinterpreted into garbage. It must be rejected, not silently written.
+    view = _make_view(n=3)
+    int_buf = wp.zeros((3, 7), dtype=wp.int32, device="cpu")
+    with pytest.raises(OvPhysxView.ShapeMismatch, match="float32 scalar"):
+        view.set_attribute("rigid_body_pose", int_buf)
+    assert view._bindings[TensorType.RIGID_BODY_POSE].write_calls == []
+
+
+def test_set_attribute_rejects_sub_4byte_dtype():
+    view = _make_view(n=3)
+    half_buf = wp.zeros((3, 7), dtype=wp.float16, device="cpu")
+    with pytest.raises(OvPhysxView.ShapeMismatch, match="float32 scalar"):
+        view.set_attribute("rigid_body_pose", half_buf)
+
+
+def test_set_attribute_forwards_both_indices_and_mask():
+    # The view forwards both verbatim; the wheel resolves precedence (mask wins).
+    view = _make_view(n=3)
+    values = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
+    idx = wp.array([0, 2], dtype=wp.int32, device="cpu")
+    mask = wp.array([True, False, True], dtype=wp.bool, device="cpu")
+    view.set_attribute("rigid_body_pose", values, indices=idx, mask=mask)
+    _, _, fwd_idx, fwd_mask = view._bindings[TensorType.RIGID_BODY_POSE].write_calls[0]
+    assert fwd_idx is idx and fwd_mask is mask
+
+
+def test_get_attribute_out_on_wrong_device_raises():
+    # `get_attribute(out=)` has its own device check distinct from read_into's.
+    view = _make_view(n=3, device="cuda:0")
+    cpu_out = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
+    with pytest.raises(OvPhysxView.DeviceMismatch):
+        view.get_attribute("rigid_body_pose", out=cpu_out)
+
+
+def test_resolve_rejects_non_str_non_tensortype():
+    view = _make_view()
+    with pytest.raises(OvPhysxView.UnknownAttribute):
+        view.get_attribute(123)
