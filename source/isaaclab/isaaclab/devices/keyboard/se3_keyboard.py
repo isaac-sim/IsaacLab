@@ -150,27 +150,38 @@ class Se3Keyboard(DeviceBase):
 
         Reference:
             https://docs.omniverse.nvidia.com/dev-guide/latest/programmer_ref/input-devices/keyboard.html
+
+        Note:
+            Linux XIM fires a secondary character-input RELEASE for every letter key with no
+            `event.input.name` attribute (only `str(event.input)` returns the lowercase char).
+            We skip these to avoid double-subtracting the delta when a key is released.
         """
+        # Skip character-input events (no .name, str returns lowercase char e.g. 'w')
+        try:
+            key_name = event.input.name
+        except AttributeError:
+            return True
+
         # apply the command when pressed
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
-            if event.input.name == "L":
+            if key_name == "L":
                 self.reset()
-            if event.input.name == "K":
+            if key_name == "K":
                 self._close_gripper = not self._close_gripper
-            elif event.input.name in ["W", "S", "A", "D", "Q", "E"]:
-                self._delta_pos += self._INPUT_KEY_MAPPING[event.input.name]
-            elif event.input.name in ["Z", "X", "T", "G", "C", "V"]:
-                self._delta_rot += self._INPUT_KEY_MAPPING[event.input.name]
+            elif key_name in ["W", "S", "A", "D", "Q", "E"]:
+                self._delta_pos += self._INPUT_KEY_MAPPING[key_name]
+            elif key_name in ["Z", "X", "T", "G", "C", "V"]:
+                self._delta_rot += self._INPUT_KEY_MAPPING[key_name]
         # remove the command when un-pressed
         if event.type == carb.input.KeyboardEventType.KEY_RELEASE:
-            if event.input.name in ["W", "S", "A", "D", "Q", "E"]:
-                self._delta_pos -= self._INPUT_KEY_MAPPING[event.input.name]
-            elif event.input.name in ["Z", "X", "T", "G", "C", "V"]:
-                self._delta_rot -= self._INPUT_KEY_MAPPING[event.input.name]
+            if key_name in ["W", "S", "A", "D", "Q", "E"]:
+                self._delta_pos -= self._INPUT_KEY_MAPPING[key_name]
+            elif key_name in ["Z", "X", "T", "G", "C", "V"]:
+                self._delta_rot -= self._INPUT_KEY_MAPPING[key_name]
         # additional callbacks
         if event.type == carb.input.KeyboardEventType.KEY_PRESS:
-            if event.input.name in self._additional_callbacks:
-                self._additional_callbacks[event.input.name]()
+            if key_name in self._additional_callbacks:
+                self._additional_callbacks[key_name]()
 
         # since no error, we are fine :)
         return True

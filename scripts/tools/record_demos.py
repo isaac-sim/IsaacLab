@@ -100,9 +100,104 @@ import torch
 
 import omni.ui as ui
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+from isaaclab.devices import Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
+
+
+# ── Robot keyboard controller ─────────────────────────────────────────────────
+# Linux XIM fires a secondary character-input RELEASE (no .name, str='w') for
+# every letter key. The try/except AttributeError in _on_event skips these so
+# the delta is only modified once per physical key press/release.
+class OpenArmKeyboard:
+    """Robot keyboard controller for OpenArm recording.
+
+    Translation:  W/S = ±X  |  A/D = ±Y  |  PgUp/PgDn = ±Z
+    Rotation:     ↑/↓ = pitch ±Y  |  ←/→ = yaw ±Z  |  [/] = roll ±X
+    Gripper:      K (toggle)
+    """
+
+    _POS_KEYS = {
+        "W":           ( 1.0,  0.0,  0.0),   # EE forward
+        "S":           (-1.0,  0.0,  0.0),   # EE backward
+        "A":           ( 0.0,  1.0,  0.0),   # EE left
+        "D":           ( 0.0, -1.0,  0.0),   # EE right
+        "PAGE_UP":     ( 0.0,  0.0,  1.0),   # EE up
+        "PAGE_DOWN":   ( 0.0,  0.0, -1.0),   # EE down
+    }
+    _ROT_KEYS = {
+        "UP":            ( 0.0,  1.0,  0.0),   # pitch +
+        "DOWN":          ( 0.0, -1.0,  0.0),   # pitch -
+        "LEFT":          ( 0.0,  0.0,  1.0),   # yaw +
+        "RIGHT":         ( 0.0,  0.0, -1.0),   # yaw -
+        "LEFT_BRACKET":  ( 1.0,  0.0,  0.0),   # roll +
+        "RIGHT_BRACKET": (-1.0,  0.0,  0.0),   # roll -
+    }
+
+    def __init__(self, pos_sensitivity: float = 0.05, rot_sensitivity: float = 0.1,
+                 sim_device: str = "cpu"):
+        import weakref
+        import carb.input as ci
+        import omni.appwindow
+        import numpy as np
+        self._ps = pos_sensitivity
+        self._rs = rot_sensitivity
+        self._dev = sim_device
+        self._np = np
+        self._delta_pos = np.zeros(3)
+        self._delta_rot = np.zeros(3)
+        self._close_gripper = False
+        self._cbs: dict = {}
+        appwindow = omni.appwindow.get_default_app_window()
+        self._keyboard = appwindow.get_keyboard()
+        self._ci = ci.acquire_input_interface()
+        self._sub = self._ci.subscribe_to_keyboard_events(
+            self._keyboard,
+            lambda event, *_, obj=weakref.proxy(self): obj._on_event(event),
+        )
+
+    def __del__(self):
+        try:
+            self._ci.unsubscribe_to_keyboard_events(self._keyboard, self._sub)
+        except Exception:
+            pass
+
+    def reset(self):
+        self._delta_pos[:] = 0.0
+        self._delta_rot[:] = 0.0
+        self._close_gripper = False
+
+    def add_callback(self, key: str, func):
+        self._cbs[key] = func
+
+    def advance(self) -> torch.Tensor:
+        from scipy.spatial.transform import Rotation
+        rv = Rotation.from_euler("XYZ", self._delta_rot).as_rotvec()
+        cmd = self._np.append(self._np.concatenate([self._delta_pos, rv]),
+                               -1.0 if self._close_gripper else 1.0)
+        return torch.tensor(cmd, dtype=torch.float32, device=self._dev)
+
+    def _on_event(self, event) -> bool:
+        import carb.input as ci
+        try:
+            name = event.input.name
+        except AttributeError:
+            return True
+        if event.type == ci.KeyboardEventType.KEY_PRESS:
+            if name == "K":
+                self._close_gripper = not self._close_gripper
+            elif name in self._POS_KEYS:
+                self._delta_pos += self._np.array(self._POS_KEYS[name]) * self._ps
+            elif name in self._ROT_KEYS:
+                self._delta_rot += self._np.array(self._ROT_KEYS[name]) * self._rs
+            if name in self._cbs:
+                self._cbs[name]()
+        elif event.type == ci.KeyboardEventType.KEY_RELEASE:
+            if name in self._POS_KEYS:
+                self._delta_pos -= self._np.array(self._POS_KEYS[name]) * self._ps
+            elif name in self._ROT_KEYS:
+                self._delta_rot -= self._np.array(self._ROT_KEYS[name]) * self._rs
+        return True
 
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.ui.instruction_display import InstructionDisplay, show_subtask_instructions
@@ -284,9 +379,13 @@ def setup_teleop_device(callbacks: dict[str, Callable]) -> object:
             logger.warning(
                 f"No teleop device '{args_cli.teleop_device}' found in environment config. Creating default."
             )
-            # Create fallback teleop device
+            # Create fallback teleop device.
+            # OpenArmKeyboard uses arrow keys + I/O instead of W/A/S/D/Q/E,
+            # avoiding Isaac Sim viewport gizmo shortcut conflicts.
             if args_cli.teleop_device.lower() == "keyboard":
-                teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
+                teleop_interface = OpenArmKeyboard(
+                    pos_sensitivity=0.05, rot_sensitivity=0.1, sim_device=args_cli.device
+                )
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(Se3SpaceMouseCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
             else:
