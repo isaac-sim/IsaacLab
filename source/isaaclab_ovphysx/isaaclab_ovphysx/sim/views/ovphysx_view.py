@@ -78,6 +78,27 @@ _READ_ONLY_NAMES: frozenset[str] = frozenset(
 # so the two never drift.
 _CPU_ONLY_NAMES: frozenset[str] = frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES)
 
+# Structured Warp dtype for attributes whose flat trailing dimension has a fixed semantic
+# layout: 7-float poses -> ``wp.transformf``, 6-float spatial vectors -> ``wp.spatial_vectorf``.
+# :meth:`OvPhysxView.get_attribute` returns an array of this dtype, so callers get a typed
+# ``[N, ...]`` array rather than a flat ``[N, ..., k]`` float32 one. Attributes absent from this
+# map default to flat ``float32``. The wheel exposes only flat float32 shapes, so this map is
+# hand-maintained.
+# TODO(ovphysx): source structured layouts from a wheel dtype query if one is added.
+_ATTR_DTYPE: dict[str, Any] = {
+    "articulation_root_pose": wp.transformf,
+    "articulation_link_pose": wp.transformf,
+    "articulation_body_com_pose": wp.transformf,
+    "rigid_body_pose": wp.transformf,
+    "rigid_body_com_pose": wp.transformf,
+    "articulation_root_velocity": wp.spatial_vectorf,
+    "articulation_link_velocity": wp.spatial_vectorf,
+    "articulation_link_acceleration": wp.spatial_vectorf,
+    "articulation_link_incoming_joint_force": wp.spatial_vectorf,
+    "rigid_body_velocity": wp.spatial_vectorf,
+    "rigid_body_acceleration": wp.spatial_vectorf,
+}
+
 
 class _BindingLike(Protocol):
     """Structural type of an ovphysx ``TensorBinding`` as used by this view.
@@ -252,6 +273,10 @@ class OvPhysxView:
                 )
             self._key_aliases[req_tt] = made_tt
         self._bindings: dict[Any, Any] = {}
+        # Cache of float32 reinterpret views for read_into / get_attribute, keyed by the
+        # destination buffer's id(). Reusing the same reinterpret object across calls keeps the
+        # wheel's object-identity read cache (the TensorBinding.read fast path) warm.
+        self._read_views: dict[int, wp.array] = {}
 
         if eager:
             explicit = tensor_types is not None
@@ -281,23 +306,26 @@ class OvPhysxView:
             name: Lowercased ``TensorType`` name or the member itself.
             out: Optional destination buffer to fill (must be on the binding's native
                 device and match its element count). If omitted, a freshly allocated
-                ``float32`` :class:`warp.array` on the native device is returned.
+                :class:`warp.array` on the native device is returned.
 
         Returns:
             A :class:`warp.array` holding the attribute values, on the attribute's native
             device -- ``cpu`` for CPU-only property types even on a GPU sim (see
-            :func:`is_cpu_only`). When ``out`` is omitted this is a fresh, caller-owned array
-            (no aliasing of view state).
+            :func:`is_cpu_only`). When ``out`` is omitted this is a fresh, caller-owned array;
+            its dtype is the attribute's structured Warp dtype when it has one (e.g.
+            ``wp.transformf`` for poses, ``wp.spatial_vectorf`` for velocities) and flat
+            ``float32`` otherwise (see :data:`_ATTR_DTYPE`).
         """
         tt = self._resolve(name)
         binding = self._binding(tt)
         device = self._native_device(tt)
         if out is not None:
             self._check_device(out, device, tensor_type_name(tt), "destination")
-            binding.read(self._as_binding_view(out, binding, "destination"))
+            binding.read(self._read_view(out, binding))
             return out
-        buf = wp.zeros(tuple(binding.shape), dtype=wp.float32, device=device)
-        binding.read(buf)
+        alloc_shape, dtype = self._attribute_dtype(tt, binding)
+        buf = wp.zeros(alloc_shape, dtype=dtype, device=device)
+        binding.read(self._read_view(buf, binding))
         return buf
 
     def read_into(self, name: str | Any, dst: wp.array) -> None:
@@ -306,7 +334,10 @@ class OvPhysxView:
         ``dst`` may be a structured-dtype buffer (e.g. ``wp.transformf``); it is read
         through a ``float32`` reinterpret view that matches the binding's flat shape, so
         the structured GPU/CPU buffer is filled directly with no extra copy. This is the
-        path the asset data containers use.
+        path the asset data containers use. The reinterpret view for a given ``dst`` is
+        built once and reused across calls (see :meth:`_read_view`) so the wheel's
+        object-identity read cache stays warm -- callers can pass the structured buffer
+        directly each step without maintaining their own reinterpret cache.
 
         Args:
             name: Lowercased ``TensorType`` name or the member itself.
@@ -320,7 +351,7 @@ class OvPhysxView:
         tt = self._resolve(name)
         binding = self._binding(tt)
         self._check_device(dst, self._native_device(tt), tensor_type_name(tt), "destination")
-        binding.read(self._as_binding_view(dst, binding, "destination"))
+        binding.read(self._read_view(dst, binding))
 
     def set_attribute(
         self,
@@ -574,6 +605,38 @@ class OvPhysxView:
         if arr.dtype == wp.float32 and tuple(arr.shape) == tuple(binding.shape):
             return arr
         return wp.array(ptr=arr.ptr, shape=tuple(binding.shape), dtype=wp.float32, device=str(arr.device), copy=False)
+
+    def _read_view(self, dst: wp.array, binding: Any) -> wp.array:
+        """Return the ``float32`` view of ``dst`` to hand to ``binding.read``, reused across calls.
+
+        The wheel's ``TensorBinding.read`` has an object-identity read cache: it skips DLPack
+        acquisition and the attribute-chain lookup when handed the *same* tensor object as the
+        previous read. To keep that cache warm, the ``float32`` reinterpret of a structured
+        ``dst`` is built once and reused for that destination buffer; a pointer-staleness guard
+        rebuilds it if the buffer's backing storage moved. A ``dst`` that is already flat
+        ``float32`` is its own stable identity, so it is returned directly (and not cached).
+        """
+        cached = self._read_views.get(id(dst))
+        if cached is not None and cached.ptr == dst.ptr:
+            return cached
+        view = self._as_binding_view(dst, binding, "destination")
+        if view is not dst:  # structured dst -> cache the reinterpret; a flat float32 dst caches nothing
+            self._read_views[id(dst)] = view
+        return view
+
+    def _attribute_dtype(self, tensor_type: Any, binding: Any) -> tuple[tuple[int, ...], Any]:
+        """Return ``(alloc_shape, dtype)`` for :meth:`get_attribute`.
+
+        Maps an attribute to its structured Warp dtype (see :data:`_ATTR_DTYPE`) when the
+        binding's trailing dimension matches that dtype's ``float32`` count, dropping the
+        trailing dimension from the allocation shape (e.g. ``[N, 7] -> ([N], wp.transformf)``).
+        Falls back to the flat ``float32`` shape for unmapped attributes or a mismatched layout.
+        """
+        dtype = _ATTR_DTYPE.get(tensor_type_name(tensor_type))
+        shape = tuple(binding.shape)
+        if dtype is not None and shape and shape[-1] == wp.types.type_size_in_bytes(dtype) // 4:
+            return shape[:-1], dtype
+        return shape, wp.float32
 
     def _as_wp(self, values: Any, device: str) -> wp.array:
         """Coerce ``values`` to a :class:`warp.array`.

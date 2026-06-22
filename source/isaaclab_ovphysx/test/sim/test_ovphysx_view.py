@@ -63,11 +63,13 @@ class _FakeBinding:
         self.spatial_tendon_count = 0
         self.read_calls = 0
         self.last_read: tuple | None = None
+        self.last_read_obj = None  # the actual array object handed to read (for cache-warmth checks)
         self.write_calls: list[tuple] = []
 
     def read(self, dst) -> None:
         self.read_calls += 1
         self.last_read = (dst.dtype, tuple(dst.shape), str(dst.device))
+        self.last_read_obj = dst
 
     def write(self, tensor, indices=None, mask=None) -> None:
         self.write_calls.append((tensor.dtype, tuple(tensor.shape), indices, mask))
@@ -179,15 +181,61 @@ def test_eager_default_sweep_empty_view_raises():
 # -----------------------------------------------------------------------------
 
 
-def test_get_attribute_allocates_fresh_buffer_each_call():
+def test_get_attribute_allocates_fresh_typed_buffer_each_call():
     view = _make_view(n=4)
     buf = view.get_attribute("rigid_body_pose")
-    assert tuple(buf.shape) == (4, 7) and buf.dtype == wp.float32
+    # Pose maps to a structured dtype: an [N] transformf array (== [N, 7] float32).
+    assert tuple(buf.shape) == (4,) and buf.dtype == wp.transformf
     binding = view._bindings[TensorType.RIGID_BODY_POSE]
     assert binding.read_calls == 1
     buf2 = view.get_attribute("rigid_body_pose")
     assert buf2 is not buf  # no aliasing of view state
     assert binding.read_calls == 2
+
+
+def test_get_attribute_types_pose_and_velocity_falls_back_to_float32():
+    view = _make_view(n=3)
+    assert view.get_attribute("rigid_body_pose").dtype == wp.transformf
+    assert view.get_attribute("rigid_body_velocity").dtype == wp.spatial_vectorf
+    # An attribute absent from the structured-dtype map stays flat float32.
+    mass = view.get_attribute("rigid_body_mass")
+    assert mass.dtype == wp.float32 and tuple(mass.shape) == (3,)
+
+
+def test_read_into_reuses_reinterpret_view_across_calls():
+    # The float32 reinterpret of a structured dst is built once and reused so the wheel's
+    # object-identity read cache stays warm across steps.
+    view = _make_view(n=3)
+    dst = wp.zeros((3,), dtype=wp.transformf, device="cpu")
+    view.read_into("rigid_body_pose", dst)
+    binding = view._bindings[TensorType.RIGID_BODY_POSE]
+    first = binding.last_read_obj
+    view.read_into("rigid_body_pose", dst)
+    assert binding.last_read_obj is first  # same object handed to the wheel both times
+    assert first is not dst  # it is the float32 reinterpret, not the transformf buffer
+
+
+def test_read_into_passthrough_reuses_dst_object():
+    # A flat float32 dst is its own stable identity -- passed straight through, not cached.
+    view = _make_view(n=3)
+    dst = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
+    view.read_into("rigid_body_pose", dst)
+    binding = view._bindings[TensorType.RIGID_BODY_POSE]
+    assert binding.last_read_obj is dst
+    assert id(dst) not in view._read_views  # float32 dst is not cached
+
+
+def test_read_into_caches_per_destination_buffer():
+    view = _make_view(n=3)
+    a = wp.zeros((3,), dtype=wp.transformf, device="cpu")
+    b = wp.zeros((3,), dtype=wp.transformf, device="cpu")
+    binding = view._bindings.get(TensorType.RIGID_BODY_POSE) or view.binding_for("rigid_body_pose")
+    view.read_into("rigid_body_pose", a)
+    view_a = binding.last_read_obj
+    view.read_into("rigid_body_pose", b)
+    view_b = binding.last_read_obj
+    assert view_a is not view_b  # distinct reinterprets per destination buffer
+    assert view_a.ptr == a.ptr and view_b.ptr == b.ptr
 
 
 def test_get_attribute_out_param_is_filled_and_returned():
