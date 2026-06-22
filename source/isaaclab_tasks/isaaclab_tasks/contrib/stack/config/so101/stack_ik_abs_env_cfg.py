@@ -52,7 +52,9 @@ _BASE_T_GRIPPER_HOME[:3, 3] = (0.01918, -0.18852, 0.18887)
 # Derivation: with ``q_grip`` the controller grip orientation and ``q_G0`` the gripper_link
 # orientation in the base frame (both xyzw) at the reset pose, the offset is
 # ``quat_inv(q_grip) (x) q_G0`` (xyzw); tuning it here needs no Teleop rebuild.
-_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = None
+# Set to RPY (roll, pitch, yaw) = (-90, 0, 180) degrees (intrinsic XYZ), i.e.
+# ``Rotation.from_euler("XYZ", [-90, 0, 180], degrees=True).as_quat()``.
+_SO101_ORIENTATION_OFFSET_XYZW: tuple[float, float, float, float] | None = (0.0, 0.70710678, 0.70710678, 0.0)
 
 
 def _build_so101_stack_pipeline():
@@ -183,9 +185,13 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     The SO-101 has only 5 actuated arm DOF, so a full 6-DOF pose target is over-determined by
     one DOF. We command an absolute end-effector **SE3 pose** via a full-pose differential IK
     over all 5 arm joints (``shoulder_pan``, ``shoulder_lift``, ``elbow_flex``, ``wrist_flex``,
-    ``wrist_roll``): the 3 linear task rows track position exactly (weight 1) and the 3
+    ``wrist_roll``): the 3 linear task rows track position exactly (weight 1) and the
     orientation rows are soft-weighted (``orientation_task_weight``) so orientation is
-    best-effort and never leaks error into position. The resulting action is
+    best-effort and never leaks error into position. Orientation is further restricted to the wrist
+    (``orientation_joint_names=("wrist_flex", "wrist_roll")``): ``wrist_roll`` takes the gripper
+    spin about the (vertical) approach axis and ``wrist_flex`` the tilt, while ``shoulder_pan``
+    serves position only -- so the base never swings to satisfy a commanded orientation. The
+    resulting action is
     ``[pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w, gripper]`` (orientation xyzw). The IK
     is kept well-conditioned near singularities via the soft orientation weight,
     manipulability-aware damped least squares (adaptive lambda keyed off the full weighted task
@@ -220,7 +226,15 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                     command_type="pose",
                     use_relative_mode=False,
                     ik_method="dls",
+                    # Track all 3 orientation axes (including spin about the vertical approach
+                    # axis), but restrict orientation to the wrist via ``orientation_joint_names``
+                    # below so the base never serves it: ``wrist_roll`` takes the spin (controller
+                    # twist about vertical / stage Z) and ``wrist_flex`` the tilt, while
+                    # ``shoulder_pan`` stays position-only (heading to the target). So commanding or
+                    # tuning the gripper orientation no longer swings the base.
                     orientation_task_weight=0.5,
+                    # Orientation is a wrist-only task (see above). Position still uses all 5 joints.
+                    orientation_joint_names=("wrist_flex", "wrist_roll"),
                     lambda_min=0.05,
                     lambda_max=0.2,
                     sigma_thresh=0.02,

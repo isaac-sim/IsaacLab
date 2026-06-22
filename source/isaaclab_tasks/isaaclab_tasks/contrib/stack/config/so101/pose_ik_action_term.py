@@ -40,6 +40,21 @@ class SO101PoseIKAction(DifferentialInverseKinematicsAction):
         # Replace the base position/pose controller with the SO-101 full-pose one.  Re-create the
         # raw/processed action buffers and scale (action_dim is the controller's 7).
         self._ik_controller = SO101PoseIKController(cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device)
+        # Restrict the orientation task to a subset of joints if configured (e.g. the SO-101 wrist),
+        # so the other joints (shoulder_pan, ...) serve position only and the base does not swing to
+        # track orientation. Resolve the names against ``self._joint_names`` (asset-ordered, matching
+        # the Jacobian columns the controller receives) so the pushed mask is order-proof.
+        ori_names = self.cfg.controller.orientation_joint_names
+        if ori_names is not None:
+            missing = set(ori_names) - set(self._joint_names)
+            if missing:
+                raise ValueError(
+                    f"orientation_joint_names {sorted(missing)} are not among this action's joints {self._joint_names}."
+                )
+            ori_mask = torch.tensor(
+                [1.0 if name in ori_names else 0.0 for name in self._joint_names], device=self.device
+            )
+            self._ik_controller.set_orientation_joint_mask(ori_mask)
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         self._processed_actions = torch.zeros_like(self._raw_actions)
         self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)

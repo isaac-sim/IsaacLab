@@ -141,6 +141,37 @@ def test_orientation_weight_per_axis_scales_each_row():
     torch.testing.assert_close(ep[:, 5], torch.zeros_like(eb[:, 5]))
 
 
+def test_orientation_joint_mask_zeros_unmasked_orientation_columns():
+    """set_orientation_joint_mask zeros the orientation-row columns of the masked-out joints (so
+    they serve position only), while the position rows keep every joint and the error is unchanged.
+
+    This is the SO-101 wrist-only-orientation setup: only ``wrist_flex``/``wrist_roll`` (the last
+    two columns) may serve orientation, so ``shoulder_pan`` (col 0) never drives it and the base
+    does not swing to track a commanded orientation."""
+    ee_pos = torch.tensor([[0.3, 0.0, 0.2]])
+    ee_quat = torch.tensor([_ID_QUAT])
+    jac = torch.arange(6 * _NUM_JOINTS, dtype=torch.float32).reshape(1, 6, _NUM_JOINTS)
+    cmd = torch.tensor([[0.31, 0.0, 0.2] + _quat_xyzw([0.3, 0.5, 0.8], 0.7)])
+
+    # weight 1.0 isolates the mask effect (no per-axis scaling on top).
+    c = _make_controller(orientation_task_weight=1.0)
+    c.set_orientation_joint_mask(torch.tensor([0.0, 0.0, 0.0, 1.0, 1.0]))  # wrist joints only
+    c.set_command(cmd, ee_pos=ee_pos, ee_quat=ee_quat)
+    J_task, err = c._assemble_task(ee_pos, ee_quat, jac)
+
+    # Position rows keep every joint (unchanged from the raw Jacobian linear block).
+    torch.testing.assert_close(J_task[:, :3, :], jac[:, 0:3, :])
+    # Orientation rows: masked-out joints (cols 0..2) zeroed; allowed wrist joints (cols 3,4) kept.
+    torch.testing.assert_close(J_task[:, 3:6, 0:3], torch.zeros(1, 3, 3))
+    torch.testing.assert_close(J_task[:, 3:6, 3:5], jac[:, 3:6, 3:5])
+
+    # The joint mask limits which joints reduce the orientation error; it does not alter the error.
+    base = _make_controller(orientation_task_weight=1.0)
+    base.set_command(cmd, ee_pos=ee_pos, ee_quat=ee_quat)
+    _, eb = base._assemble_task(ee_pos, ee_quat, jac)
+    torch.testing.assert_close(err, eb)
+
+
 def test_cfg_rejects_bad_orientation_weight():
     with pytest.raises(ValueError):
         _make_controller(orientation_task_weight=(0.3, 0.3))  # not length 3

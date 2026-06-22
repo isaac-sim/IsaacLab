@@ -38,7 +38,26 @@ class SO101PoseIKControllerCfg(DifferentialIKControllerCfg):
     axes, where ``wz`` is rotation about base +Z -- the gripper yaw, which only ``shoulder_pan``
     can serve and which over-constrains the 5-DOF arm. Set ``wz = 0`` (e.g. ``(0.3, 0.3, 0.0)``)
     to drop yaw, leaving 3 position + 2 tilt rows = exactly 5 matched to the arm; ``0`` recovers
-    position-only IK."""
+    position-only IK.
+
+    Prefer :attr:`orientation_joint_names` over ``wz = 0`` when the goal is "keep the base off
+    orientation": dropping ``wz`` removes the spin-about-vertical DOF for *every* joint (so
+    ``wrist_roll`` can no longer follow it either), whereas restricting orientation to the wrist
+    keeps that DOF and simply routes it to ``wrist_roll``."""
+
+    orientation_joint_names: tuple[str, ...] | None = None
+    """Names of the joints permitted to serve the orientation task rows. When set, every other
+    joint's orientation-Jacobian columns are zeroed, so those joints serve **position only** while
+    orientation is solved purely by the listed joints (position still uses all joints). ``None``
+    (default) lets all joints serve orientation.
+
+    For the SO-101's down-pointing gripper this is set to the wrist joints
+    ``("wrist_flex", "wrist_roll")``: ``wrist_roll`` then takes the gripper spin about the
+    (vertical) approach axis -- the DOF otherwise redundant with ``shoulder_pan`` -- and
+    ``wrist_flex`` takes the tilt, leaving ``shoulder_pan`` free to serve position (heading) so the
+    base never swings to satisfy a commanded orientation. The action term resolves these names to
+    Jacobian columns (asset-ordered, so the mask is order-proof) and pushes the column mask via
+    :meth:`SO101PoseIKController.set_orientation_joint_mask`."""
 
     lambda_min: float = 0.05
     """Baseline damped-least-squares damping coefficient [matched to the weighted task-Jacobian
@@ -108,6 +127,10 @@ class SO101PoseIKController(DifferentialIKController):
         # Joint position limits for null-space limit avoidance; injected by the action term.
         self._joint_pos_lower: torch.Tensor | None = None
         self._joint_pos_upper: torch.Tensor | None = None
+        # Column mask (1 = joint may serve the orientation rows) over the IK joints, pushed by the
+        # action term once it has resolved ``orientation_joint_names`` to Jacobian columns. ``None``
+        # leaves all joints free to serve orientation (the default).
+        self._ori_joint_mask: torch.Tensor | None = None
 
     @property
     def action_dim(self) -> int:
@@ -176,6 +199,12 @@ class SO101PoseIKController(DifferentialIKController):
 
         J_pos = jacobian[:, 0:3, :]  # (N,3,M)
         J_ori = jacobian[:, 3:6, :]  # (N,3,M)
+        # Restrict orientation to the allowed joints (e.g. the wrist) when a mask is set: zeroing the
+        # other joints' orientation columns means only the allowed joints can reduce the orientation
+        # error, so the base (shoulder_pan) serves position only and the redundant spin-about-vertical
+        # DOF is routed to wrist_roll. Position rows (J_pos) keep every joint.
+        if self._ori_joint_mask is not None:
+            J_ori = J_ori * self._ori_joint_mask.view(1, 1, -1)
         # Soft-weight the orientation task per base-frame axis: scaling each orientation row and its
         # error by the same weight de-emphasises (or drops, at weight 0) that rotation DOF in the
         # DLS cost without changing the task dimensionality. wz=0 drops yaw (see the cfg field).
@@ -236,6 +265,18 @@ class SO101PoseIKController(DifferentialIKController):
         """
         self._joint_pos_lower = lower.to(self._device)
         self._joint_pos_upper = upper.to(self._device)
+
+    def set_orientation_joint_mask(self, mask: torch.Tensor) -> None:
+        """Restrict which joints serve the orientation task rows.
+
+        Args:
+            mask: Per-IK-joint multiplier [dimensionless], shape (M,), in the controller's joint
+                (Jacobian-column) order: 1 for joints allowed to serve orientation, 0 for joints
+                that should serve position only. Applied to the orientation rows of the task
+                Jacobian in :meth:`_assemble_task`. See
+                :attr:`SO101PoseIKControllerCfg.orientation_joint_names`.
+        """
+        self._ori_joint_mask = mask.to(self._device)
 
     def _joint_limit_avoidance(self, joint_pos: torch.Tensor, J_task: torch.Tensor) -> torch.Tensor:
         """Null-space joint-centering bias that keeps joints off their limits.
