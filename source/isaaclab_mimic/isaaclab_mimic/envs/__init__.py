@@ -62,6 +62,19 @@ gym.register(
 
 
 ##
+# OpenArm Pick-Up with IK Relative Pose Control
+##
+
+gym.register(
+    id="Isaac-PickUp-RedCube-OpenArm-IK-Abs-Mimic-v0",
+    entry_point=f"{__name__}.openarm_pickup_ik_abs_mimic_env:OpenArmPickUpIKAbsMimicEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.openarm_pickup_ik_abs_mimic_env_cfg:OpenArmPickUpIKAbsMimicEnvCfg",
+    },
+    disable_env_checker=True,
+)
+
+##
 # SkillGen
 ##
 
