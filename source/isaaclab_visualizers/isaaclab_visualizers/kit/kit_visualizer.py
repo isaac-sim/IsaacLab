@@ -516,6 +516,15 @@ class KitVisualizer(BaseVisualizer):
         """
         if num_envs <= 0 or self._controlled_camera_path is None:
             return
+
+        if self._resolved_visible_env_ids is None:
+            # If _resolved_visible_env_ids is None, all envs should be visible - so do not author
+            # this attribute on the viewport camera.
+            # There is a bug where if the camera doesn't have a omni:scenePartition attribute, then
+            # IsaacSim RTX will not render any of the partitioned prims
+            # (prims that possess the primvars:omni:scenePartition)
+            return
+
         env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
         camera_prim = usd_stage.GetPrimAtPath(self._controlled_camera_path)
         if not camera_prim.IsValid() or not camera_prim.IsA(UsdGeom.Camera):
