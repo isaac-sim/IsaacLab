@@ -757,7 +757,7 @@ class OVRTXRenderer(BaseRenderer):
                     tiled_data = wp.from_dlpack(mapping.tensor)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
+        for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
             with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:

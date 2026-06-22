@@ -134,7 +134,10 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
                     "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
                 )
 
-        if set(self.tiled_camera.data_types) == {"depth"} and self.feature_extractor.enabled:
+        non_depth_data_types = set(self.tiled_camera.data_types).difference(
+            {"depth", "distance_to_image_plane", "distance_to_camera"}
+        )
+        if self.tiled_camera.data_types and not non_depth_data_types and self.feature_extractor.enabled:
             raise ValueError(
                 "Depth-only camera data type is intended for benchmarking only. "
                 "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
