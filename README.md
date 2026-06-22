@@ -53,16 +53,16 @@ Record source demo (keyboard teleoperation)
 ./isaaclab.sh -p scripts/tools/record_demos_openarm.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
     --dataset_file logs/demos/pickup.hdf5 \
-    --enable_cameras --num_demos 1 --teleop_device keyboard
+    --enable_cameras --num_demos 3 --teleop_device keyboard
 ```
 
 Annotate with subtask signals (auto-mode uses get_subtask_term_signals)
 
 ```
-./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/annotate_demos.py \
-    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Mimic-v0 \
-    --input_file logs/demos/pickup.hdf5 \
-    --output_file logs/demos/pickup_annotated.hdf5 --auto --enable_cameras
+./isaaclab.sh -p scripts/tools/record_demos_openarm.py \
+    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
+    --dataset_file logs/demos/pickup.hdf5 \
+    --enable_cameras --num_demos 3 --teleop_device keyboard
 ```
 
 Generate augmented dataset
