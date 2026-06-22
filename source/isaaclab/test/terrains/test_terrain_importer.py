@@ -316,5 +316,5 @@ def _populate_scene(sim: SimulationContext, num_balls: int = 2048, geom_sphere: 
     ball_initial_positions[:, 2] += 5.0
     # set initial poses
     # note: setting here writes to USD :)
-    with ball_view.xform_space_writer("world") as w:
+    with ball_view.xform_world_space_writer() as w:
         w.set_poses(positions=wp.from_torch(ball_initial_positions))

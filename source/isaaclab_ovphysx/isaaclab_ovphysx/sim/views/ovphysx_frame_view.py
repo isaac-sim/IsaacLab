@@ -844,7 +844,7 @@ class OvPhysxFrameView(BaseFrameView):
 
     def _set_scales_impl(self, scales, indices=None):
         """OvPhysX legacy: deprecated set_scales writes local scales via a one-shot writer scope."""
-        with self.xform_space_writer("local") as writer:
+        with self.xform_local_space_writer() as writer:
             writer.set_scales(scales, indices)
 
     def get_visibility(self, indices: wp.array | None = None):

@@ -376,7 +376,7 @@ class Camera(SensorBase):
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
             ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f)
         idx_wp = self._resolve_env_ids_wp(env_ids)
-        with self._view.xform_space_writer("world") as writer:
+        with self._view.xform_world_space_writer() as writer:
             writer.set_poses(pos_wp, ori_wp, idx_wp)
 
     def set_world_poses_from_view(
@@ -435,7 +435,7 @@ class Camera(SensorBase):
             env_ids_torch = env_ids_torch.index_select(0, valid_indices)
         orientations = quat_from_matrix(rotation_matrix)
         idx_wp = wp.from_torch(env_ids_torch.contiguous(), dtype=wp.int32)
-        with self._view.xform_space_writer("world") as writer:
+        with self._view.xform_world_space_writer() as writer:
             writer.set_poses(
                 wp.from_torch(eyes.contiguous(), dtype=wp.vec3f),
                 wp.from_torch(orientations.contiguous(), dtype=wp.vec4f),

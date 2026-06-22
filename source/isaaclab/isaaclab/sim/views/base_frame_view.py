@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import abc
 import warnings
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import warp as wp
 
@@ -28,11 +28,12 @@ class BaseFrameView(abc.ABC):
     implementation at runtime based on the active physics backend.
 
     All getters return :class:`~isaaclab.utils.warp.ProxyArray`.  All writes go
-    through :meth:`xform_space_writer` -- the recommended API:
+    through the writer-scope API -- :meth:`xform_world_space_writer` or
+    :meth:`xform_local_space_writer`:
 
     .. code-block:: python
 
-        with view.xform_space_writer("world") as writer:
+        with view.xform_world_space_writer() as writer:
             writer.set_poses(positions=p, orientations=o)
             writer.set_scales(scales=s)
         # Derived-space matrices are recomputed and the writer scope is closed.
@@ -66,33 +67,49 @@ class BaseFrameView(abc.ABC):
     # Write scope -- recommended API for all transform writes.
     # ------------------------------------------------------------------
 
-    def xform_space_writer(self, space: Literal["world", "local"]) -> FrameViewSpaceWriterBase:
-        """Open a write scope on this view (recommended write API).
+    def xform_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        """Open a world-space write scope on this view (recommended write API).
 
-        Args:
-            space: ``"world"`` or ``"local"``.
+        Inside the scope, :meth:`~FrameViewSpaceWriterBase.set_poses` /
+        :meth:`~FrameViewSpaceWriterBase.set_scales` write world-space values.
 
         Returns:
-            An :class:`~isaaclab.sim.views.FrameViewWorldSpaceWriter` or
-            :class:`~isaaclab.sim.views.FrameViewLocalSpaceWriter` context manager.
+            A :class:`~isaaclab.sim.views.FrameViewWorldSpaceWriter` context manager.
 
         Raises:
-            ValueError: If *space* is neither ``"world"`` nor ``"local"``.
             RuntimeError: On ``__enter__``, if another writer is already active
                 on this view.
 
         Example:
             .. code-block:: python
 
-                with view.xform_space_writer("world") as w:
+                with view.xform_world_space_writer() as w:
                     w.set_poses(positions=p, orientations=o)
                     w.set_scales(scales=s)
         """
-        if space == "world":
-            return self._make_world_space_writer()
-        if space == "local":
-            return self._make_local_space_writer()
-        raise ValueError(f"Invalid space {space!r}; expected 'world' or 'local'.")
+        return self._make_world_space_writer()
+
+    def xform_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        """Open a local-space write scope on this view (recommended write API).
+
+        Inside the scope, :meth:`~FrameViewSpaceWriterBase.set_poses` /
+        :meth:`~FrameViewSpaceWriterBase.set_scales` write local-space values.
+
+        Returns:
+            A :class:`~isaaclab.sim.views.FrameViewLocalSpaceWriter` context manager.
+
+        Raises:
+            RuntimeError: On ``__enter__``, if another writer is already active
+                on this view.
+
+        Example:
+            .. code-block:: python
+
+                with view.xform_local_space_writer() as w:
+                    w.set_poses(translations=t, orientations=o)
+                    w.set_scales(scales=s)
+        """
+        return self._make_local_space_writer()
 
     @abc.abstractmethod
     def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
@@ -108,7 +125,7 @@ class BaseFrameView(abc.ABC):
         """Raise :class:`RuntimeError` if a writer scope is currently active on this view."""
         if self._active_writer is not None:
             raise RuntimeError(
-                f"{type(self).__name__}.{method_name}() is not allowed while an xform_space_writer "
+                f"{type(self).__name__}.{method_name}() is not allowed while a writer "
                 f"scope is active ({type(self._active_writer).__name__}). Use the writer's "
                 f"get_poses / get_scales inside the scope, or exit the scope first."
             )
@@ -229,7 +246,7 @@ class BaseFrameView(abc.ABC):
         """Set world-space positions and/or orientations for prims in the view.
 
         .. deprecated::
-            Use ``with view.xform_space_writer("world") as w: w.set_poses(...)`` instead.
+            Use ``with view.xform_world_space_writer() as w: w.set_poses(...)`` instead.
             This method opens a single-statement writer scope internally.
 
         Args:
@@ -240,12 +257,12 @@ class BaseFrameView(abc.ABC):
         if not BaseFrameView._set_world_poses_deprecated_warned:
             BaseFrameView._set_world_poses_deprecated_warned = True
             warnings.warn(
-                'set_world_poses() is deprecated. Use \'with view.xform_space_writer("world") as w:'
+                "set_world_poses() is deprecated. Use 'with view.xform_world_space_writer() as w:"
                 " w.set_poses(...)' instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-        with self.xform_space_writer("world") as writer:
+        with self.xform_world_space_writer() as writer:
             writer.set_poses(positions, orientations, indices)
 
     def set_local_poses(
@@ -257,7 +274,7 @@ class BaseFrameView(abc.ABC):
         """Set local-space translations and/or orientations for prims in the view.
 
         .. deprecated::
-            Use ``with view.xform_space_writer("local") as w: w.set_poses(...)`` instead.
+            Use ``with view.xform_local_space_writer() as w: w.set_poses(...)`` instead.
             This method opens a single-statement writer scope internally.
 
         Args:
@@ -268,12 +285,12 @@ class BaseFrameView(abc.ABC):
         if not BaseFrameView._set_local_poses_deprecated_warned:
             BaseFrameView._set_local_poses_deprecated_warned = True
             warnings.warn(
-                'set_local_poses() is deprecated. Use \'with view.xform_space_writer("local") as w:'
+                "set_local_poses() is deprecated. Use 'with view.xform_local_space_writer() as w:"
                 " w.set_poses(...)' instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )
-        with self.xform_space_writer("local") as writer:
+        with self.xform_local_space_writer() as writer:
             writer.set_poses(translations, orientations, indices)
 
     # ------------------------------------------------------------------
@@ -311,10 +328,10 @@ class BaseFrameView(abc.ABC):
         """Set scales for prims in the view.
 
         .. deprecated::
-            Use ``with view.xform_space_writer("world" | "local") as w: w.set_scales(...)`` instead.
-            This method delegates to :meth:`_set_scales_impl` which opens the
-            backend's legacy space (world for Fabric, local for USD) and calls
-            ``writer.set_scales``.
+            Use ``with view.xform_world_space_writer() as w: w.set_scales(...)`` (or
+            :meth:`xform_local_space_writer`) instead.  This method delegates to
+            :meth:`_set_scales_impl` which opens the backend's legacy space
+            (world for Fabric, local for USD) and calls ``writer.set_scales``.
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
@@ -323,8 +340,8 @@ class BaseFrameView(abc.ABC):
         if not BaseFrameView._set_scales_deprecated_warned:
             BaseFrameView._set_scales_deprecated_warned = True
             warnings.warn(
-                'set_scales() is deprecated. Use \'with view.xform_space_writer("world" or'
-                ' "local") as w: w.set_scales(...)\' instead.',
+                "set_scales() is deprecated. Use 'with view.xform_world_space_writer() as w:"
+                " w.set_scales(...)' (or xform_local_space_writer()) instead.",
                 DeprecationWarning,
                 stacklevel=2,
             )

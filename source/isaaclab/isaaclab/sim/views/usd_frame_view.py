@@ -36,7 +36,8 @@ class UsdFrameView(BaseFrameView):
     For GPU-accelerated Fabric operations, use the PhysX backend variant
     obtained via :class:`~isaaclab.sim.views.FrameView`.
 
-    All writes go through :meth:`xform_space_writer` (recommended).  The
+    All writes go through the writer-scope API (:meth:`xform_world_space_writer`
+    / :meth:`xform_local_space_writer`).  The
     USD backend's writers are pass-throughs: each :meth:`set_poses` /
     :meth:`set_scales` call directly modifies the prim's USD ``xformOp:*``
     attributes (no batching, no derivation step on exit) -- USD has no
@@ -374,7 +375,7 @@ class UsdFrameView(BaseFrameView):
 
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """USD legacy: deprecated set_scales writes local scales via a one-shot writer scope."""
-        with self.xform_space_writer("local") as writer:
+        with self.xform_local_space_writer() as writer:
             writer.set_scales(scales, indices)
 
     # ------------------------------------------------------------------

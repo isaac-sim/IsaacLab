@@ -284,7 +284,7 @@ def _run_pose_benchmarks(
 
     start_time = time.perf_counter()
     for _ in range(num_iterations):
-        with view.xform_space_writer("world") as w:
+        with view.xform_world_space_writer() as w:
             w.set_poses(new_positions, orientations)
     timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 

@@ -160,7 +160,7 @@ def test_fabric_set_world_does_not_write_back_to_usd(device, view_factory):
     # Write to Fabric -- move to (99, 99, 99)
     new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 99.0, 99.0, 99.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_pos)
 
     # Verify Fabric has the new position
@@ -200,7 +200,7 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     # First write -- initializes Fabric.
     initial = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[initial, 1.0, 2.0, 3.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=initial)
 
     # Simulate topology change: recompute per-selection fabric indices and rebuild
@@ -218,7 +218,7 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new, 4.0, 5.0, 6.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new)
 
     ret_pos, _ = view.get_world_poses()
@@ -305,7 +305,7 @@ def test_set_local_via_fabric_path(device, view_factory):
     ori = torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device)
     new_local_ori = wp.from_torch(ori)
 
-    with view.xform_space_writer("local") as w:
+    with view.xform_local_space_writer() as w:
         w.set_poses(positions=new_local_pos, orientations=new_local_ori)
 
     # Verify: world = parent(0,0,1) + local(1,2,3) = (1,2,4)
@@ -346,7 +346,7 @@ def test_local_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-    with view.xform_space_writer("local") as w:
+    with view.xform_local_space_writer() as w:
         w.set_scales(new_scales)
 
     ret_scales = view.get_local_scales()
@@ -366,7 +366,7 @@ def test_world_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 5.0, 6.0, 7.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_scales(new_scales)
 
     ret_scales = view.get_world_scales()
@@ -425,7 +425,7 @@ def test_set_local_then_get_world_with_rotated_parent(device):
     new_local = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local, 1.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
-    with view.xform_space_writer("local") as w:
+    with view.xform_local_space_writer() as w:
         w.set_poses(positions=new_local, orientations=identity_quat)
 
     world_pos, _ = view.get_world_poses()
@@ -447,7 +447,7 @@ def test_set_world_then_get_local_with_rotated_parent(device):
 
     new_world = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_world, 5.0, 0.0, 2.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_world)
 
     local_pos, _ = view.get_local_poses()
@@ -543,7 +543,7 @@ def test_multi_view_writer_isolation(device):
     new_local_a = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_a, 1.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
-    with view_a.xform_space_writer("local") as w:
+    with view_a.xform_local_space_writer() as w:
         w.set_poses(positions=new_local_a, orientations=identity_quat)
 
     # View B remains undisturbed.
@@ -560,7 +560,7 @@ def test_multi_view_writer_isolation(device):
     # Write a new local pose on view B; view A unaffected.
     new_local_b = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_b, 3.0, 0.0, 0.0], device=device)
-    with view_b.xform_space_writer("local") as w:
+    with view_b.xform_local_space_writer() as w:
         w.set_poses(positions=new_local_b, orientations=identity_quat)
     torch.testing.assert_close(
         torch.as_tensor(view_a.get_world_poses()[0], device=device), expected_a1, atol=1e-5, rtol=0
@@ -571,11 +571,11 @@ def test_multi_view_writer_isolation(device):
     )
 
     # Single-active-writer is per-view: opening a writer on A leaves B free.
-    with view_a.xform_space_writer("world"):
+    with view_a.xform_world_space_writer():
         assert view_a._active_writer is not None
         assert view_b._active_writer is None
         # B can still open its own writer concurrently.
-        with view_b.xform_space_writer("world"):
+        with view_b.xform_world_space_writer():
             assert view_b._active_writer is not None
     assert view_a._active_writer is None
     assert view_b._active_writer is None
@@ -602,7 +602,7 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
 
     new_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_pos, 10.0, 20.0, 30.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_pos)
 
     ret_pos, _ = view.get_world_poses()
@@ -633,7 +633,7 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
 
     new_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 99.0, 99.0, 99.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_pos)
 
     # USD must not have moved at all -- equality, not approximate.
@@ -661,7 +661,7 @@ def test_fabric_cuda1_scales_roundtrip(device, view_factory):
 
     new_scales = wp.zeros((2, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=2, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_scales(new_scales)
 
     ret_scales = view.get_world_scales()
@@ -705,14 +705,14 @@ def test_sequential_world_then_local_scopes_partial_indices(device):
     new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 5.0, 0.0, 2.0], device=device)
     idx0 = wp.from_torch(torch.tensor([0], dtype=torch.int32, device=device))
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_world_pos, indices=idx0)
 
     new_local_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 1.0, 0.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
     idx1 = wp.from_torch(torch.tensor([1], dtype=torch.int32, device=device))
-    with view.xform_space_writer("local") as w:
+    with view.xform_local_space_writer() as w:
         w.set_poses(positions=new_local_pos, orientations=identity_quat, indices=idx1)
 
     # Verify index 0's world pose is still (5, 0, 2) -- index 1's local-scope write
@@ -759,13 +759,13 @@ def test_sequential_local_then_world_scopes_partial_indices(device):
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_local_pos, 2.0, 3.0, 0.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
     idx0 = wp.from_torch(torch.tensor([0], dtype=torch.int32, device=device))
-    with view.xform_space_writer("local") as w:
+    with view.xform_local_space_writer() as w:
         w.set_poses(positions=new_local_pos, orientations=identity_quat, indices=idx0)
 
     new_world_pos = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_world_pos, 10.0, 20.0, 30.0], device=device)
     idx1 = wp.from_torch(torch.tensor([1], dtype=torch.int32, device=device))
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_world_pos, indices=idx1)
 
     # Index 0's world (derived from local):
@@ -815,7 +815,7 @@ def test_world_writer_writes_world_and_derives_local(device, view_factory):
     new_scales = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
 
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_pos)
         w.set_scales(new_scales)
 
@@ -847,7 +847,7 @@ def test_local_writer_writes_local_and_derives_world(device, view_factory):
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_pos, 1.0, 2.0, 3.0], device=device)
     identity_quat = wp.from_torch(torch.tensor([[0.0, 0.0, 0.0, 1.0]], dtype=torch.float32, device=device))
 
-    with view.xform_space_writer("local") as w:
+    with view.xform_local_space_writer() as w:
         w.set_poses(positions=new_pos, orientations=identity_quat)
 
     expected_local = torch.tensor([[1.0, 2.0, 3.0]], dtype=torch.float32, device=device)
@@ -882,7 +882,7 @@ def test_writer_single_derivation_per_scope(device, view_factory, monkeypatch):
     new_scales = wp.zeros((1, 3), dtype=wp.float32, device=device)
     wp.launch(kernel=_fill_position, dim=1, inputs=[new_scales, 2.0, 3.0, 4.0], device=device)
 
-    with view.xform_space_writer("world") as w:
+    with view.xform_world_space_writer() as w:
         w.set_poses(positions=new_pos)
         w.set_scales(new_scales)
         assert calls == 0  # no derive yet
@@ -897,13 +897,13 @@ def test_writer_single_active_invariant(device, view_factory):
     view = bundle.view
     view.get_world_poses()
 
-    with view.xform_space_writer("world"):
-        with pytest.raises(RuntimeError, match="already has an active xform_space_writer"):
-            view.xform_space_writer("world").__enter__()
-        with pytest.raises(RuntimeError, match="already has an active xform_space_writer"):
-            view.xform_space_writer("local").__enter__()
+    with view.xform_world_space_writer():
+        with pytest.raises(RuntimeError, match="already has an active writer"):
+            view.xform_world_space_writer().__enter__()
+        with pytest.raises(RuntimeError, match="already has an active writer"):
+            view.xform_local_space_writer().__enter__()
     # After the outer scope exits, the lock is released and a new scope succeeds.
-    with view.xform_space_writer("local"):
+    with view.xform_local_space_writer():
         pass
 
 
@@ -918,24 +918,15 @@ def test_writer_restores_hierarchy_change_tracking(device, view_factory):
     # Case 1: pre-paused local stays paused after exit.
     h.track_local_xform_changes(False)
     assert not h.tracking_local_xform_changes
-    with view.xform_space_writer("world"):
+    with view.xform_world_space_writer():
         pass
     assert not h.tracking_local_xform_changes, "writer must not re-enable a pre-paused local listener"
 
     # Case 2: pre-enabled local stays enabled after exit.
     h.track_local_xform_changes(True)
-    with view.xform_space_writer("world"):
+    with view.xform_world_space_writer():
         pass
     assert h.tracking_local_xform_changes, "writer must restore the pre-enabled local listener"
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_writer_invalid_space_raises(device, view_factory):
-    """``xform_space_writer`` with an invalid space raises ``ValueError``."""
-    bundle = view_factory(num_envs=1, device=device)
-    view = bundle.view
-    with pytest.raises(ValueError, match="Invalid space"):
-        view.xform_space_writer("foo")
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -955,7 +946,7 @@ def test_writer_empty_scope_does_no_derivation(device, view_factory, monkeypatch
 
     monkeypatch.setattr(view, "_recompute_local_from_world_all", counted)
 
-    with view.xform_space_writer("world"):
+    with view.xform_world_space_writer():
         pass
 
     assert calls == 0
@@ -968,14 +959,14 @@ def test_view_getter_inside_scope_raises(device, view_factory):
     view = bundle.view
     view.get_world_poses()
 
-    with view.xform_space_writer("world"):
-        with pytest.raises(RuntimeError, match="xform_space_writer"):
+    with view.xform_world_space_writer():
+        with pytest.raises(RuntimeError, match="while a writer scope is active"):
             view.get_world_poses()
-        with pytest.raises(RuntimeError, match="xform_space_writer"):
+        with pytest.raises(RuntimeError, match="while a writer scope is active"):
             view.get_local_poses()
-        with pytest.raises(RuntimeError, match="xform_space_writer"):
+        with pytest.raises(RuntimeError, match="while a writer scope is active"):
             view.get_world_scales()
-        with pytest.raises(RuntimeError, match="xform_space_writer"):
+        with pytest.raises(RuntimeError, match="while a writer scope is active"):
             view.get_local_scales()
     # After the scope exits, view getters work again.
     view.get_world_poses()

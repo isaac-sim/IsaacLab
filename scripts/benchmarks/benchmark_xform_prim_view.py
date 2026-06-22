@@ -177,7 +177,7 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_space_writer("world") as w:
+            with xform_view.xform_world_space_writer() as w:
                 w.set_poses(new_positions, orientations)
         if is_newton:
             torch.cuda.synchronize()
@@ -214,7 +214,7 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_space_writer("local") as w:
+            with xform_view.xform_local_space_writer() as w:
                 w.set_poses(new_translations, orientations_local)
         if is_newton:
             torch.cuda.synchronize()
@@ -249,7 +249,7 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_space_writer("world") as w:
+            with xform_view.xform_world_space_writer() as w:
                 w.set_scales(new_world_scales)
         if is_newton:
             torch.cuda.synchronize()
@@ -282,7 +282,7 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_space_writer("local") as w:
+            with xform_view.xform_local_space_writer() as w:
                 w.set_scales(new_local_scales)
         if is_newton:
             torch.cuda.synchronize()
@@ -306,7 +306,7 @@ def benchmark_frame_view(  # noqa: C901
             torch.cuda.synchronize()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
-            with xform_view.xform_space_writer("world") as w:
+            with xform_view.xform_world_space_writer() as w:
                 w.set_poses(new_positions, orientations)
             xform_view.get_world_poses()
         if is_newton:

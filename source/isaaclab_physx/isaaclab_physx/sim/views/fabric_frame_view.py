@@ -52,7 +52,9 @@ class FabricFrameView(BaseFrameView):
     ``omni:fabric:worldMatrix`` and ``omni:fabric:localMatrix`` directly.
     All other operations delegate to the internal USD view.
 
-    All writes go through :meth:`xform_space_writer` (recommended) or the
+    All writes go through the writer-scope API
+    (:meth:`xform_world_space_writer` / :meth:`xform_local_space_writer`,
+    recommended) or the
     deprecated :meth:`set_world_poses` / :meth:`set_local_poses` / etc. shims
     inherited from :class:`BaseFrameView`.
 
@@ -348,7 +350,7 @@ class FabricFrameView(BaseFrameView):
 
     def _set_scales_impl(self, scales, indices=None) -> None:
         """Fabric: deprecated set_scales writes world-space scales via a one-shot writer scope."""
-        with self.xform_space_writer("world") as writer:
+        with self.xform_world_space_writer() as writer:
             writer.set_scales(scales, indices)
 
     # ------------------------------------------------------------------

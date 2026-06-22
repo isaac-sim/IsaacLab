@@ -9,7 +9,7 @@ This module defines the recommended write API for FrameView poses and scales:
 
 .. code-block:: python
 
-    with view.xform_space_writer("world") as writer:
+    with view.xform_world_space_writer() as writer:
         writer.set_poses(positions=p, orientations=o)
         writer.set_scales(scales=s)
         # ... any number of writes ...
@@ -40,7 +40,8 @@ if TYPE_CHECKING:
 class FrameViewSpaceWriterBase(abc.ABC):
     """Abstract context-managed writer for a single transform space.
 
-    Subclasses are returned by :meth:`BaseFrameView.xform_space_writer`; they
+    Subclasses are returned by :meth:`BaseFrameView.xform_world_space_writer` /
+    :meth:`BaseFrameView.xform_local_space_writer`; they
     are not constructed directly.  The class is intentionally minimal -- the
     pose/scale semantics depend on the writer's space (world or local), which
     is conveyed by the concrete tag class :class:`FrameViewWorldSpaceWriter` or
@@ -94,7 +95,7 @@ class FrameViewSpaceWriterBase(abc.ABC):
     def __enter__(self) -> FrameViewSpaceWriterBase:
         if self._view._active_writer is not None:
             raise RuntimeError(
-                f"{type(self._view).__name__} already has an active xform_space_writer scope "
+                f"{type(self._view).__name__} already has an active writer scope "
                 f"({type(self._view._active_writer).__name__}). Exit the existing scope before "
                 "opening a new one."
             )
