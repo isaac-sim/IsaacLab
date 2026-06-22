@@ -21,8 +21,8 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
-from isaaclab.utils.version import has_kit
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.utils.version import has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
