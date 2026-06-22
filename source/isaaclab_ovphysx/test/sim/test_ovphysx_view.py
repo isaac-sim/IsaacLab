@@ -3,15 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for the prototype :class:`OvPhysxView` string-keyed binding wrapper.
+"""Unit tests for the :class:`OvPhysxView` string-keyed binding manager.
 
-These exercise the pure-Python name<->enum logic and the view's get/set dispatch
-against a fake ``PhysX`` + fake ``TensorBinding`` -- no native simulation required.
+These exercise the pure-Python name<->enum logic and the view's get/set/read-into
+dispatch (including the float32 reinterpret of structured buffers and the
+no-implicit-conversion device policy) against a fake ``PhysX`` + fake ``TensorBinding``.
 Full read/write round-trips on a live sim are covered by the asset integration tests.
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 # The OVPhysX runtime wheel is optional. ``ovphysx.types`` is pure Python (no native
@@ -23,6 +25,7 @@ from isaaclab_ovphysx.sim.views.ovphysx_view import (  # noqa: E402
     OvPhysxView,
     OvPhysxViewError,
     attribute_vocabulary,
+    is_cpu_only,
     is_read_only,
     resolve_tensor_type,
     tensor_type_name,
@@ -30,13 +33,14 @@ from isaaclab_ovphysx.sim.views.ovphysx_view import (  # noqa: E402
 from ovphysx.types import TensorType  # noqa: E402
 
 wp.init()
+_HAS_CUDA = wp.get_cuda_device_count() > 0
 
 # Per-type shapes used by the fakes (only the types touched by the tests).
 _SHAPES = {
     TensorType.RIGID_BODY_POSE: lambda n: (n, 7),
     TensorType.RIGID_BODY_VELOCITY: lambda n: (n, 6),
-    TensorType.RIGID_BODY_MASS: lambda n: (n,),
-    TensorType.RIGID_BODY_ACCELERATION: lambda n: (n, 6),
+    TensorType.RIGID_BODY_MASS: lambda n: (n,),  # CPU-only
+    TensorType.RIGID_BODY_ACCELERATION: lambda n: (n, 6),  # read-only
 }
 
 
@@ -50,18 +54,23 @@ class _FakeBinding:
         self.prim_paths = [f"/World/env_{i}/body" for i in range(n)]
         self.dof_names: list[str] = []
         self.body_names = ["body"]
+        self.joint_names: list[str] = []
         self.dof_count = 0
         self.body_count = 1
+        self.joint_count = 0
+        self.is_fixed_base = True
+        self.fixed_tendon_count = 0
+        self.spatial_tendon_count = 0
         self.read_calls = 0
+        self.last_read: tuple | None = None
         self.write_calls: list[tuple] = []
 
     def read(self, dst) -> None:
-        assert tuple(dst.shape) == tuple(self.shape)
         self.read_calls += 1
+        self.last_read = (dst.dtype, tuple(dst.shape), str(dst.device))
 
     def write(self, tensor, indices=None, mask=None) -> None:
-        assert tuple(tensor.shape) == tuple(self.shape)
-        self.write_calls.append((indices, mask))
+        self.write_calls.append((tensor.dtype, tuple(tensor.shape), indices, mask))
 
 
 class _FakePhysX:
@@ -70,19 +79,17 @@ class _FakePhysX:
     def __init__(self, n: int = 3, unavailable: set | None = None):
         self.n = n
         self._unavailable = unavailable or set()
-        self.created: list = []
+        self.created: list[tuple] = []
 
-    def create_tensor_binding(self, *, pattern, tensor_type):
-        self.created.append(tensor_type)
+    def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
+        self.created.append((tensor_type, pattern, prim_paths))
         if tensor_type in self._unavailable:
-            # The wheel returns a 0-count binding when nothing matches.
-            b = _FakeBinding(tensor_type, 0)
-            return b
+            return _FakeBinding(tensor_type, 0)  # wheel returns a 0-count binding on no match
         return _FakeBinding(tensor_type, self.n)
 
 
-def _make_view(n: int = 3, unavailable: set | None = None) -> OvPhysxView:
-    return OvPhysxView(_FakePhysX(n=n, unavailable=unavailable), pattern="/World/env_*/body", device="cpu")
+def _make_view(n: int = 3, unavailable: set | None = None, device: str = "cpu") -> OvPhysxView:
+    return OvPhysxView(_FakePhysX(n=n, unavailable=unavailable), pattern="/World/env_*/body", device=device)
 
 
 # -----------------------------------------------------------------------------
@@ -102,8 +109,7 @@ def test_resolve_roundtrips_name_and_enum():
     tt = resolve_tensor_type("articulation_dof_stiffness")
     assert tt is TensorType.ARTICULATION_DOF_STIFFNESS
     assert tensor_type_name(tt) == "articulation_dof_stiffness"
-    # case-insensitive
-    assert resolve_tensor_type("RIGID_BODY_POSE") is TensorType.RIGID_BODY_POSE
+    assert resolve_tensor_type("RIGID_BODY_POSE") is TensorType.RIGID_BODY_POSE  # case-insensitive
 
 
 def test_resolve_unknown_name_raises():
@@ -111,35 +117,132 @@ def test_resolve_unknown_name_raises():
         resolve_tensor_type("not_a_real_attribute")
 
 
-def test_read_only_classification():
+def test_read_only_and_cpu_only_classification():
     assert is_read_only("articulation_jacobian")
     assert is_read_only("rigid_body_acceleration")
     assert not is_read_only("articulation_dof_stiffness")
-    assert not is_read_only("rigid_body_pose")
+    assert is_cpu_only("articulation_dof_stiffness")
+    assert is_cpu_only("rigid_body_mass")
+    assert not is_cpu_only("rigid_body_pose")
+
+
+def test_cpu_only_names_match_canonical_set():
+    # The view derives its CPU-only set from tensor_types so the two cannot drift.
+    from isaaclab_ovphysx.sim.views import ovphysx_view as mod
+    from isaaclab_ovphysx.tensor_types import _CPU_ONLY_TYPES
+
+    assert frozenset(tt.name.lower() for tt in _CPU_ONLY_TYPES) == mod._CPU_ONLY_NAMES
 
 
 # -----------------------------------------------------------------------------
-# View dispatch (fake physx)
+# Construction
 # -----------------------------------------------------------------------------
 
 
-def test_get_attribute_reads_into_sized_buffer_and_reuses_it():
+def test_requires_exactly_one_of_pattern_or_prim_paths():
+    with pytest.raises(ValueError):
+        OvPhysxView(_FakePhysX(), pattern="/p", prim_paths=["/p"], device="cpu")
+    with pytest.raises(ValueError):
+        OvPhysxView(_FakePhysX(), device="cpu")
+
+
+def test_eager_creates_requested_and_exposes_metadata():
+    view = OvPhysxView(
+        _FakePhysX(n=5),
+        pattern="/World/env_*/body",
+        device="cpu",
+        tensor_types=[TensorType.RIGID_BODY_POSE, TensorType.RIGID_BODY_MASS],
+        eager=True,
+    )
+    assert view.available_attributes == ["rigid_body_mass", "rigid_body_pose"]
+    assert view.count == 5  # metadata works without an explicit get_attribute call
+
+
+def test_eager_empty_view_raises():
+    physx = _FakePhysX(n=3, unavailable={TensorType.RIGID_BODY_POSE})
+    with pytest.raises(OvPhysxViewError, match="Could not create any bindings"):
+        OvPhysxView(physx, pattern="/no/match", device="cpu", tensor_types=[TensorType.RIGID_BODY_POSE], eager=True)
+
+
+# -----------------------------------------------------------------------------
+# get_attribute / read_into
+# -----------------------------------------------------------------------------
+
+
+def test_get_attribute_allocates_fresh_buffer_each_call():
     view = _make_view(n=4)
     buf = view.get_attribute("rigid_body_pose")
-    assert tuple(buf.shape) == (4, 7)
+    assert tuple(buf.shape) == (4, 7) and buf.dtype == wp.float32
     binding = view._bindings[TensorType.RIGID_BODY_POSE]
     assert binding.read_calls == 1
-    # second read reuses the same cached buffer object
     buf2 = view.get_attribute("rigid_body_pose")
-    assert buf2 is buf
+    assert buf2 is not buf  # no aliasing of view state
     assert binding.read_calls == 2
 
 
-def test_get_attribute_out_param_receives_copy():
+def test_get_attribute_out_param_is_filled_and_returned():
     view = _make_view(n=2)
     out = wp.zeros((2, 7), dtype=wp.float32, device="cpu")
     ret = view.get_attribute("rigid_body_pose", out=out)
     assert ret is out
+    assert view._bindings[TensorType.RIGID_BODY_POSE].read_calls == 1
+
+
+def test_read_into_reinterprets_structured_buffer():
+    view = _make_view(n=3)
+    dst = wp.zeros((3,), dtype=wp.transformf, device="cpu")  # [N] transformf == [N,7] float32
+    view.read_into("rigid_body_pose", dst)
+    binding = view._bindings[TensorType.RIGID_BODY_POSE]
+    # The binding was handed a float32 view matching its flat shape, not the transformf buffer.
+    assert binding.last_read == (wp.float32, (3, 7), "cpu")
+
+
+def test_read_into_passthrough_when_already_float32():
+    view = _make_view(n=3)
+    dst = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
+    view.read_into("rigid_body_pose", dst)
+    assert view._bindings[TensorType.RIGID_BODY_POSE].last_read == (wp.float32, (3, 7), "cpu")
+
+
+def test_read_into_shape_mismatch_raises():
+    view = _make_view(n=3)
+    wrong = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
+    with pytest.raises(OvPhysxView.ShapeMismatch):
+        view.read_into("rigid_body_pose", wrong)
+
+
+# -----------------------------------------------------------------------------
+# Device policy (no implicit CPU<->GPU conversion)
+# -----------------------------------------------------------------------------
+
+
+def test_cpu_array_for_device_state_on_gpu_sim_raises():
+    # GPU sim, but a CPU buffer is supplied for a device-resident state attribute.
+    view = _make_view(n=3, device="cuda:0")
+    cpu_buf = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
+    with pytest.raises(OvPhysxView.DeviceMismatch, match="cuda:0"):
+        view.read_into("rigid_body_pose", cpu_buf)
+
+
+def test_cpu_only_property_accepts_cpu_buffer_on_gpu_sim():
+    # GPU sim, CPU-only property (mass): a CPU buffer is correct and must NOT raise.
+    view = _make_view(n=3, device="cuda:0")
+    cpu_buf = wp.zeros((3,), dtype=wp.float32, device="cpu")
+    view.read_into("rigid_body_mass", cpu_buf)  # no raise
+    assert view._bindings[TensorType.RIGID_BODY_MASS].read_calls == 1
+
+
+@pytest.mark.skipif(not _HAS_CUDA, reason="needs a CUDA device to allocate a GPU buffer")
+def test_gpu_array_for_cpu_only_property_raises():
+    view = _make_view(n=3, device="cuda:0")
+    gpu_buf = wp.zeros((3,), dtype=wp.float32, device="cuda:0")
+    with pytest.raises(OvPhysxView.DeviceMismatch, match="cpu"):
+        view.read_into("rigid_body_mass", gpu_buf)
+
+
+# -----------------------------------------------------------------------------
+# set_attribute
+# -----------------------------------------------------------------------------
 
 
 def test_set_attribute_forwards_indices_and_mask():
@@ -147,14 +250,22 @@ def test_set_attribute_forwards_indices_and_mask():
     values = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
     idx = wp.array([0, 2], dtype=wp.int32, device="cpu")
     view.set_attribute("rigid_body_pose", values, indices=idx)
-    binding = view._bindings[TensorType.RIGID_BODY_POSE]
-    assert binding.write_calls == [(idx, None)]
+    dtype, shape, indices, mask = view._bindings[TensorType.RIGID_BODY_POSE].write_calls[0]
+    assert (dtype, shape, indices, mask) == (wp.float32, (3, 7), idx, None)
 
 
-def test_set_attribute_read_only_raises_and_does_not_write():
+def test_set_attribute_reinterprets_structured_source():
+    view = _make_view(n=3)
+    values = wp.zeros((3,), dtype=wp.transformf, device="cpu")
+    view.set_attribute("rigid_body_pose", values)
+    dtype, shape, _, _ = view._bindings[TensorType.RIGID_BODY_POSE].write_calls[0]
+    assert (dtype, shape) == (wp.float32, (3, 7))
+
+
+def test_set_attribute_read_only_raises_and_does_not_bind():
     view = _make_view(n=3)
     values = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
-    with pytest.raises(OvPhysxViewError, match="read-only"):
+    with pytest.raises(OvPhysxView.ReadOnlyAttribute, match="read-only"):
         view.set_attribute("rigid_body_acceleration", values)
     assert TensorType.RIGID_BODY_ACCELERATION not in view._bindings
 
@@ -162,19 +273,62 @@ def test_set_attribute_read_only_raises_and_does_not_write():
 def test_set_attribute_shape_mismatch_raises():
     view = _make_view(n=3)
     wrong = wp.zeros((3, 6), dtype=wp.float32, device="cpu")
-    with pytest.raises(OvPhysxViewError, match="Shape mismatch"):
+    with pytest.raises(OvPhysxView.ShapeMismatch, match="Shape mismatch"):
         view.set_attribute("rigid_body_pose", wrong)
+
+
+def test_set_attribute_cpu_array_for_state_on_gpu_sim_raises():
+    view = _make_view(n=3, device="cuda:0")
+    values = wp.zeros((3, 7), dtype=wp.float32, device="cpu")
+    with pytest.raises(OvPhysxView.DeviceMismatch):
+        view.set_attribute("rigid_body_pose", values)
+
+
+def test_as_wp_accepts_numpy_float32_and_rejects_float64():
+    view = _make_view(n=2)
+    # float32 host data is materialized on the native device and written.
+    view.set_attribute("rigid_body_pose", np.zeros((2, 7), dtype=np.float32))
+    assert len(view._bindings[TensorType.RIGID_BODY_POSE].write_calls) == 1
+    # float64 is not float32-bit-equivalent; reject rather than silently reinterpret.
+    with pytest.raises(OvPhysxView.ShapeMismatch):
+        view.set_attribute("rigid_body_pose", np.zeros((2, 7), dtype=np.float64))
+
+
+# -----------------------------------------------------------------------------
+# prim_paths + key aliases (RigidObjectCollection fused-binding shape)
+# -----------------------------------------------------------------------------
+
+
+def test_prim_paths_with_key_alias_creates_remapped_type():
+    physx = _FakePhysX(n=6)
+    view = OvPhysxView(
+        physx,
+        prim_paths=["/World/env_*/cube", "/World/env_*/sphere"],
+        device="cpu",
+        key_aliases={TensorType.ARTICULATION_LINK_POSE: TensorType.RIGID_BODY_POSE},
+    )
+    binding = view.binding_for("articulation_link_pose")
+    # Created as RIGID_BODY_POSE via prim_paths, cached under the requested LINK_POSE key.
+    created_type, pattern, prim_paths = physx.created[0]
+    assert created_type is TensorType.RIGID_BODY_POSE
+    assert pattern is None and prim_paths == ["/World/env_*/cube", "/World/env_*/sphere"]
+    assert view._bindings[TensorType.ARTICULATION_LINK_POSE] is binding
+
+
+# -----------------------------------------------------------------------------
+# Errors / discoverability / metadata
+# -----------------------------------------------------------------------------
 
 
 def test_unknown_attribute_raises_on_access():
     view = _make_view()
-    with pytest.raises(OvPhysxViewError):
+    with pytest.raises(OvPhysxView.UnknownAttribute):
         view.get_attribute("totally_made_up")
 
 
 def test_unavailable_binding_reports_clear_error():
     view = _make_view(n=3, unavailable={TensorType.RIGID_BODY_VELOCITY})
-    with pytest.raises(OvPhysxViewError, match="not available"):
+    with pytest.raises(OvPhysxView.AttributeUnavailable, match="not available"):
         view.get_attribute("rigid_body_velocity")
 
 
@@ -184,7 +338,6 @@ def test_discoverability_surface():
     assert view.has_attribute("articulation_dof_stiffness")
     assert not view.has_attribute("nope")
     assert "rigid_body_pose" in view.attribute_names
-    # available_attributes only lists instantiated bindings
     assert view.available_attributes == []
     view.get_attribute("rigid_body_pose")
     assert view.available_attributes == ["rigid_body_pose"]
@@ -192,9 +345,11 @@ def test_discoverability_surface():
 
 def test_metadata_passthrough_from_sample_binding():
     view = _make_view(n=5)
-    # metadata before any access raises a clear error
-    with pytest.raises(OvPhysxViewError):
-        _ = view.count
+    with pytest.raises(OvPhysxView.AttributeUnavailable):
+        _ = view.count  # metadata before any access raises a clear error
     view.get_attribute("rigid_body_pose")
     assert view.count == 5
     assert len(view.prim_paths) == 5
+    assert view.body_names == ["body"]
+    assert view.is_fixed_base is True
+    assert view.joint_count == 0 and view.fixed_tendon_count == 0
