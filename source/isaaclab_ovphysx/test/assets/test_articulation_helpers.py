@@ -23,10 +23,8 @@ from pxr import Sdf, Usd, UsdPhysics
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
-from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets.articulation.articulation import Articulation  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxManager  # noqa: E402
-from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView  # noqa: E402
 from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet  # noqa: E402
 
 wp.init()
@@ -86,15 +84,9 @@ def _make_articulation_shell() -> Articulation:
         num_fixed_tendons=1,
         num_spatial_tendons=1,
     )
-    # The migrated Articulation reads tendon counts off its OvPhysxView, so wrap the mock
-    # bindings in a view (a fake PhysX serves the mock binding for each requested type) and
-    # instantiate one binding so the view's metadata passthrough has a sample to read.
-    fake_physx = SimpleNamespace(
-        create_tensor_binding=lambda *, tensor_type, pattern=None, prim_paths=None: bindings.bindings[tensor_type]
-    )
-    root_view = OvPhysxView(fake_physx, pattern="/World/envs/env_0/Robot/root", device="cpu")
-    root_view.binding_for(TT.LINK_POSE)
-    object.__setattr__(articulation, "_root_view", root_view)
+    # The migrated Articulation reads tendon counts off its OvPhysxView; inject the mock
+    # view over these bindings so the metadata passthrough resolves without a real view.
+    object.__setattr__(articulation, "_root_view", bindings.view)
     object.__setattr__(articulation, "_articulation_root_path", "/World/envs/env_0/Robot/root")
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
