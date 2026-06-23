@@ -96,3 +96,28 @@ cd ~/CSL/lerobot/
   }'   --dataset.video_backend=pyav
 
 ```
+
+# Deploy in Isaac Sim
+
+Launch SmolVLA Policy Server
+
+```
+cd ~/CSL/lerobot
+conda run -n lerobot python \
+    ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \
+    --checkpoint outputs/train/openarm_visuomotor/checkpoints/001000/pretrained_model \
+    --task "Pick up the red cube." \
+    --port 5556
+```
+
+Run Isaac Lab Eval
+
+```
+cd ~/Stanley_ws/IsaacLab
+./isaaclab.sh -p scripts/imitation_learning/lerobot/eval_smolvla.py \
+    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
+    --num_rollouts 5 \
+    --horizon 300 \
+    --enable_cameras
+```
+
