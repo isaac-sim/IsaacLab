@@ -1,12 +1,14 @@
 <img width="5152" height="2528" alt="image" src="https://github.com/user-attachments/assets/d65a0dad-00ac-4ab2-8849-91b8ba8e604a" />
 
-# Conda Environment
+# Record dataset
+
+```
+cd ~/Stanley_ws/IsaacLab
+```
 
 ```
 conda activate env_isaaclab
 ```
-
-# Record dataset
 
 ```
 ./isaaclab.sh -p scripts/tools/record_demos_openarm.py --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0  --dataset_file logs/demos/visuomotor.hdf5 --enable_cameras  --num_demos 1 --teleop_device  keyboard
@@ -32,6 +34,14 @@ R	                    reset/discard
 # Replay dataset
 
 ```
+cd ~/Stanley_ws/IsaacLab
+```
+
+```
+conda activate env_isaaclab
+```
+
+```
 ./isaaclab.sh -p scripts/tools/replay_demos.py \
     --task Isaac-Reach-RedCube-OpenArm-IK-Abs-v0 \
     --dataset_file logs/demos/visuomotor.hdf5 \
@@ -47,6 +57,14 @@ source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/fra
 ```
 
 # Isaac Lab Mimic
+
+```
+cd ~/Stanley_ws/IsaacLab
+```
+
+```
+conda activate env_isaaclab
+```
 
 Record source demo (keyboard teleoperation)
 
@@ -79,13 +97,25 @@ Generate augmented dataset
 # Convert HDF5 to LeRobot format 
 
 ```
-conda run -n lerobot python -u scripts/tools/convert_hdf5_to_lerobot.py     --hdf5 logs/demos/pickup.hdf5     --output ~/Stanley_ws/IsaacLab/datasets/ethanCSL/openarm_visuomotor     --task "Pick up the red cube."     --fps 30     --cameras front_cam wrist_cam body_cam
+cd ~/Stanley_ws/IsaacLab
+```
+
+```
+conda activate env_isaaclab
+```
+
+```
+python -u scripts/tools/convert_hdf5_to_lerobot.py     --hdf5 logs/demos/pickup_source.hdf5     --output ~/Stanley_ws/IsaacLab/datasets/ethanCSL/openarm_visuomotor     --task "Pick up the red cube."     --fps 30 --cameras front_cam wrist_cam body_cam
 ```
 
 # Train in LeRobot format
 
 ```
 cd ~/CSL/lerobot/
+```
+
+```
+conda activate lerobot
 ```
 
 ```
@@ -102,6 +132,10 @@ cd ~/CSL/lerobot/
 Launch SmolVLA Policy Server
 
 ```
+conda activate lerobot
+```
+
+```
 cd ~/CSL/lerobot
 conda run -n lerobot python \
     ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \
@@ -111,6 +145,10 @@ conda run -n lerobot python \
 ```
 
 Run Isaac Lab Eval
+
+```
+conda activate env_isaaclab
+```
 
 ```
 cd ~/Stanley_ws/IsaacLab
