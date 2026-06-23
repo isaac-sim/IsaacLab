@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -23,6 +22,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
@@ -52,16 +52,6 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
     if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
         raise exc
     raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
-
-
-def isaac_rtx_per_env_scene_partition_enabled() -> bool:
-    """Return whether per-environment RTX scene partitioning is enabled.
-
-    Partitioning is opt-in: set
-    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` to enable authoring of
-    ``primvars:omni:scenePartition`` and ``omni:scenePartition`` on the USD stage.
-    """
-    return os.environ.get("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", "0") == "1"
 
 
 # RTX simple-shading constants.

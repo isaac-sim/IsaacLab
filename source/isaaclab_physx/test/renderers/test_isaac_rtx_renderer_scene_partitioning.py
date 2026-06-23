@@ -49,25 +49,25 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
-_PARTITION_ENABLED_FN = "isaaclab_physx.renderers.isaac_rtx_renderer.isaac_rtx_per_env_scene_partition_enabled"
+_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
 
 
 @pytest.fixture()
 def enable_scene_partition(monkeypatch):
-    """Patch :func:`isaac_rtx_per_env_scene_partition_enabled` to return ``True`` for one test."""
-    monkeypatch.setattr(_PARTITION_ENABLED_FN, lambda: True)
+    """Set ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` for the duration of one test."""
+    monkeypatch.setenv(_ENV_VAR, "1")
 
 
 @pytest.mark.isaacsim_ci
 def test_partitioning_disabled_by_default(monkeypatch):
-    """``primvars:omni:scenePartition`` must NOT be authored when partitioning is disabled.
+    """``primvars:omni:scenePartition`` must NOT be authored when the env var is absent.
 
     The feature is off by default; this test confirms that :meth:`IsaacRtxRenderer.prepare_stage`
-    is a no-op when :func:`isaac_rtx_per_env_scene_partition_enabled` returns ``False``.
+    is a no-op without ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``.
     """
     from pxr import Usd
 
-    monkeypatch.setattr(_PARTITION_ENABLED_FN, lambda: False)
+    monkeypatch.delenv(_ENV_VAR, raising=False)
 
     stage = Usd.Stage.CreateInMemory()
     world = stage.DefinePrim("/World", "Xform")  # noqa: F841

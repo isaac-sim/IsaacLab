@@ -30,6 +30,7 @@ from isaaclab.envs.utils.camera_view import (
     resolve_tiled_env_indices,
 )
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -518,7 +519,6 @@ class KitVisualizer(BaseVisualizer):
         matching the opt-in behaviour of
         :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage`.
         """
-        from isaaclab_physx.renderers.isaac_rtx_renderer import isaac_rtx_per_env_scene_partition_enabled
 
         if not isaac_rtx_per_env_scene_partition_enabled():
             return
