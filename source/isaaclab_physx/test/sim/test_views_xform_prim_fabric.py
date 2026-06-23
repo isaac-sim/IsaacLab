@@ -203,17 +203,10 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     with view.xform_world_space_writer() as w:
         w.set_poses(positions=initial)
 
-    # Simulate topology change: recompute per-selection fabric indices and rebuild
-    # every indexed array, mirroring the lazy paths in the ``_get_*_array`` accessors.
-    view._rebuild_trans_ro_arrays()
-    view._world_rw_fabric_indices = view._compute_fabric_indices(view._world_sel_rw)
-    view._world_ifa_rw = view._build_indexed_array(
-        view._world_sel_rw, view._WORLD_MATRIX_NAME, view._world_rw_fabric_indices
-    )
-    view._local_rw_fabric_indices = view._compute_fabric_indices(view._local_sel_rw)
-    view._local_ifa_rw = view._build_indexed_array(
-        view._local_sel_rw, view._LOCAL_MATRIX_NAME, view._local_rw_fabric_indices
-    )
+    # Simulate topology change: rebuild both selection bundles, mirroring the
+    # lazy paths in the ``_refresh_active_bundle_if_needed`` accessor.
+    view._rebuild_ro_arrays()
+    view._rebuild_rw_arrays()
 
     # Trigger another write through the rebuilt arrays.
     new = wp.zeros((2, 3), dtype=wp.float32, device=device)
@@ -237,8 +230,9 @@ def test_prepare_for_reuse_detects_topology_change(device, view_factory):
     view = bundle.view
     view.get_world_poses()  # trigger Fabric init
 
-    assert view._trans_sel_ro is not None, "trans_sel_ro selection not initialized"
-    for selection in (view._trans_sel_ro, view._world_sel_rw, view._local_sel_rw):
+    assert view._sel_ro is not None, "RO selection not initialized"
+    assert view._sel_rw is not None, "RW selection not initialized"
+    for selection in (view._sel_ro, view._sel_rw):
         result = selection.PrepareForReuse()
         assert isinstance(result, bool), f"PrepareForReuse should return bool, got {type(result)}"
         assert not result, "PrepareForReuse should return False when no topology change"

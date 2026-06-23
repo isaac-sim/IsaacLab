@@ -23,6 +23,9 @@ Changed
   removed -- the eager dual-write inside the scope makes all of that
   unnecessary.
 
-  The three-selection RO/RW layout (``_trans_sel_ro``,
-  ``_world_sel_rw``, ``_local_sel_rw``) is kept as a defensive layer and
-  for clarity of authoring intent.
+  The previous three-selection RO/RW layout has been collapsed to two
+  persistent selections, ``_sel_ro`` (worldMatrix=RO, localMatrix=RO) and
+  ``_sel_rw`` (worldMatrix=RW, localMatrix=RW).  The writer scope flips an
+  ``_is_rw`` flag on enter/exit; both selection bundles are kept alive for
+  the view's lifetime, so no selection is rebuilt on flip.  The hierarchy
+  tracking-pause above is the load-bearing renderer-clobber protection.

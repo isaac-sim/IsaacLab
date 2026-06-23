@@ -86,21 +86,27 @@ class FabricFrameView(BaseFrameView):
       tracking state (so we do not re-enable listeners the caller had
       previously paused).  The renderer's own independent worldMatrix
       listener is unaffected and still observes our writes.
-    * **Three selections with asymmetric RO/RW access.**  Despite the
-      pause/restore above, we keep three selections as a defensive layer:
+    * **Two persistent selections, flipped by the writer scope.**  Two
+      selections are built once during ``_initialize_fabric`` and kept for
+      the view's lifetime:
 
       .. code-block:: text
 
-          _trans_sel_ro   :  worldMatrix=RO, localMatrix=RO   (reads)
-          _world_sel_rw   :  worldMatrix=RW, localMatrix=RO   (world writer)
-          _local_sel_rw   :  worldMatrix=RO, localMatrix=RW   (local writer)
+          _sel_ro :  worldMatrix=RO, localMatrix=RO   (steady state)
+          _sel_rw :  worldMatrix=RW, localMatrix=RW   (inside writer scope)
 
-      A combined ``ReadWrite(world, local)`` selection is unsafe even with
-      tracking pause -- if a refactor accidentally re-enables tracking,
-      Fabric would see both attributes as user-authored and fall back to the
-      hierarchy's canonical direction (local -> world), clobbering our world
-      write.  The separate RO/RW layout makes the intended authoring
-      direction explicit.
+      Each selection has its own bundle of indexed-fabric arrays
+      (``_world_ifa_*``, ``_local_ifa_*``, ``_parent_world_ifa_*``) cached
+      against the selection's path ordering.  Writer ``__enter__`` flips an
+      ``_is_rw`` flag so subsequent get/set helpers resolve to the RW
+      bundle; ``__exit__`` flips back to RO.  Nothing is rebuilt on the
+      flip -- both bundles are always kept consistent via independent
+      ``PrepareForReuse()`` polls in the accessors.
+
+      The renderer-clobber protection comes from the hierarchy
+      tracking-pause above; the RO/RW split tells Fabric which steady-state
+      attribute is user-authored (none, in the RO case) once the scope
+      closes and the matrices are mutually consistent.
     * **Topology-adaptive.**  Fabric topology changes are detected on each
       access via per-selection ``PrepareForReuse()`` polls; the affected
       indexed arrays rebuild automatically and no manual refresh is required.
@@ -150,24 +156,29 @@ class FabricFrameView(BaseFrameView):
         self._stage = None
         self._fabric_hierarchy = None
 
-        # Three persistent Fabric selections with asymmetric access flags.
-        self._trans_sel_ro = None
-        self._world_sel_rw = None
-        self._local_sel_rw = None
+        # Two persistent Fabric selections.  ``_is_rw`` is True only inside
+        # an active writer scope; the accessors below resolve to the matching
+        # bundle of indexed arrays.
+        self._sel_ro = None
+        self._sel_rw = None
+        self._is_rw: bool = False
 
-        # Index arrays (view-side indices and per-selection view->fabric mappings).
+        # View-side indices array (shared across both bundles).
         self._view_indices: wp.array | None = None
-        self._trans_ro_fabric_indices: wp.array | None = None
-        self._world_rw_fabric_indices: wp.array | None = None
-        self._local_rw_fabric_indices: wp.array | None = None
-        self._parent_fabric_indices: wp.array | None = None
+
+        # Per-selection view->fabric mappings.
+        self._ro_fabric_indices: wp.array | None = None
+        self._rw_fabric_indices: wp.array | None = None
+        self._ro_parent_fabric_indices: wp.array | None = None
+        self._rw_parent_fabric_indices: wp.array | None = None
 
         # Indexed fabric arrays per (selection, attribute) pair.
         self._world_ifa_ro = None
         self._local_ifa_ro = None
+        self._parent_world_ifa_ro = None
         self._world_ifa_rw = None
         self._local_ifa_rw = None
-        self._parent_world_ifa_ro = None
+        self._parent_world_ifa_rw = None
 
         # Sentinel passed to compose/decompose kernels for unused slots.
         self._fabric_empty_2d_array_sentinel: wp.array | None = None
@@ -243,7 +254,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._get_world_ro_array(),
+                self._get_world_ifa(),
                 positions_wp,
                 orientations_wp,
                 self._fabric_empty_2d_array_sentinel,
@@ -279,7 +290,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.decompose_indexed_fabric_transforms,
             dim=count,
             inputs=[
-                self._get_local_ro_array(),
+                self._get_local_ifa(),
                 translations_wp,
                 orientations_wp,
                 self._fabric_empty_2d_array_sentinel,
@@ -300,7 +311,7 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        return self._decompose_scales(self._get_world_ro_array(), indices)
+        return self._decompose_scales(self._get_world_ifa(), indices)
 
     def _get_local_scales_impl(self, indices=None) -> ProxyArray:
         if not self._use_fabric:
@@ -309,7 +320,7 @@ class FabricFrameView(BaseFrameView):
         if not self._fabric_initialized:
             self._initialize_fabric()
 
-        return self._decompose_scales(self._get_local_ro_array(), indices)
+        return self._decompose_scales(self._get_local_ifa(), indices)
 
     def _decompose_scales(self, ro_array, indices) -> ProxyArray:
         """Shared scale-decompose path for world / local getters."""
@@ -368,15 +379,13 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`.
         """
-        if self._trans_sel_ro.PrepareForReuse() or self._parent_world_ifa_ro is None:
-            self._rebuild_trans_ro_arrays()
         wp.launch(
             kernel=fabric_utils.update_indexed_local_matrix_from_world,
             dim=self.count,
             inputs=[
-                self._world_ifa_ro,
-                self._parent_world_ifa_ro,
-                self._get_local_rw_array(),
+                self._get_world_ifa(),
+                self._get_parent_world_ifa(),
+                self._get_local_ifa(),
                 self._view_indices,
             ],
             device=self._device,
@@ -390,15 +399,13 @@ class FabricFrameView(BaseFrameView):
         Storage convention: see
         :func:`isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`.
         """
-        if self._trans_sel_ro.PrepareForReuse() or self._parent_world_ifa_ro is None:
-            self._rebuild_trans_ro_arrays()
         wp.launch(
             kernel=fabric_utils.update_indexed_world_matrix_from_local,
             dim=self.count,
             inputs=[
-                self._local_ifa_ro,
-                self._parent_world_ifa_ro,
-                self._get_world_rw_array(),
+                self._get_local_ifa(),
+                self._get_parent_world_ifa(),
+                self._get_world_ifa(),
                 self._view_indices,
             ],
             device=self._device,
@@ -408,52 +415,48 @@ class FabricFrameView(BaseFrameView):
     # Internal -- selection accessors with on-demand index rebuild
     # ------------------------------------------------------------------
 
-    def _get_world_ro_array(self):
-        if self._trans_sel_ro.PrepareForReuse():
-            self._rebuild_trans_ro_arrays()
-        return self._world_ifa_ro
+    def _get_world_ifa(self):
+        self._refresh_active_bundle_if_needed()
+        return self._world_ifa_rw if self._is_rw else self._world_ifa_ro
 
-    def _get_local_ro_array(self):
-        if self._trans_sel_ro.PrepareForReuse():
-            self._rebuild_trans_ro_arrays()
-        return self._local_ifa_ro
+    def _get_local_ifa(self):
+        self._refresh_active_bundle_if_needed()
+        return self._local_ifa_rw if self._is_rw else self._local_ifa_ro
 
-    def _get_world_rw_array(self):
-        if self._world_sel_rw.PrepareForReuse():
-            self._world_rw_fabric_indices = self._compute_fabric_indices(self._world_sel_rw)
-            self._world_ifa_rw = self._build_indexed_array(
-                self._world_sel_rw, self._WORLD_MATRIX_NAME, self._world_rw_fabric_indices
-            )
-        return self._world_ifa_rw
+    def _get_parent_world_ifa(self):
+        self._refresh_active_bundle_if_needed()
+        return self._parent_world_ifa_rw if self._is_rw else self._parent_world_ifa_ro
 
-    def _get_local_rw_array(self):
-        if self._local_sel_rw.PrepareForReuse():
-            self._local_rw_fabric_indices = self._compute_fabric_indices(self._local_sel_rw)
-            self._local_ifa_rw = self._build_indexed_array(
-                self._local_sel_rw, self._LOCAL_MATRIX_NAME, self._local_rw_fabric_indices
-            )
-        return self._local_ifa_rw
+    def _refresh_active_bundle_if_needed(self) -> None:
+        """Rebuild the active bundle's indexed arrays if its selection's buckets changed."""
+        if self._is_rw:
+            if self._world_ifa_rw is None or self._sel_rw.PrepareForReuse():
+                self._rebuild_rw_arrays()
+        else:
+            if self._world_ifa_ro is None or self._sel_ro.PrepareForReuse():
+                self._rebuild_ro_arrays()
 
-    def _get_parent_world_ro_array(self):
-        # Built and refreshed alongside the trans_ro selection (parents share that selection).
-        if self._parent_world_ifa_ro is None or self._trans_sel_ro.PrepareForReuse():
-            self._rebuild_trans_ro_arrays()
-        return self._parent_world_ifa_ro
-
-    def _rebuild_trans_ro_arrays(self) -> None:
-        """Rebuild the trans_ro indices and the three indexed arrays that depend on them.
-
-        ``_world_ifa_ro``, ``_local_ifa_ro`` and ``_parent_world_ifa_ro`` are all
-        keyed off the ``trans_sel_ro`` path ordering, so they are refreshed together.
-        """
-        self._trans_ro_fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
-        self._world_ifa_ro = self._build_indexed_array(
-            self._trans_sel_ro, self._WORLD_MATRIX_NAME, self._trans_ro_fabric_indices
+    def _rebuild_ro_arrays(self) -> None:
+        """Rebuild the four ``_sel_ro``-keyed indexed arrays (children + parents)."""
+        self._ro_fabric_indices = self._compute_fabric_indices(self._sel_ro)
+        self._world_ifa_ro = self._build_indexed_array(self._sel_ro, self._WORLD_MATRIX_NAME, self._ro_fabric_indices)
+        self._local_ifa_ro = self._build_indexed_array(self._sel_ro, self._LOCAL_MATRIX_NAME, self._ro_fabric_indices)
+        self._ro_parent_fabric_indices = self._compute_parent_fabric_indices(self._sel_ro)
+        self._parent_world_ifa_ro = wp.indexedfabricarray(
+            fa=wp.fabricarray(self._sel_ro, self._WORLD_MATRIX_NAME),
+            indices=self._ro_parent_fabric_indices,
         )
-        self._local_ifa_ro = self._build_indexed_array(
-            self._trans_sel_ro, self._LOCAL_MATRIX_NAME, self._trans_ro_fabric_indices
+
+    def _rebuild_rw_arrays(self) -> None:
+        """Rebuild the four ``_sel_rw``-keyed indexed arrays (children + parents)."""
+        self._rw_fabric_indices = self._compute_fabric_indices(self._sel_rw)
+        self._world_ifa_rw = self._build_indexed_array(self._sel_rw, self._WORLD_MATRIX_NAME, self._rw_fabric_indices)
+        self._local_ifa_rw = self._build_indexed_array(self._sel_rw, self._LOCAL_MATRIX_NAME, self._rw_fabric_indices)
+        self._rw_parent_fabric_indices = self._compute_parent_fabric_indices(self._sel_rw)
+        self._parent_world_ifa_rw = wp.indexedfabricarray(
+            fa=wp.fabricarray(self._sel_rw, self._WORLD_MATRIX_NAME),
+            indices=self._rw_parent_fabric_indices,
         )
-        self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
 
     # ------------------------------------------------------------------
     # Internal -- index computation
@@ -497,11 +500,6 @@ class FabricFrameView(BaseFrameView):
     def _build_indexed_array(self, selection, attribute_name: str, fabric_indices: wp.array) -> wp.indexedfabricarray:
         fa = wp.fabricarray(selection, attribute_name)
         return wp.indexedfabricarray(fa=fa, indices=fabric_indices)
-
-    def _build_parent_indexed_array(self, selection) -> wp.indexedfabricarray:
-        self._parent_fabric_indices = self._compute_parent_fabric_indices(selection)
-        fa = wp.fabricarray(selection, self._WORLD_MATRIX_NAME)
-        return wp.indexedfabricarray(fa=fa, indices=self._parent_fabric_indices)
 
     def _resolve_indices_wp(self, indices: wp.array | None) -> wp.array:
         """Resolve view indices as a Warp uint32 array."""
@@ -550,7 +548,9 @@ class FabricFrameView(BaseFrameView):
                 rt_xformable.SetLocalXformFromUsd()
                 rt_xformable.SetWorldXformFromUsd()
 
-        # Three persistent selections with asymmetric access flags.
+        # Two persistent selections: all-RO (steady state) and all-RW (active
+        # only inside a writer scope).  Each will own its own bundle of
+        # indexed-fabric arrays built lazily by ``_rebuild_{ro,rw}_arrays``.
         matrix = usdrt.Sdf.ValueTypeNames.Matrix4d
         ro = usdrt.Usd.Access.Read
         rw = usdrt.Usd.Access.ReadWrite
@@ -558,30 +558,12 @@ class FabricFrameView(BaseFrameView):
         lm_ro = (matrix, self._LOCAL_MATRIX_NAME, ro)
         wm_rw = (matrix, self._WORLD_MATRIX_NAME, rw)
         lm_rw = (matrix, self._LOCAL_MATRIX_NAME, rw)
-        self._trans_sel_ro = self._stage.SelectPrims(require_attrs=[wm_ro, lm_ro], device=self._device, want_paths=True)
-        self._world_sel_rw = self._stage.SelectPrims(require_attrs=[wm_rw, lm_ro], device=self._device, want_paths=True)
-        self._local_sel_rw = self._stage.SelectPrims(require_attrs=[wm_ro, lm_rw], device=self._device, want_paths=True)
+        self._sel_ro = self._stage.SelectPrims(require_attrs=[wm_ro, lm_ro], device=self._device, want_paths=True)
+        self._sel_rw = self._stage.SelectPrims(require_attrs=[wm_rw, lm_rw], device=self._device, want_paths=True)
 
-        # Build the view-side indices array and per-selection view->fabric mappings.
         self._view_indices = wp.array(list(range(self.count)), dtype=wp.uint32, device=self._device)
-        self._trans_ro_fabric_indices = self._compute_fabric_indices(self._trans_sel_ro)
-        self._world_rw_fabric_indices = self._compute_fabric_indices(self._world_sel_rw)
-        self._local_rw_fabric_indices = self._compute_fabric_indices(self._local_sel_rw)
-
-        # Indexed fabric arrays per (selection x attribute).
-        self._world_ifa_ro = self._build_indexed_array(
-            self._trans_sel_ro, self._WORLD_MATRIX_NAME, self._trans_ro_fabric_indices
-        )
-        self._local_ifa_ro = self._build_indexed_array(
-            self._trans_sel_ro, self._LOCAL_MATRIX_NAME, self._trans_ro_fabric_indices
-        )
-        self._world_ifa_rw = self._build_indexed_array(
-            self._world_sel_rw, self._WORLD_MATRIX_NAME, self._world_rw_fabric_indices
-        )
-        self._local_ifa_rw = self._build_indexed_array(
-            self._local_sel_rw, self._LOCAL_MATRIX_NAME, self._local_rw_fabric_indices
-        )
-        self._parent_world_ifa_ro = self._build_parent_indexed_array(self._trans_sel_ro)
+        self._rebuild_ro_arrays()
+        self._rebuild_rw_arrays()
 
         # Pre-allocated reusable output buffers (world + local + scales).
         self._fabric_positions_buf = wp.zeros((self.count, 3), dtype=wp.float32, device=self._device)
@@ -599,8 +581,14 @@ class FabricFrameView(BaseFrameView):
 
         self._fabric_initialized = True
 
-        # Seed Fabric matrices from USD authoritatively.
-        self._sync_fabric_from_usd_initial()
+        # Seed Fabric matrices from USD authoritatively.  The seed writes, so
+        # flip into the RW bundle for its duration; flip back to RO afterwards
+        # so steady-state getters use the RO bundle.
+        self._is_rw = True
+        try:
+            self._sync_fabric_from_usd_initial()
+        finally:
+            self._is_rw = False
 
     def _sync_fabric_from_usd_initial(self) -> None:
         """Populate Fabric world+local matrices for children and parents from USD.
@@ -616,7 +604,7 @@ class FabricFrameView(BaseFrameView):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=self.count,
             inputs=[
-                self._local_ifa_rw,
+                self._local_ifa_rw,  # explicit RW: init-time write, no scope yet
                 _to_float32_2d(local_pos_ta.warp),
                 _to_float32_2d(local_ori_ta.warp),
                 _to_float32_2d(scales_wp),
@@ -674,8 +662,8 @@ class FabricFrameView(BaseFrameView):
             parent_ori_wp = wp.array(world_ori_rows, dtype=wp.float32, device=self._device)
             parent_scale_wp = wp.array(world_scale_rows, dtype=wp.float32, device=self._device)
             parent_world_rw = wp.indexedfabricarray(
-                fa=wp.fabricarray(self._world_sel_rw, self._WORLD_MATRIX_NAME),
-                indices=self._compute_fabric_indices_for(self._world_sel_rw, unique_parent_paths),
+                fa=wp.fabricarray(self._sel_rw, self._WORLD_MATRIX_NAME),
+                indices=self._compute_fabric_indices_for(self._sel_rw, unique_parent_paths),
             )
             wp.launch(
                 kernel=fabric_utils.compose_indexed_fabric_transforms,
@@ -720,10 +708,14 @@ class FabricFrameView(BaseFrameView):
 class _FabricWriterMixin:
     """Common ``__enter__`` / ``__exit__`` for the Fabric world / local writers.
 
-    Pauses ``track_local_xform_changes`` / ``track_world_xform_changes`` on
-    the Fabric hierarchy while the scope is active so Kit does not redundantly
-    recompute the matrices we just wrote, then restores the prior state on
-    exit.
+    On enter: pauses ``track_local_xform_changes`` / ``track_world_xform_changes``
+    on the Fabric hierarchy (saving prior state) and flips the view's
+    ``_is_rw`` so all get/set helpers resolve to the persistent RW selection
+    bundle (no rebuild -- both bundles are kept alive for the view's lifetime).
+
+    On exit: derives the opposite-space matrix, synchronizes, flips ``_is_rw``
+    back to ``False`` (RO bundle for steady-state reads), restores
+    hierarchy-tracking state.
     """
 
     def _enter_impl(self) -> None:
@@ -738,6 +730,7 @@ class _FabricWriterMixin:
             h.track_local_xform_changes(False)
         if self._was_tracking_world:
             h.track_world_xform_changes(False)
+        view._is_rw = True
 
     def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
         view: FabricFrameView = self._view  # type: ignore[assignment]
@@ -746,6 +739,9 @@ class _FabricWriterMixin:
                 self._derive_opposite()
                 wp.synchronize()
         finally:
+            # Flip back to RO before restoring hierarchy tracking so any
+            # subsequent updateWorldXforms tick sees a fully-RO selection.
+            view._is_rw = False
             h = view._fabric_hierarchy
             if self._was_tracking_world:
                 h.track_world_xform_changes(True)
@@ -759,9 +755,9 @@ class _FabricWriterMixin:
 class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
     """World-space writer for :class:`FabricFrameView`.
 
-    Writes flow through ``_world_sel_rw``; on exit ``localMatrix`` is derived
-    from the just-written ``worldMatrix`` via
-    :func:`update_indexed_local_matrix_from_world`.
+    Writes flow through ``_world_ifa_rw`` (the RW-bundle worldMatrix array);
+    on exit ``localMatrix`` is derived from the just-written ``worldMatrix``
+    via :func:`update_indexed_local_matrix_from_world`.
     """
 
     def _derive_opposite(self) -> None:
@@ -776,7 +772,7 @@ class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_world_rw_array(),
+                view._get_world_ifa(),
                 positions_wp,
                 orientations_wp,
                 view._fabric_empty_2d_array_sentinel,
@@ -797,7 +793,7 @@ class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_world_rw_array(),
+                view._get_world_ifa(),
                 view._fabric_empty_2d_array_sentinel,
                 view._fabric_empty_2d_array_sentinel,
                 scales_wp,
@@ -820,9 +816,9 @@ class _FabricWorldSpaceWriter(_FabricWriterMixin, FrameViewWorldSpaceWriter):
 class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
     """Local-space writer for :class:`FabricFrameView`.
 
-    Writes flow through ``_local_sel_rw``; on exit ``worldMatrix`` is derived
-    from the just-written ``localMatrix`` via
-    :func:`update_indexed_world_matrix_from_local`.
+    Writes flow through ``_local_ifa_rw`` (the RW-bundle localMatrix array);
+    on exit ``worldMatrix`` is derived from the just-written ``localMatrix``
+    via :func:`update_indexed_world_matrix_from_local`.
     """
 
     def _derive_opposite(self) -> None:
@@ -837,7 +833,7 @@ class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_local_rw_array(),
+                view._get_local_ifa(),
                 translations_wp,
                 orientations_wp,
                 view._fabric_empty_2d_array_sentinel,
@@ -858,7 +854,7 @@ class _FabricLocalSpaceWriter(_FabricWriterMixin, FrameViewLocalSpaceWriter):
             kernel=fabric_utils.compose_indexed_fabric_transforms,
             dim=indices_wp.shape[0],
             inputs=[
-                view._get_local_rw_array(),
+                view._get_local_ifa(),
                 view._fabric_empty_2d_array_sentinel,
                 view._fabric_empty_2d_array_sentinel,
                 scales_wp,
