@@ -114,17 +114,24 @@ def compute_image_stats(frames_nhwc: np.ndarray) -> dict:
         if not torch.cuda.is_available():
             raise RuntimeError("no CUDA")
 
-        # Stream through GPU in chunks — RTX 5090 has 32 GB VRAM so use large
-        # chunks to keep the GPU pipeline full (less Python overhead per pixel).
-        CHUNK = 10000
         N, H, W, C = frames_nhwc.shape
         device = "cuda"
+
+        # Adaptive chunk size: probe free VRAM and target ≤30% per chunk.
+        # Each frame costs uint8 (H*W*C bytes) + float32 (H*W*C*4 bytes) on the GPU.
+        # Factor of 5 approximates both allocations being live simultaneously.
+        try:
+            free_vram, _total_vram = torch.cuda.mem_get_info()
+            bytes_per_frame = H * W * C * 5
+            CHUNK = max(50, min(N, int(free_vram * 0.30 / bytes_per_frame)))
+        except Exception:
+            CHUNK = 200  # safe fallback if mem_get_info unavailable
 
         mins = torch.full((C,),  1e9, dtype=torch.float32, device=device)
         maxs = torch.full((C,), -1e9, dtype=torch.float32, device=device)
         sums  = torch.zeros(C, dtype=torch.float64, device=device)
         sums2 = torch.zeros(C, dtype=torch.float64, device=device)
-        all_pix_cpu = []  # kept on CPU for quantile (avoids 32 GB alloc)
+        all_pix_cpu = []  # kept on CPU for quantile (avoids GPU pressure)
 
         for i in range(0, N, CHUNK):
             chunk = torch.from_numpy(frames_nhwc[i:i + CHUNK]).to(device, non_blocking=True)
@@ -134,6 +141,8 @@ def compute_image_stats(frames_nhwc: np.ndarray) -> dict:
             sums  += chunk.sum(dim=0).double()
             sums2 += chunk.pow(2).sum(dim=0).double()
             all_pix_cpu.append(chunk.cpu())
+            del chunk
+            torch.cuda.empty_cache()
 
         n    = N * H * W
         mean = (sums / n).float()
@@ -514,19 +523,20 @@ def hdf5_to_lerobot(
         )
         return cam, compute_image_stats(all_imgs)
 
-    # Run cameras concurrently — GPU compute_image_stats releases the GIL via torch.
-    # With 3 cameras and 32GB VRAM they'll queue on the GPU pipeline automatically.
-    n_stat_workers = min(len(active_cameras), 3)
-    _print(f"  Image stats: {len(active_cameras)} camera(s)  [{n_stat_workers} workers] ...")
+    # Run cameras SEQUENTIALLY so GPU memory is only needed for one camera at a time.
+    # (Parallel workers multiply GPU pressure: 3 cameras × ~14 GB float32 = OOM on 32 GB.)
+    # Adaptive chunk sizing inside compute_image_stats keeps each chunk ≤30% of free VRAM.
+    _print(f"  Image stats: {len(active_cameras)} camera(s)  [sequential, adaptive GPU chunks] ...")
     with _tqdm(total=len(active_cameras), desc="  Cam stats", unit="cam") as sbar:
-        def _cam_stats_job(cam):
-            result = _cam_stats(cam)
+        for cam in active_cameras:
+            _, cam_stat = _cam_stats(cam)
+            stats[f"observation.images.{cam}"] = cam_stat
+            try:
+                import torch
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
             sbar.update(1)
-            return result
-
-        with ThreadPoolExecutor(max_workers=n_stat_workers) as pool:
-            for cam, cam_stat in pool.map(_cam_stats_job, active_cameras):
-                stats[f"observation.images.{cam}"] = cam_stat
 
     with open(out_dir / "meta/stats.json", "w") as fp:
         json.dump(stats, fp, indent=2)
