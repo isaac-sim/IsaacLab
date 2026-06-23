@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import os
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -51,6 +52,17 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
     if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
         raise exc
     raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
+
+
+def isaac_rtx_per_env_scene_partition_enabled() -> bool:
+    """Return whether per-environment RTX scene partitioning is enabled.
+
+    Partitioning is opt-in: the presence of the
+    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable (regardless
+    of its value) enables authoring of ``primvars:omni:scenePartition`` and
+    ``omni:scenePartition`` on the USD stage.
+    """
+    return "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION" in os.environ
 
 
 # RTX simple-shading constants.
@@ -182,12 +194,28 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
-        For each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        Authoring is only performed when the environment variable
+        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` is set (to any value).
+        When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
+        or ``omni:scenePartition`` attributes are written to the stage.
+
+        When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
         non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+
+        if not isaac_rtx_per_env_scene_partition_enabled():
+            return
+
+        logger.debug(
+            "Per-environment RTX scene partitioning is enabled"
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION)."
+            " Authoring primvars:omni:scenePartition on %d env(s).",
+            num_envs,
+        )
+
         root_layer = stage.GetRootLayer()
         token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
