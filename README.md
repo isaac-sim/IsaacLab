@@ -1,3 +1,5 @@
+<img width="5152" height="1216" alt="image" src="https://github.com/user-attachments/assets/e79fc2ab-05ae-4731-9c1c-a3385cf7facc" />
+
 # Conda Environment
 
 ```
@@ -43,7 +45,6 @@ If you want to change environment in IsaacSim, please refer to
 ```
 source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py
 ```
-
 
 # Isaac Lab Mimic
 
