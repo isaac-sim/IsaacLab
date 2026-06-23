@@ -759,6 +759,7 @@ def rendering_test_dexsuite_kuka(
     from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
         DexsuiteKukaAllegroLiftCameraEnvCfg,
         SingleCameraSceneCfg,
+        _SCENE_KWARGS,
     )
     from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
@@ -784,7 +785,7 @@ def rendering_test_dexsuite_kuka(
     @configclass
     class _DexsuiteKukaAllegroLiftCameraTestEnvCfg(DexsuiteKukaAllegroLiftCameraEnvCfg):
         single_camera = DexsuiteKukaAllegroLiftEnvCfg(
-            scene=_DexsuiteSingleCameraTestSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True),
+            scene=_DexsuiteSingleCameraTestSceneCfg(**_SCENE_KWARGS),
             observations=SingleCameraObservationsCfg(),
         )
         default = single_camera
