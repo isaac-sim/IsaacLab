@@ -5,17 +5,20 @@
 
 # Perf Gate — Publish CI Image
 #
-# Builds docker/Dockerfile.base once and publishes it to a container registry so the
-# Performance Regression Gate can pull a prebuilt image instead of cold-building it on
-# every matrix cell. This is the temporary fast path while the NVIDIA-managed RTX PRO
-# 6000 fleet has no provisioned ECR/registry cache.
+# Builds docker/Dockerfile.base once and publishes it to NGC (nvcr.io) so the
+# Performance Regression Gate (and the baseline seeder) can pull one prebuilt image
+# instead of cold-building it on every matrix cell. nvcr.io is the same registry the
+# rest of IsaacLab CI uses (the post-merge job pushes nvcr.io/nvidian/isaac-lab:latest-*)
+# and is reachable from the NVIDIA-managed RTX PRO 6000 fleet, so this is the standard
+# distribution path — not a one-off. ECR on that fleet is only a local build-layer cache.
 #
 # Usage:
 #   1. Run this workflow (Actions tab → "Perf Gate — Publish CI Image" → Run workflow).
-#      Default target is GHCR: ghcr.io/<owner>/isaaclab-perf-gate:<tag>. To use
-#      NGC/NVCR instead, set the `registry` input to an nvcr.io/... path.
-#   2. Set the repo variable PERF_GATE_CI_IMAGE to the full pushed reference printed in
-#      the job summary (e.g. ghcr.io/<owner>/isaaclab-perf-gate:sha-abcdef1).
+#      Default target is nvcr.io/nvidian/isaac-lab:latest-perf. Override the `registry`
+#      / `tag` inputs to publish elsewhere (e.g. an immutable sha-<short> tag).
+#   2. Nothing else is required for the default tag: the gate and seeder already pull
+#      nvcr.io/nvidian/isaac-lab:latest-perf by default. Only set the repo variable
+#      PERF_GATE_CI_IMAGE if you published to a non-default repo/tag and want them to use it.
 #   3. Re-run whenever docker/Dockerfile.base or the pinned dependencies change.
 #
 # Runs on the same RTX fleet label as the gate: the build needs nvcr.io access for the
@@ -29,7 +32,7 @@ on:
   # exposes the "Run workflow" button for workflows already on the default branch, which
   # this is not yet. Scoped with paths so ordinary code pushes don't kick off a ~26 min
   # rebuild — only image-affecting changes do. A push event has no inputs, so the job
-  # falls back to its defaults (GHCR target, sha-<short> tag).
+  # falls back to its defaults (nvcr.io/nvidian/isaac-lab:latest-perf).
   # Remove this push trigger once the workflow lands on develop and dispatch is available.
   push:
     branches: [unified-POC]
@@ -40,17 +43,16 @@ on:
   workflow_dispatch:
     inputs:
       registry:
-        description: 'Target image repository (no tag). Default GHCR; use nvcr.io/... for NGC.'
+        description: 'Target image repository (no tag). Default nvcr.io/nvidian/isaac-lab.'
         required: false
         default: ''
       tag:
-        description: 'Image tag to publish. Defaults to sha-<short-sha>.'
+        description: 'Image tag to publish. Defaults to latest-perf.'
         required: false
         default: ''
 
 permissions:
   contents: read
-  packages: write   # push to GHCR under this repository's owner
 
 env:
   # Lets the build log into nvcr.io to pull the Isaac Sim base image.
@@ -77,20 +79,33 @@ jobs:
         echo "isaacsim_image_name=${IMG}" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=${TAG}" >> "$GITHUB_OUTPUT"
 
-        # Default target repo: GHCR under this repo's owner (lowercased, as GHCR requires).
-        OWNER="$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+        # Default target repo: the shared IsaacLab NGC repo (reachable from the RTX fleet,
+        # same registry the post-merge job publishes to). Override via the `registry` input.
         TARGET_REPO="${{ inputs.registry }}"
         if [ -z "${TARGET_REPO}" ]; then
-          TARGET_REPO="ghcr.io/${OWNER}/isaaclab-perf-gate"
+          TARGET_REPO="${{ vars.PERF_GATE_PUBLISH_REPO || 'nvcr.io/nvidian/isaac-lab' }}"
         fi
 
+        # Default tag: a stable, human-friendly tag (mirrors IsaacLab's latest-develop).
+        # Pass `tag: sha-<short>` for an immutable, reproducible reference.
         TARGET_TAG="${{ inputs.tag }}"
         if [ -z "${TARGET_TAG}" ]; then
-          TARGET_TAG="sha-${GITHUB_SHA::7}"
+          TARGET_TAG="latest-perf"
         fi
 
+        # Always also publish an immutable sha-<short> tag so a past era stays pinnable
+        # (the moving tag above is overwritten each publish). Mirrors IsaacLab pushing
+        # both latest-develop and latest-develop-<sha>. Skipped only when the chosen tag
+        # already IS the immutable one.
+        IMMUTABLE_TAG="sha-${GITHUB_SHA::7}"
         echo "target_image=${TARGET_REPO}:${TARGET_TAG}" >> "$GITHUB_OUTPUT"
-        echo "🔵 Will publish: ${TARGET_REPO}:${TARGET_TAG}"
+        if [ "${TARGET_TAG}" != "${IMMUTABLE_TAG}" ]; then
+          echo "target_image_immutable=${TARGET_REPO}:${IMMUTABLE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "🔵 Will publish: ${TARGET_REPO}:${TARGET_TAG} + ${TARGET_REPO}:${IMMUTABLE_TAG}"
+        else
+          echo "target_image_immutable=" >> "$GITHUB_OUTPUT"
+          echo "🔵 Will publish: ${TARGET_REPO}:${TARGET_TAG}"
+        fi
 
     # Build (or reuse the gha layer cache for) the image locally, tagged perf-gate-publish:local.
     - name: Build CI image
@@ -108,6 +123,7 @@ jobs:
     - name: Push image to target registry
       env:
         TARGET_IMAGE: ${{ steps.cfg.outputs.target_image }}
+        TARGET_IMAGE_IMMUTABLE: ${{ steps.cfg.outputs.target_image_immutable }}
       run: |
         set -euo pipefail
 
@@ -118,10 +134,6 @@ jobs:
 
         REGISTRY="${TARGET_IMAGE%%/*}"
         case "${REGISTRY}" in
-          ghcr.io)
-            echo "🔵 Logging into ghcr.io..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            ;;
           nvcr.io)
             if [ -z "${NGC_API_KEY:-}" ]; then
               echo "::error::NGC_API_KEY is required to push to nvcr.io"
@@ -131,22 +143,29 @@ jobs:
             echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
             ;;
           *)
-            echo "::error::Unsupported target registry '${REGISTRY}'. Use ghcr.io or nvcr.io."
+            echo "::error::Unsupported target registry '${REGISTRY}'. The perf gate publishes to nvcr.io."
             exit 1
             ;;
         esac
 
-        docker tag perf-gate-publish:local "${TARGET_IMAGE}"
-        echo "🔵 Pushing ${TARGET_IMAGE}..."
-        docker push "${TARGET_IMAGE}"
+        # Push the (moving) primary tag and, when distinct, the immutable sha tag.
+        PUSHED=()
+        for IMG in "${TARGET_IMAGE}" "${TARGET_IMAGE_IMMUTABLE}"; do
+          [ -z "${IMG}" ] && continue
+          docker tag perf-gate-publish:local "${IMG}"
+          echo "🔵 Pushing ${IMG}..."
+          docker push "${IMG}"
+          PUSHED+=("${IMG}")
+        done
         rm -rf "${DOCKER_CONFIG_DIR}"
 
         {
           echo "## Published perf-gate CI image"
           echo ""
           echo '```'
-          echo "${TARGET_IMAGE}"
+          for IMG in "${PUSHED[@]}"; do echo "${IMG}"; done
           echo '```'
           echo ""
-          echo "Set the repo variable \`PERF_GATE_CI_IMAGE\` to the value above so the gate pulls it instead of building."
+          echo "The gate and seeder pull \`nvcr.io/nvidian/isaac-lab:latest-perf\` by default — no further action needed for that tag."
+          echo "The immutable \`sha-<short>\` tag is for pinning a past era (e.g. bisection): set the repo variable \`PERF_GATE_CI_IMAGE\` to it when you need that exact environment."
         } >> "$GITHUB_STEP_SUMMARY"

@@ -12,9 +12,11 @@
 # The samples are keyed by their real commit SHA, so the gate's merge-base /
 # ancestry isolation has a populated, branch-correct baseline to compare against.
 #
-# Requires the prebuilt-image fast path: set repo variable PERF_GATE_CI_IMAGE to
-# the published CI image (GHCR first, NGC/NVCR fallback). Without it there is no
-# image to source-mount into, and the job fails fast with a clear message.
+# Uses the prebuilt CI image published to nvcr.io (the same image the gate pulls, so
+# baselines and PR runs share an identical environment). Defaults to
+# nvcr.io/nvidian/isaac-lab:latest-perf; set repo variable PERF_GATE_CI_IMAGE only to
+# override that (e.g. to pin a sha-<short> tag). If the image is not published yet the
+# job fails fast with a clear message (publish it first via perf-gate-publish-image).
 #
 # Manual dispatch only — seeding writes to perf-baselines and burns GPU time, so
 # it should never run automatically.
@@ -69,7 +71,6 @@ concurrency:
 
 permissions:
   contents: write   # push appended samples to the perf-baselines branch
-  packages: read    # pull the prebuilt CI image from GHCR (PERF_GATE_CI_IMAGE)
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
@@ -111,17 +112,14 @@ jobs:
         git fetch --no-tags origin "+refs/heads/perf-baselines:refs/remotes/origin/perf-baselines" || \
           echo "::notice::perf-baselines not found yet; first seed run will create it"
 
-    - name: Require prebuilt CI image
-      if: ${{ vars.PERF_GATE_CI_IMAGE == '' }}
-      run: |
-        echo "::error::PERF_GATE_CI_IMAGE is not set. Seeding source-mounts the published"
-        echo "::error::CI image; publish one (perf-gate-publish-image) and set the variable."
-        exit 1
-
-    # Pull the published CI image and retag it locally (mirrors the gate's override path).
+    # Pull the published CI image and retag it locally (the exact image the gate pulls,
+    # so seeded baselines and PR runs share one environment). Defaults to
+    # nvcr.io/nvidian/isaac-lab:latest-perf; set PERF_GATE_CI_IMAGE to override (e.g. to
+    # pin a sha-<short> tag). Unlike the gate there is no build fallback: seeding is a
+    # deliberate, baseline-writing op, so a missing image should fail fast (publish first).
     - name: Pull prebuilt CI image
       env:
-        OVERRIDE_IMAGE: ${{ vars.PERF_GATE_CI_IMAGE }}
+        CI_IMAGE_REF: ${{ vars.PERF_GATE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
       run: |
         set -euo pipefail
 
@@ -131,12 +129,8 @@ jobs:
         echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
         export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
 
-        REGISTRY="${OVERRIDE_IMAGE%%/*}"
+        REGISTRY="${CI_IMAGE_REF%%/*}"
         case "${REGISTRY}" in
-          ghcr.io)
-            echo "🔵 Logging into ghcr.io..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            ;;
           nvcr.io)
             if [ -n "${NGC_API_KEY:-}" ]; then
               echo "🔵 Logging into nvcr.io..."
@@ -150,10 +144,14 @@ jobs:
             ;;
         esac
 
-        echo "🔵 Pulling prebuilt image ${OVERRIDE_IMAGE}..."
-        docker pull "${OVERRIDE_IMAGE}"
-        docker tag "${OVERRIDE_IMAGE}" "${{ env.CI_IMAGE_TAG }}"
-        echo "🟢 Tagged ${OVERRIDE_IMAGE} as ${{ env.CI_IMAGE_TAG }}"
+        echo "🔵 Pulling prebuilt image ${CI_IMAGE_REF}..."
+        docker pull "${CI_IMAGE_REF}" || {
+          echo "::error::Failed to pull ${CI_IMAGE_REF}. Publish it first via perf-gate-publish-image"
+          echo "::error::(default tag latest-perf), or set PERF_GATE_CI_IMAGE to an existing image."
+          exit 1
+        }
+        docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"
+        echo "🟢 Tagged ${CI_IMAGE_REF} as ${{ env.CI_IMAGE_TAG }}"
         rm -rf "${DOCKER_CONFIG_DIR}"
 
     - name: Seed baselines from commit history

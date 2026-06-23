@@ -50,7 +50,6 @@ permissions:
   contents: write
   pull-requests: write   # post/update the sticky verdict comment on the PR
   statuses: write        # post per-task benchmark commit statuses on the PR head
-  packages: read         # pull the prebuilt CI image from GHCR (PERF_GATE_CI_IMAGE)
 
 env:
   # Lets the ecr-build-push-pull action `docker login nvcr.io` to pull the Isaac Sim
@@ -155,25 +154,27 @@ jobs:
           perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
           perf-jit-warp1.13.0-${{ matrix.task_id }}-
 
-    # Image source — two mutually exclusive paths:
+    # Image source — pull the published image (primary), build only as a fallback:
     #
-    #  (A) Prebuilt-image override (temporary fast path). When the repo variable
-    #      PERF_GATE_CI_IMAGE is set, every matrix cell just `docker pull`s that
-    #      already-built image (~seconds) instead of cold-building it (~26 min).
-    #      This sidesteps the NVIDIA-managed RTX PRO 6000 fleet having no provisioned
-    #      ECR/registry cache. Publish the image once with perf-gate-publish-image.yaml,
-    #      point PERF_GATE_CI_IMAGE at it (GHCR first, NGC/NVCR fallback), and refresh
-    #      it whenever docker/Dockerfile.base or the pinned deps change. The pulled
-    #      image is retagged to the workflow-local CI_IMAGE_TAG so nothing downstream
-    #      changes. Remove the variable to fall back to path (B).
+    #  Primary: `docker pull` the perf-gate CI image published to nvcr.io by
+    #      perf-gate-publish-image.yaml (once per dependency era). nvcr.io is the shared
+    #      IsaacLab registry, reachable from the RTX PRO 6000 fleet, so every matrix cell
+    #      just pulls (~seconds) instead of cold-building (~26 min). The reference defaults
+    #      to nvcr.io/nvidian/isaac-lab:latest-perf; set the optional PERF_GATE_CI_IMAGE
+    #      repo variable to override it (e.g. to pin an immutable sha-<short> tag). The
+    #      seeder pulls this same image, so baselines and PR runs share an identical
+    #      environment (same runtime_contract_hash, no seed-vs-gate offset). The pulled
+    #      image is retagged to the workflow-local CI_IMAGE_TAG so nothing downstream changes.
     #
-    #  (B) Build-or-cache via ecr-build-push-pull (default). Builds the image if it is
-    #      not already in ECR; on the RTX fleet ECR never resolves, so it relies on the
-    #      opt-in gha layer cache scope below.
-    - name: Pull prebuilt CI image (override)
-      if: ${{ vars.PERF_GATE_CI_IMAGE != '' }}
+    #  Fallback: if the pull fails (e.g. a new era before the image is republished), build
+    #      from source via ecr-build-push-pull. On the RTX fleet ECR is only a local build
+    #      cache that never resolves, so this relies on the opt-in gha layer cache scope.
+    #      This makes a missing image self-heal (slowly) instead of hard-failing the gate.
+    - name: Pull prebuilt CI image
+      id: pull_image
+      continue-on-error: true
       env:
-        OVERRIDE_IMAGE: ${{ vars.PERF_GATE_CI_IMAGE }}
+        CI_IMAGE_REF: ${{ vars.PERF_GATE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
       run: |
         set -euo pipefail
 
@@ -183,12 +184,8 @@ jobs:
         echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
         export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
 
-        REGISTRY="${OVERRIDE_IMAGE%%/*}"
+        REGISTRY="${CI_IMAGE_REF%%/*}"
         case "${REGISTRY}" in
-          ghcr.io)
-            echo "🔵 Logging into ghcr.io..."
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            ;;
           nvcr.io)
             if [ -n "${NGC_API_KEY:-}" ]; then
               echo "🔵 Logging into nvcr.io..."
@@ -202,14 +199,14 @@ jobs:
             ;;
         esac
 
-        echo "🔵 Pulling prebuilt image ${OVERRIDE_IMAGE}..."
-        docker pull "${OVERRIDE_IMAGE}"
-        docker tag "${OVERRIDE_IMAGE}" "${{ env.CI_IMAGE_TAG }}"
-        echo "🟢 Tagged ${OVERRIDE_IMAGE} as ${{ env.CI_IMAGE_TAG }}"
+        echo "🔵 Pulling prebuilt image ${CI_IMAGE_REF}..."
+        docker pull "${CI_IMAGE_REF}"
+        docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"
+        echo "🟢 Tagged ${CI_IMAGE_REF} as ${{ env.CI_IMAGE_TAG }}"
         rm -rf "${DOCKER_CONFIG_DIR}"
 
-    - name: Build/Pull CI image (ECR + gha cache)
-      if: ${{ vars.PERF_GATE_CI_IMAGE == '' }}
+    - name: Build CI image (fallback)
+      if: ${{ steps.pull_image.outcome == 'failure' }}
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
@@ -225,6 +222,12 @@ jobs:
 
     - name: Run benchmark in Docker
       id: bench_run
+      env:
+        # When the env image was pulled prebuilt, overlay the PR checkout over the image's
+        # baked source so the benchmark runs the PR's code (the editable install resolves to
+        # the mounted tree), not the image's era source. When the image was built from source
+        # the PR code is already baked in, so no mount (preserves the proven build path).
+        IMAGE_WAS_PULLED: ${{ steps.pull_image.outcome == 'success' }}
       run: |
         set -euo pipefail
         TASK_ID="${{ matrix.task_id }}"
@@ -285,6 +288,16 @@ jobs:
         # TODO: Update these tokens once benchmark_non_rl.py CLI flags are finalised.
         HYDRA_ARGS="${{ matrix.hydra_args }}"
 
+        # Overlay the PR checkout when running a pulled (prebuilt) env image, so the
+        # benchmark runs the PR's code instead of the image's baked era source. The
+        # in-container user (uid 1000) must be able to write _isaac_sim into the mounted
+        # root, so open up perms on the runner-owned checkout (mirrors the seeder).
+        SRC_MOUNT=""
+        if [ "${IMAGE_WAS_PULLED}" = "true" ]; then
+          chmod -R a+rwX "${{ github.workspace }}" 2>/dev/null || true
+          SRC_MOUNT="-v ${{ github.workspace }}:/workspace/isaaclab"
+        fi
+
         # Start the benchmark container in detached mode
         docker run -d --name "${CONTAINER_NAME}" \
           --init --stop-timeout 10 \
@@ -297,11 +310,13 @@ jobs:
           -e OMNI_KIT_DISABLE_CUP=1 \
           -e ISAAC_SIM_HEADLESS=1 \
           -e PYTHONUNBUFFERED=1 \
+          -e PYTHONDONTWRITEBYTECODE=1 \
           -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
           -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
           -v "${ARTIFACT_DIR}:/tmp/bench_out" \
           -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
           -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
+          ${SRC_MOUNT} \
           "${{ env.CI_IMAGE_TAG }}" \
           -c "
             set -e
@@ -351,6 +366,9 @@ jobs:
     - name: Retry benchmark on failure
       id: bench_retry
       if: always() && steps.bench_run.outputs.exit_code != '0' && steps.bench_run.outputs.exit_code != ''
+      env:
+        # Same source-overlay rule as the first attempt (see "Run benchmark in Docker").
+        IMAGE_WAS_PULLED: ${{ steps.pull_image.outcome == 'success' }}
       run: |
         set -uo pipefail
         TASK_ID="${{ matrix.task_id }}"
@@ -379,6 +397,14 @@ jobs:
 
         HYDRA_ARGS="${{ matrix.hydra_args }}"
 
+        # Overlay the PR checkout when running a pulled (prebuilt) env image (see the
+        # first attempt for rationale).
+        SRC_MOUNT=""
+        if [ "${IMAGE_WAS_PULLED}" = "true" ]; then
+          chmod -R a+rwX "${{ github.workspace }}" 2>/dev/null || true
+          SRC_MOUNT="-v ${{ github.workspace }}:/workspace/isaaclab"
+        fi
+
         docker run -d --name "${CONTAINER_NAME}" \
           --init --stop-timeout 10 \
           --entrypoint bash --gpus all --network=host \
@@ -390,11 +416,13 @@ jobs:
           -e OMNI_KIT_DISABLE_CUP=1 \
           -e ISAAC_SIM_HEADLESS=1 \
           -e PYTHONUNBUFFERED=1 \
+          -e PYTHONDONTWRITEBYTECODE=1 \
           -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
           -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
           -v "${ARTIFACT_DIR}:/tmp/bench_out" \
           -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
           -v "${{ github.workspace }}/kit-cache:/isaac-sim/kit/cache" \
+          ${SRC_MOUNT} \
           "${{ env.CI_IMAGE_TAG }}" \
           -c "
             set -e
