@@ -24,7 +24,7 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from frame_view_contract_utils import *  # noqa: F401, F403, E402
-from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402
+from frame_view_contract_utils import CHILD_OFFSET, ViewBundle  # noqa: E402, F401
 from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 
 from pxr import Gf, UsdGeom  # noqa: E402
@@ -219,6 +219,64 @@ def test_fabric_rebuild_after_topology_change(device, view_factory):
     expected = torch.tensor([[4.0, 5.0, 6.0], [4.0, 5.0, 6.0]], device=device)
     # 1e-5 ≈ 20 ULP at magnitudes ~4-6; absorbs float32 SRT compose/decompose drift.
     assert torch.allclose(pos_torch, expected, atol=1e-5), f"Read after rebuild failed on {device}: {pos_torch}"
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_writer_scope_exception_recovers_state(device, view_factory):
+    """An exception raised inside a writer scope must still:
+
+    1. Restore ``IFabricHierarchy.track_*_xform_changes`` to their pre-scope state.
+    2. Flip the view's ``_is_rw`` flag back to ``False``.
+    3. Leave ``worldMatrix`` and ``localMatrix`` mutually consistent prim-by-prim
+       on whatever partial-write state Fabric currently holds (best-effort).
+
+    Simulates an interactive-notebook scenario where a user-code exception
+    fires after a ``set_poses`` call but before the scope closes.
+    """
+    bundle = view_factory(2, device)
+    view = bundle.view
+    view.get_world_poses()  # ensure Fabric is initialized
+
+    # Snapshot pre-scope tracking state.
+    h = view._fabric_hierarchy
+    was_tracking_local = h.tracking_local_xform_changes
+    was_tracking_world = h.tracking_world_xform_changes
+
+    positions = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[positions, 7.0, 8.0, 9.0], device=device)
+
+    with pytest.raises(RuntimeError, match="user-code failure"):
+        with view.xform_world_space_writer() as w:
+            w.set_poses(positions=positions)
+            raise RuntimeError("user-code failure")
+
+    # Tracking state restored.
+    assert h.tracking_local_xform_changes == was_tracking_local
+    assert h.tracking_world_xform_changes == was_tracking_world
+    # _is_rw flipped back.
+    assert view._is_rw is False
+    # World/local mutually consistent: re-reading both spaces succeeds and the
+    # world positions reflect the partial write we made before the exception.
+    world_pos, _ = view.get_world_poses()
+    local_pos, _ = view.get_local_poses()
+    world_t = torch.as_tensor(world_pos, device=device)
+    local_t = torch.as_tensor(local_pos, device=device)
+    expected_world = torch.tensor([[7.0, 8.0, 9.0], [7.0, 8.0, 9.0]], device=device)
+    assert torch.allclose(world_t, expected_world, atol=1e-5), f"world not updated on {device}: {world_t}"
+    # Parents at PARENT_POS, so local = world - parent_world (parents identity-rotated).
+    expected_local = expected_world - torch.tensor(PARENT_POS, device=device)
+    assert torch.allclose(local_t, expected_local, atol=1e-5), (
+        f"local not derived from partial world write on {device}: got {local_t}, expected {expected_local}"
+    )
+
+    # The view is still usable for further writer scopes after recovery.
+    next_pos = wp.zeros((2, 3), dtype=wp.float32, device=device)
+    wp.launch(kernel=_fill_position, dim=2, inputs=[next_pos, 10.0, 11.0, 12.0], device=device)
+    with view.xform_world_space_writer() as w:
+        w.set_poses(positions=next_pos)
+    follow_up, _ = view.get_world_poses()
+    follow_up_t = torch.as_tensor(follow_up, device=device)
+    assert torch.allclose(follow_up_t, torch.tensor([[10.0, 11.0, 12.0]] * 2, device=device), atol=1e-5)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])

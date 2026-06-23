@@ -77,6 +77,14 @@ class FabricFrameView(BaseFrameView):
       attribute and a single ``wp.synchronize()`` runs.  After the scope
       exits, both Fabric matrices are self-consistent; getters read directly
       from Fabric storage without any further synchronization.
+
+      The opposite-space derive runs even when the scope unwinds via
+      exception (including ``KeyboardInterrupt`` in interactive notebooks),
+      as a best-effort to keep ``worldMatrix`` and ``localMatrix``
+      mutually consistent on whatever partial-write state Fabric holds.
+      The partial write itself is not rolled back -- if you need
+      transactional all-or-nothing semantics, snapshot the matrices
+      yourself before entering the scope.
     * **Hierarchy listeners are paused while a writer scope is active.**
       The writer's ``__enter__`` calls
       :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
@@ -713,9 +721,23 @@ class _FabricWriterMixin:
     ``_is_rw`` so all get/set helpers resolve to the persistent RW selection
     bundle (no rebuild -- both bundles are kept alive for the view's lifetime).
 
-    On exit: derives the opposite-space matrix, synchronizes, flips ``_is_rw``
-    back to ``False`` (RO bundle for steady-state reads), restores
-    hierarchy-tracking state.
+    On exit (normal or via exception): runs a best-effort opposite-space
+    derive + ``wp.synchronize()`` whenever any write happened inside the
+    scope, then flips ``_is_rw`` back to ``False`` (RO bundle for
+    steady-state reads) and restores hierarchy-tracking state.
+
+    **Exception safety.** If the scope unwinds because of an exception
+    (including ``KeyboardInterrupt`` from an interactive notebook), the
+    opposite-space derive still runs so that ``worldMatrix`` and
+    ``localMatrix`` are mutually consistent prim-by-prim on whatever
+    partial-write state Fabric currently holds.  The partial write itself
+    is **not** rolled back -- some prims may carry the new value and the
+    rest the pre-scope value -- so callers needing transactional
+    all-or-nothing semantics should snapshot matrices themselves before
+    entering the scope.  If the recovery launch itself fails (typically
+    because the original exception came from a poisoned CUDA stream), the
+    failure is logged and the original exception propagates; the view
+    should then be recreated.
     """
 
     def _enter_impl(self) -> None:
@@ -735,9 +757,24 @@ class _FabricWriterMixin:
     def _exit_impl(self, exc_type, exc_val, exc_tb) -> None:
         view: FabricFrameView = self._view  # type: ignore[assignment]
         try:
-            if self._wrote_anything and exc_type is None:
-                self._derive_opposite()
-                wp.synchronize()
+            if self._wrote_anything:
+                try:
+                    self._derive_opposite()
+                    wp.synchronize()
+                except Exception as recovery_exc:
+                    # Recovery itself failed (e.g. original exception came
+                    # from a device error and the CUDA stream is poisoned).
+                    # If we got here on the happy path, re-raise.  If we are
+                    # already unwinding an exception, log and let the original
+                    # propagate -- masking it would hide the actual root cause.
+                    if exc_type is None:
+                        raise
+                    logger.error(
+                        "FabricFrameView writer scope: best-effort opposite-space sync "
+                        "failed during exception handling: %s. World/local matrices may "
+                        "be inconsistent prim-by-prim; recreate the view to recover.",
+                        recovery_exc,
+                    )
         finally:
             # Flip back to RO before restoring hierarchy tracking so any
             # subsequent updateWorldXforms tick sees a fully-RO selection.

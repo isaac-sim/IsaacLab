@@ -16,6 +16,13 @@ Changed
     ``updateWorldXforms()`` does not redundantly recompute matrices the
     user just wrote.  The renderer's independent ``omni:fabric:worldMatrix``
     listener is unaffected and observes the writes.
+  - runs the opposite-space derive + ``wp.synchronize()`` on exit even
+    when the scope unwinds via exception (including ``KeyboardInterrupt``
+    in interactive notebooks), as a best-effort to keep ``worldMatrix``
+    and ``localMatrix`` mutually consistent prim-by-prim.  The partial
+    write itself is not rolled back -- callers needing transactional
+    semantics should snapshot the matrices themselves before entering
+    the scope.
 
   The lazy-dirty-flag mechanism (the ``_DirtyFlag`` enum, ``_dirty`` field,
   ``_sync_*_if_dirty`` helpers, and the one-time
