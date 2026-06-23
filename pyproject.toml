@@ -189,13 +189,16 @@ reportPrivateUsage = "warning"
 skip = '*.usd,*.usda,*.usdz,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
 quiet-level = 0
 # the world list should always have words in lower case
-ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty"
+ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty,segway"
 
 
 [tool.pytest.ini_options]
 
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
+    "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
+    "windows_ci: mark test to run on Windows platforms in CI",
+    "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.

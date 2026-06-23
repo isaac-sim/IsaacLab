@@ -26,6 +26,9 @@ if defined VIRTUAL_ENV (
 rem Add source/isaaclab to PYTHONPATH so we can import isaaclab.cli.
 set "PYTHONPATH=%ISAACLAB_PATH%\source\isaaclab;%PYTHONPATH%"
 
+rem Let Kit associate direct wrapper launches with the Isaac Sim desktop icon.
+if "%RESOURCE_NAME%"=="" set "RESOURCE_NAME=IsaacSim"
+
 rem If a local Isaac Sim binary is present, source its env setup so that
 rem PYTHONPATH/PATH/EXP_PATH are correct without depending on a conda
 rem activate.d hook (those don't fire under e.g. `conda run` on Windows).

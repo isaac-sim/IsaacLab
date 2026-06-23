@@ -9,19 +9,11 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
-
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
 from ... import dexsuite_env_cfg as dexsuite
 from ... import mdp
-from .camera_cfg import (
-    BaseTiledCameraCfg,
-    DuoCameraObservationsCfg,
-    SingleCameraObservationsCfg,
-    StateObservationCfg,
-    WristTiledCameraCfg,
-)
+from .camera_cfg import StateObservationCfg
 
 FINGERTIP_LIST = ["index_link_3", "middle_link_3", "ring_link_3", "thumb_link_3"]
 THUMB_SENSOR = "thumb_link_3_object_s"
@@ -29,32 +21,28 @@ FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "thum
 
 
 @configclass
-class KukaAllegroSceneCfg(PresetCfg):
-    @configclass
-    class KukaAllegroSceneCfg(dexsuite.SceneCfg):
-        """Kuka Allegro participant scene for Dexsuite Lifting/Reorientation"""
+class KukaAllegroSceneCfg(dexsuite.SceneCfg):
+    """KukaAllegro scene for the dexsuite lift/reorient tasks.
 
-        robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    The ``base_camera`` / ``wrist_camera`` slots are left unset (``None``) for the state task; the
+    camera env config populates them (see ``dexsuite_kuka_allegro_camera_env_cfg``).
+    """
 
-        base_camera: CameraCfg | None = None
+    robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    base_camera: CameraCfg | None = None
+    wrist_camera: CameraCfg | None = None
 
-        wrist_camera: CameraCfg | None = None
-
-        def __post_init__(self: dexsuite.SceneCfg):
-            super().__post_init__()
-            for link_name in FINGERTIP_LIST:
-                setattr(
-                    self,
-                    f"{link_name}_object_s",
-                    ContactSensorCfg(
-                        prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
-                        filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
-                    ),
-                )
-
-    default = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
-    single_camera = default.replace(base_camera=BaseTiledCameraCfg())
-    duo_camera = default.replace(base_camera=BaseTiledCameraCfg(), wrist_camera=WristTiledCameraCfg())
+    def __post_init__(self):
+        super().__post_init__()
+        for link_name in FINGERTIP_LIST:
+            setattr(
+                self,
+                f"{link_name}_object_s",
+                ContactSensorCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/ee_link/" + link_name,
+                    filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
+                ),
+            )
 
 
 @configclass
@@ -73,13 +61,10 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
     contact_count = RewTerm(
         func=mdp.contact_count,
         weight=1.0,
-        params={
-            "threshold": 0.01,
-            "sensor_names": FINGER_SENSORS + [THUMB_SENSOR],
-        },
+        params={"threshold": 0.01, "sensor_names": FINGER_SENSORS + [THUMB_SENSOR]},
     )
 
-    def __post_init__(self: dexsuite.RewardsCfg):
+    def __post_init__(self):
         super().__post_init__()
         self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=["palm_link", ".*_tip"])
         self.fingers_to_object.params["thumb_name"] = THUMB_SENSOR
@@ -94,22 +79,15 @@ class KukaAllegroReorientRewardCfg(dexsuite.RewardsCfg):
 
 
 @configclass
-class KukaAllegroObservationCfg(PresetCfg):
-    state = StateObservationCfg()
-    single_camera = SingleCameraObservationsCfg()
-    duo_camera = DuoCameraObservationsCfg()
-    default = state
-
-
-@configclass
 class KukaAllegroMixinCfg:
-    scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg()
+    scene: KukaAllegroSceneCfg = KukaAllegroSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: KukaAllegroReorientRewardCfg = KukaAllegroReorientRewardCfg()
-    observations: KukaAllegroObservationCfg = KukaAllegroObservationCfg()
+    observations: StateObservationCfg = StateObservationCfg()
     actions: KukaAllegroRelJointPosActionCfg = KukaAllegroRelJointPosActionCfg()
 
-    def __post_init__(self):
+    def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
+        self.commands.object_pose.body_name = "palm_link"
 
 
 @configclass

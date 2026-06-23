@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
@@ -198,10 +198,9 @@ class ContactSensor(BaseContactSensor):
                 "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
             )
 
-        asset_prim, body_parent = resolve_matching_prims_from_source(parent_expr)[0]
-        walk_root = asset_prim.GetPath().pathString
-        prims = get_all_matching_child_prims(walk_root, predicate=has_contact_report, traverse_instance_prims=False)
-        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim in prims]
+        resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+        body_matches = resolve_matching_prims_from_source(parent_expr, has_contact_report, **resolve_kwargs)
+        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim, _ in body_matches]
         if not body_names:
             raise RuntimeError(
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
@@ -212,6 +211,8 @@ class ContactSensor(BaseContactSensor):
 
         # Build glob patterns: one per (env, sensor body).
         # IsaacLab path forms map to ovphysx fnmatch globs the same way Articulation does.
+        _, body_path_expr = body_matches[0]
+        body_parent = body_path_expr.rsplit("/", 1)[0]
         base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", body_parent)
         base_glob = re.sub(r"\.\*", "*", base_glob)
         sensor_patterns = [f"{base_glob}/{name}" for name in body_names]

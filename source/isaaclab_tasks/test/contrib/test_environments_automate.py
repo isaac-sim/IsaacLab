@@ -36,8 +36,8 @@ from env_test_utils import _check_random_actions  # isort: skip
 # CUROBO_TESTS / TESTS_TO_SKIP in test_settings.py and is only executed by the dedicated
 # ``test-curobo`` CI job which uses the cuRobo Docker image.
 AUTOMATE_ENVS = [
-    "Isaac-AutoMate-Assembly-Direct-v0",
-    "Isaac-AutoMate-Disassembly-Direct-v0",
+    "IsaacContrib-AutoMate-Assembly-Direct",
+    "IsaacContrib-AutoMate-Disassembly-Direct",
 ]
 
 

@@ -32,12 +32,13 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
-    # Shadow-hand renderings (incl. ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0``) show up to
+    # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
     "shadow_hand": 5.0,
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "dexsuite_kuka": 8.0,
+    "dexsuite_kuka_homo": 8.0,
+    "dexsuite_kuka_hetero": 8.0,
 }
 
 # Minimum SSIM score below which two images are considered structurally different. SSIM is a perceptual metric
@@ -50,7 +51,8 @@ _SSIM_THRESHOLD = 0.985
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
-    "dexsuite_kuka": 0.95,
+    "dexsuite_kuka_homo": 0.95,
+    "dexsuite_kuka_hetero": 0.95,
 }
 
 # Data types for which the SSIM gate is not enforced. SSIM assumes natural-image statistics and is unreliable on
@@ -72,107 +74,38 @@ _COMPARISON_IMAGE_SUBDIR = "images"
 # on every CI run. (NVBUG#6152566)
 _FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 
+# Expand this tuple to test additional camera sensor data types
+_DEFAULT_SENSOR_DATA_TYPES = (
+    "rgb",
+    "albedo",
+    "simple_shading_constant_diffuse",
+    "simple_shading_diffuse_mdl",
+    "simple_shading_full_mdl",
+    "semantic_segmentation",
+    "depth",
+)
+
+
+def _make_sensor_data_type_params(
+    physics_backend: str, renderer: str, sensor_data_types: list[str] = None
+) -> list[pytest.param]:
+    """Create golden-image parameter entries for every supported output type."""
+    sensor_data_types = sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES
+    return [
+        pytest.param(
+            physics_backend,
+            f"{renderer}_renderer",
+            data_type,
+            id=f"{physics_backend}-{renderer}-{data_type}",
+            marks=_FLAKY_MARK,
+        )
+        for data_type in sensor_data_types
+    ]
+
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    # physx + isaacsim_rtx_renderer
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "rgb",
-        id="physx-isaacsim_rtx-rgb",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "albedo",
-        id="physx-isaacsim_rtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "depth",
-        id="physx-isaacsim_rtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="physx-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="physx-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "simple_shading_full_mdl",
-        id="physx-isaacsim_rtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "physx",
-        "isaacsim_rtx_renderer",
-        "semantic_segmentation",
-        id="physx-isaacsim_rtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
-    ),
-    # newton + isaacsim_rtx_renderer
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "rgb",
-        id="newton-isaacsim_rtx-rgb",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "albedo",
-        id="newton-isaacsim_rtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "depth",
-        id="newton-isaacsim_rtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="newton-isaacsim_rtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="newton-isaacsim_rtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "simple_shading_full_mdl",
-        id="newton-isaacsim_rtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "isaacsim_rtx_renderer",
-        "semantic_segmentation",
-        id="newton-isaacsim_rtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
-    ),
+    *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
     # physx + newton_renderer (warp)
     pytest.param(
         "physx",
@@ -189,106 +122,8 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    # ovphysx + ovrtx_renderer
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "rgb",
-        id="ovphysx-ovrtx-rgb",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "albedo",
-        id="ovphysx-ovrtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "depth",
-        id="ovphysx-ovrtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="ovphysx-ovrtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="ovphysx-ovrtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "simple_shading_full_mdl",
-        id="ovphysx-ovrtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "ovphysx",
-        "ovrtx_renderer",
-        "semantic_segmentation",
-        id="ovphysx-ovrtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
-    ),
-    # newton + ovrtx_renderer
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "rgb",
-        id="newton-ovrtx-rgb",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "albedo",
-        id="newton-ovrtx-albedo",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "depth",
-        id="newton-ovrtx-depth",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "simple_shading_constant_diffuse",
-        id="newton-ovrtx-simple_shading_constant_diffuse",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "simple_shading_diffuse_mdl",
-        id="newton-ovrtx-simple_shading_diffuse_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "simple_shading_full_mdl",
-        id="newton-ovrtx-simple_shading_full_mdl",
-        marks=_FLAKY_MARK,
-    ),
-    pytest.param(
-        "newton",
-        "ovrtx_renderer",
-        "semantic_segmentation",
-        id="newton-ovrtx-semantic_segmentation",
-        marks=_FLAKY_MARK,
-    ),
+    *_make_sensor_data_type_params("ovphysx", "ovrtx"),
+    *_make_sensor_data_type_params("newton", "ovrtx"),
     # ovphysx + newton_renderer (warp)
     pytest.param(
         "ovphysx",
@@ -786,12 +621,12 @@ def rendering_test_shadow_hand(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
-    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env import ShadowHandVisionEnv
-    from isaaclab_tasks.core.shadow_hand.shadow_hand_vision_env_cfg import ShadowHandVisionEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
-    env_cfg = ShadowHandVisionEnvCfg()
+    env_cfg = ShadowHandCameraEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
@@ -806,7 +641,7 @@ def rendering_test_shadow_hand(
     env = None
 
     try:
-        env = ShadowHandVisionEnv(env_cfg)
+        env = ShadowHandCameraEnv(env_cfg)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
 
         validate_camera_outputs(
@@ -871,6 +706,7 @@ def rendering_test_dexsuite_kuka(
     physics_backend: str,
     renderer: str,
     data_type: str,
+    setup_homogeneous_envs: bool,
     comparison_scores: list[dict],
 ) -> None:
     if physics_backend == "ovphysx":
@@ -878,14 +714,19 @@ def rendering_test_dexsuite_kuka(
 
     from isaaclab.envs import ManagerBasedRLEnv
 
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
-        DexsuiteKukaAllegroLiftEnvCfg,
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
+        DexsuiteKukaAllegroLiftCameraEnvCfg,
     )
 
-    override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera,cube"]
+    override_arg = f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera"
 
-    env_cfg = DexsuiteKukaAllegroLiftEnvCfg()
-    env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
+    # The default setup uses heterogeneous environments with multiple asset spawner to place random objects.
+    # For homogeneous environments, we use a fixed object config - cube.
+    if setup_homogeneous_envs:
+        override_arg += ",cube"
+
+    env_cfg = DexsuiteKukaAllegroLiftCameraEnvCfg()
+    env_cfg = _apply_overrides_to_env_cfg(env_cfg, [override_arg])
 
     env_cfg.scene.num_envs = 4
 
@@ -907,17 +748,19 @@ def rendering_test_dexsuite_kuka(
     for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
         marker_cfg.visible = False
 
+    test_name = f"dexsuite_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
+
     env = None
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        maybe_save_stage("dexsuite_kuka", physics_backend, renderer, data_type)
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
         validate_camera_outputs(
-            "dexsuite_kuka",
+            test_name,
             physics_backend,
             renderer,
             env.scene.sensors["base_camera"].data.output,
-            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["dexsuite_kuka"],
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
     finally:

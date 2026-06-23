@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab"
-version = "6.6.0"
+version = "7.0.5"
 description = "Extension providing main framework interfaces and abstractions for robot learning."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -37,7 +37,7 @@ dependencies = [
     # image processing
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.13.0",
+    "warp-lang==1.14.0",
     "matplotlib>=3.10.3",
     # keep consistent with isaac sim version
     "pillow==12.1.1",
@@ -54,7 +54,7 @@ dependencies = [
     "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # OpenUSD (kit-less mode)
-    "usd-core>=25.0.0 ; platform_machine in 'x86_64 AMD64'",
+    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
     "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",

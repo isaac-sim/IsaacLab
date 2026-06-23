@@ -114,7 +114,7 @@ Stats output:
 
         {
           "schema_version": 1,
-          "task": "Isaac-PickPlace-GR1T2-Abs-v0",
+          "task": "IsaacContrib-PickPlace-GR1T2-Abs",
           "replay_file": "/tmp/pickplace_gr1t2.mcap",
           "num_replays": 5,
           "outcomes": {"success": 4, "failure": 1, "incomplete": 0, "timeout": 0},

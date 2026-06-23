@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+0.4.6 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera PPISP/HDR rendering to disable Gaussian skip-tonemapping before renderer initialization.
+
+
+0.4.5 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Extended the :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.use_ovrtx_cloning` path to support
+  heterogeneous scenes as well as homogeneous ones. :meth:`~isaaclab_ov.renderers.OVRTXRenderer.prepare_stage`
+  now exports only :class:`~isaaclab.cloner.ClonePlan` source prototypes plus global stage metadata, and
+  replication uses OVRTX cloning API (``clone_usd``) for all rows in the published clone plan instead of
+  cloning only ``/World/envs/env_0``.
+
+
+0.4.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+
+
 0.4.3 (2026-06-06)
 ~~~~~~~~~~~~~~~~~~
 

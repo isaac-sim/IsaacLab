@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_physx"
-version = "1.1.4"
+version = "2.0.2"
 description = "Extension providing IsaacLab with PhysX specific abstractions."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -24,7 +24,7 @@ Repository = "https://github.com/isaac-sim/IsaacLab"
 
 [project.optional-dependencies]
 newton = [
-    "newton[sim]==1.2.1",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@811968bfb7cc7ff4e37b9260a2ba56930a3e605e",
 ]
 
 [tool.setuptools]

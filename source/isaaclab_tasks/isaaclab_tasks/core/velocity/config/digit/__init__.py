@@ -11,7 +11,7 @@ from . import agents
 # Register Gym environments.
 ##
 gym.register(
-    id="Isaac-Velocity-Flat-Digit-v0",
+    id="Isaac-Velocity-Flat-Digit",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -22,7 +22,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Velocity-Flat-Digit-Play-v0",
+    id="Isaac-Velocity-Flat-Digit-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -33,7 +33,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Velocity-Rough-Digit-v0",
+    id="Isaac-Velocity-Rough-Digit",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -44,7 +44,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Velocity-Rough-Digit-Play-v0",
+    id="Isaac-Velocity-Rough-Digit-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

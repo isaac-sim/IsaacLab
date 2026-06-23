@@ -329,39 +329,39 @@ These environments use the Isaac Teleop XR pipeline with motion controllers or h
      - Input Mode
      - Hands
      - Operator Interaction
-   * - ``Isaac-Stack-Cube-Franka-IK-Abs-v0``
+   * - ``IsaacContrib-Stack-Cube-Franka-IK-Abs``
      - Controllers
      - Right
      - **Arm:** right controller grip pose drives end-effector.
        **Gripper:** right trigger.
-   * - ``Isaac-PickPlace-GR1T2-Abs-v0``
+   * - ``IsaacContrib-PickPlace-GR1T2-Abs``
      - Hand tracking
      - Both
      - **Arms:** left/right hand wrist pose drives each end-effector.
        **Hands:** full 26-joint hand tracking retargeted to 11 DOF per Fourier hand via ``DexHandRetargeter``.
-   * - ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``
+   * - ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``
      - Hand tracking
      - Both
-     - Same as ``Isaac-PickPlace-GR1T2-Abs-v0`` with waist DOFs enabled.
-   * - ``Isaac-NutPour-GR1T2-Pink-IK-Abs-v0``
+     - Same as ``IsaacContrib-PickPlace-GR1T2-Abs`` with waist DOFs enabled.
+   * - ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
      - Hand tracking
      - Both
-     - Same retargeting pipeline as ``Isaac-PickPlace-GR1T2-Abs-v0`` (different task scene).
-   * - ``Isaac-ExhaustPipe-GR1T2-Pink-IK-Abs-v0``
+     - Same retargeting pipeline as ``IsaacContrib-PickPlace-GR1T2-Abs`` (different task scene).
+   * - ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
      - Hand tracking
      - Both
-     - Same retargeting pipeline as ``Isaac-PickPlace-GR1T2-Abs-v0`` (different task scene).
-   * - ``Isaac-PickPlace-G1-InspireFTP-Abs-v0``
+     - Same retargeting pipeline as ``IsaacContrib-PickPlace-GR1T2-Abs`` (different task scene).
+   * - ``IsaacContrib-PickPlace-G1-InspireFTP-Abs``
      - Hand tracking
      - Both
      - **Arms:** left/right hand wrist pose drives each end-effector.
        **Hands:** full 26-joint hand tracking retargeted to 12 DOF per Inspire hand via ``DexHandRetargeter``.
-   * - ``Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0``
+   * - ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
      - Controllers
      - Both
      - **Arms:** left/right controller grip pose drives each end-effector.
        **Hands:** trigger closes index, squeeze closes middle, both together close thumb (7 DOF TriHand per hand).
-   * - ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0``
+   * - ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
      - Controllers
      - Both
      - **Arms:** same as fixed-base G1 above.
@@ -474,31 +474,50 @@ follows.
    * - Task ID
      - Devices
      - Operator Interaction
-   * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0``
+   * - ``IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow``
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``
+   * - ``IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow``
+
+       **Note:** With the RMPFlow controller, avoid colliding with
+       the cubes during teleoperation: contact forces cause the
+       controller to overtune and the arm to drift. Move the
+       end-effector close to and just above the cube, stop, then
+       close the suction cup.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor-v0``
+   * - ``IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor``
      - Keyboard, SpaceMouse
      - Same as left-arm gripper above with camera observations.
-   * - ``Isaac-Stack-Cube-UR10-Long-Suction-IK-Rel-v0``
+   * - ``IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow``
+     - Keyboard, SpaceMouse
+     - **Arm:** left-arm end-effector pose via RMPFlow.
+       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
+   * - ``IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow``
+     - Keyboard, SpaceMouse
+     - **Arm:** right-arm end-effector pose via RMPFlow.
+       **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
+   * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
      - Keyboard, SpaceMouse
      - **Arm:** relative IK end-effector control.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
-   * - ``Isaac-Stack-Cube-UR10-Short-Suction-IK-Rel-v0``
+   * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
-   * - ``Isaac-Reach-Franka-IK-Abs-v0``
-     - Keyboard, Gamepad, SpaceMouse
-     - **Arm:** absolute IK end-effector control. Gripper disabled.
-   * - ``Isaac-Reach-Franka-IK-Rel-v0``
+   * - ``IsaacContrib-Reach-Franka-IK-Rel``
      - Keyboard, Gamepad, SpaceMouse
      - **Arm:** relative IK end-effector control. Gripper disabled.
 
+
+.. note::
+
+   Humanoid arms (e.g. Galbot, Agibot) have joint limits that inverse kinematics must respect.
+   The differential IK controller ignores these limits, so RMPFlow is preferred for teleoperating
+   them as it enforces joint limits while solving IK. Consequently, the arm may occasionally stop
+   responding when the commanded target pose is unreachable within those limits -- this is expected,
+   not a bug.
 
 .. _isaac-teleop-switching-input-mode:
 
@@ -746,7 +765,7 @@ for Apple Vision Pro, or pass a full file path for a custom profile:
 
    # Use the AVP profile
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit --xr \
        --cloudxr_env avp
 
@@ -777,13 +796,13 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
 
    # Disable via CLI flag
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit --xr \
        --no-auto_launch_cloudxr
 
    # Or disable via environment variable
    ISAACLAB_CXR_SKIP_AUTOLAUNCH=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit --xr
 
 
@@ -858,7 +877,7 @@ uses ``create_isaac_teleop_device()`` -- no ``--teleop_device`` flag is needed:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit \
        --xr
 
@@ -869,7 +888,7 @@ the input device:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-       --task Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0 \
+       --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow \
        --visualizer kit \
        --teleop_device keyboard
 
@@ -992,6 +1011,20 @@ Optimize XR Performance
    in real time -- for example on lower-spec GPUs, in scenes with many lights or complex
    materials, or when you have already configured ``sim.dt`` and ``sim.render_interval`` and
    still see dropped frames.
+
+   .. admonition:: Known issue
+      :class: important
+
+      Starting an XR session while RTX - Minimal is already the active renderer is a known
+      issue: robot control inputs may never be applied and teleoperation stays non-functional,
+      with no error reported. Switching to RTX - Minimal *after* the XR session has started and
+      teleoperation is confirmed working is not affected.
+
+      As a workaround, start under the default renderer before switching to RTX - Minimal:
+
+      #. Launch Isaac Lab with the default renderer and start the XR session.
+      #. Confirm that teleoperation is working (the robot responds to your hand motions).
+      #. Switch the viewport renderer to **RTX - Minimal** as described below.
 
    To enable it, click the renderer dropdown at the top-left of the Isaac Lab viewport and
    select **RTX - Minimal**:

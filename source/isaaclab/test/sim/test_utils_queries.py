@@ -87,6 +87,14 @@ def test_get_first_matching_ancestor_prim():
     assert isaaclab_result is None
 
 
+def test_matches_path_expr_prefix():
+    path_expr = "/World/envs/env_.*/Robot"
+    assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
+    assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
+    assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")
+    assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot/base")
+
+
 def test_get_all_matching_child_prims():
     """Test get_all_matching_child_prims() function."""
     # create scene

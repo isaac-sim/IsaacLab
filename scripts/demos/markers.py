@@ -7,42 +7,47 @@
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/markers.py
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="This script demonstrates different types of markers.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# demos should open Kit visualizer by default
+parser = argparse.ArgumentParser(
+    description="This script demonstrates different types of markers.",
+    conflict_handler="resolve",
+)
+parser.add_argument("--physics", default="physx", choices=["physx"], help="Physics backend.")
+# Newton visualizer not supported for markers
+parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
-# parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.sim import SimulationContext
+
+##
+# Pre-defined configs
+##
+from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.math import quat_from_angle_axis
 
+if TYPE_CHECKING:
+    from isaaclab.markers import VisualizationMarkers
 
-def define_markers() -> VisualizationMarkers:
+
+def define_markers() -> "VisualizationMarkers":
     """Define markers with various different shapes."""
     marker_cfg = VisualizationMarkersCfg(
         prim_path="/Visuals/myMarkers",
@@ -90,67 +95,66 @@ def define_markers() -> VisualizationMarkers:
             ),
         },
     )
-    return VisualizationMarkers(marker_cfg)
+    return marker_cfg.class_type(marker_cfg)
 
 
 def main():
     """Main function."""
-    # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # Load kit helper
+        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([0.0, 18.0, 12.0], [0.0, 3.0, 0.0])
 
-    # Spawn things into stage
-    # Lights
-    cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    cfg.func("/World/Light", cfg)
+        # Spawn things into stage
+        # Lights
+        cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        cfg.func("/World/Light", cfg)
 
-    # create markers
-    my_visualizer = define_markers()
+        # create markers
+        my_visualizer = define_markers()
 
-    # define a grid of positions where the markers should be placed
-    num_markers_per_type = 5
-    grid_spacing = 2.0
-    # Calculate the half-width and half-height
-    half_width = (num_markers_per_type - 1) / 2.0
-    half_height = (my_visualizer.num_prototypes - 1) / 2.0
-    # Create the x and y ranges centered around the origin
-    x_range = torch.arange(-half_width * grid_spacing, (half_width + 1) * grid_spacing, grid_spacing)
-    y_range = torch.arange(-half_height * grid_spacing, (half_height + 1) * grid_spacing, grid_spacing)
-    # Create the grid
-    x_grid, y_grid = torch.meshgrid(x_range, y_range, indexing="ij")
-    x_grid = x_grid.reshape(-1)
-    y_grid = y_grid.reshape(-1)
-    z_grid = torch.zeros_like(x_grid)
-    # marker locations
-    marker_locations = torch.stack([x_grid, y_grid, z_grid], dim=1)
-    marker_indices = torch.arange(my_visualizer.num_prototypes).repeat(num_markers_per_type)
+        # define a grid of positions where the markers should be placed
+        num_markers_per_type = 5
+        grid_spacing = 2.0
+        # Calculate the half-width and half-height
+        half_width = (num_markers_per_type - 1) / 2.0
+        half_height = (my_visualizer.num_prototypes - 1) / 2.0
+        # Create the x and y ranges centered around the origin
+        x_range = torch.arange(-half_width * grid_spacing, (half_width + 1) * grid_spacing, grid_spacing)
+        y_range = torch.arange(-half_height * grid_spacing, (half_height + 1) * grid_spacing, grid_spacing)
+        # Create the grid
+        x_grid, y_grid = torch.meshgrid(x_range, y_range, indexing="ij")
+        x_grid = x_grid.reshape(-1)
+        y_grid = y_grid.reshape(-1)
+        z_grid = torch.zeros_like(x_grid)
+        # marker locations
+        marker_locations = torch.stack([x_grid, y_grid, z_grid], dim=1)
+        marker_indices = torch.arange(my_visualizer.num_prototypes).repeat(num_markers_per_type)
 
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
 
-    # Yaw angle
-    yaw = torch.zeros_like(marker_locations[:, 0])
-    # Simulate physics
-    while simulation_app.is_running():
-        # rotate the markers around the z-axis for visualization
-        marker_orientations = quat_from_angle_axis(yaw, torch.tensor([0.0, 0.0, 1.0]))
-        # visualize
-        my_visualizer.visualize(marker_locations, marker_orientations, marker_indices=marker_indices)
-        # roll corresponding indices to show how marker prototype can be changed
-        if yaw[0].item() % (0.5 * torch.pi) < 0.01:
-            marker_indices = torch.roll(marker_indices, 1)
-        # perform step
-        sim.step()
-        # increment yaw
-        yaw += 0.01
+        # Yaw angle
+        yaw = torch.zeros_like(marker_locations[:, 0])
+        # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+        while sim.is_headless_or_exist_active_visualizer():
+            # rotate the markers around the z-axis for visualization
+            marker_orientations = quat_from_angle_axis(yaw, torch.tensor([0.0, 0.0, 1.0]))
+            # visualize
+            my_visualizer.visualize(marker_locations, marker_orientations, marker_indices=marker_indices)
+            # roll corresponding indices to show how marker prototype can be changed
+            if yaw[0].item() % (0.5 * torch.pi) < 0.01:
+                marker_indices = torch.roll(marker_indices, 1)
+            # perform step
+            sim.step()
+            # increment yaw
+            yaw += 0.01
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

@@ -397,14 +397,14 @@ class ActionsCfg:
             fail_on_joint_limit_violation=False,
             variable_input_tasks=[
                 FrameTaskCfg(
-                    frame="g1_29dof_rev_1_0_left_wrist_yaw_link",
+                    frame="left_wrist_yaw_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=2.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
                 FrameTaskCfg(
-                    frame="g1_29dof_rev_1_0_right_wrist_yaw_link",
+                    frame="right_wrist_yaw_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=2.0,  # [cost] / [rad]
                     lm_damping=10,  # dampening for solver for step jumps
@@ -414,8 +414,8 @@ class ActionsCfg:
                     cost=0.5,
                     lm_damping=1,
                     controlled_frames=[
-                        "g1_29dof_rev_1_0_left_wrist_yaw_link",
-                        "g1_29dof_rev_1_0_right_wrist_yaw_link",
+                        "left_wrist_yaw_link",
+                        "right_wrist_yaw_link",
                     ],
                     controlled_joints=[
                         "left_shoulder_pitch_joint",

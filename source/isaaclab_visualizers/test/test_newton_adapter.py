@@ -9,8 +9,11 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import numpy as np
 import torch
+import warp as wp
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
     apply_viewer_visible_worlds,
@@ -99,6 +102,176 @@ def test_apply_viewer_visible_worlds_delegates_to_resolved():
 
     apply_viewer_visible_worlds(_V(), env_ids=None, max_visible_envs=None, num_envs=3)
     assert calls[-1] is None
+
+
+def test_newton_visualizer_cfg_exposes_particle_options():
+    cfg = NewtonVisualizerCfg(show_particles=True, particle_color=(0.1, 0.2, 0.3))
+
+    assert cfg.show_particles is True
+    assert cfg.particle_color == (0.1, 0.2, 0.3)
+
+
+def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+
+    visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
+
+    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+    assert visualizer._resolve_initial_camera_pose() == ((1.0, 2.0, 3.0), (0.0, 0.0, 1.0))
+
+
+def test_newton_visualizer_set_camera_view_updates_active_viewer():
+    """NewtonVisualizer should honor SimulationContext camera updates."""
+
+    class _FakeCamera:
+        def __init__(self):
+            self.pos = None
+            self.look_at_calls = []
+
+        def look_at(self, target):
+            self.look_at_calls.append(tuple(target))
+
+    class _FakeViewer:
+        def __init__(self):
+            self.camera = _FakeCamera()
+
+    viewer = _FakeViewer()
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+    visualizer._viewer = viewer
+
+    visualizer.set_camera_view((1, 2, 3), (0, 0, 1))
+
+    assert (viewer.camera.pos.x, viewer.camera.pos.y, viewer.camera.pos.z) == (1.0, 2.0, 3.0)
+    assert viewer.camera.look_at_calls == [(0.0, 0.0, 1.0)]
+    assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
+    assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+
+
+def test_newton_viewer_particle_color_override(monkeypatch):
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.device = "cpu"
+    viewer.objects = {}
+    viewer.model_changed = False
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    viewer._particle_color_buffer = None
+    viewer._particle_color_buffer_count = 0
+    viewer._particle_color_buffer_value = None
+    points = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, points, radii, colors, hidden))
+
+    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
+
+    viewer.log_points("/model/particles", points, colors=None)
+
+    name, _, _, colors, hidden = calls[-1]
+    assert name == "/model/particles"
+    assert hidden is False
+    assert isinstance(colors, wp.array)
+    assert colors.shape[0] == 4
+    np.testing.assert_allclose(colors.numpy()[0], np.array([0.1, 0.2, 0.3], dtype=np.float32), rtol=1.0e-6)
+
+
+def test_newton_viewer_particle_color_override_reuses_existing_color_buffer(monkeypatch):
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.device = "cpu"
+    viewer.model_changed = False
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    viewer._particle_color_buffer = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    viewer._particle_color_buffer_count = 4
+    viewer._particle_color_buffer_value = (0.1, 0.2, 0.3)
+    viewer.objects = {"/model/particles": SimpleNamespace(num_instances=4)}
+    points = wp.zeros(4, dtype=wp.vec3, device="cpu")
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, colors))
+
+    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
+
+    viewer.log_points("/model/particles", points, colors=object())
+
+    assert calls[-1] == ("/model/particles", None)
+
+
+def test_newton_viewer_particle_color_override_leaves_other_points_unchanged(monkeypatch):
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.particle_color = (0.1, 0.2, 0.3)
+    points = wp.zeros(1, dtype=wp.vec3, device="cpu")
+    original_colors = object()
+    calls = []
+
+    def _log_points(self, name, points, radii=None, colors=None, hidden=False):
+        calls.append((name, colors))
+
+    monkeypatch.setattr(ViewerGL, "log_points", _log_points)
+
+    viewer.log_points("/debug/points", points, colors=original_colors)
+
+    assert calls[-1] == ("/debug/points", original_colors)
+
+
+def test_newton_viewer_fast_paths_all_active_mpm_particles(monkeypatch):
+    import newton as nt
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer.device = "cpu"
+    viewer.model_changed = False
+    viewer.particle_color = None
+    viewer.show_particles = True
+    viewer._mpm_particle_flags_cache_key = None
+    viewer._mpm_particles_all_active = False
+    viewer.model = SimpleNamespace(
+        mpm=object(),
+        particle_count=3,
+        particle_flags=wp.array([int(nt.ParticleFlags.ACTIVE)] * 3, dtype=wp.int32, device="cpu"),
+        particle_radius=wp.ones(3, dtype=wp.float32, device="cpu"),
+    )
+    state = SimpleNamespace(particle_q=wp.zeros(3, dtype=wp.vec3, device="cpu"))
+    calls = []
+
+    def _log_points(self, **kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(NewtonViewerGL, "log_points", _log_points)
+
+    viewer._log_particles(state)
+
+    assert calls[-1]["name"] == "/model/particles"
+    assert calls[-1]["points"] is state.particle_q
+    assert calls[-1]["radii"] is viewer.model.particle_radius
+    assert calls[-1]["hidden"] is False
+
+
+def test_newton_viewer_inactive_mpm_particles_use_newton_filter(monkeypatch):
+    import newton as nt
+    from newton.viewer import ViewerGL
+
+    viewer = NewtonViewerGL.__new__(NewtonViewerGL)
+    viewer._mpm_particle_flags_cache_key = None
+    viewer._mpm_particles_all_active = False
+    viewer.model = SimpleNamespace(
+        mpm=object(),
+        particle_count=2,
+        particle_flags=wp.array([int(nt.ParticleFlags.ACTIVE), 0], dtype=wp.int32, device="cpu"),
+    )
+    state = object()
+    fallback_calls = []
+
+    monkeypatch.setattr(ViewerGL, "_log_particles", lambda self, state: fallback_calls.append(state))
+
+    viewer._log_particles(state)
+
+    assert fallback_calls == [state]
 
 
 class _BodyQ:

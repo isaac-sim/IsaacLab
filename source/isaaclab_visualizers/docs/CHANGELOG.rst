@@ -1,6 +1,54 @@
 Changelog
 ---------
 
+1.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an explicit ``pyglet>=2.1.6,<3`` dependency for the Newton visualizer
+  extra so the OpenGL viewer does not rely on ambient transitive installs.
+
+
+1.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the visualizer extras' ``newton[sim]`` dependency pin to use Newton commit
+  ``811968bfb7cc7ff4e37b9260a2ba56930a3e605e``.
+
+
+0.1.6 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` now skips Newton's
+  per-frame active-particle compaction (two device-to-host reads per render)
+  when an MPM model's static particle flags are all active, and re-uploads the
+  particle color buffer only when the point count grows or the configured color
+  changes.
+
+
+0.1.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton visualizer configuration options for showing particles and
+  setting their color.
+
+Fixed
+^^^^^
+
+* Fixed ``set_camera_view`` updates for the Newton visualizer.
+
+
 0.1.4 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~
 

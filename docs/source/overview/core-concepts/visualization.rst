@@ -41,7 +41,7 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Warp-based rendering, browser-based, share URL, visualization markers
 
 
-*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+*The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
 
 .. figure:: ../../_static/visualizers/ov_viz.jpg
    :width: 100%
@@ -288,7 +288,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -304,7 +304,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -320,7 +320,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer kit \
      --video \
@@ -505,6 +505,11 @@ Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no exte
 management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
 starting a new server, initialization fails with a clear port-conflict error.
 
+To save a replay, set ``record_to_rrd`` to the output ``.rrd`` path. Enable
+``keep_historical_data`` and ``keep_scalar_history`` when you want transform and scalar history to be available
+for timeline scrubbing. After the run, open the Rerun web viewer and press ``Ctrl+O`` to load the saved ``.rrd`` file.
+
+Note, the timeline UI elements are for .rrd recording playback timeline scrubbing.
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
@@ -639,6 +644,18 @@ On some system configurations, the Newton visualizer may display warnings about 
 
 The visualizer will still function correctly but may experience reduced performance due to falling back to
 CPU copy operations instead of direct GPU memory sharing.
+
+
+**Newton Visualizer OpenGL Context Failures**
+
+The Newton visualizer is an OpenGL window. If pyglet reports that
+``glCreateShader`` is not exported or that OpenGL 2.0 is required, the Python
+process did not receive a usable OpenGL 2.0+ context from the active Windows or
+Linux display session. This usually means the process is running in a
+non-interactive/service session, through a remote desktop path without GPU
+OpenGL acceleration, or with a software/basic OpenGL provider instead of the
+NVIDIA driver. Run from a GPU-backed interactive display session, or omit
+``--visualizer newton`` for headless inference.
 
 
 **Newton Visualizer on Spark with Conda**

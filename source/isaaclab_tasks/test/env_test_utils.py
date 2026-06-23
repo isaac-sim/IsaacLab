@@ -300,10 +300,10 @@ def _run_environments(
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if num_envs == 32 and task_name in [
-        "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
-        "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
-        "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
-        "Isaac-PickPlace-G1-InspireFTP-Abs-v0",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
+        "IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
+        "IsaacContrib-PickPlace-G1-InspireFTP-Abs",
     ]:
         return
 
@@ -316,7 +316,7 @@ def _run_environments(
         return
 
     # skip automate environments as they require cuda installation
-    if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
+    if task_name in ["IsaacContrib-AutoMate-Assembly-Direct", "IsaacContrib-AutoMate-Disassembly-Direct"]:
         return
 
     # skip skillgen environments as they require cuRobo installation;

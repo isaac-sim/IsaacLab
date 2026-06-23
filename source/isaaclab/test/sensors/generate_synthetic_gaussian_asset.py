@@ -26,13 +26,14 @@ from typing import TYPE_CHECKING
 import torch
 from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
@@ -231,6 +232,32 @@ _AGGRESSIVE_VIGNETTING_ALPHA1 = -1.8
 _AGGRESSIVE_EXPOSURE_OFFSET = -5.0
 
 
+_PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN = 241_961
+_PPISP_CONTROLLER_OFF_CONV1_W = 0
+_PPISP_CONTROLLER_OFF_CONV1_B = _PPISP_CONTROLLER_OFF_CONV1_W + 16 * 3
+_PPISP_CONTROLLER_OFF_CONV2_W = _PPISP_CONTROLLER_OFF_CONV1_B + 16
+_PPISP_CONTROLLER_OFF_CONV2_B = _PPISP_CONTROLLER_OFF_CONV2_W + 32 * 16
+_PPISP_CONTROLLER_OFF_CONV3_W = _PPISP_CONTROLLER_OFF_CONV2_B + 32
+_PPISP_CONTROLLER_OFF_CONV3_B = _PPISP_CONTROLLER_OFF_CONV3_W + 64 * 32
+_PPISP_CONTROLLER_OFF_TRUNK0_W = _PPISP_CONTROLLER_OFF_CONV3_B + 64
+_PPISP_CONTROLLER_OFF_TRUNK0_B = _PPISP_CONTROLLER_OFF_TRUNK0_W + 128 * 1601
+_PPISP_CONTROLLER_OFF_TRUNK1_W = _PPISP_CONTROLLER_OFF_TRUNK0_B + 128
+_PPISP_CONTROLLER_OFF_TRUNK1_B = _PPISP_CONTROLLER_OFF_TRUNK1_W + 128 * 128
+_PPISP_CONTROLLER_OFF_TRUNK2_W = _PPISP_CONTROLLER_OFF_TRUNK1_B + 128
+_PPISP_CONTROLLER_OFF_TRUNK2_B = _PPISP_CONTROLLER_OFF_TRUNK2_W + 128 * 128
+_PPISP_CONTROLLER_OFF_EXP_W = _PPISP_CONTROLLER_OFF_TRUNK2_B + 128
+_PPISP_CONTROLLER_OFF_EXP_B = _PPISP_CONTROLLER_OFF_EXP_W + 128
+_PPISP_CONTROLLER_OFF_COL_W = _PPISP_CONTROLLER_OFF_EXP_B + 1
+_PPISP_CONTROLLER_OFF_COL_B = _PPISP_CONTROLLER_OFF_COL_W + 8 * 128
+
+_PPISP_CONTROLLER_TOTAL_WEIGHTS = _PPISP_CONTROLLER_OFF_COL_B + 8
+if _PPISP_CONTROLLER_TOTAL_WEIGHTS != _PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN:
+    raise RuntimeError(
+        "Synthetic PPISP controller fixture offsets are inconsistent: "
+        f"{_PPISP_CONTROLLER_TOTAL_WEIGHTS} != {_PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN}."
+    )
+
+
 def make_aggressive_ppisp_cfg(*, responsivity: float = 1.0) -> PpispCfg:
     """Return a :class:`~isaaclab_ppisp.PpispCfg` with every PPISP feature engaged enough
     to be assertable in a downstream test.
@@ -300,6 +327,105 @@ def make_aggressive_ppisp_cfg(*, responsivity: float = 1.0) -> PpispCfg:
         "crfCenterB": 0.0,
     }
     return normalize_ppisp_cfg(PpispCfg(inputs=inputs))
+
+
+def make_neutral_ppisp_cfg(*, responsivity: float = 1.0) -> PpispCfg:
+    """Return a mild static PPISP cfg used as the camera-attribute negative control."""
+    return normalize_ppisp_cfg(PpispCfg(inputs={"responsivity": responsivity, "exposureOffset": 0.0}))
+
+
+def assert_images_meaningfully_different(
+    reference_rgb: torch.Tensor,
+    candidate_rgb: torch.Tensor,
+    *,
+    min_mean_abs_diff: float = 3.0,
+    label: str = "",
+) -> None:
+    """Assert two LDR RGB tiles differ enough to prove PPISP attributes changed output."""
+    prefix = f"[{label}] " if label else ""
+    diff = (reference_rgb[..., :3].float() - candidate_rgb[..., :3].float()).abs()
+    mean_abs_diff = diff.mean().item()
+    assert mean_abs_diff > min_mean_abs_diff, (
+        f"{prefix}image difference too small: mean_abs_diff={mean_abs_diff:.3f}, "
+        f"expected > {min_mean_abs_diff}. The authored PPISP camera attributes may not be applied."
+    )
+
+
+def assert_ppisp_controller_matches_static(
+    static_rgb: torch.Tensor,
+    controller_rgb: torch.Tensor,
+    *,
+    max_mean_abs_diff: float = 8.0,
+    label: str = "",
+) -> None:
+    """Assert deterministic controller output matches the equivalent static PPISP cfg."""
+    prefix = f"[{label}] " if label else ""
+    diff = (static_rgb[..., :3].float() - controller_rgb[..., :3].float()).abs()
+    mean_abs_diff = diff.mean().item()
+    assert mean_abs_diff < max_mean_abs_diff, (
+        f"{prefix}controller PPISP differs from static reference: mean_abs_diff={mean_abs_diff:.3f}, "
+        f"expected < {max_mean_abs_diff}."
+    )
+
+
+def _deterministic_controller_weights(ppisp_cfg: PpispCfg) -> tuple[float, ...]:
+    inputs = ppisp_cfg.inputs
+    weights = [0.0] * _PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN
+    weights[_PPISP_CONTROLLER_OFF_EXP_B] = float(inputs["exposureOffset"])
+    color_values = (
+        *_float2(inputs["colorLatentBlue"]),
+        *_float2(inputs["colorLatentRed"]),
+        *_float2(inputs["colorLatentGreen"]),
+        *_float2(inputs["colorLatentNeutral"]),
+    )
+    for i, value in enumerate(color_values):
+        weights[_PPISP_CONTROLLER_OFF_COL_B + i] = value
+    return tuple(weights)
+
+
+def _float2(value: float | tuple[float, float]) -> tuple[float, float]:
+    assert not isinstance(value, float)
+    return (float(value[0]), float(value[1]))
+
+
+def _camera_path_for_env(env_id: int = 0) -> str:
+    return f"/World/envs/env_{env_id}/{SYNTHETIC_GAUSSIAN_SCENE_REL_PATH}/Cameras/{SYNTHETIC_GAUSSIAN_CAMERA_NAME}"
+
+
+def _set_ppisp_camera_attrs(
+    stage: Usd.Stage,
+    inputs: dict[str, float | tuple[float, float]],
+    *,
+    controller_weights: tuple[float, ...] | None = None,
+) -> None:
+    camera_prim = stage.GetPrimAtPath(_camera_path_for_env(0))
+    if not camera_prim or not camera_prim.IsValid():
+        raise RuntimeError(f"Synthetic PPISP camera prim not found: {_camera_path_for_env(0)}")
+    for name, value in inputs.items():
+        if isinstance(value, tuple):
+            camera_prim.CreateAttribute(f"ppisp:{name}", Sdf.ValueTypeNames.Float2).Set(
+                Gf.Vec2f(float(value[0]), float(value[1]))
+            )
+        else:
+            camera_prim.CreateAttribute(f"ppisp:{name}", Sdf.ValueTypeNames.Float).Set(float(value))
+    if controller_weights is not None:
+        camera_prim.CreateAttribute("ppisp:controllerWeights", Sdf.ValueTypeNames.FloatArray).Set(
+            Vt.FloatArray(controller_weights)
+        )
+
+
+def author_static_ppisp_camera_attrs(stage: Usd.Stage, *, ppisp_cfg: PpispCfg) -> None:
+    """Author static PPISP camera attributes on the synthetic camera."""
+    _set_ppisp_camera_attrs(stage, ppisp_cfg.inputs)
+
+
+def author_controller_ppisp_camera_attrs(stage: Usd.Stage, *, ppisp_cfg: PpispCfg) -> None:
+    """Author PPISP camera attributes plus deterministic controller weights."""
+    _set_ppisp_camera_attrs(
+        stage,
+        ppisp_cfg.inputs,
+        controller_weights=_deterministic_controller_weights(ppisp_cfg),
+    )
 
 
 def assert_ppisp_invariants(
@@ -572,3 +698,95 @@ def render_synthetic_gaussian_scene(
         outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
         del camera
         return outputs
+
+
+def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+    usd_path: str,
+    *,
+    sim_cfg: SimulationCfg,
+    renderer_cfg: RendererCfg,
+    ppisp_cfg: PpispCfg,
+    data_types: list[str],
+    num_envs: int = 1,
+    height: int = 128,
+    width: int = 128,
+    sim_dt: float = 1.0 / 60.0,
+    stabilisation_steps: int = 5,
+) -> dict[str, torch.Tensor]:
+    """Render the synthesised gaussian asset through authored static PPISP camera attributes.
+
+    The camera uses :class:`CameraISPMode.AUTO_CAMERA`; renderer backends must
+    discover the camera-authored PPISP attributes and route them through their
+    PPISP workflow.
+    """
+    with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
+        author_static_ppisp_camera_attrs(sim.stage, ppisp_cfg=ppisp_cfg)
+        return _render_synthetic_gaussian_camera(
+            renderer_cfg=renderer_cfg,
+            data_types=data_types,
+            height=height,
+            width=width,
+            sim_dt=sim_dt,
+            stabilisation_steps=stabilisation_steps,
+            isp_cfg=CameraISPMode.AUTO_CAMERA,
+            sim=sim,
+        )
+
+
+def render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
+    usd_path: str,
+    *,
+    sim_cfg: SimulationCfg,
+    renderer_cfg: RendererCfg,
+    ppisp_cfg: PpispCfg,
+    data_types: list[str],
+    num_envs: int = 1,
+    height: int = 128,
+    width: int = 128,
+    sim_dt: float = 1.0 / 60.0,
+    stabilisation_steps: int = 5,
+) -> dict[str, torch.Tensor]:
+    """Render the synthesised gaussian asset through camera-authored controller weights."""
+    with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
+        author_controller_ppisp_camera_attrs(sim.stage, ppisp_cfg=ppisp_cfg)
+        return _render_synthetic_gaussian_camera(
+            renderer_cfg=renderer_cfg,
+            data_types=data_types,
+            height=height,
+            width=width,
+            sim_dt=sim_dt,
+            stabilisation_steps=stabilisation_steps,
+            isp_cfg=CameraISPMode.AUTO_CAMERA,
+            sim=sim,
+        )
+
+
+def _render_synthetic_gaussian_camera(
+    *,
+    renderer_cfg: RendererCfg,
+    data_types: list[str],
+    height: int,
+    width: int,
+    sim_dt: float,
+    stabilisation_steps: int,
+    isp_cfg: PpispCfg | CameraISPMode | None,
+    sim: SimulationContext,
+) -> dict[str, torch.Tensor]:
+    cfg = CameraCfg(
+        prim_path=SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+        update_period=0.0,
+        height=height,
+        width=width,
+        data_types=data_types,
+        spawn=None,
+        isp_cfg=isp_cfg,
+        renderer_cfg=renderer_cfg,
+    )
+    camera = Camera(cfg)
+    sim.reset()
+    for _ in range(stabilisation_steps):
+        sim.step()
+    camera.update(sim_dt)
+    outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
+    del camera
+    return outputs

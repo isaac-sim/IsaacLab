@@ -1140,8 +1140,21 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        # Detect a known incompatibility between Isaac Lab and Isaac Sim full-app experiences.
+        if self._livestream in {1, 2} and self._experience_depends_on_isaacsim_exp_full(self._sim_experience_file):
+            raise ValueError(
+                "The experience file depends on 'isaacsim.exp.full', which is known to hang or invalidate PhysX "
+                "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
+                "AppLauncher can select an Isaac Lab experience file, or remove the 'isaacsim.exp.full' dependency."
+            )
         self._apply_rtx_determinism = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
+
+    @staticmethod
+    def _experience_depends_on_isaacsim_exp_full(experience_file: str) -> bool:
+        """Return whether a Kit experience directly depends on ``isaacsim.exp.full``."""
+        with open(experience_file, encoding="utf-8") as file:
+            return re.search(r'^\s*["\']isaacsim\.exp\.full["\']\s*=', file.read(), re.MULTILINE) is not None
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings."""
@@ -1180,12 +1193,18 @@ class AppLauncher:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pyproject.toml
+        # do a mark and sweep to remove any -m pytest, -m isaacsim_ci, -m windows_ci, -m arm_ci,
+        # and -c **/pyproject.toml
         indexes_to_remove = []
         for idx, arg in enumerate(sys.argv[:-1]):
             if arg == "-m":
                 value_for_dash_m = sys.argv[idx + 1]
-                if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
+                if (
+                    "pytest" in value_for_dash_m
+                    or "isaacsim_ci" in value_for_dash_m
+                    or "windows_ci" in value_for_dash_m
+                    or "arm_ci" in value_for_dash_m
+                ):
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
             if arg.startswith("--config-file=") and "pyproject.toml" in arg:

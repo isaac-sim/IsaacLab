@@ -126,6 +126,9 @@ class NewtonCfg(PhysicsCfg):
     - :class:`XPBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
+    :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
+    implicit MPM treats rigid geometry as colliders internally.
+
     If ``None`` (default), a pipeline with ``broad_phase="explicit"`` is created
     automatically.  Set this to a :class:`NewtonCollisionPipelineCfg` to customize
     parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
@@ -142,6 +145,13 @@ class NewtonCfg(PhysicsCfg):
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
     construction via :func:`~isaaclab.utils.checked_apply`. See
     :class:`NewtonShapeCfg` for the declared fields.
+    """
+
+    simplify_meshes: bool = True
+    """Whether Newton replication simplifies mesh colliders to convex hulls.
+
+    Keep this enabled for most rigid-body scenes. Disable it when exact triangle
+    meshes are intentional, for example thin or hollow MPM colliders.
     """
 
     def __post_init__(self):

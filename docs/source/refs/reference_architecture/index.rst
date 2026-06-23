@@ -170,7 +170,7 @@ network policy and value function. To train the RL agent to solve the task, you 
 the hyperparameters such as number of epochs, learning rate, etc. for training and the
 policy/value model architecture. This is defined in the training configuration file specific
 to the RL library you want to use. Examples are created under the agent's folder in each task directory.
-See an example of `RSL-RL <../../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for Anymal-B.
+See an example of `RSL-RL <../../../../source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/config/anymal_b/agents/rsl_rl_ppo_cfg.py>`__ for AnymalB.
 
 
 .. _ra-register-gym:
