@@ -28,14 +28,3 @@ Deprecated
   instead.  The deprecated methods still work but emit a one-time
   ``DeprecationWarning`` per class and open a single-statement writer scope
   internally.
-
-Removed
-^^^^^^^
-
-* **Breaking:** Removed ``set_world_scales`` and ``set_local_scales``
-  from :class:`~isaaclab.sim.views.BaseFrameView` (and all subclasses).
-  These were introduced in this release cycle without a stable downstream
-  user, so they are removed outright (no deprecation cycle).  Use
-  ``with view.xform_world_space_writer() as w: w.set_scales(...)`` (or
-  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`)
-  instead.

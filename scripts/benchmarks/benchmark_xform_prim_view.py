@@ -166,6 +166,11 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["initial_world_orientations"] = orientations_t.clone()
 
         # -- set_world_poses -----------------------------------------------
+        # ``.warp`` unwraps the ProxyArray returned by ``get_*_poses`` /
+        # ``get_*_scales`` to the underlying ``wp.array`` that ``wp.clone``
+        # requires.  ProxyArray was introduced in PR #5304 ("ProxyArray and
+        # Asset/Sensor level property caching") which changed the FrameView
+        # getter return type.  Applies to every ``wp.clone`` call below.
         if is_newton:
             new_positions = wp.clone(positions.warp)
             wp.to_torch(new_positions)[:, 2] += 0.1

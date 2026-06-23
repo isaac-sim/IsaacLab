@@ -15,21 +15,12 @@ Added
   Warp kernels that propagate ``local = world * inv(parent)`` and
   ``world = local * parent`` directly on Fabric storage matrices.
 
-* Added Fabric-accelerated ``get_local_poses`` / ``set_local_poses`` to
-  :class:`~isaaclab_physx.sim.views.FabricFrameView`.
-
-  Local-pose operations now use ``wp.indexedfabricarray`` to read/write
+* Added Fabric-accelerated local-pose read/write paths to
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`.  Local-pose
+  operations now use :class:`wp.indexedfabricarray` to read and write
   ``omni:fabric:localMatrix`` directly on the GPU, propagating between
   parent world matrices and child local/world matrices via Warp kernels
   without round-tripping through USD.
-
-* Added lazy per-view dirty tracking: ``set_local_poses`` marks the world
-  matrix dirty and vice-versa, triggering automatic re-propagation only on
-  the next read (no eager kernel launches on the write path).
-
-* Added interleave detection: interleaving ``set_world_poses`` and
-  ``set_local_poses`` on the same view within a frame flushes the stale
-  direction automatically and emits a one-time performance warning.
 
 * Added topology-change recovery via automatic ``PrepareForReuse`` detection
   and per-selection index rebuild.
@@ -37,10 +28,9 @@ Added
 Deprecated
 ^^^^^^^^^^
 
-* Deprecated ``get_scales`` / ``set_scales`` on all ``BaseFrameView`` subclasses.
-  Use the new explicit ``get_local_scales`` / ``set_local_scales`` (operates on
-  ``xformOp:scale`` / ``localMatrix``) or ``get_world_scales`` /
-  ``set_world_scales`` (operates on composed world-space scale) instead.
-  The deprecated methods still work but emit a ``DeprecationWarning``;
-  ``UsdFrameView`` defaults to local, ``FabricFrameView`` defaults to world
-  (preserving prior behavior).
+* Deprecated ``get_scales`` / ``set_scales`` on ``FabricFrameView``.  For
+  reads, use the explicit ``get_local_scales`` (operates on
+  ``localMatrix``) or ``get_world_scales`` (composed world-space scale).
+  For writes, use the writer scope's ``set_scales``.  The deprecated
+  methods still work but emit a ``DeprecationWarning``; ``FabricFrameView``
+  defaults to world (preserving prior behavior).
