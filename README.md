@@ -1,4 +1,4 @@
-<img width="5152" height="1216" alt="image" src="https://github.com/user-attachments/assets/e79fc2ab-05ae-4731-9c1c-a3385cf7facc" />
+<img width="5152" height="2528" alt="image" src="https://github.com/user-attachments/assets/5f6d5986-68be-43b6-80cc-92b866eb2bdc" />
 
 # Conda Environment
 
