@@ -86,20 +86,34 @@ class FabricFrameView(BaseFrameView):
       transactional all-or-nothing semantics, snapshot the matrices
       yourself before entering the scope.
     * **Hierarchy listeners are paused while a writer scope is active.**
-      The writer scope is synchronous Python code, so no simulation step
+      On enter, the writer calls
+      :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
+      :meth:`track_world_xform_changes(False)` (saving the prior state).
+      With tracking on, Fabric would update the dependent xforms itself
+      in two ways the scope wants to keep exclusive:
+
+        1. *Per-write, inside the scope* -- each ``set_*`` call would fire
+           the tracker synchronously and propagate to the opposite-space
+           matrix (and to descendants, where applicable).
+        2. *On the next render tick* -- ``update_world_xforms()`` would
+           replay queued tracker work and potentially derive the wrong
+           direction (e.g. recompute world from local even though we
+           just wrote world).
+
+      We do the dependent-xform update ourselves in one batched kernel
+      at scope exit (see the "eager dual-write" bullet above), so the
+      pause prevents Fabric from doing the same work redundantly during
+      the scope and incorrectly after it.  ``__exit__`` restores the
+      prior tracking state (so we do not re-enable listeners the caller
+      had previously paused).  The renderer's own independent
+      worldMatrix listener is unaffected and still observes our writes.
+
+      Note: the scope is synchronous Python code, so no simulation step
       and no render tick can run while it is open -- callers must not
       advance the simulation from inside the scope (see
       :mod:`isaaclab.sim.views.xform_space_writer` for the full contract).
-      The risk that this pause defends against is the *next* tick that
-      runs after the scope exits.  On enter, the writer calls
-      :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
-      :meth:`track_world_xform_changes(False)` (saving the prior state)
-      so that Kit's hierarchy tracker does not observe our writes as
-      user edits and queue propagation work for the next
-      ``update_world_xforms()`` tick.  ``__exit__`` restores the prior
-      tracking state (so we do not re-enable listeners the caller had
-      previously paused).  The renderer's own independent worldMatrix
-      listener is unaffected and still observes our writes.
+      The "torn data" concern is what motivates that no-step rule; it
+      is separate from why the tracking pause exists.
     * **Two persistent selections, flipped by the writer scope.**  Two
       selections are built once during ``_initialize_fabric`` and kept for
       the view's lifetime:
