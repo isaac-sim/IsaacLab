@@ -222,6 +222,9 @@ class OvPhysxView:
     class ShapeMismatch(OvPhysxViewError):
         """A supplied buffer does not match the binding's element count."""
 
+    class DtypeMismatch(OvPhysxViewError):
+        """A supplied buffer's scalar element type is not ``float32``."""
+
     class DeviceMismatch(OvPhysxViewError):
         """A supplied buffer is on a different device than the binding requires."""
 
@@ -325,7 +328,11 @@ class OvPhysxView:
             return out
         alloc_shape, dtype = self._attribute_dtype(tt, binding)
         buf = wp.zeros(alloc_shape, dtype=dtype, device=device)
-        binding.read(self._read_view(buf, binding))
+        # ``buf`` is freshly allocated here, so it is never a persistent destination: route it
+        # through ``_as_binding_view`` directly rather than ``_read_view``. Caching by ``id(buf)``
+        # could never hit on a later call and would leak one entry (and keep ``buf`` alive) per
+        # call in a step loop -- the read cache only pays off for a reused ``out``/``dst`` buffer.
+        binding.read(self._as_binding_view(buf, binding, "destination"))
         return buf
 
     def read_into(self, name: str | Any, dst: wp.array) -> None:
@@ -346,7 +353,8 @@ class OvPhysxView:
 
         Raises:
             OvPhysxView.DeviceMismatch: If ``dst`` is not on the binding's native device.
-            OvPhysxView.ShapeMismatch: If ``dst``'s element count does not match.
+            OvPhysxView.DtypeMismatch: If ``dst``'s scalar element type is not ``float32``.
+            OvPhysxView.ShapeMismatch: If ``dst`` is non-contiguous or its element count does not match.
         """
         tt = self._resolve(name)
         binding = self._binding(tt)
@@ -377,7 +385,8 @@ class OvPhysxView:
         Raises:
             OvPhysxView.ReadOnlyAttribute: If the attribute is read-only.
             OvPhysxView.DeviceMismatch: If ``values`` is not on the binding's native device.
-            OvPhysxView.ShapeMismatch: If ``values``' element count does not match.
+            OvPhysxView.DtypeMismatch: If ``values``' scalar element type is not ``float32``.
+            OvPhysxView.ShapeMismatch: If ``values`` is non-contiguous or its element count does not match.
         """
         tt = self._resolve(name)
         attr = tensor_type_name(tt)
@@ -585,7 +594,7 @@ class OvPhysxView:
         """
         scalar = getattr(arr.dtype, "_wp_scalar_type_", arr.dtype)
         if scalar is not wp.float32:
-            raise OvPhysxView.ShapeMismatch(
+            raise OvPhysxView.DtypeMismatch(
                 f"{role} must have float32 scalar elements (got dtype "
                 f"{getattr(arr.dtype, '__name__', arr.dtype)}); the view reinterprets bits, "
                 "not values, so a non-float32 dtype would silently corrupt the buffer."
@@ -641,14 +650,17 @@ class OvPhysxView:
     def _as_wp(self, values: Any, device: str) -> wp.array:
         """Coerce ``values`` to a :class:`warp.array`.
 
-        Device-bearing inputs (warp / torch) keep their own device and are validated by
-        the caller (a mismatch raises -- never staged). Device-less host data (numpy
-        arrays, lists) carries no device, so it is materialized directly on ``device``.
+        A :class:`warp.array` is used as-is, keeping its own device (validated by the caller;
+        a mismatch raises and is never staged). Device-less host data (numpy arrays, lists)
+        carries no device, so it is materialized directly on ``device``.
+
+        This view is Warp-native and does **not** special-case framework tensors: bridge a
+        Torch tensor on the caller side with ``view.set_attribute(name, wp.from_torch(t))``.
+        This keeps the device policy explicit and avoids an optional Torch dependency and the
+        fragile detection a built-in conversion would require.
         """
         if isinstance(values, wp.array):
             return values
-        if type(values).__module__.split(".")[0] == "torch":
-            return wp.from_torch(values)
         return wp.array(values, device=device)
 
     def _target_repr(self) -> str:

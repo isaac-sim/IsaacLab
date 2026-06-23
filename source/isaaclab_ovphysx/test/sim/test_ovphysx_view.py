@@ -193,6 +193,18 @@ def test_get_attribute_allocates_fresh_typed_buffer_each_call():
     assert binding.read_calls == 2
 
 
+def test_get_attribute_no_out_does_not_grow_read_cache():
+    # A no-`out` get_attribute allocates a fresh buffer each call, so caching its reinterpret by
+    # id() could never hit on a later call and would leak one entry (keeping the buffer alive) per
+    # call in a step loop. The structured-dtype path must reinterpret directly, never touching the
+    # cache -- the read cache only pays off for a reused `out`/`dst`. Pose is the structured case
+    # (transformf), the one that would have been cached before the fix.
+    view = _make_view(n=3)
+    for _ in range(5):
+        view.get_attribute("rigid_body_pose")
+    assert view._read_views == {}
+
+
 def test_get_attribute_types_pose_and_velocity_falls_back_to_float32():
     view = _make_view(n=3)
     assert view.get_attribute("rigid_body_pose").dtype == wp.transformf
@@ -348,7 +360,7 @@ def test_as_wp_accepts_numpy_float32_and_rejects_float64():
     view.set_attribute("rigid_body_pose", np.zeros((2, 7), dtype=np.float32))
     assert len(view._bindings[TensorType.RIGID_BODY_POSE].write_calls) == 1
     # float64 is not float32-bit-equivalent; reject rather than silently reinterpret.
-    with pytest.raises(OvPhysxView.ShapeMismatch):
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="float32 scalar"):
         view.set_attribute("rigid_body_pose", np.zeros((2, 7), dtype=np.float64))
 
 
@@ -426,7 +438,7 @@ def test_set_attribute_rejects_same_byte_size_wrong_dtype():
     # and get bit-reinterpreted into garbage. It must be rejected, not silently written.
     view = _make_view(n=3)
     int_buf = wp.zeros((3, 7), dtype=wp.int32, device="cpu")
-    with pytest.raises(OvPhysxView.ShapeMismatch, match="float32 scalar"):
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="float32 scalar"):
         view.set_attribute("rigid_body_pose", int_buf)
     assert view._bindings[TensorType.RIGID_BODY_POSE].write_calls == []
 
@@ -434,7 +446,7 @@ def test_set_attribute_rejects_same_byte_size_wrong_dtype():
 def test_set_attribute_rejects_sub_4byte_dtype():
     view = _make_view(n=3)
     half_buf = wp.zeros((3, 7), dtype=wp.float16, device="cpu")
-    with pytest.raises(OvPhysxView.ShapeMismatch, match="float32 scalar"):
+    with pytest.raises(OvPhysxView.DtypeMismatch, match="float32 scalar"):
         view.set_attribute("rigid_body_pose", half_buf)
 
 
