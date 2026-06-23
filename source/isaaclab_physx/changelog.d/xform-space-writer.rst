@@ -23,9 +23,12 @@ Changed
   removed -- the eager dual-write inside the scope makes all of that
   unnecessary.
 
-  The previous three-selection RO/RW layout has been collapsed to two
-  persistent selections, ``_sel_ro`` (worldMatrix=RO, localMatrix=RO) and
-  ``_sel_rw`` (worldMatrix=RW, localMatrix=RW).  The writer scope flips an
-  ``_is_rw`` flag on enter/exit; both selection bundles are kept alive for
-  the view's lifetime, so no selection is rebuilt on flip.  The hierarchy
-  tracking-pause above is the load-bearing renderer-clobber protection.
+  Two persistent Fabric selections are built once during
+  ``_initialize_fabric`` and kept for the view's lifetime: ``_sel_ro``
+  (``worldMatrix=RO, localMatrix=RO``, steady state) and ``_sel_rw``
+  (``worldMatrix=RW, localMatrix=RW``, used inside a writer scope).  The
+  writer flips a single ``_is_rw`` flag on enter/exit; neither selection
+  is rebuilt on the flip.  Renderer correctness comes from the hierarchy
+  tracking pause above; the RO/RW split tells Kit's per-tick
+  ``updateWorldXforms()`` which matrices the user is currently
+  authoring.
