@@ -85,17 +85,22 @@ class FabricFrameView(BaseFrameView):
       The partial write itself is not rolled back -- if you need
       transactional all-or-nothing semantics, snapshot the matrices
       yourself before entering the scope.
-    * **Hierarchy listeners are paused while a writer scope is active.**
-      On enter, the writer calls
+    * **Fabric Hierarchy listeners are paused while a writer scope is
+      active.**  On enter, the writer calls
       :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
       :meth:`track_world_xform_changes(False)` (saving the prior state).
-      Fabric's change tracking is pull-based: a per-attribute listener
-      records writes into a private changelog, and Kit drains and
-      processes that changelog on the next call to
+      Fabric itself is just a flat attribute store; the plugin that
+      keeps ``omni:fabric:worldMatrix`` and ``omni:fabric:localMatrix``
+      mutually consistent across the prim hierarchy is
+      :class:`usdrt.hierarchy.IFabricHierarchy` (a.k.a. Fabric
+      Hierarchy).  Its change tracking is pull-based: a per-attribute
+      listener records writes into a private changelog, and the plugin
+      drains and processes that changelog on the next call to
       ``IFabricHierarchy::update_world_xforms()`` (typically from the
       render path).  "Tracking off" just stops the listener from
-      recording new entries -- writes still land in Fabric storage; they
-      are simply invisible to the next ``update_world_xforms()`` call.
+      recording new entries -- writes still land in Fabric storage;
+      they are simply invisible to the next ``update_world_xforms()``
+      call.
 
       That is exactly what we want.  Inside the scope we write one
       space (world or local) and, at scope exit, derive the other in a
@@ -110,8 +115,9 @@ class FabricFrameView(BaseFrameView):
 
       ``__exit__`` restores the prior tracking state (so we do not
       re-enable listeners the caller had previously paused).  The
-      renderer's own independent worldMatrix listener is unaffected and
-      still observes our writes.
+      Fabric Scene Delegate (FSD) reads ``omni:fabric:worldMatrix``
+      directly from Fabric storage on the render path; it observes our
+      final writes unchanged.
 
       Note: the scope is synchronous Python code, so no simulation step
       and no render tick can run while it is open -- callers must not
