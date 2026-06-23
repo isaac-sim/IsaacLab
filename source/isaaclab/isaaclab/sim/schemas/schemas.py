@@ -1788,7 +1788,7 @@ def define_deformable_body_properties(
     if not vis_mesh_prim.IsValid():
         raise ValueError(f"Mesh prim path '{vis_mesh_prim.GetPrimPath()}' is not valid.")
 
-    # define authors a fresh deformable setup; callers must clear any previous setup before calling this function. 
+    # define authors a fresh deformable setup; callers must clear any previous setup before calling this function.
     # We check the USD namespace to determine which API to use for the deformable body.
     use_omni_physics_apis = getattr(cfg, "_usd_namespace", None) != "newton"
 
@@ -1940,7 +1940,7 @@ def define_deformable_body_properties(
     if schema_name not in list(api_schemas.prependedItems):
         api_schemas.prependedItems = list(api_schemas.prependedItems) + [schema_name]
         root_prim.SetMetadata("apiSchemas", api_schemas)
-        
+
     # set deformable body properties
     modify_deformable_body_properties(prim_path, cfg, stage)
 
@@ -2000,7 +2000,11 @@ def modify_deformable_body_properties(
         return False
     # check if deformable body API is applied
     # TODO: Temporary solution until USD API exists for prim.ApplyAPI("UsdPhysicsDeformableBodyAPI")
-    if "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas() and "UsdPhysicsDeformableBodyAPI" not in deformable_body_prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems():
+    if (
+        "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas()
+        and "UsdPhysicsDeformableBodyAPI"
+        not in deformable_body_prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()
+    ):
         return False
 
     # build cfg dict from dataclass fields only; USD routing is driven by the
