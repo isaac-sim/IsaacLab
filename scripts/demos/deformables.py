@@ -10,8 +10,8 @@
     # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/deformables.py
 
-    # Usage with Newton MJWarp backend and default kit visualizer.
-    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_mjwarp
+    # Usage with Newton VBD backend and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/deformables.py --physics newton_vbd
 
 """
 
@@ -28,12 +28,13 @@ parser = argparse.ArgumentParser(
     description="This script demonstrates how to spawn deformable prims into the scene.",
     conflict_handler="resolve",
 )
-parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
-# Newton visualizer not supported for deformables
-parser.add_argument("--visualizer", default="kit", choices=["kit"], help="Visualizer backend.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_vbd"], help="Physics backend.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
+
+if "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
+    raise ValueError("Newtons visualizer is only compatible with newton physics backend for deformables. Please use --physics newton_vbd.")
 
 import random
 
@@ -54,7 +55,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
 
-if args_cli.physics == "newton_mjwarp":
+if args_cli.physics == "newton_vbd":
     from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
@@ -176,13 +177,13 @@ def design_scene() -> tuple[dict, list[list[float]]]:
         obj_name = random.choice(list(objects_cfg.keys()))
         obj_cfg = objects_cfg[obj_name]
         # randomize the deformable material stiffness
-        if args_cli.physics == "newton_mjwarp" and obj_name == "cloth":
+        if args_cli.physics == "newton_vbd" and obj_name == "cloth":
             obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
             obj_cfg.physics_material.tri_ka = random.uniform(5e3, 5e4)
         else:
             youngs_modulus = random.uniform(5e5, 1e8)
             poissons_ratio = random.uniform(0.25, 0.45)
-            if args_cli.physics == "newton_mjwarp":
+            if args_cli.physics == "newton_vbd":
                 obj_cfg.physics_material.k_mu = youngs_modulus / (2.0 * (1.0 + poissons_ratio))
                 obj_cfg.physics_material.k_lambda = (
                     youngs_modulus * poissons_ratio / ((1.0 + poissons_ratio) * (1.0 - 2.0 * poissons_ratio))
@@ -248,7 +249,7 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        if args_cli.physics == "newton_mjwarp":
+        if args_cli.physics == "newton_vbd":
             physics_cfg = NewtonCfg(
                 solver_cfg=VBDSolverCfg(
                     iterations=5,
