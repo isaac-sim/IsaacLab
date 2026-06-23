@@ -57,12 +57,11 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
 def isaac_rtx_per_env_scene_partition_enabled() -> bool:
     """Return whether per-environment RTX scene partitioning is enabled.
 
-    Partitioning is opt-in: the presence of the
-    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable (regardless
-    of its value) enables authoring of ``primvars:omni:scenePartition`` and
-    ``omni:scenePartition`` on the USD stage.
+    Partitioning is opt-in: set
+    ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` to enable authoring of
+    ``primvars:omni:scenePartition`` and ``omni:scenePartition`` on the USD stage.
     """
-    return "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION" in os.environ
+    return os.environ.get("ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION", "0") == "1"
 
 
 # RTX simple-shading constants.
@@ -194,8 +193,8 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
-        Authoring is only performed when the environment variable
-        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` is set (to any value).
+        Authoring is only performed when
+        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` is set.
         When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
         or ``omni:scenePartition`` attributes are written to the stage.
 
@@ -211,7 +210,7 @@ class IsaacRtxRenderer(BaseRenderer):
 
         logger.debug(
             "Per-environment RTX scene partitioning is enabled"
-            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION)."
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
             " Authoring primvars:omni:scenePartition on %d env(s).",
             num_envs,
         )
