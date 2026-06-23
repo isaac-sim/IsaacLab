@@ -89,24 +89,29 @@ class FabricFrameView(BaseFrameView):
       On enter, the writer calls
       :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
       :meth:`track_world_xform_changes(False)` (saving the prior state).
-      With tracking on, Fabric would update the dependent xforms itself
-      in two ways the scope wants to keep exclusive:
+      Fabric's change tracking is pull-based: a per-attribute listener
+      records writes into a private changelog, and Kit drains and
+      processes that changelog on the next call to
+      ``IFabricHierarchy::update_world_xforms()`` (typically from the
+      render path).  "Tracking off" just stops the listener from
+      recording new entries -- writes still land in Fabric storage; they
+      are simply invisible to the next ``update_world_xforms()`` call.
 
-        1. *Per-write, inside the scope* -- each ``set_*`` call would fire
-           the tracker synchronously and propagate to the opposite-space
-           matrix (and to descendants, where applicable).
-        2. *On the next render tick* -- ``update_world_xforms()`` would
-           replay queued tracker work and potentially derive the wrong
-           direction (e.g. recompute world from local even though we
-           just wrote world).
+      That is exactly what we want.  Inside the scope we write one
+      space (world or local) and, at scope exit, derive the other in a
+      single batched kernel so both matrices are mutually consistent.
+      If tracking were left on, our writes would be queued in the
+      changelog and the next ``update_world_xforms()`` tick would
+      process them -- choosing a canonical direction (e.g. "user
+      authored local, recompute world from it") and potentially
+      overwriting one half of our just-consistent pair.  With tracking
+      paused for the duration of the scope, the changelog stays empty
+      for these prims and the next tick is a no-op for them.
 
-      We do the dependent-xform update ourselves in one batched kernel
-      at scope exit (see the "eager dual-write" bullet above), so the
-      pause prevents Fabric from doing the same work redundantly during
-      the scope and incorrectly after it.  ``__exit__`` restores the
-      prior tracking state (so we do not re-enable listeners the caller
-      had previously paused).  The renderer's own independent
-      worldMatrix listener is unaffected and still observes our writes.
+      ``__exit__`` restores the prior tracking state (so we do not
+      re-enable listeners the caller had previously paused).  The
+      renderer's own independent worldMatrix listener is unaffected and
+      still observes our writes.
 
       Note: the scope is synchronous Python code, so no simulation step
       and no render tick can run while it is open -- callers must not
