@@ -1,4 +1,4 @@
-# IsaacLab CI Performance Regression Gate — System Design
+# IsaacLab CI Performance Smoke Test — System Design
 **Status:** POC / MVP running locally, pending productionization, deployment, deployment features
 **Date:** 2026-06-15
 **Owners:** Angelina Hu, Neil Mehta
@@ -7,7 +7,7 @@
 
 ## 1. Purpose and Use Cases
 
-The performance regression gate runs a fixed benchmark matrix on every PR and blocks merge
+The performance smoke test runs a fixed benchmark matrix on every PR and blocks merge
 when throughput drops below an explicit hard floor or a MAD-derived threshold relative to compatible rolling baseline samples.
 
 **Use cases:**
@@ -17,7 +17,7 @@ when throughput drops below an explicit hard floor or a MAD-derived threshold re
 | Feature PR touches physics or RL code | 5 "always" benchmarks run automatically |
 | PR touches camera/rendering paths | 5 additional Shadow-Vision camera benchmarks added |
 | Any task regresses > k_block × MAD below baseline | Aggregate exits 1; GitHub required check fails |
-| Gate is in advisory mode (`blocking: false`) | Verdicts print but PR is not blocked |
+| smoke test is in advisory mode (`blocking: false`) | Verdicts print but PR is not blocked |
 | Baseline does not yet exist | Seed run: WARN with `no_baseline` (transparent, non-blocking in advisory mode) |
 | Protected branch (main/develop/release) merges | Baseline history extended with structured PASS/WARN samples |
 
@@ -36,7 +36,7 @@ when throughput drops below an explicit hard floor or a MAD-derived threshold re
 3. **Minimal invasiveness** Bench jobs directly call `benchmark_non_rl.py --benchmark_backend json`.
     They do not invoke `tools/conftest.py` at runtime, interfere with existing tests, or modify task code.
 
-4. **Traceability** Every stage leaves informative artifacts. Every bench job writes `perf_regression_gate_result.json`
+4. **Traceability** Every stage leaves informative artifacts. Every bench job writes `perf_smoke_test_result.json`
    regardless of success or failure so the aggregator always has a structured artifact to read.
 
 5. **Lightweight** Bench jobs are only run when necessary and with minimally sufficient configs.
@@ -51,7 +51,7 @@ PR opened (to main / release / develop)
     │
     ▼
 ┌─────────────────────────────────────────┐
-│  .github/workflows/perf-regression-gate.yaml │
+│  .github/workflows/perf-smoke-test.yaml │
 │                                         │
 │  1. Expand task matrix from tasks.json  │
 │  2. Activate tags from changed files    │
@@ -69,9 +69,9 @@ PR opened (to main / release / develop)
       ▼                     ▼
 ┌───────────┐         ┌───────────┐
 │ Phase 2   │   ...   │ Phase 2   │  build_bench_result.py
-│           │         │           │  renames → perf_regression_gate_info.json
+│           │         │           │  renames → perf_smoke_test_info.json
 │           │         │           │  classifies failure_phase
-│           │         │           │  writes perf_regression_gate_result.json
+│           │         │           │  writes perf_smoke_test_result.json
 └─────┬─────┘         └─────┬─────┘
       │                     │
       └──────────┬──────────┘
@@ -85,7 +85,7 @@ PR opened (to main / release / develop)
         └───────┬────────┘
                 │
         ┌───────┴────────┐
-        │  exit 0        │  all PASS/WARN, or gate non-blocking
+        │  exit 0        │  all PASS/WARN, or smoke test non-blocking
         │  exit 1        │  any BLOCK + blocking=true
         │  exit 2        │  any HARD_FAILURE + blocking=true
         └────────────────┘
@@ -100,7 +100,7 @@ IsaacLab/
 ├── .github/
 │   └── workflows/
 │       ├── build.yaml                    MODIFIED: add image_tag output to build job
-│       └── perf-regression-gate.yaml     CI gate workflow
+│       └── perf-smoke-test.yaml     CI smoke test workflow
 │
 └── tools/
     ├── conftest.py                       MODIFIED: one-line import change
@@ -108,7 +108,7 @@ IsaacLab/
     │                                     capture_test_output_with_timeout() borrowed from
     │                                     existing conftest CI infrastructure
     │
-    └── perf_regression_gate/
+    └── perf_smoke_test/
         ├── __init__.py
         ├── tasks.json                    SINGLE SOURCE OF TRUTH — task/backend matrix
         ├── task_config.py                TaskConfig dataclass, load_tasks(), get_task()
@@ -120,11 +120,11 @@ IsaacLab/
         ├── github_gate_context.py        PR/merge/push context + baseline write policy
         ├── gate_types.py                 verdict/failure/threshold enums
         ├── tasks_to_ci_matrix.py         Converts tasks.json → GitHub Actions matrix JSON
-        │                                 (called by perf-regression-gate.yaml build_matrix step)
+        │                                 (called by perf-smoke-test.yaml build_matrix step)
         ├── oracle.py                     compare() → OracleResult; PASS/WARN/BLOCK/HARD_FAILURE
         ├── build_bench_result.py         Phase 2: reads log + benchmark JSON,
         │                                 extracts FPS stats + SW/HW/git provenance,
-        │                                 writes perf_regression_gate_result.json
+        │                                 writes perf_smoke_test_result.json
         ├── aggregate.py                  Phase 3: scans result JSONs, calls oracle,
         │                                 prints table, updates baselines, exits 0/1/2
         ├── baseline_manager.py           load/update baseline, flat-file + git variants
@@ -147,7 +147,7 @@ IsaacLab/
 
 ```
 Local (testing):
-tools/perf_regression_gate/local_baselines/
+tools/perf_smoke_test/local_baselines/
   {gpu_model}/{task_id}/{backend_key}/
     samples.ndjson  append-only structured baseline samples
 
@@ -191,15 +191,15 @@ objects including the raw per-step FPS list but the OmniPerf backend drops these
 
 Runs once per task after Phase 1 completes:
 
-- Renames `benchmark_non_rl_*.json` → `perf_regression_gate_info.json`
+- Renames `benchmark_non_rl_*.json` → `perf_smoke_test_info.json`
 - Classifies failure phase by scanning the benchmark log
 - Parses the info artifact to extract FPS distribution statistics, startup time, GPU diagnostics, and full SW/HW/git provenance
 - Computes `runtime_contract_hash` and publish-only runtime info
-- Writes `perf_regression_gate_result.json` (always written, even on failure)
+- Writes `perf_smoke_test_result.json` (always written, even on failure)
 
 ### Phase 3: `aggregate.py`
 
-Plain Python. Scans `--artifacts_dir` recursively for `perf_regression_gate_result.json`,
+Plain Python. Scans `--artifacts_dir` recursively for `perf_smoke_test_result.json`,
 calls `oracle.compare()` for each, prints the verdict table, optionally updates baselines.
 
 Exit codes: 0 = all clear or non-blocking; 1 = BLOCK + blocking mode; 2 = HARD_FAILURE + blocking mode.
@@ -260,10 +260,10 @@ compare(bench_result, baseline, fps_mean_floor, excluded_frames, artifact_dir)
 **Verdict decision tree:**
 
 ```
-perf_regression_gate_info_present == False?
+perf_smoke_test_info_present == False?
     → HARD_FAILURE (file-based check skipped)
 
-Load perf_regression_gate_info.json, extract fps_series from runtime phase
+Load perf_smoke_test_info.json, extract fps_series from runtime phase
 Apply excluded_frames filter
 filtered empty?
     → HARD_FAILURE
@@ -341,7 +341,7 @@ freshly fetched baseline branch SHA. Accepted PASS/WARN samples are pushed throu
 append-only `samples.ndjson` updates in a temporary worktree, and retries the push
 if another runner updates the branch first.
 
-**Trigger/write policy:** Non-draft PRs and merge-queue candidates run the gate but do
+**Trigger/write policy:** Non-draft PRs and merge-queue candidates run the smoke test but do
 not publish baselines. Protected-branch push events (main/develop/release/*, plus the
 POC branch while enabled) publish accepted PASS/WARN samples through the transactional
 git writer. Feature branch runs are read-only unless `--allow_baseline_update` is set
@@ -351,7 +351,7 @@ for local testing.
 
 ## 11. Artifact Schema (Key Fields)
 
-`perf_regression_gate_result.json` (Phase 2 output):
+`perf_smoke_test_result.json` (Phase 2 output):
 
 ```json
 {
@@ -360,7 +360,7 @@ for local testing.
   "failure_phase": null,
   "wall_time_s": 23.7,
   "startup_time_s": 12.5,
-  "perf_regression_gate_info_present": true,
+  "perf_smoke_test_info_present": true,
   "raw_fps_mean": 1655000.0,
   "raw_fps_std": 9800.0,
   "raw_fps_min": 1632000.0,
@@ -391,7 +391,7 @@ for local testing.
 
 See `module-interfaces.md` for the full schema with all fields.
 
-`perf_regression_gate_info.json` (Phase 1 output, renamed from `benchmark_non_rl_*.json`):
+`perf_smoke_test_info.json` (Phase 1 output, renamed from `benchmark_non_rl_*.json`):
 
 A list of `TestPhase` objects. The oracle reads `"Environment step effective FPS"` from the
 `"runtime"` phase's `"Step Frametimes"` measurement. `build_bench_result.py` also reads
@@ -428,7 +428,7 @@ pip install warp-lang==1.12.0
 **Principle:** Authoritative runs SHOULD execute on a nightly schedule.
 **Deviation:** We run on non-draft PRs and merge-queue candidates, and publish baselines
 from protected-branch pushes.
-**Defense:** The gate is intended to catch merge-time regressions before they land. Baseline
+**Defense:** The smoke test is intended to catch merge-time regressions before they land. Baseline
 publication remains restricted to trusted protected-branch states, and matching prefers
 compatible nearest-ancestor samples when a base SHA is available.
 
@@ -436,7 +436,7 @@ compatible nearest-ancestor samples when a base SHA is available.
 
 **Principle:** Minimum N=10 iterations per benchmark.
 **Deviation:** Each CI run produces one FPS value (mean of 200 post-warmup frames)
-**Defense:** Simulation steps ARE independent samples and this gate is meant to be light-weight.
+**Defense:** Simulation steps ARE independent samples and this smoke test is meant to be light-weight.
 The baseline window accumulates samples across runs, building MAD statistics over
 the true run-to-run variance distribution.
 

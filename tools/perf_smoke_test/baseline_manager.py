@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Baseline storage for the CI performance regression gate
+"""Baseline storage for the CI performance smoke test
 
 The baseline store keeps immutable structured samples in ``samples.ndjson``.
 Threshold stats are calculated over the newest compatible samples instead of
@@ -35,10 +35,10 @@ except ImportError:  # pragma: no cover - supports direct script imports
 SAMPLES_FILENAME = "samples.ndjson"
 _REPO_DIR = Path(__file__).resolve().parent
 _COMMIT_ENV_DEFAULTS = {
-    "GIT_AUTHOR_NAME": "perf-regression-gate",
-    "GIT_AUTHOR_EMAIL": "perf-regression-gate@localhost",
-    "GIT_COMMITTER_NAME": "perf-regression-gate",
-    "GIT_COMMITTER_EMAIL": "perf-regression-gate@localhost",
+    "GIT_AUTHOR_NAME": "perf-smoke-test",
+    "GIT_AUTHOR_EMAIL": "perf-smoke-test@localhost",
+    "GIT_COMMITTER_NAME": "perf-smoke-test",
+    "GIT_COMMITTER_EMAIL": "perf-smoke-test@localhost",
 }
 
 

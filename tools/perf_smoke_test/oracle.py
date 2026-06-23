@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Oracle layer for the CI performance regression gate."""
+"""Oracle layer for the CI performance smoke test"""
 
 import json
 import statistics
@@ -124,8 +124,8 @@ def _hard_failure(
     )
 
 
-def _extract_fps_series(perf_regression_gate_info: list[dict]) -> list[float]:
-    for phase in perf_regression_gate_info:
+def _extract_fps_series(perf_smoke_test_info: list[dict]) -> list[float]:
+    for phase in perf_smoke_test_info:
         if phase.get("phase_name") == "runtime":
             for measurement in phase.get("measurements", []):
                 if measurement.get("name", "").endswith("Step Frametimes"):
@@ -163,10 +163,10 @@ def compare(
             note=str(config_mismatch or "config_mismatch"),
         )
 
-    if not bench_result.get("perf_regression_gate_info_present", False):
+    if not bench_result.get("perf_smoke_test_info_present", False):
         return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb)
 
-    perf_info_path = Path(artifact_dir) / "perf_regression_gate_info.json"
+    perf_info_path = Path(artifact_dir) / "perf_smoke_test_info.json"
     with perf_info_path.open() as fh:
         perf_info = json.load(fh)
 

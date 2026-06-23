@@ -14,7 +14,7 @@ calls (registry check), so it is safe on a plain CPU runner.
 
 Usage::
 
-    python3 tools/perf_regression_gate/validate_tasks.py
+    python3 tools/perf_smoke_test/validate_tasks.py
 """
 
 import re

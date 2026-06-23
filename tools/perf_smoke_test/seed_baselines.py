@@ -6,19 +6,19 @@
 
 """Seed the perf-baselines branch from real commit history.
 
-This orchestrator simulates "the gate ran when each commit landed": for every
+This orchestrator simulates "the smoke test ran when each commit landed": for every
 seed commit it checks that commit out into a throwaway clone, bind-mounts that
 clone over the CI image's IsaacLab source, and runs the benchmark inside the
 container. Because the container's ``.git`` then resolves to the seed commit,
-:class:`VersionInfoRecorder` tags each ``perf_regression_gate_info.json`` with
+:class:`VersionInfoRecorder` tags each ``perf_smoke_test_info.json`` with
 that commit's hash, and the resulting baseline sample is keyed by the real SHA.
-That is what lets the gate's merge-base/ancestry isolation work against a
+That is what lets the smoke test's merge-base/ancestry isolation work against a
 populated baseline.
 
 Why a separate clone (not an in-place ``git checkout``):
 
 * Checking out an old commit in the main workspace would also revert this
-  orchestrator and the rest of ``tools/perf_regression_gate``. We run the
+  orchestrator and the rest of ``tools/perf_smoke_test``. We run the
   *current* tooling against *historical* source, so the historical source lives
   in an isolated clone that is bind-mounted into the container only.
 * A ``git worktree`` cannot be used because its ``.git`` is a pointer file into
@@ -32,7 +32,7 @@ code without a reinstall). Commits outside that dependency window will fail to
 import and are skipped (their samples never reach the baseline).
 
 The FPS for each sample is computed via :func:`oracle.compare` with no baseline
-and no hard floor, so it is byte-for-byte the same statistic the live gate
+and no hard floor, so it is byte-for-byte the same statistic the live smoke test
 records. Samples are pushed with :func:`baseline_manager.update_baselines_git`
 (append-only, idempotent), exactly like :mod:`aggregate`.
 """
@@ -257,7 +257,7 @@ def _prepare_seed_source(workdir: Path, seed_src_dir: Path, sha: str) -> None:
         print(f"[seed] warning: git clean left undeletable residue (exit {clean.returncode}); continuing", flush=True)
     # The in-container user is uid 1000 (isaaclab); the clone is created by the
     # runner user. Open it up so the benchmark can read the source and write the
-    # throwaway _isaac_sim symlink, mirroring the gate's bind-mount chmod.
+    # throwaway _isaac_sim symlink, mirroring the smoke test's bind-mount chmod.
     subprocess.run(["chmod", "-R", "a+rwX", str(seed_src_dir)], check=False)
 
 
@@ -271,7 +271,7 @@ def _docker_run_benchmark(
     seed_src_dir: Path | None,
     container_name: str,
 ) -> int:
-    """Run one benchmark in the container, mirroring the gate's invocation."""
+    """Run one benchmark in the container, mirroring the smoke test's invocation."""
     hydra_args = " ".join(hydra_args_for_task(task))
     seed_token = f"--seed {task.seed}" if task.seed is not None else ""
     inner = (
@@ -394,13 +394,13 @@ def _write_launch_config(task: TaskConfig, artifact_dir: Path, gpu_model: str) -
 def _record_from_result(
     artifact_dir: Path, gpu_model: str, target_branch: str, known_commit: str | None = None
 ) -> BaselineUpdateRecord | None:
-    """Turn one built ``perf_regression_gate_result.json`` into a baseline sample.
+    """Turn one built ``perf_smoke_test_result.json`` into a baseline sample.
 
     Returns ``None`` when the run was unhealthy (no benchmark info / no FPS) so the
     caller can skip it. The FPS is computed via :func:`oracle.compare` with no
-    baseline and no hard floor, matching the live gate's statistic exactly.
+    baseline and no hard floor, matching the live smoke test's statistic exactly.
     """
-    result_path = artifact_dir / "perf_regression_gate_result.json"
+    result_path = artifact_dir / "perf_smoke_test_result.json"
     if not result_path.exists():
         print(f"[seed] skip @ {artifact_dir}: no result json (job crashed before build_bench_result)")
         return None
@@ -411,10 +411,10 @@ def _record_from_result(
     # The seeder checks out each commit by SHA, so it authoritatively knows the
     # commit even when the in-container benchmark cannot capture git provenance
     # (detached HEAD on a runner-owned bind mount). Prefer the known SHA so the
-    # sample stays ancestry-selectable by the gate.
+    # sample stays ancestry-selectable by the smoke test.
     commit_sha = known_commit or ((bench_result.get("provenance") or {}).get("git") or {}).get("commit_hash")
 
-    if not bench_result.get("perf_regression_gate_info_present", False):
+    if not bench_result.get("perf_smoke_test_info_present", False):
         print(f"[seed] skip {task_id}/{backend} @ {artifact_dir.name}: no benchmark info (run failed)")
         return None
     oracle_result = compare(

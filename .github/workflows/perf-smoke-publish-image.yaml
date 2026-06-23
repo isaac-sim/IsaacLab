@@ -3,28 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Perf Gate — Publish CI Image
+# Perf Smoke — Publish CI Image
 #
 # Builds docker/Dockerfile.base once and publishes it to NGC (nvcr.io) so the
-# Performance Regression Gate (and the baseline seeder) can pull one prebuilt image
+# Performance Smoke Test (and the baseline seeder) can pull one prebuilt image
 # instead of cold-building it on every matrix cell. nvcr.io is the same registry the
 # rest of IsaacLab CI uses (the post-merge job pushes nvcr.io/nvidian/isaac-lab:latest-*)
 # and is reachable from the NVIDIA-managed RTX PRO 6000 fleet, so this is the standard
 # distribution path — not a one-off. ECR on that fleet is only a local build-layer cache.
 #
 # Usage:
-#   1. Run this workflow (Actions tab → "Perf Gate — Publish CI Image" → Run workflow).
+#   1. Run this workflow (Actions tab → "Perf Smoke — Publish CI Image" → Run workflow).
 #      Default target is nvcr.io/nvidian/isaac-lab:latest-perf. Override the `registry`
 #      / `tag` inputs to publish elsewhere (e.g. an immutable sha-<short> tag).
 #   2. Nothing else is required for the default tag: the gate and seeder already pull
 #      nvcr.io/nvidian/isaac-lab:latest-perf by default. Only set the repo variable
-#      PERF_GATE_CI_IMAGE if you published to a non-default repo/tag and want them to use it.
+#      PERF_SMOKE_CI_IMAGE if you published to a non-default repo/tag and want them to use it.
 #   3. Re-run whenever docker/Dockerfile.base or the pinned dependencies change.
 #
 # Runs on the same RTX fleet label as the gate: the build needs nvcr.io access for the
 # Isaac Sim base image and enough disk for it, which GitHub-hosted runners lack.
 
-name: Perf Gate — Publish CI Image
+name: Perf Smoke — Publish CI Image
 
 on:
   # TEMPORARY: trigger from unified-POC via push so we can publish the image without
@@ -38,7 +38,7 @@ on:
     branches: [unified-POC]
     paths:
       - docker/Dockerfile.base
-      - .github/workflows/perf-gate-publish-image.yaml
+      - .github/workflows/perf-smoke-publish-image.yaml
       - .github/actions/ecr-build-push-pull/**
   workflow_dispatch:
     inputs:
@@ -61,7 +61,7 @@ env:
 jobs:
   publish:
     name: Build + Publish CI image
-    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -74,8 +74,8 @@ jobs:
       run: |
         set -euo pipefail
         # Mirror the gate's config job: default to the PUBLIC Isaac Sim release.
-        IMG="${{ vars.PERF_GATE_ISAACSIM_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}"
-        TAG="${{ vars.PERF_GATE_ISAACSIM_TAG || '6.0.0' }}"
+        IMG="${{ vars.PERF_SMOKE_ISAACSIM_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}"
+        TAG="${{ vars.PERF_SMOKE_ISAACSIM_TAG || '6.0.0' }}"
         echo "isaacsim_image_name=${IMG}" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=${TAG}" >> "$GITHUB_OUTPUT"
 
@@ -83,7 +83,7 @@ jobs:
         # same registry the post-merge job publishes to). Override via the `registry` input.
         TARGET_REPO="${{ inputs.registry }}"
         if [ -z "${TARGET_REPO}" ]; then
-          TARGET_REPO="${{ vars.PERF_GATE_PUBLISH_REPO || 'nvcr.io/nvidian/isaac-lab' }}"
+          TARGET_REPO="${{ vars.PERF_SMOKE_PUBLISH_REPO || 'nvcr.io/nvidian/isaac-lab' }}"
         fi
 
         # Default tag: a stable, human-friendly tag (mirrors IsaacLab's latest-develop).
@@ -107,18 +107,18 @@ jobs:
           echo "🔵 Will publish: ${TARGET_REPO}:${TARGET_TAG}"
         fi
 
-    # Build (or reuse the gha layer cache for) the image locally, tagged perf-gate-publish:local.
+    # Build (or reuse the gha layer cache for) the image locally, tagged perf-smoke-publish:local.
     - name: Build CI image
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: perf-gate-publish:local
+        image-tag: perf-smoke-publish:local
         isaacsim-base-image: ${{ steps.cfg.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ steps.cfg.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
         # Shares the gate's gha layer-cache scope so a publish primes the gate's fallback
         # cache and vice versa. ECR is skipped on the RTX fleet (URL never resolves).
-        gha-cache-scope: perf-gate-base
+        gha-cache-scope: perf-smoke-base
 
     - name: Push image to target registry
       env:
@@ -143,7 +143,7 @@ jobs:
             echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
             ;;
           *)
-            echo "::error::Unsupported target registry '${REGISTRY}'. The perf gate publishes to nvcr.io."
+            echo "::error::Unsupported target registry '${REGISTRY}'. The perf smoke publishes to nvcr.io."
             exit 1
             ;;
         esac
@@ -152,7 +152,7 @@ jobs:
         PUSHED=()
         for IMG in "${TARGET_IMAGE}" "${TARGET_IMAGE_IMMUTABLE}"; do
           [ -z "${IMG}" ] && continue
-          docker tag perf-gate-publish:local "${IMG}"
+          docker tag perf-smoke-publish:local "${IMG}"
           echo "🔵 Pushing ${IMG}..."
           docker push "${IMG}"
           PUSHED+=("${IMG}")
@@ -160,12 +160,12 @@ jobs:
         rm -rf "${DOCKER_CONFIG_DIR}"
 
         {
-          echo "## Published perf-gate CI image"
+          echo "## Published perf-smoke CI image"
           echo ""
           echo '```'
           for IMG in "${PUSHED[@]}"; do echo "${IMG}"; done
           echo '```'
           echo ""
           echo "The gate and seeder pull \`nvcr.io/nvidian/isaac-lab:latest-perf\` by default — no further action needed for that tag."
-          echo "The immutable \`sha-<short>\` tag is for pinning a past era (e.g. bisection): set the repo variable \`PERF_GATE_CI_IMAGE\` to it when you need that exact environment."
+          echo "The immutable \`sha-<short>\` tag is for pinning a past era (e.g. bisection): set the repo variable \`PERF_SMOKE_CI_IMAGE\` to it when you need that exact environment."
         } >> "$GITHUB_STEP_SUMMARY"

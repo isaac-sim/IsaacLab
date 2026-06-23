@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch configuration artifact helpers for the performance regression gate
+"""Launch configuration artifact helpers for the performance smoke test
 
 ``launch_config.json`` is the durable contract between the matrix builder, the
 benchmark runner, post-processing, and aggregate.  Phase 2 treats this artifact

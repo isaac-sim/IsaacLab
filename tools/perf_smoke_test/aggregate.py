@@ -60,7 +60,7 @@ def _parse_args():
 
 def _find_bench_results(artifacts_dir: Path) -> list[tuple[Path, dict]]:
     found = []
-    for path in sorted(artifacts_dir.rglob("perf_regression_gate_result.json")):
+    for path in sorted(artifacts_dir.rglob("perf_smoke_test_result.json")):
         with path.open() as fh:
             found.append((path.parent, json.load(fh)))
     return found
@@ -170,7 +170,7 @@ def main() -> int:
 
     items = _find_bench_results(args.artifacts_dir)
     if not items:
-        print(f"[aggregate] No perf_regression_gate_result.json files found under {args.artifacts_dir}")
+        print(f"[aggregate] No perf_smoke_test_result.json files found under {args.artifacts_dir}")
         return 1
 
     baseline_read_sha = None
@@ -314,13 +314,13 @@ def main() -> int:
             print(f"::error::Baseline push failed: {exc}")
 
     table = _build_summary_table(rows)
-    print("\n## Performance Gate Results\n")
+    print("\n## Performance Smoke Results\n")
     print(table)
     print()
 
     if args.summary_file:
         with open(args.summary_file, "a") as fh:
-            fh.write("\n## Performance Gate Results\n\n")
+            fh.write("\n## Performance Smoke Results\n\n")
             if not use_flat:
                 fh.write(f"Baseline read SHA: `{_short_sha(baseline_read_sha)}`\n\n")
                 if baseline_push_result and baseline_push_result.pushed_sha:

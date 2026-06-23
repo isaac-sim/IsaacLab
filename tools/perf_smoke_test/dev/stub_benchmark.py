@@ -73,7 +73,7 @@ def main():
     noise = 5.0
     fps_series = [max(0.0, rng.gauss(args.fps_mean, noise)) for _ in range(n)]
 
-    # Write perf_regression_gate_info.json
+    # Write perf_smoke_test_info.json
     identity = split_backend_key(args.backend)
     if identity is None:
         raise RuntimeError(f"Cannot parse backend identity from {args.backend!r}")
@@ -103,7 +103,7 @@ def main():
             }
         ],
     }
-    info_path = out_dir / "perf_regression_gate_info.json"
+    info_path = out_dir / "perf_smoke_test_info.json"
     with info_path.open("w") as fh:
         json.dump([benchmark_info_phase, runtime_phase], fh)
 

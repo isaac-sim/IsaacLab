@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-benchmark script: normalizes benchmark output and writes perf_regression_gate_result.json.
+"""Post-benchmark script: normalizes benchmark output and writes perf_smoke_test_result.json.
 
 Locates the timestamped benchmark output file written by benchmark_non_rl.py, renames it
-to the canonical ``perf_regression_gate_info.json``, classifies the failure phase from the
-captured log, and writes ``perf_regression_gate_result.json`` for the aggregate job.
+to the canonical ``perf_smoke_test_info.json``, classifies the failure phase from the
+captured log, and writes ``perf_smoke_test_result.json`` for the aggregate job.
 
 Usage::
 
-    python3 tools/perf_regression_gate/build_bench_result.py \\
+    python3 tools/perf_smoke_test/build_bench_result.py \\
         --task_id Isaac-Cartpole-Direct-v0 \\
         --artifact_dir artifacts/Isaac-Cartpole-Direct-v0 \\
         --exit_code 0 \\
@@ -98,7 +98,7 @@ def _gpu_driver_version() -> str | None:
 
 
 def _extract_info_provenance(info_path: Path) -> dict:
-    """Parse ``perf_regression_gate_info.json`` and return provenance + FPS fields
+    """Parse ``perf_smoke_test_info.json`` and return provenance + FPS fields
 
     Extracts hardware metadata (GPU name/memory/CUDA, CPU, RAM), software versions,
     git provenance, FPS distribution statistics, GPU memory used at runtime, and
@@ -330,7 +330,7 @@ def _extract_debug_kpis(info_path: Path, excluded_frames: frozenset[int]) -> dic
 
 
 def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Build perf_regression_gate_result.json from a benchmark run")
+    p = argparse.ArgumentParser(description="Build perf_smoke_test_result.json from a benchmark run")
     p.add_argument("--task_id", required=True)
     p.add_argument("--physics_backend", required=True, help="Physics backend used (e.g. physx, newton)")
     p.add_argument("--render_backend", default="", help="Render backend used (e.g. rtx, warp, ovrtx); empty = none")
@@ -354,15 +354,15 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _normalize_benchmark_output(artifact_dir: Path, task_id: str) -> bool:
-    """Rename the timestamped benchmark JSON to ``perf_regression_gate_info.json``
+    """Rename the timestamped benchmark JSON to ``perf_smoke_test_info.json``
 
     benchmark_non_rl.py writes ``benchmark_non_rl_{task_id}_{timestamp}.json``.
-    The oracle reads ``perf_regression_gate_info.json``.  This function bridges the gap.
+    The oracle reads ``perf_smoke_test_info.json``.  This function bridges the gap.
 
-    Returns True if perf_regression_gate_info.json exists after call
+    Returns True if perf_smoke_test_info.json exists after call
     """
-    perf_regression_gate_info = artifact_dir / "perf_regression_gate_info.json"
-    if perf_regression_gate_info.exists():
+    perf_smoke_test_info = artifact_dir / "perf_smoke_test_info.json"
+    if perf_smoke_test_info.exists():
         return True
     # Primary pattern: exact task_id match
     matches = sorted(glob.glob(str(artifact_dir / f"benchmark_non_rl_{task_id}_*.json")))
@@ -371,7 +371,7 @@ def _normalize_benchmark_output(artifact_dir: Path, task_id: str) -> bool:
         matches = sorted(glob.glob(str(artifact_dir / "benchmark_non_rl_*.json")))
     if not matches:
         return False
-    shutil.copy(matches[-1], perf_regression_gate_info)
+    shutil.copy(matches[-1], perf_smoke_test_info)
     return True
 
 
@@ -448,7 +448,7 @@ def main() -> int:
     if args.log_file and args.log_file.exists():
         log_text = args.log_file.read_text(errors="replace")
 
-    perf_regression_gate_info_present = _normalize_benchmark_output(artifact_dir, task_id)
+    perf_smoke_test_info_present = _normalize_benchmark_output(artifact_dir, task_id)
 
     failure_phase = classify_failure_phase(
         stdout=log_text,
@@ -467,8 +467,8 @@ def main() -> int:
     runtime_contract = None
     runtime_contract_hash = None
     runtime_info = None
-    if perf_regression_gate_info_present:
-        info_path = artifact_dir / "perf_regression_gate_info.json"
+    if perf_smoke_test_info_present:
+        info_path = artifact_dir / "perf_smoke_test_info.json"
         info_provenance = _extract_info_provenance(info_path)
         benchmark_info = _extract_benchmark_info(info_path)
         observed_backend = backend_identity_from_benchmark_info(benchmark_info)
@@ -503,7 +503,7 @@ def main() -> int:
         "stdout_tail": log_text[-2000:] if len(log_text) > 2000 else log_text,
         "wall_time_s": args.wall_time_s,
         "startup_time_s": info_provenance.get("startup_time_s"),
-        "perf_regression_gate_info_present": perf_regression_gate_info_present,
+        "perf_smoke_test_info_present": perf_smoke_test_info_present,
         "raw_fps_mean": info_provenance.get("raw_fps_mean"),
         "raw_fps_std": info_provenance.get("raw_fps_std"),
         "raw_fps_min": info_provenance.get("raw_fps_min"),
@@ -546,11 +546,11 @@ def main() -> int:
         },
     }
 
-    out = artifact_dir / "perf_regression_gate_result.json"
+    out = artifact_dir / "perf_smoke_test_result.json"
     out.write_text(json.dumps(bench_result, indent=2))
 
     status = (
-        f"failure_phase={failure_phase!r}, perf_regression_gate_info_present={perf_regression_gate_info_present}, "
+        f"failure_phase={failure_phase!r}, perf_smoke_test_info_present={perf_smoke_test_info_present}, "
         f"exit_code={args.exit_code}, config_mismatch={config_mismatch!r}"
     )
     print(f"[build_bench_result] {task_id}: {status}")

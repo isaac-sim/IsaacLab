@@ -9,7 +9,7 @@
 # events (a ProdSec requirement so only NVIDIA employees can trigger GPU jobs).
 # Instead, copy-pr-bot mirrors a vetted PR's HEAD commit onto a
 # `pull-request/<PR_NUMBER>` branch in this repository, and workflows trigger on
-# `push` to that branch (see .github/workflows/perf-regression-gate.yaml). Because
+# `push` to that branch (see .github/workflows/perf-smoke-test.yaml). Because
 # the mirrored commit SHA matches the PR's HEAD SHA, the resulting check statuses
 # are reported back onto the originating pull request.
 #

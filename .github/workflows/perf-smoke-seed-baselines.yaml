@@ -14,14 +14,14 @@
 #
 # Uses the prebuilt CI image published to nvcr.io (the same image the gate pulls, so
 # baselines and PR runs share an identical environment). Defaults to
-# nvcr.io/nvidian/isaac-lab:latest-perf; set repo variable PERF_GATE_CI_IMAGE only to
+# nvcr.io/nvidian/isaac-lab:latest-perf; set repo variable PERF_SMOKE_CI_IMAGE only to
 # override that (e.g. to pin a sha-<short> tag). If the image is not published yet the
-# job fails fast with a clear message (publish it first via perf-gate-publish-image).
+# job fails fast with a clear message (publish it first via perf-smoke-publish-image).
 #
 # Manual dispatch only — seeding writes to perf-baselines and burns GPU time, so
 # it should never run automatically.
 
-name: Performance Gate - Seed Baselines
+name: Performance Smoke - Seed Baselines
 
 on:
   workflow_dispatch:
@@ -66,7 +66,7 @@ on:
 
 concurrency:
   # Serialize seeding so concurrent pushes can't race the append-only baseline branch.
-  group: perf-gate-seed
+  group: perf-smoke-seed
   cancel-in-progress: false
 
 permissions:
@@ -79,7 +79,7 @@ env:
 jobs:
   seed:
     name: Seed baselines (${{ inputs.commit_branch }} x${{ inputs.commit_count }})
-    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
     timeout-minutes: 600
 
     steps:
@@ -114,12 +114,12 @@ jobs:
 
     # Pull the published CI image and retag it locally (the exact image the gate pulls,
     # so seeded baselines and PR runs share one environment). Defaults to
-    # nvcr.io/nvidian/isaac-lab:latest-perf; set PERF_GATE_CI_IMAGE to override (e.g. to
+    # nvcr.io/nvidian/isaac-lab:latest-perf; set PERF_SMOKE_CI_IMAGE to override (e.g. to
     # pin a sha-<short> tag). Unlike the gate there is no build fallback: seeding is a
     # deliberate, baseline-writing op, so a missing image should fail fast (publish first).
     - name: Pull prebuilt CI image
       env:
-        CI_IMAGE_REF: ${{ vars.PERF_GATE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
+        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
       run: |
         set -euo pipefail
 
@@ -146,8 +146,8 @@ jobs:
 
         echo "🔵 Pulling prebuilt image ${CI_IMAGE_REF}..."
         docker pull "${CI_IMAGE_REF}" || {
-          echo "::error::Failed to pull ${CI_IMAGE_REF}. Publish it first via perf-gate-publish-image"
-          echo "::error::(default tag latest-perf), or set PERF_GATE_CI_IMAGE to an existing image."
+          echo "::error::Failed to pull ${CI_IMAGE_REF}. Publish it first via perf-smoke-publish-image"
+          echo "::error::(default tag latest-perf), or set PERF_SMOKE_CI_IMAGE to an existing image."
           exit 1
         }
         docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"
@@ -158,7 +158,7 @@ jobs:
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
-        python3 tools/perf_regression_gate/seed_baselines.py \
+        python3 tools/perf_smoke_test/seed_baselines.py \
           --branches "${{ inputs.branches }}" \
           --commits "${{ inputs.commits }}" \
           --commit_branch "${{ inputs.commit_branch }}" \

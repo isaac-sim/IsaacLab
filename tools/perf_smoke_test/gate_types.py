@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared model states for the performance regression gate"""
+"""Shared model states for the performance smoke test"""
 
 from enum import Enum
 

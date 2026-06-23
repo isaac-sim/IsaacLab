@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Resolve GitHub event context for the performance regression gate"""
+"""Resolve GitHub event context for the performance smoke test"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 _MIRRORED_PR_BRANCH_RE = re.compile(r"^pull-request/(\d+)$")
-_BASELINE_PUBLISH_BRANCHES = frozenset({"main", "develop", "angehu/perf-gate-poc"})
+_BASELINE_PUBLISH_BRANCHES = frozenset({"main", "develop", "angehu/perf-smoke-poc"})
 _BASELINE_PUBLISH_PREFIXES = ("release/",)
 
 
@@ -142,7 +142,7 @@ def resolve_gate_context(
             raise RuntimeError(f"Cannot parse mirrored PR number from GITHUB_REF_NAME={ref_name!r}")
         repo = _event_value(env, "GITHUB_REPOSITORY")
         pr = fetch_pr(repo, match.group(1), env)
-        allow_update = _truthy(env.get("ALLOW_MIRROR_UPDATE") or env.get("PERF_GATE_ALLOW_MIRROR_BASELINE_UPDATE"))
+        allow_update = _truthy(env.get("ALLOW_MIRROR_UPDATE") or env.get("PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE"))
         return _pr_context(
             pr,
             allow_update=allow_update,

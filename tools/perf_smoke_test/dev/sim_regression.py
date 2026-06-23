@@ -5,17 +5,17 @@
 
 """Regression simulation helper that injects degraded FPS artifacts into a scratch artifacts directory.
 
-Used to demonstrate that the gate produces BLOCK verdicts when a real regression
+Used to demonstrate that the smoke test produces BLOCK verdicts when a real regression
 is introduced, WITHOUT re-running the full benchmark suite.
 
-    python3 tools/perf_regression_gate/dev/sim_regression.py --fps_scale 0.53
+    python3 tools/perf_smoke_test/dev/sim_regression.py --fps_scale 0.53
 
 Then run aggregate.py against the output to see BLOCK verdicts:
 
-    python3 tools/perf_regression_gate/aggregate.py \\
+    python3 tools/perf_smoke_test/aggregate.py \\
         --artifacts_dir /tmp/sim_artifacts \\
         --gpu_model L40S \\
-        --baselines_dir tools/perf_regression_gate/local_baselines \\
+        --baselines_dir tools/perf_smoke_test/local_baselines \\
         --allow_baseline_update false
 """
 
@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 _MODULE_DIR = Path(__file__).parent
-_GATE_DIR = _MODULE_DIR.parent  # tools/perf_regression_gate/
+_GATE_DIR = _MODULE_DIR.parent  # tools/perf_smoke_test/
 
 sys.path.insert(0, str(_GATE_DIR))
 sys.path.insert(0, str(_GATE_DIR.parent))
@@ -67,7 +67,7 @@ def _make_bench_result(task, fps_mean: float) -> dict:
         "stdout_tail": "",
         "wall_time_s": 60.0,
         "startup_time_s": 10.0,
-        "perf_regression_gate_info_present": True,
+        "perf_smoke_test_info_present": True,
         "raw_fps_mean": fps_mean,
         "raw_fps_std": fps_mean * 0.01,
         "raw_fps_min": fps_mean * 0.95,
@@ -129,10 +129,10 @@ def main() -> int:
         art_dir.mkdir(parents=True, exist_ok=True)
 
         perf_info = _make_perf_info(task.task_id, regressed_fps, task.num_frames)
-        (art_dir / "perf_regression_gate_info.json").write_text(json.dumps(perf_info))
+        (art_dir / "perf_smoke_test_info.json").write_text(json.dumps(perf_info))
 
         bench_result = _make_bench_result(task, regressed_fps)
-        (art_dir / "perf_regression_gate_result.json").write_text(json.dumps(bench_result))
+        (art_dir / "perf_smoke_test_result.json").write_text(json.dumps(bench_result))
 
         print(f"  {task.task_id}/{task.backend_key}: baseline={baseline_fps:.1f}  regressed={regressed_fps:.1f}")
         generated += 1

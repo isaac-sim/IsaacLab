@@ -6,11 +6,11 @@
 """Convert tasks.json into the GitHub Actions bench matrix JSON
 
 Prints a JSON array to stdout, one object per (task_id, backend) combination,
-containing the fields consumed by the ``bench`` job matrix in perf-regression-gate.yaml.
+containing the fields consumed by the ``bench`` job matrix in perf-smoke-test.yaml.
 
 Usage::
 
-    python3 tools/perf_regression_gate/tasks_to_ci_matrix.py
+    python3 tools/perf_smoke_test/tasks_to_ci_matrix.py
 """
 
 import json

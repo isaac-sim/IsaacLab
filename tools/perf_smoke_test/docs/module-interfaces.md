@@ -1,4 +1,4 @@
-# Performance Regression Gate — Module Interface Reference
+# Performance Smoke Test — Module Interface Reference
 
 Full function signatures, CLI arguments, and JSON schemas for every module.
 All commands run from the `IsaacLab/` repository root unless otherwise noted.
@@ -38,7 +38,7 @@ def build_runtime_contract(*, provenance: dict | None, gpu_diag: dict | None, ba
 def build_runtime_publish_info(*, provenance: dict | None, gpu_diag: dict | None, policy: Mapping[str, Any]) -> dict
 ```
 
-Default compatibility fields gate on top-level active-path packages: IsaacSim, IsaacLab, Torch, Warp, the active physics package (`isaaclab_physx` or `isaaclab_newton`/`newton`), and `isaaclab_ov` for renderer backends. CUDA version, NVIDIA driver, GPU memory, and compute capability are published for humans but do not affect the compatibility hash by default.
+Default compatibility fields smoke test on top-level active-path packages: IsaacSim, IsaacLab, Torch, Warp, the active physics package (`isaaclab_physx` or `isaaclab_newton`/`newton`), and `isaaclab_ov` for renderer backends. CUDA version, NVIDIA driver, GPU memory, and compute capability are published for humans but do not affect the compatibility hash by default.
 
 ## `github_gate_context.py`
 
@@ -49,7 +49,7 @@ def resolve_gate_context(env=None, event=None, fetch_pr=None) -> GateContext
 ```
 
 Outputs: `base_sha`, `target_branch`, `source_branch`, `allow_update`, `trusted_source`, and `event_kind`.
-Mirrored PR pushes under `pull-request/<number>` use the GitHub PR API to recover the real PR base/source branches. They are read-only unless `PERF_GATE_ALLOW_MIRROR_BASELINE_UPDATE`/`ALLOW_MIRROR_UPDATE` is explicitly true.
+Mirrored PR pushes under `pull-request/<number>` use the GitHub PR API to recover the real PR base/source branches. They are read-only unless `PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE`/`ALLOW_MIRROR_UPDATE` is explicitly true.
 
 ## `oracle.py`
 
@@ -65,16 +65,16 @@ def compare(
 ) -> OracleResult
 ```
 
-The central verdict function. Reads `perf_regression_gate_info.json` from `artifact_dir`,
+The central verdict function. Reads `perf_smoke_test_info.json` from `artifact_dir`,
 applies `excluded_frames`, computes mean FPS, and returns an `OracleResult`.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `bench_result` | `dict` | Loaded `perf_regression_gate_result.json` |
+| `bench_result` | `dict` | Loaded `perf_smoke_test_result.json` |
 | `baseline` | `Baseline \| None` | Rolling baseline stats; `None` for seed run |
 | `fps_mean_floor` | `float` | Hard minimum FPS; 0.0 = disabled |
 | `excluded_frames` | `frozenset[int]` | 0-based frame indices to drop before computing mean |
-| `artifact_dir` | `Path` | Directory containing `perf_regression_gate_info.json` |
+| `artifact_dir` | `Path` | Directory containing `perf_smoke_test_info.json` |
 
 ### `apply_excluded_frames()`
 
@@ -146,7 +146,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]
 Loads all benchmark tasks from `tasks.json`, expanding each task's `backends` array into
 one `TaskConfig` per `(task_id, backend)` combination. Applies `defaults` block to each task.
 
-Default path: `tools/perf_regression_gate/tasks.json` (sibling of the module).
+Default path: `tools/perf_smoke_test/tasks.json` (sibling of the module).
 
 ### `get_task()`
 
@@ -327,12 +327,12 @@ Uses `select()` + non-blocking I/O for real-time streaming. Kills the entire pro
 ## `tasks_to_ci_matrix.py`
 
 ```
-python3 tools/perf_regression_gate/tasks_to_ci_matrix.py
+python3 tools/perf_smoke_test/tasks_to_ci_matrix.py
 ```
 
 No arguments. Reads `tasks.json` via `load_tasks()` and prints a JSON array to stdout,
 one object per `(task_id, backend)` combination. Used by the `build_matrix` step in
-`perf-regression-gate.yaml` to populate the GitHub Actions job matrix.
+`perf-smoke-test.yaml` to populate the GitHub Actions job matrix.
 
 Each object contains: `task_id`, `physics_backend`, `render_backend` (empty string if none),
 `num_envs`, `num_frames`, `seed`, `hydra_args`, `bench_timeout_s`, and `job_timeout_minutes`.
@@ -342,7 +342,7 @@ Each object contains: `task_id`, `physics_backend`, `render_backend` (empty stri
 ## `build_bench_result.py` CLI
 
 ```
-python3 tools/perf_regression_gate/build_bench_result.py \
+python3 tools/perf_smoke_test/build_bench_result.py \
     --task_id <str>           task identifier (required)
     --physics_backend <str>   "physx" or "newton" (required)
     --render_backend <str>    render backend name or "" for none (default: "")
@@ -357,12 +357,12 @@ python3 tools/perf_regression_gate/build_bench_result.py \
     --was_retried             flag: set when this result comes from a retry
 ```
 
-**Output:** `{artifact_dir}/perf_regression_gate_result.json` (always written).
+**Output:** `{artifact_dir}/perf_smoke_test_result.json` (always written).
 
 **Side effect:** Renames `benchmark_non_rl_{task_id}_{timestamp}.json` to
-`perf_regression_gate_info.json` if the canonical name does not already exist.
+`perf_smoke_test_info.json` if the canonical name does not already exist.
 
-When `perf_regression_gate_info.json` is present, `build_bench_result.py` also
+When `perf_smoke_test_info.json` is present, `build_bench_result.py` also
 calls `_extract_info_provenance()` to populate the FPS distribution, startup time,
 GPU diagnostics, and full software/hardware/git provenance directly into the result JSON.
 It also compares observed benchmark identity to `launch_config.json`, records `observed_backend`,
@@ -374,10 +374,10 @@ computes `runtime_contract_hash`, and publishes non-matching runtime diagnostics
 ## `aggregate.py` CLI
 
 ```
-python3 tools/perf_regression_gate/aggregate.py \
+python3 tools/perf_smoke_test/aggregate.py \
     --artifacts_dir <path>         root directory containing per-task artifact subdirectories (required)
     --gpu_model <str>              GPU model label for baseline lookup (default: L40S)
-    --gate_config <path>           path to gate_config.json (default: perf_regression_gate/gate_config.json)
+    --gate_config <path>           path to gate_config.json (default: perf_smoke_test/gate_config.json)
     --baseline_branch <str>        git branch for baseline storage (default: perf-baselines)
     --baseline_remote <str>        git remote that owns the baseline branch (default: origin; empty = local only)
     --baseline_push_retries <int>  max retry attempts for transactional baseline pushes (default: config)
@@ -391,7 +391,7 @@ python3 tools/perf_regression_gate/aggregate.py \
 ```
 
 **Exit codes:**
-- `0` — gate is non-blocking, or all tasks PASS/WARN
+- `0` — smoke test is non-blocking, or all tasks PASS/WARN
 - `1` — any BLOCK verdict and `gate_config.blocking == true`
 - `2` — any HARD_FAILURE verdict and `gate_config.blocking == true`
 
@@ -405,14 +405,14 @@ written.
 ## `local_runner.py` CLI
 
 ```
-python3 tools/perf_regression_gate/local_runner.py \
+python3 tools/perf_smoke_test/local_runner.py \
     --tags <tag ...>          task tags to run (default: always)
     --gpu_model <str>         GPU model label for baselines (default: auto-detect with nvidia-smi)
-    --artifacts_dir <path>    root for per-task artifacts (default: perf_regression_gate/artifacts/)
-    --baselines_dir <path>    flat-file baseline dir (default: perf_regression_gate/local_baselines/)
+    --artifacts_dir <path>    root for per-task artifacts (default: perf_smoke_test/artifacts/)
+    --baselines_dir <path>    flat-file baseline dir (default: perf_smoke_test/local_baselines/)
     --allow_baseline_update   extend baseline window for PASS/WARN results
     --dry_run                 print task matrix and exit without running anything
-    --skip_existing           skip tasks whose perf_regression_gate_result.json already exists
+    --skip_existing           skip tasks whose perf_smoke_test_result.json already exists
     --gate_config <path>      path to gate_config.json
 ```
 
@@ -445,7 +445,7 @@ publish-only diagnostic fields.
 Simulates `benchmark_non_rl.py` for testing. Does not require IsaacSim.
 
 ```
-python3 tools/perf_regression_gate/dev/stub_benchmark.py \
+python3 tools/perf_smoke_test/dev/stub_benchmark.py \
     --task_id <str>
     --backend <str>
     --num_envs <int>       (default: 1)
@@ -455,7 +455,7 @@ python3 tools/perf_regression_gate/dev/stub_benchmark.py \
     --failure_phase <str>  "none" | "import" | "init" | "runtime" (default: none)
 ```
 
-On success: writes `perf_regression_gate_info.json` with a Gaussian FPS series centered on
+On success: writes `perf_smoke_test_info.json` with a Gaussian FPS series centered on
 `--fps_mean`, prints `"Step Frametimes"` to stdout, exits 0.
 
 On failure modes:
@@ -470,18 +470,18 @@ On failure modes:
 Injects degraded FPS artifacts for demo/testing without re-running benchmarks.
 
 ```
-python3 tools/perf_regression_gate/dev/sim_regression.py \
+python3 tools/perf_smoke_test/dev/sim_regression.py \
     --fps_scale <float>    multiply baseline FPS by this factor (default: 0.53 = 47% regression)
     --tags <tag ...>       task tags to include (default: always)
     --gpu_model <str>      GPU model label (default: L40S)
-    --baselines_dir <path> (default: perf_regression_gate/local_baselines)
+    --baselines_dir <path> (default: perf_smoke_test/local_baselines)
     --out_dir <path>       output artifacts directory (default: /tmp/sim_artifacts)
 ```
 
 For each task with an existing baseline, loads `samples.ndjson`, computes
 `regressed_fps = baseline.median_fps × fps_scale`, and writes:
-- `{out_dir}/{task_id}/{backend_key}/perf_regression_gate_info.json`
-- `{out_dir}/{task_id}/{backend_key}/perf_regression_gate_result.json`
+- `{out_dir}/{task_id}/{backend_key}/perf_smoke_test_info.json`
+- `{out_dir}/{task_id}/{backend_key}/perf_smoke_test_result.json`
 
 Skips tasks with no baseline (prints `SKIP (no baseline)`).
 
@@ -532,7 +532,7 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
 
 ## Artifact Schemas
 
-### `perf_regression_gate_result.json` (Phase 2 output)
+### `perf_smoke_test_result.json` (Phase 2 output)
 
 ```json
 {
@@ -549,7 +549,7 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
   "stdout_tail": "<last 2000 chars of log>",
   "wall_time_s": 23.7,
   "startup_time_s": 12.5,
-  "perf_regression_gate_info_present": true,
+  "perf_smoke_test_info_present": true,
   "raw_fps_mean": 1655000.0,
   "raw_fps_std": 9800.0,
   "raw_fps_min": 1632000.0,
@@ -631,8 +631,8 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
 }
 ```
 
-**Fields populated from `perf_regression_gate_info.json`** (all `null` when
-`perf_regression_gate_info_present` is false):
+**Fields populated from `perf_smoke_test_info.json`** (all `null` when
+`perf_smoke_test_info_present` is false):
 
 | Field | Source | Notes |
 |---|---|---|
@@ -645,13 +645,13 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
 | `provenance.software` | `version_info` phase | Package versions; `_version` suffix stripped |
 | `provenance.git` | `version_info` phase, `dev` dict | commit, branch, date, dirty flag |
 
-Key fields the oracle reads: `perf_regression_gate_info_present`, `failure_phase`,
+Key fields the oracle reads: `perf_smoke_test_info_present`, `failure_phase`,
 `was_retried`, `gpu_diag.gpu_mem_used_mb`, `startup_time_s`, `wall_time_s`.
 
 The `raw_fps_*` fields capture the full unfiltered distribution and are for audit/debug;
 `oracle.compare()` recomputes mean FPS independently after applying `excluded_frames`.
 
-### `perf_regression_gate_info.json` (Phase 1 output, renamed from `benchmark_non_rl_*.json`)
+### `perf_smoke_test_info.json` (Phase 1 output, renamed from `benchmark_non_rl_*.json`)
 
 A list of `TestPhase` objects serialized by `JSONFileMetrics`. Measurement and metadata
 names are prefixed with `"{task_id} {phase_name} "` by the serializer.

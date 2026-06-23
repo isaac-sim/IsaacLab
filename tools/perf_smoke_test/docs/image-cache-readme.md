@@ -1,11 +1,11 @@
-# Perf Gate Image Cache README
+# Perf Smoke Image Cache README
 
 This README explains the image build/cache issue in simple terms, why it matters
-for the performance gate, and what options we have.
+for the performance smoke test, and what options we have.
 
 ## Short Version
 
-The performance gate runs benchmarks in Docker containers on NVIDIA RTX PRO 6000
+The performance smoke test runs benchmarks in Docker containers on NVIDIA RTX PRO 6000
 GitHub Actions runners.
 
 Before each benchmark can run, the workflow needs a Docker image that contains:
@@ -18,7 +18,7 @@ Before each benchmark can run, the workflow needs a Docker image that contains:
 Right now, the expensive part is getting that Docker image ready.
 
 If every benchmark job builds the image from scratch, we waste a lot of time.
-For example, a cold image build can take around 26 minutes. If the gate has 9 or
+For example, a cold image build can take around 26 minutes. If the smoke test has 9 or
 10 benchmark jobs, that can become 9 or 10 separate cold builds running in
 parallel. That is slow and wasteful.
 
@@ -28,9 +28,9 @@ The goal is simple:
 * reuse it across benchmark jobs
 * avoid rebuilding it for every matrix cell
 
-## What The Perf Gate Is Doing
+## What The Perf Smoke Is Doing
 
-The workflow is `.github/workflows/perf-regression-gate.yaml`.
+The workflow is `.github/workflows/perf-smoke-test.yaml`.
 
 It has three main phases:
 
@@ -54,13 +54,13 @@ Docker image.
 
 A runner is the machine that executes a GitHub Actions job.
 
-For this perf gate, we care about two runner groups:
+For this perf smoke, we care about two runner groups:
 
 * L40S runners
 * NVKS RTX PRO 6000 runners
 
 The RTX PRO 6000 runners are the target fleet for this POC because they are the
-NVIDIA-managed runners we are trying to use for the gate.
+NVIDIA-managed runners we are trying to use for the smoke test.
 
 ### Docker Image
 
@@ -171,11 +171,11 @@ owner.
 Example:
 
 ```text
-ghcr.io/nvidia-omniverse/isaaclab-perf-gate:sha-abcdef1
+ghcr.io/nvidia-omniverse/isaaclab-perf-smoke:sha-abcdef1
 ```
 
 The temporary plan is to publish the image once to GHCR, then make every perf
-gate job pull that image instead of building.
+smoke test job pull that image instead of building.
 
 ### NVCR / NGC
 
@@ -210,7 +210,7 @@ already-built image from a registry.
 
 ## Why This Matters
 
-The perf gate has a benchmark matrix.
+The perf smoke has a benchmark matrix.
 
 For example, it may run:
 
@@ -226,7 +226,7 @@ time and compute.
 The benchmark itself may only need a few minutes, but the image build can take
 much longer than the benchmark.
 
-That means the gate becomes slow for the wrong reason.
+That means the smoke test becomes slow for the wrong reason.
 
 We want the runtime to reflect benchmark cost, not repeated container setup.
 
@@ -256,16 +256,16 @@ We added a temporary prebuilt-image override.
 The repo variable is:
 
 ```text
-PERF_GATE_CI_IMAGE
+PERF_SMOKE_CI_IMAGE
 ```
 
-If this variable is set, the perf gate does not build the image in every matrix
+If this variable is set, the perf smoke does not build the image in every matrix
 job.
 
 Instead, each job does:
 
 1. Log in to the registry if needed.
-2. Pull the image from `PERF_GATE_CI_IMAGE`.
+2. Pull the image from `PERF_SMOKE_CI_IMAGE`.
 3. Retag it as the local workflow image name.
 4. Run the benchmark exactly as before.
 
@@ -274,19 +274,19 @@ This means all benchmark jobs reuse the same prebuilt image.
 The workflow that publishes the image is:
 
 ```text
-.github/workflows/perf-gate-publish-image.yaml
+.github/workflows/perf-smoke-publish-image.yaml
 ```
 
 Default target:
 
 ```text
-ghcr.io/<owner>/isaaclab-perf-gate:sha-<short-sha>
+ghcr.io/<owner>/isaaclab-perf-smoke:sha-<short-sha>
 ```
 
 Fallback target:
 
 ```text
-nvcr.io/<org-or-team-path>/isaaclab-perf-gate:<tag>
+nvcr.io/<org-or-team-path>/isaaclab-perf-smoke:<tag>
 ```
 
 ## Option 1: Keep Building In Every Matrix Job
@@ -375,11 +375,11 @@ This is the temporary fast path we added.
 
 How it works:
 
-1. Run `perf-gate-publish-image.yaml`.
+1. Run `perf-smoke-publish-image.yaml`.
 2. It builds the CI image once.
 3. It pushes the image to GHCR.
-4. Set `PERF_GATE_CI_IMAGE` to that image reference.
-5. The perf gate pulls that image in each matrix job.
+4. Set `PERF_SMOKE_CI_IMAGE` to that image reference.
+5. The perf smoke pulls that image in each matrix job.
 
 Pros:
 
@@ -406,8 +406,8 @@ How it works:
 
 1. Build the CI image.
 2. Push it to `nvcr.io`.
-3. Set `PERF_GATE_CI_IMAGE` to that `nvcr.io` image.
-4. The perf gate pulls it using `NGC_API_KEY`.
+3. Set `PERF_SMOKE_CI_IMAGE` to that `nvcr.io` image.
+4. The perf smoke pulls it using `NGC_API_KEY`.
 
 Pros:
 
@@ -457,10 +457,10 @@ This is what we should ask `#nv-gha-runners` and Alexander about.
 
 Short term:
 
-1. Use `perf-gate-publish-image.yaml` to publish a prebuilt image to GHCR.
-2. Set `PERF_GATE_CI_IMAGE` to that GHCR image.
-3. Run the perf gate and confirm matrix jobs pull instead of build.
-4. If GHCR does not work, publish to NVCR and set `PERF_GATE_CI_IMAGE` to the
+1. Use `perf-smoke-publish-image.yaml` to publish a prebuilt image to GHCR.
+2. Set `PERF_SMOKE_CI_IMAGE` to that GHCR image.
+3. Run the perf smoke and confirm matrix jobs pull instead of build.
+4. If GHCR does not work, publish to NVCR and set `PERF_SMOKE_CI_IMAGE` to the
    `nvcr.io` image.
 
 Medium term:

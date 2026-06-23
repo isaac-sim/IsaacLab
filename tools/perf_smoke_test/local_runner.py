@@ -14,16 +14,16 @@ Mirrors the structure of the three-phase CI workflow:
 Usage::
 
     # Preview the full task matrix without running anything
-    python3 tools/perf_regression_gate/local_runner.py --dry_run
+    python3 tools/perf_smoke_test/local_runner.py --dry_run
 
     # Seed/build baselines (run a few times on stable main)
-    python3 tools/perf_regression_gate/local_runner.py --allow_baseline_update
+    python3 tools/perf_smoke_test/local_runner.py --allow_baseline_update
 
     # Check a branch against baselines (no update)
-    python3 tools/perf_regression_gate/local_runner.py
+    python3 tools/perf_smoke_test/local_runner.py
 
     # Run only "always"-tagged tasks on L40S label
-    python3 tools/perf_regression_gate/local_runner.py --tags always --gpu_model L40S
+    python3 tools/perf_smoke_test/local_runner.py --tags always --gpu_model L40S
 
 Preconditions:
     IsaacSim must be accessible via ./isaaclab.sh -p.
@@ -86,13 +86,13 @@ def _parse_args() -> argparse.Namespace:
         "--artifacts_dir",
         type=Path,
         default=_MODULE_DIR / "artifacts",
-        help="Root directory for per-task benchmark artifacts (default: tools/perf_regression_gate/artifacts/)",
+        help="Root directory for per-task benchmark artifacts (default: tools/perf_smoke_test/artifacts/)",
     )
     p.add_argument(
         "--baselines_dir",
         type=Path,
         default=_MODULE_DIR / "local_baselines",
-        help="Flat-file baseline directory (default: tools/perf_regression_gate/local_baselines/)",
+        help="Flat-file baseline directory (default: tools/perf_smoke_test/local_baselines/)",
     )
     p.add_argument(
         "--allow_baseline_update",
@@ -107,7 +107,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument(
         "--skip_existing",
         action="store_true",
-        help="Skip tasks whose perf_regression_gate_result.json already exists in --artifacts_dir",
+        help="Skip tasks whose perf_smoke_test_result.json already exists in --artifacts_dir",
     )
     p.add_argument(
         "--gate_config",
@@ -350,10 +350,10 @@ def main() -> int:
         artifact_dir = args.artifacts_dir / task.task_id / task.backend_key
         artifact_dir.mkdir(parents=True, exist_ok=True)
 
-        bench_result_path = artifact_dir / "perf_regression_gate_result.json"
+        bench_result_path = artifact_dir / "perf_smoke_test_result.json"
         if args.skip_existing and bench_result_path.exists():
             print(
-                f"[{i}/{len(tasks)}] SKIP (perf_regression_gate_result.json exists): "
+                f"[{i}/{len(tasks)}] SKIP (perf_smoke_test_result.json exists): "
                 f"{task.task_id} / {task.backend_key}"
             )
             continue
@@ -375,7 +375,7 @@ def main() -> int:
         if exit_code != 0:
             print(f"\n[{i}/{len(tasks)}] first attempt failed (exit={exit_code}), retrying once...")
             # Remove any partial perf output from the failed attempt so the retry is clean
-            stale = artifact_dir / "perf_regression_gate_info.json"
+            stale = artifact_dir / "perf_smoke_test_info.json"
             if stale.exists():
                 stale.unlink()
             exit_code, wall_time = _run_benchmark(task, artifact_dir, bench_script)

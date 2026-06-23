@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Canonical backend identity helpers for the performance regression gate"""
+"""Canonical backend identity helpers for the performance smoke test"""
 
 from __future__ import annotations
 

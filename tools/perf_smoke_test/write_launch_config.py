@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Write launch_config.json for a perf-gate task/backend job"""
+"""Write launch_config.json for a perf-smoke task/backend job"""
 
 import argparse
 import sys
@@ -20,7 +20,7 @@ from task_config import get_task
 
 
 def _parse_args():
-    parser = argparse.ArgumentParser(description="Write launch_config.json for a perf-gate benchmark job")
+    parser = argparse.ArgumentParser(description="Write launch_config.json for a perf-smoke benchmark job")
     parser.add_argument("--task_id", required=True)
     parser.add_argument("--physics_backend", required=True)
     parser.add_argument("--render_backend", default="")

@@ -3,10 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# Performance Regression Gate
+# Performance Smoke Test
 #
 # GPU jobs default to the RTX PRO 6000 runner label used by the upstream
-# deployment. Override with repo variable PERF_GATE_RUNS_ON, e.g. a JSON array
+# deployment. Override with repo variable PERF_SMOKE_RUNS_ON, e.g. a JSON array
 # of runner labels.
 #
 # Runs a matrix of benchmark tasks on self-hosted runners, compares
@@ -21,16 +21,16 @@
 #              (self-hosted, gpu)
 #
 # Baseline updates are published from protected-branch push events
-# (main/develop/release) plus angehu/perf-gate-poc while this POC is active.
+# (main/develop/release) plus angehu/perf-smoke-poc while this POC is active.
 # Mirrored PR pushes under pull-request/<number> can run the gate on upstream
-# RTX runners; they are read-only unless PERF_GATE_ALLOW_MIRROR_BASELINE_UPDATE
+# RTX runners; they are read-only unless PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE
 # is explicitly enabled as a temporary deployment escape hatch.
 #
 # backend_key: "{physics_backend}_{render_backend}" when render_backend is
 # set, otherwise just physics_backend.  Matches TaskConfig.backend_key.
-# TODO: remove angehu/perf-gate-poc after deployment
+# TODO: remove angehu/perf-smoke-poc after deployment
 
-name: Performance Regression Gate
+name: Performance Smoke Test
 
 on:
   # NVIDIA's shared GPU fleet (ProdSec) does not grant runners to `pull_request`-
@@ -39,11 +39,11 @@ on:
   # onto a `pull-request/<N>` branch, whose `push` IS allowed on the fleet. Trigger on
   # that push (plus protected branches for baseline updates) and manual dispatch only.
   push:
-    branches: [main, develop, 'release/**', angehu/perf-gate-poc, 'pull-request/[0-9]+']
+    branches: [main, develop, 'release/**', angehu/perf-smoke-poc, 'pull-request/[0-9]+']
   workflow_dispatch:
 
 concurrency:
-  group: perf-gate-${{ github.event.pull_request.number || github.ref }}
+  group: perf-smoke-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -83,18 +83,18 @@ jobs:
       # which the fork's NGC key is not entitled to pull. Default this gate to the
       # PUBLIC nvcr.io/nvidia/isaac-sim:6.0.0 release (same 6.0.0.x family as develop,
       # any authenticated NGC account can pull it). Override via repo variables
-      # PERF_GATE_ISAACSIM_IMAGE / PERF_GATE_ISAACSIM_TAG if the fork later gains
+      # PERF_SMOKE_ISAACSIM_IMAGE / PERF_SMOKE_ISAACSIM_TAG if the fork later gains
       # access to the internal image.
       run: |
         set -euo pipefail
-        IMG="${{ vars.PERF_GATE_ISAACSIM_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}"
-        TAG="${{ vars.PERF_GATE_ISAACSIM_TAG || '6.0.0' }}"
+        IMG="${{ vars.PERF_SMOKE_ISAACSIM_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}"
+        TAG="${{ vars.PERF_SMOKE_ISAACSIM_TAG || '6.0.0' }}"
         echo "isaacsim_image_name=${IMG}" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=${TAG}" >> "$GITHUB_OUTPUT"
     - id: build_matrix
       run: |
         set -euo pipefail
-        MATRIX=$(python3 tools/perf_regression_gate/tasks_to_ci_matrix.py)
+        MATRIX=$(python3 tools/perf_smoke_test/tasks_to_ci_matrix.py)
         echo "bench_matrix=$MATRIX" >> "$GITHUB_OUTPUT"
         echo "Matrix: $MATRIX"
 
@@ -110,7 +110,7 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-    - run: python3 tools/perf_regression_gate/validate_tasks.py
+    - run: python3 tools/perf_smoke_test/validate_tasks.py
 
   # ---------------------------------------------------------------------------
   # Per-task/backend benchmark jobs
@@ -118,7 +118,7 @@ jobs:
   bench:
     name: Bench / ${{ matrix.task_id }} / ${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
     needs: [config, validate]
     continue-on-error: true
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
@@ -148,19 +148,19 @@ jobs:
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/jit-cache
-        key: perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_regression_gate/tasks.json') }}-${{ github.run_id }}
+        key: perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-${{ github.run_id }}
         restore-keys: |
-          perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_regression_gate/tasks.json') }}-
+          perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-
           perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
           perf-jit-warp1.13.0-${{ matrix.task_id }}-
 
     # Image source — pull the published image (primary), build only as a fallback:
     #
-    #  Primary: `docker pull` the perf-gate CI image published to nvcr.io by
-    #      perf-gate-publish-image.yaml (once per dependency era). nvcr.io is the shared
+    #  Primary: `docker pull` the perf-smoke CI image published to nvcr.io by
+    #      perf-smoke-publish-image.yaml (once per dependency era). nvcr.io is the shared
     #      IsaacLab registry, reachable from the RTX PRO 6000 fleet, so every matrix cell
     #      just pulls (~seconds) instead of cold-building (~26 min). The reference defaults
-    #      to nvcr.io/nvidian/isaac-lab:latest-perf; set the optional PERF_GATE_CI_IMAGE
+    #      to nvcr.io/nvidian/isaac-lab:latest-perf; set the optional PERF_SMOKE_CI_IMAGE
     #      repo variable to override it (e.g. to pin an immutable sha-<short> tag). The
     #      seeder pulls this same image, so baselines and PR runs share an identical
     #      environment (same runtime_contract_hash, no seed-vs-gate offset). The pulled
@@ -174,7 +174,7 @@ jobs:
       id: pull_image
       continue-on-error: true
       env:
-        CI_IMAGE_REF: ${{ vars.PERF_GATE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
+        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
       run: |
         set -euo pipefail
 
@@ -218,7 +218,7 @@ jobs:
         # never resolves and the build would otherwise run with no layer cache. Opt
         # into a registry-free gha cache (the org standard for this Dockerfile) under a
         # dedicated scope so it can't collide with publish-images/build.yaml.
-        gha-cache-scope: perf-gate-base
+        gha-cache-scope: perf-smoke-base
 
     - name: Run benchmark in Docker
       id: bench_run
@@ -272,7 +272,7 @@ jobs:
         if [[ -z "${GPU_MODEL}" ]]; then
           GPU_MODEL="unknown-gpu"
         fi
-        python3 tools/perf_regression_gate/write_launch_config.py \
+        python3 tools/perf_smoke_test/write_launch_config.py \
           --task_id "${TASK_ID}" \
           --physics_backend "${PHYSICS_BACKEND}" \
           --render_backend "${RENDER_BACKEND}" \
@@ -391,7 +391,7 @@ jobs:
 
         # Remove any partial perf output from the failed first attempt so the retry's
         # output is picked up cleanly by build_bench_result's normalize step.
-        rm -f "${ARTIFACT_DIR}/perf_regression_gate_info.json"
+        rm -f "${ARTIFACT_DIR}/perf_smoke_test_info.json"
 
         docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
@@ -491,7 +491,7 @@ jobs:
           EXTRA_FLAGS=""
         fi
 
-        python3 tools/perf_regression_gate/build_bench_result.py \
+        python3 tools/perf_smoke_test/build_bench_result.py \
           --task_id "${TASK_ID}" \
           --physics_backend "${PHYSICS_BACKEND}" \
           --render_backend "${RENDER_BACKEND}" \
@@ -501,14 +501,14 @@ jobs:
           --timeout_s "${{ matrix.bench_timeout_s }}" \
           --log_file "${ARTIFACT_DIR}/benchmark.log" \
           --launch_config "${ARTIFACT_DIR}/launch_config.json" \
-          --gate_config tools/perf_regression_gate/gate_config.json \
+          --gate_config tools/perf_smoke_test/gate_config.json \
           ${EXTRA_FLAGS}
 
     # Surface per-task benchmark execution health as an independent commit status
     # on the PR head. This reads build_bench_result's structured result so a green
     # job (bench is continue-on-error) can no longer hide a benchmark that failed.
     # Note: this reports whether the benchmark *ran*, not the regression verdict —
-    # that is the separate `perf-regression-gate` status posted by aggregate.
+    # that is the separate `perf-smoke-test` status posted by aggregate.
     - name: Report per-task status
       if: always()
       uses: actions/github-script@v7
@@ -519,12 +519,12 @@ jobs:
           const physics = ${{ toJSON(matrix.physics_backend) }};
           const render = ${{ toJSON(matrix.render_backend) }};
           const backendKey = render ? `${physics}_${render}` : physics;
-          const resultPath = `artifacts/${taskId}/${backendKey}/perf_regression_gate_result.json`;
+          const resultPath = `artifacts/${taskId}/${backendKey}/perf_smoke_test_result.json`;
           let ok = false;
           let description = 'no benchmark result produced';
           try {
             const r = JSON.parse(fs.readFileSync(resultPath, 'utf8'));
-            ok = r.exit_code === 0 && !r.failure_phase && r.perf_regression_gate_info_present === true;
+            ok = r.exit_code === 0 && !r.failure_phase && r.perf_smoke_test_info_present === true;
             description = ok
               ? 'benchmark completed'
               : `benchmark failed (${r.failure_phase || 'exit ' + r.exit_code})`;
@@ -536,7 +536,7 @@ jobs:
             repo: context.repo.repo,
             sha: context.sha,
             state: ok ? 'success' : 'failure',
-            context: `perf-gate (${taskId}/${backendKey})`,
+            context: `perf-smoke (${taskId}/${backendKey})`,
             description: description.slice(0, 140),
           });
 
@@ -572,7 +572,7 @@ jobs:
   # ---------------------------------------------------------------------------
   aggregate:
     name: Aggregate + Verdict
-    runs-on: ${{ fromJSON(vars.PERF_GATE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
     needs: [bench]
     # Always run for real gate attempts, even when some bench jobs fail.
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
@@ -600,10 +600,10 @@ jobs:
     - name: Resolve gate context
       id: gate_context
       env:
-        ALLOW_MIRROR_UPDATE: ${{ vars.PERF_GATE_ALLOW_MIRROR_BASELINE_UPDATE || 'false' }}
+        ALLOW_MIRROR_UPDATE: ${{ vars.PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE || 'false' }}
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        python3 tools/perf_regression_gate/github_gate_context.py
+        python3 tools/perf_smoke_test/github_gate_context.py
 
     - name: Run aggregate oracle
       id: aggregate
@@ -615,10 +615,10 @@ jobs:
         # Write the verdict table to a dedicated file so it can be reused for the
         # sticky PR comment, then mirror it into the run's step summary.
         SUMMARY_FILE="${{ github.workspace }}/verdict_summary.md"
-        python3 tools/perf_regression_gate/aggregate.py \
+        python3 tools/perf_smoke_test/aggregate.py \
           --artifacts_dir artifacts/ \
           --gpu_model "${GPU_MODEL}" \
-          --gate_config tools/perf_regression_gate/gate_config.json \
+          --gate_config tools/perf_smoke_test/gate_config.json \
           --baseline_branch perf-baselines \
           --baseline_remote origin \
           --baseline_push_retries 3 \
@@ -653,8 +653,8 @@ jobs:
           } catch (e) {
             core.info('verdict_summary.md not found; posting placeholder');
           }
-          const marker = '<!-- perf-regression-gate-verdict -->';
-          const body = `${marker}\n## Performance Regression Gate\n\n${table}\n\n_Updated for ${context.sha.slice(0, 8)} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
+          const marker = '<!-- perf-smoke-test-verdict -->';
+          const body = `${marker}\n## Performance Smoke Test\n\n${table}\n\n_Updated for ${context.sha.slice(0, 8)} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
           const { owner, repo } = context.repo;
           const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
           const existing = comments.find(c => c.body && c.body.includes(marker));
