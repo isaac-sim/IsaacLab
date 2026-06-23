@@ -37,8 +37,11 @@ class SO101PoseIKAction(DifferentialInverseKinematicsAction):
 
     def __init__(self, cfg: SO101PoseIKActionCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
-        # Replace the base position/pose controller with the SO-101 full-pose one.  Re-create the
-        # raw/processed action buffers and scale (action_dim is the controller's 7).
+        # Swap the base differential-IK controller for the SO-101 one. The two share the same 7D
+        # ``[pos, quat_xyzw]`` action layout, so the base-allocated buffers/scale stay valid; the
+        # SO-101 controller only adds the orientation joint mask on top of the core adaptive-DLS +
+        # orientation-weighting + JLA controller. Null-space joint-limit injection now comes from
+        # the base term (gated on ``joint_limit_avoidance_gain > 0``), so it is not repeated here.
         self._ik_controller = SO101PoseIKController(cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device)
         # Restrict the orientation task to a subset of joints if configured (e.g. the SO-101 wrist),
         # so the other joints (shoulder_pan, ...) serve position only and the base does not swing to
@@ -55,10 +58,6 @@ class SO101PoseIKAction(DifferentialInverseKinematicsAction):
                 [1.0 if name in ori_names else 0.0 for name in self._joint_names], device=self.device
             )
             self._ik_controller.set_orientation_joint_mask(ori_mask)
-        self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
-        self._processed_actions = torch.zeros_like(self._raw_actions)
-        self._scale = torch.zeros((self.num_envs, self.action_dim), device=self.device)
-        self._scale[:] = torch.tensor(self.cfg.scale, device=self.device)
         # Action clipping is not supported for this term: the base clips by action-dim axis using
         # joint-name keys, but this term's action layout is the task-space pose
         # [pos_xyz, quat_xyzw], which does not map to joint names. Refuse rather than silently
@@ -68,14 +67,3 @@ class SO101PoseIKAction(DifferentialInverseKinematicsAction):
                 "clip is not supported for SO101PoseIKAction (task-space [pos, quat] action "
                 "does not map to joint-name clip keys)."
             )
-        # Joint limits are injected lazily on the first apply (asset data is populated by then)
-        # so the controller can do null-space joint-limit avoidance.
-        self._limits_injected = False
-
-    def apply_actions(self) -> None:
-        if not self._limits_injected:
-            # Limits are uniform across envs for the SO-101; env 0 is representative.
-            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
-            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
-            self._limits_injected = True
-        super().apply_actions()

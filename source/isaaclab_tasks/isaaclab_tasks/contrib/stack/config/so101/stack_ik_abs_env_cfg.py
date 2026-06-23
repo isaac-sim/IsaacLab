@@ -192,7 +192,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
     one DOF. We command an absolute end-effector **SE3 pose** via a full-pose differential IK
     over all 5 arm joints (``shoulder_pan``, ``shoulder_lift``, ``elbow_flex``, ``wrist_flex``,
     ``wrist_roll``): the 3 linear task rows track position exactly (weight 1) and the
-    orientation rows are soft-weighted (``orientation_task_weight``) so orientation is
+    orientation rows are soft-weighted (``orientation_weight``) so orientation is
     best-effort and never leaks error into position. Orientation is further restricted to the wrist
     (``orientation_joint_names=("wrist_flex", "wrist_roll")``): ``wrist_roll`` takes the gripper
     spin about the (vertical) approach axis and ``wrist_flex`` the tilt, while ``shoulder_pan``
@@ -250,21 +250,22 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 controller=SO101PoseIKControllerCfg(
                     command_type="pose",
                     use_relative_mode=False,
-                    ik_method="dls",
+                    # Manipulability-aware damped least squares keeps the 5-DOF arm well-conditioned
+                    # near singularities (adaptive lambda keyed off the smallest task-Jacobian
+                    # singular value).
+                    ik_method="adaptive_dls",
+                    ik_params={"lambda_min": 0.05, "lambda_max": 0.2, "sigma_thresh": 0.02},
                     # Track all 3 orientation axes (including spin about the vertical approach
                     # axis), but restrict orientation to the wrist via ``orientation_joint_names``
                     # below so the base never serves it: ``wrist_roll`` takes the spin (controller
                     # twist about vertical / stage Z) and ``wrist_flex`` the tilt, while
-                    # ``shoulder_pan`` stays position-only (heading to the target). So commanding or
-                    # tuning the gripper orientation no longer swings the base.
-                    orientation_task_weight=0.5,
+                    # ``shoulder_pan`` stays position-only (heading to the target).
+                    orientation_weight=0.5,
                     # Orientation is a wrist-only task (see above). Position still uses all 5 joints.
                     orientation_joint_names=("wrist_flex", "wrist_roll"),
-                    lambda_min=0.05,
-                    lambda_max=0.2,
-                    sigma_thresh=0.02,
-                    jla_gain=0.5,  # 0 disables joint-limit avoidance
-                    jla_margin=0.3,
+                    # Null-space joint-limit avoidance (0 disables it).
+                    joint_limit_avoidance_gain=0.5,
+                    joint_limit_avoidance_margin=0.3,
                 ),
             ),
             # Analog gripper: continuous JointPositionActionCfg mapping the retargeter's
