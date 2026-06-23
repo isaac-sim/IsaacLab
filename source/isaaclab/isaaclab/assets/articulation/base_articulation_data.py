@@ -3,8 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import warnings
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import warp as wp
 
@@ -22,6 +25,9 @@ from isaaclab.utils.leapp import (
     leapp_tensor_semantics,
 )
 from isaaclab.utils.warp import ProxyArray
+
+if TYPE_CHECKING:
+    from .ordering import ArticulationNameMap
 
 
 class BaseArticulationData(ABC):
@@ -93,6 +99,12 @@ class BaseArticulationData(ABC):
 
     joint_names: list[str] | None = None
     """Joint names in the order parsed by the simulation view."""
+
+    joint_ordering: ArticulationNameMap | None = None
+    """Mapping between backend and public joint order, if ordering has been resolved."""
+
+    body_ordering: ArticulationNameMap | None = None
+    """Mapping between backend and public body order, if ordering has been resolved."""
 
     fixed_tendon_names: list[str] | None = None
     """Fixed tendon names in the order parsed by the simulation view."""

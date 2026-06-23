@@ -33,6 +33,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
+from isaaclab.assets.articulation.ordering import get_mjwarp_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -476,6 +477,33 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articulations, device, articulation_type):
+    """Test that the MJWarp ordering resolver matches live Newton articulation names."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+
+    sim.reset()
+
+    class _PhysxLikeArticulation:
+        __backend_name__ = "physx"
+        cfg = articulation.cfg
+        backend_joint_names = list(reversed(articulation.backend_joint_names))
+        backend_body_names = list(reversed(articulation.backend_body_names))
+
+    assert articulation.is_initialized
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
+    assert get_mjwarp_articulation_name_ordering(_PhysxLikeArticulation(), kind="joint") == tuple(
+        articulation.backend_joint_names
+    )
+    assert get_mjwarp_articulation_name_ordering(_PhysxLikeArticulation(), kind="body") == tuple(
+        articulation.backend_body_names
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

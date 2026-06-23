@@ -12,6 +12,7 @@ from isaaclab.actuators import ActuatorBaseCfg
 from isaaclab.utils.configclass import configclass
 
 from ..asset_base_cfg import AssetBaseCfg
+from .ordering import ArticulationOrderingConvention
 
 if TYPE_CHECKING:
     from .articulation import Articulation
@@ -66,6 +67,22 @@ class ArticulationCfg(AssetBaseCfg):
     positions from violating the limits, such as for termination conditions.
 
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
+    """
+
+    joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    """Optional public joint ordering convention or complete joint-name permutation.
+
+    If ``None``, the public joint order follows the active backend order and preserves
+    the direct identity path. String aliases currently accept ``"physx"`` and
+    ``"mjwarp"``.
+    """
+
+    body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    """Optional public body ordering convention or complete body-name permutation.
+
+    If ``None``, the public body order follows the active backend order and preserves
+    the direct identity path. String aliases currently accept ``"physx"`` and
+    ``"mjwarp"``.
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING

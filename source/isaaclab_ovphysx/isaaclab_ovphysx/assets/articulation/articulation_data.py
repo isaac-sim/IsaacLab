@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 import warp as wp
 
+from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
@@ -866,7 +867,17 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because the underlying OVPhysX
         binding is CPU-only (``ARTICULATION_BODY_MASS``).
         """
-        self._read_scalar_binding(TT.BODY_MASS, self._body_mass)
+        if self.body_ordering is not None and not self.body_ordering.is_identity:
+            self._read_scalar_binding(TT.BODY_MASS, self._body_mass_backend)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self._body_mass_backend.data, self.body_ordering.user_to_backend],
+                outputs=[self._body_mass.data],
+                device=self.device,
+            )
+        else:
+            self._read_scalar_binding(TT.BODY_MASS, self._body_mass)
         if self._body_mass_ta is None:
             self._body_mass_ta = ProxyArray(self._body_mass.data)
         return self._body_mass_ta
@@ -881,7 +892,17 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging (``ARTICULATION_BODY_INERTIA`` is
         a CPU-only binding).
         """
-        self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia)
+        if self.body_ordering is not None and not self.body_ordering.is_identity:
+            self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia_backend)
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies, 9),
+                inputs=[self._body_inertia_backend.data, self.body_ordering.user_to_backend],
+                outputs=[self._body_inertia.data],
+                device=self.device,
+            )
+        else:
+            self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia)
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia.data)
         return self._body_inertia_ta
@@ -897,7 +918,17 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         self._ensure_fk_fresh()
-        self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
+        if self.body_ordering is not None and not self.body_ordering.is_identity:
+            self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w_backend)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self._body_link_pose_w_backend.data, self.body_ordering.user_to_backend],
+                outputs=[self._body_link_pose_w.data],
+                device=self.device,
+            )
+        else:
+            self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
         return self._body_link_pose_w_ta
@@ -910,7 +941,17 @@ class ArticulationData(BaseArticulationData):
         In torch this resolves to (num_instances, num_bodies, 6).
         """
         self._ensure_fk_fresh()
-        self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
+        if self.body_ordering is not None and not self.body_ordering.is_identity:
+            self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w_backend)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self._body_com_vel_w_backend.data, self.body_ordering.user_to_backend],
+                outputs=[self._body_com_vel_w.data],
+                device=self.device,
+            )
+        else:
+            self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
         return self._body_com_vel_w_ta
@@ -1013,7 +1054,17 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_buf)
+        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+            self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_backend)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[self._joint_pos_backend.data, self.joint_ordering.user_to_backend],
+                outputs=[self._joint_pos_buf.data],
+                device=self.device,
+            )
+        else:
+            self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_buf)
         if self._joint_pos_ta is None:
             self._joint_pos_ta = ProxyArray(self._joint_pos_buf.data)
         return self._joint_pos_ta
@@ -1024,7 +1075,17 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_buf)
+        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+            self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_backend)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[self._joint_vel_backend.data, self.joint_ordering.user_to_backend],
+                outputs=[self._joint_vel_buf.data],
+                device=self.device,
+            )
+        else:
+            self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_buf)
         if self._joint_vel_ta is None:
             self._joint_vel_ta = ProxyArray(self._joint_vel_buf.data)
         return self._joint_vel_ta
@@ -1449,14 +1510,18 @@ class ArticulationData(BaseArticulationData):
 
         # -- Body state buffers
         self._body_link_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
+        self._body_link_pose_w_backend = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_link_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_pose_b = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
+        self._body_com_vel_w_backend = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
+        self._joint_pos_backend = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
+        self._joint_vel_backend = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
         # Read-only zeros source used to clear the joint-acceleration cache on velocity writes.
@@ -1479,7 +1544,9 @@ class ArticulationData(BaseArticulationData):
 
         # -- Body properties (CPU-only; read once at init, re-read via _read_scalar_binding)
         self._body_mass = TimestampedBuffer((N, L), dev, wp.float32)
+        self._body_mass_backend = TimestampedBuffer((N, L), dev, wp.float32)
         self._body_inertia = TimestampedBuffer((N, L, 9), dev, wp.float32)
+        self._body_inertia_backend = TimestampedBuffer((N, L, 9), dev, wp.float32)
 
         # -- Soft limits / custom joint properties
         self._soft_joint_pos_limits = wp.zeros((N, D), dtype=wp.vec2f, device=dev)
@@ -1784,6 +1851,18 @@ class ArticulationData(BaseArticulationData):
                 if binding is not None:
                     self._binding_read(tt, buf.data)
                     buf.timestamp = self._sim_timestamp
+
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Refresh owned public-order buffers after articulation ordering maps are installed."""
+        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+            previous_joint_vel_backend = wp.clone(self._previous_joint_vel, device=self.device)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[previous_joint_vel_backend, self.joint_ordering.user_to_backend],
+                outputs=[self._previous_joint_vel],
+                device=self.device,
+            )
 
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.

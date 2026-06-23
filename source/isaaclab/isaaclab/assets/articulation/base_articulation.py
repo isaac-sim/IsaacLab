@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 
     from .articulation_cfg import ArticulationCfg
     from .articulation_data import ArticulationData
+    from .ordering import ArticulationNameMap
 
 
 class BaseArticulation(AssetBase):
@@ -169,6 +170,30 @@ class BaseArticulation(AssetBase):
 
     @property
     @abstractmethod
+    def backend_joint_names(self) -> list[str]:
+        """Ordered names of joints as exposed by the active backend."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def backend_body_names(self) -> list[str]:
+        """Ordered names of bodies as exposed by the active backend."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def joint_ordering(self) -> ArticulationNameMap | None:
+        """Mapping between backend and public joint order."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def body_ordering(self) -> ArticulationNameMap | None:
+        """Mapping between backend and public body order."""
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
     def root_view(self):
         """Root view for the asset.
 
@@ -176,6 +201,54 @@ class BaseArticulation(AssetBase):
             Use this view with caution. It requires handling of tensors in a specific way.
         """
         raise NotImplementedError()
+
+    def _resolve_and_install_ordering_maps(self) -> None:
+        """Resolve configured articulation name orderings and store maps on :attr:`data`."""
+        from .ordering import (
+            build_articulation_name_map,
+            resolve_articulation_convention_name_ordering,
+            resolve_articulation_ordering_names,
+        )
+
+        def resolve_convention_names(convention, kind):
+            return resolve_articulation_convention_name_ordering(
+                articulation=self,
+                convention=convention,
+                kind=kind,
+            )
+
+        joint_user_names = resolve_articulation_ordering_names(
+            kind="joint",
+            backend_names=self.backend_joint_names,
+            ordering=self.cfg.joint_ordering,
+            active_backend_name=self.__backend_name__,
+            convention_name_resolver=resolve_convention_names,
+        )
+        body_user_names = resolve_articulation_ordering_names(
+            kind="body",
+            backend_names=self.backend_body_names,
+            ordering=self.cfg.body_ordering,
+            active_backend_name=self.__backend_name__,
+            convention_name_resolver=resolve_convention_names,
+        )
+
+        self.data.joint_ordering = build_articulation_name_map(
+            kind="joint",
+            backend_names=self.backend_joint_names,
+            user_names=joint_user_names,
+            device=self.device,
+        )
+        self.data.body_ordering = build_articulation_name_map(
+            kind="body",
+            backend_names=self.backend_body_names,
+            user_names=body_user_names,
+            device=self.device,
+        )
+        self.data.joint_names = list(self.data.joint_ordering.user_names)
+        self.data.body_names = list(self.data.body_ordering.user_names)
+        apply_ordering_maps = getattr(self.data, "_apply_ordering_maps_after_resolve", None)
+        if apply_ordering_maps is not None:
+            apply_ordering_maps()
 
     @property
     def num_base_dofs(self) -> int:

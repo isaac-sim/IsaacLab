@@ -12,7 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -21,6 +21,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
@@ -42,6 +43,9 @@ from .kernels import (
     write_joint_friction_data_to_buffer_index,
     write_joint_friction_data_to_buffer_mask,
 )
+
+if TYPE_CHECKING:
+    from isaaclab.assets.articulation.ordering import ArticulationNameMap
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -131,7 +135,10 @@ class Articulation(BaseArticulation):
     @property
     def joint_names(self) -> list[str]:
         """Ordered names of joints in articulation."""
-        return self._joint_names
+        ordering = getattr(getattr(self, "_data", None), "joint_ordering", None)
+        if ordering is not None:
+            return list(ordering.user_names)
+        return list(self.backend_joint_names)
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -146,7 +153,30 @@ class Articulation(BaseArticulation):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies in articulation."""
+        ordering = getattr(getattr(self, "_data", None), "body_ordering", None)
+        if ordering is not None:
+            return list(ordering.user_names)
+        return list(self.backend_body_names)
+
+    @property
+    def backend_joint_names(self) -> list[str]:
+        """Ordered names of joints as exposed by the active backend."""
+        return self._joint_names
+
+    @property
+    def backend_body_names(self) -> list[str]:
+        """Ordered names of bodies as exposed by the active backend."""
         return self._body_names
+
+    @property
+    def joint_ordering(self) -> ArticulationNameMap | None:
+        """Mapping between backend and public joint order."""
+        return self.data.joint_ordering
+
+    @property
+    def body_ordering(self) -> ArticulationNameMap | None:
+        """Mapping between backend and public body order."""
+        return self.data.body_ordering
 
     @property
     def root_view(self) -> OvPhysxView:
@@ -210,6 +240,20 @@ class Articulation(BaseArticulation):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
+    def _get_backend_ordered_joint_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
+        """Return a backend-order view/copy for a public user-order joint buffer."""
+        ordering = self.data.joint_ordering
+        if ordering is None or ordering.is_identity:
+            return user_buffer
+        wp.launch(
+            ordering_kernels.reorder_2d_user_to_backend,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[user_buffer, ordering.backend_to_user],
+            outputs=[backend_buffer],
+            device=self._device,
+        )
+        return backend_buffer
+
     def write_data_to_sim(self) -> None:
         """Write external wrenches and joint commands to the simulation.
 
@@ -250,13 +294,22 @@ class Articulation(BaseArticulation):
         self._apply_actuator_model()
         # write actions into simulation (zeros are safe when no actuators are active)
         if self._effort_write_view is not None:
-            self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, self._effort_write_view)
+            effort = self._get_backend_ordered_joint_buffer(
+                self._data._applied_torque, self._joint_effort_target_backend
+            )
+            self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
             if self._pos_target_write_view is not None:
-                self._root_view.set_attribute(TT.DOF_POSITION_TARGET, self._pos_target_write_view)
+                pos_target = self._get_backend_ordered_joint_buffer(
+                    self._data._joint_pos_target, self._joint_pos_target_backend
+                )
+                self._root_view.set_attribute(TT.DOF_POSITION_TARGET, pos_target)
             if self._vel_target_write_view is not None:
-                self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, self._vel_target_write_view)
+                vel_target = self._get_backend_ordered_joint_buffer(
+                    self._data._joint_vel_target, self._joint_vel_target_backend
+                )
+                self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, vel_target)
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -852,19 +905,31 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[position, env_ids, joint_ids],
-            outputs=[self._data._joint_pos_buf.data],
-            device=self._device,
-        )
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[position, env_ids, joint_ids, ordering.user_to_backend, False],
+                outputs=[self._data._joint_pos_buf.data, self._data._joint_pos_backend.data],
+                device=self._device,
+            )
+            joint_pos_backend = self._data._joint_pos_backend.data
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[position, env_ids, joint_ids],
+                outputs=[self._data._joint_pos_buf.data],
+                device=self._device,
+            )
+            joint_pos_backend = self._data._joint_pos_buf.data
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         # A position write does not change joint velocities, so the joint acceleration is unaffected.
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -897,19 +962,31 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[position, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._joint_pos_buf.data],
-            device=self._device,
-        )
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[position, env_mask_wp, joint_mask_wp, ordering.user_to_backend],
+                outputs=[self._data._joint_pos_buf.data, self._data._joint_pos_backend.data],
+                device=self._device,
+            )
+            joint_pos_backend = self._data._joint_pos_backend.data
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[position, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._joint_pos_buf.data],
+                device=self._device,
+            )
+            joint_pos_backend = self._data._joint_pos_buf.data
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         # A position write does not change joint velocities, so the joint acceleration is unaffected.
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -940,35 +1017,49 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[velocity, env_ids, joint_ids],
-            outputs=[self._data._joint_vel_buf.data],
-            device=self._device,
-        )
-        # A velocity write teleports the joint velocity, so reset the finite-difference baseline:
-        # sync previous_joint_vel to the new values and zero the cached joint acceleration. Both are
-        # unconditional (independent of skip_forward) because they are part of the write's semantics,
-        # not lazily-recomputed cache state; the next FD step then differences against the new velocity.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[velocity, env_ids, joint_ids],
-            outputs=[self._data._previous_joint_vel],
-            device=self._device,
-        )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[self._data._joint_acc_zeros, env_ids, joint_ids],
-            outputs=[self._data._joint_acc.data],
-            device=self._device,
-        )
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_joint_vel_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[velocity, env_ids, joint_ids, ordering.user_to_backend, False],
+                outputs=[
+                    self._data._joint_vel_buf.data,
+                    self._data._previous_joint_vel,
+                    self._data._joint_acc.data,
+                    self._data._joint_vel_backend.data,
+                ],
+                device=self._device,
+            )
+            joint_vel_backend = self._data._joint_vel_backend.data
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[velocity, env_ids, joint_ids],
+                outputs=[self._data._joint_vel_buf.data],
+                device=self._device,
+            )
+            # A velocity write teleports the joint velocity, so reset the finite-difference baseline.
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[velocity, env_ids, joint_ids],
+                outputs=[self._data._previous_joint_vel],
+                device=self._device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[self._data._joint_acc_zeros, env_ids, joint_ids],
+                outputs=[self._data._joint_acc.data],
+                device=self._device,
+            )
+            joint_vel_backend = self._data._joint_vel_buf.data
         self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1001,35 +1092,49 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[velocity, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._joint_vel_buf.data],
-            device=self._device,
-        )
-        # A velocity write teleports the joint velocity, so reset the finite-difference baseline:
-        # sync previous_joint_vel to the new values and zero the cached joint acceleration. Both are
-        # unconditional (independent of skip_forward) because they are part of the write's semantics,
-        # not lazily-recomputed cache state; the next FD step then differences against the new velocity.
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[velocity, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._previous_joint_vel],
-            device=self._device,
-        )
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[self._data._joint_acc_zeros, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._joint_acc.data],
-            device=self._device,
-        )
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_joint_vel_user_to_backend_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[velocity, env_mask_wp, joint_mask_wp, ordering.user_to_backend],
+                outputs=[
+                    self._data._joint_vel_buf.data,
+                    self._data._previous_joint_vel,
+                    self._data._joint_acc.data,
+                    self._data._joint_vel_backend.data,
+                ],
+                device=self._device,
+            )
+            joint_vel_backend = self._data._joint_vel_backend.data
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[velocity, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._joint_vel_buf.data],
+                device=self._device,
+            )
+            # A velocity write teleports the joint velocity, so reset the finite-difference baseline.
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[velocity, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._previous_joint_vel],
+                device=self._device,
+            )
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[self._data._joint_acc_zeros, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._joint_acc.data],
+                device=self._device,
+            )
+            joint_vel_backend = self._data._joint_vel_buf.data
         self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
             self._data._reset_velocity()
-        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -2342,14 +2447,26 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids],
-            outputs=[self._data._joint_pos_target],
-            device=self._device,
-        )
-        self._root_view.set_attribute(TT.DOF_POSITION_TARGET, self._data._joint_pos_target, indices=env_ids)
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[target, env_ids, joint_ids, ordering.user_to_backend, False],
+                outputs=[self._data._joint_pos_target, self._joint_pos_target_backend],
+                device=self._device,
+            )
+            target_backend = self._joint_pos_target_backend
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[target, env_ids, joint_ids],
+                outputs=[self._data._joint_pos_target],
+                device=self._device,
+            )
+            target_backend = self._data._joint_pos_target
+        self._root_view.set_attribute(TT.DOF_POSITION_TARGET, target_backend, indices=env_ids)
 
     def set_joint_position_target_mask(
         self,
@@ -2378,14 +2495,26 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[target, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._joint_pos_target],
-            device=self._device,
-        )
-        self._root_view.set_attribute(TT.DOF_POSITION_TARGET, self._data._joint_pos_target, mask=env_mask_wp)
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[target, env_mask_wp, joint_mask_wp, ordering.user_to_backend],
+                outputs=[self._data._joint_pos_target, self._joint_pos_target_backend],
+                device=self._device,
+            )
+            target_backend = self._joint_pos_target_backend
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[target, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._joint_pos_target],
+                device=self._device,
+            )
+            target_backend = self._data._joint_pos_target
+        self._root_view.set_attribute(TT.DOF_POSITION_TARGET, target_backend, mask=env_mask_wp)
 
     def set_joint_velocity_target_index(
         self,
@@ -2417,14 +2546,26 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids],
-            outputs=[self._data._joint_vel_target],
-            device=self._device,
-        )
-        self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target, indices=env_ids)
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[target, env_ids, joint_ids, ordering.user_to_backend, False],
+                outputs=[self._data._joint_vel_target, self._joint_vel_target_backend],
+                device=self._device,
+            )
+            target_backend = self._joint_vel_target_backend
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[target, env_ids, joint_ids],
+                outputs=[self._data._joint_vel_target],
+                device=self._device,
+            )
+            target_backend = self._data._joint_vel_target
+        self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, target_backend, indices=env_ids)
 
     def set_joint_velocity_target_mask(
         self,
@@ -2453,14 +2594,26 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[target, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._joint_vel_target],
-            device=self._device,
-        )
-        self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target, mask=env_mask_wp)
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[target, env_mask_wp, joint_mask_wp, ordering.user_to_backend],
+                outputs=[self._data._joint_vel_target, self._joint_vel_target_backend],
+                device=self._device,
+            )
+            target_backend = self._joint_vel_target_backend
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[target, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._joint_vel_target],
+                device=self._device,
+            )
+            target_backend = self._data._joint_vel_target
+        self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, target_backend, mask=env_mask_wp)
 
     def set_joint_effort_target_index(
         self,
@@ -2492,14 +2645,26 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids],
-            outputs=[self._data._joint_effort_target],
-            device=self._device,
-        )
-        self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, self._data._joint_effort_target, indices=env_ids)
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[target, env_ids, joint_ids, ordering.user_to_backend, False],
+                outputs=[self._data._joint_effort_target, self._joint_effort_target_backend],
+                device=self._device,
+            )
+            target_backend = self._joint_effort_target_backend
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_indices,
+                dim=(env_ids.shape[0], joint_ids.shape[0]),
+                inputs=[target, env_ids, joint_ids],
+                outputs=[self._data._joint_effort_target],
+                device=self._device,
+            )
+            target_backend = self._data._joint_effort_target
+        self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, target_backend, indices=env_ids)
 
     def set_joint_effort_target_mask(
         self,
@@ -2528,14 +2693,26 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[target, env_mask_wp, joint_mask_wp],
-            outputs=[self._data._joint_effort_target],
-            device=self._device,
-        )
-        self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, self._data._joint_effort_target, mask=env_mask_wp)
+        ordering = self.data.joint_ordering
+        if ordering is not None and not ordering.is_identity:
+            wp.launch(
+                ordering_kernels.write_2d_float_user_to_backend_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[target, env_mask_wp, joint_mask_wp, ordering.user_to_backend],
+                outputs=[self._data._joint_effort_target, self._joint_effort_target_backend],
+                device=self._device,
+            )
+            target_backend = self._joint_effort_target_backend
+        else:
+            wp.launch(
+                shared_kernels.write_2d_data_to_buffer_with_mask,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[target, env_mask_wp, joint_mask_wp],
+                outputs=[self._data._joint_effort_target],
+                device=self._device,
+            )
+            target_backend = self._data._joint_effort_target
+        self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, target_backend, mask=env_mask_wp)
 
     """
     Operations - Tendons.
@@ -3649,8 +3826,7 @@ class Articulation(BaseArticulation):
 
         # construct the data container; counts come from the view's bindings
         self._data = ArticulationData(self._root_view, self._device)
-        self._data.body_names = self._body_names
-        self._data.joint_names = self._joint_names
+        self._resolve_and_install_ordering_maps()
         self._data.fixed_tendon_names = self._fixed_tendon_names
         self._data.spatial_tendon_names = self._spatial_tendon_names
 
@@ -3731,6 +3907,9 @@ class Articulation(BaseArticulation):
         # ``_body_wrench_to_world`` kernel and consumed by the
         # ``LINK_WRENCH`` binding which expects the 3D ``(N, B, 9)`` shape.
         self._wrench_buf = wp.zeros((N, B, 9), dtype=wp.float32, device=device)
+        self._joint_pos_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
+        self._joint_vel_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
+        self._joint_effort_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
 
         # Wrench composers.
         self._instantaneous_wrench_composer = WrenchComposer(self)
