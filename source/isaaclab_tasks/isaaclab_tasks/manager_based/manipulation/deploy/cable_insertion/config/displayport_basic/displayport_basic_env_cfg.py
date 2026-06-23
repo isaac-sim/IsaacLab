@@ -68,7 +68,7 @@ class DisplayPortPlug(RigidObjectCfg):
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_plug.usd"),
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),  # old: inches, needs scale=0.0254
         # usd_path="/home/shauryad/workspaces/rl_policy/physical-ai-skill-hub-dev/outputs/plug/conform/fet001-minimal/plug_material_physics.usd",  # old: absolute path, convexHull
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_watertight.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_sdf.usd"),
         # pipeline output post-processed by finalize_dp_assets.py: metres, single root RB, convexDecomposition.
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
@@ -118,7 +118,7 @@ class DisplayPortSocket(RigidObjectCfg):
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "simready_socket.usd"),
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, needs scale=0.0254
         # usd_path="/home/shauryad/workspaces/rl_policy/physical-ai-skill-hub-dev/outputs/socket/conform/fet001-minimal/socket_material_physics.usd",  # old: absolute path
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_watertight.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_sdf.usd"),
         # pipeline output post-processed by finalize_dp_assets.py: metres, kinematic root, all bodies enabled.
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
