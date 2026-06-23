@@ -294,11 +294,10 @@ def spawn_mesh_rectangle(
         ValueError: If a prim already exists at the given path.
     """
     # create a 2D triangle mesh grid
-    from omni.physx.scripts import deformableUtils
-
-    vertices, faces = deformableUtils.create_triangle_mesh_square(cfg.resolution[0], cfg.resolution[1], scale=1.0)
-    vertices = np.array([(v[0] * cfg.size[0], v[1] * cfg.size[1], v[2]) for v in vertices], dtype=np.float32)
-    grid = trimesh.Trimesh(vertices=vertices, faces=np.array(faces).reshape(-1, 3), process=False)
+    vertices, faces = _create_triangle_mesh_grid(cfg.resolution)
+    vertices[:, 0] *= cfg.size[0]
+    vertices[:, 1] *= cfg.size[1]
+    grid = trimesh.Trimesh(vertices=vertices, faces=faces, process=False)
 
     # obtain stage handle
     stage = get_current_stage()
@@ -306,6 +305,34 @@ def spawn_mesh_rectangle(
     _spawn_mesh_geom_from_mesh(prim_path, cfg, grid, translation, orientation, None, stage=stage)
     # return the prim
     return stage.GetPrimAtPath(prim_path)
+
+
+def _create_triangle_mesh_grid(resolution: tuple[int, int]) -> tuple[np.ndarray, np.ndarray]:
+    """Create a centered triangle grid for :class:`MeshRectangleCfg`."""
+    if resolution[0] < 1 or resolution[1] < 1:
+        raise ValueError(f"Rectangle mesh resolution must be positive, got {resolution}.")
+
+    num_x, num_y = resolution
+    xs = np.linspace(-0.5, 0.5, num_x + 1, dtype=np.float32)
+    ys = np.linspace(-0.5, 0.5, num_y + 1, dtype=np.float32)
+    vertices = np.array([(x, y, 0.0) for y in ys for x in xs], dtype=np.float32)
+
+    faces = []
+    row_stride = num_x + 1
+    for iy in range(num_y):
+        for ix in range(num_x):
+            v0 = iy * row_stride + ix
+            v1 = v0 + 1
+            v2 = v0 + row_stride
+            v3 = v2 + 1
+            if (ix % 2 == 0) != (iy % 2 == 0):
+                faces.append((v0, v1, v2))
+                faces.append((v1, v3, v2))
+            else:
+                faces.append((v0, v1, v3))
+                faces.append((v0, v3, v2))
+
+    return vertices, np.asarray(faces, dtype=np.int64)
 
 
 """

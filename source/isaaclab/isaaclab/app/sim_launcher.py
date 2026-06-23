@@ -69,7 +69,9 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         return NewtonCfg()
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
-    raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx').")
+    raise ValueError(
+        f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
+    )
 
 
 """
