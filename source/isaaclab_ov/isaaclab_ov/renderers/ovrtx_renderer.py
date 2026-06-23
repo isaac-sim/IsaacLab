@@ -226,6 +226,11 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        # OV-RTX, like Isaac RTX, temporally accumulates only the rgb/rgba beauty buffer (DLSS).
+        return data_type in ("rgb", "rgba")
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""

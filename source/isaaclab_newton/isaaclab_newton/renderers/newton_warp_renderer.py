@@ -205,6 +205,11 @@ class NewtonWarpRenderer(BaseRenderer):
 
     RenderData = RenderData
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        # Pure rasterizer: no temporal accumulation on any output.
+        return False
+
     def __init__(self, cfg: NewtonWarpRendererCfg):
         """Pre-physics initialization."""
         from isaaclab.physics.scene_data_requirements import (
