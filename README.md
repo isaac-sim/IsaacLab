@@ -78,7 +78,7 @@ Generate augmented dataset
 # Convert HDF5 to LeRobot format 
 
 ```
-conda run -n lerobot python scripts/tools/convert_hdf5_to_lerobot.py --hdf5 logs/demos/pickup.hdf5 --output ~/Stanley_ws/IsaacLab/datasets/ethanCSL/openarm_visuomotor --task "Pick up the red cube." --fps 30 --cameras front_cam wrist_cam body_cam
+conda run -n lerobot python -u scripts/tools/convert_hdf5_to_lerobot.py     --hdf5 logs/demos/pickup.hdf5     --output ~/Stanley_ws/IsaacLab/datasets/ethanCSL/openarm_visuomotor     --task "Pick up the red cube."     --fps 30     --cameras front_cam wrist_cam body_cam
 ```
 
 # Train in LeRobot format
