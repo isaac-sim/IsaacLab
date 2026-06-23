@@ -8,7 +8,12 @@
 These exercise the pure-Python name<->enum logic and the view's get/set/read-into
 dispatch (including the float32 reinterpret of structured buffers and the
 no-implicit-conversion device policy) against a fake ``PhysX`` + fake ``TensorBinding``.
-Full read/write round-trips on a live sim are covered by the asset integration tests.
+
+Scope is intentionally the **API mechanics** against mock bindings. Live coverage against
+real ovphysx bindings -- CPU-only properties on a GPU sim, read-only/write-only failures,
+and structured ``read_into`` round-trips -- is provided by the asset-integration tests
+(``test_articulation.py`` / ``test_rigid_object.py`` / ``test_rigid_object_collection.py``)
+that adopt this view as ``root_view``; it is not (and is not meant to be) re-covered here.
 """
 
 from __future__ import annotations

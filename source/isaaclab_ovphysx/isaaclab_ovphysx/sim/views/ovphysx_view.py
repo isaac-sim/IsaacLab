@@ -33,6 +33,16 @@ while *state* tensor types are device-resident. This view reads/writes each bind
 its native device and **raises** :class:`OvPhysxView.DeviceMismatch` if a caller hands
 it a buffer on the wrong device. Staging a CPU property to/from the simulation device
 is the caller's explicit responsibility, never hidden here.
+
+**Dtype: float32 only (interim).** The wheel's ``TensorBinding.read``/``write`` are
+float32-only and expose no dtype metadata, so this view treats every binding as ``float32``
+(the structured dtypes in :data:`_ATTR_DTYPE`, e.g. ``wp.transformf``, are byte-compatible
+views over float32, not a different scalar type). Every ``TensorType`` in the current wheel
+is float32; a future non-float binding (e.g. a ``uint8``/``bool`` control tensor) could not be
+read correctly here until the wheel exposes dtype metadata. Rather than guess a dtype-supported
+subset, the public surface (:attr:`~OvPhysxView.attribute_names`) deliberately stays at
+name-validity; narrowing it to a dtype-aware subset is deferred to wheel dtype metadata
+(design doc §7 ask).
 """
 
 from __future__ import annotations
@@ -54,9 +64,14 @@ TensorType = import_ovphysx("ovphysx.types").TensorType
 # Tensor types that cannot be written. The first group is read-only by PhysX
 # convention (accelerations, inverse mass/inertia, projected joint force); the
 # computed-dynamics group (jacobian, mass matrix, coriolis, gravity) is read-only
-# in practice. The wheel enum exposes no writability flag today, so this set is
-# hand-maintained.
-# TODO(ovphysx): source this from a wheel writability query (design doc §7 ask 3).
+# in practice.
+#
+# TEMPORARY: this is a hand-maintained table and WILL drift as ``TensorType`` grows.
+# The wheel has at least three access modes in practice -- read/write, read-only, and
+# write-only control tensors -- and exposes no access metadata today. Replace this whole
+# table once the wheel exposes a per-type ``access_mode`` enum (preferred over a boolean
+# ``is_writable`` flag, so write-only control tensors stay distinguishable).
+# TODO(ovphysx): source access mode from a wheel ``access_mode`` query (design doc §7 ask 3).
 _READ_ONLY_NAMES: frozenset[str] = frozenset(
     {
         "rigid_body_acceleration",
@@ -201,6 +216,13 @@ class OvPhysxView:
         key_aliases: Optional mapping ``requested_type -> created_type`` so a binding can
             be stored under a different :class:`TensorType` key than the one created
             (e.g. a ``RigidObjectCollection`` stores ``rigid_body_pose`` under ``link_pose``).
+            This is an **internal IsaacLab adapter** for the fused-collection binding path, not
+            a general public API: the requested key and the created binding type deliberately
+            differ, so a caller reasoning from the visible key can get different runtime
+            semantics. A public form would instead carry descriptor metadata (requested key,
+            source tensor type, shape, native device, access mode); that is deferred to
+            wheel-exposed metadata (design doc §7 ask). Prefer not to rely on it outside the
+            collection adapter.
         tensor_types: Explicit set of :class:`TensorType` members to instantiate eagerly.
             Used only when ``eager`` is set; defaults to every applicable type.
         eager: If ``True``, create bindings up front and raise if none could be created.
@@ -433,6 +455,13 @@ class OvPhysxView:
         This is name *validity*, not availability for this view's prims -- a rigid-body view
         still lists ``"articulation_*"`` names. Use :attr:`available_attributes` for what is
         actually instantiated.
+
+        .. note::
+            A listed name is **not** a promise of correct dtype handling. The view is
+            float32-only (see the module docstring); every ``TensorType`` in the current wheel
+            is float32, but a future non-float binding would still be listed here yet not be
+            correctly readable until the wheel exposes dtype metadata. Filtering this to a
+            dtype-aware supported subset is deferred to that metadata (design doc §7 ask).
         """
         return attribute_vocabulary()
 
@@ -446,7 +475,8 @@ class OvPhysxView:
 
         This checks name *validity* for any view, not availability for these prims: it can
         return ``True`` for a name whose binding does not apply to this view's prims (in which
-        case :meth:`get_attribute` raises :class:`AttributeUnavailable`).
+        case :meth:`get_attribute` raises :class:`AttributeUnavailable`). It likewise does not
+        promise dtype support -- the view is float32-only (see :attr:`attribute_names`).
         """
         try:
             self._resolve(name)
