@@ -22,6 +22,14 @@ active on a view, view-level getters (``view.get_world_poses``,
 ``view.get_local_scales``) raise :class:`RuntimeError` -- use the writer's own
 :meth:`~FrameViewSpaceWriterBase.get_poses` / :meth:`~FrameViewSpaceWriterBase.get_scales`
 inside the scope, or exit the scope first.
+
+**Do not advance the simulation or render from inside a scope.**  The scope
+runs as synchronous Python code, so no ``sim.step()`` / ``world.render()`` /
+``SimulationApp.update()`` is allowed inside the ``with`` block.  Until the
+scope exits, the backend's matrices may be mid-write (some prims updated,
+others not; the opposite-space derive has not yet run) and rendering against
+that state would read torn data.  Keep scopes short and step the
+simulation outside them.
 """
 
 from __future__ import annotations
@@ -46,6 +54,11 @@ class FrameViewSpaceWriterBase(abc.ABC):
     pose/scale semantics depend on the writer's space (world or local), which
     is conveyed by the concrete tag class :class:`FrameViewWorldSpaceWriter` or
     :class:`FrameViewLocalSpaceWriter`.
+
+    The scope runs as synchronous Python code: no simulation step and no
+    render tick can run while it is open, and the caller must not advance
+    either from inside the ``with`` block.  See the module docstring for the
+    full contract.
     """
 
     def __init__(self, view: BaseFrameView):

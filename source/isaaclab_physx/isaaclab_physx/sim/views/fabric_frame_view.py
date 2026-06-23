@@ -86,11 +86,17 @@ class FabricFrameView(BaseFrameView):
       transactional all-or-nothing semantics, snapshot the matrices
       yourself before entering the scope.
     * **Hierarchy listeners are paused while a writer scope is active.**
-      The writer's ``__enter__`` calls
+      The writer scope is synchronous Python code, so no simulation step
+      and no render tick can run while it is open -- callers must not
+      advance the simulation from inside the scope (see
+      :mod:`isaaclab.sim.views.xform_space_writer` for the full contract).
+      The risk that this pause defends against is the *next* tick that
+      runs after the scope exits.  On enter, the writer calls
       :meth:`IFabricHierarchy.track_local_xform_changes(False)` /
-      :meth:`track_world_xform_changes(False)` (saving the prior state) so
-      that Kit's per-tick ``updateWorldXforms()`` does not redundantly
-      recompute matrices we just wrote.  ``__exit__`` restores the prior
+      :meth:`track_world_xform_changes(False)` (saving the prior state)
+      so that Kit's hierarchy tracker does not observe our writes as
+      user edits and queue propagation work for the next
+      ``update_world_xforms()`` tick.  ``__exit__`` restores the prior
       tracking state (so we do not re-enable listeners the caller had
       previously paused).  The renderer's own independent worldMatrix
       listener is unaffected and still observes our writes.
@@ -111,10 +117,11 @@ class FabricFrameView(BaseFrameView):
       flip -- both bundles are always kept consistent via independent
       ``PrepareForReuse()`` polls in the accessors.
 
-      The renderer-clobber protection comes from the hierarchy
-      tracking-pause above; the RO/RW split tells Fabric which steady-state
-      attribute is user-authored (none, in the RO case) once the scope
-      closes and the matrices are mutually consistent.
+      The RO steady state tells Kit's next-tick
+      ``update_world_xforms()`` that no attribute is user-authored, so it
+      leaves both alone.  Combined with the tracking pause and the
+      opposite-space derive at scope exit, this is what keeps the next
+      render tick from overwriting our writes.
     * **Topology-adaptive.**  Fabric topology changes are detected on each
       access via per-selection ``PrepareForReuse()`` polls; the affected
       indexed arrays rebuild automatically and no manual refresh is required.
