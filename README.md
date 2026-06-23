@@ -7,7 +7,7 @@ conda activate env_isaaclab
 # Record dataset
 
 ```
-./isaaclab.sh -p scripts/tools/record_demos_openarm.py --task Isaac-Reach-RedCube-OpenArm-IK-Abs-v0  --dataset_file logs/demos/visuomotor.hdf5 --enable_cameras  --num_demos 1 --teleop_device  keyboard
+./isaaclab.sh -p scripts/tools/record_demos_openarm.py --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0  --dataset_file logs/demos/visuomotor.hdf5 --enable_cameras  --num_demos 1 --teleop_device  keyboard
 ```
 
 ```
