@@ -153,8 +153,9 @@ class DisplayPortPlug(RigidObjectCfg):
             max_contact_impulse=None,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=0.03),
-        # Body5 clearance to blade is ~0.27mm — contact_offset must stay below that.
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=0.0),
+        # Body5 clearance to blade is ~0.27mm. PhysX fires contact at (plug + socket) offsets combined
+        # (0.27mm physical gap). Keep plug offset small so there's real clearance before repulsion starts.
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.00001, rest_offset=-0.00005),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_PLUG_ROOT_POS, rot=_DEFAULT_PLUG_ROT)
 
@@ -186,7 +187,8 @@ class DisplayPortSocket(RigidObjectCfg):
             max_contact_impulse=1e32,
         ),
         mass_props=sim_utils.MassPropertiesCfg(mass=None),
-        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=0.0),
+        # rest_offset negative on socket too: combined rest = -0.15mm so blade can slide in.
+        collision_props=sim_utils.CollisionPropertiesCfg(contact_offset=0.0001, rest_offset=-0.0001),
     )
     init_state = RigidObjectCfg.InitialStateCfg(pos=_SOCKET_ROOT_POS, rot=_DEFAULT_SOCKET_ROT)
 
