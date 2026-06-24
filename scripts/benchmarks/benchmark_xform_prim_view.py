@@ -346,8 +346,14 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
     print(header)
     print("-" * 120)
 
-    operations = [
-        ("Initialization", "init"),
+    # ``init`` is the one-time view-construction cost.  We display it in the
+    # per-operation table but EXCLUDE it from the steady-state totals and the
+    # overall speedup -- otherwise a backend whose construction is dominated
+    # by stage population (e.g. Newton, where the first call materializes the
+    # site cache) shows a misleading "0.00x" overall and crushes the rest of
+    # the table.  The overall row is intended to compare per-iteration cost.
+    init_op = ("Initialization (one-time)", "init")
+    per_iter_operations = [
         ("Get World Poses", "get_world_poses"),
         ("Set World Poses", "set_world_poses"),
         ("Get Local Poses", "get_local_poses"),
@@ -359,6 +365,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         ("Get Both (World+Local)", "get_both"),
         ("Interleaved World Set->Get", "interleaved_world_set_get"),
     ]
+    operations = [init_op, *per_iter_operations]
 
     for op_name, op_key in operations:
         row = f"{op_name:<28}"
@@ -369,15 +376,16 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
 
     print("=" * 120)
 
-    total_row = f"{'Total':<28}"
+    total_row = f"{'Total (per-iter ops)':<28}"
     for name in api_names:
-        total_row += f" {sum(results_dict[name].values()) * 1000:>{col_width}.4f}"
+        per_iter_total = sum(results_dict[name].get(k, 0) for _, k in per_iter_operations)
+        total_row += f" {per_iter_total * 1000:>{col_width}.4f}"
     print(f"\n{total_row}")
 
     baseline = "isaaclab-usd"
     if baseline in results_dict and len(api_names) > 1:
         print("\n" + "=" * 120)
-        print(f"SPEEDUP vs {baseline.replace('-', ' ').title()}")
+        print(f"SPEEDUP vs {baseline.replace('-', ' ').title()} (per-iter ops; one-time init excluded)")
         print("=" * 120)
         header = f"{'Operation':<28}"
         for name in api_names:
@@ -387,7 +395,7 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
         print("-" * 120)
 
         base = results_dict[baseline]
-        for op_name, op_key in operations:
+        for op_name, op_key in per_iter_operations:
             row = f"{op_name:<28}"
             base_t = base.get(op_key, 0)
             for name in api_names:
@@ -400,11 +408,11 @@ def print_results(results_dict: dict[str, dict[str, float]], num_prims: int, num
             print(row)
 
         print("=" * 120)
-        print(f"{'Overall':>28}", end="")
-        total_base = sum(base.values())
+        print(f"{'Overall (per-iter ops)':>28}", end="")
+        total_base = sum(base.get(k, 0) for _, k in per_iter_operations)
         for name in api_names:
             if name != baseline:
-                total_impl = sum(results_dict[name].values())
+                total_impl = sum(results_dict[name].get(k, 0) for _, k in per_iter_operations)
                 if total_base > 0 and total_impl > 0:
                     print(f" {total_base / total_impl:>{col_width}.2f}x", end="")
                 else:
