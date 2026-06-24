@@ -295,28 +295,6 @@ class Articulation(BaseArticulation):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
-    def _cache_ordering_maps(self) -> None:
-        """Cache ordering maps used by hot write paths."""
-        joint_ordering = self.data.joint_ordering
-        if joint_ordering is None:
-            self._joint_user_to_backend = self._ALL_JOINT_INDICES
-            self._joint_backend_to_user = self._ALL_JOINT_INDICES
-            self._has_joint_ordering = False
-        else:
-            self._joint_user_to_backend = joint_ordering.user_to_backend
-            self._joint_backend_to_user = joint_ordering.backend_to_user
-            self._has_joint_ordering = not joint_ordering.is_identity
-
-        body_ordering = self.data.body_ordering
-        if body_ordering is None:
-            self._body_user_to_backend = self._ALL_BODY_INDICES
-            self._body_backend_to_user = self._ALL_BODY_INDICES
-            self._has_body_ordering = False
-        else:
-            self._body_user_to_backend = body_ordering.user_to_backend
-            self._body_backend_to_user = body_ordering.backend_to_user
-            self._has_body_ordering = not body_ordering.is_identity
-
     def _assign_backend_ordered_joint_buffer(self, backend_buffer: wp.array, user_buffer: wp.array) -> None:
         """Assign a public user-order joint buffer into a backend-order simulation buffer."""
         if not self._has_joint_ordering:

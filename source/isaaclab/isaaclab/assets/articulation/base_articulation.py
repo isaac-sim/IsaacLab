@@ -238,6 +238,28 @@ class BaseArticulation(AssetBase):
         if apply_ordering_maps is not None:
             apply_ordering_maps()
 
+    def _cache_ordering_maps(self) -> None:
+        """Cache ordering maps used by hot write paths."""
+        joint_ordering = self.data.joint_ordering
+        if joint_ordering is None:
+            self._joint_user_to_backend = self._ALL_JOINT_INDICES
+            self._joint_backend_to_user = self._ALL_JOINT_INDICES
+            self._has_joint_ordering = False
+        else:
+            self._joint_user_to_backend = joint_ordering.user_to_backend
+            self._joint_backend_to_user = joint_ordering.backend_to_user
+            self._has_joint_ordering = not joint_ordering.is_identity
+
+        body_ordering = self.data.body_ordering
+        if body_ordering is None:
+            self._body_user_to_backend = self._ALL_BODY_INDICES
+            self._body_backend_to_user = self._ALL_BODY_INDICES
+            self._has_body_ordering = False
+        else:
+            self._body_user_to_backend = body_ordering.user_to_backend
+            self._body_backend_to_user = body_ordering.backend_to_user
+            self._has_body_ordering = not body_ordering.is_identity
+
     @property
     def num_base_dofs(self) -> int:
         """Number of free DoFs of the floating base.
