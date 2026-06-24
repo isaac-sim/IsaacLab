@@ -169,7 +169,7 @@ class DisplayPortSocket(RigidObjectCfg):
         # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, multi-body
         # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_watertight.usd"),  # old: triangleMesh, may have entrance artifacts
-        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_sdf.usd"),
+        usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_sdf_noprotrusions.usd"),
         # scale=_DP_SCALE,  # old: inch→metre workaround
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
@@ -245,6 +245,7 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("dp_socket"), "offset": SOCKET_INSERTION_OFFSET},
             noise=ResetSampledConstantNoiseModelCfg(
                 noise_cfg=UniformNoiseCfg(n_min=-0.01, n_max=0.01, operation="add")
+                # noise_cfg=UniformNoiseCfg(n_min=-0.00, n_max=0.00, operation="add")
             ),
         )
         socket_quat = ObsTerm(
