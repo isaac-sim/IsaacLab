@@ -517,17 +517,18 @@ class FabricFrameView(BaseFrameView):
 
     def _compute_parent_fabric_indices(self, selection) -> wp.array:
         """View-side indices that map each managed prim's parent into ``selection``."""
-        parent_paths: list[str] = []
-        for prim_path in self.prim_paths:
-            parent_path = prim_path.rsplit("/", 1)[0]
-            if not parent_path:
+
+        def parent_path(prim_path: str) -> str:
+            p = prim_path.rsplit("/", 1)[0]
+            if not p:
                 raise RuntimeError(
                     f"Child prim '{prim_path}' is at stage root and has no parent prim. "
                     "FabricFrameView requires every prim to have a non-pseudoroot parent "
                     "with Fabric world+local matrices."
                 )
-            parent_paths.append(parent_path)
-        return self._compute_fabric_indices_for(selection, parent_paths)
+            return p
+
+        return self._compute_fabric_indices_for(selection, [parent_path(p) for p in self.prim_paths])
 
     def _build_indexed_array(self, selection, attribute_name: str, fabric_indices: wp.array) -> wp.indexedfabricarray:
         fa = wp.fabricarray(selection, attribute_name)
@@ -727,15 +728,15 @@ class FabricFrameView(BaseFrameView):
         index arrays such as the parent-world seed in
         :meth:`_sync_fabric_from_usd_initial`.
         """
-        fabric_paths = selection.GetPaths()
-        path_to_idx = {str(p): i for i, p in enumerate(fabric_paths)}
-        indices: list[int] = []
-        for path in paths:
+        path_to_idx = {str(p): i for i, p in enumerate(selection.GetPaths())}
+
+        def lookup(path: str) -> int:
             idx = path_to_idx.get(path)
             if idx is None:
                 raise RuntimeError(f"Path '{path}' not found in Fabric selection.")
-            indices.append(idx)
-        return wp.array(indices, dtype=wp.int32, device=self._device)
+            return idx
+
+        return wp.array([lookup(p) for p in paths], dtype=wp.int32, device=self._device)
 
 
 # ----------------------------------------------------------------------
