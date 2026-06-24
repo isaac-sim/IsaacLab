@@ -512,39 +512,22 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _compute_fabric_indices(self, selection) -> wp.array:
-        fabric_paths = selection.GetPaths()
-        path_to_fabric_idx: dict[str, int] = {str(p): i for i, p in enumerate(fabric_paths)}
-        indices: list[int] = []
-        for prim_path in self.prim_paths:
-            fabric_idx = path_to_fabric_idx.get(prim_path)
-            if fabric_idx is None:
-                raise RuntimeError(
-                    f"Prim '{prim_path}' not found in Fabric selection. Ensure the hierarchy has been populated."
-                )
-            indices.append(fabric_idx)
-        return wp.array(indices, dtype=wp.int32, device=self._device)
+        """View-side indices that map each managed prim into ``selection``."""
+        return self._compute_fabric_indices_for(selection, list(self.prim_paths))
 
     def _compute_parent_fabric_indices(self, selection) -> wp.array:
-        """For each child in this view, look up the parent prim's fabric index."""
-        fabric_paths = selection.GetPaths()
-        path_to_fabric_idx: dict[str, int] = {str(p): i for i, p in enumerate(fabric_paths)}
-        indices: list[int] = []
+        """View-side indices that map each managed prim's parent into ``selection``."""
+        parent_paths: list[str] = []
         for prim_path in self.prim_paths:
             parent_path = prim_path.rsplit("/", 1)[0]
-            if parent_path == "":
+            if not parent_path:
                 raise RuntimeError(
                     f"Child prim '{prim_path}' is at stage root and has no parent prim. "
                     "FabricFrameView requires every prim to have a non-pseudoroot parent "
                     "with Fabric world+local matrices."
                 )
-            fabric_idx = path_to_fabric_idx.get(parent_path)
-            if fabric_idx is None:
-                raise RuntimeError(
-                    f"Parent prim '{parent_path}' (for child '{prim_path}') not found in Fabric selection. "
-                    "Ensure parents have Fabric world+local matrices populated."
-                )
-            indices.append(fabric_idx)
-        return wp.array(indices, dtype=wp.int32, device=self._device)
+            parent_paths.append(parent_path)
+        return self._compute_fabric_indices_for(selection, parent_paths)
 
     def _build_indexed_array(self, selection, attribute_name: str, fabric_indices: wp.array) -> wp.indexedfabricarray:
         fa = wp.fabricarray(selection, attribute_name)
@@ -737,7 +720,13 @@ class FabricFrameView(BaseFrameView):
         wp.synchronize()
 
     def _compute_fabric_indices_for(self, selection, paths: list[str]) -> wp.array:
-        """Path-dict lookup helper used to build one-shot indexed arrays for a custom path set."""
+        """Look up each path in ``selection`` and return the matching fabric-side indices.
+
+        Shared primitive used by :meth:`_compute_fabric_indices` (children),
+        :meth:`_compute_parent_fabric_indices` (parents), and one-off
+        index arrays such as the parent-world seed in
+        :meth:`_sync_fabric_from_usd_initial`.
+        """
         fabric_paths = selection.GetPaths()
         path_to_idx = {str(p): i for i, p in enumerate(fabric_paths)}
         indices: list[int] = []
