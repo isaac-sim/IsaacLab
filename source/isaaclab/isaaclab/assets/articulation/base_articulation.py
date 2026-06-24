@@ -19,13 +19,13 @@ import warp as wp
 from ...sim import SimulationContext
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
+from .ordering import ArticulationNameMap, build_articulation_name_map, resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
     from isaaclab.utils.wrench_composer import WrenchComposer
 
     from .articulation_cfg import ArticulationCfg
     from .articulation_data import ArticulationData
-    from .ordering import ArticulationNameMap
 
 
 class BaseArticulation(AssetBase):
@@ -204,32 +204,19 @@ class BaseArticulation(AssetBase):
 
     def _resolve_and_install_ordering_maps(self) -> None:
         """Resolve configured articulation name orderings and store maps on :attr:`data`."""
-        from .ordering import (
-            build_articulation_name_map,
-            resolve_articulation_convention_name_ordering,
-            resolve_articulation_ordering_names,
-        )
-
-        def resolve_convention_names(convention, kind):
-            return resolve_articulation_convention_name_ordering(
-                articulation=self,
-                convention=convention,
-                kind=kind,
-            )
-
         joint_user_names = resolve_articulation_ordering_names(
             kind="joint",
             backend_names=self.backend_joint_names,
             ordering=self.cfg.joint_ordering,
             active_backend_name=self.__backend_name__,
-            convention_name_resolver=resolve_convention_names,
+            articulation=self,
         )
         body_user_names = resolve_articulation_ordering_names(
             kind="body",
             backend_names=self.backend_body_names,
             ordering=self.cfg.body_ordering,
             active_backend_name=self.__backend_name__,
-            convention_name_resolver=resolve_convention_names,
+            articulation=self,
         )
 
         self.data.joint_ordering = build_articulation_name_map(

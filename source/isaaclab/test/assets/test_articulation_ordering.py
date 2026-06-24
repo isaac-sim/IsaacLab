@@ -24,7 +24,6 @@ from isaaclab.assets.articulation.ordering import (
     get_mjwarp_articulation_name_ordering,
     get_physx_articulation_name_ordering,
     parse_articulation_ordering_convention,
-    resolve_articulation_convention_name_ordering,
     resolve_articulation_ordering_names,
 )
 
@@ -450,11 +449,7 @@ def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -
         backend_names=articulation.backend_joint_names,
         ordering=ArticulationOrderingConvention.MJWARP,
         active_backend_name=articulation.__backend_name__,
-        convention_name_resolver=lambda convention, kind: resolve_articulation_convention_name_ordering(
-            articulation=articulation,
-            convention=convention,
-            kind=kind,
-        ),
+        articulation=articulation,
     )
 
     assert user_names == ("knee", "hip", "ankle")

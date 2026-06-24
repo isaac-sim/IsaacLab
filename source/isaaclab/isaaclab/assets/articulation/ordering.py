@@ -436,6 +436,7 @@ def resolve_articulation_ordering_names(
     backend_names: Sequence[str],
     ordering: Sequence[str] | str | ArticulationOrderingConvention | None,
     active_backend_name: str,
+    articulation: object | None = None,
     convention_name_resolver: Callable[[ArticulationOrderingConvention, Literal["joint", "body"]], Sequence[str]]
     | None = None,
 ) -> tuple[str, ...]:
@@ -447,6 +448,8 @@ def resolve_articulation_ordering_names(
         ordering: Explicit name permutation, symbolic convention alias, or ``None``.
         active_backend_name: Name of the backend currently exposing
             :paramref:`backend_names`.
+        articulation: Optional articulation instance used to resolve cross-backend
+            symbolic conventions.
         convention_name_resolver: Optional resolver for cross-backend symbolic
             conventions. It receives the parsed convention and :paramref:`kind`
             and returns the requested concrete name order.
@@ -467,12 +470,18 @@ def resolve_articulation_ordering_names(
     convention = parse_articulation_ordering_convention(ordering)
     if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
         return backend_names
+    if articulation is not None:
+        return resolve_articulation_convention_name_ordering(
+            articulation=articulation,
+            convention=convention,
+            kind=kind,
+        )
     if convention_name_resolver is not None:
         return tuple(convention_name_resolver(convention, kind))
 
     raise NotImplementedError(
-        f"Resolving {convention.value} {kind} ordering from backend '{active_backend_name}' requires a "
-        "backend convention name resolver for this asset."
+        f"Resolving {convention.value} {kind} ordering from backend '{active_backend_name}' requires an "
+        "articulation or backend convention name resolver for this asset."
     )
 
 
