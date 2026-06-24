@@ -853,9 +853,9 @@ def bind_physics_material(
     has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
     # TODO: Temporary solution until USD API exists for prim.ApplyAPI("UsdPhysicsDeformableBodyAPI")
-    has_deformable_body = (
-        "OmniPhysicsDeformableBodyAPI" in applied
-        or "UsdPhysicsDeformableBodyAPI" in prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()
+    api_schemas = prim.GetMetadata("apiSchemas")
+    has_deformable_body = "OmniPhysicsDeformableBodyAPI" in applied or (
+        api_schemas is not None and "UsdPhysicsDeformableBodyAPI" in api_schemas.GetAddedOrExplicitItems()
     )
     has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
