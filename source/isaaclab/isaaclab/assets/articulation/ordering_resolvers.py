@@ -46,7 +46,7 @@ def _get_attr_or_none(obj: object, name: str) -> object | None:
 
 
 def _get_articulation_root_view(articulation: object) -> object | None:
-    """Return an articulation root view when it is already available."""
+    """Return a public root view, falling back to legacy private storage."""
     root_view = _get_attr_or_none(articulation, "root_view")
     if root_view is not None:
         return root_view
