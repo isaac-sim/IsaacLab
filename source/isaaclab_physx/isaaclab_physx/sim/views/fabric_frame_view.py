@@ -75,8 +75,10 @@ class FabricFrameView(BaseFrameView):
       (``worldMatrix`` for the world writer, ``localMatrix`` for the local
       writer).  On scope exit, a single Warp kernel derives the opposite
       attribute and a single ``wp.synchronize()`` runs.  After the scope
-      exits, both Fabric matrices are self-consistent; getters read directly
-      from Fabric storage without any further synchronization.
+      exits, both Fabric matrices are self-consistent.  Getters launch
+      their own decompose kernel and ``wp.synchronize()`` before returning,
+      so a returned :class:`ProxyArray` is always immediately readable from
+      either GPU or host code (no caller-side sync required).
 
       The opposite-space derive runs even when the scope unwinds via
       exception (including ``KeyboardInterrupt`` in interactive notebooks),
@@ -303,8 +305,13 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
 
+        # Sync before returning regardless of caching path: the cached buffers
+        # are reused (an in-flight kernel from a prior call must finish before
+        # the new write is observable) and the fresh-allocation path must also
+        # complete before the caller can read the returned ProxyArray via any
+        # host-visible accessor without observing zeros.
+        wp.synchronize()
         if use_cached:
-            wp.synchronize()
             return self._fabric_positions_ta, self._fabric_orientations_ta
         return ProxyArray(positions_wp), ProxyArray(orientations_wp)
 
@@ -339,8 +346,9 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
 
+        # See note in _get_world_poses_impl: sync regardless of caching path.
+        wp.synchronize()
         if use_cached:
-            wp.synchronize()
             return self._fabric_local_translations_ta, self._fabric_local_orientations_ta
         return ProxyArray(translations_wp), ProxyArray(orientations_wp)
 
@@ -386,8 +394,9 @@ class FabricFrameView(BaseFrameView):
             device=self._device,
         )
 
+        # See note in _get_world_poses_impl: sync regardless of caching path.
+        wp.synchronize()
         if use_cached:
-            wp.synchronize()
             return self._fabric_scales_ta
         return ProxyArray(scales_wp)
 
