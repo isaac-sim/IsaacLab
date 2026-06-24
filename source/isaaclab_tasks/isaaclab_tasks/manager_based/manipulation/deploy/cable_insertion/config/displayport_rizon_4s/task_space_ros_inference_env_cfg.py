@@ -27,7 +27,7 @@ from .task_space_env_cfg import _ACTION_SCALE, Rizon4sTaskSpaceDisplayportInsert
 # ---------------------------------------------------------------------------
 # CALIBRATE: deployment values seeded from the GB300 cable-insertion ROS config;
 # re-measure for the real DisplayPort station (see ros_inference_env_cfg.py).
-_HUBBLE_GEOMETRY_POS = (0.928, 0.129, -0.1)
+_HUBBLE_GEOMETRY_POS = (0.475, 0.125, 0.06)
 _HUBBLE_SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)
 _HUBBLE_PLUG_CLEARANCE_Z = 0.068
 
@@ -80,13 +80,13 @@ class Rizon4sTaskSpaceDisplayportInsertionROSInferenceEnvCfg(Rizon4sTaskSpaceDis
         # CALIBRATE: home joint pose / mount seeded from GB300; align with the
         # physical DisplayPort station before on-robot inference.
         self.scene.robot.init_state.joint_pos = {
-            "joint1": math.radians(-145),
-            "joint2": math.radians(80),
-            "joint3": math.radians(-5),
-            "joint4": math.radians(90.0),
-            "joint5": math.radians(55),
-            "joint6": 0.0,
-            "joint7": math.radians(170),
+            "joint1": math.radians(32.44),
+            "joint2": math.radians(-16.71),
+            "joint3": math.radians(-5.69),
+            "joint4": math.radians(128.38),
+            "joint5": math.radians(6.74),
+            "joint6": math.radians(55.95),
+            "joint7": math.radians(111.54),
         }
 
         self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)

@@ -10,6 +10,8 @@ DisplayPort base env. Relative joint-position control of the 7-DoF arm; the
 plug is grasped at reset and the goal is the verified seated mate.
 """
 
+import math
+
 import torch
 
 import isaaclab.sim as sim_utils
@@ -39,7 +41,7 @@ from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.displaypor
 # station and must be re-measured for the real DisplayPort fixture (reachable by
 # the Flexiv, socket opening facing +Z). Verify the reset poses against the live
 # sim (see scripts/dp_probe_pose_geometry.py) before training.
-_GEOMETRY_POS = (0.481, -0.073, 0.071)
+_GEOMETRY_POS = (0.475, 0.125, 0.06)
 _SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)  # opening faces +Z (top-down insertion)
 _PLUG_CLEARANCE_Z = 0.068
 
@@ -151,6 +153,9 @@ class EventCfg:
                 "x": [-0.01, 0.01],
                 "y": [-0.01, 0.01],
                 "z": [-0.01, 0.01],
+                # "x": [-0.00, 0.00],
+                # "y": [-0.00, 0.00],
+                # "z": [-0.00, 0.00],
                 "roll": [0.0, 0.0],
                 "pitch": [0.0, 0.0],
                 "yaw": [0.0, 0.0],
@@ -168,6 +173,9 @@ class EventCfg:
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
                 "z": [-0.01, 0.01],
+                # "x": [-0.0, 0.0],
+                # "y": [-0.0, 0.0],
+                # "z": [-0.0, 0.0],
                 "roll": [0.0, 0.0],
                 "pitch": [0.0, 0.0],
                 "yaw": [0.0, 0.0],
@@ -309,13 +317,13 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             ),
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
-                    "joint1": 0.0,
-                    "joint2": -0.698,
-                    "joint3": 0.0,
-                    "joint4": 1.571,
-                    "joint5": 0.0,
-                    "joint6": 0.698,
-                    "joint7": 0.0,
+                    "joint1": math.radians(32.44),
+                    "joint2": math.radians(-16.71),
+                    "joint3": math.radians(-5.69),
+                    "joint4": math.radians(128.38),
+                    "joint5": math.radians(6.74),
+                    "joint6": math.radians(55.95),
+                    "joint7": math.radians(111.54),
                 },
                 pos=(0.0, 0.0, 0.0),
                 rot=(0.0, 0.0, 0.0, 1.0),
