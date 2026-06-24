@@ -389,7 +389,7 @@ def test_get_scales_fabric_path(device, view_factory):
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_local_scales_roundtrip(device, view_factory):
-    """set_local_scales -> get_local_scales roundtrip via localMatrix."""
+    """Writing scales through the local-space writer roundtrips via ``localMatrix``."""
     bundle = view_factory(num_envs=2, device=device)
     view = bundle.view
 
@@ -409,7 +409,7 @@ def test_local_scales_roundtrip(device, view_factory):
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_world_scales_roundtrip(device, view_factory):
-    """set_world_scales -> get_world_scales roundtrip via worldMatrix."""
+    """Writing scales through the world-space writer roundtrips via ``worldMatrix``."""
     bundle = view_factory(num_envs=2, device=device)
     view = bundle.view
 
@@ -522,8 +522,8 @@ def test_initial_seed_with_scaled_parent(device):
     If the parent's worldMatrix is seeded with a hardcoded unit scale,
     ``get_scales`` returns (3, 1, 1) instead of (6, 1, 1) and ``get_world_poses``
     returns (1, 0, 1) instead of (2, 0, 1).  If the child's localMatrix is
-    seeded without scale, after ``_sync_world_from_local_if_dirty`` the world
-    scale collapses to (2, 1, 1).  This test catches both regressions.
+    seeded without scale, the derived world scale collapses to (2, 1, 1).
+    This test catches both regressions.
     """
     _skip_if_unavailable(device)
     stage = sim_utils.get_current_stage()
@@ -702,11 +702,11 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
 )
 @pytest.mark.parametrize("device", ["cuda:1"])
 def test_fabric_cuda1_scales_roundtrip(device, view_factory):
-    """set_world_scales -> get_world_scales roundtrip works on cuda:1.
+    """World-space scale writes roundtrip via ``worldMatrix`` on ``cuda:1``.
 
-    Both write paths (``set_world_poses`` and ``set_world_scales``) call
-    ``_prepare_for_reuse`` and launch on ``self._device``; this test covers
-    the scales path on the non-primary CUDA device.
+    Covers the scales path on the non-primary CUDA device: the writer
+    launches its compose kernel on ``self._device`` and the indexed-fabric
+    arrays are rebuilt on demand from the corresponding selection.
     """
     bundle = view_factory(2, device)
     view = bundle.view
@@ -1022,13 +1022,3 @@ def test_view_getter_inside_scope_raises(device, view_factory):
             view.get_local_scales()
     # After the scope exits, view getters work again.
     view.get_world_poses()
-
-
-def test_set_world_scales_method_no_longer_exists():
-    """``set_world_scales`` / ``set_local_scales`` were deleted from this PR's surface."""
-    # The deprecated set_world_poses / set_local_poses shims remain (with warnings),
-    # but the never-shipped set_world_scales / set_local_scales were removed.
-    from isaaclab.sim.views import BaseFrameView  # noqa: PLC0415
-
-    assert not hasattr(BaseFrameView, "set_world_scales")
-    assert not hasattr(BaseFrameView, "set_local_scales")

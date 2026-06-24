@@ -260,8 +260,12 @@ def _make_scaled_parent_child_view(device, parent_scale, child_scale=None):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_local_scales_then_get_world_scales(device):
-    """Under a scaled parent, world scale == parent_scale * local_scale."""
+def test_world_scale_composes_with_parent_scale(device):
+    """Under a scaled parent, ``get_world_scales`` returns ``parent_scale * local_scale``.
+
+    Writes the child's local scale via the local-space writer and verifies
+    that reading the world scale composes with the parent's scale.
+    """
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 
@@ -276,8 +280,13 @@ def test_set_local_scales_then_get_world_scales(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_set_world_scales_then_get_local_scales(device):
-    """Under a scaled parent, set_world_scales writes local = world / parent_scale."""
+def test_local_scale_inverts_parent_when_writing_world_scale(device):
+    """Writing a world scale derives ``local = world / parent_scale`` under a scaled parent.
+
+    Writes the child's world scale via the world-space writer and verifies
+    that the derived local scale is the world scale divided by the
+    parent's scale.
+    """
     if device == "cuda" and not torch.cuda.is_available():
         pytest.skip("CUDA not available")
 

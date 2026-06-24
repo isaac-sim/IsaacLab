@@ -469,8 +469,8 @@ def test_world_scales_default_identity(device, view_factory):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_set_local_scales_roundtrip(device, view_factory):
-    """set_local_scales -> get_local_scales returns the same values."""
+def test_local_scales_roundtrip(device, view_factory):
+    """Writing scales through the local-space writer roundtrips via ``get_local_scales``."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         new_scales = _wp_vec3f([[2.0, 3.0, 4.0], [0.5, 1.5, 2.5]], device=device)
@@ -484,8 +484,8 @@ def test_set_local_scales_roundtrip(device, view_factory):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_set_world_scales_roundtrip(device, view_factory):
-    """set_world_scales -> get_world_scales returns the same values."""
+def test_world_scales_roundtrip(device, view_factory):
+    """Writing scales through the world-space writer roundtrips via ``get_world_scales``."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         new_scales = _wp_vec3f([[2.0, 3.0, 4.0], [0.5, 1.5, 2.5]], device=device)
