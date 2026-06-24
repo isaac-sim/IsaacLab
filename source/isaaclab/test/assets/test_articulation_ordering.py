@@ -26,6 +26,7 @@ from isaaclab.assets.articulation.ordering import (
 from isaaclab.assets.articulation.ordering_resolvers import (
     get_mjwarp_articulation_name_ordering,
     get_physx_articulation_name_ordering,
+    get_robot_schema_articulation_name_ordering,
     resolve_articulation_ordering_names,
 )
 
@@ -82,6 +83,7 @@ def test_parse_articulation_ordering_convention_accepts_none_strings_and_enum() 
     assert parse_articulation_ordering_convention(None) is None
     assert parse_articulation_ordering_convention("physx") is ArticulationOrderingConvention.PHYSX
     assert parse_articulation_ordering_convention("mjwarp") is ArticulationOrderingConvention.MJWARP
+    assert parse_articulation_ordering_convention("robot_schema") is ArticulationOrderingConvention.ROBOT_SCHEMA
     assert (
         parse_articulation_ordering_convention(ArticulationOrderingConvention.PHYSX)
         is ArticulationOrderingConvention.PHYSX
@@ -187,6 +189,236 @@ def test_mjwarp_ordering_helper_reads_newton_root_view_names() -> None:
 
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == ("knee", "hip", "ankle")
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == ("base", "thigh", "foot")
+
+
+def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve explicit robot schema ordering from authored USD relationship targets."""
+
+    class _Path:
+        def __init__(self, value: str):
+            self.pathString = value
+
+        def __str__(self) -> str:
+            return self.pathString
+
+    class _Attribute:
+        def __init__(self, value: str):
+            self._value = value
+
+        def Get(self):
+            return self._value
+
+    class _Relationship:
+        def __init__(self, targets: list[str]):
+            self._targets = [_Path(target) for target in targets]
+
+        def GetTargets(self):
+            return self._targets
+
+    class _Prim:
+        def __init__(
+            self,
+            path: str,
+            *,
+            attrs: dict[str, str] | None = None,
+            relationships: dict[str, _Relationship] | None = None,
+        ):
+            self._path = _Path(path)
+            self._attrs = attrs or {}
+            self._relationships = relationships or {}
+            self._stage = None
+
+        def GetPath(self):
+            return self._path
+
+        def GetName(self) -> str:
+            return str(self._path).rsplit("/", maxsplit=1)[-1]
+
+        def GetAttribute(self, name: str):
+            if name not in self._attrs:
+                return None
+            return _Attribute(self._attrs[name])
+
+        def GetRelationship(self, name: str):
+            return self._relationships.get(name)
+
+        def GetStage(self):
+            return self._stage
+
+        def IsValid(self) -> bool:
+            return True
+
+    class _Stage:
+        def __init__(self, prims: list[_Prim]):
+            self._prims = {str(prim.GetPath()): prim for prim in prims}
+            for prim in prims:
+                prim._stage = self
+
+        def GetPrimAtPath(self, path):
+            return self._prims[str(path)]
+
+    robot_prim = _Prim(
+        "/World/envs/env_0/Robot",
+        relationships={
+            "isaac:physics:robotJoints": _Relationship(
+                [
+                    "/World/envs/env_0/Robot/joint_b",
+                    "/World/envs/env_0/Robot/joint_a_prim",
+                    "/World/envs/env_0/Robot/joint_c",
+                ]
+            ),
+            "isaac:physics:robotLinks": _Relationship(
+                [
+                    "/World/envs/env_0/Robot/base_prim",
+                    "/World/envs/env_0/Robot/tool_site",
+                    "/World/envs/env_0/Robot/thigh",
+                    "/World/envs/env_0/Robot/foot",
+                ]
+            ),
+        },
+    )
+    _Stage(
+        [
+            robot_prim,
+            _Prim("/World/envs/env_0/Robot/joint_a_prim", attrs={"isaac:NameOverride": "joint_a"}),
+            _Prim("/World/envs/env_0/Robot/joint_b"),
+            _Prim("/World/envs/env_0/Robot/joint_c"),
+            _Prim("/World/envs/env_0/Robot/base_prim", attrs={"isaac:nameOverride": "base"}),
+            _Prim("/World/envs/env_0/Robot/tool_site"),
+            _Prim("/World/envs/env_0/Robot/thigh"),
+            _Prim("/World/envs/env_0/Robot/foot"),
+        ]
+    )
+
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        assert path_expr == "/World/envs/env_.*/Robot"
+        return [(robot_prim, "/World/envs/env_.*/Robot")]
+
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+    class _Articulation:
+        __backend_name__ = "newton"
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+
+        @property
+        def backend_joint_names(self) -> list[str]:
+            return ["joint_a", "joint_b", "joint_c"]
+
+        @property
+        def backend_body_names(self) -> list[str]:
+            return ["base", "thigh", "foot"]
+
+    articulation = _Articulation()
+
+    assert get_robot_schema_articulation_name_ordering(articulation, kind="joint") == (
+        "joint_b",
+        "joint_a",
+        "joint_c",
+    )
+    assert get_robot_schema_articulation_name_ordering(articulation, kind="body") == ("base", "thigh", "foot")
+    assert resolve_articulation_ordering_names(
+        kind="joint",
+        backend_names=articulation.backend_joint_names,
+        ordering="robot_schema",
+        active_backend_name=articulation.__backend_name__,
+        articulation=articulation,
+    ) == ("joint_b", "joint_a", "joint_c")
+
+
+def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject robot schema relationships that are not complete backend-name permutations."""
+
+    class _Path:
+        def __init__(self, value: str):
+            self.pathString = value
+
+        def __str__(self) -> str:
+            return self.pathString
+
+    class _Relationship:
+        def __init__(self, targets: list[str]):
+            self._targets = [_Path(target) for target in targets]
+
+        def GetTargets(self):
+            return self._targets
+
+    class _Prim:
+        def __init__(self, path: str, relationships: dict[str, _Relationship] | None = None):
+            self._path = _Path(path)
+            self._relationships = relationships or {}
+            self._stage = None
+
+        def GetPath(self):
+            return self._path
+
+        def GetName(self) -> str:
+            return str(self._path).rsplit("/", maxsplit=1)[-1]
+
+        def GetAttribute(self, name: str):
+            return None
+
+        def GetRelationship(self, name: str):
+            return self._relationships.get(name)
+
+        def GetStage(self):
+            return self._stage
+
+        def IsValid(self) -> bool:
+            return True
+
+    class _Stage:
+        def __init__(self, prims: list[_Prim]):
+            self._prims = {str(prim.GetPath()): prim for prim in prims}
+            for prim in prims:
+                prim._stage = self
+
+        def GetPrimAtPath(self, path):
+            return self._prims[str(path)]
+
+    robot_prim = _Prim(
+        "/World/envs/env_0/Robot",
+        relationships={
+            "isaac:physics:robotJoints": _Relationship(
+                [
+                    "/World/envs/env_0/Robot/joint_b",
+                    "/World/envs/env_0/Robot/joint_a",
+                ]
+            )
+        },
+    )
+    _Stage(
+        [
+            robot_prim,
+            _Prim("/World/envs/env_0/Robot/joint_a"),
+            _Prim("/World/envs/env_0/Robot/joint_b"),
+        ]
+    )
+
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        return [(robot_prim, "/World/envs/env_.*/Robot")]
+
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+    class _Articulation:
+        __backend_name__ = "newton"
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+
+        @property
+        def backend_joint_names(self) -> list[str]:
+            return ["joint_a", "joint_b", "joint_c"]
+
+    with pytest.raises(NotImplementedError, match="robot_schema joint ordering"):
+        get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
 
 
 def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -119,6 +119,205 @@ def _get_prim_path_string(prim: object) -> str:
     return str(getattr(path, "pathString", path))
 
 
+_ROBOT_SCHEMA_RELATIONSHIP_NAMES: dict[Literal["joint", "body"], str] = {
+    "joint": "isaac:physics:robotJoints",
+    "body": "isaac:physics:robotLinks",
+}
+
+_ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS: dict[Literal["joint", "body"], tuple[str, ...]] = {
+    "joint": ("isaac:NameOverride", "isaac:nameOverride"),
+    "body": ("isaac:nameOverride", "isaac:NameOverride"),
+}
+
+
+def _is_valid_prim(prim: object | None) -> bool:
+    """Return whether a prim-like object is present and valid."""
+    if prim is None:
+        return False
+    is_valid = _get_attr_or_none(prim, "IsValid")
+    if callable(is_valid):
+        return bool(is_valid())
+    return True
+
+
+def _get_stage_prim_at_path(stage: object | None, path: object) -> object | None:
+    """Return a stage prim at a path when the stage can resolve it."""
+    if stage is None:
+        return None
+    get_prim_at_path = _get_attr_or_none(stage, "GetPrimAtPath")
+    if not callable(get_prim_at_path):
+        return None
+    try:
+        prim = get_prim_at_path(path)
+    except (KeyError, TypeError):
+        return None
+    if not _is_valid_prim(prim):
+        return None
+    return prim
+
+
+def _get_prim_authored_string(prim: object, attr_names: Sequence[str]) -> str | None:
+    """Return the first non-empty authored string among candidate attributes."""
+    get_attribute = _get_attr_or_none(prim, "GetAttribute")
+    if not callable(get_attribute):
+        return None
+    for attr_name in attr_names:
+        attr = get_attribute(attr_name)
+        if attr is None:
+            continue
+        get_value = _get_attr_or_none(attr, "Get")
+        if not callable(get_value):
+            continue
+        value = get_value()
+        if value is None or value == "":
+            continue
+        if isinstance(value, str):
+            return value
+        return str(value)
+    return None
+
+
+def _get_prim_name(prim: object) -> str:
+    """Return a prim-like object's name."""
+    get_name = _get_attr_or_none(prim, "GetName")
+    if callable(get_name):
+        name = get_name()
+        if isinstance(name, str) and name:
+            return name
+    return _get_prim_path_string(prim).rsplit("/", maxsplit=1)[-1]
+
+
+def _get_robot_schema_target_name(prim: object, kind: Literal["joint", "body"]) -> str:
+    """Return the articulation name represented by a robot schema target prim."""
+    name_override = _get_prim_authored_string(prim, _ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS[kind])
+    if name_override is not None:
+        return name_override
+    return _get_prim_name(prim)
+
+
+def _get_relationship_targets(prim: object, relationship_name: str) -> tuple[object, ...]:
+    """Return relationship targets from a prim-like object."""
+    get_relationship = _get_attr_or_none(prim, "GetRelationship")
+    if not callable(get_relationship):
+        return ()
+    relationship = get_relationship(relationship_name)
+    if relationship is None:
+        return ()
+    get_targets = _get_attr_or_none(relationship, "GetTargets")
+    if not callable(get_targets):
+        return ()
+    targets = get_targets()
+    if targets is None:
+        return ()
+    return tuple(targets)
+
+
+def _collect_robot_schema_relationship_names(
+    robot_prim: object,
+    kind: Literal["joint", "body"],
+    visited_paths: set[str],
+) -> tuple[str, ...]:
+    """Collect names from robot schema relationships, expanding nested robot targets."""
+    relationship_name = _ROBOT_SCHEMA_RELATIONSHIP_NAMES[kind]
+    target_paths = _get_relationship_targets(robot_prim, relationship_name)
+    if not target_paths:
+        return ()
+
+    stage = None
+    get_stage = _get_attr_or_none(robot_prim, "GetStage")
+    if callable(get_stage):
+        stage = get_stage()
+
+    names: list[str] = []
+    for target_path in target_paths:
+        target_prim = _get_stage_prim_at_path(stage, target_path)
+        if target_prim is None:
+            continue
+        target_prim_path = _get_prim_path_string(target_prim)
+        if target_prim_path in visited_paths:
+            continue
+        visited_paths.add(target_prim_path)
+        if _get_relationship_targets(target_prim, relationship_name):
+            names.extend(_collect_robot_schema_relationship_names(target_prim, kind, visited_paths))
+        else:
+            names.append(_get_robot_schema_target_name(target_prim, kind))
+    return tuple(names)
+
+
+def _filter_complete_backend_name_order(
+    names: Sequence[str],
+    backend_names: Sequence[str],
+) -> tuple[str, ...] | None:
+    """Return names when they form a complete backend-name order, ignoring extras."""
+    backend_name_set = set(backend_names)
+    filtered_names: list[str] = []
+    seen_names: set[str] = set()
+    for name in names:
+        if name not in backend_name_set:
+            continue
+        if name in seen_names:
+            return None
+        filtered_names.append(name)
+        seen_names.add(name)
+    if seen_names != backend_name_set:
+        return None
+    return tuple(filtered_names)
+
+
+def _get_source_asset_prim(articulation: object) -> object | None:
+    """Return the source asset prim for an articulation config when available."""
+    cfg = _get_attr_or_none(articulation, "cfg")
+    prim_path = _get_attr_or_none(cfg, "prim_path")
+    if prim_path is None:
+        return None
+    try:
+        from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
+    except ImportError:
+        return None
+
+    source_asset_matches = resolve_matching_prims_from_source(prim_path, expected_num_matches=1)
+    if not source_asset_matches:
+        return None
+    return source_asset_matches[0][0]
+
+
+def _get_robot_schema_candidate_prims(articulation: object) -> tuple[object, ...]:
+    """Return candidate prims that may author robot schema ordering relationships."""
+    source_asset_prim = _get_source_asset_prim(articulation)
+    if source_asset_prim is None:
+        return ()
+
+    candidate_prims = [source_asset_prim]
+    cfg = _get_attr_or_none(articulation, "cfg")
+    articulation_root_prim_path = _get_attr_or_none(cfg, "articulation_root_prim_path")
+    if articulation_root_prim_path is not None:
+        get_stage = _get_attr_or_none(source_asset_prim, "GetStage")
+        stage = get_stage() if callable(get_stage) else None
+        root_path = _get_prim_path_string(source_asset_prim) + articulation_root_prim_path
+        articulation_root_prim = _get_stage_prim_at_path(stage, root_path)
+        if articulation_root_prim is not None:
+            candidate_prims.append(articulation_root_prim)
+    return tuple(candidate_prims)
+
+
+def _get_robot_schema_names(
+    articulation: object,
+    kind: Literal["joint", "body"],
+) -> tuple[str, ...] | None:
+    """Return complete articulation names from Isaac Sim robot schema relationships."""
+    try:
+        backend_names = _get_backend_names(articulation, kind)
+    except AttributeError:
+        return None
+
+    for candidate_prim in _get_robot_schema_candidate_prims(articulation):
+        relationship_names = _collect_robot_schema_relationship_names(candidate_prim, kind, set())
+        names = _filter_complete_backend_name_order(relationship_names, backend_names)
+        if names is not None:
+            return names
+    return None
+
+
 def _get_names_from_newton_usd_builder(
     articulation: object,
     *,
@@ -270,6 +469,12 @@ def resolve_articulation_convention_name_ordering(
     if precomputed_names is not None:
         return precomputed_names
 
+    if parsed_convention is ArticulationOrderingConvention.ROBOT_SCHEMA:
+        robot_schema_names = _get_robot_schema_names(articulation, kind)
+        if robot_schema_names is not None:
+            _cache_convention_names(articulation, parsed_convention, {kind: robot_schema_names})
+            return robot_schema_names
+
     root_view = _get_articulation_root_view(articulation)
     if root_view is not None:
         root_view_names = _get_root_view_convention_names(root_view, parsed_convention, kind)
@@ -330,6 +535,26 @@ def get_mjwarp_articulation_name_ordering(
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
         convention=ArticulationOrderingConvention.MJWARP,
+        kind=kind,
+    )
+
+
+def get_robot_schema_articulation_name_ordering(
+    articulation: object,
+    kind: Literal["joint", "body"],
+) -> tuple[str, ...]:
+    """Return articulation names in Isaac Sim robot schema order.
+
+    Args:
+        articulation: Articulation instance whose names should be resolved.
+        kind: Articulation element kind.
+
+    Returns:
+        Concrete articulation names in robot schema order.
+    """
+    return resolve_articulation_convention_name_ordering(
+        articulation=articulation,
+        convention=ArticulationOrderingConvention.ROBOT_SCHEMA,
         kind=kind,
     )
 

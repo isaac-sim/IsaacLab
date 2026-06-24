@@ -22,6 +22,7 @@ class ArticulationOrderingConvention(str, Enum):
 
     PHYSX = "physx"
     MJWARP = "mjwarp"
+    ROBOT_SCHEMA = "robot_schema"
 
 
 @dataclass(frozen=True)
