@@ -1935,8 +1935,9 @@ def define_deformable_body_properties(
     # apply universal deformable body api
     schema_name = "UsdPhysicsDeformableBodyAPI"
     api_schemas = root_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-    if schema_name not in list(api_schemas.prependedItems):
-        api_schemas.prependedItems = list(api_schemas.prependedItems) + [schema_name]
+    explicit = list(api_schemas.GetAddedOrExplicitItems())
+    if schema_name not in explicit:
+        api_schemas.explicitItems = explicit + [schema_name]
         root_prim.SetMetadata("apiSchemas", api_schemas)
 
     # set deformable body properties
