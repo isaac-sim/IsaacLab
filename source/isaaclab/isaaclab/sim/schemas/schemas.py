@@ -1814,8 +1814,6 @@ def define_deformable_body_properties(
             # apply sim API
             if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
                 raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
-
-        if use_omni_physics_apis:
             # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
             sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(vertices)
             sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(faces)
@@ -1887,7 +1885,7 @@ def define_deformable_body_properties(
 
     # apply collision API
     if not sim_mesh_prim.ApplyAPI(UsdPhysics.CollisionAPI):
-        raise RuntimeError(f"Failed to set volume deformable collision API on prim '{sim_mesh_prim_path}'.")
+        raise RuntimeError(f"Failed to set {deformable_type} deformable collision API on prim '{sim_mesh_prim_path}'.")
 
     if use_omni_physics_apis:
         # For PhysX: bind visual to sim mesh by applying bind pose deformable pose API
@@ -2000,10 +1998,9 @@ def modify_deformable_body_properties(
         return False
     # check if deformable body API is applied
     # TODO: Temporary solution until USD API exists for prim.ApplyAPI("UsdPhysicsDeformableBodyAPI")
-    if (
-        "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas()
-        and "UsdPhysicsDeformableBodyAPI"
-        not in deformable_body_prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()
+    api_schemas = deformable_body_prim.GetMetadata("apiSchemas")
+    if "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas() and not (
+        api_schemas is not None and "UsdPhysicsDeformableBodyAPI" in api_schemas.GetAddedOrExplicitItems()
     ):
         return False
 

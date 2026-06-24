@@ -35,7 +35,7 @@ args_cli = parser.parse_args()
 
 if "newton" in args_cli.visualizer and args_cli.physics != "newton_vbd":
     raise ValueError(
-        "Newtons visualizer is only compatible with newton physics backend for deformables. "
+        "Newton visualizer is only compatible with newton physics backend for deformables. "
         "Please use --physics newton_vbd."
     )
 
