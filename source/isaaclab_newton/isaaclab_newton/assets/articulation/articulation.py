@@ -1685,7 +1685,10 @@ class Articulation(BaseArticulation):
         )
 
         env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
-        joint_ids_long = joint_ids.to(self.device, dtype=torch.long).unsqueeze(0)
+        joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
+        if self._has_joint_ordering:
+            joint_ids_backend = wp.to_torch(self._joint_user_to_backend)[joint_ids_backend].to(dtype=torch.long)
+        joint_ids_backend = joint_ids_backend.unsqueeze(0)
 
         for act in adapter.actuators:
             ctrl = act.controller
@@ -1693,7 +1696,7 @@ class Articulation(BaseArticulation):
                 continue
             cur_wp = self._root_view.get_actuator_parameter(act, ctrl, attr)
             cur_torch = wp.to_torch(cur_wp)
-            cur_torch[env_ids_long, joint_ids_long] = values.to(cur_torch.device, dtype=cur_torch.dtype)
+            cur_torch[env_ids_long, joint_ids_backend] = values.to(cur_torch.device, dtype=cur_torch.dtype)
             self._root_view.set_actuator_parameter(
                 actuator=act,
                 component=ctrl,

@@ -1585,7 +1585,10 @@ class Articulation(BaseArticulation):
             dtype=torch.int32,
             device=self.device,
         )
-        joint_id_pos[joint_ids.to(self.device, dtype=torch.long)] = torch.arange(
+        joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
+        if self._has_joint_ordering:
+            joint_ids_backend = wp.to_torch(self._joint_user_to_backend)[joint_ids_backend].to(dtype=torch.long)
+        joint_id_pos[joint_ids_backend] = torch.arange(
             joint_ids.shape[0],
             dtype=torch.int32,
             device=self.device,
