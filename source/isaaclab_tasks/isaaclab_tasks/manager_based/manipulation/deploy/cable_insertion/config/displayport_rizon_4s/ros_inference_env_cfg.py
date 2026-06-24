@@ -28,8 +28,7 @@ from .joint_pos_env_cfg import Rizon4sGravDisplayportInsertionEnvCfg
 # CALIBRATE: geometry pos seeded from the training-env value (GB300 Hubble table
 # mount). Re-measure the real DisplayPort fixture pose for the actual station.
 # The socket rotation keeps the verified DP orientation (opening facing +Z).
-# -_HUBBLE_GEOMETRY_POS = (0.928, 0.129, -0.1)
-_HUBBLE_GEOMETRY_POS = (0.481, -0.073, 0.071)
+_HUBBLE_GEOMETRY_POS = (0.475, 0.125, 0.06)
 _HUBBLE_SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)
 _HUBBLE_PLUG_CLEARANCE_Z = 0.068
 
@@ -67,11 +66,18 @@ class Rizon4sGravDisplayportInsertionROSInferenceEnvCfg(Rizon4sGravDisplayportIn
         self.action_scale_joint_space = [self.joint_action_scale] * self.action_space
 
         # --- Flexiv Rizon 4s mount: vertical (table-top) ---
-        # CALIBRATE: home joint pose matches the training-env default (standard
-        # Rizon 4s upright home). Re-tune for the physical station before
-        # on-robot inference.
+        # Home joint pose seeds the grasp IK; set to the physical station's pose.
         self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)
         self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
+        self.scene.robot.init_state.joint_pos = {
+            "joint1": math.radians(32.44),
+            "joint2": math.radians(-16.71),
+            "joint3": math.radians(-5.69),
+            "joint4": math.radians(128.38),
+            "joint5": math.radians(6.74),
+            "joint6": math.radians(55.95),
+            "joint7": math.radians(111.54),
+        }
 
         # Wall-mount configuration (GB300 Hubble Lab, rot=(0.5,0.5,0.5,0.5)):
         # self.scene.robot.init_state.joint_pos = {
