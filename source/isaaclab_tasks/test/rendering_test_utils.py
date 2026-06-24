@@ -757,9 +757,9 @@ def rendering_test_dexsuite_kuka(
         SingleCameraObservationsCfg,
     )
     from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
+        _SCENE_KWARGS,
         DexsuiteKukaAllegroLiftCameraEnvCfg,
         SingleCameraSceneCfg,
-        _SCENE_KWARGS,
     )
     from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
         DexsuiteKukaAllegroLiftEnvCfg,
