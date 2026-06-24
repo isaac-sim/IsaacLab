@@ -21,9 +21,11 @@ from isaaclab.assets.articulation.ordering import (
     ArticulationOrderingConvention,
     apply_articulation_ordering_preset,
     build_articulation_name_map,
+    parse_articulation_ordering_convention,
+)
+from isaaclab.assets.articulation.ordering_resolvers import (
     get_mjwarp_articulation_name_ordering,
     get_physx_articulation_name_ordering,
-    parse_articulation_ordering_convention,
     resolve_articulation_ordering_names,
 )
 

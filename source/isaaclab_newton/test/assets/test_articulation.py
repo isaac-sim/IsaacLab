@@ -33,7 +33,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.assets.articulation.ordering import get_mjwarp_articulation_name_ordering
+from isaaclab.assets.articulation.ordering_resolvers import get_mjwarp_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,

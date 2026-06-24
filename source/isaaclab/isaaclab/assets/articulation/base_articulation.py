@@ -19,7 +19,8 @@ import warp as wp
 from ...sim import SimulationContext
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
-from .ordering import ArticulationNameMap, build_articulation_name_map, resolve_articulation_ordering_names
+from .ordering import ArticulationNameMap, build_articulation_name_map
+from .ordering_resolvers import resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
     from isaaclab.utils.wrench_composer import WrenchComposer
