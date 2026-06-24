@@ -1060,10 +1060,12 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_user = self.data._joint_pos_user.data if has_ordering else self.data._sim_bind_joint_pos
-        joint_vel_user = self.data._joint_vel_user.data if has_ordering else self.data._sim_bind_joint_vel
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user.data
+            joint_vel_user = self.data._joint_vel_user.data
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
             ordering_kernels.write_joint_state_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1072,8 +1074,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_ids,
                 joint_ids,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 False,
             ],
             outputs=[
@@ -1124,10 +1126,12 @@ class Articulation(BaseArticulation):
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_user = self.data._joint_pos_user.data if has_ordering else self.data._sim_bind_joint_pos
-        joint_vel_user = self.data._joint_vel_user.data if has_ordering else self.data._sim_bind_joint_vel
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user.data
+            joint_vel_user = self.data._joint_vel_user.data
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
             ordering_kernels.write_joint_state_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1136,8 +1140,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_mask,
                 joint_mask,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
                 joint_pos_user,
@@ -1186,9 +1190,10 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_user = self.data._joint_pos_user.data if has_ordering else self.data._sim_bind_joint_pos
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user.data
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1196,8 +1201,8 @@ class Articulation(BaseArticulation):
                 position,
                 env_ids,
                 joint_ids,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 False,
             ],
             outputs=[
@@ -1241,9 +1246,10 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_user = self.data._joint_pos_user.data if has_ordering else self.data._sim_bind_joint_pos
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user.data
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1251,8 +1257,8 @@ class Articulation(BaseArticulation):
                 position,
                 env_mask,
                 joint_mask,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
                 joint_pos_user,
@@ -1297,9 +1303,10 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_vel_user = self.data._joint_vel_user.data if has_ordering else self.data._sim_bind_joint_vel
+        if self._has_joint_ordering:
+            joint_vel_user = self.data._joint_vel_user.data
+        else:
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1307,8 +1314,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_ids,
                 joint_ids,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 False,
             ],
             outputs=[
@@ -1353,9 +1360,10 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_vel_user = self.data._joint_vel_user.data if has_ordering else self.data._sim_bind_joint_vel
+        if self._has_joint_ordering:
+            joint_vel_user = self.data._joint_vel_user.data
+        else:
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1363,8 +1371,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_mask,
                 joint_mask,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
                 joint_vel_user,
@@ -1395,8 +1403,10 @@ class Articulation(BaseArticulation):
         """Write a user-order float joint property into public and backend buffers using indices."""
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        has_ordering = self._has_joint_ordering
-        user_data = user_buffer if has_ordering else backend_buffer
+        if self._has_joint_ordering:
+            user_data = user_buffer
+        else:
+            user_data = backend_buffer
 
         if isinstance(value, float):
             wp.launch(
@@ -1407,7 +1417,7 @@ class Articulation(BaseArticulation):
                     env_ids,
                     joint_ids,
                     self._joint_user_to_backend,
-                    has_ordering,
+                    self._has_joint_ordering,
                 ],
                 outputs=[
                     user_data,
@@ -1425,7 +1435,7 @@ class Articulation(BaseArticulation):
                     env_ids,
                     joint_ids,
                     self._joint_user_to_backend,
-                    has_ordering,
+                    self._has_joint_ordering,
                     False,
                 ],
                 outputs=[
@@ -1450,8 +1460,10 @@ class Articulation(BaseArticulation):
         """Write a user-order float joint property into public and backend buffers using masks."""
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        has_ordering = self._has_joint_ordering
-        user_data = user_buffer if has_ordering else backend_buffer
+        if self._has_joint_ordering:
+            user_data = user_buffer
+        else:
+            user_data = backend_buffer
 
         if isinstance(value, float):
             wp.launch(
@@ -1462,7 +1474,7 @@ class Articulation(BaseArticulation):
                     env_mask,
                     joint_mask,
                     self._joint_user_to_backend,
-                    has_ordering,
+                    self._has_joint_ordering,
                 ],
                 outputs=[
                     user_data,
@@ -1480,7 +1492,7 @@ class Articulation(BaseArticulation):
                     env_mask,
                     joint_mask,
                     self._joint_user_to_backend,
-                    has_ordering,
+                    self._has_joint_ordering,
                 ],
                 outputs=[
                     user_data,
@@ -1722,13 +1734,12 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
 
         _ = self.data.joint_pos_limits
-        has_ordering = self._has_joint_ordering
-        joint_pos_limits_lower_user = (
-            self.data._joint_pos_limits_lower_user if has_ordering else self.data._sim_bind_joint_pos_limits_lower
-        )
-        joint_pos_limits_upper_user = (
-            self.data._joint_pos_limits_upper_user if has_ordering else self.data._sim_bind_joint_pos_limits_upper
-        )
+        if self._has_joint_ordering:
+            joint_pos_limits_lower_user = self.data._joint_pos_limits_lower_user
+            joint_pos_limits_upper_user = self.data._joint_pos_limits_upper_user
+        else:
+            joint_pos_limits_lower_user = self.data._sim_bind_joint_pos_limits_lower
+            joint_pos_limits_upper_user = self.data._sim_bind_joint_pos_limits_upper
         wp.launch(
             articulation_kernels.write_joint_limit_data_to_user_and_backend_index,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1738,7 +1749,7 @@ class Articulation(BaseArticulation):
                 env_ids,
                 joint_ids,
                 self._joint_user_to_backend,
-                has_ordering,
+                self._has_joint_ordering,
             ],
             outputs=[
                 joint_pos_limits_lower_user,
@@ -1795,13 +1806,12 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
 
         _ = self.data.joint_pos_limits
-        has_ordering = self._has_joint_ordering
-        joint_pos_limits_lower_user = (
-            self.data._joint_pos_limits_lower_user if has_ordering else self.data._sim_bind_joint_pos_limits_lower
-        )
-        joint_pos_limits_upper_user = (
-            self.data._joint_pos_limits_upper_user if has_ordering else self.data._sim_bind_joint_pos_limits_upper
-        )
+        if self._has_joint_ordering:
+            joint_pos_limits_lower_user = self.data._joint_pos_limits_lower_user
+            joint_pos_limits_upper_user = self.data._joint_pos_limits_upper_user
+        else:
+            joint_pos_limits_lower_user = self.data._sim_bind_joint_pos_limits_lower
+            joint_pos_limits_upper_user = self.data._sim_bind_joint_pos_limits_upper
         wp.launch(
             articulation_kernels.write_joint_limit_data_to_user_and_backend_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -1811,7 +1821,7 @@ class Articulation(BaseArticulation):
                 env_mask,
                 joint_mask,
                 self._joint_user_to_backend,
-                has_ordering,
+                self._has_joint_ordering,
             ],
             outputs=[
                 joint_pos_limits_lower_user,
@@ -3812,11 +3822,12 @@ class Articulation(BaseArticulation):
         j_ids = actuator.joint_indices
         if j_ids == slice(None):
             j_ids = self._ALL_JOINT_INDICES
-        has_ordering = self._has_joint_ordering
-        joint_armature_user = self.data._joint_armature_user if has_ordering else self.data._sim_bind_joint_armature
-        joint_friction_coeff_user = (
-            self.data._joint_friction_coeff_user if has_ordering else self.data._sim_bind_joint_friction_coeff
-        )
+        if self._has_joint_ordering:
+            joint_armature_user = self.data._joint_armature_user
+            joint_friction_coeff_user = self.data._joint_friction_coeff_user
+        else:
+            joint_armature_user = self.data._sim_bind_joint_armature
+            joint_friction_coeff_user = self.data._sim_bind_joint_friction_coeff
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(self.num_instances, j_ids.shape[0]),
@@ -3839,7 +3850,7 @@ class Articulation(BaseArticulation):
                 self._ALL_INDICES,
                 j_ids,
                 self._joint_user_to_backend,
-                has_ordering,
+                self._has_joint_ordering,
                 False,
             ],
             outputs=[
@@ -3856,7 +3867,7 @@ class Articulation(BaseArticulation):
                 self._ALL_INDICES,
                 j_ids,
                 self._joint_user_to_backend,
-                has_ordering,
+                self._has_joint_ordering,
                 False,
             ],
             outputs=[

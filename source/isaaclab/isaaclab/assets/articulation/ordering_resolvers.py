@@ -10,6 +10,7 @@ from typing import Literal
 
 from .ordering import ArticulationOrderingConvention, parse_articulation_ordering_convention
 
+
 def _backend_matches_ordering_convention(
     active_backend_name: str,
     convention: ArticulationOrderingConvention,

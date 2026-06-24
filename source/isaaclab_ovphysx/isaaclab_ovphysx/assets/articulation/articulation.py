@@ -941,13 +941,14 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_backend = self._data._joint_pos_backend.data if has_ordering else self._data._joint_pos_buf.data
+        if self._has_joint_ordering:
+            joint_pos_backend = self._data._joint_pos_backend.data
+        else:
+            joint_pos_backend = self._data._joint_pos_buf.data
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[position, env_ids, joint_ids, user_to_backend, has_ordering, False],
+            inputs=[position, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_pos_buf.data, joint_pos_backend],
             device=self._device,
         )
@@ -989,13 +990,14 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_backend = self._data._joint_pos_backend.data if has_ordering else self._data._joint_pos_buf.data
+        if self._has_joint_ordering:
+            joint_pos_backend = self._data._joint_pos_backend.data
+        else:
+            joint_pos_backend = self._data._joint_pos_buf.data
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
-            inputs=[position, env_mask_wp, joint_mask_wp, user_to_backend, has_ordering],
+            inputs=[position, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_pos_buf.data, joint_pos_backend],
             device=self._device,
         )
@@ -1035,13 +1037,14 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_vel_backend = self._data._joint_vel_backend.data if has_ordering else self._data._joint_vel_buf.data
+        if self._has_joint_ordering:
+            joint_vel_backend = self._data._joint_vel_backend.data
+        else:
+            joint_vel_backend = self._data._joint_vel_buf.data
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[velocity, env_ids, joint_ids, user_to_backend, has_ordering, False],
+            inputs=[velocity, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[
                 self._data._joint_vel_buf.data,
                 self._data._previous_joint_vel,
@@ -1086,13 +1089,14 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_vel_backend = self._data._joint_vel_backend.data if has_ordering else self._data._joint_vel_buf.data
+        if self._has_joint_ordering:
+            joint_vel_backend = self._data._joint_vel_backend.data
+        else:
+            joint_vel_backend = self._data._joint_vel_buf.data
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
-            inputs=[velocity, env_mask_wp, joint_mask_wp, user_to_backend, has_ordering],
+            inputs=[velocity, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[
                 self._data._joint_vel_buf.data,
                 self._data._previous_joint_vel,
@@ -2443,13 +2447,14 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        target_backend = self._joint_pos_target_backend if has_ordering else self._data._joint_pos_target
+        if self._has_joint_ordering:
+            target_backend = self._joint_pos_target_backend
+        else:
+            target_backend = self._data._joint_pos_target
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids, user_to_backend, has_ordering, False],
+            inputs=[target, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_pos_target, target_backend],
             device=self._device,
         )
@@ -2482,13 +2487,14 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        target_backend = self._joint_pos_target_backend if has_ordering else self._data._joint_pos_target
+        if self._has_joint_ordering:
+            target_backend = self._joint_pos_target_backend
+        else:
+            target_backend = self._data._joint_pos_target
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
-            inputs=[target, env_mask_wp, joint_mask_wp, user_to_backend, has_ordering],
+            inputs=[target, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_pos_target, target_backend],
             device=self._device,
         )
@@ -2524,13 +2530,14 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        target_backend = self._joint_vel_target_backend if has_ordering else self._data._joint_vel_target
+        if self._has_joint_ordering:
+            target_backend = self._joint_vel_target_backend
+        else:
+            target_backend = self._data._joint_vel_target
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids, user_to_backend, has_ordering, False],
+            inputs=[target, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_vel_target, target_backend],
             device=self._device,
         )
@@ -2563,13 +2570,14 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        target_backend = self._joint_vel_target_backend if has_ordering else self._data._joint_vel_target
+        if self._has_joint_ordering:
+            target_backend = self._joint_vel_target_backend
+        else:
+            target_backend = self._data._joint_vel_target
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
-            inputs=[target, env_mask_wp, joint_mask_wp, user_to_backend, has_ordering],
+            inputs=[target, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_vel_target, target_backend],
             device=self._device,
         )
@@ -2605,13 +2613,14 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        target_backend = self._joint_effort_target_backend if has_ordering else self._data._joint_effort_target
+        if self._has_joint_ordering:
+            target_backend = self._joint_effort_target_backend
+        else:
+            target_backend = self._data._joint_effort_target
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[target, env_ids, joint_ids, user_to_backend, has_ordering, False],
+            inputs=[target, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_effort_target, target_backend],
             device=self._device,
         )
@@ -2644,13 +2653,14 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        target_backend = self._joint_effort_target_backend if has_ordering else self._data._joint_effort_target
+        if self._has_joint_ordering:
+            target_backend = self._joint_effort_target_backend
+        else:
+            target_backend = self._data._joint_effort_target
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
-            inputs=[target, env_mask_wp, joint_mask_wp, user_to_backend, has_ordering],
+            inputs=[target, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_effort_target, target_backend],
             device=self._device,
         )

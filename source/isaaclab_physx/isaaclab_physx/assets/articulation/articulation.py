@@ -1078,10 +1078,12 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_backend = self.data._joint_pos_backend if has_ordering else self.data._joint_pos.data
-        joint_vel_backend = self.data._joint_vel_backend if has_ordering else self.data._joint_vel.data
+        if self._has_joint_ordering:
+            joint_pos_backend = self.data._joint_pos_backend
+            joint_vel_backend = self.data._joint_vel_backend
+        else:
+            joint_pos_backend = self.data._joint_pos.data
+            joint_vel_backend = self.data._joint_vel.data
         wp.launch(
             ordering_kernels.write_joint_state_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1090,8 +1092,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_ids,
                 joint_ids,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 full_data,
             ],
             outputs=[
@@ -1187,9 +1189,10 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_pos_backend = self.data._joint_pos_backend if has_ordering else self.data._joint_pos.data
+        if self._has_joint_ordering:
+            joint_pos_backend = self.data._joint_pos_backend
+        else:
+            joint_pos_backend = self.data._joint_pos.data
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1197,8 +1200,8 @@ class Articulation(BaseArticulation):
                 position,
                 env_ids,
                 joint_ids,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 full_data,
             ],
             outputs=[
@@ -1286,9 +1289,10 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        user_to_backend = self._joint_user_to_backend
-        has_ordering = self._has_joint_ordering
-        joint_vel_backend = self.data._joint_vel_backend if has_ordering else self.data._joint_vel.data
+        if self._has_joint_ordering:
+            joint_vel_backend = self.data._joint_vel_backend
+        else:
+            joint_vel_backend = self.data._joint_vel.data
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1296,8 +1300,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_ids,
                 joint_ids,
-                user_to_backend,
-                has_ordering,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 full_data,
             ],
             outputs=[
