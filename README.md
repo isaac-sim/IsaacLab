@@ -136,10 +136,8 @@ conda activate lerobot
 ```
 
 ```
-cd ~/CSL/lerobot
-conda run -n lerobot python \
-    ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \
-    --checkpoint outputs/train/openarm_visuomotor/checkpoints/001000/pretrained_model \
+python ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \
+    --checkpoint ethanCSL/openarm_visuomotor_augment_dataset_100 \
     --task "Pick up the red cube." \
     --port 5556
 ```
