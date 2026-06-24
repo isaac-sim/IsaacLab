@@ -805,11 +805,11 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
         """
         backend_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[backend_mass, self.body_ordering.user_to_backend],
+                inputs=[backend_mass, self._body_user_to_backend],
                 outputs=[self._body_mass],
                 device=self.device,
             )
@@ -827,11 +827,11 @@ class ArticulationData(BaseArticulationData):
         (num_instances, num_bodies, 9).
         """
         backend_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             wp.launch(
                 ordering_kernels.reorder_3d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies, 9),
-                inputs=[backend_inertia, self.body_ordering.user_to_backend],
+                inputs=[backend_inertia, self._body_user_to_backend],
                 outputs=[self._body_inertia],
                 device=self.device,
             )
@@ -854,11 +854,11 @@ class ArticulationData(BaseArticulationData):
             self._ensure_fk_fresh()
             # set the buffer data and timestamp
             backend_pose = self._root_view.get_link_transforms().view(wp.transformf)
-            if self.body_ordering is not None and not self.body_ordering.is_identity:
+            if self._has_body_ordering:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_bodies),
-                    inputs=[backend_pose, self.body_ordering.user_to_backend],
+                    inputs=[backend_pose, self._body_user_to_backend],
                     outputs=[self._body_link_pose_w.data],
                     device=self.device,
                 )
@@ -939,11 +939,11 @@ class ArticulationData(BaseArticulationData):
         if self._body_com_vel_w.timestamp < self._sim_timestamp:
             self._ensure_fk_fresh()
             backend_velocity = self._root_view.get_link_velocities().view(wp.spatial_vectorf)
-            if self.body_ordering is not None and not self.body_ordering.is_identity:
+            if self._has_body_ordering:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_bodies),
-                    inputs=[backend_velocity, self.body_ordering.user_to_backend],
+                    inputs=[backend_velocity, self._body_user_to_backend],
                     outputs=[self._body_com_vel_w.data],
                     device=self.device,
                 )
@@ -1086,11 +1086,11 @@ class ArticulationData(BaseArticulationData):
         if self._joint_pos.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             backend_position = self._root_view.get_dof_positions()
-            if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+            if self._has_joint_ordering:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_joints),
-                    inputs=[backend_position, self.joint_ordering.user_to_backend],
+                    inputs=[backend_position, self._joint_user_to_backend],
                     outputs=[self._joint_pos.data],
                     device=self.device,
                 )
@@ -1110,11 +1110,11 @@ class ArticulationData(BaseArticulationData):
         if self._joint_vel.timestamp < self._sim_timestamp:
             # read data from simulation and set the buffer data and timestamp
             backend_velocity = self._root_view.get_dof_velocities()
-            if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+            if self._has_joint_ordering:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_joints),
-                    inputs=[backend_velocity, self.joint_ordering.user_to_backend],
+                    inputs=[backend_velocity, self._joint_user_to_backend],
                     outputs=[self._joint_vel.data],
                     device=self.device,
                 )
@@ -1781,6 +1781,10 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel_backend = wp.zeros(
             (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
+        self._has_joint_ordering = False
+        self._has_body_ordering = False
+        self._joint_user_to_backend = None
+        self._body_user_to_backend = None
         self._default_root_state = None
 
         # Initialize ProxyArray wrappers
@@ -1788,7 +1792,13 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Refresh owned public-order buffers after articulation ordering maps are installed."""
-        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+        joint_ordering = self.joint_ordering
+        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
+        self._joint_user_to_backend = joint_ordering.user_to_backend if joint_ordering is not None else None
+        body_ordering = self.body_ordering
+        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
+        self._body_user_to_backend = body_ordering.user_to_backend if body_ordering is not None else None
+        if self._has_joint_ordering:
             for user_buffer in (
                 self._previous_joint_vel,
                 self._joint_stiffness,
@@ -1805,7 +1815,7 @@ class ArticulationData(BaseArticulationData):
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_joints),
-                    inputs=[backend_buffer, self.joint_ordering.user_to_backend],
+                    inputs=[backend_buffer, self._joint_user_to_backend],
                     outputs=[user_buffer],
                     device=self.device,
                 )

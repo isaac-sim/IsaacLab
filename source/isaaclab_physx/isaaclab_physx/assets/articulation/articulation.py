@@ -273,15 +273,36 @@ class Articulation(BaseArticulation):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
+    def _cache_ordering_maps(self) -> None:
+        """Cache ordering maps used by hot write paths."""
+        joint_ordering = self.data.joint_ordering
+        if joint_ordering is None:
+            self._joint_user_to_backend = self._ALL_JOINT_INDICES
+            self._joint_backend_to_user = self._ALL_JOINT_INDICES
+            self._has_joint_ordering = False
+        else:
+            self._joint_user_to_backend = joint_ordering.user_to_backend
+            self._joint_backend_to_user = joint_ordering.backend_to_user
+            self._has_joint_ordering = not joint_ordering.is_identity
+
+        body_ordering = self.data.body_ordering
+        if body_ordering is None:
+            self._body_user_to_backend = self._ALL_BODY_INDICES
+            self._body_backend_to_user = self._ALL_BODY_INDICES
+            self._has_body_ordering = False
+        else:
+            self._body_user_to_backend = body_ordering.user_to_backend
+            self._body_backend_to_user = body_ordering.backend_to_user
+            self._has_body_ordering = not body_ordering.is_identity
+
     def _get_backend_ordered_joint_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
         """Return a backend-order view/copy for a public user-order joint buffer."""
-        ordering = self.data.joint_ordering
-        if ordering is None or ordering.is_identity:
+        if not self._has_joint_ordering:
             return user_buffer
         wp.launch(
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self.num_instances, self.num_joints),
-            inputs=[user_buffer, ordering.backend_to_user],
+            inputs=[user_buffer, self._joint_backend_to_user],
             outputs=[backend_buffer],
             device=self.device,
         )
@@ -291,13 +312,12 @@ class Articulation(BaseArticulation):
         self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
     ) -> wp.array:
         """Return a backend-order view/copy for a public user-order 3-D joint buffer."""
-        ordering = self.data.joint_ordering
-        if ordering is None or ordering.is_identity:
+        if not self._has_joint_ordering:
             return user_buffer
         wp.launch(
             ordering_kernels.reorder_3d_user_to_backend,
             dim=(self.num_instances, self.num_joints, component_count),
-            inputs=[user_buffer, ordering.backend_to_user],
+            inputs=[user_buffer, self._joint_backend_to_user],
             outputs=[backend_buffer],
             device=self.device,
         )
@@ -307,13 +327,12 @@ class Articulation(BaseArticulation):
         self, backend_buffer: wp.array, user_buffer: wp.array, component_count: int
     ) -> wp.array:
         """Return a public user-order view/copy for a backend-order 3-D joint buffer."""
-        ordering = self.data.joint_ordering
-        if ordering is None or ordering.is_identity:
+        if not self._has_joint_ordering:
             return backend_buffer
         wp.launch(
             ordering_kernels.reorder_3d_backend_to_user,
             dim=(self.num_instances, self.num_joints, component_count),
-            inputs=[backend_buffer, ordering.user_to_backend],
+            inputs=[backend_buffer, self._joint_user_to_backend],
             outputs=[user_buffer],
             device=self.device,
         )
@@ -321,13 +340,12 @@ class Articulation(BaseArticulation):
 
     def _get_backend_ordered_body_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
         """Return a backend-order view/copy for a public user-order body buffer."""
-        ordering = self.data.body_ordering
-        if ordering is None or ordering.is_identity:
+        if not self._has_body_ordering:
             return user_buffer
         wp.launch(
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self.num_instances, self.num_bodies),
-            inputs=[user_buffer, ordering.backend_to_user],
+            inputs=[user_buffer, self._body_backend_to_user],
             outputs=[backend_buffer],
             device=self.device,
         )
@@ -337,13 +355,12 @@ class Articulation(BaseArticulation):
         self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
     ) -> wp.array:
         """Return a backend-order view/copy for a public user-order 3-D body buffer."""
-        ordering = self.data.body_ordering
-        if ordering is None or ordering.is_identity:
+        if not self._has_body_ordering:
             return user_buffer
         wp.launch(
             ordering_kernels.reorder_3d_user_to_backend,
             dim=(self.num_instances, self.num_bodies, component_count),
-            inputs=[user_buffer, ordering.backend_to_user],
+            inputs=[user_buffer, self._body_backend_to_user],
             outputs=[backend_buffer],
             device=self.device,
         )
@@ -1061,52 +1078,32 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        ordering = self.data.joint_ordering
-        if ordering is not None and not ordering.is_identity:
-            wp.launch(
-                ordering_kernels.write_joint_state_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    position,
-                    velocity,
-                    env_ids,
-                    joint_ids,
-                    ordering.user_to_backend,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_pos.data,
-                    self.data._joint_vel.data,
-                    self.data._previous_joint_vel,
-                    self.data._joint_acc.data,
-                    self.data._joint_pos_backend,
-                    self.data._joint_vel_backend,
-                ],
-                device=self.device,
-            )
-            joint_pos_backend = self.data._joint_pos_backend
-            joint_vel_backend = self.data._joint_vel_backend
-        else:
-            wp.launch(
-                articulation_kernels.write_joint_state_data,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    position,
-                    velocity,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data.joint_pos,
-                    self.data.joint_vel,
-                    self.data._previous_joint_vel,
-                    self.data.joint_acc,
-                ],
-                device=self.device,
-            )
-            joint_pos_backend = self.data._joint_pos.data
-            joint_vel_backend = self.data._joint_vel.data
+        user_to_backend = self._joint_user_to_backend
+        has_ordering = self._has_joint_ordering
+        joint_pos_backend = self.data._joint_pos_backend if has_ordering else self.data._joint_pos.data
+        joint_vel_backend = self.data._joint_vel_backend if has_ordering else self.data._joint_vel.data
+        wp.launch(
+            ordering_kernels.write_joint_state_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+                user_to_backend,
+                has_ordering,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_pos.data,
+                self.data._joint_vel.data,
+                self.data._previous_joint_vel,
+                self.data._joint_acc.data,
+                joint_pos_backend,
+                joint_vel_backend,
+            ],
+            device=self.device,
+        )
         # Invalidate buffers
         if not skip_forward:
             self.data._reset_pose()
@@ -1190,41 +1187,26 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        ordering = self.data.joint_ordering
-        if ordering is not None and not ordering.is_identity:
-            wp.launch(
-                ordering_kernels.write_2d_float_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    position,
-                    env_ids,
-                    joint_ids,
-                    ordering.user_to_backend,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_pos.data,
-                    self.data._joint_pos_backend,
-                ],
-                device=self.device,
-            )
-            joint_pos_backend = self.data._joint_pos_backend
-        else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    position,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data.joint_pos,
-                ],
-                device=self.device,
-            )
-            joint_pos_backend = self.data._joint_pos.data
+        user_to_backend = self._joint_user_to_backend
+        has_ordering = self._has_joint_ordering
+        joint_pos_backend = self.data._joint_pos_backend if has_ordering else self.data._joint_pos.data
+        wp.launch(
+            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                env_ids,
+                joint_ids,
+                user_to_backend,
+                has_ordering,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_pos.data,
+                joint_pos_backend,
+            ],
+            device=self.device,
+        )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
         if not skip_forward:
             self.data._reset_pose()
@@ -1304,45 +1286,28 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        ordering = self.data.joint_ordering
-        if ordering is not None and not ordering.is_identity:
-            wp.launch(
-                ordering_kernels.write_joint_vel_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    velocity,
-                    env_ids,
-                    joint_ids,
-                    ordering.user_to_backend,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._joint_vel.data,
-                    self.data._previous_joint_vel,
-                    self.data._joint_acc.data,
-                    self.data._joint_vel_backend,
-                ],
-                device=self.device,
-            )
-            joint_vel_backend = self.data._joint_vel_backend
-        else:
-            wp.launch(
-                articulation_kernels.write_joint_vel_data,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    velocity,
-                    env_ids,
-                    joint_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data.joint_vel,
-                    self.data._previous_joint_vel,
-                    self.data.joint_acc,
-                ],
-                device=self.device,
-            )
-            joint_vel_backend = self.data._joint_vel.data
+        user_to_backend = self._joint_user_to_backend
+        has_ordering = self._has_joint_ordering
+        joint_vel_backend = self.data._joint_vel_backend if has_ordering else self.data._joint_vel.data
+        wp.launch(
+            ordering_kernels.write_joint_vel_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                velocity,
+                env_ids,
+                joint_ids,
+                user_to_backend,
+                has_ordering,
+                full_data,
+            ],
+            outputs=[
+                self.data._joint_vel.data,
+                self.data._previous_joint_vel,
+                self.data._joint_acc.data,
+                joint_vel_backend,
+            ],
+            device=self.device,
+        )
         if not skip_forward:
             self.data._reset_velocity()
         # set into simulation
@@ -4137,6 +4102,7 @@ class Articulation(BaseArticulation):
 
         # asset named data
         self._resolve_and_install_ordering_maps()
+        self._cache_ordering_maps()
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)

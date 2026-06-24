@@ -71,6 +71,8 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_2d_float_user_to_backend_with_mask,
     write_joint_state_user_to_backend_with_indices,
     write_joint_vel_user_to_backend_with_mask,
+    write_scalar_user_to_backend_with_indices,
+    write_scalar_user_to_backend_with_mask,
 )
 
 
@@ -471,8 +473,8 @@ def test_base_articulation_data_defines_optional_ordering_maps() -> None:
     assert hasattr(BaseArticulationData, "body_ordering")
 
 
-def test_build_articulation_name_map_uses_identity_without_device_maps() -> None:
-    """Build an identity articulation name map without allocating device maps."""
+def test_build_articulation_name_map_uses_identity_device_maps() -> None:
+    """Build an identity articulation name map with identity device maps."""
     name_map = build_articulation_name_map(
         kind="joint",
         backend_names=("hip", "knee", "ankle"),
@@ -483,10 +485,12 @@ def test_build_articulation_name_map_uses_identity_without_device_maps() -> None
     assert name_map.kind == "joint"
     assert name_map.backend_names == ("hip", "knee", "ankle")
     assert name_map.user_names == ("hip", "knee", "ankle")
-    assert name_map.user_to_backend_indices is None
-    assert name_map.backend_to_user_indices is None
-    assert name_map.user_to_backend is None
-    assert name_map.backend_to_user is None
+    assert name_map.user_to_backend_indices == (0, 1, 2)
+    assert name_map.backend_to_user_indices == (0, 1, 2)
+    assert name_map.user_to_backend is not None
+    assert name_map.backend_to_user is not None
+    np.testing.assert_array_equal(name_map.user_to_backend.numpy(), np.asarray([0, 1, 2], dtype=np.int32))
+    np.testing.assert_array_equal(name_map.backend_to_user.numpy(), np.asarray([0, 1, 2], dtype=np.int32))
     assert name_map.is_identity
 
 
@@ -624,6 +628,50 @@ def test_reorder_3d_backend_to_user_gathers_user_axis() -> None:
     np.testing.assert_allclose(user_data.numpy(), backend_data_np[:, [1, 2, 0], :])
 
 
+def test_write_scalar_user_to_backend_with_indices_updates_user_and_backend_buffers() -> None:
+    """Fuse indexed scalar writes into user and backend-order buffers."""
+    env_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
+    backend_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        write_scalar_user_to_backend_with_indices,
+        dim=(env_ids.shape[0], user_ids.shape[0]),
+        inputs=[4.5, env_ids, user_ids, user_to_backend, True],
+        outputs=[user_data, backend_data],
+        device="cpu",
+    )
+
+    expected_user = np.asarray([[4.5, 0.0, 4.5], [0.0, 0.0, 0.0], [4.5, 0.0, 4.5]], dtype=np.float32)
+    expected_backend = np.asarray([[4.5, 4.5, 0.0], [0.0, 0.0, 0.0], [4.5, 4.5, 0.0]], dtype=np.float32)
+    np.testing.assert_allclose(user_data.numpy(), expected_user)
+    np.testing.assert_allclose(backend_data.numpy(), expected_backend)
+
+
+def test_write_scalar_user_to_backend_with_mask_updates_selected_entries() -> None:
+    """Fuse masked scalar writes into user and backend-order buffers."""
+    env_mask = wp.array(np.asarray([True, False], dtype=bool), dtype=wp.bool, device="cpu")
+    user_mask = wp.array(np.asarray([False, True, True], dtype=bool), dtype=wp.bool, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_data = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    backend_data = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        write_scalar_user_to_backend_with_mask,
+        dim=user_data.shape,
+        inputs=[7.25, env_mask, user_mask, user_to_backend, True],
+        outputs=[user_data, backend_data],
+        device="cpu",
+    )
+
+    expected_user = np.asarray([[0.0, 7.25, 7.25], [0.0, 0.0, 0.0]], dtype=np.float32)
+    expected_backend = np.asarray([[7.25, 0.0, 7.25], [0.0, 0.0, 0.0]], dtype=np.float32)
+    np.testing.assert_allclose(user_data.numpy(), expected_user)
+    np.testing.assert_allclose(backend_data.numpy(), expected_backend)
+
+
 def test_write_2d_float_user_to_backend_with_indices_updates_user_and_backend_buffers() -> None:
     """Fuse partial user-order writes into user and backend-order buffers."""
     input_data = wp.array(
@@ -646,7 +694,7 @@ def test_write_2d_float_user_to_backend_with_indices_updates_user_and_backend_bu
     wp.launch(
         write_2d_float_user_to_backend_with_indices,
         dim=input_data.shape,
-        inputs=[input_data, env_ids, user_ids, user_to_backend, False],
+        inputs=[input_data, env_ids, user_ids, user_to_backend, True, False],
         outputs=[user_data, backend_data],
         device="cpu",
     )
@@ -679,7 +727,7 @@ def test_write_2d_float_user_to_backend_with_mask_updates_selected_entries() -> 
     wp.launch(
         write_2d_float_user_to_backend_with_mask,
         dim=input_data.shape,
-        inputs=[input_data, env_mask, user_mask, user_to_backend],
+        inputs=[input_data, env_mask, user_mask, user_to_backend, True],
         outputs=[user_data, backend_data],
         device="cpu",
     )
@@ -707,7 +755,7 @@ def test_write_joint_state_user_to_backend_with_indices_updates_history_and_back
     wp.launch(
         write_joint_state_user_to_backend_with_indices,
         dim=position.shape,
-        inputs=[position, velocity, env_ids, user_ids, user_to_backend, False],
+        inputs=[position, velocity, env_ids, user_ids, user_to_backend, True, False],
         outputs=[user_pos, user_vel, user_prev_vel, user_acc, backend_pos, backend_vel],
         device="cpu",
     )
@@ -742,7 +790,7 @@ def test_write_joint_vel_user_to_backend_with_mask_updates_selected_entries() ->
     wp.launch(
         write_joint_vel_user_to_backend_with_mask,
         dim=velocity.shape,
-        inputs=[velocity, env_mask, user_mask, user_to_backend],
+        inputs=[velocity, env_mask, user_mask, user_to_backend, True],
         outputs=[user_vel, user_prev_vel, user_acc, backend_vel],
         device="cpu",
     )

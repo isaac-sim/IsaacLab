@@ -291,6 +291,85 @@ def write_joint_limit_data_to_buffer_mask(
 
 
 @wp.kernel
+def write_joint_limit_data_to_user_and_backend_index(
+    in_data: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    env_ids: wp.array(dtype=wp.int32),
+    user_ids: wp.array(dtype=wp.int32),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    backend_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    backend_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    default_joint_pos: wp.array2d(dtype=wp.float32),
+    clamped_defaults: wp.array(dtype=wp.int32),
+):
+    """Write indexed user-order joint limits into public and backend-order buffers."""
+    i, j = wp.tid()
+    env_id = env_ids[i]
+    user_id = user_ids[j]
+    backend_id = user_to_backend[user_id] if has_ordering else user_id
+    limits = in_data[i, j]
+    lower = limits[0]
+    upper = limits[1]
+
+    user_joint_pos_limits_lower[env_id, user_id] = lower
+    user_joint_pos_limits_upper[env_id, user_id] = upper
+    user_joint_pos_limits[env_id, user_id] = limits
+    backend_joint_pos_limits_lower[env_id, backend_id] = lower
+    backend_joint_pos_limits_upper[env_id, backend_id] = upper
+
+    if (default_joint_pos[env_id, user_id] < lower) or default_joint_pos[env_id, user_id] > upper:
+        wp.atomic_add(clamped_defaults, 0, 1)
+        default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
+
+    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+
+
+@wp.kernel
+def write_joint_limit_data_to_user_and_backend_mask(
+    in_data: wp.array2d(dtype=wp.vec2f),
+    soft_limit_factor: wp.float32,
+    env_mask: wp.array(dtype=wp.bool),
+    user_mask: wp.array(dtype=wp.bool),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    user_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    user_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    backend_joint_pos_limits_lower: wp.array2d(dtype=wp.float32),
+    backend_joint_pos_limits_upper: wp.array2d(dtype=wp.float32),
+    soft_joint_pos_limits: wp.array2d(dtype=wp.vec2f),
+    default_joint_pos: wp.array2d(dtype=wp.float32),
+    clamped_defaults: wp.array(dtype=wp.int32),
+):
+    """Write masked user-order joint limits into public and backend-order buffers."""
+    env_id, user_id = wp.tid()
+    if not env_mask[env_id] or not user_mask[user_id]:
+        return
+
+    backend_id = user_to_backend[user_id] if has_ordering else user_id
+    limits = in_data[env_id, user_id]
+    lower = limits[0]
+    upper = limits[1]
+
+    user_joint_pos_limits_lower[env_id, user_id] = lower
+    user_joint_pos_limits_upper[env_id, user_id] = upper
+    user_joint_pos_limits[env_id, user_id] = limits
+    backend_joint_pos_limits_lower[env_id, backend_id] = lower
+    backend_joint_pos_limits_upper[env_id, backend_id] = upper
+
+    if (default_joint_pos[env_id, user_id] < lower) or default_joint_pos[env_id, user_id] > upper:
+        wp.atomic_add(clamped_defaults, 0, 1)
+        default_joint_pos[env_id, user_id] = wp.clamp(default_joint_pos[env_id, user_id], lower, upper)
+
+    soft_joint_pos_limits[env_id, user_id] = compute_soft_joint_pos_limits_func(limits, soft_limit_factor)
+
+
+@wp.kernel
 def write_joint_friction_data_to_buffer(
     in_friction: wp.array2d(dtype=wp.float32),
     in_dynamic_friction: wp.array2d(dtype=wp.float32),

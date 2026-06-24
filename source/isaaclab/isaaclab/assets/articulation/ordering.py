@@ -37,16 +37,16 @@ class ArticulationNameMap:
     user_names: tuple[str, ...]
     """Names in the order exposed by the public articulation API."""
 
-    user_to_backend_indices: tuple[int, ...] | None
+    user_to_backend_indices: tuple[int, ...]
     """CPU map from public user index to backend index."""
 
-    backend_to_user_indices: tuple[int, ...] | None
+    backend_to_user_indices: tuple[int, ...]
     """CPU map from backend index to public user index."""
 
-    user_to_backend: wp.array(dtype=wp.int32) | None
+    user_to_backend: wp.array(dtype=wp.int32)
     """Device map from public user index to backend index."""
 
-    backend_to_user: wp.array(dtype=wp.int32) | None
+    backend_to_user: wp.array(dtype=wp.int32)
     """Device map from backend index to public user index."""
 
     is_identity: bool
@@ -516,22 +516,11 @@ def build_articulation_name_map(
             f"Requested {kind} names must be a complete permutation of backend names. Missing={missing}, extra={extra}."
         )
 
-    if user_names == backend_names:
-        return ArticulationNameMap(
-            kind=kind,
-            backend_names=backend_names,
-            user_names=user_names,
-            user_to_backend_indices=None,
-            backend_to_user_indices=None,
-            user_to_backend=None,
-            backend_to_user=None,
-            is_identity=True,
-        )
-
     backend_index_by_name = {name: index for index, name in enumerate(backend_names)}
     user_to_backend_np = np.asarray([backend_index_by_name[name] for name in user_names], dtype=np.int32)
     backend_to_user_np = np.empty_like(user_to_backend_np)
     backend_to_user_np[user_to_backend_np] = np.arange(len(user_names), dtype=np.int32)
+    is_identity = user_names == backend_names
 
     return ArticulationNameMap(
         kind=kind,
@@ -541,5 +530,5 @@ def build_articulation_name_map(
         backend_to_user_indices=tuple(int(index) for index in backend_to_user_np),
         user_to_backend=wp.array(user_to_backend_np, dtype=wp.int32, device=device),
         backend_to_user=wp.array(backend_to_user_np, dtype=wp.int32, device=device),
-        is_identity=False,
+        is_identity=is_identity,
     )

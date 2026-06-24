@@ -462,7 +462,7 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
             )
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits)
-        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+        if self._has_joint_ordering:
             if self._joint_pos_limits_backend is None:
                 self._joint_pos_limits_backend = wp.zeros(
                     (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
@@ -482,7 +482,7 @@ class ArticulationData(BaseArticulationData):
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_joints),
-                inputs=[self._joint_pos_limits_backend, self.joint_ordering.user_to_backend],
+                inputs=[self._joint_pos_limits_backend, self._joint_user_to_backend],
                 outputs=[self._joint_pos_limits],
                 device=self.device,
             )
@@ -754,11 +754,11 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
         """
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[self._sim_bind_body_mass, self.body_ordering.user_to_backend],
+                inputs=[self._sim_bind_body_mass, self._body_user_to_backend],
                 outputs=[self._body_mass_user],
                 device=self.device,
             )
@@ -771,11 +771,11 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
         """
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             wp.launch(
                 ordering_kernels.reorder_3d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies, 9),
-                inputs=[self._sim_bind_body_inertia, self.body_ordering.user_to_backend],
+                inputs=[self._sim_bind_body_inertia, self._body_user_to_backend],
                 outputs=[self._body_inertia_user],
                 device=self.device,
             )
@@ -792,12 +792,12 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         self._ensure_fk_fresh()
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             if self._body_link_pose_w_user.timestamp < self._sim_timestamp:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_bodies),
-                    inputs=[self._sim_bind_body_link_pose_w, self.body_ordering.user_to_backend],
+                    inputs=[self._sim_bind_body_link_pose_w, self._body_user_to_backend],
                     outputs=[self._body_link_pose_w_user.data],
                     device=self.device,
                 )
@@ -873,12 +873,12 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         self._ensure_fk_fresh()
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             if self._body_com_vel_w_user.timestamp < self._sim_timestamp:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_bodies),
-                    inputs=[self._sim_bind_body_com_vel_w, self.body_ordering.user_to_backend],
+                    inputs=[self._sim_bind_body_com_vel_w, self._body_user_to_backend],
                     outputs=[self._body_com_vel_w_user.data],
                     device=self.device,
                 )
@@ -922,11 +922,11 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the center of mass location relative to its body's link frame.
         """
-        if self.body_ordering is not None and not self.body_ordering.is_identity:
+        if self._has_body_ordering:
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[self._sim_bind_body_com_pos_b, self.body_ordering.user_to_backend],
+                inputs=[self._sim_bind_body_com_pos_b, self._body_user_to_backend],
                 outputs=[self._body_com_pos_b_user],
                 device=self.device,
             )
@@ -1099,12 +1099,12 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
-        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+        if self._has_joint_ordering:
             if self._joint_pos_user.timestamp < self._sim_timestamp:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_joints),
-                    inputs=[self._sim_bind_joint_pos, self.joint_ordering.user_to_backend],
+                    inputs=[self._sim_bind_joint_pos, self._joint_user_to_backend],
                     outputs=[self._joint_pos_user.data],
                     device=self.device,
                 )
@@ -1118,12 +1118,12 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
-        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+        if self._has_joint_ordering:
             if self._joint_vel_user.timestamp < self._sim_timestamp:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_joints),
-                    inputs=[self._sim_bind_joint_vel, self.joint_ordering.user_to_backend],
+                    inputs=[self._sim_bind_joint_vel, self._joint_user_to_backend],
                     outputs=[self._joint_vel_user.data],
                     device=self.device,
                 )
@@ -1861,6 +1861,34 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel_user = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
+        self._joint_stiffness_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_damping_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_armature_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_friction_coeff_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_pos_limits_lower_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_pos_limits_upper_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_vel_limits_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._joint_effort_limits_user = wp.zeros(
+            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+        )
+        self._has_joint_ordering = False
+        self._has_body_ordering = False
+        self._joint_user_to_backend = None
+        self._body_user_to_backend = None
         # -- dynamics quantities for task-space controllers
         self._create_jacobian_buffers(SimulationManager.get_model())
         # Empty memory pre-allocations
@@ -1969,16 +1997,45 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Re-pin public buffers after articulation ordering maps are installed."""
-        if self.joint_ordering is not None and not self.joint_ordering.is_identity:
+        joint_ordering = self.joint_ordering
+        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
+        self._joint_user_to_backend = joint_ordering.user_to_backend if joint_ordering is not None else None
+        body_ordering = self.body_ordering
+        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
+        self._body_user_to_backend = body_ordering.user_to_backend if body_ordering is not None else None
+        if self._has_joint_ordering:
             previous_joint_vel_backend = wp.clone(self._previous_joint_vel, device=self.device)
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_joints),
-                inputs=[previous_joint_vel_backend, self.joint_ordering.user_to_backend],
+                inputs=[previous_joint_vel_backend, self._joint_user_to_backend],
                 outputs=[self._previous_joint_vel],
                 device=self.device,
             )
+            self._sync_user_ordered_joint_property_buffers()
         self._pin_proxy_arrays()
+
+    def _sync_user_ordered_joint_property_buffers(self) -> None:
+        """Refresh user-order joint property buffers from sim-bound backend-order arrays."""
+        for backend_data, user_data in (
+            (self._sim_bind_joint_stiffness_sim, self._joint_stiffness_user),
+            (self._sim_bind_joint_damping_sim, self._joint_damping_user),
+            (self._sim_bind_joint_armature, self._joint_armature_user),
+            (self._sim_bind_joint_friction_coeff, self._joint_friction_coeff_user),
+            (self._sim_bind_joint_pos_limits_lower, self._joint_pos_limits_lower_user),
+            (self._sim_bind_joint_pos_limits_upper, self._joint_pos_limits_upper_user),
+            (self._sim_bind_joint_vel_limits_sim, self._joint_vel_limits_user),
+            (self._sim_bind_joint_effort_limits_sim, self._joint_effort_limits_user),
+            (self._sim_bind_joint_stiffness_sim, self._actuator_stiffness),
+            (self._sim_bind_joint_damping_sim, self._actuator_damping),
+        ):
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[backend_data, self._joint_user_to_backend],
+                outputs=[user_data],
+                device=self.device,
+            )
 
     def _pin_proxy_arrays(self) -> None:
         """Create or rebind all pinned ProxyArray wrappers.
@@ -1988,58 +2045,55 @@ class ArticulationData(BaseArticulationData):
         the solver recreates its internal arrays.
         """
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
+        if is_rebind and self._has_joint_ordering:
+            self._sync_user_ordered_joint_property_buffers()
+
+        joint_stiffness = self._joint_stiffness_user if self._has_joint_ordering else self._sim_bind_joint_stiffness_sim
+        joint_damping = self._joint_damping_user if self._has_joint_ordering else self._sim_bind_joint_damping_sim
+        joint_armature = self._joint_armature_user if self._has_joint_ordering else self._sim_bind_joint_armature
+        joint_friction_coeff = (
+            self._joint_friction_coeff_user if self._has_joint_ordering else self._sim_bind_joint_friction_coeff
+        )
+        joint_pos_limits_lower = (
+            self._joint_pos_limits_lower_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_lower
+        )
+        joint_pos_limits_upper = (
+            self._joint_pos_limits_upper_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_upper
+        )
+        joint_vel_limits = (
+            self._joint_vel_limits_user if self._has_joint_ordering else self._sim_bind_joint_vel_limits_sim
+        )
+        joint_effort_limits = (
+            self._joint_effort_limits_user if self._has_joint_ordering else self._sim_bind_joint_effort_limits_sim
+        )
 
         if is_rebind:
             # Rebind sim-bound ProxyArrays to new solver arrays
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
             body_link_pose_w = (
-                self._body_link_pose_w_user.data
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_link_pose_w
+                self._body_link_pose_w_user.data if self._has_body_ordering else self._sim_bind_body_link_pose_w
             )
             body_com_vel_w = (
-                self._body_com_vel_w_user.data
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_com_vel_w
+                self._body_com_vel_w_user.data if self._has_body_ordering else self._sim_bind_body_com_vel_w
             )
-            joint_pos = (
-                self._joint_pos_user.data
-                if self.joint_ordering is not None and not self.joint_ordering.is_identity
-                else self._sim_bind_joint_pos
-            )
-            joint_vel = (
-                self._joint_vel_user.data
-                if self.joint_ordering is not None and not self.joint_ordering.is_identity
-                else self._sim_bind_joint_vel
-            )
+            joint_pos = self._joint_pos_user.data if self._has_joint_ordering else self._sim_bind_joint_pos
+            joint_vel = self._joint_vel_user.data if self._has_joint_ordering else self._sim_bind_joint_vel
             self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
             self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
             self._joint_pos_ta = ProxyArray(joint_pos)
             self._joint_vel_ta = ProxyArray(joint_vel)
-            self._joint_stiffness_ta = ProxyArray(self._sim_bind_joint_stiffness_sim)
-            self._joint_damping_ta = ProxyArray(self._sim_bind_joint_damping_sim)
-            self._joint_armature_ta = ProxyArray(self._sim_bind_joint_armature)
-            self._joint_friction_coeff_ta = ProxyArray(self._sim_bind_joint_friction_coeff)
-            self._joint_pos_limits_lower_ta = ProxyArray(self._sim_bind_joint_pos_limits_lower)
-            self._joint_pos_limits_upper_ta = ProxyArray(self._sim_bind_joint_pos_limits_upper)
-            self._joint_vel_limits_ta = ProxyArray(self._sim_bind_joint_vel_limits_sim)
-            self._joint_effort_limits_ta = ProxyArray(self._sim_bind_joint_effort_limits_sim)
-            body_mass = (
-                self._body_mass_user
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_mass
-            )
-            body_inertia = (
-                self._body_inertia_user
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_inertia
-            )
-            body_com_pos_b = (
-                self._body_com_pos_b_user
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_com_pos_b
-            )
+            self._joint_stiffness_ta = ProxyArray(joint_stiffness)
+            self._joint_damping_ta = ProxyArray(joint_damping)
+            self._joint_armature_ta = ProxyArray(joint_armature)
+            self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
+            self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
+            self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
+            self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
+            body_mass = self._body_mass_user if self._has_body_ordering else self._sim_bind_body_mass
+            body_inertia = self._body_inertia_user if self._has_body_ordering else self._sim_bind_body_inertia
+            body_com_pos_b = self._body_com_pos_b_user if self._has_body_ordering else self._sim_bind_body_com_pos_b
             self._body_mass_ta = ProxyArray(body_mass)
             self._body_inertia_ta = ProxyArray(body_inertia)
             self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
@@ -2051,25 +2105,13 @@ class ArticulationData(BaseArticulationData):
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
             body_link_pose_w = (
-                self._body_link_pose_w_user.data
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_link_pose_w
+                self._body_link_pose_w_user.data if self._has_body_ordering else self._sim_bind_body_link_pose_w
             )
             body_com_vel_w = (
-                self._body_com_vel_w_user.data
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_com_vel_w
+                self._body_com_vel_w_user.data if self._has_body_ordering else self._sim_bind_body_com_vel_w
             )
-            joint_pos = (
-                self._joint_pos_user.data
-                if self.joint_ordering is not None and not self.joint_ordering.is_identity
-                else self._sim_bind_joint_pos
-            )
-            joint_vel = (
-                self._joint_vel_user.data
-                if self.joint_ordering is not None and not self.joint_ordering.is_identity
-                else self._sim_bind_joint_vel
-            )
+            joint_pos = self._joint_pos_user.data if self._has_joint_ordering else self._sim_bind_joint_pos
+            joint_vel = self._joint_vel_user.data if self._has_joint_ordering else self._sim_bind_joint_vel
             self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
             self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
             self._joint_pos_ta = ProxyArray(joint_pos)
@@ -2083,32 +2125,20 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
             self._computed_torque_ta = ProxyArray(self._computed_torque)
             self._applied_torque_ta = ProxyArray(self._applied_torque)
-            self._joint_stiffness_ta = ProxyArray(self._sim_bind_joint_stiffness_sim)
-            self._joint_damping_ta = ProxyArray(self._sim_bind_joint_damping_sim)
-            self._joint_armature_ta = ProxyArray(self._sim_bind_joint_armature)
-            self._joint_friction_coeff_ta = ProxyArray(self._sim_bind_joint_friction_coeff)
-            self._joint_pos_limits_lower_ta = ProxyArray(self._sim_bind_joint_pos_limits_lower)
-            self._joint_pos_limits_upper_ta = ProxyArray(self._sim_bind_joint_pos_limits_upper)
-            self._joint_vel_limits_ta = ProxyArray(self._sim_bind_joint_vel_limits_sim)
-            self._joint_effort_limits_ta = ProxyArray(self._sim_bind_joint_effort_limits_sim)
+            self._joint_stiffness_ta = ProxyArray(joint_stiffness)
+            self._joint_damping_ta = ProxyArray(joint_damping)
+            self._joint_armature_ta = ProxyArray(joint_armature)
+            self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
+            self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
+            self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
+            self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
             self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
             self._gear_ratio_ta = ProxyArray(self._gear_ratio)
-            body_mass = (
-                self._body_mass_user
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_mass
-            )
-            body_inertia = (
-                self._body_inertia_user
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_inertia
-            )
-            body_com_pos_b = (
-                self._body_com_pos_b_user
-                if self.body_ordering is not None and not self.body_ordering.is_identity
-                else self._sim_bind_body_com_pos_b
-            )
+            body_mass = self._body_mass_user if self._has_body_ordering else self._sim_bind_body_mass
+            body_inertia = self._body_inertia_user if self._has_body_ordering else self._sim_bind_body_inertia
+            body_com_pos_b = self._body_com_pos_b_user if self._has_body_ordering else self._sim_bind_body_com_pos_b
             self._body_mass_ta = ProxyArray(body_mass)
             self._body_inertia_ta = ProxyArray(body_inertia)
             self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
