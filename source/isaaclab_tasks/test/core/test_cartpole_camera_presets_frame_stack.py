@@ -71,10 +71,11 @@ class TestFrameStackTruthTable:
         assert _policy_default(cfg) == 1
 
     def test_newton_with_default_renderer(self):
-        """Newton physics + RTX renderer — RTX provides temporal information."""
+        """Newton + RTX + default AOV (rgb) — rgb gets DLSS temporal info, so resolves to 1 (non-rgb AOVs → 2)."""
         cfg = _resolve("newton_mjwarp")
         assert isinstance(cfg.sim.physics, NewtonCfg)
         assert isinstance(cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+        assert cfg.tiled_camera.data_types == ["rgb"]
         assert _policy_default(cfg) == 1
 
     def test_newton_with_warp_renderer_stacks(self):
@@ -83,6 +84,49 @@ class TestFrameStackTruthTable:
         assert isinstance(cfg.sim.physics, NewtonCfg)
         assert isinstance(cfg.tiled_camera.renderer_cfg, NewtonWarpRendererCfg)
         assert _policy_default(cfg) == 2
+
+    # Under Newton + RTX the default splits by data type: rgb gets a DLSS temporal cue
+    # (stack=1); depth/albedo/simple_shading do not (stack=2).
+
+    def test_newton_rtx_depth_stacks(self):
+        """Newton + RTX + depth — depth bypasses DLSS, so it needs explicit stacking."""
+        cfg = _resolve("newton_mjwarp", "depth")
+        assert isinstance(cfg.sim.physics, NewtonCfg)
+        assert isinstance(cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+        assert cfg.tiled_camera.data_types == ["depth"]
+        assert _policy_default(cfg) == 2
+
+    def test_newton_rtx_albedo_stacks(self):
+        """Newton + RTX + albedo — albedo bypasses DLSS, so it needs explicit stacking."""
+        cfg = _resolve("newton_mjwarp", "albedo")
+        assert isinstance(cfg.sim.physics, NewtonCfg)
+        assert isinstance(cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+        assert cfg.tiled_camera.data_types == ["albedo"]
+        assert _policy_default(cfg) == 2
+
+    def test_newton_rtx_simple_shading_stacks(self):
+        """Newton + RTX + simple_shading — bypasses DLSS, so it needs explicit stacking."""
+        cfg = _resolve("newton_mjwarp", "simple_shading_diffuse_mdl")
+        assert isinstance(cfg.sim.physics, NewtonCfg)
+        assert isinstance(cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+        assert cfg.tiled_camera.data_types == ["simple_shading_diffuse_mdl"]
+        assert _policy_default(cfg) == 2
+
+    def test_newton_rtx_rgb_does_not_stack(self):
+        """Newton + RTX + rgb — DLSS supplies the temporal cue, so rgb stays single-frame
+        even though the other RTX AOVs stack."""
+        cfg = _resolve("newton_mjwarp", "rgb")
+        assert isinstance(cfg.sim.physics, NewtonCfg)
+        assert isinstance(cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+        assert cfg.tiled_camera.data_types == ["rgb"]
+        assert _policy_default(cfg) == 1
+
+    def test_physx_rtx_depth_does_not_stack(self):
+        """PhysX + RTX + depth — implicit damping means even a non-temporal AOV stays at 1."""
+        cfg = _resolve("physx", "depth")
+        assert isinstance(cfg.sim.physics, PhysxCfg)
+        assert cfg.tiled_camera.data_types == ["depth"]
+        assert _policy_default(cfg) == 1
 
 
 class TestObsSpaceBumpArithmetic:
@@ -127,6 +171,8 @@ class TestEnvConstructionEndToEnd:
             (frozenset(), -1, 1, 3),
             # Newton + Warp: policy resolves to 2 → buffer active → 6 channels.
             (frozenset({"newton_mjwarp", "newton_renderer"}), -1, 2, 6),
+            # Newton + RTX + depth (non-rgb AOV): policy resolves to 2 → buffer active → 1ch × 2 = 2 channels.
+            (frozenset({"newton_mjwarp", "depth"}), -1, 2, 2),
             # User override (env.frame_stack=4) on Newton+Warp: policy is skipped → 12 channels.
             (frozenset({"newton_mjwarp", "newton_renderer"}), 4, 4, 12),
             # ``frame_stack=0`` is a synonym for "no stacking" → normalized to 1.

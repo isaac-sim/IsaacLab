@@ -11,43 +11,54 @@ from typing import TYPE_CHECKING
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
+from isaaclab.renderers.renderer import Renderer
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-SIMPLE_SHADING_TYPES = {
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
-}
-
 
 class CartpoleCameraEnv(CartpoleEnv):
     """Cartpole environment driven by camera observations.
 
-    Uses temporal observations for the Newton + Warp combo as it does not have the same implicit benefit
-    as the RTX renderer (implicit temporal anti-aliasing).
+    Stacks frames to supply the temporal cue Newton needs when the render lacks one; see
+    :meth:`_resolve_frame_stack_default`.
     """
 
     cfg: CartpoleCameraEnvCfg
 
     @staticmethod
     def _resolve_frame_stack_default(camera_cfg, physics_cfg) -> int:
-        """Return ``2`` for the Newton + Warp combo (no implicit damping, no temporal AA),
-        ``1`` otherwise."""
-        from isaaclab_newton.physics import NewtonCfg
-        from isaaclab_newton.renderers import NewtonWarpRendererCfg
+        """Default frame-stack size from the backend capability classmethods.
 
-        is_newton_warp = isinstance(physics_cfg, NewtonCfg) and isinstance(
-            getattr(camera_cfg, "renderer_cfg", None), NewtonWarpRendererCfg
-        )
-        return 2 if is_newton_warp else 1
+        Stack ``2`` frames when the policy needs a temporal cue to infer velocity but the
+        observation carries none -- the physics backend has no implicit damping AND the renderer
+        provides no temporal data for this data type. Otherwise ``1``. The capability lives on the
+        runtime backend classes (resolved from the cfg without building the sim):
+        :meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping` and
+        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`.
+        """
+        # ``class_type`` may be a class or a ``"module:Class"`` ResolvableString.
+        class_type = getattr(physics_cfg, "class_type", None)
+        if class_type is None:
+            return 1
+        physics_manager_cls = string_to_callable(str(class_type)) if isinstance(class_type, str) else class_type
+        if physics_manager_cls.provides_implicit_damping():
+            return 1
+
+        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
+        if renderer_cfg is None:
+            return 2
+        data_types = getattr(camera_cfg, "data_types", None) or []
+        data_type = data_types[0] if data_types else ""
+        renderer_cls = Renderer.resolve_class(renderer_cfg)
+        return 1 if renderer_cls.provides_temporal_camera_data(data_type) else 2
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         # Flatten preset wrappers so the frame-stack resolution below sees concrete types.

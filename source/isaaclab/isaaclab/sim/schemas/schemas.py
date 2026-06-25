@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+from collections.abc import Iterable
 
 import numpy as np
 import warp as wp
@@ -16,7 +17,7 @@ import warp as wp
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
+from isaaclab.utils.string import string_to_callable, to_camel_case
 
 from ..utils import (
     apply_nested,
@@ -214,6 +215,53 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
+def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Default fragment applier: apply the fragment's schema and write its namespaced attrs.
+
+    Reads :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_namespace` /
+    :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_applied_schema` from the cfg's class. If the
+    fragment owns an applied schema, it is applied (once). Each non-``None`` dataclass field is
+    written as ``<namespace>:<camelCase(field)>``; the ``func`` field is skipped. ``None`` fields
+    are left unchanged on the prim (partial update).
+
+    Args:
+        cfg: The fragment instance carrying ``_usd_namespace`` / ``_usd_applied_schema`` metadata.
+        prim_path: The prim path to author on.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_/modify_ writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    namespace = type(cfg)._usd_namespace
+    applied = type(cfg)._usd_applied_schema
+    # every fragment field is a namespaced USD attribute, so a namespace is required
+    if namespace is None:
+        raise ValueError(
+            f"Fragment '{type(cfg).__name__}' has no '_usd_namespace' set. Every fragment field is"
+            " authored as '<namespace>:<attr>', so a USD namespace is required; non-USD state must"
+            " live on the spawner cfg or be passed as a writer keyword argument, not as a fragment"
+            " field."
+        )
+    if applied and applied not in prim.GetAppliedSchemas():
+        prim.AddAppliedSchema(applied)
+    for f in dataclasses.fields(cfg):
+        # ``func`` is the only non-USD field; non-scalar values raise in the setter
+        if f.name == "func":
+            continue
+        value = getattr(cfg, f.name)
+        if value is None:
+            continue
+        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{to_camel_case(f.name, 'cC')}", value, camel_case=False)
+    return True
+
+
 """
 Articulation root properties.
 """
@@ -384,6 +432,40 @@ def modify_articulation_root_properties(
 """
 Rigid body properties.
 """
+
+
+def apply_rigid_body_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.RigidBodyFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of rigid-body fragments to a prim.
+
+    Applies ``UsdPhysics.RigidBodyAPI`` as the implicit anchor (the defining schema for a rigid
+    body), then dispatches each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the rigid-body schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.RigidBodyFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_rigid_body_properties writer)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not UsdPhysics.RigidBodyAPI(prim):
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+    # aggregate per-fragment results so a reported failure is not masked by the always-applied anchor
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):

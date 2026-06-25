@@ -5,6 +5,7 @@
 
 __all__ = [
     "MujocoJointDrivePropertiesCfg",
+    "MujocoRigidBodyCfg",
     "MujocoRigidBodyPropertiesCfg",
     "NewtonArticulationRootPropertiesCfg",
     "NewtonCollisionPropertiesCfg",
@@ -18,6 +19,7 @@ __all__ = [
 
 from .schemas_cfg import (
     MujocoJointDrivePropertiesCfg,
+    MujocoRigidBodyCfg,
     MujocoRigidBodyPropertiesCfg,
     NewtonArticulationRootPropertiesCfg,
     NewtonCollisionPropertiesCfg,

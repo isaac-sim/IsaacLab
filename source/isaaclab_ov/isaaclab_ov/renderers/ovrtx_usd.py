@@ -18,17 +18,24 @@ logger = logging.getLogger(__name__)
 def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
     """Return (render_var_path, render_var_name, source_name) from data_types."""
     use_depth = any(dt in ["depth", "distance_to_image_plane", "distance_to_camera"] for dt in data_types)
+    use_distance_to_camera = "distance_to_camera" in data_types and not any(
+        dt in ["depth", "distance_to_image_plane"] for dt in data_types
+    )
     use_albedo = "albedo" in data_types
     use_semantic = "semantic_segmentation" in data_types
+    use_normals = "normals" in data_types
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     use_hdr = "rgb_hdr" in data_types
 
-    if use_depth and not (use_rgb or use_albedo or use_semantic):
-        return "/Render/Vars/depth", "depth", "DistanceToImagePlaneSD"
-    if use_albedo and not (use_rgb or use_semantic):
+    if use_depth and not (use_rgb or use_albedo or use_semantic or use_normals):
+        source = "DistanceToCameraSD" if use_distance_to_camera else "DistanceToImagePlaneSD"
+        return "/Render/Vars/depth", "depth", source
+    if use_albedo and not (use_rgb or use_semantic or use_normals):
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
-    if use_semantic and not (use_rgb or use_albedo):
+    if use_semantic and not (use_rgb or use_albedo or use_normals):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
+    if use_normals and not (use_rgb or use_albedo or use_semantic or use_depth):
+        return "/Render/Vars/NormalSD", "NormalSD", "NormalSD"
     if use_hdr and not use_rgb:
         return "/Render/Vars/HdrColor", "HdrColor", "HdrColor"
     return "/Render/Vars/LdrColor", "LdrColor", "LdrColor"

@@ -88,7 +88,7 @@ pyproject.optional-dependencies.all = [
     # ================================================================================
     { "newton" = [
         "warp-lang==1.14.0",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@811968bfb7cc7ff4e37b9260a2ba56930a3e605e",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@79e95bf5571d70a0a46c8eaedc80644531d27368",
         "PyOpenGL-accelerate==3.1.10"
     ] },
     # ================================================================================

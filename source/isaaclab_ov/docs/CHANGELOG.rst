@@ -1,6 +1,28 @@
 Changelog
 ---------
 
+0.5.1 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``distance_to_camera`` incorrectly mapping to ``DistanceToImagePlaneSD`` in the OVRTX
+  renderer backend. It now correctly uses ``DistanceToCameraSD``, matching the intended semantics
+  of eye-space ray length versus perpendicular image-plane distance.
+
+
+0.5.0 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Overrode :meth:`provides_temporal_camera_data` on :class:`OVRTXRenderer` to return ``True``
+  only for the ``rgb``/``rgba`` beauty buffer (temporally accumulated by DLSS), matching Isaac RTX;
+  other AOVs return ``False``.
+
+
 0.4.6 (2026-06-16)
 ~~~~~~~~~~~~~~~~~~
 
