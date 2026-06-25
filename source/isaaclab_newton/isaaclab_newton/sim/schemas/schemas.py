@@ -15,10 +15,12 @@ from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
 
+from .schemas_cfg import MujocoFixedTendonCfg
+
 __all__ = ["apply_mujoco_fixed_tendon"]
 
 
-def apply_mujoco_fixed_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+def apply_mujoco_fixed_tendon(cfg: MujocoFixedTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Write ``mjc:*`` fixed-tendon attributes on a ``MjcTendon`` prim.
 
     Custom ``func`` override for :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg`.

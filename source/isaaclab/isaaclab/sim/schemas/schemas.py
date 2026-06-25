@@ -936,6 +936,10 @@ def apply_fixed_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | 
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
     Backend fragments carry backend-specific funcs, so core never imports a backend.
 
+    Each fragment tunes only its own schema and returns ``False`` when that schema is not
+    present on the prim. A prim carries a single tendon backend, so compose backends across
+    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+
     Args:
         prim_path: The prim path to apply the fixed-tendon schemas on.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
@@ -944,6 +948,9 @@ def apply_fixed_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | 
 
     Returns:
         True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid.
     """
     if stage is None:
         stage = get_current_stage()
@@ -991,9 +998,9 @@ def modify_fixed_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
-    # NOTE: superseded by the fragment path (apply_*_tendon_properties dispatching
-    # Physx*/Mujoco* tendon fragments). Retained for back-compat with the transitional
-    # Physx*TendonPropertiesCfg cfgs; slated for removal once callers migrate.
+    # Retained for backward compatibility with callers passing PhysxFixedTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_fixed_tendon_properties path.
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -1046,6 +1053,10 @@ def apply_spatial_tendon_properties(prim_path: str, fragments, stage: Usd.Stage 
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
     Backend fragments carry backend-specific funcs, so core never imports a backend.
 
+    Each fragment tunes only its own schema and returns ``False`` when that schema is not
+    present on the prim. A prim carries a single tendon backend, so compose backends across
+    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+
     Args:
         prim_path: The prim path to apply the spatial-tendon schemas on.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
@@ -1054,6 +1065,9 @@ def apply_spatial_tendon_properties(prim_path: str, fragments, stage: Usd.Stage 
 
     Returns:
         True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid.
     """
     if stage is None:
         stage = get_current_stage()
@@ -1104,9 +1118,9 @@ def modify_spatial_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
-    # NOTE: superseded by the fragment path (apply_*_tendon_properties dispatching
-    # Physx*/Mujoco* tendon fragments). Retained for back-compat with the transitional
-    # Physx*TendonPropertiesCfg cfgs; slated for removal once callers migrate.
+    # Retained for backward compatibility with callers passing PhysxSpatialTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_spatial_tendon_properties path.
     # obtain stage
     if stage is None:
         stage = get_current_stage()

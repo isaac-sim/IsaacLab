@@ -19,3 +19,11 @@ Changed
   :attr:`~isaaclab.sim.spawners.from_files.FileCfg.spatial_tendons_props`) to also accept one
   or more tendon fragments. Legacy single cfgs continue to work through a transition bridge in
   the spawn writer.
+* :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties` and
+  :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties` now raise
+  ``ValueError`` when the prim at ``prim_path`` does not exist in the stage.
+  Callers that previously relied on an implicit no-op for invalid paths must
+  either validate the path beforehand or catch ``ValueError``.
+  The aggregated return value is now ``False`` whenever any fragment applier
+  reports failure; callers must not assume the return is always ``True`` even
+  when the prim is valid.

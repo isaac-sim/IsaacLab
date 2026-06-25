@@ -16,3 +16,7 @@ Changed
   :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonCfg` appliers to tune the multi-instance
   PhysX tendon schemas directly, removing the dependency on the legacy
   ``modify_*_tendon_properties`` writers and the legacy ``Physx*TendonPropertiesCfg`` reconstruction.
+  Callers relying on :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`
+  reconstruction inside the applier should pass a
+  :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` fragment directly to
+  :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties` instead.

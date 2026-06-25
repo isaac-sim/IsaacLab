@@ -25,6 +25,8 @@ from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.string import to_camel_case
 
+from .schemas_cfg import PhysxFixedTendonCfg, PhysxSpatialTendonCfg
+
 __all__ = [
     "apply_fixed_tendon",
     "apply_spatial_tendon",
@@ -49,15 +51,14 @@ def _strip_fragment_fields(cfg) -> dict:
     }
 
 
-def apply_fixed_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Tune the multi-instance ``PhysxTendonAxisRootAPI`` schemas on a prim.
 
     Custom ``func`` override for :class:`PhysxFixedTendonCfg`. The fixed-tendon schema is
     multi-instance and *tune-not-apply* (instances are authored in the source asset), so this
     writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every applied
     ``PhysxTendonAxisRootAPI`` instance and applies no schema. Writes nothing for the ``mjc:``
-    Mujoco path -- that is handled by
-    :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`.
+    Mujoco path — a separate ``MjcTendon``-aware Newton fragment handles that path.
 
     Args:
         cfg: The :class:`PhysxFixedTendonCfg` fragment to apply.
@@ -86,7 +87,7 @@ def apply_fixed_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> b
     return True
 
 
-def apply_spatial_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Tune the multi-instance ``PhysxTendonAttachment{Root,Leaf}API`` schemas on a prim.
 
     Custom ``func`` override for :class:`PhysxSpatialTendonCfg`. Writes each set fragment field

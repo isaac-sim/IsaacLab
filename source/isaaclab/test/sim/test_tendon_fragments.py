@@ -142,6 +142,23 @@ def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
     prefix = _tendon_attr_prefix(prim, "PhysxTendonAttachmentRootAPI")
     assert abs(prim.GetAttribute(f"{prefix}:stiffness").Get() - 4.0) < 1e-6
     assert abs(prim.GetAttribute(f"{prefix}:limitStiffness").Get() - 0.25) < 1e-6
+    assert not prim.HasAttribute(f"{prefix}:func")
+
+
+def test_apply_spatial_tendon_writes_all_instances():
+    from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, apply_spatial_tendon
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_prim_with_schemas(
+        stage,
+        "/World/STmulti",
+        ["PhysxTendonAttachmentRootAPI:r0", "PhysxTendonAttachmentLeafAPI:l0"],
+    )
+    assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=4.0), "/World/STmulti", stage) is True
+    assert abs(prim.GetAttribute("PhysxTendonAttachmentRootAPI:r0:stiffness").Get() - 4.0) < 1e-6
+    assert abs(prim.GetAttribute("PhysxTendonAttachmentLeafAPI:l0:stiffness").Get() - 4.0) < 1e-6
 
 
 # -------------------------------------------------------------------------------------
@@ -247,6 +264,24 @@ def test_apply_fixed_tendon_aggregates_fragment_results():
     assert apply_fixed_tendon_properties("/World/Agg", [ok], stage) is True
 
 
+def test_apply_fixed_tendon_raises_on_invalid_prim_backend():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    _new_sim()
+    stage = sim_utils.get_current_stage()
+    with pytest.raises(ValueError):
+        apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=1.0), "/World/DoesNotExist", stage)
+
+
+def test_apply_mujoco_fixed_tendon_raises_on_invalid_prim():
+    from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
+
+    _new_sim()
+    stage = sim_utils.get_current_stage()
+    with pytest.raises(ValueError):
+        apply_mujoco_fixed_tendon(MujocoFixedTendonCfg(stiffness=1.0), "/World/DoesNotExist", stage)
+
+
 # -------------------------------------------------------------------------------------
 # MujocoFixedTendonCfg — Newton fragment for the mjc: namespace
 # -------------------------------------------------------------------------------------
@@ -275,6 +310,7 @@ def test_apply_mujoco_fixed_tendon_writes_mjc_namespace():
     prim = stage.GetPrimAtPath("/World/MjcT")
     assert abs(prim.GetAttribute("mjc:stiffness").Get() - 2.0) < 1e-6
     assert abs(prim.GetAttribute("mjc:damping").Get() - 0.25) < 1e-6
+    assert not prim.HasAttribute("mjc:func")
 
 
 def test_apply_mujoco_fixed_tendon_returns_false_on_non_mjc_prim():
@@ -285,3 +321,5 @@ def test_apply_mujoco_fixed_tendon_returns_false_on_non_mjc_prim():
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/NotMjc")
     assert apply_mujoco_fixed_tendon(MujocoFixedTendonCfg(stiffness=2.0), "/World/NotMjc", stage) is False
+    prim = stage.GetPrimAtPath("/World/NotMjc")
+    assert not prim.HasAttribute("mjc:stiffness")

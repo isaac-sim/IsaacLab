@@ -331,8 +331,9 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     tune path the Newton/Mujoco importer reads from a ``MjcTendon`` prim, carrying only the fields
     that path maps. Overrides :attr:`func` with a custom applier
     (:func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`) that gates on the ``MjcTendon``
-    prim type, and composes with :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` via
-    :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+    prim type. Can be combined with :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` in the same
+    fragment list passed to :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`, which
+    dispatches each fragment to its own applier independently.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
