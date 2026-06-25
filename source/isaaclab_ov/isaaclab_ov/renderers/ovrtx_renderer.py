@@ -246,6 +246,7 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
         }
 
     @property
@@ -802,6 +803,22 @@ class OVRTXRenderer(BaseRenderer):
                     output_buffers,
                     "semantic_segmentation",
                     suffix="semantic",
+                )
+
+        if "NormalSD" in frame.render_vars and "normals" in output_buffers:
+            with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
+                tiled_normals_data = wp.from_dlpack(mapping.tensor)
+                wp.launch(
+                    kernel=extract_all_rgb_float_tiles_kernel,
+                    dim=(render_data.num_envs, render_data.height, render_data.width),
+                    inputs=[
+                        tiled_normals_data,
+                        output_buffers["normals"],
+                        render_data.num_cols,
+                        render_data.width,
+                        render_data.height,
+                    ],
+                    device=self._device,
                 )
 
     def render(self, render_data: OVRTXRenderData) -> None:

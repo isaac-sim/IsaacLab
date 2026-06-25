@@ -435,6 +435,48 @@ class MassPropertiesCfg:
 
 
 @configclass
+class MassFragment(SchemaFragment):
+    """Marker base for mass fragments; types the ``mass_props`` slot."""
+
+    pass
+
+
+@configclass
+class MassCfg(MassFragment):
+    """``physics:*`` mass attributes from `UsdPhysics.MassAPI`_.
+
+    The ``UsdPhysics.MassAPI`` schema is applied as the implicit anchor by the mass family writer
+    (:func:`~isaaclab.sim.schemas.apply_mass_properties`), so this fragment owns no applied schema
+    of its own. Mirrors the legacy :class:`MassPropertiesCfg`.
+
+    .. note::
+        A fragment present in a spawner slot means its schema is applied. ``None`` fields are left
+        unchanged on the prim (partial update).
+
+    .. _UsdPhysics.MassAPI: https://openusd.org/dev/api/class_usd_physics_mass_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # MassAPI applied by the family anchor
+
+    mass: float | None = None
+    """The mass of the rigid body [kg].
+
+    Writes ``physics:mass`` via :class:`UsdPhysics.MassAPI`.
+
+    Note:
+        If ``density`` is non-zero, it takes precedence and is used to compute the mass instead.
+    """
+
+    density: float | None = None
+    """The density of the rigid body [kg/m^3].
+
+    Writes ``physics:density`` via :class:`UsdPhysics.MassAPI`. The density indirectly defines the
+    mass of the rigid body. It is generally computed using the collision approximation of the body.
+    """
+
+
+@configclass
 class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
 

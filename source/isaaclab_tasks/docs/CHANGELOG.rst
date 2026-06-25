@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+8.0.6 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added golden-image rendering tests for ``distance_to_camera`` and ``distance_to_image_plane``
+  AOV types across the Cartpole, DexSuite Kuka, and Shadow Hand camera environments.
+  Test-local subclasses of the relevant env and camera configs are used so the production
+  task API remains unchanged.
+* Added ``enable_scene_partition`` pytest fixture and enabled Isaac RTX per-environment scene
+  partitioning in rendering correctness tests for cartpole and registered camera tasks as a
+  temporary workaround.
+
+
 8.0.5 (2026-06-24)
 ~~~~~~~~~~~~~~~~~~
 

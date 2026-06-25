@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+2.2.0 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg`, the ``physxRigidBody:*``
+  single-namespace rigid-body fragment (PhysX ``PhysxRigidBodyAPI``). It carries the PhysX
+  damping / velocity-limit / solver-iteration / sleep fields plus ``disable_gravity``, and
+  composes with :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` in a ``rigid_props``
+  fragment list.
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage` to skip authoring
+  ``primvars:omni:scenePartition`` and ``omni:scenePartition`` by default. Set the environment
+  variable ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` to re-enable
+  per-environment scene partitioning for Isaac RTX rendering.
+
+
 2.1.0 (2026-06-24)
 ~~~~~~~~~~~~~~~~~~
 
