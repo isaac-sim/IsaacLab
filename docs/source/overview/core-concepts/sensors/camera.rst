@@ -38,19 +38,19 @@ The renderer used by a camera is configured via the ``renderer_cfg`` field on
      - Supported data types
    * - ``IsaacRtxRendererCfg`` *(default)*
      - Yes
-     - rgb, rgba, depth, normals, motion vectors, semantic/instance segmentation, and all other annotators
+     - All annotators (rgb, rgba, depth, distances, normals, motion vectors, semantic/instance segmentation)
    * - ``NewtonWarpRendererCfg``
      - No (kit-less)
-     - ``rgb``, ``depth`` only
+     - rgb, rgba, rgb_hdr, depth, normals, instance segmentation
    * - ``OVRTXRendererCfg``
      - No (+ ``isaaclab_ov``)
-     - ``rgb``, ``depth`` only
+     - rgb, rgba, rgb_hdr, depth, distances, semantic segmentation
 
 .. note::
 
-   The Newton Warp renderer currently supports only **``rgb``** and **``depth``** data types.
-   Annotators such as segmentation, normals, and motion vectors are Isaac RTX-specific features and
-   require :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`.
+   Backends differ in which annotators they produce. See
+   :ref:`the support matrix <camera-supported-annotators>` below for the
+   per-annotator breakdown across the Isaac RTX, OVRTX, and Newton Warp renderers.
 
 
 Tiled Rendering
@@ -177,20 +177,15 @@ When using the RTX renderer, add ``--enable_cameras`` when launching:
         --task=Isaac-Cartpole-Camera-Direct --enable_cameras
 
 
-Annotators (RTX only)
-~~~~~~~~~~~~~~~~~~~~~
+Annotators
+~~~~~~~~~~
 
-.. note::
-
-   Annotators are a feature of the **Isaac RTX renderer** (``IsaacRtxRendererCfg``).
-   They are **not** available with the Newton Warp renderer or ovrtx, which
-   support only ``rgb`` and ``depth``.
-
-:class:`~sensors.Camera` exposes the following annotator
-data types when using the RTX renderer:
+:class:`~sensors.Camera` exposes the following annotator data types. Not every
+backend produces every annotator — see the support matrix below.
 
 * ``"rgb"``: A 3-channel rendered color image.
 * ``"rgba"``: A 4-channel rendered color image with alpha channel.
+* ``"rgb_hdr"``: A 3-channel scene-linear HDR color image.
 * ``"distance_to_camera"``: Distance to the camera optical center per pixel.
 * ``"distance_to_image_plane"``: Distance along the camera's Z-axis per pixel.
 * ``"depth"``: Alias for ``"distance_to_image_plane"``.
@@ -199,6 +194,69 @@ data types when using the RTX renderer:
 * ``"semantic_segmentation"``: Semantic segmentation labels.
 * ``"instance_segmentation_fast"``: Instance segmentation data.
 * ``"instance_id_segmentation_fast"``: Instance ID segmentation data.
+
+.. _camera-supported-annotators:
+
+Supported annotators by renderer backend
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The following matrix shows which annotators each renderer backend can produce.
+``Isaac RTX`` is :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`, ``OVRTX``
+is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
+:class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 20 20 20
+
+   * - Data type
+     - Isaac RTX
+     - OVRTX
+     - Newton Warp
+   * - ``rgb``
+     - ✅
+     - ✅
+     - ✅
+   * - ``rgba``
+     - ✅
+     - ✅
+     - ✅
+   * - ``rgb_hdr``
+     - ✅
+     - ✅
+     - ✅
+   * - ``distance_to_camera``
+     - ✅
+     - ✅
+     - ❌
+   * - ``distance_to_image_plane``
+     - ✅
+     - ✅
+     - ❌
+   * - ``depth``
+     - ✅
+     - ✅
+     - ✅
+   * - ``normals``
+     - ✅
+     - ❌
+     - ✅
+   * - ``motion_vectors``
+     - ✅
+     - ❌
+     - ❌
+   * - ``semantic_segmentation``
+     - ✅
+     - ✅
+     - ❌
+   * - ``instance_segmentation_fast``
+     - ✅
+     - ❌
+     - ✅
+   * - ``instance_id_segmentation_fast``
+     - ✅
+     - ❌
+     - ❌
 
 RGB and RGBA
 ~~~~~~~~~~~~

@@ -59,6 +59,17 @@ def _check_ancestral(prim: Usd.Prim) -> bool:
     return _check_ancestral_node(prim_index.rootNode)
 
 
+def _is_uri_path(asset_path: str) -> bool:
+    """Return whether an asset path has an explicit URI scheme."""
+    scheme = asset_path.split("://", 1)[0]
+    return (
+        scheme != asset_path
+        and len(scheme) > 1
+        and scheme[0].isalpha()
+        and all(c.isalnum() or c in "+-." for c in scheme[1:])
+    )
+
+
 def resolve_paths(
     src_layer_identifier: str,
     dst_layer_identifier: str,
@@ -105,9 +116,11 @@ def resolve_paths(
     dst_dir = os.path.dirname(dst_layer.realPath or dst_layer.identifier)
 
     def _modify_path(asset_path: str) -> str:
-        if not asset_path:
+        if not asset_path or _is_uri_path(asset_path):
             return asset_path
         resolved = src_layer.ComputeAbsolutePath(asset_path)
+        if resolved and _is_uri_path(resolved):
+            return resolved
         if store_relative_path and resolved and dst_dir:
             try:
                 return os.path.relpath(resolved, dst_dir)

@@ -444,5 +444,9 @@ def _spawn_mesh_geom_from_mesh(
         # apply mass properties
         if cfg.mass_props is not None:
             schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
-        # apply rigid properties
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+        # apply rigid properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+        else:
+            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

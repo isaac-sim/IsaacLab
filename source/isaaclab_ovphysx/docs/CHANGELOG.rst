@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+3.2.0 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.sensors.JointWrenchSensor` and
+  :class:`~isaaclab_ovphysx.sensors.JointWrenchSensorData` so the factory
+  :class:`~isaaclab.sensors.JointWrenchSensor` dispatches under the OVPhysX
+  backend.
+* Added :class:`~isaaclab_ovphysx.sensors.FrameTransformer` and
+  :class:`~isaaclab_ovphysx.sensors.FrameTransformerData` for OVPhysX
+  frame transform sensing.
+
+Removed
+^^^^^^^
+
+* Removed :attr:`~isaaclab_ovphysx.assets.ArticulationData.body_incoming_joint_wrench_b`
+  to match the PhysX and Newton backends. Add
+  :class:`~isaaclab.sensors.JointWrenchSensorCfg` to the scene and read
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.force` and
+  :attr:`~isaaclab.sensors.JointWrenchSensorData.torque` instead.
+
+
 3.1.0 (2026-06-18)
 ~~~~~~~~~~~~~~~~~~
 

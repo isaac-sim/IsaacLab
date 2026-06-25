@@ -226,6 +226,11 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        # OV-RTX, like Isaac RTX, temporally accumulates only the rgb/rgba beauty buffer (DLSS).
+        return data_type in ("rgb", "rgba")
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
@@ -752,7 +757,7 @@ class OVRTXRenderer(BaseRenderer):
                     tiled_data = wp.from_dlpack(mapping.tensor)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
+        for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
             with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
