@@ -42,7 +42,7 @@ def _strip_fragment_fields(cfg) -> dict:
         cfg: The fragment instance to read fields from.
 
     Returns:
-        A mapping of set field names to their values, suitable for building a legacy cfg.
+        A mapping of set field names to their values, ready to author as namespaced USD attributes.
     """
     return {
         f.name: getattr(cfg, f.name)

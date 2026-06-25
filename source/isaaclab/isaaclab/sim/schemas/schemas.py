@@ -960,7 +960,9 @@ Fixed tendon properties.
 """
 
 
-def apply_fixed_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+def apply_fixed_tendon_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
+) -> bool:
     """Apply a list of fixed-tendon fragments to a prim.
 
     Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
@@ -1076,7 +1078,9 @@ Spatial tendon properties.
 """
 
 
-def apply_spatial_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+def apply_spatial_tendon_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
+) -> bool:
     """Apply a list of spatial-tendon fragments to a prim.
 
     Spatial tendons are a *tune-not-apply* family: the applied
