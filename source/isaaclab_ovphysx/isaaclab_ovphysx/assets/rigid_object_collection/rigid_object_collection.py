@@ -1202,6 +1202,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
+        # Drop the fused view (and the bindings it caches) on stop so a destroyed/stale binding
+        # is not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     """
     Helper functions.
