@@ -44,7 +44,7 @@ The renderer used by a camera is configured via the ``renderer_cfg`` field on
      - rgb, rgba, rgb_hdr, depth, normals, instance segmentation
    * - ``OVRTXRendererCfg``
      - No (+ ``isaaclab_ov``)
-     - rgb, rgba, rgb_hdr, depth, distances, semantic segmentation
+     - rgb, rgba, rgb_hdr, depth, distances, normals, semantic segmentation
 
 .. note::
 
@@ -239,7 +239,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
    * - ``normals``
      - ✅
-     - ❌
+     - ✅
      - ✅
    * - ``motion_vectors``
      - ✅
