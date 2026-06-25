@@ -22,7 +22,7 @@ INSTALL_REQUIRES = [
     # jupyter notebook
     "ipywidgets==8.1.5",
     # data collection
-    "h5py==3.15.1",
+    "h5py>=3.16.0",
 ]
 
 # robomimic has no Windows/macOS wheels; only add it on Linux
