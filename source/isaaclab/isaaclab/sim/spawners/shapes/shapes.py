@@ -319,7 +319,13 @@ def _spawn_geom_from_prim_type(
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
     if cfg.mass_props is not None:
-        schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
+        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> define_*
+        # normalize a single fragment to a list so the convenience form routes like a list
+        mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
+        if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
+            schemas.apply_mass_properties(prim_path, mass_frags, stage=stage)
+        else:
+            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if cfg.rigid_props is not None:
         # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*

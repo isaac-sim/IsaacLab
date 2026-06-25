@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+0.5.1 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``distance_to_camera`` incorrectly mapping to ``DistanceToImagePlaneSD`` in the OVRTX
+  renderer backend. It now correctly uses ``DistanceToCameraSD``, matching the intended semantics
+  of eye-space ray length versus perpendicular image-plane distance.
+
+
 0.5.0 (2026-06-24)
 ~~~~~~~~~~~~~~~~~~
 
