@@ -37,6 +37,9 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
     REPLICATION_QUEUE.clear()
 
     # Group queued cfgs by backend, taking the union of row indices each backend owns.
+    # In the homogeneous plan every cfg maps to row 0, so multiple queue_<backend>_replication
+    # calls (e.g. one per body type in RigidObjectCollection) all contribute {0} and the set
+    # union keeps it as a single row — no redundant copy specs are authored.
     backend_rows: dict[type, set[int]] = {}
     for cfg, BackendCtxCls in queued:
         rows = plan.cfg_rows.get(id(cfg))
