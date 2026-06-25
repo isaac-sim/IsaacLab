@@ -3897,6 +3897,9 @@ class Articulation(BaseArticulation):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidate the asset on simulation reset."""
         super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) on stop so a destroyed/stale binding is
+        # not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     """
     Internal helpers -- Actuators.
