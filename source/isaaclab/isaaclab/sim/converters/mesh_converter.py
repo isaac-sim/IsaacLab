@@ -184,9 +184,10 @@ class MeshConverter(AssetConverterBase):
         #   asset unintentionally share the same rigid body properties
         # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         if cfg.mass_props is not None:
-            mass_frags = cfg.mass_props if isinstance(cfg.mass_props, (list, tuple)) else [cfg.mass_props]
-            if mass_frags and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
-                schemas.apply_mass_properties(str(xform_prim.GetPath()), mass_frags, stage=stage)
+            if isinstance(cfg.mass_props, (list, tuple)) and all(
+                isinstance(f, schemas.SchemaFragment) for f in cfg.mass_props
+            ):
+                schemas.apply_mass_properties(str(xform_prim.GetPath()), cfg.mass_props, stage=stage)
             else:
                 schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
         # apply rigid body properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)

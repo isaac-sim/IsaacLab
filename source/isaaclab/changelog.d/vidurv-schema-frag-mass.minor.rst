@@ -16,3 +16,12 @@ Changed
   :class:`~isaaclab.sim.schemas.MassFragment` or a list of them. Legacy
   :class:`~isaaclab.sim.schemas.MassPropertiesCfg` cfgs continue to work through a transition bridge
   in the spawn writers.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sim.schemas.apply_mass_properties` to raise ``ValueError`` on an invalid
+  prim path and to aggregate per-fragment results instead of always returning ``True``, matching
+  :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`.
+* Fixed the spawn writers so an empty ``mass_props`` list is a harmless no-op rather than being
+  forwarded to :func:`~isaaclab.sim.schemas.define_mass_properties` as an unexpected list.
