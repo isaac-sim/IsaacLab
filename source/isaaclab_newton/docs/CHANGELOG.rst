@@ -1,6 +1,52 @@
 Changelog
 ---------
 
+1.2.0 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`, the ``mjc:*`` single-namespace
+  rigid-body fragment (``mjc:gravcomp``) for Newton's MuJoCo solver. It composes with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` in a ``rigid_props`` fragment list.
+
+
+1.1.0 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Overrode :meth:`provides_implicit_damping` on :class:`NewtonManager` to return ``False`` (its
+  symplectic integrator has no implicit damping) and :meth:`provides_temporal_camera_data` on
+  :class:`NewtonWarpRenderer` to return ``False`` (the rasterizer accumulates no temporal data),
+  so camera tasks can auto-enable frame stacking for the Newton combos that need it.
+
+Fixed
+^^^^^
+
+* Fixed the ``newton[sim]`` dependency pin to use Newton commit
+  ``79e95bf5571d70a0a46c8eaedc80644531d27368``, including the
+  RenderContext triangle-mesh construction fix from `newton-physics/newton#3199
+  <https://github.com/newton-physics/newton/pull/3199>`_.
+
+
+1.0.4 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing USD prim population in :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` when using the Isaac Sim RTX
+  renderer by calling :func:`~isaaclab.cloner.queue_usd_replication` (guarded by
+  :func:`~isaaclab.utils.version.has_kit` so it is skipped in kitless mode) before
+  ``queue_newton_physics_replication``.
+
+
 1.0.3 (2026-06-17)
 ~~~~~~~~~~~~~~~~~~
 
