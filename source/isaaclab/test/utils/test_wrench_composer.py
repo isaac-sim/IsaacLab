@@ -1443,6 +1443,79 @@ def test_lazy_composition_tracks_dirty_flag(device: str):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_local_only_composition_does_not_query_pose(device: str):
+    """Local-frame wrenches are already in body frame and do not require pose reads."""
+    num_envs, num_bodies = 4, 3
+    rng = np.random.default_rng(seed=72)
+
+    mock_asset = create_mock_asset(num_envs, num_bodies, device)
+    composer = WrenchComposer(mock_asset)
+
+    def fail_com_pos():
+        raise AssertionError("body CoM position should not be queried for local-frame wrenches")
+
+    def fail_link_quat():
+        raise AssertionError("body link orientation should not be queried for local-frame wrenches")
+
+    composer._get_com_pos_fn = fail_com_pos
+    composer._get_link_quat_fn = fail_link_quat
+
+    forces_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    torques_np = rng.uniform(-5.0, 5.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        torques=wp.from_numpy(torques_np, dtype=wp.vec3f, device=device),
+    )
+
+    composer.compose_to_body_frame()
+    np.testing.assert_allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
+    np.testing.assert_allclose(composer.out_torque_b.warp.numpy(), torques_np, atol=1e-4, rtol=1e-5)
+
+    # A second compose without writes should be a no-op for local-frame inputs.
+    composer.compose_to_body_frame()
+    np.testing.assert_allclose(composer.out_force_b.warp.numpy(), forces_np, atol=1e-4, rtol=1e-5)
+    np.testing.assert_allclose(composer.out_torque_b.warp.numpy(), torques_np, atol=1e-4, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_global_positioned_composition_queries_pose_each_call(device: str):
+    """Global forces with positions remain pose-dependent even when input buffers are clean."""
+    num_envs, num_bodies = 2, 2
+    rng = np.random.default_rng(seed=73)
+
+    mock_asset = create_mock_asset(num_envs, num_bodies, device)
+    composer = WrenchComposer(mock_asset)
+
+    call_counts = {"com_pos": 0, "link_quat": 0}
+    get_com_pos_fn = composer._get_com_pos_fn
+    get_link_quat_fn = composer._get_link_quat_fn
+
+    def counted_com_pos():
+        call_counts["com_pos"] += 1
+        return get_com_pos_fn()
+
+    def counted_link_quat():
+        call_counts["link_quat"] += 1
+        return get_link_quat_fn()
+
+    composer._get_com_pos_fn = counted_com_pos
+    composer._get_link_quat_fn = counted_link_quat
+
+    forces_np = rng.uniform(-10.0, 10.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    positions_np = rng.uniform(-1.0, 1.0, (num_envs, num_bodies, 3)).astype(np.float32)
+    composer.add_forces_and_torques_index(
+        forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device),
+        positions=wp.from_numpy(positions_np, dtype=wp.vec3f, device=device),
+        is_global=True,
+    )
+
+    composer.compose_to_body_frame()
+    composer.compose_to_body_frame()
+
+    assert call_counts == {"com_pos": 2, "link_quat": 2}
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_compose_is_idempotent(device: str):
     """Calling compose_to_body_frame twice without intervening writes produces the same result."""
     rng = np.random.default_rng(seed=456)

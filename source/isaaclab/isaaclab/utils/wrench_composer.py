@@ -66,6 +66,7 @@ class WrenchComposer:
         self._asset = asset
         self._active = False
         self._dirty = False
+        self._uses_global_frame = False
         if hasattr(self._asset.data, "body_com_pos_w"):
             self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
         else:
@@ -112,8 +113,9 @@ class WrenchComposer:
         require scanning the buffers, defeating the purpose of a cheap guard.
 
         This means the flag may remain ``True`` even if all buffers are zero after partial resets.
-        This is by design: the cost of an unnecessary compose + apply on zero data is negligible
-        compared to scanning the buffers every frame.
+        This is by design: checking whether all environments are zero would require scanning the
+        buffers every frame. Local-frame wrenches cache their composed output to avoid pose reads
+        when the inputs have not changed.
         """
         return self._active
 
@@ -263,8 +265,7 @@ class WrenchComposer:
             )
             return
 
-        self._active = True
-        self._dirty = True
+        self._invalidate_composed_wrench(is_global)
 
         wp.launch(
             add_forces_to_dual_buffers_index,
@@ -326,8 +327,7 @@ class WrenchComposer:
         # Clear input buffers for the targeted environments before writing
         self.reset(env_ids=env_ids)
 
-        self._active = True
-        self._dirty = True
+        self._invalidate_composed_wrench(is_global)
 
         wp.launch(
             set_forces_to_dual_buffers_index,
@@ -386,8 +386,7 @@ class WrenchComposer:
             )
             return
 
-        self._active = True
-        self._dirty = True
+        self._invalidate_composed_wrench(is_global)
 
         wp.launch(
             add_forces_to_dual_buffers_mask,
@@ -451,8 +450,7 @@ class WrenchComposer:
         # Clear input buffers for the masked environments before writing
         self.reset(env_mask=env_mask)
 
-        self._active = True
-        self._dirty = True
+        self._invalidate_composed_wrench(is_global)
 
         wp.launch(
             set_forces_to_dual_buffers_mask,
@@ -493,6 +491,7 @@ class WrenchComposer:
 
         self._active = True
         self._dirty = True
+        self._uses_global_frame = self._uses_global_frame or other._uses_global_frame
 
         wp.launch(
             add_raw_wrench_buffers,
@@ -521,9 +520,15 @@ class WrenchComposer:
 
         The dirty flag is cleared after composition.
         """
+        if not self._uses_global_frame:
+            if self._dirty:
+                wp.copy(self._out_force_b, self._local_force_b)
+                wp.copy(self._out_torque_b, self._local_torque_b)
+                self._dirty = False
+            return
+
         com_pos_w = self._get_com_pos_fn()
         link_quat_w = self._get_link_quat_fn()
-
         wp.launch(
             compose_wrench_to_body_frame,
             dim=(self.num_envs, self.num_bodies),
@@ -570,6 +575,7 @@ class WrenchComposer:
             self._out_torque_b.zero_()
             self._active = False
             self._dirty = False
+            self._uses_global_frame = False
         elif env_mask is not None:
             wp.launch(
                 reset_wrench_composer_mask,
@@ -662,6 +668,13 @@ class WrenchComposer:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _invalidate_composed_wrench(self, is_global: bool):
+        """Invalidate cached body-frame outputs after input-buffer writes."""
+        self._active = True
+        self._dirty = True
+        if is_global:
+            self._uses_global_frame = True
 
     def _resolve_env_ids(self, env_ids: wp.array | torch.Tensor | list | slice | None) -> wp.array:
         """Resolve environment IDs to a warp int32 array.
