@@ -411,6 +411,8 @@ to make intent explicit on the command line.
      - Newton Warp renderer
    * - ``ovrtx_renderer``
      - OV RTX renderer
+   * - ``rtx``
+     - Automatic RTX renderer selection (Isaac Sim RTX when running with Isaac Sim, and OVRTX for kit-less)
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
