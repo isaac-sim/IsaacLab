@@ -333,6 +333,12 @@ class NewtonSDFCollisionCfg(MeshCollisionFragment):
     fragments via :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
 
     .. note::
+        These ``newton:sdf*`` / ``newton:hydroelastic*`` attributes are read by Newton's USD
+        importer starting in Newton 1.3.0 (which also detects the unregistered
+        ``NewtonSDFCollisionAPI`` token via the raw ``apiSchemas`` list-op). On older Newton builds
+        they are authored but inert.
+
+    .. note::
         If the values are None, they are not modified.
     """
 
