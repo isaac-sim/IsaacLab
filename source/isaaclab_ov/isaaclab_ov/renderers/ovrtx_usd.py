@@ -34,7 +34,7 @@ def get_render_var_config(data_types: list[str]) -> tuple[str, str, str]:
         return "/Render/Vars/albedo", "albedo", "DiffuseAlbedoSD"
     if use_semantic and not (use_rgb or use_albedo or use_normals):
         return "/Render/Vars/semantic", "semantic", "SemanticSegmentation"
-    if use_normals and not (use_rgb or use_albedo or use_semantic):
+    if use_normals and not (use_rgb or use_albedo or use_semantic or use_depth):
         return "/Render/Vars/NormalSD", "NormalSD", "NormalSD"
     if use_hdr and not use_rgb:
         return "/Render/Vars/HdrColor", "HdrColor", "HdrColor"
