@@ -176,6 +176,10 @@ class ManagerBasedEnv:
                 self.scene = InteractiveScene(self.cfg.scene)
                 self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
+            # Run opted-in event terms' pre-PHYSICS_READY setup classmethod (no instance constructed) in
+            # the window before the renderer bakes the scene. Used by randomize_visual_color (OVRTX) to
+            # author USD-stage unbinds before bake. Non-opted-in terms are untouched.
+            EventManager.initialize_pre_physics_ready_terms(self.cfg.events, self)
         print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller

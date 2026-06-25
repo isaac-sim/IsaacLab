@@ -27,6 +27,8 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ImplicitActuator
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils.version import compare_versions
+from isaaclab.utils.visual_color import env_index_from_prim_path as _env_index_from_prim_path
+from isaaclab.utils.visual_color import select_visual_color_targets
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
@@ -2435,10 +2437,110 @@ class randomize_visual_texture_material(ManagerTermBase):
             rep.functional.modify.attribute(self.material_prims, "texture_rotate", random_rotations)
 
 
-class randomize_visual_color(ManagerTermBase):
-    """Randomize the visual color of bodies on an asset using Replicator API.
+def _resolve_visual_color_backend(env: ManagerBasedEnv) -> str:
+    """Resolve the active render backend for visual color randomization.
 
-    This function randomizes the visual color of the bodies of the asset using the Replicator API.
+    Returns the kitless renderer type (``"newton_warp"`` or ``"ovrtx"``) if a sensor uses one, else
+    ``"isaac_rtx"`` for the Kit/Replicator path. Keyed on the renderer (visual writes depend on the
+    renderer), unlike :func:`randomize_rigid_body_material` which keys on the physics manager.
+    """
+    for renderer_type in env.scene._sensor_renderer_types():
+        if renderer_type in ("newton_warp", "ovrtx"):
+            return renderer_type
+    return "isaac_rtx"
+
+
+def _replicator_version_string(rep) -> str:
+    """Return the installed ``omni.replicator.core`` version as a ``major.minor.patch`` string.
+
+    Tries ``importlib.metadata.version`` first, then falls back to parsing ``rep.__file__`` (for
+    editable / repacked layouts without wheel metadata). Raises ``RuntimeError`` if neither yields one.
+    """
+    import importlib.metadata as _meta  # noqa: PLC0415
+
+    for dist_name in ("omni-replicator-core", "omni.replicator.core"):
+        try:
+            return _meta.version(dist_name)
+        except _meta.PackageNotFoundError:
+            continue
+    # Fallback to the historical path-parse used by the pre-existing texture path.
+    try:
+        return re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+    except (AttributeError, IndexError) as exc:
+        raise RuntimeError(
+            "Could not determine omni.replicator.core version: importlib.metadata returned"
+            f" no entry and the historical path-parse of {rep.__file__!r} failed."
+        ) from exc
+
+
+class _ReplicatorVisualColorWriter:
+    """Kit/RTX color backend via the Omniverse Replicator functional API (Replicator >= 1.12.4).
+
+    This is the only writer that imports Kit (``omni.replicator.core`` / ``isaacsim``). It creates one
+    OmniPBR material per matched visual prim at construction. :attr:`num_targets` is the number of those
+    prims; :meth:`write_colors` takes one color per prim and modifies the ``diffuse_color_constant`` of
+    the prims belonging to the requested ``env_ids`` only.
+    """
+
+    @classmethod
+    def pre_physics_ready_setup(cls, env, mesh_prim_path: str) -> None:
+        """No-op: Replicator authors materials at write time (above any baked state), so there is no
+        pre-bake USD authoring to do. Present only to satisfy the common writer interface.
+        """
+        return
+
+    def __init__(self, env: ManagerBasedEnv, mesh_prim_path: str):
+        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
+
+        enable_extension("omni.replicator.core")
+        import omni.replicator.core as rep  # noqa: PLC0415
+
+        # Drop the legacy (< 1.12.4) OmniGraph path: the unified torch-sampled design requires the
+        # functional API where colors are supplied externally. Replicator is pinned >= 1.13.x.
+        version = _replicator_version_string(rep)
+        if compare_versions(version, "1.12.4") < 0:
+            raise RuntimeError(f"randomize_visual_color requires omni.replicator.core >= 1.12.4 (found {version}).")
+
+        stage = env.sim.stage
+        prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
+
+        # Map each matched prim to its env index (for env_ids filtering). create_batch.material with
+        # bind_prims=prims_group creates materials aligned 1:1 and in order with prims_group.
+        self._env_of_target = [_env_index_from_prim_path(str(prim.GetPath())) for prim in prims_group]
+        for prim in prims_group:
+            # Un-instance so per-prim material authoring is valid (never matches the articulation root;
+            # see the prim-path scoping in randomize_visual_color.__init__).
+            if prim.IsInstanceable():
+                prim.SetInstanceable(False)
+
+        # Resolve OmniPBR.mdl to an absolute path (Kit's omni_usd_resolver returns "" for builtin
+        # MDL short-names, which breaks Replicator >= 1.13.0).
+        import carb.tokens  # noqa: PLC0415
+
+        omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
+        self.material_prims = rep.functional.create_batch.material(
+            mdl=omni_pbr_mdl, bind_prims=prims_group, count=len(prims_group), project_uvw=True
+        )
+        self.num_targets = len(self.material_prims)
+
+    def write_colors(self, env_ids: torch.Tensor, colors: torch.Tensor) -> None:
+        targets = select_visual_color_targets(env_ids, colors, self._env_of_target, self.num_targets)
+        if not targets:
+            return
+        import numpy as np  # noqa: PLC0415
+
+        import omni.replicator.core as rep  # noqa: PLC0415
+
+        # one color per prim; apply only the prims whose env is being reset
+        colors_np = colors.detach().cpu().numpy()
+        sel_materials = [self.material_prims[g] for g in targets]
+        rep.functional.modify.attribute(sel_materials, "diffuse_color_constant", np.asarray(colors_np[targets]))
+
+
+class randomize_visual_color(ManagerTermBase):
+    """Randomize the visual color of bodies on an asset.
+
+    This function randomizes the visual color of the bodies of the asset.
     The function samples random colors from the given colors and applies them to the bodies
     of the asset.
 
@@ -2458,6 +2560,71 @@ class randomize_visual_color(ManagerTermBase):
         parser will parse the individual asset properties separately.
     """
 
+    init_before_physics_ready: bool = True
+
+    @staticmethod
+    def _resolve_mesh_prim_path(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg, mesh_name: str) -> str:
+        """Resolve the target mesh prim path pattern from the term's params.
+
+        Mirrors ``randomize_visual_texture_material``: a descendant ``/visuals`` pattern when the
+        asset uses that layout, else ``{asset_prim_path}/.*``. Never matches the articulation root
+        prim (authoring there breaks the PhysX articulation view).
+        """
+        asset = env.scene[asset_cfg.name]
+        if mesh_name:
+            if not mesh_name.startswith("/"):
+                mesh_name = "/" + mesh_name
+            return f"{asset.cfg.prim_path}{mesh_name}"
+        body_names = asset_cfg.body_names
+        if isinstance(body_names, str):
+            body_names_regex = body_names
+        elif isinstance(body_names, list):
+            body_names_regex = "|".join(body_names)
+        else:
+            body_names_regex = ".*"
+        pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+        if sim_utils.find_matching_prim_paths(pattern_with_visuals):
+            return pattern_with_visuals
+        fallback = f"{asset.cfg.prim_path}/.*"
+        logging.info(
+            f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{fallback}' for color randomization."
+        )
+        return fallback
+
+    @classmethod
+    def pre_physics_ready_setup(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
+        """Delegate pre-PHYSICS_READY USD-stage setup to the active backend's writer.
+
+        Resolves the backend and calls that writer's ``pre_physics_ready_setup`` classmethod (a no-op
+        for backends that need no pre-bake authoring; see each writer for specifics). Runs as a
+        classmethod so no instance is constructed and the cfg stays deepcopy-safe.
+        """
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
+        mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
+        if env.cfg.scene.replicate_physics:
+            return  # Will raise in __init__ below; nothing to author safely here.
+        writer_cls = cls._writer_class_for_backend(_resolve_visual_color_backend(env))
+        mesh_prim_path = cls._resolve_mesh_prim_path(env, asset_cfg, mesh_name)
+        writer_cls.pre_physics_ready_setup(env=env, mesh_prim_path=mesh_prim_path)
+
+    @staticmethod
+    def _writer_class_for_backend(backend: str):
+        """Return the writer CLASS (not an instance) for the named backend.
+
+        Single dispatch table used by both the pre-PHYSICS_READY classmethod hook and the
+        ``__init__`` / ``_ensure_writer`` lazy instantiation, so the per-backend imports + lookup
+        live in exactly one place.
+        """
+        if backend == "newton_warp":
+            from isaaclab_newton.visual.newton_shape_color_writer import NewtonShapeColorWriter  # noqa: PLC0415
+
+            return NewtonShapeColorWriter
+        if backend == "ovrtx":
+            from isaaclab_ov.visual.ovrtx_visual_color_writer import OVRTXVisualColorWriter  # noqa: PLC0415
+
+            return OVRTXVisualColorWriter
+        return _ReplicatorVisualColorWriter  # "isaac_rtx" / "default": the Kit/Replicator path
+
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         """Initialize the randomization term.
 
@@ -2466,13 +2633,6 @@ class randomize_visual_color(ManagerTermBase):
             env: The environment instance.
         """
         super().__init__(cfg, env)
-
-        # enable replicator extension if not already enabled (local: isaacsim only available with Kit)
-        from isaacsim.core.experimental.utils.app import enable_extension  # noqa: PLC0415
-
-        enable_extension("omni.replicator.core")
-        # we import the module here since we may not always need the replicator
-        import omni.replicator.core as rep  # noqa: PLC0415
 
         # read parameters from the configuration
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
@@ -2488,94 +2648,20 @@ class randomize_visual_color(ManagerTermBase):
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
-        # obtain the asset entity
-        asset = env.scene[asset_cfg.name]
-
-        # create the affected prim path
-        # note: Never match the articulation root prim. Authoring on the root (the SetInstanceable
-        #   and material binding below) invalidates the PhysX articulation view, crashing a later
-        #   at-play body-name resolution (root_view.shared_metatype becomes None). So we scope to
-        #   descendant visual prims, mirroring randomize_visual_texture_material.
-        if mesh_name:
-            # explicit mesh override
-            if not mesh_name.startswith("/"):
-                mesh_name = "/" + mesh_name
-            mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
-        else:
-            # default: the configured bodies' visual meshes
-            body_names = asset_cfg.body_names
-            if isinstance(body_names, str):
-                body_names_regex = body_names
-            elif isinstance(body_names, list):
-                body_names_regex = "|".join(body_names)
-            else:
-                body_names_regex = ".*"
-            pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
-            if sim_utils.find_matching_prim_paths(pattern_with_visuals):
-                mesh_prim_path = pattern_with_visuals
-            else:
-                # fall back to any descendant if the asset has no ".../visuals" layout
-                mesh_prim_path = f"{asset.cfg.prim_path}/.*"
-                logging.info(
-                    f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{mesh_prim_path}'"
-                    " for color randomization."
-                )
+        mesh_prim_path = self._resolve_mesh_prim_path(env, asset_cfg, mesh_name)
         # TODO: Need to make it work for multiple meshes.
 
-        # extract the replicator version
-        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+        # Defer writer construction to the first ``__call__`` (via :meth:`_ensure_writer`): backends
+        # need post-PHYSICS_READY state (Newton's finalized shape_color, Replicator's loaded
+        # omni.replicator.core). Pre-bake USD authoring is separate (``pre_physics_ready_setup``).
+        self._backend = _resolve_visual_color_backend(env)
+        self._mesh_prim_path = mesh_prim_path
+        self._writer = None
 
-        # use different path for different version of replicator
-        if compare_versions(version, "1.12.4") < 0:
-            colors = cfg.params.get("colors")
-            event_name = cfg.params.get("event_name")
-
-            # parse the colors into replicator format
-            if isinstance(colors, dict):
-                # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
-                color_low = [colors[key][0] for key in ["r", "g", "b"]]
-                color_high = [colors[key][1] for key in ["r", "g", "b"]]
-                colors = rep.distribution.uniform(color_low, color_high)
-            else:
-                colors = list(colors)
-
-            # Create the omni-graph node for the randomization term
-            def rep_color_randomization():
-                prims_group = rep.get.prims(path_pattern=mesh_prim_path)
-                with prims_group:
-                    rep.randomizer.color(colors=colors)
-
-                return prims_group.node
-
-            # Register the event to the replicator
-            with rep.trigger.on_custom_event(event_name=event_name):
-                rep_color_randomization()
-        else:
-            stage = env.sim.stage
-            prims_group = rep.functional.get.prims(path_pattern=mesh_prim_path, stage=stage)
-
-            num_prims = len(prims_group)
-            self.color_rng = rep.rng.ReplicatorRNG()
-
-            # Create the material first and bind it to the prims
-            for i, prim in enumerate(prims_group):
-                # Disable instancble
-                if prim.IsInstanceable():
-                    prim.SetInstanceable(False)
-
-            # Resolve OmniPBR.mdl to an absolute path so that pxr.Ar.GetResolver().Resolve()
-            # returns a valid path. Kit's omni_usd_resolver intentionally returns "" for builtin
-            # MDL short-names (OMNI_USD_RESOLVER_MDL_BUILTIN_BYPASS=1), which causes Replicator
-            # >= 1.13.0 to pass an empty resolved path into UsdMdl.RegistryUtils, raising a
-            # 'rtx::neuraylib::MdlModuleId' is Invalid error.
-            import carb.tokens  # noqa: PLC0415
-
-            omni_pbr_mdl = carb.tokens.get_tokens_interface().resolve("${kit}/mdl/core/Base/OmniPBR.mdl")
-
-            # TODO: Should we specify the value when creating the material?
-            self.material_prims = rep.functional.create_batch.material(
-                mdl=omni_pbr_mdl, bind_prims=prims_group, count=num_prims, project_uvw=True
-            )
+    def _ensure_writer(self, env: ManagerBasedEnv) -> None:
+        """Lazy-construct the backend writer on first ``__call__`` (uniform ``(env, mesh_prim_path)``)."""
+        if self._writer is None:
+            self._writer = self._writer_class_for_backend(self._backend)(env=env, mesh_prim_path=self._mesh_prim_path)
 
     def __call__(
         self,
@@ -2586,33 +2672,32 @@ class randomize_visual_color(ManagerTermBase):
         colors: list[tuple[float, float, float]] | dict[str, tuple[float, float]],
         mesh_name: str = "",
     ):
-        # note: This triggers the nodes for all the environments.
-        #   We need to investigate how to make it happen only for a subset based on env_ids.
+        # resolve environment ids
+        if env_ids is None:
+            env_ids = torch.arange(env.scene.num_envs, device=env.device)
 
-        # we import the module here since we may not always need the replicator
-        import omni.replicator.core as rep
+        # Lazy-construct the writer for backends that need post-sim-play initialization.
+        self._ensure_writer(env)
 
-        version = re.match(r"^(\d+\.\d+\.\d+)", rep.__file__.split("/")[-5][21:]).group(1)
+        colors = colors if colors else self._cfg.params.get("colors")
 
-        # use different path for different version of replicator
-        if compare_versions(version, "1.12.4") < 0:
-            rep.utils.send_og_event(event_name)
+        # parse the colors into low/high triples
+        if isinstance(colors, dict):
+            # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
+            color_low = [colors[key][0] for key in ["r", "g", "b"]]
+            color_high = [colors[key][1] for key in ["r", "g", "b"]]
+            colors = [color_low, color_high]
         else:
-            colors = colors if colors else self._cfg.params.get("colors")
+            colors = list(colors)
 
-            # parse the colors into replicator format
-            if isinstance(colors, dict):
-                # (r, g, b) - low, high --> (low_r, low_g, low_b) and (high_r, high_g, high_b)
-                color_low = [colors[key][0] for key in ["r", "g", "b"]]
-                color_high = [colors[key][1] for key in ["r", "g", "b"]]
-                colors = [color_low, color_high]
-            else:
-                colors = list(colors)
-
-            num_prims = len(self.material_prims)
-            random_colors = self.color_rng.generator.uniform(colors[0], colors[1], size=(num_prims, 3))
-
-            rep.functional.modify.attribute(self.material_prims, "diffuse_color_constant", random_colors)
+        # sample one color per matched visual prim (torch) and dispatch to the backend writer
+        random_colors = math_utils.sample_uniform(
+            torch.tensor(colors[0], device=env.device),
+            torch.tensor(colors[1], device=env.device),
+            (self._writer.num_targets, 3),
+            device=env.device,
+        )
+        self._writer.write_colors(env_ids, random_colors)
 
 
 """

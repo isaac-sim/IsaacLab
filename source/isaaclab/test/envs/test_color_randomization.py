@@ -178,3 +178,48 @@ def test_color_randomization(mode, device):
     finally:
         # Clean up stage
         sim_utils.close_stage()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_color_randomization_list_colors(device):
+    """Test the list form of the ``colors`` argument.
+
+    ``colors`` may be given as a ``[low_rgb, high_rgb]`` list instead of a ``{"r"/"g"/"b": (low, high)}``
+    dict. This guards that the list interface is still accepted and the term runs end-to-end.
+    """
+    # skip test if stage in memory is not supported
+    if get_isaac_sim_version().major < 5:
+        pytest.skip("Color randomization test hangs in this version of Isaac Sim")
+
+    # Create a new stage
+    sim_utils.create_new_stage()
+
+    try:
+        # Set the arguments
+        env_cfg = CartpoleEnvCfg()
+        env_cfg.scene.num_envs = 16
+        env_cfg.scene.replicate_physics = False
+        env_cfg.sim.device = device
+        # specify colors as a [low_rgb, high_rgb] list instead of a dict
+        env_cfg.events.cart_color_randomizer.params["colors"] = [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]
+        env_cfg.events.pole_color_randomizer.params["colors"] = [(0.0, 0.0, 0.0), (1.0, 1.0, 1.0)]
+
+        # Setup base environment
+        env = ManagerBasedEnv(cfg=env_cfg)
+
+        try:
+            # Simulate physics
+            with torch.inference_mode():
+                for count in range(50):
+                    # Reset every few steps to check nothing breaks
+                    if count % 10 == 0:
+                        env.reset()
+                    # Sample random actions
+                    joint_efforts = torch.randn_like(env.action_manager.action)
+                    # Step the environment
+                    env.step(joint_efforts)
+        finally:
+            env.close()
+    finally:
+        # Clean up stage
+        sim_utils.close_stage()

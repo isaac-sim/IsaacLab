@@ -1,0 +1,60 @@
+#usda 1.0
+(
+    defaultPrim = "Asset"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+# A single-mesh cube asset whose material structure mirrors what ships in stock IsaacLab assets
+# (cartpole.usd, dexsuite robots): an OmniPBR ``Material`` nested in a ``Looks`` scope under the
+# ``visuals`` xform, with a direct ``material:binding`` opinion on the Mesh prim itself. Loaded as
+# a USD reference by the OVRTX color-DR contract test so the pre-PHYSICS_READY unbind code path
+# (which only fires when a mesh has a pre-existing direct binding from the asset's layer) is
+# exercised end-to-end on a real GPU render.
+#
+# The root applies ``UsdPhysics.RigidBodyAPI`` + ``UsdPhysics.CollisionAPI`` so the contract test
+# can spawn this asset via :class:`RigidObjectCfg`. The cubes are visual props with gravity
+# disabled (the spawn cfg fills in ``init_state.pos`` + zero velocities) -- physics is only used
+# to expose the standard :class:`RigidObject` view to the event manager's
+# ``asset.cfg.prim_path`` lookup.
+def Xform "Asset" (
+    prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsCollisionAPI", "PhysicsMassAPI"]
+)
+{
+    bool physics:rigidBodyEnabled = 1
+    bool physics:collisionEnabled = 1
+
+    def Xform "visuals"
+    {
+        def Scope "Looks"
+        {
+            def Material "material"
+            {
+                token outputs:mdl:displacement.connect = </Asset/visuals/Looks/material/Shader.outputs:out>
+                token outputs:mdl:surface.connect = </Asset/visuals/Looks/material/Shader.outputs:out>
+                token outputs:mdl:volume.connect = </Asset/visuals/Looks/material/Shader.outputs:out>
+
+                def Shader "Shader"
+                {
+                    uniform token info:implementationSource = "sourceAsset"
+                    uniform asset info:mdl:sourceAsset = @OmniPBR.mdl@
+                    uniform token info:mdl:sourceAsset:subIdentifier = "OmniPBR"
+                    color3f inputs:diffuse_color_constant = (0.5, 0.5, 0.5)
+                    float inputs:reflection_roughness_constant = 1.0
+                    token outputs:out
+                }
+            }
+        }
+
+        def Cube "mesh" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            float3[] extent = [(-0.5, -0.5, -0.5), (0.5, 0.5, 0.5)]
+            double size = 1.0
+            rel material:binding = </Asset/visuals/Looks/material> (
+                bindMaterialAs = "weakerThanDescendants"
+            )
+        }
+    }
+}
