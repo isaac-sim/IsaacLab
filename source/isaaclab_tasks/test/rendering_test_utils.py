@@ -85,6 +85,7 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "depth",
     "distance_to_camera",
     "distance_to_image_plane",
+    "normals",
 )
 
 
@@ -121,6 +122,12 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "depth",
         id="physx-newton_warp-depth",
     ),
+    pytest.param(
+        "physx",
+        "newton_renderer",
+        "normals",
+        id="physx-newton_warp-normals",
+    ),
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
@@ -139,6 +146,12 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "depth",
         id="ovphysx-newton_warp-depth",
     ),
+    pytest.param(
+        "ovphysx",
+        "newton_renderer",
+        "normals",
+        id="ovphysx-newton_warp-normals",
+    ),
     # newton + newton_renderer (warp)
     pytest.param(
         "newton",
@@ -151,6 +164,12 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "newton_renderer",
         "depth",
         id="newton-newton_warp-depth",
+    ),
+    pytest.param(
+        "newton",
+        "newton_renderer",
+        "normals",
+        id="newton-newton_warp-normals",
     ),
 ]
 
@@ -229,6 +248,8 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
             normalized = normalized / max_val
     elif data_type in {"albedo"}:
         normalized = normalized[..., :3] / 255.0
+    elif data_type in {"normals"}:
+        normalized = (normalized + 1.0) * 0.5
     else:
         normalized = normalized / 255.0
 
@@ -550,7 +571,7 @@ def validate_camera_outputs(
         tensor = output if isinstance(output, torch.Tensor) else output.torch
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
-        max_val = corrected.max()
+        max_val = corrected.abs().max()
         if max_val <= 0:
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
@@ -636,6 +657,7 @@ def rendering_test_shadow_hand(
     class _ShadowHandTiledCameraTestCfg(ShadowHandTiledCameraCfg):
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
+        normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
 
     @configclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
@@ -695,6 +717,7 @@ def rendering_test_cartpole(
         distance_to_image_plane = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
             data_types=["distance_to_image_plane"]
         )
+        normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
@@ -703,6 +726,9 @@ def rendering_test_cartpole(
         )
         distance_to_image_plane = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        normals = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+            observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -777,6 +803,9 @@ def rendering_test_dexsuite_kuka(
         distance_to_image_plane256 = BASE_CAMERA_CFG.replace(
             data_types=["distance_to_image_plane"], width=256, height=256
         )
+        normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
+        normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
+        normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
 
     @configclass
     class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):
