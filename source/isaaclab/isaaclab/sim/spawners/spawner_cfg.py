@@ -85,11 +85,18 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     mass_props: schemas.MassPropertiesCfg | None = None
     """Mass properties."""
 
-    rigid_props: schemas.RigidBodyBaseCfg | None = None
+    rigid_props: schemas.RigidBodyBaseCfg | schemas.RigidBodyFragment | list[schemas.RigidBodyFragment] | None = None
     """Rigid body properties.
 
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
+    (e.g. ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``). When a fragment list is given,
+    ``UsdPhysics.RigidBodyAPI`` is applied as the implicit anchor and each fragment writes its own
+    namespace.
+
     For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
-    as True. This will make the object static and will not be affected by gravity or other forces.
+    (or :attr:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled`) as True. This will
+    make the object static and will not be affected by gravity or other forces.
     """
 
     collision_props: schemas.CollisionPropertiesCfg | None = None
