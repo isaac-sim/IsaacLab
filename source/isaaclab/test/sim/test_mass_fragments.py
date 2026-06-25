@@ -100,6 +100,24 @@ def test_spawn_shape_with_mass_fragment_list():
     assert abs(prim.GetAttribute("physics:mass").Get() - 4.0) < 1e-6
 
 
+def test_spawn_shape_with_single_mass_fragment():
+    # the ``mass_props`` slot advertises a single fragment (convenience form), not only a list;
+    # the spawn shim must route a bare fragment through ``apply_mass_properties`` (not the legacy writer)
+    from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = sim_utils.CuboidCfg(
+        size=(1, 1, 1),
+        rigid_props=[UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)],
+        mass_props=MassCfg(mass=4.0),
+    )
+    cfg.func("/World/CubeSingle", cfg)
+    prim = sim_utils.get_current_stage().GetPrimAtPath("/World/CubeSingle")
+    assert bool(UsdPhysics.MassAPI(prim))
+    assert abs(prim.GetAttribute("physics:mass").Get() - 4.0) < 1e-6
+
+
 # -------------------------------------------------------------------------------------
 # Review follow-ups -- prim-validity guard, aggregated return, empty-list no-op
 # -------------------------------------------------------------------------------------
