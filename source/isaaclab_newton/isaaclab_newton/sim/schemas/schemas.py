@@ -39,16 +39,21 @@ def apply_mujoco_fixed_tendon(cfg: MujocoFixedTendonCfg, prim_path: str, stage: 
     """
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
+    root = stage.GetPrimAtPath(prim_path)
+    if not root.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    if prim.GetTypeName() != "MjcTendon":
-        return False
     values = {
         f.name: getattr(cfg, f.name)
         for f in dataclasses.fields(cfg)
         if f.name != "func" and getattr(cfg, f.name) is not None
     }
-    for attr_name, value in values.items():
-        safe_set_attribute_on_usd_prim(prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
-    return True
+    # Descend the whole subtree (matching legacy apply_nested): ``MjcTendon`` prims may sit below
+    # the prim_path the spawner targets. Write ``mjc:*`` on every ``MjcTendon`` descendant.
+    found = False
+    for prim in Usd.PrimRange(root):
+        if prim.GetTypeName() != "MjcTendon":
+            continue
+        found = True
+        for attr_name, value in values.items():
+            safe_set_attribute_on_usd_prim(prim, f"mjc:{to_camel_case(attr_name, 'cC')}", value, camel_case=False)
+    return found

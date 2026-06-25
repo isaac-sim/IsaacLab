@@ -131,6 +131,34 @@ def test_apply_fixed_tendon_writes_all_instances():
         assert abs(prim.GetAttribute(f"PhysxTendonAxisRootAPI:{inst}:stiffness").Get() - 9.0) < 1e-6
 
 
+def test_apply_fixed_tendon_descends_to_child_prims():
+    # tendon schemas are authored on child joint prims, not the articulation root the spawner
+    # targets; applying at the root must descend to every descendant carrying the schema.
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Robot")  # root: no tendon schema
+    child = _make_fixed_tendon_prim(stage, "/World/Robot/joint", instance="t0")  # child joint carries it
+    # apply at the ROOT, not the joint
+    assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=8.0), "/World/Robot", stage) is True
+    prefix = _tendon_attr_prefix(child, "PhysxTendonAxisRootAPI")
+    assert abs(child.GetAttribute(f"{prefix}:stiffness").Get() - 8.0) < 1e-6
+
+
+def test_apply_spatial_tendon_descends_to_child_prims():
+    from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, apply_spatial_tendon
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Robot2")  # root: no tendon schema
+    child = _make_prim_with_schemas(stage, "/World/Robot2/joint", ["PhysxTendonAttachmentRootAPI:s0"])
+    assert apply_spatial_tendon(PhysxSpatialTendonCfg(stiffness=5.0), "/World/Robot2", stage) is True
+    assert abs(child.GetAttribute("PhysxTendonAttachmentRootAPI:s0:stiffness").Get() - 5.0) < 1e-6
+
+
 def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
     from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, apply_spatial_tendon
 

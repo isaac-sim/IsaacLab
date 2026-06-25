@@ -70,21 +70,28 @@ def apply_fixed_tendon(cfg: PhysxFixedTendonCfg, prim_path: str, stage: Usd.Stag
     """
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
+    root = stage.GetPrimAtPath(prim_path)
+    if not root.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    applied_schemas = prim.GetAppliedSchemas()
-    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas):
-        return False
     values = _strip_fragment_fields(cfg)
-    for schema_name in applied_schemas:
-        if "PhysxTendonAxisRootAPI" not in schema_name:
+    # Tendon schemas are authored on descendant joint prims, not the prim_path the spawner targets,
+    # so descend the whole subtree (matching the legacy apply_nested behavior) and tune every prim
+    # carrying the schema. The fragment's ``_usd_applied_schema`` is informational; the schema marker
+    # is matched explicitly here.
+    found = False
+    for prim in Usd.PrimRange(root):
+        applied_schemas = prim.GetAppliedSchemas()
+        if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas):
             continue
-        for attr_name, value in values.items():
-            safe_set_attribute_on_usd_prim(
-                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-            )
-    return True
+        found = True
+        for schema_name in applied_schemas:
+            if "PhysxTendonAxisRootAPI" not in schema_name:
+                continue
+            for attr_name, value in values.items():
+                safe_set_attribute_on_usd_prim(
+                    prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+                )
+    return found
 
 
 def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
@@ -103,19 +110,24 @@ def apply_spatial_tendon(cfg: PhysxSpatialTendonCfg, prim_path: str, stage: Usd.
     """
     if stage is None:
         stage = get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    if not prim.IsValid():
+    root = stage.GetPrimAtPath(prim_path)
+    if not root.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    applied_schemas = prim.GetAppliedSchemas()
     markers = ("PhysxTendonAttachmentRootAPI", "PhysxTendonAttachmentLeafAPI")
-    if not any(m in s for s in applied_schemas for m in markers):
-        return False
     values = _strip_fragment_fields(cfg)
-    for schema_name in applied_schemas:
-        if not any(m in schema_name for m in markers):
+    # Descend the whole subtree (matching legacy apply_nested): attachment schemas live on
+    # descendant joint prims. Tune every prim carrying a root or leaf attachment instance.
+    found = False
+    for prim in Usd.PrimRange(root):
+        applied_schemas = prim.GetAppliedSchemas()
+        if not any(m in s for s in applied_schemas for m in markers):
             continue
-        for attr_name, value in values.items():
-            safe_set_attribute_on_usd_prim(
-                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
-            )
-    return True
+        found = True
+        for schema_name in applied_schemas:
+            if not any(m in schema_name for m in markers):
+                continue
+            for attr_name, value in values.items():
+                safe_set_attribute_on_usd_prim(
+                    prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+                )
+    return found
