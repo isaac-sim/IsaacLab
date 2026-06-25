@@ -83,6 +83,9 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "simple_shading_full_mdl",
     "semantic_segmentation",
     "depth",
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "normals",
 )
 
 
@@ -119,6 +122,12 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "depth",
         id="physx-newton_warp-depth",
     ),
+    pytest.param(
+        "physx",
+        "newton_renderer",
+        "normals",
+        id="physx-newton_warp-normals",
+    ),
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
@@ -137,6 +146,12 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "depth",
         id="ovphysx-newton_warp-depth",
     ),
+    pytest.param(
+        "ovphysx",
+        "newton_renderer",
+        "normals",
+        id="ovphysx-newton_warp-normals",
+    ),
     # newton + newton_renderer (warp)
     pytest.param(
         "newton",
@@ -149,6 +164,12 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
         "newton_renderer",
         "depth",
         id="newton-newton_warp-depth",
+    ),
+    pytest.param(
+        "newton",
+        "newton_renderer",
+        "normals",
+        id="newton-newton_warp-normals",
     ),
 ]
 
@@ -227,6 +248,8 @@ def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
             normalized = normalized / max_val
     elif data_type in {"albedo"}:
         normalized = normalized[..., :3] / 255.0
+    elif data_type in {"normals"}:
+        normalized = (normalized + 1.0) * 0.5
     else:
         normalized = normalized / 255.0
 
@@ -548,7 +571,7 @@ def validate_camera_outputs(
         tensor = output if isinstance(output, torch.Tensor) else output.torch
         condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
         corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
-        max_val = corrected.max()
+        max_val = corrected.abs().max()
         if max_val <= 0:
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
@@ -621,12 +644,28 @@ def rendering_test_shadow_hand(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
+    from isaaclab.utils.configclass import configclass
+
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env import ShadowHandCameraEnv
-    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
+    from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
+        ShadowHandCameraEnvCfg,
+        ShadowHandTiledCameraCfg,
+        _ShadowHandBaseTiledCameraCfg,
+    )
+
+    @configclass
+    class _ShadowHandTiledCameraTestCfg(ShadowHandTiledCameraCfg):
+        distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
+        distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
+        normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
+
+    @configclass
+    class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
+        tiled_camera = _ShadowHandTiledCameraTestCfg()
 
     override_args = [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
 
-    env_cfg = ShadowHandCameraEnvCfg()
+    env_cfg = _ShadowHandCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, override_args)
 
     env_cfg.scene.num_envs = 4
@@ -634,7 +673,7 @@ def rendering_test_shadow_hand(
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
-    if data_type == "depth":
+    if data_type in {"depth", "distance_to_camera", "distance_to_image_plane"}:
         # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
         env_cfg.feature_extractor.enabled = False
 
@@ -667,10 +706,32 @@ def rendering_test_cartpole(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
-    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
+    from isaaclab.utils.configclass import configclass
 
-    env_cfg = CartpoleCameraEnvCfg()
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
+
+    @configclass
+    class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
+        distance_to_camera = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
+        distance_to_image_plane = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["distance_to_image_plane"]
+        )
+        normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
+
+    @configclass
+    class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
+        distance_to_camera = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        distance_to_image_plane = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        normals = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+            observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+
+    env_cfg = _CartpoleCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(
         env_cfg, [f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}"]
     )
@@ -713,10 +774,50 @@ def rendering_test_dexsuite_kuka(
         pytest.skip("ovphysx is not supported yet.")
 
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
 
-    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
-        DexsuiteKukaAllegroLiftCameraEnvCfg,
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.camera_cfg import (
+        BASE_CAMERA_CFG,
+        BaseTiledCameraCfg,
+        SingleCameraObservationsCfg,
     )
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_camera_env_cfg import (
+        _SCENE_KWARGS,
+        DexsuiteKukaAllegroLiftCameraEnvCfg,
+        SingleCameraSceneCfg,
+    )
+    from isaaclab_tasks.core.dexsuite.config.kuka_allegro.dexsuite_kuka_allegro_env_cfg import (
+        DexsuiteKukaAllegroLiftEnvCfg,
+    )
+
+    @configclass
+    class _DexsuiteBaseTiledCameraTestCfg(BaseTiledCameraCfg):
+        distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
+        distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
+        distance_to_camera256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=256, height=256)
+        distance_to_image_plane64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=64, height=64)
+        distance_to_image_plane128 = BASE_CAMERA_CFG.replace(
+            data_types=["distance_to_image_plane"], width=128, height=128
+        )
+        distance_to_image_plane256 = BASE_CAMERA_CFG.replace(
+            data_types=["distance_to_image_plane"], width=256, height=256
+        )
+        normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
+        normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
+        normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
+
+    @configclass
+    class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):
+        base_camera: CameraCfg = _DexsuiteBaseTiledCameraTestCfg()
+
+    @configclass
+    class _DexsuiteKukaAllegroLiftCameraTestEnvCfg(DexsuiteKukaAllegroLiftCameraEnvCfg):
+        single_camera = DexsuiteKukaAllegroLiftEnvCfg(
+            scene=_DexsuiteSingleCameraTestSceneCfg(**_SCENE_KWARGS),
+            observations=SingleCameraObservationsCfg(),
+        )
+        default = single_camera
 
     override_arg = f"presets={_physics_preset_name(physics_backend)},{renderer},{data_type}64,single_camera"
 
@@ -725,7 +826,7 @@ def rendering_test_dexsuite_kuka(
     if setup_homogeneous_envs:
         override_arg += ",cube"
 
-    env_cfg = DexsuiteKukaAllegroLiftCameraEnvCfg()
+    env_cfg = _DexsuiteKukaAllegroLiftCameraTestEnvCfg()
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [override_arg])
 
     env_cfg.scene.num_envs = 4

@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+1.0.3 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to skip authoring the
+  ``omni:scenePartition`` attribute on the viewport camera by default. Set
+  ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` to re-enable per-environment
+  scene partitioning for the Kit viewport camera.
+
+
+1.0.2 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the visualizer extras' ``newton[sim]`` dependency pin to use Newton
+  commit ``79e95bf5571d70a0a46c8eaedc80644531d27368``, including the
+  RenderContext triangle-mesh construction fix from `newton-physics/newton#3199
+  <https://github.com/newton-physics/newton/pull/3199>`_.
+
+
 1.0.1 (2026-06-14)
 ~~~~~~~~~~~~~~~~~~
 

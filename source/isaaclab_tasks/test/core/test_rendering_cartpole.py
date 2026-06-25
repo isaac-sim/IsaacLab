@@ -32,6 +32,6 @@ _attach_comparison_properties_fixture = make_attach_comparison_properties_fixtur
 
 
 @pytest.mark.parametrize("physics_backend,renderer,data_type", PHYSICS_RENDERER_AOV_COMBINATIONS)
-def test_rendering_cartpole(physics_backend, renderer, data_type):
+def test_rendering_cartpole(physics_backend, renderer, data_type, enable_scene_partition):
     """Test cartpole environment rendering correctness."""
     rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)

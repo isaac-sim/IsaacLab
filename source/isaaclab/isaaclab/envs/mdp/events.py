@@ -2492,9 +2492,34 @@ class randomize_visual_color(ManagerTermBase):
         asset = env.scene[asset_cfg.name]
 
         # create the affected prim path
-        if not mesh_name.startswith("/"):
-            mesh_name = "/" + mesh_name
-        mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        # note: Never match the articulation root prim. Authoring on the root (the SetInstanceable
+        #   and material binding below) invalidates the PhysX articulation view, crashing a later
+        #   at-play body-name resolution (root_view.shared_metatype becomes None). So we scope to
+        #   descendant visual prims, mirroring randomize_visual_texture_material.
+        if mesh_name:
+            # explicit mesh override
+            if not mesh_name.startswith("/"):
+                mesh_name = "/" + mesh_name
+            mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        else:
+            # default: the configured bodies' visual meshes
+            body_names = asset_cfg.body_names
+            if isinstance(body_names, str):
+                body_names_regex = body_names
+            elif isinstance(body_names, list):
+                body_names_regex = "|".join(body_names)
+            else:
+                body_names_regex = ".*"
+            pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+            if sim_utils.find_matching_prim_paths(pattern_with_visuals):
+                mesh_prim_path = pattern_with_visuals
+            else:
+                # fall back to any descendant if the asset has no ".../visuals" layout
+                mesh_prim_path = f"{asset.cfg.prim_path}/.*"
+                logging.info(
+                    f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{mesh_prim_path}'"
+                    " for color randomization."
+                )
         # TODO: Need to make it work for multiple meshes.
 
         # extract the replicator version

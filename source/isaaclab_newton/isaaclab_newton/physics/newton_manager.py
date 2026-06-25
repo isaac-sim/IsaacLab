@@ -217,6 +217,11 @@ class NewtonManager(PhysicsManager):
         which subclass is active.
     """
 
+    @classmethod
+    def provides_implicit_damping(cls) -> bool:
+        # Newton's symplectic integrator has no implicit damping.
+        return False
+
     _solver_dt: float = 1.0 / 200.0
     _num_substeps: int = 1
     _decimation: int = 1
