@@ -274,6 +274,25 @@ def test_apply_mesh_collision_properties_aggregates_fragment_results():
     assert apply_mesh_collision_properties("/World/Magg", [ok], stage) is True
 
 
+def test_apply_mesh_collision_properties_accepts_generator():
+    # the writer iterates fragments twice (token resolution + dispatch); a one-shot generator must
+    # be materialized, not silently exhausted by the first pass
+    from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+
+    from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/Mgen")
+    frags = (f for f in [UsdPhysicsMeshCollisionCfg(), PhysxConvexHullCfg(hull_vertex_limit=48)])
+    apply_mesh_collision_properties("/World/Mgen", frags, stage)
+    prim = stage.GetPrimAtPath("/World/Mgen")
+    # both passes ran: approximation token resolved AND the per-fragment namespaced attr written
+    assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
+    assert prim.GetAttribute("physxConvexHullCollision:hullVertexLimit").Get() == 48
+
+
 # -------------------------------------------------------------------------------------
 # Public imports
 # -------------------------------------------------------------------------------------

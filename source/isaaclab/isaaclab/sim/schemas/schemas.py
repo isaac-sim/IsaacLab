@@ -513,6 +513,9 @@ def apply_mesh_collision_properties(
     """
     if stage is None:
         stage = get_current_stage()
+    # materialize: this writer iterates ``fragments`` twice (approximation-token resolution, then
+    # dispatch), so a one-shot iterable (generator) would be exhausted by the first pass
+    fragments = list(fragments)
     prim = stage.GetPrimAtPath(prim_path)
     # fail loudly on an invalid path (matches the sibling apply_* writers)
     if not prim.IsValid():
