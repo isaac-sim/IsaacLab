@@ -557,7 +557,9 @@ Collision properties.
 """
 
 
-def apply_collision_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+def apply_collision_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
+) -> bool:
     """Apply a list of collision fragments to a prim.
 
     Applies ``UsdPhysics.CollisionAPI`` as the implicit anchor (the defining schema for a
