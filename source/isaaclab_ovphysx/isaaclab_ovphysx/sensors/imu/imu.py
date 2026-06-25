@@ -169,6 +169,16 @@ class Imu(BaseImu):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Drop the OVPhysX view and bindings when physics stops."""
+        super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) so a stale/destroyed handle is not held
+        # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
+        self._pose_binding = None
+        self._vel_binding = None
+        self._com_binding = None
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
