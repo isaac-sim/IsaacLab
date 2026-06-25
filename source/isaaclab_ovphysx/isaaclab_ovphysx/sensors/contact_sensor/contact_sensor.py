@@ -520,4 +520,7 @@ class ContactSensor(BaseContactSensor):
             with contextlib.suppress(Exception):
                 self._pose_binding.destroy()
         self._pose_binding = None
+        # Drop the view too: it caches the same (now-destroyed) pose binding, so leaving it set
+        # would keep a destroyed handle reachable. _initialize_impl rebuilds a fresh view on play.
+        self._root_view = None
         self._physx_instance = None
