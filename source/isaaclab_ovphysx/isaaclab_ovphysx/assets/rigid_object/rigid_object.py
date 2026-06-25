@@ -1152,6 +1152,9 @@ class RigidObject(BaseRigidObject):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) on stop so a destroyed/stale binding is
+        # not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     def write_root_state_to_sim(
         self,
