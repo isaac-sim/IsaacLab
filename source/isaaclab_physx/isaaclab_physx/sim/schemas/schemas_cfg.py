@@ -984,14 +984,18 @@ class PhysxFixedTendonCfg(FixedTendonFragment):
     fragment: the multi-instance ``PhysxTendonAxisRootAPI:<inst>`` schemas already exist on the
     prim (authored in the source asset), so the fragment overrides
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_fixed_tendon`, which
-    delegates to the multi-instance writer
-    :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties` to tune every existing instance.
+    descends the prim subtree and tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance
+    directly.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
 
     .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
     """
 
+    # Not namespace-driven: the custom applier matches the multi-instance schema explicitly, so
+    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
+    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
+    _usd_namespace: ClassVar[str | None] = None
     # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
 
@@ -1028,15 +1032,18 @@ class PhysxSpatialTendonCfg(SpatialTendonFragment):
     ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas already exist on the prim (authored in the
     source asset), so the fragment overrides
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_spatial_tendon`, which
-    delegates to the multi-instance writer
-    :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties` to tune every existing
-    instance.
+    descends the prim subtree and tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
+    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance directly.
 
     Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
 
     .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
     """
 
+    # Not namespace-driven: the custom applier matches the multi-instance schemas explicitly, so
+    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
+    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
+    _usd_namespace: ClassVar[str | None] = None
     # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
     # schemas, which the generic ``apply_namespaced`` cannot.
     func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"

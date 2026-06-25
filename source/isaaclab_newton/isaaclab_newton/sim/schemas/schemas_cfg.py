@@ -336,7 +336,10 @@ class MujocoFixedTendonCfg(FixedTendonFragment):
     dispatches each fragment to its own applier independently.
     """
 
-    _usd_namespace: ClassVar[str | None] = "mjc"
+    # Not namespace-driven: the custom applier gates on the ``MjcTendon`` prim type and writes the
+    # ``mjc:*`` attributes itself, so ``_usd_namespace`` stays ``None`` -- this also guards against
+    # accidentally routing the fragment through the generic ``apply_namespaced``.
+    _usd_namespace: ClassVar[str | None] = None
     _usd_applied_schema: ClassVar[str | None] = None
 
     func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_fixed_tendon"

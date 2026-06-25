@@ -322,7 +322,8 @@ def test_mujoco_fixed_tendon_metadata():
 
     cfg = MujocoFixedTendonCfg(stiffness=2.0)
     assert isinstance(cfg, FixedTendonFragment)
-    assert type(cfg)._usd_namespace == "mjc"
+    # not namespace-driven: the custom applier writes mjc:* itself, so _usd_namespace stays None
+    assert type(cfg)._usd_namespace is None
     assert cfg.func == "isaaclab_newton.sim.schemas:apply_mujoco_fixed_tendon"
     assert not hasattr(cfg, "rest_length") and not hasattr(cfg, "limit_stiffness")
 
