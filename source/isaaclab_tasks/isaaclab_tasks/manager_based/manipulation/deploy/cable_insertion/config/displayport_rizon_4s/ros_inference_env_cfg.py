@@ -28,8 +28,8 @@ from .joint_pos_env_cfg import Rizon4sGravDisplayportInsertionEnvCfg
 # CALIBRATE: geometry pos seeded from the training-env value (GB300 Hubble table
 # mount). Re-measure the real DisplayPort fixture pose for the actual station.
 # The socket rotation keeps the verified DP orientation (opening facing +Z).
-# _HUBBLE_GEOMETRY_POS = (0.475, 0.125, 0.06)
-_HUBBLE_GEOMETRY_POS = (0.481, -0.073, 0.06)
+_HUBBLE_GEOMETRY_POS = (0.476, 0.127, 0.07)
+# _HUBBLE_GEOMETRY_POS = (0.481, -0.073, 0.071)
 _HUBBLE_SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)
 _HUBBLE_PLUG_CLEARANCE_Z = 0.068
 
