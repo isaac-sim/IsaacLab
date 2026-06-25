@@ -436,7 +436,7 @@ class MassCfg(MassFragment):
     Writes ``physics:mass`` via :class:`UsdPhysics.MassAPI`.
 
     Note:
-        If non-zero, the mass is ignored and the density is used to compute the mass.
+        If ``density`` is non-zero, it takes precedence and is used to compute the mass instead.
     """
 
     density: float | None = None

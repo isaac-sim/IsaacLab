@@ -651,7 +651,9 @@ Mass properties.
 """
 
 
-def apply_mass_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+def apply_mass_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.MassFragment], stage: Usd.Stage | None = None
+) -> bool:
     """Apply a list of mass fragments to a prim.
 
     Applies ``UsdPhysics.MassAPI`` as the implicit anchor (the defining schema for mass properties),
