@@ -943,14 +943,21 @@ def apply_fixed_tendon_properties(prim_path: str, fragments, stage: Usd.Stage | 
             stage is used.
 
     Returns:
-        True if the properties were successfully set.
+        True if all fragments applied successfully, False if any fragment reported failure.
     """
     if stage is None:
         stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # tune-not-apply: the PhysxTendonAxisRootAPI instances already exist; apply no anchor.
+    # aggregate per-fragment results so a reported failure is not silently masked.
+    success = True
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, prim_path, stage)
-    return True
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 @apply_nested
@@ -984,6 +991,9 @@ def modify_fixed_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
+    # NOTE: superseded by the fragment path (apply_*_tendon_properties dispatching
+    # Physx*/Mujoco* tendon fragments). Retained for back-compat with the transitional
+    # Physx*TendonPropertiesCfg cfgs; slated for removal once callers migrate.
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -1043,14 +1053,22 @@ def apply_spatial_tendon_properties(prim_path: str, fragments, stage: Usd.Stage 
             stage is used.
 
     Returns:
-        True if the properties were successfully set.
+        True if all fragments applied successfully, False if any fragment reported failure.
     """
     if stage is None:
         stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # tune-not-apply: the PhysxTendonAttachmentRootAPI / PhysxTendonAttachmentLeafAPI instances
+    # already exist; apply no anchor.
+    # aggregate per-fragment results so a reported failure is not silently masked.
+    success = True
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, prim_path, stage)
-    return True
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 @apply_nested
@@ -1086,6 +1104,9 @@ def modify_spatial_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
+    # NOTE: superseded by the fragment path (apply_*_tendon_properties dispatching
+    # Physx*/Mujoco* tendon fragments). Retained for back-compat with the transitional
+    # Physx*TendonPropertiesCfg cfgs; slated for removal once callers migrate.
     # obtain stage
     if stage is None:
         stage = get_current_stage()

@@ -12,10 +12,28 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-from pxr import PhysxSchema, UsdGeom
+import pytest
+
+from pxr import PhysxSchema, Sdf, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+
+
+def _new_sim():
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    return sim_utils.get_current_stage()
+
+
+def _make_prim_with_schemas(stage, path, schema_tokens):
+    """Define an Xform and stamp ``apiSchemas`` metadata with the given multi-instance tokens."""
+    UsdGeom.Xform.Define(stage, path)
+    prim = stage.GetPrimAtPath(path)
+    token_op = Sdf.TokenListOp()
+    token_op.explicitItems = schema_tokens
+    prim.SetMetadata("apiSchemas", token_op)
+    return prim
 
 
 def _make_xform(stage, path="/World/Tendon"):
@@ -176,3 +194,42 @@ def test_public_imports():
         apply_fixed_tendon_properties,
         apply_spatial_tendon_properties,
     )
+
+
+# -------------------------------------------------------------------------------------
+# core writer parity: invalid-prim guard + aggregated return
+# -------------------------------------------------------------------------------------
+
+
+def test_apply_fixed_tendon_raises_on_invalid_prim():
+    from isaaclab.sim.schemas import apply_fixed_tendon_properties
+
+    _new_sim()
+    stage = sim_utils.get_current_stage()
+    with pytest.raises(ValueError):
+        apply_fixed_tendon_properties("/World/DoesNotExist", [], stage)
+
+
+def test_apply_spatial_tendon_raises_on_invalid_prim():
+    from isaaclab.sim.schemas import apply_spatial_tendon_properties
+
+    _new_sim()
+    stage = sim_utils.get_current_stage()
+    with pytest.raises(ValueError):
+        apply_spatial_tendon_properties("/World/DoesNotExist", [], stage)
+
+
+def test_apply_fixed_tendon_aggregates_fragment_results():
+    from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg, apply_fixed_tendon_properties
+
+    stage = _new_sim()
+    _make_prim_with_schemas(stage, "/World/Agg", ["PhysxTendonAxisRootAPI:inst0"])
+
+    # a fragment whose applier reports failure makes the aggregate False
+    failing = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    failing.func = lambda cfg, prim_path, stage=None: False
+    assert apply_fixed_tendon_properties("/World/Agg", [failing], stage) is False
+
+    ok = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
+    ok.func = lambda cfg, prim_path, stage=None: True
+    assert apply_fixed_tendon_properties("/World/Agg", [ok], stage) is True
