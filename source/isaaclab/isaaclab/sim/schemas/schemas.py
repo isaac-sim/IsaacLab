@@ -475,7 +475,9 @@ def apply_rigid_body_properties(
     return success
 
 
-def apply_mesh_collision_properties(prim_path: str, fragments, stage: Usd.Stage | None = None) -> bool:
+def apply_mesh_collision_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.MeshCollisionFragment], stage: Usd.Stage | None = None
+) -> bool:
     """Apply a list of mesh-collision fragments to a prim.
 
     Applies ``UsdPhysics.MeshCollisionAPI`` as the implicit anchor (the carrier of the
@@ -503,15 +505,18 @@ def apply_mesh_collision_properties(prim_path: str, fragments, stage: Usd.Stage 
             stage is used.
 
     Returns:
-        True if the properties were successfully set.
+        True if all fragments applied successfully, False if any fragment reported failure.
 
     Raises:
-        ValueError: When the resolved mesh approximation name is not in
-            :const:`MESH_APPROXIMATION_TOKENS`.
+        ValueError: If the prim at ``prim_path`` is not valid, or when the resolved mesh
+            approximation name is not in :const:`MESH_APPROXIMATION_TOKENS`.
     """
     if stage is None:
         stage = get_current_stage()
     prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
     # apply the standard MeshCollisionAPI anchor (carrier of ``physics:approximation``)
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
@@ -532,11 +537,13 @@ def apply_mesh_collision_properties(prim_path: str, fragments, stage: Usd.Stage 
         UsdPhysics.MeshCollisionAPI(prim), "Approximation", approximation_token, camel_case=False
     )
 
-    # dispatch each fragment via its ``func`` (cooking-schema application + namespaced tuning attrs)
+    # dispatch each fragment via its ``func`` (cooking-schema application + namespaced tuning attrs),
+    # aggregating per-fragment results so a reported failure is not masked by the always-applied anchor
+    success = True
     for cfg in fragments:
         func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, prim_path, stage)
-    return True
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):

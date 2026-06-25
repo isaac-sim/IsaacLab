@@ -243,6 +243,37 @@ def test_apply_mesh_collision_properties_rejects_invalid_token():
         )
 
 
+def test_apply_mesh_collision_properties_raises_on_invalid_prim():
+    import pytest
+
+    from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    with pytest.raises(ValueError):
+        apply_mesh_collision_properties("/World/DoesNotExist", [UsdPhysicsMeshCollisionCfg()], stage)
+
+
+def test_apply_mesh_collision_properties_aggregates_fragment_results():
+    from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/Magg")
+
+    # a fragment whose applier reports failure must make the aggregate return False
+    failing = UsdPhysicsMeshCollisionCfg()
+    failing.func = lambda cfg, prim_path, stage=None: False
+    assert apply_mesh_collision_properties("/World/Magg", [failing], stage) is False
+
+    # all-succeeding fragments return True
+    ok = UsdPhysicsMeshCollisionCfg()
+    ok.func = lambda cfg, prim_path, stage=None: True
+    assert apply_mesh_collision_properties("/World/Magg", [ok], stage) is True
+
+
 # -------------------------------------------------------------------------------------
 # Public imports
 # -------------------------------------------------------------------------------------
