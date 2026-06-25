@@ -248,6 +248,29 @@ class ArticulationData(BaseArticulationData):
         # Force a kinematic refresh on the next FK-dependent read.
         self._fk_timestamp = -1.0
 
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets."""
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_com_vel_w,
+                self._root_link_vel_w,
+                self._body_com_pose_w,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
+
     """
     Names.
     """
@@ -977,7 +1000,8 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
+        if self._body_com_pose_b.timestamp < 0.0:
+            self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
         if self._body_com_pose_b_ta is None:
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
