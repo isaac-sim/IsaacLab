@@ -5,12 +5,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
     CollisionBaseCfg,
     DeformableBodyPropertiesBaseCfg,
+    FixedTendonFragment,
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
@@ -319,6 +321,30 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
     Written to ``newton:rollingFriction`` via ``NewtonMaterialAPI``.
     Range: [0, inf).
     """
+
+
+@configclass
+class MujocoFixedTendonCfg(FixedTendonFragment):
+    """``mjc:*`` fixed-tendon attributes for a ``MjcTendon`` prim.
+
+    The Mujoco fixed-tendon fragment. Newton has no tendon solver; this models only the ``mjc:*``
+    tune path the Newton/Mujoco importer reads from a ``MjcTendon`` prim, carrying only the fields
+    that path maps. Overrides :attr:`func` with a custom applier
+    (:func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`) that gates on the ``MjcTendon``
+    prim type, and composes with :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonCfg` via
+    :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "mjc"
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_fixed_tendon"
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """Damping term acting on the tendon length [N·s/m]."""
 
 
 @configclass

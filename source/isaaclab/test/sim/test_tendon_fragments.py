@@ -245,3 +245,43 @@ def test_apply_fixed_tendon_aggregates_fragment_results():
     ok = UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
     ok.func = lambda cfg, prim_path, stage=None: True
     assert apply_fixed_tendon_properties("/World/Agg", [ok], stage) is True
+
+
+# -------------------------------------------------------------------------------------
+# MujocoFixedTendonCfg — Newton fragment for the mjc: namespace
+# -------------------------------------------------------------------------------------
+
+
+def test_mujoco_fixed_tendon_metadata():
+    from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg
+
+    from isaaclab.sim.schemas import FixedTendonFragment
+
+    cfg = MujocoFixedTendonCfg(stiffness=2.0)
+    assert isinstance(cfg, FixedTendonFragment)
+    assert type(cfg)._usd_namespace == "mjc"
+    assert cfg.func == "isaaclab_newton.sim.schemas:apply_mujoco_fixed_tendon"
+    assert not hasattr(cfg, "rest_length") and not hasattr(cfg, "limit_stiffness")
+
+
+def test_apply_mujoco_fixed_tendon_writes_mjc_namespace():
+    from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    stage.DefinePrim("/World/MjcT", "MjcTendon")
+    assert apply_mujoco_fixed_tendon(MujocoFixedTendonCfg(stiffness=2.0, damping=0.25), "/World/MjcT", stage) is True
+    prim = stage.GetPrimAtPath("/World/MjcT")
+    assert abs(prim.GetAttribute("mjc:stiffness").Get() - 2.0) < 1e-6
+    assert abs(prim.GetAttribute("mjc:damping").Get() - 0.25) < 1e-6
+
+
+def test_apply_mujoco_fixed_tendon_returns_false_on_non_mjc_prim():
+    from isaaclab_newton.sim.schemas import MujocoFixedTendonCfg, apply_mujoco_fixed_tendon
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/NotMjc")
+    assert apply_mujoco_fixed_tendon(MujocoFixedTendonCfg(stiffness=2.0), "/World/NotMjc", stage) is False
