@@ -20,11 +20,10 @@ from pxr import Usd
 from isaaclab.sim.schemas.schemas import (
     define_deformable_body_properties,
     modify_deformable_body_properties,
-    modify_fixed_tendon_properties,
-    modify_spatial_tendon_properties,
 )
-
-from . import schemas_cfg
+from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
+from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils.string import to_camel_case
 
 __all__ = [
     "apply_fixed_tendon",
@@ -51,48 +50,71 @@ def _strip_fragment_fields(cfg) -> dict:
 
 
 def apply_fixed_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Apply a :class:`PhysxFixedTendonCfg` fragment by delegating to the legacy writer.
+    """Tune the multi-instance ``PhysxTendonAxisRootAPI`` schemas on a prim.
 
-    Thin override-``func`` wrapper for fixed-tendon fragments. The fragment's data fields are
-    repackaged into a :class:`PhysxFixedTendonPropertiesCfg` (dropping the ``func`` plumbing
-    field) and handed to :func:`~isaaclab.sim.schemas.modify_fixed_tendon_properties`, which
-    tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance on the prim (and the
-    ``MjcTendon`` ``mjc:*`` branch when present).
+    Custom ``func`` override for :class:`PhysxFixedTendonCfg`. The fixed-tendon schema is
+    multi-instance and *tune-not-apply* (instances are authored in the source asset), so this
+    writes each set fragment field as ``<schema_name>:<camelCase(field)>`` across every applied
+    ``PhysxTendonAxisRootAPI`` instance and applies no schema. Writes nothing for the ``mjc:``
+    Mujoco path -- that is handled by
+    :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`.
 
     Args:
         cfg: The :class:`PhysxFixedTendonCfg` fragment to apply.
-        prim_path: The prim path to the tendon attachment.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
-            stage is used.
+        prim_path: The prim path carrying the fixed-tendon schemas.
+        stage: The stage where to find the prim. Defaults to the current stage.
 
     Returns:
-        True if the properties were successfully set, False otherwise.
+        True if at least one ``PhysxTendonAxisRootAPI`` instance was tuned, False if none is applied.
     """
-    legacy = schemas_cfg.PhysxFixedTendonPropertiesCfg(**_strip_fragment_fields(cfg))
-    # ``apply_nested`` wrapper returns ``None``; report success explicitly for the ``bool`` contract.
-    modify_fixed_tendon_properties(prim_path, legacy, stage)
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    applied_schemas = prim.GetAppliedSchemas()
+    if not any("PhysxTendonAxisRootAPI" in s for s in applied_schemas):
+        return False
+    values = _strip_fragment_fields(cfg)
+    for schema_name in applied_schemas:
+        if "PhysxTendonAxisRootAPI" not in schema_name:
+            continue
+        for attr_name, value in values.items():
+            safe_set_attribute_on_usd_prim(
+                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+            )
     return True
 
 
 def apply_spatial_tendon(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
-    """Apply a :class:`PhysxSpatialTendonCfg` fragment by delegating to the legacy writer.
+    """Tune the multi-instance ``PhysxTendonAttachment{Root,Leaf}API`` schemas on a prim.
 
-    Thin override-``func`` wrapper for spatial-tendon fragments. The fragment's data fields are
-    repackaged into a :class:`PhysxSpatialTendonPropertiesCfg` (dropping the ``func`` plumbing
-    field) and handed to :func:`~isaaclab.sim.schemas.modify_spatial_tendon_properties`, which
-    tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
-    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance on the prim.
+    Custom ``func`` override for :class:`PhysxSpatialTendonCfg`. Writes each set fragment field
+    across every applied attachment-root and attachment-leaf instance and applies no schema.
 
     Args:
         cfg: The :class:`PhysxSpatialTendonCfg` fragment to apply.
-        prim_path: The prim path to the tendon attachment.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
-            stage is used.
+        prim_path: The prim path carrying the spatial-tendon schemas.
+        stage: The stage where to find the prim. Defaults to the current stage.
 
     Returns:
-        True if the properties were successfully set, False otherwise.
+        True if at least one attachment instance was tuned, False if none is applied.
     """
-    legacy = schemas_cfg.PhysxSpatialTendonPropertiesCfg(**_strip_fragment_fields(cfg))
-    # ``apply_nested`` wrapper returns ``None``; report success explicitly for the ``bool`` contract.
-    modify_spatial_tendon_properties(prim_path, legacy, stage)
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    applied_schemas = prim.GetAppliedSchemas()
+    markers = ("PhysxTendonAttachmentRootAPI", "PhysxTendonAttachmentLeafAPI")
+    if not any(m in s for s in applied_schemas for m in markers):
+        return False
+    values = _strip_fragment_fields(cfg)
+    for schema_name in applied_schemas:
+        if not any(m in schema_name for m in markers):
+            continue
+        for attr_name, value in values.items():
+            safe_set_attribute_on_usd_prim(
+                prim, f"{schema_name}:{to_camel_case(attr_name, 'cC')}", value, camel_case=False
+            )
     return True

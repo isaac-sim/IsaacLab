@@ -119,6 +119,18 @@ def test_physx_fixed_tendon_fragment_writes_instanced_namespace():
 # -------------------------------------------------------------------------------------
 
 
+def test_apply_fixed_tendon_writes_all_instances():
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, apply_fixed_tendon
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_prim_with_schemas(stage, "/World/FTmulti", ["PhysxTendonAxisRootAPI:t0", "PhysxTendonAxisRootAPI:t1"])
+    assert apply_fixed_tendon(PhysxFixedTendonCfg(stiffness=9.0), "/World/FTmulti", stage) is True
+    for inst in ("t0", "t1"):
+        assert abs(prim.GetAttribute(f"PhysxTendonAxisRootAPI:{inst}:stiffness").Get() - 9.0) < 1e-6
+
+
 def test_physx_spatial_tendon_fragment_writes_instanced_namespace():
     from isaaclab_physx.sim.schemas import PhysxSpatialTendonCfg, apply_spatial_tendon
 
