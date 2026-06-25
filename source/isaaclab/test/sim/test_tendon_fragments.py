@@ -14,7 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
-from pxr import PhysxSchema, Sdf, UsdGeom
+from pxr import PhysxSchema, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -352,3 +352,58 @@ def test_apply_mujoco_fixed_tendon_returns_false_on_non_mjc_prim():
     assert apply_mujoco_fixed_tendon(MujocoFixedTendonCfg(stiffness=2.0), "/World/NotMjc", stage) is False
     prim = stage.GetPrimAtPath("/World/NotMjc")
     assert not prim.HasAttribute("mjc:stiffness")
+
+
+# -------------------------------------------------------------------------------------
+# legacy-vs-fragment equivalence (the fragment API must be a behavioral no-op swap)
+# -------------------------------------------------------------------------------------
+
+
+def test_legacy_and_fragment_fixed_tendon_produce_identical_attrs():
+    """The fragment API must author the same tendon attributes as the legacy writer.
+
+    Verified end-to-end on the Shadow Hand (the real tendon user,
+    ``FixedTendonPropertiesCfg(limit_stiffness=30.0, damping=0.1)``); replicated here on a synthetic
+    root + descendant-joint structure so it runs deterministically without asset-server access. Also
+    exercises the descend-to-child-prims behavior, since the schemas live on descendants of the
+    applied prim path (as they do on a real articulation).
+    """
+    from isaaclab_physx.sim.schemas import PhysxFixedTendonCfg, PhysxFixedTendonPropertiesCfg
+
+    from isaaclab.sim.schemas import apply_fixed_tendon_properties, modify_fixed_tendon_properties
+
+    stage = _new_sim()
+
+    def _build(root):
+        # tendon schemas on descendant joints (multi-instance), mirroring the Shadow Hand layout
+        UsdGeom.Xform.Define(stage, root)
+        _make_prim_with_schemas(stage, f"{root}/J0", ["PhysxTendonAxisRootAPI:t0", "PhysxTendonAxisRootAPI:t1"])
+        _make_prim_with_schemas(stage, f"{root}/nested/J1", ["PhysxTendonAxisRootAPI:t0"])
+
+    _build("/World/legacy")
+    _build("/World/fragment")
+
+    # apply each path at the ROOT; both must descend to the child joints
+    modify_fixed_tendon_properties("/World/legacy", PhysxFixedTendonPropertiesCfg(limit_stiffness=30.0, damping=0.1))
+    apply_fixed_tendon_properties("/World/fragment", [PhysxFixedTendonCfg(limit_stiffness=30.0, damping=0.1)])
+
+    def _collect(root):
+        attrs = {}
+        for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
+            for schema_name in prim.GetAppliedSchemas():
+                if "PhysxTendonAxisRootAPI" not in schema_name:
+                    continue
+                for suffix in ("limitStiffness", "damping"):
+                    attr = prim.GetAttribute(f"{schema_name}:{suffix}")
+                    if attr and attr.HasAuthoredValue():
+                        rel = prim.GetPath().pathString[len(root) :]  # key relative to root so paths compare
+                        attrs[f"{rel}|{schema_name}:{suffix}"] = attr.Get()
+        return attrs
+
+    legacy = _collect("/World/legacy")
+    fragment = _collect("/World/fragment")
+
+    assert legacy, "legacy writer authored no tendon attributes (test would be vacuous)"
+    assert legacy.keys() == fragment.keys()
+    for key, value in legacy.items():
+        assert abs(fragment[key] - value) < 1e-6
