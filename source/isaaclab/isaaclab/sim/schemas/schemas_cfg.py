@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from typing import ClassVar, Literal
 
 from isaaclab.utils.configclass import configclass
@@ -104,6 +105,75 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     if getattr(cfg, canonical, None) is None:
         setattr(cfg, canonical, value)
     setattr(cfg, alias, None)
+
+
+@configclass
+class SchemaFragment:
+    """Base for a single-namespace USD-schema config fragment.
+
+    Each subclass mirrors exactly one USD applied schema. The fragment carries class-level
+    metadata describing which USD namespace its fields write to (:attr:`_usd_namespace`) and
+    which applied schema, if any, it owns (:attr:`_usd_applied_schema`). The :attr:`func`
+    field names the callable that applies the fragment to a prim; the default generic applier
+    (:func:`~isaaclab.sim.schemas.apply_namespaced`) reads the metadata and writes each
+    non-``None`` field as ``<namespace>:<camelCase(field)>``. Irregular APIs override
+    :attr:`func` with a custom applier.
+
+    .. note::
+        A fragment present in a spawner slot means its schema is applied. ``None`` fields are
+        left unchanged on the prim (partial update).
+
+    .. important::
+        Every dataclass field other than :attr:`func` is authored as a USD attribute
+        ``<_usd_namespace>:<camelCase(field)>``. A fragment must not carry non-USD/bookkeeping
+        fields -- such state belongs on the spawner cfg or as a writer keyword argument (this is
+        why ``fix_root_link`` / ``ensure_drives_exist`` are not fragment fields). The generic
+        applier (:func:`~isaaclab.sim.schemas.apply_namespaced`) enforces the invariant: it raises
+        when a fragment has no ``_usd_namespace``, and unsupported (non-scalar) value types raise
+        when written.
+    """
+
+    # -- Class metadata (not dataclass fields) --
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab.sim.schemas:apply_namespaced"
+    """Callable (or its ``module:attr`` import string) that applies this fragment to a prim.
+
+    Resolved via :func:`~isaaclab.utils.string.string_to_callable` when a string. The callable
+    signature is ``func(cfg, prim_path, stage)``.
+    """
+
+
+@configclass
+class RigidBodyFragment(SchemaFragment):
+    """Marker base for rigid-body fragments; types the ``rigid_props`` slot."""
+
+    pass
+
+
+@configclass
+class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
+    """``physics:*`` rigid-body attributes from `UsdPhysics.RigidBodyAPI`_.
+
+    The ``UsdPhysics.RigidBodyAPI`` schema is applied as the implicit anchor by the rigid-body
+    family writer, so this fragment owns no applied schema of its own.
+
+    .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # RigidBodyAPI applied by the family anchor
+
+    rigid_body_enabled: bool | None = None
+    """Whether to enable or disable the rigid body."""
+
+    kinematic_enabled: bool | None = None
+    """Determines whether the body is kinematic or not.
+
+    A kinematic body is moved through animated or user-defined poses; the simulation still
+    derives velocities for it based on the external motion.
+    """
 
 
 @configclass

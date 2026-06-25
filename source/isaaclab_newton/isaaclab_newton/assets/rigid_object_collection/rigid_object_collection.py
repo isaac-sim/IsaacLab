@@ -20,7 +20,9 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
+from isaaclab.utils.version import has_kit
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_newton.assets import kernels as shared_kernels
@@ -90,6 +92,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             matching_prims = sim_utils.find_matching_prims(rigid_body_cfg.prim_path)
             if len(matching_prims) == 0:
                 raise RuntimeError(f"Could not find prim with path {rigid_body_cfg.prim_path}.")
+            if has_kit():
+                queue_usd_replication(source_rigid_object_cfgs[rigid_body_name])
             queue_newton_physics_replication(source_rigid_object_cfgs[rigid_body_name])
         # stores object names
         self._body_names_list = []

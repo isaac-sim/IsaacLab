@@ -30,6 +30,7 @@ from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is not None
 
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
@@ -122,6 +123,8 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
+        if has_kit():
+            queue_usd_replication(cfg)
         queue_newton_physics_replication(cfg)
 
         sim_ctx = SimulationContext.instance()

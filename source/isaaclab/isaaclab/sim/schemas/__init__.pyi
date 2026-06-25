@@ -8,6 +8,8 @@ __all__ = [
     "PHYSX_MESH_COLLISION_CFGS",
     "USD_MESH_COLLISION_CFGS",
     "activate_contact_sensors",
+    "apply_namespaced",
+    "apply_rigid_body_properties",
     "define_actuator_properties",
     "define_articulation_root_properties",
     "define_collision_properties",
@@ -33,6 +35,9 @@ __all__ = [
     "JointDriveBaseCfg",
     "MassPropertiesCfg",
     "MeshCollisionBaseCfg",
+    "RigidBodyFragment",
+    "SchemaFragment",
+    "UsdPhysicsRigidBodyCfg",
     "MujocoJointDrivePropertiesCfg",
     "MujocoRigidBodyPropertiesCfg",
     "NewtonArticulationRootPropertiesCfg",
@@ -50,6 +55,8 @@ from .schemas import (
     PHYSX_MESH_COLLISION_CFGS,
     USD_MESH_COLLISION_CFGS,
     activate_contact_sensors,
+    apply_namespaced,
+    apply_rigid_body_properties,
     define_articulation_root_properties,
     define_collision_properties,
     define_deformable_body_properties,
@@ -80,6 +87,9 @@ from .schemas_cfg import (
     MassPropertiesCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
+    RigidBodyFragment,
+    SchemaFragment,
+    UsdPhysicsRigidBodyCfg,
 )
 
 # Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim

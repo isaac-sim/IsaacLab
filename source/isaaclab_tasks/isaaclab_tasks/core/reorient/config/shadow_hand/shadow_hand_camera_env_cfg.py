@@ -124,7 +124,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
         renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
-        warp_supported = {"rgb", "depth"}
+        warp_supported = {"rgb", "depth", "normals"}
         if renderer_type == "newton_warp":
             unsupported = set(self.tiled_camera.data_types) - warp_supported
             if unsupported:
@@ -134,7 +134,10 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
                     "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
                 )
 
-        if set(self.tiled_camera.data_types) == {"depth"} and self.feature_extractor.enabled:
+        non_depth_data_types = set(self.tiled_camera.data_types).difference(
+            {"depth", "distance_to_image_plane", "distance_to_camera"}
+        )
+        if self.tiled_camera.data_types and not non_depth_data_types and self.feature_extractor.enabled:
             raise ValueError(
                 "Depth-only camera data type is intended for benchmarking only. "
                 "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
