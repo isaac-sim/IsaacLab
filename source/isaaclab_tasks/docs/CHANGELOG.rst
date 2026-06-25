@@ -1,6 +1,56 @@
 Changelog
 ---------
 
+8.0.6 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added golden-image rendering tests for ``distance_to_camera`` and ``distance_to_image_plane``
+  AOV types across the Cartpole, DexSuite Kuka, and Shadow Hand camera environments.
+  Test-local subclasses of the relevant env and camera configs are used so the production
+  task API remains unchanged.
+* Added ``enable_scene_partition`` pytest fixture and enabled Isaac RTX per-environment scene
+  partitioning in rendering correctness tests for cartpole and registered camera tasks as a
+  temporary workaround.
+
+
+8.0.5 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the camera-based Cartpole task failing to converge under Newton physics with the RTX
+  ``depth``, ``albedo``, and ``simple_shading`` AOV observations. These AOVs bypass DLSS temporal
+  accumulation, so the observation carried no temporal cue for the policy to infer velocity from
+  (Newton's symplectic integrator has no implicit damping). The ``frame_stack`` default resolver
+  now enables 2-frame stacking for these Newton + RTX AOVs, matching the existing Newton + Warp
+  behavior; Newton + RTX ``rgb`` keeps single-frame observations as DLSS already supplies the cue.
+  The resolver reads backend capability classmethods
+  (:meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping`,
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`) resolved
+  from the configs, instead of hard-coding backend types in the task.
+
+
+8.0.4 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX physics preset support to
+  ``Isaac-Franka-Cabinet-Direct-v0``.
+
+Changed
+^^^^^^^
+
+* Updated golden images for the ``dexsuite_kuka_hetero`` tests combining Newton
+  physics with the IsaacSim RTX renderer, reflecting corrected USD prim
+  population.
+
+
 8.0.3 (2026-06-18)
 ~~~~~~~~~~~~~~~~~~
 

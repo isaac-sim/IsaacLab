@@ -344,7 +344,12 @@ def _spawn_from_usd_file(
 
     # modify rigid body properties
     if cfg.rigid_props is not None:
-        schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
+        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags)
+        else:
+            schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
         schemas.modify_collision_properties(prim_path, cfg.collision_props)
@@ -368,10 +373,18 @@ def _spawn_from_usd_file(
         # without it — actuatorgravcomp has no effect since there are no forces to route.
         # Only auto-populates when the user did not already set ``gravcomp`` themselves;
         # an explicit ``MujocoRigidBodyPropertiesCfg(gravcomp=0.5)`` is preserved as-is.
-        from isaaclab_newton.sim.schemas.schemas_cfg import MujocoJointDrivePropertiesCfg, MujocoRigidBodyPropertiesCfg
+        from isaaclab_newton.sim.schemas.schemas_cfg import (
+            MujocoJointDrivePropertiesCfg,
+            MujocoRigidBodyCfg,
+            MujocoRigidBodyPropertiesCfg,
+        )
 
-        body_gravcomp_unset = (
-            not isinstance(cfg.rigid_props, MujocoRigidBodyPropertiesCfg) or cfg.rigid_props.gravcomp is None
+        # gravcomp may be authored either via the legacy MujocoRigidBodyPropertiesCfg or via a
+        # MujocoRigidBodyCfg fragment in a rigid_props list. Treat either as "already set".
+        rigid_props_list = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+        body_gravcomp_unset = not any(
+            isinstance(f, (MujocoRigidBodyPropertiesCfg, MujocoRigidBodyCfg)) and f.gravcomp is not None
+            for f in rigid_props_list
         )
         if (
             isinstance(cfg.joint_drive_props, MujocoJointDrivePropertiesCfg)
