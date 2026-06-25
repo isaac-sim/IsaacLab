@@ -199,8 +199,8 @@ class MeshConverter(AssetConverterBase):
         # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         if cfg.mass_props is not None:
             # normalize a single fragment to a list so the convenience form routes like a list
-            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
-            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
+            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, SchemaFragment) else cfg.mass_props
+            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, SchemaFragment) for f in mass_frags):
                 schemas.apply_mass_properties(str(xform_prim.GetPath()), mass_frags, stage=stage)
             else:
                 schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
