@@ -12,9 +12,9 @@ import omni.kit.commands
 from isaacsim.core.experimental.utils.app import enable_extension
 from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
+from isaaclab.sim import schemas
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
-from isaaclab.sim.schemas import schemas
 from isaaclab.sim.utils import delete_prim, export_prim_to_file
 
 # import logger
