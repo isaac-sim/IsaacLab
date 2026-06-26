@@ -290,6 +290,52 @@ def _summarize_history(history, tail: int = 200):
     return min(tail_slice), sum(tail_slice) / len(tail_slice)
 
 
+_PANDA_JOINT_NAMES = (
+    "panda_joint1",
+    "panda_joint2",
+    "panda_joint3",
+    "panda_joint4",
+    "panda_joint5",
+    "panda_joint6",
+    "panda_joint7",
+    "panda_finger_joint1",
+    "panda_finger_joint2",
+)
+
+_PANDA_BODY_NAMES = (
+    "panda_link0",
+    "panda_link1",
+    "panda_link2",
+    "panda_link3",
+    "panda_link4",
+    "panda_link5",
+    "panda_link6",
+    "panda_link7",
+    "panda_hand",
+    "panda_leftfinger",
+    "panda_rightfinger",
+)
+
+
+def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
+    """Convert a Warp array to a torch tensor on :paramref:`device`."""
+    return wp.to_torch(array).to(device=device)
+
+
+def _assert_backend_to_user(
+    public_tensor: torch.Tensor, backend_tensor: torch.Tensor, user_to_backend: list[int]
+) -> None:
+    """Assert a public tensor equals a backend tensor reordered to user order."""
+    torch.testing.assert_close(public_tensor, backend_tensor.to(device=public_tensor.device)[:, user_to_backend])
+
+
+def _assert_user_write_reaches_backend(
+    user_tensor: torch.Tensor, backend_tensor: torch.Tensor, backend_to_user: list[int]
+) -> None:
+    """Assert a user-order write reached backend storage in backend order."""
+    torch.testing.assert_close(backend_tensor.to(device=user_tensor.device), user_tensor[:, backend_to_user])
+
+
 @pytest.fixture
 def sim(request):
     """Create simulation context with the specified device."""
@@ -307,6 +353,86 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_live_reversed_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
+    """Smoke-test non-identity joint/body ordering through a live PhysX articulation."""
+    articulation_cfg = FRANKA_PANDA_CFG.replace(
+        prim_path="/World/Robot",
+        joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
+        body_ordering=tuple(reversed(_PANDA_BODY_NAMES)),
+    )
+    articulation = Articulation(articulation_cfg)
+
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.backend_joint_names == list(_PANDA_JOINT_NAMES)
+    assert articulation.backend_body_names == list(_PANDA_BODY_NAMES)
+    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
+    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+
+    joint_user_to_backend = list(articulation.joint_ordering.user_to_backend_indices)
+    joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
+    body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
+
+    joint_index = torch.arange(articulation.num_joints, device=device, dtype=torch.float32).unsqueeze(0)
+    joint_pos = torch.linspace(-0.3, 0.3, articulation.num_joints, device=device).unsqueeze(0)
+    joint_vel = torch.linspace(0.05, 0.13, articulation.num_joints, device=device).unsqueeze(0)
+    joint_stiffness = 10.0 + joint_index
+
+    articulation.write_joint_stiffness_to_sim_index(stiffness=joint_stiffness, full_data=True)
+    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
+    articulation.write_data_to_sim()
+
+    _assert_user_write_reaches_backend(
+        joint_pos, _to_device_tensor(articulation.root_view.get_dof_positions(), device), joint_backend_to_user
+    )
+    _assert_user_write_reaches_backend(
+        joint_vel, _to_device_tensor(articulation.root_view.get_dof_velocities(), device), joint_backend_to_user
+    )
+    _assert_user_write_reaches_backend(
+        joint_stiffness,
+        _to_device_tensor(articulation.root_view.get_dof_stiffnesses(), device),
+        joint_backend_to_user,
+    )
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    _assert_backend_to_user(
+        articulation.data.joint_pos.torch,
+        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
+        joint_user_to_backend,
+    )
+    _assert_backend_to_user(
+        articulation.data.joint_vel.torch,
+        _to_device_tensor(articulation.root_view.get_dof_velocities(), device),
+        joint_user_to_backend,
+    )
+    _assert_backend_to_user(
+        articulation.data.joint_stiffness.torch,
+        _to_device_tensor(articulation.root_view.get_dof_stiffnesses(), device),
+        joint_user_to_backend,
+    )
+    _assert_backend_to_user(
+        articulation.data.body_link_pose_w.torch,
+        _to_device_tensor(articulation.root_view.get_link_transforms(), device),
+        body_user_to_backend,
+    )
+    _assert_backend_to_user(
+        articulation.data.body_com_pose_b.torch,
+        _to_device_tensor(articulation.root_view.get_coms(), device),
+        body_user_to_backend,
+    )
+
+    torch.testing.assert_close(articulation.data.body_com_pos_b.torch, articulation.data.body_com_pose_b.torch[..., :3])
+    torch.testing.assert_close(
+        articulation.data.body_com_quat_b.torch, articulation.data.body_com_pose_b.torch[..., 3:]
+    )
+    torch.testing.assert_close(articulation.data.body_pos_w.torch, articulation.data.body_link_pose_w.torch[..., :3])
+    torch.testing.assert_close(articulation.data.body_quat_w.torch, articulation.data.body_link_pose_w.torch[..., 3:])
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

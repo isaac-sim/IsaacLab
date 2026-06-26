@@ -1829,6 +1829,15 @@ class ArticulationData(BaseArticulationData):
         self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
         self._body_user_to_backend = body_ordering.user_to_backend if body_ordering is not None else None
         if self._has_joint_ordering:
+            self._joint_pos.data = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_vel.data = wp.zeros(
+                (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+            )
+            self._joint_pos_ta = None
+            self._joint_vel_ta = None
+            reset_timestamps([self._joint_pos, self._joint_vel, self._joint_acc])
             for user_buffer in (
                 self._previous_joint_vel,
                 self._joint_stiffness,
@@ -1849,6 +1858,38 @@ class ArticulationData(BaseArticulationData):
                     outputs=[user_buffer],
                     device=self.device,
                 )
+        if self._has_body_ordering:
+            self._body_link_pose_w.data = wp.zeros(
+                (self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
+            )
+            self._body_com_vel_w.data = wp.zeros(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_com_acc_w.data = wp.zeros(
+                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+            )
+            self._body_link_pose_w_ta = None
+            self._body_link_pos_w_ta = None
+            self._body_link_quat_w_ta = None
+            self._body_com_vel_w_ta = None
+            self._body_com_lin_vel_w_ta = None
+            self._body_com_ang_vel_w_ta = None
+            self._body_com_acc_w_ta = None
+            self._body_com_lin_acc_w_ta = None
+            self._body_com_ang_acc_w_ta = None
+            reset_timestamps(
+                [
+                    self._body_link_pose_w,
+                    self._body_link_vel_w,
+                    self._body_com_pose_w,
+                    self._body_com_vel_w,
+                    self._body_com_acc_w,
+                    self._body_com_pose_b,
+                    self._body_state_w,
+                    self._body_link_state_w,
+                    self._body_com_state_w,
+                ]
+            )
 
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.
