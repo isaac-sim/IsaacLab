@@ -5,8 +5,11 @@
 
 """Tests for benchmark capture helpers (Isaac-Sim-free, fake recorders)."""
 
+from typing import Literal
+
 import pytest
 
+import isaaclab.test.benchmark.capture as capture
 from isaaclab.test.benchmark.capture import (
     capture_hardware,
     capture_resources,
@@ -149,13 +152,31 @@ def test_synth_run_id():
     assert "rsl_rl" in rid and "physx" in rid and "42" in rid
 
 
-def test_run_config_from_presets():
-    c0 = run_config_from_presets([])
-    assert c0.physics_backend == "physx" and c0.rendering_backend == "none" and c0.presets == []
-    c1 = run_config_from_presets(["newton_mjwarp", "ovrtx_renderer", "rgb"])
-    assert c1.physics_backend == "newton_mjwarp" and c1.rendering_backend == "ovrtx"
-    assert c1.presets == ["newton_mjwarp", "ovrtx_renderer", "rgb"]
-    assert run_config_from_presets(["newton"]).physics_backend == "newton_mjwarp"
+def test_run_config_from_presets_resolves_backend_tokens(monkeypatch):
+    cases = [
+        ([], "physx", "none", []),
+        (
+            ["newton_mjwarp", "ovrtx_renderer", "rgb"],
+            "newton_mjwarp",
+            "ovrtx",
+            ["newton_mjwarp", "ovrtx_renderer", "rgb"],
+        ),
+        (["newton"], "newton_mjwarp", "none", ["newton"]),
+        (
+            ["physics=newton_mjwarp", "renderer=ovrtx_renderer", "presets=rgb,depth"],
+            "newton_mjwarp",
+            "ovrtx",
+            ["newton_mjwarp", "ovrtx_renderer", "rgb", "depth"],
+        ),
+    ]
+    for tokens, physics, rendering, presets in cases:
+        cfg = run_config_from_presets(tokens)
+        assert cfg.physics_backend == physics
+        assert cfg.rendering_backend == rendering
+        assert cfg.presets == presets
+
+    monkeypatch.setattr(capture, "PhysicsBackend", Literal["physx", "newton_mjwarp_vbd"], raising=False)
+    assert run_config_from_presets(["newton_mjwarp_vbd"]).physics_backend == "newton_mjwarp_vbd"
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():

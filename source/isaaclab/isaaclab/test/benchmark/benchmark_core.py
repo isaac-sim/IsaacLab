@@ -10,10 +10,18 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from isaaclab.test.benchmark import formaters
-from isaaclab.test.benchmark.formaters import get_default_output_filename
+from isaaclab.test.benchmark import formatters
+from isaaclab.test.benchmark.formatters import get_default_output_filename
 from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder
-from isaaclab.test.benchmark.measurements import DictMetadata, FloatMetadata, IntMetadata, Measurement, MetadataBase, StringMetadata, TestPhase
+from isaaclab.test.benchmark.measurements import (
+    DictMetadata,
+    FloatMetadata,
+    IntMetadata,
+    Measurement,
+    MetadataBase,
+    StringMetadata,
+    TestPhase,
+)
 from isaaclab.test.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
 
 if TYPE_CHECKING:
@@ -49,29 +57,37 @@ class BaseIsaacLabBenchmark:
     def __init__(
         self,
         benchmark_name: str,
-        formater_type: str | list[str],
-        output_path: str,
+        formatter_type: str | list[str] | None = None,
+        output_path: str | None = None,
         use_recorders: bool = True,
         output_prefix: str | None = None,
         workflow_metadata: dict | None = None,
         frametime_recorders: bool = False,
+        backend_type: str | list[str] | None = None,
     ):
         """Initialize common benchmark state and recorders.
 
         Args:
             benchmark_name: Name of benchmark to use in outputs.
-            formater_type: Formater(s) used to collect and print metrics. Accepts a single
+            formatter_type: Formatter(s) used to collect and print metrics. Accepts a single
                 type name, a list of type names, or a comma-separated string (e.g.
-                ``"schema,omniperf"``); each selected formater writes its own output file.
+                ``"schema,omniperf"``); each selected formatter writes its own output file.
             output_path: Path to output directory.
             use_recorders: Whether to use recorders to collect metrics. Defaults to True.
-            output_filename: Filename to use for the output file, defaults to None.
+            output_prefix: Prefix used to generate the output filename. Defaults to ``None``.
             workflow_metadata: Metadata describing benchmark, defaults to None.
-            frametime_recorders: Whether to use frametime recorders to collect metrics. Defaults to True.
+            frametime_recorders: Whether to use frametime recorders to collect metrics. Defaults to ``False``.
+            backend_type: Alias for :paramref:`formatter_type`.
         """
+        if formatter_type is None:
+            formatter_type = backend_type or "omniperf"
+        elif backend_type is not None and backend_type != formatter_type:
+            raise ValueError("Specify either formatter_type or backend_type, not both.")
+        if output_path is None:
+            raise ValueError("output_path must be provided.")
+
         self.benchmark_name = benchmark_name
 
-        # Resolve output path
         if not os.path.exists(output_path):
             try:
                 os.makedirs(output_path)
@@ -83,14 +99,11 @@ class BaseIsaacLabBenchmark:
             logger.warning("No output prefix provided, using default prefix: benchmark")
         self.output_prefix = get_default_output_filename(output_prefix)
 
-        # Get metrics formater (one or more).
-        if isinstance(formater_type, str):
-            formater_type = [t.strip() for t in formater_type.split(",") if t.strip()] or ["omniperf"]
-        # De-duplicate while preserving order so the same formater cannot be registered twice
-        # (which would run a second finalize pass writing the same output file).
-        formater_type = list(set(formater_type))
-        logger.info("Using metrics formaters = %s", formater_type)
-        self._metrics = [(t, formaters.MetricsBackend.get_instance(instance_type=t)) for t in formater_type]
+        if isinstance(formatter_type, str):
+            formatter_type = [t.strip() for t in formatter_type.split(",") if t.strip()] or ["omniperf"]
+        formatter_type = list(dict.fromkeys(formatter_type))
+        logger.info("Using metrics formatters = %s", formatter_type)
+        self._metrics = [(t, formatters.MetricsFormatter.get_instance(instance_type=t)) for t in formatter_type]
         self._bundle = None
         self._phases: dict[str, TestPhase] = {}
 
@@ -227,11 +240,11 @@ class BaseIsaacLabBenchmark:
         return metadata
 
     def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None") -> None:
-        """Attach a typed benchmark bundle for the ``"schema"`` formater to serialize on finalize.
+        """Attach a typed benchmark bundle for the ``"schema"`` formatter to serialize on finalize.
 
         Args:
             bundle: A :class:`~isaaclab.test.benchmark.RuntimeBundle`, ``TrainingBundle`` or
-                ``StartupBundle``. Ignored by every formater except ``schema``.
+                ``StartupBundle``. Ignored by every formatter except ``schema``.
         """
         self._bundle = bundle
 
@@ -260,32 +273,28 @@ class BaseIsaacLabBenchmark:
         """
         if phase_name not in self._phases:
             self._phases[phase_name] = TestPhase(phase_name=phase_name)
-            # Add required phase metadata for formaters
+            # Add required phase metadata for formatters
             phase_metadata = StringMetadata(name="phase", data=phase_name)
             workflow_metadata = StringMetadata(name="workflow_name", data=self.benchmark_name)
             self._phases[phase_name].metadata.extend([phase_metadata, workflow_metadata])
 
         if measurement:
             if isinstance(measurement, Sequence):
-                # Check that all the elements are of type Measurement
                 for m in measurement:
                     if not _is_measurement_type(m):
                         raise ValueError(f"Measurement element {m} is not of type Measurement")
                 self._phases[phase_name].measurements.extend(measurement)
             else:
-                # Check that the element is of type Measurement
                 if not _is_measurement_type(measurement):
                     raise ValueError(f"Measurement element {measurement} is not of type Measurement")
                 self._phases[phase_name].measurements.append(measurement)
         if metadata:
             if isinstance(metadata, Sequence):
-                # Check that all the elements are of type MetadataBase
                 for m in metadata:
                     if not _is_metadata_type(m):
                         raise ValueError(f"Metadata element {m} is not of type MetadataBase")
                 self._phases[phase_name].metadata.extend(metadata)
             else:
-                # Check that the element is of type MetadataBase
                 if not _is_metadata_type(metadata):
                     raise ValueError(f"Metadata element {metadata} is not of type MetadataBase")
                 self._phases[phase_name].metadata.append(metadata)
@@ -314,19 +323,18 @@ class BaseIsaacLabBenchmark:
                 if data.measurements:
                     self.add_measurement("frametime", measurement=data.measurements)
 
-        # Check that there are phases to write.
         if not self._phases:
             logger.warning("No phases collected.No metrics will be written.")
             return
 
-        # Add the phases to each metrics formater and write its output file. When more than one
-        # formater is selected, suffix the filename with the formater key so they don't collide on
+        # Add the phases to each metrics formatter and write its output file. When more than one
+        # formatter is selected, suffix the filename with the formatter key so they don't collide on
         # the shared ".json" extension.
         multi = len(self._metrics) > 1
-        for formater_key, metrics in self._metrics:
+        for formatter_key, metrics in self._metrics:
             for phase in self._phases.values():
                 metrics.add_metrics(phase)
-            filename = f"{self.output_prefix}_{formater_key}" if multi else self.output_prefix
+            filename = f"{self.output_prefix}_{formatter_key}" if multi else self.output_prefix
             metrics.finalize(self.output_path, filename, bundle=self._bundle)
         self._manual_recorders = None
         self._frametime_recorders = None

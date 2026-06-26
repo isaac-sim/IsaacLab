@@ -36,25 +36,25 @@ class RLLibraryDescriptor:
 
 
 BACKEND_DESCRIPTORS: dict[Framework, RLLibraryDescriptor] = {
-    "rsl_rl": BackendDescriptor(
+    "rsl_rl": RLLibraryDescriptor(
         framework="rsl_rl",
         tfevents_pattern="events*",
         reward_tag="Train/mean_reward",
         ep_length_tag="Train/mean_episode_length",
     ),
-    "rl_games": BackendDescriptor(
+    "rl_games": RLLibraryDescriptor(
         framework="rl_games",
         tfevents_pattern="summaries/events*",
         reward_tag="rewards/iter",
         ep_length_tag="episode_lengths/iter",
     ),
-    "skrl": BackendDescriptor(
+    "skrl": RLLibraryDescriptor(
         framework="skrl",
         tfevents_pattern="events*",
         reward_tag="Reward / Total reward (mean)",
         ep_length_tag="Episode / Total timesteps (mean)",
     ),
-    "sb3": BackendDescriptor(
+    "sb3": RLLibraryDescriptor(
         framework="sb3",
         tfevents_pattern="PPO_*/events*",
         reward_tag="rollout/ep_rew_mean",

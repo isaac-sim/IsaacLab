@@ -33,8 +33,8 @@ def get_default_output_filename(prefix: str = "benchmark") -> str:
     return f"{prefix}_{datetime_str}"
 
 
-class MetricsFormaterInterface(ABC):
-    """Abstract base class for metrics Formaters."""
+class MetricsFormatterInterface(ABC):
+    """Abstract base class for metrics Formatters."""
 
     @abstractmethod
     def add_metrics(self, test_phase: TestPhase) -> None:
@@ -51,49 +51,49 @@ class MetricsFormaterInterface(ABC):
 
         Args:
             output_path: Path to write output file(s).
-            **kwargs: Additional formater-specific options.
+            **kwargs: Additional formatter-specific options.
         """
         pass
 
 
-class MetricsFromater:
-    """Factory for creating metrics formater instances."""
+class MetricsFormatter:
+    """Factory for creating metrics formatter instances."""
 
-    _instances: dict[str, MetricsFormatInterface] = {}
+    _instances: dict[str, MetricsFormatterInterface] = {}
 
     @classmethod
-    def get_instance(cls, instance_type: str) -> MetricsFormatInterface:
-        """Get or create a formater instance by type name.
+    def get_instance(cls, instance_type: str) -> MetricsFormatterInterface:
+        """Get or create a formatter instance by type name.
 
         Args:
-            instance_type: Type of formater to create ("json", "osmo", "omniperf", "summary", or "schema").
+            instance_type: Type of formatter to create ("json", "osmo", "omniperf", "summary", or "schema").
 
         Returns:
-            Formater instance of the requested type.
+            Formatter instance of the requested type.
 
         Raises:
             ValueError: If the instance_type is not recognized.
         """
         if instance_type not in cls._instances:
-            formater_map = {
+            formatter_map = {
                 "json": JSONFileMetrics,
                 "osmo": OsmoKPIFile,
                 "omniperf": OmniPerfKPIFile,
                 "summary": SummaryMetrics,
                 "schema": SchemaBundleFile,
             }
-            if instance_type not in formater_map:
-                raise ValueError(f"Unknown formater type: {instance_type}. Available: {list(formater_map.keys())}")
-            cls._instances[instance_type] = formater_map[instance_type]()
+            if instance_type not in formatter_map:
+                raise ValueError(f"Unknown formatter type: {instance_type}. Available: {list(formatter_map.keys())}")
+            cls._instances[instance_type] = formatter_map[instance_type]()
         return cls._instances[instance_type]
 
     @classmethod
     def reset_instances(cls) -> None:
-        """Reset all cached formater instances. Useful for testing."""
+        """Reset all cached formatter instances. Useful for testing."""
         cls._instances.clear()
 
 
-class JSONFileMetrics(MetricsFormaterInterface):
+class JSONFileMetrics(MetricsFormatterInterface):
     """Write metrics to a JSON file at the end of a session."""
 
     def __init__(self) -> None:
@@ -110,7 +110,7 @@ class JSONFileMetrics(MetricsFormaterInterface):
 
         .. code-block:: python
 
-            formater.add_metrics(test_phase)
+            formatter.add_metrics(test_phase)
         """
         self.data.append(copy.deepcopy(test_phase))
 
@@ -120,13 +120,13 @@ class JSONFileMetrics(MetricsFormaterInterface):
         Args:
             output_path: Output path in which metrics file will be stored.
             output_filename: Output filename.
-            **kwargs: Additional formater-specific options.
+            **kwargs: Additional formatter-specific options.
 
         Example:
 
         .. code-block:: python
 
-            formater.finalize("/tmp/metrics", "metrics")
+            formatter.finalize("/tmp/metrics", "metrics")
         """
         if not self.data:
             logger.warning("No test data to write. Skipping metrics file generation.")
@@ -161,23 +161,23 @@ class JSONFileMetrics(MetricsFormaterInterface):
         self.data.clear()
 
 
-class SummaryMetrics(MetricsFormaterInterface):
+class SummaryMetrics(MetricsFormatterInterface):
     """Print a human-readable summary and write JSON metrics."""
 
     def __init__(self) -> None:
-        """Initialize internal phase storage and JSON formater."""
+        """Initialize internal phase storage and JSON formatter."""
         self._phases: list[TestPhase] = []
-        self._json_formater = JSONFileMetrics()
+        self._json_formatter = JSONFileMetrics()
         self._report_width = 86
 
     def add_metrics(self, test_phase: TestPhase) -> None:
-        """Add metrics from a test phase; store for summary and forward to JSON formater.
+        """Add metrics from a test phase; store for summary and forward to JSON formatter.
 
         Args:
             test_phase: Test phase containing measurements and metadata.
         """
         self._phases.append(copy.deepcopy(test_phase))
-        self._json_formater.add_metrics(test_phase)
+        self._json_formatter.add_metrics(test_phase)
 
     def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
         """Write JSON output and print human-readable summary to console.
@@ -185,9 +185,9 @@ class SummaryMetrics(MetricsFormaterInterface):
         Args:
             output_path: Path to write output file(s).
             output_filename: Base filename for the JSON file.
-            **kwargs: Additional options passed to the JSON formater.
+            **kwargs: Additional options passed to the JSON formatter.
         """
-        self._json_formater.finalize(output_path, output_filename, **kwargs)
+        self._json_formatter.finalize(output_path, output_filename, **kwargs)
         if self._phases:
             self._print_summary()
         self._phases.clear()
@@ -489,7 +489,7 @@ class SummaryMetrics(MetricsFormaterInterface):
         return str(value)
 
 
-class OsmoKPIFile(MetricsFormaterInterface):
+class OsmoKPIFile(MetricsFormatterInterface):
     """Write per-phase KPI documents for Osmo ingestion.
 
     Only SingleMeasurement metrics and metadata are written as key-value pairs.
@@ -508,7 +508,7 @@ class OsmoKPIFile(MetricsFormaterInterface):
 
         .. code-block:: python
 
-            formater.add_metrics(test_phase)
+            formatter.add_metrics(test_phase)
         """
         self._test_phases.append(test_phase)
 
@@ -521,13 +521,13 @@ class OsmoKPIFile(MetricsFormaterInterface):
         Args:
             output_path: Output path in which metrics files will be stored.
             output_filename: Output filename.
-            **kwargs: Additional formater-specific options.
+            **kwargs: Additional formatter-specific options.
 
         Example:
 
         .. code-block:: python
 
-            formater.finalize("/tmp/metrics", "kpis")
+            formatter.finalize("/tmp/metrics", "kpis")
         """
         for test_phase in self._test_phases:
             # Retrieve useful metadata from test_phase
@@ -553,7 +553,7 @@ class OsmoKPIFile(MetricsFormaterInterface):
             print(f"Results written to: {metrics_path}")
 
 
-class OmniPerfKPIFile(MetricsFormaterInterface):
+class OmniPerfKPIFile(MetricsFormatterInterface):
     """Write KPI metrics for upload to a PostgreSQL database."""
 
     def __init__(self) -> None:
@@ -569,7 +569,7 @@ class OmniPerfKPIFile(MetricsFormaterInterface):
 
         .. code-block:: python
 
-            formater.add_metrics(test_phase)
+            formatter.add_metrics(test_phase)
         """
         self._test_phases.append(test_phase)
 
@@ -582,13 +582,13 @@ class OmniPerfKPIFile(MetricsFormaterInterface):
         Args:
             output_path: Output path in which metrics file will be stored.
             output_filename: Output filename.
-            **kwargs: Additional formater-specific options.
+            **kwargs: Additional formatter-specific options.
 
         Example:
 
         .. code-block:: python
 
-            formater.finalize("/tmp/metrics", "omniperf")
+            formatter.finalize("/tmp/metrics", "omniperf")
         """
         if not self._test_phases:
             logger.warning("No test phases to write. Skipping metrics file generation.")
@@ -629,10 +629,10 @@ class OmniPerfKPIFile(MetricsFormaterInterface):
         print(f"Results written to: {metrics_path}")
 
 
-class SchemaBundleFile(MetricsFormaterInterface):
+class SchemaBundleFile(MetricsFormatterInterface):
     """Serialize a typed benchmark bundle to schema-v1 JSON.
 
-    Unlike the other formater, this one does not consume the flat measurement
+    Unlike the other formatter, this one does not consume the flat measurement
     phases collected during a run. Instead it serializes the typed bundle
     attached via :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`.
     """
@@ -640,7 +640,7 @@ class SchemaBundleFile(MetricsFormaterInterface):
     def add_metrics(self, test_phase: TestPhase) -> None:
         """Ignore the provided test phase.
 
-        This formater serializes the typed bundle attached via
+        This formatter serializes the typed bundle attached via
         :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`,
         not the flat measurement phases, so accumulated phases are ignored by design.
 
@@ -663,13 +663,13 @@ class SchemaBundleFile(MetricsFormaterInterface):
             output_filename: Output filename (without extension).
             bundle: Typed benchmark bundle to serialize. When ``None``, no file
                 is written.
-            **kwargs: Additional formater-specific options (ignored).
+            **kwargs: Additional formatter-specific options (ignored).
         """
         if bundle is None:
             logger.warning("SchemaBundleFile selected but no bundle was attached; skipping schema file.")
             return
 
-        # Lazy import keeps formater.py free of the schema layer at module import time.
+        # Lazy import keeps formatter.py free of the schema layer at module import time.
         from isaaclab.test.benchmark.serialize import write_bundle_file
 
         path = os.path.join(output_path, f"{output_filename}.json")
