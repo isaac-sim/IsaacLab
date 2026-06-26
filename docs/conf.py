@@ -156,7 +156,7 @@ intersphinx_mapping = {
     "trimesh": ("https://trimesh.org/", None),
     # NOTE: pinned to /docs/2.11/ because /docs/stable/objects.inv currently 404s
     "torch": ("https://docs.pytorch.org/docs/2.11/", None),
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
+    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.1/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
@@ -317,7 +317,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg",
+            "icon": "https://img.shields.io/badge/IsaacSim-6.0.1-silver.svg",
             "type": "url",
         },
         {

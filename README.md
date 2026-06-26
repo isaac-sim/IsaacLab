@@ -4,7 +4,7 @@
 
 # Isaac Lab 3.0.0 Beta 2
 
-[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
+[![IsaacSim](https://img.shields.io/badge/IsaacSim-6.0.1-silver.svg)](https://docs.isaacsim.omniverse.nvidia.com/latest/index.html)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://docs.python.org/3/whatsnew/3.12.html)
 [![Linux platform](https://img.shields.io/badge/platform-linux--64-orange.svg)](https://releases.ubuntu.com/22.04/)
 [![Windows platform](https://img.shields.io/badge/platform-windows--64-orange.svg)](https://www.microsoft.com/en-us/)
@@ -76,10 +76,10 @@ dependency versions for Isaac Sim.
 
 | Isaac Lab Version             | Isaac Sim Version         |
 | ----------------------------- | ------------------------- |
-| `release/3.0.0-beta2` branch  | Isaac Sim 6.0             |
-| `develop` branch              | Isaac Sim 6.0             |
+| `release/3.0.0-beta2` branch  | Isaac Sim 6.0.0 / 6.0.1   |
+| `develop` branch              | Isaac Sim 6.0.0 / 6.0.1   |
 | `main` branch                 | Isaac Sim 4.5 / 5.0 / 5.1 |
-| `v3.0.0*`                     | Isaac Sim 6.0             |
+| `v3.0.0*`                     | Isaac Sim 6.0.0 / 6.0.1   |
 | `v2.3.X`                      | Isaac Sim 4.5 / 5.0 / 5.1 |
 | `v2.2.X`                      | Isaac Sim 4.5 / 5.0       |
 | `v2.1.X`                      | Isaac Sim 4.5             |

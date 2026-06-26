@@ -104,7 +104,7 @@ def _run_cleanup(
         [
             "bash",
             str(_SCRIPT_PATH),
-            "nvcr.io/nvidian/isaac-sim:latest-develop",
+            "nvcr.io/nvidia/isaac-sim:6.0.1",
             "isaacsim-pin-test",
             "test-cleanup",
             "true",

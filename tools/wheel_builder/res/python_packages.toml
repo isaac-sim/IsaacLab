@@ -84,7 +84,7 @@ pyproject.dependencies.all = [
 ]
 pyproject.optional-dependencies.all = [
     # Isaac Sim
-    { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.1"] },
+    { "isaacsim" = ["isaacsim[all,extscache]==6.0.1.0"] },
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
     # ================================================================================

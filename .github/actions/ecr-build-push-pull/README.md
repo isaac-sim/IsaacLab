@@ -10,7 +10,7 @@ ECR is also used as the BuildKit layer cache.
   with:
     image-tag: ${{ env.DOCKER_IMAGE_TAG }}
     isaacsim-base-image: nvcr.io/nvidia/isaac-sim
-    isaacsim-version: 6.0.0
+    isaacsim-version: 6.0.1
     dockerfile-path: docker/Dockerfile.base
     cache-tag: cache-base
     ecr-url: (optional, complete url for ECR storage)
