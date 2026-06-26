@@ -66,7 +66,7 @@ runs; "unsupported" = no renderer API.
      - startup only
    * - Per-environment addressing
      - not in terms today
-     - not supported (instanced clones)
+     - per-bucket via heterogeneous cloning
      - **native**
    * - Engine / pipeline / renderer type / tile layout
      - startup only
@@ -93,8 +93,9 @@ Extending DR (no term yet)
 
 Newton per-env color is the cheapest to add (per-shape colors are read every frame, kit-less,
 per-env); RTX PBR-scalar / light terms reuse the shipped pattern; OVRTX supports all-env
-light/material writes kit-less (per-env needs de-instancing). When authoring a term, gate it on
-the active renderer's capabilities and fail fast rather than silently no-op.
+light/material writes kit-less, with per-env best done via bucketed prototypes (heterogeneous
+cloning) or a per-instance material selector rather than de-instancing. When authoring a term,
+gate it on the active renderer's capabilities and fail fast rather than silently no-op.
 
 See Also
 --------
