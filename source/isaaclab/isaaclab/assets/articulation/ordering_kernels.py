@@ -145,6 +145,69 @@ def reorder_3d_backend_to_user(
 
 
 @wp.kernel
+def reorder_jacobian_backend_to_user(
+    backend_data: wp.array4d(dtype=wp.float32),
+    jacobian_body_user_to_backend: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_body_ordering: bool,
+    has_joint_ordering: bool,
+    user_data: wp.array4d(dtype=wp.float32),
+) -> None:
+    """Copy a backend-order Jacobian into user body and joint order."""
+    env_id, user_body_id, spatial_id, user_dof_id = wp.tid()
+    backend_body_id = user_body_id
+    if has_body_ordering:
+        backend_body_id = jacobian_body_user_to_backend[user_body_id]
+
+    backend_dof_id = user_dof_id
+    if has_joint_ordering and user_dof_id >= num_base_dofs:
+        backend_dof_id = num_base_dofs + joint_user_to_backend[user_dof_id - num_base_dofs]
+
+    user_data[env_id, user_body_id, spatial_id, user_dof_id] = backend_data[
+        env_id, backend_body_id, spatial_id, backend_dof_id
+    ]
+
+
+@wp.kernel
+def reorder_mass_matrix_backend_to_user(
+    backend_data: wp.array3d(dtype=wp.float32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
+    user_data: wp.array3d(dtype=wp.float32),
+) -> None:
+    """Copy a backend-order generalized mass matrix into user joint order."""
+    env_id, user_row_id, user_col_id = wp.tid()
+    backend_row_id = user_row_id
+    backend_col_id = user_col_id
+    if has_joint_ordering:
+        if user_row_id >= num_base_dofs:
+            backend_row_id = num_base_dofs + joint_user_to_backend[user_row_id - num_base_dofs]
+        if user_col_id >= num_base_dofs:
+            backend_col_id = num_base_dofs + joint_user_to_backend[user_col_id - num_base_dofs]
+
+    user_data[env_id, user_row_id, user_col_id] = backend_data[env_id, backend_row_id, backend_col_id]
+
+
+@wp.kernel
+def reorder_generalized_vector_backend_to_user(
+    backend_data: wp.array2d(dtype=wp.float32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
+    user_data: wp.array2d(dtype=wp.float32),
+) -> None:
+    """Copy a backend-order generalized vector into user joint order."""
+    env_id, user_dof_id = wp.tid()
+    backend_dof_id = user_dof_id
+    if has_joint_ordering and user_dof_id >= num_base_dofs:
+        backend_dof_id = num_base_dofs + joint_user_to_backend[user_dof_id - num_base_dofs]
+
+    user_data[env_id, user_dof_id] = backend_data[env_id, backend_dof_id]
+
+
+@wp.kernel
 def write_joint_vel_user_to_backend_with_indices(
     in_data: wp.array2d(dtype=wp.float32),
     env_ids: wp.array(dtype=wp.int32),

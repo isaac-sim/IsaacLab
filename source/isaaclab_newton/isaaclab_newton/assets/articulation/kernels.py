@@ -703,7 +703,12 @@ def concat_joint_pos_limits_lower_and_upper(
 def gather_jacobian_rows(
     src: wp.array4d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
+    jacobian_body_user_to_backend: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
     link_offset: wp.int32,
+    num_base_dofs: wp.int32,
+    has_body_ordering: bool,
+    has_joint_ordering: bool,
     dst: wp.array4d(dtype=wp.float32),
 ):
     """Copy per-view articulation jacobian rows from a model-sized buffer into a view-sized buffer.
@@ -732,22 +737,41 @@ def gather_jacobian_rows(
             (model.articulation_count, max_links, 6, max_dofs).
         art_ids: Model-level articulation indices owned by this view. Shape is
             (num_instances,).
-        link_offset: Constant offset added to the destination link index when
+        jacobian_body_user_to_backend: Compact map from public Jacobian body row
+            to backend Jacobian body row. For fixed-base articulations the fixed
+            root row is excluded.
+        joint_user_to_backend: Map from public actuated-joint index to backend
+            actuated-joint index.
+        link_offset: Constant offset added to the backend Jacobian body row when
             reading from ``src``. ``1`` for fixed-base views, ``0`` for
             floating-base.
+        num_base_dofs: Number of leading floating-base DoF columns.
+        has_body_ordering: Whether ``jacobian_body_user_to_backend`` is non-identity.
+        has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
         dst: Output jacobian buffer for this view. Shape is
             (num_instances, num_jacobi_bodies, 6, num_joints + num_base_dofs),
             where ``num_jacobi_bodies = this asset's num_bodies - link_offset``
             (per-asset count, not the model-wide ``max_links``).
     """
-    i, link, s, d = wp.tid()
-    dst[i, link, s, d] = src[art_ids[i], link + link_offset, s, d]
+    i, user_link, s, user_dof = wp.tid()
+    backend_link = user_link
+    if has_body_ordering:
+        backend_link = jacobian_body_user_to_backend[user_link]
+
+    backend_dof = user_dof
+    if has_joint_ordering and user_dof >= num_base_dofs:
+        backend_dof = num_base_dofs + joint_user_to_backend[user_dof - num_base_dofs]
+
+    dst[i, user_link, s, user_dof] = src[art_ids[i], backend_link + link_offset, s, backend_dof]
 
 
 @wp.kernel
 def gather_mass_matrix_rows(
     src: wp.array3d(dtype=wp.float32),
     art_ids: wp.array(dtype=wp.int32),
+    joint_user_to_backend: wp.array(dtype=wp.int32),
+    num_base_dofs: wp.int32,
+    has_joint_ordering: bool,
     dst: wp.array3d(dtype=wp.float32),
 ):
     """Copy per-view articulation mass-matrix rows from a model-sized buffer into a view-sized buffer.
@@ -763,12 +787,24 @@ def gather_mass_matrix_rows(
             (model.articulation_count, max_dofs, max_dofs).
         art_ids: Model-level articulation indices owned by this view. Shape is
             (num_instances,).
+        joint_user_to_backend: Map from public actuated-joint index to backend
+            actuated-joint index.
+        num_base_dofs: Number of leading floating-base DoF rows/columns.
+        has_joint_ordering: Whether ``joint_user_to_backend`` is non-identity.
         dst: Output mass-matrix buffer for this view. Shape is
             (num_instances, num_joints + num_base_dofs,
             num_joints + num_base_dofs).
     """
-    i, r, c = wp.tid()
-    dst[i, r, c] = src[art_ids[i], r, c]
+    i, user_row, user_col = wp.tid()
+    backend_row = user_row
+    backend_col = user_col
+    if has_joint_ordering:
+        if user_row >= num_base_dofs:
+            backend_row = num_base_dofs + joint_user_to_backend[user_row - num_base_dofs]
+        if user_col >= num_base_dofs:
+            backend_col = num_base_dofs + joint_user_to_backend[user_col - num_base_dofs]
+
+    dst[i, user_row, user_col] = src[art_ids[i], backend_row, backend_col]
 
 
 @wp.kernel

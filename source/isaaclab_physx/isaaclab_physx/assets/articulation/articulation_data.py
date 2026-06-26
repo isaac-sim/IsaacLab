@@ -1035,7 +1035,25 @@ class ArticulationData(BaseArticulationData):
         state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
-            self._body_com_jacobian_w.data = self._root_view.get_jacobians()
+            backend_jacobian = self._root_view.get_jacobians()
+            if self._has_body_ordering or self._has_joint_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_jacobian_backend_to_user,
+                    dim=self._body_com_jacobian_w.data.shape,
+                    inputs=[
+                        backend_jacobian,
+                        self._jacobian_body_user_to_backend,
+                        self._joint_user_to_backend,
+                        self._num_base_dofs,
+                        self._has_body_ordering,
+                        self._has_joint_ordering,
+                    ],
+                    outputs=[self._body_com_jacobian_w.data],
+                    device=self.device,
+                )
+            else:
+                self._body_com_jacobian_w.data = backend_jacobian
+                self._body_com_jacobian_w_ta = None
             self._body_com_jacobian_w.timestamp = self._sim_timestamp
         if self._body_com_jacobian_w_ta is None:
             self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
@@ -1075,7 +1093,23 @@ class ArticulationData(BaseArticulationData):
         state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
         if self._mass_matrix.timestamp < self._sim_timestamp:
-            self._mass_matrix.data = self._root_view.get_generalized_mass_matrices()
+            backend_mass_matrix = self._root_view.get_generalized_mass_matrices()
+            if self._has_joint_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_mass_matrix_backend_to_user,
+                    dim=self._mass_matrix.data.shape,
+                    inputs=[
+                        backend_mass_matrix,
+                        self._joint_user_to_backend,
+                        self._num_base_dofs,
+                        self._has_joint_ordering,
+                    ],
+                    outputs=[self._mass_matrix.data],
+                    device=self.device,
+                )
+            else:
+                self._mass_matrix.data = backend_mass_matrix
+                self._mass_matrix_ta = None
             self._mass_matrix.timestamp = self._sim_timestamp
         if self._mass_matrix_ta is None:
             self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
@@ -1094,7 +1128,23 @@ class ArticulationData(BaseArticulationData):
         state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
         if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
-            self._gravity_compensation_forces.data = self._root_view.get_gravity_compensation_forces()
+            backend_forces = self._root_view.get_gravity_compensation_forces()
+            if self._has_joint_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_generalized_vector_backend_to_user,
+                    dim=self._gravity_compensation_forces.data.shape,
+                    inputs=[
+                        backend_forces,
+                        self._joint_user_to_backend,
+                        self._num_base_dofs,
+                        self._has_joint_ordering,
+                    ],
+                    outputs=[self._gravity_compensation_forces.data],
+                    device=self.device,
+                )
+            else:
+                self._gravity_compensation_forces.data = backend_forces
+                self._gravity_compensation_forces_ta = None
             self._gravity_compensation_forces.timestamp = self._sim_timestamp
         if self._gravity_compensation_forces_ta is None:
             self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
@@ -1651,6 +1701,10 @@ class ArticulationData(BaseArticulationData):
         self._jacobian_link_offset = 1 if is_fixed_base else 0
         num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
         num_base_dofs = 0 if is_fixed_base else 6
+        self._num_base_dofs = num_base_dofs
+        self._jacobian_body_user_to_backend = wp.array(
+            tuple(range(num_jacobi_bodies)), dtype=wp.int32, device=self.device
+        )
         self._body_link_jacobian_w_buf = wp.zeros(
             (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
             dtype=wp.float32,
@@ -1813,21 +1867,43 @@ class ArticulationData(BaseArticulationData):
         )
         self._has_joint_ordering = False
         self._has_body_ordering = False
-        self._joint_user_to_backend = None
-        self._body_user_to_backend = None
+        self._identity_joint_user_to_backend = wp.array(
+            tuple(range(self._num_joints)), dtype=wp.int32, device=self.device
+        )
+        self._identity_body_user_to_backend = wp.array(
+            tuple(range(self._num_bodies)), dtype=wp.int32, device=self.device
+        )
+        self._joint_user_to_backend = self._identity_joint_user_to_backend
+        self._body_user_to_backend = self._identity_body_user_to_backend
         self._default_root_state = None
 
         # Initialize ProxyArray wrappers
         self._pin_proxy_arrays()
 
+    def _make_jacobian_body_user_to_backend(self, body_ordering) -> wp.array:
+        """Build the compact user-to-backend row map for Jacobian body axes."""
+        body_user_to_backend = (
+            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
+        )
+        if self._jacobian_link_offset == 0:
+            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
+        else:
+            backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
+        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
+
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Refresh owned public-order buffers after articulation ordering maps are installed."""
         joint_ordering = self.joint_ordering
         self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
-        self._joint_user_to_backend = joint_ordering.user_to_backend if joint_ordering is not None else None
+        self._joint_user_to_backend = (
+            joint_ordering.user_to_backend if joint_ordering is not None else self._identity_joint_user_to_backend
+        )
         body_ordering = self.body_ordering
         self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
-        self._body_user_to_backend = body_ordering.user_to_backend if body_ordering is not None else None
+        self._body_user_to_backend = (
+            body_ordering.user_to_backend if body_ordering is not None else self._identity_body_user_to_backend
+        )
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend(body_ordering)
         if self._has_joint_ordering:
             self._joint_pos.data = wp.zeros(
                 (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
@@ -1890,6 +1966,20 @@ class ArticulationData(BaseArticulationData):
                     self._body_com_state_w,
                 ]
             )
+
+        if self._has_body_ordering or self._has_joint_ordering:
+            self._body_com_jacobian_w.data = wp.zeros(
+                self._body_com_jacobian_w.data.shape, dtype=wp.float32, device=self.device
+            )
+        if self._has_joint_ordering:
+            self._mass_matrix.data = wp.zeros(self._mass_matrix.data.shape, dtype=wp.float32, device=self.device)
+            self._gravity_compensation_forces.data = wp.zeros(
+                self._gravity_compensation_forces.data.shape, dtype=wp.float32, device=self.device
+            )
+        self._body_com_jacobian_w_ta = None
+        self._mass_matrix_ta = None
+        self._gravity_compensation_forces_ta = None
+        reset_timestamps([self._body_com_jacobian_w, self._mass_matrix, self._gravity_compensation_forces])
 
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.

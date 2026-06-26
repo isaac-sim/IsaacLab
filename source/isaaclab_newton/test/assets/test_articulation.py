@@ -319,6 +319,39 @@ def fix_reversed_joints(stage):
 _REVERSED_JOINT_USD_FILES = {"revolute_articulation.usd"}
 """USD filenames with known reversed joint body0/body1 ordering."""
 
+_PANDA_JOINT_NAMES = (
+    "panda_joint1",
+    "panda_joint2",
+    "panda_joint3",
+    "panda_joint4",
+    "panda_joint5",
+    "panda_joint6",
+    "panda_joint7",
+    "panda_finger_joint1",
+    "panda_finger_joint2",
+)
+
+_PANDA_BODY_NAMES = (
+    "panda_link0",
+    "panda_link1",
+    "panda_link2",
+    "panda_link3",
+    "panda_link4",
+    "panda_link5",
+    "panda_link6",
+    "panda_link7",
+    "panda_hand",
+    "panda_leftfinger",
+    "panda_rightfinger",
+)
+
+_NEWTON_USER_ORDER_STATE_CACHES = (
+    "_joint_pos_user",
+    "_joint_vel_user",
+    "_body_link_pose_w_user",
+    "_body_com_vel_w_user",
+)
+
 
 def generate_articulation(
     articulation_cfg: ArticulationCfg, num_articulations: int, device: str
@@ -504,6 +537,41 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articula
     assert get_mjwarp_articulation_name_ordering(_PhysxLikeArticulation(), kind="body") == tuple(
         articulation.backend_body_names
     )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+def test_newton_ordered_state_caches_invalidate_on_rebind(
+    sim, num_articulations, device, gravity_enabled, articulation_type
+):
+    """Invalidate user-order state caches when Newton simulation bindings are re-created."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
+        body_ordering=tuple(reversed(_PANDA_BODY_NAMES)),
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.data._has_joint_ordering
+    assert articulation.data._has_body_ordering
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    articulation.data.joint_pos.torch.clone()
+    articulation.data.joint_vel.torch.clone()
+    articulation.data.body_link_pose_w.torch.clone()
+    articulation.data.body_com_vel_w.torch.clone()
+    for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+        assert getattr(articulation.data, cache_name).timestamp == articulation.data._sim_timestamp
+
+    articulation.data._create_simulation_bindings()
+
+    for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+        assert getattr(articulation.data, cache_name).timestamp == -1.0
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

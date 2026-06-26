@@ -356,8 +356,9 @@ def create_newton_articulation(
     # single homogeneous world.
     mock_model.articulation_count = num_instances
     mock_model.max_joints_per_articulation = num_bodies
-    mock_model.max_dofs_per_articulation = num_joints
-    mock_model.joint_dof_count = num_instances * num_joints
+    total_dofs = num_joints + 6
+    mock_model.max_dofs_per_articulation = total_dofs
+    mock_model.joint_dof_count = num_instances * total_dofs
     mock_model.body_count = num_instances * num_bodies
     mock_state = MagicMock()
     mock_control = MagicMock()
@@ -389,6 +390,7 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
+    object.__setattr__(articulation, "_test_simulation_manager", mock_manager)
 
     # Tendon names (Newton doesn't support tendons)
     object.__setattr__(articulation, "_fixed_tendon_names", [])
@@ -574,6 +576,66 @@ def _install_reversed_body_ordering(art) -> np.ndarray:
     return np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
 
 
+def _install_reversed_joint_ordering(art) -> np.ndarray:
+    """Install a reversed public joint ordering on an already constructed articulation."""
+    art.cfg = art.cfg.replace(joint_ordering=tuple(reversed(art.backend_joint_names)))
+    art._resolve_and_install_ordering_maps()
+    art._cache_ordering_maps()
+    return np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
+
+
+def _make_dynamics_ordering_backend_data(
+    num_instances: int, num_joints: int, num_jacobi_bodies: int, num_base_dofs: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Create deterministic backend-order dynamics data."""
+    num_dofs = num_joints + num_base_dofs
+    jacobian = np.arange(num_instances * num_jacobi_bodies * 6 * num_dofs, dtype=np.float32).reshape(
+        num_instances, num_jacobi_bodies, 6, num_dofs
+    )
+    mass_matrix = np.arange(num_instances * num_dofs * num_dofs, dtype=np.float32).reshape(
+        num_instances, num_dofs, num_dofs
+    )
+    gravity = np.arange(num_instances * num_dofs, dtype=np.float32).reshape(num_instances, num_dofs)
+    return jacobian, mass_matrix, gravity
+
+
+def _generalized_dof_user_to_backend(num_base_dofs: int, joint_user_to_backend: np.ndarray) -> np.ndarray:
+    """Return generalized DoF user-to-backend indices including the floating base prefix."""
+    return np.concatenate(
+        (
+            np.arange(num_base_dofs, dtype=np.int64),
+            num_base_dofs + joint_user_to_backend,
+        )
+    )
+
+
+def _jacobian_body_user_to_backend(art, body_user_to_backend: np.ndarray) -> np.ndarray:
+    """Return Jacobian body-axis user-to-backend indices with the fixed root excluded."""
+    if art.num_base_dofs == 0:
+        return np.asarray([backend_id - 1 for backend_id in body_user_to_backend if backend_id != 0], dtype=np.int64)
+    return body_user_to_backend
+
+
+def _set_dynamics_ordering_backend_data(
+    backend: str,
+    art,
+    raw_backend,
+    jacobian: np.ndarray,
+    mass_matrix: np.ndarray,
+    gravity: np.ndarray,
+) -> None:
+    """Write deterministic backend-order dynamics data into the backend mock."""
+    if backend == "physx":
+        raw_backend.set_mock_jacobians(wp.array(jacobian, dtype=wp.float32, device=art.device))
+        raw_backend.set_mock_generalized_mass_matrices(wp.array(mass_matrix, dtype=wp.float32, device=art.device))
+        raw_backend.set_mock_gravity_compensation_forces(wp.array(gravity, dtype=wp.float32, device=art.device))
+    elif backend == "newton":
+        raw_backend.set_mock_jacobians(wp.array(jacobian, dtype=wp.float32, device=art.device))
+        raw_backend.set_mock_mass_matrices(wp.array(mass_matrix, dtype=wp.float32, device=art.device))
+    else:
+        raise AssertionError(f"Unsupported backend for dynamics-ordering test: {backend}")
+
+
 def _set_body_ordering_backend_data(
     backend: str,
     art,
@@ -646,6 +708,9 @@ _default_dims = pytest.mark.parametrize(
 
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+_dynamics_ordering_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
 )
 
@@ -1151,6 +1216,70 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(ordered_art.data.body_com_pose_w, identity_body_com_pose_w[:, user_to_backend])
         _assert_proxy_close(ordered_art.data.root_com_pose_w, identity_root_com_pose_w)
         _assert_proxy_close(ordered_art.data.root_link_vel_w, identity_root_link_vel_w)
+
+    @_dynamics_ordering_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 4)])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_reversed_ordering_reorders_public_dynamics_quantities(
+        self, backend, num_instances, num_joints, num_bodies, device
+    ):
+        identity_art, identity_raw = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        ordered_art, ordered_raw = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        raw_body_data = _make_body_ordering_backend_data(num_instances, num_bodies)
+        _set_body_ordering_backend_data(backend, identity_art, identity_raw, *raw_body_data)
+        _set_body_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_body_data)
+
+        num_base_dofs = identity_art.num_base_dofs
+        num_jacobi_bodies = num_bodies - (1 if num_base_dofs == 0 else 0)
+        raw_dynamics_data = _make_dynamics_ordering_backend_data(
+            num_instances, num_joints, num_jacobi_bodies, num_base_dofs
+        )
+        _set_dynamics_ordering_backend_data(backend, identity_art, identity_raw, *raw_dynamics_data)
+        _set_dynamics_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_dynamics_data)
+        body_user_to_backend = _install_reversed_body_ordering(ordered_art)
+        joint_user_to_backend = _install_reversed_joint_ordering(ordered_art)
+
+        identity_art.data.update(dt=0.01)
+        ordered_art.data.update(dt=0.01)
+
+        if backend == "newton":
+            import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
+
+            original_simulation_manager = newton_data_module.SimulationManager
+            newton_data_module.SimulationManager = identity_art._test_simulation_manager
+        else:
+            newton_data_module = None
+            original_simulation_manager = None
+
+        try:
+            jacobian_body_indices = _jacobian_body_user_to_backend(ordered_art, body_user_to_backend)
+            dof_indices = _generalized_dof_user_to_backend(num_base_dofs, joint_user_to_backend)
+            identity_body_com_jacobian_w = _clone_proxy_tensor(identity_art.data.body_com_jacobian_w)
+            identity_body_link_jacobian_w = _clone_proxy_tensor(identity_art.data.body_link_jacobian_w)
+            identity_mass_matrix = _clone_proxy_tensor(identity_art.data.mass_matrix)
+
+            expected_body_com_jacobian_w = identity_body_com_jacobian_w[:, jacobian_body_indices][:, :, :, dof_indices]
+            expected_body_link_jacobian_w = identity_body_link_jacobian_w[:, jacobian_body_indices][
+                :, :, :, dof_indices
+            ]
+            expected_mass_matrix = identity_mass_matrix[:, dof_indices][:, :, dof_indices]
+
+            _assert_proxy_close(ordered_art.data.body_com_jacobian_w, expected_body_com_jacobian_w)
+            _assert_proxy_close(ordered_art.data.body_link_jacobian_w, expected_body_link_jacobian_w)
+            _assert_proxy_close(ordered_art.data.mass_matrix, expected_mass_matrix)
+
+            if backend == "physx":
+                identity_gravity_compensation_forces = _clone_proxy_tensor(
+                    identity_art.data.gravity_compensation_forces
+                )
+                expected_gravity_compensation_forces = identity_gravity_compensation_forces[:, dof_indices]
+                _assert_proxy_close(
+                    ordered_art.data.gravity_compensation_forces,
+                    expected_gravity_compensation_forces,
+                )
+        finally:
+            if newton_data_module is not None:
+                newton_data_module.SimulationManager = original_simulation_manager
 
     @_backends
     @_default_dims

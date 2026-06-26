@@ -1001,7 +1001,12 @@ class ArticulationData(BaseArticulationData):
             inputs=[
                 self._jacobian_buf,
                 self._jacobian_view_art_ids,
+                self._jacobian_body_user_to_backend,
+                self._joint_user_to_backend,
                 self._jacobian_link_offset,
+                self._num_base_dofs,
+                self._has_body_ordering,
+                self._has_joint_ordering,
             ],
             outputs=[self._body_com_jacobian_w_buf],
             device=self.device,
@@ -1026,7 +1031,7 @@ class ArticulationData(BaseArticulationData):
             dim=self._body_link_jacobian_w_buf.shape[:2] + (self._body_link_jacobian_w_buf.shape[3],),
             inputs=[
                 link_pose_w,
-                self._sim_bind_body_com_pos_b,
+                self.body_com_pos_b.warp,
                 self._jacobian_link_offset,
                 com_jac.warp,
             ],
@@ -1068,6 +1073,9 @@ class ArticulationData(BaseArticulationData):
             inputs=[
                 self._mass_matrix_full_buf,
                 self._jacobian_view_art_ids,
+                self._joint_user_to_backend,
+                self._num_base_dofs,
+                self._has_joint_ordering,
             ],
             outputs=[self._mass_matrix_buf],
             device=self.device,
@@ -1897,8 +1905,14 @@ class ArticulationData(BaseArticulationData):
         )
         self._has_joint_ordering = False
         self._has_body_ordering = False
-        self._joint_user_to_backend = None
-        self._body_user_to_backend = None
+        self._identity_joint_user_to_backend = wp.array(
+            tuple(range(self._num_joints)), dtype=wp.int32, device=self.device
+        )
+        self._identity_body_user_to_backend = wp.array(
+            tuple(range(self._num_bodies)), dtype=wp.int32, device=self.device
+        )
+        self._joint_user_to_backend = self._identity_joint_user_to_backend
+        self._body_user_to_backend = self._identity_body_user_to_backend
         # -- dynamics quantities for task-space controllers
         self._create_jacobian_buffers(SimulationManager.get_model())
         # Empty memory pre-allocations
@@ -1973,6 +1987,10 @@ class ArticulationData(BaseArticulationData):
         # Free-root DoF columns Newton fills for floating-base (0 fixed-base, 6 floating-base);
         # included in the DoF axis to match the cross-library industry convention.
         num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        self._num_base_dofs = num_base_dofs
+        self._jacobian_body_user_to_backend = wp.array(
+            tuple(range(num_jacobi_bodies)), dtype=wp.int32, device=self.device
+        )
         # Flattened (num_worlds*num_per_view,) view-to-model index map for the gather kernels.
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
 
@@ -2005,14 +2023,30 @@ class ArticulationData(BaseArticulationData):
             device=self.device,
         )
 
+    def _make_jacobian_body_user_to_backend(self, body_ordering) -> wp.array:
+        """Build the compact user-to-backend row map for Jacobian body axes."""
+        body_user_to_backend = (
+            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
+        )
+        if self._jacobian_link_offset == 0:
+            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
+        else:
+            backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
+        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
+
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Re-pin public buffers after articulation ordering maps are installed."""
         joint_ordering = self.joint_ordering
         self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
-        self._joint_user_to_backend = joint_ordering.user_to_backend if joint_ordering is not None else None
+        self._joint_user_to_backend = (
+            joint_ordering.user_to_backend if joint_ordering is not None else self._identity_joint_user_to_backend
+        )
         body_ordering = self.body_ordering
         self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
-        self._body_user_to_backend = body_ordering.user_to_backend if body_ordering is not None else None
+        self._body_user_to_backend = (
+            body_ordering.user_to_backend if body_ordering is not None else self._identity_body_user_to_backend
+        )
+        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend(body_ordering)
         if self._has_joint_ordering:
             previous_joint_vel_backend = wp.clone(self._previous_joint_vel, device=self.device)
             wp.launch(
@@ -2057,6 +2091,15 @@ class ArticulationData(BaseArticulationData):
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
         if is_rebind and self._has_joint_ordering:
             self._sync_user_ordered_joint_property_buffers()
+        if is_rebind:
+            reset_timestamps(
+                [
+                    self._joint_pos_user if self._has_joint_ordering else None,
+                    self._joint_vel_user if self._has_joint_ordering else None,
+                    self._body_link_pose_w_user if self._has_body_ordering else None,
+                    self._body_com_vel_w_user if self._has_body_ordering else None,
+                ]
+            )
 
         joint_stiffness = self._joint_stiffness_user if self._has_joint_ordering else self._sim_bind_joint_stiffness_sim
         joint_damping = self._joint_damping_user if self._has_joint_ordering else self._sim_bind_joint_damping_sim

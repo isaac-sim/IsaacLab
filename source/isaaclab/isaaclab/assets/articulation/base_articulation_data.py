@@ -732,6 +732,8 @@ class BaseArticulationData(ABC):
         Conventions:
             * Body axis: ``jacobi_body_idx == body_idx - 1`` for fixed-base (fixed-root
               row excluded); ``jacobi_body_idx == body_idx`` for floating-base.
+              With custom body ordering, fixed-base Jacobian rows follow user body
+              order with the fixed root omitted.
             * DoF axis: leading
               :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base
               columns (world-frame ``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``),
