@@ -60,6 +60,9 @@ import random
 import socket
 import struct
 
+import carb
+import carb.input
+import omni.appwindow
 import gymnasium as gym
 import numpy as np
 import torch
@@ -107,22 +110,14 @@ def policy_close(sock):
 
 # ── observation extraction ─────────────────────────────────────────────────────
 
-def _get_state(env, _cache=[]) -> np.ndarray:
-    """Extract 6D state: left arm joint positions (first 6 of openarm_left_joint[1-7]).
+def _get_state(env) -> np.ndarray:
+    """Return left arm joint positions (7D) matching convert_hdf5_to_lerobot.py.
 
-    The training dataset stored states/articulation/robot/joint_position, which
-    is the full joint state of the robot articulation in Isaac Sim joint order.
-    We look up the indices of openarm_left_joint1..6 once and cache them.
+    The training dataset stores states/articulation/robot/joint_position[:, :7]
+    which is the first 7 joints = left arm joints 1-7 in Isaac Sim joint order.
     """
-    if not _cache:
-        robot = env.scene["robot"]
-        # Find joint indices for left arm joints 1-6
-        ids, _ = robot.find_joints(["openarm_left_joint[1-6]"])
-        _cache.append(ids)
-
     joint_pos = env.scene["robot"].data.joint_pos[0]   # (num_joints,)
-    left_ids = _cache[0]
-    return joint_pos[left_ids].cpu().numpy().astype(np.float32)
+    return joint_pos[:7].cpu().numpy().astype(np.float32)
 
 
 def _get_cameras(obs_dict: dict) -> dict:
@@ -168,13 +163,51 @@ def _map_action_to_env(policy_action: np.ndarray, env_action_dim: int = 14) -> t
     return torch.from_numpy(env_action).unsqueeze(0)  # (1, env_action_dim)
 
 
+# ── keyboard reset ─────────────────────────────────────────────────────────────
+
+class KeyboardHandler:
+    """Listens for R = manual reset, Q = quit."""
+
+    def __init__(self):
+        self.reset_requested = False
+        self.quit_requested  = False
+        app_window = omni.appwindow.get_default_app_window()
+        self._keyboard = app_window.get_keyboard()
+        self._input    = carb.input.acquire_input_interface()
+        self._sub = self._input.subscribe_to_keyboard_events(
+            self._keyboard, self._on_key
+        )
+        print("[keyboard] Press  R  to reset episode early,  Q  to quit.")
+
+    def _on_key(self, event, *args, **kwargs):
+        if event.type == carb.input.KeyboardEventType.KEY_PRESS:
+            if event.input == carb.input.KeyboardInput.R:
+                self.reset_requested = True
+                print("[keyboard] Manual reset requested.")
+            elif event.input == carb.input.KeyboardInput.Q:
+                self.quit_requested = True
+                print("[keyboard] Quit requested.")
+        return True
+
+    def consume_reset(self) -> bool:
+        if self.reset_requested:
+            self.reset_requested = False
+            return True
+        return False
+
+
 # ── rollout ────────────────────────────────────────────────────────────────────
 
-def rollout(env, sock, success_term, horizon: int) -> bool:
+def rollout(env, sock, success_term, horizon: int, kb: "KeyboardHandler") -> bool:
     obs_dict, _ = env.reset()
     policy_reset(sock)
 
     for step in range(horizon):
+        # Manual reset (R key) — counts as failure for this trial
+        if kb.consume_reset():
+            print(f"  [step {step+1:3d}] manually reset")
+            return False
+
         state   = _get_state(env)
         cameras = _get_cameras(obs_dict)
 
@@ -231,11 +264,17 @@ def main():
     sock.connect(("127.0.0.1", args_cli.port))
     print("Connected.\n")
 
+    # ── keyboard handler ──────────────────────────────────────────────────────
+    kb = KeyboardHandler()
+
     # ── rollouts ──────────────────────────────────────────────────────────────
     results = []
     for trial in range(args_cli.num_rollouts):
+        if kb.quit_requested:
+            print("[keyboard] Quitting early.")
+            break
         print(f"── Trial {trial + 1}/{args_cli.num_rollouts} ──────────────────")
-        success = rollout(env, sock, success_term, args_cli.horizon)
+        success = rollout(env, sock, success_term, args_cli.horizon, kb)
         results.append(success)
 
     # ── summary ───────────────────────────────────────────────────────────────

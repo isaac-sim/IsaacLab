@@ -7,8 +7,8 @@ the Isaac Sim eval script (running in a different Python env) can query it.
 
 Usage (in a separate terminal FIRST):
   cd ~/CSL/lerobot
-  conda run -n lerobot python ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \\
-      --checkpoint outputs/train/openarm_visuomotor/checkpoints/001000/pretrained_model \\
+  python ~/Stanley_ws/IsaacLab/scripts/imitation_learning/lerobot/smolvla_server.py \\
+      --checkpoint outputs/train/openarm_visuomotor/checkpoints/last/pretrained_model \\
       --task "Pick up the red cube." \\
       --port 5556
 
@@ -25,6 +25,8 @@ Protocol (TCP, framed by 4-byte big-endian length prefix + pickle payload):
 """
 
 import argparse
+import glob
+import os
 import pickle
 import socket
 import struct
@@ -67,6 +69,50 @@ def recv_msg(sock: socket.socket) -> bytes:
     return _recv_exactly(sock, n)
 
 
+# ── normalization helpers ──────────────────────────────────────────────────────
+
+_NORM_EPS = 1e-8
+
+def _resolve_norm_file(checkpoint: str, pattern: str) -> str:
+    """Return a local path to a safetensors file matching *pattern*, downloading from HF if needed."""
+    if os.path.isdir(checkpoint):
+        matches = sorted(glob.glob(os.path.join(checkpoint, pattern)))
+        if not matches:
+            raise FileNotFoundError(f"No file matching '{pattern}' found in {checkpoint}")
+        return matches[0]
+    else:
+        # HuggingFace repo ID — list repo files and download the matching one.
+        from huggingface_hub import hf_hub_download, list_repo_files
+        import fnmatch
+        repo_files = list(list_repo_files(checkpoint))
+        matches = [f for f in repo_files if fnmatch.fnmatch(f, pattern)]
+        if not matches:
+            raise FileNotFoundError(f"No file matching '{pattern}' found in HF repo '{checkpoint}'")
+        return hf_hub_download(repo_id=checkpoint, filename=matches[0])
+
+
+def _load_norm_stats(checkpoint: str, device: str):
+    """Load mean/std for observation.state and action from the checkpoint safetensors."""
+    import safetensors.torch as st
+
+    pre_path  = _resolve_norm_file(checkpoint, "*preprocessor*normalizer*.safetensors")
+    post_path = _resolve_norm_file(checkpoint, "*postprocessor*unnormalizer*.safetensors")
+
+    pre  = st.load_file(pre_path)
+    post = st.load_file(post_path)
+
+    def _t(stats, key):
+        return torch.tensor(stats[key], dtype=torch.float32).to(device)
+
+    state_mean = _t(pre,  "observation.state.mean")
+    state_std  = torch.clamp(_t(pre,  "observation.state.std"), min=_NORM_EPS)
+    action_mean = _t(post, "action.mean")
+    action_std  = torch.clamp(_t(post, "action.std"), min=_NORM_EPS)
+
+    print(f"[server] Loaded norm stats  state_dim={state_mean.shape[0]}  action_dim={action_mean.shape[0]}")
+    return state_mean, state_std, action_mean, action_std
+
+
 # ── policy wrapper ─────────────────────────────────────────────────────────────
 
 class PolicyServer:
@@ -76,6 +122,12 @@ class PolicyServer:
         self.policy = SmolVLAPolicy.from_pretrained(checkpoint)
         self.policy.to(device)
         self.policy.eval()
+
+        # Load MEAN_STD normalization statistics from the checkpoint.
+        # The policy was trained on normalized inputs and outputs normalized actions.
+        # We must normalize state IN and unnormalize action OUT to match training.
+        self.state_mean, self.state_std, self.action_mean, self.action_std = \
+            _load_norm_stats(checkpoint, device)
 
         # Pre-tokenize task instruction once — fixed for the whole session.
         tokenizer = self.policy.model.vlm_with_expert.processor.tokenizer
@@ -90,7 +142,6 @@ class PolicyServer:
         self.lang_tokens = tok["input_ids"].to(device)
         self.lang_mask   = tok["attention_mask"].to(device).bool()
 
-        # input_features / output_features are PolicyFeature dataclasses → use .shape
         state_dim  = self.policy.config.input_features[OBS_STATE].shape[0]
         action_dim = self.policy.config.output_features["action"].shape[0]
         print(f"[server] Ready — state_dim={state_dim}  action_dim={action_dim}")
@@ -101,8 +152,15 @@ class PolicyServer:
 
     @torch.no_grad()
     def step(self, state: np.ndarray, cameras: dict) -> np.ndarray:
+        state_t = torch.from_numpy(state).float().to(self.device)
+
+        # Normalize state with the same MEAN_STD stats used during training.
+        n_state = min(state_t.shape[0], self.state_mean.shape[0])
+        norm_state = state_t.clone()
+        norm_state[:n_state] = (state_t[:n_state] - self.state_mean[:n_state]) / self.state_std[:n_state]
+
         batch = {
-            OBS_STATE: torch.from_numpy(state).float().unsqueeze(0).to(self.device),
+            OBS_STATE: norm_state.unsqueeze(0),
             OBS_LANGUAGE_TOKENS:         self.lang_tokens,
             OBS_LANGUAGE_ATTENTION_MASK: self.lang_mask,
         }
@@ -117,8 +175,15 @@ class PolicyServer:
                     / 255.0
             )
 
-        action = self.policy.select_action(batch)  # (action_dim,) or (1, action_dim)
-        return action.squeeze().cpu().numpy().astype(np.float32)
+        # Policy returns action in normalized space — must unnormalize back to real units.
+        norm_action = self.policy.select_action(batch)  # (action_dim,) or (1, action_dim)
+        norm_action = norm_action.squeeze()
+
+        action = norm_action.clone()
+        n_act = min(norm_action.shape[0], self.action_mean.shape[0])
+        action[:n_act] = norm_action[:n_act] * self.action_std[:n_act] + self.action_mean[:n_act]
+
+        return action.cpu().numpy().astype(np.float32)
 
 
 # ── server loop ────────────────────────────────────────────────────────────────

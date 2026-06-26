@@ -191,8 +191,8 @@ def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
     """Load a single episode. Each call opens its own h5py handle (thread-safe)."""
     with h5py.File(hdf5_path, "r") as f:
         ep = f["data"][ep_name]
-        actions = ep["processed_actions"][:]
-        states  = ep["states/articulation/robot/joint_position"][:]
+        actions = ep["actions"][:, :7]   # left arm only: EEF pose (0:6) + gripper (6)
+        states  = ep["states/articulation/robot/joint_position"][:, :7]  # left arm joints only
         T = min(len(actions), len(states))
         if T == 0:
             return None
@@ -214,11 +214,15 @@ def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
 # ── name helpers ───────────────────────────────────────────────────────────────
 
 def _action_names(dim: int) -> list:
+    if dim == 7:
+        return [f"left_eef_{i+1}" for i in range(6)] + ["left_gripper"]
     if dim == 8:
         return [f"left_joint_{i+1}" for i in range(7)] + ["gripper"]
     return [f"action_{i}" for i in range(dim)]
 
 def _state_names(dim: int) -> list:
+    if dim == 7:
+        return [f"left_joint_{i+1}" for i in range(7)]
     if dim == 22:
         return (
             [f"left_joint_{i+1}"   for i in range(7)] +
