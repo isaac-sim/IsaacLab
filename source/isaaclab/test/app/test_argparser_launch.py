@@ -18,7 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
-    """Test that lightweight launcher arg registration does not import Isaac Sim runtime modules."""
+    """Test that launcher arg registration does not import Isaac Sim runtime modules."""
     program = textwrap.dedent(
         """
         import argparse
@@ -58,23 +58,19 @@ def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
         finally:
             __builtins__.__import__ = original_import
 
-        print("__VIOLATIONS__" + json.dumps(violations, sort_keys=True))
+        print(json.dumps(violations, sort_keys=True))
         """
     )
 
     result = subprocess.run(
         [sys.executable, "-c", program, str(REPO_ROOT)],
         capture_output=True,
-        check=False,
+        check=True,
         text=True,
     )
 
-    assert result.returncode == 0, result.stderr
-    result_line = next(line for line in result.stdout.splitlines() if line.startswith("__VIOLATIONS__"))
-    violations = json.loads(result_line.removeprefix("__VIOLATIONS__"))
-    assert not violations, (chr(10) * 2).join(
-        f"{module_name} imported before simulation launch:{chr(10)}{stack}" for module_name, stack in violations.items()
-    )
+    violations = json.loads(result.stdout)
+    assert violations == {}
 
 
 @pytest.mark.usefixtures("mocker")

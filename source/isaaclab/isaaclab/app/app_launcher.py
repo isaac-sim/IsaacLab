@@ -22,10 +22,9 @@ import os
 import re
 import signal
 import sys
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-with contextlib.suppress(ModuleNotFoundError):
-    import isaacsim  # noqa: F401
+if TYPE_CHECKING:
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
@@ -452,9 +451,169 @@ class AppLauncher:
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
         """
-        from isaaclab.app.app_launcher_args import add_app_launcher_args as _add_app_launcher_args
+        # If the passed parser has an existing _HelpAction when passed,
+        # we here remove the options which would invoke it,
+        # to be added back after the additional AppLauncher args
+        # have been added. This is equivalent to
+        # initially constructing the ArgParser with add_help=False,
+        # but this means we don't have to require that behavior
+        # in users and can handle it on our end.
+        # We do this because calling parse_known_args() will handle
+        # any -h/--help options being passed and then exit immediately,
+        # before the additional arguments can be added to the help readout.
+        parser_help = None
+        if len(parser._actions) > 0 and isinstance(parser._actions[0], argparse._HelpAction):  # type: ignore
+            parser_help = parser._actions[0]
+            parser._option_string_actions.pop("-h")
+            parser._option_string_actions.pop("--help")
 
-        _add_app_launcher_args(parser)
+        # Parse known args for potential name collisions/type mismatches
+        # between the config fields SimulationApp expects and the ArgParse
+        # arguments that the user passed.
+        known, _ = parser.parse_known_args()
+        config = vars(known)
+        if len(config) == 0:
+            logger.warning(
+                "[WARN][AppLauncher]: There are no arguments attached to the ArgumentParser object."
+                " If you have your own arguments, please load your own arguments before calling the"
+                " `AppLauncher.add_app_launcher_args` method. This allows the method to check the validity"
+                " of the arguments and perform checks for argument names."
+            )
+        else:
+            AppLauncher._check_argparser_config_params(config)
+
+        # Add custom arguments to the parser
+        arg_group = parser.add_argument_group(
+            "app_launcher arguments",
+            description="Arguments for the AppLauncher. For more details, please check the documentation.",
+        )
+        arg_group.add_argument(
+            "--headless",
+            action=ExplicitTrueAction,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["headless"][1],
+            help=(
+                "[DEPRECATED] Disable visualizers and force headless mode (display off)."
+                " Omit '--viz' for default headless, or use '--viz none' to force-disable visualizers."
+            ),
+        )
+        arg_group.add_argument(
+            "--livestream",
+            type=int,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["livestream"][1],
+            choices={0, 1, 2},
+            help="Force enable livestreaming. Mapping corresponds to that for the `LIVESTREAM` environment variable.",
+        )
+        arg_group.add_argument(
+            "--enable_cameras",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["enable_cameras"][1],
+            help="Enable camera sensors and relevant extension dependencies.",
+        )
+        arg_group.add_argument(
+            "--xr",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["xr"][1],
+            help="Enable XR mode for VR/AR applications.",
+        )
+        arg_group.add_argument(
+            "--device",
+            type=str,
+            action=ExplicitAction,
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
+            help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
+        )
+        arg_group.add_argument(
+            "--visualizer",
+            "--viz",
+            type=AppLauncher._parse_visualizer_csv,
+            action=ExplicitAction,
+            default=None,
+            help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
+        )
+        # Add the deprecated cpu flag to raise an error if it is used
+        arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
+        arg_group.add_argument(
+            "--verbose",  # Note: This is read by SimulationApp through sys.argv
+            action="store_true",
+            help="Enable verbose-level log output from the SimulationApp.",
+        )
+        arg_group.add_argument(
+            "--info",  # Note: This is read by SimulationApp through sys.argv
+            action="store_true",
+            help="Enable info-level log output from the SimulationApp.",
+        )
+        arg_group.add_argument(
+            "--experience",
+            type=str,
+            default="",
+            help=(
+                "The experience file to load when launching the SimulationApp. If an empty string is provided,"
+                " the experience file is determined based on the headless flag. If a relative path is provided,"
+                " it is resolved relative to the `apps` folder in Isaac Sim and Isaac Lab (in that order)."
+            ),
+        )
+        arg_group.add_argument(
+            "--deterministic",
+            action="store_true",
+            default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
+            help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
+        )
+        arg_group.add_argument(
+            "--rendering_mode",
+            type=str,
+            action=ExplicitAction,
+            choices={"performance", "balanced", "quality"},
+            help=(
+                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
+                ' Can be "performance", "balanced", or "quality".'
+                " Individual settings can be overwritten by using the RenderCfg class."
+            ),
+        )
+        arg_group.add_argument(
+            "--kit_args",
+            type=str,
+            default="",
+            help=(
+                "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
+                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
+            ),
+        )
+        arg_group.add_argument(
+            "--anim_recording_enabled",
+            action="store_true",
+            help="Enable recording time-sampled USD animations from IsaacLab PhysX simulations.",
+        )
+        arg_group.add_argument(
+            "--anim_recording_start_time",
+            type=float,
+            default=0,
+            help=(
+                "Set time that animation recording begins playing. If not set, the recording will start from the"
+                " beginning."
+            ),
+        )
+        arg_group.add_argument(
+            "--anim_recording_stop_time",
+            type=float,
+            default=10,
+            help=(
+                "Set time that animation recording stops playing. If the process is shutdown before the stop time is"
+                " exceeded, then the animation is not recorded."
+            ),
+        )
+        arg_group.add_argument(
+            "--max_visible_envs",
+            type=int,
+            default=argparse.SUPPRESS,
+            help=("When set, caps the nums of envs shown in the launched visualizers."),
+        )
+        # special flag for backwards compatibility
+
+        # Corresponding to the beginning of the function,
+        # if we have removed -h/--help handling, we add it back.
+        if parser_help is not None:
+            parser._option_string_actions["-h"] = parser_help
+            parser._option_string_actions["--help"] = parser_help
 
     """
     Internal functions.
@@ -1016,6 +1175,9 @@ class AppLauncher:
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
+        import isaacsim  # noqa: F401, PLC0415
+        from isaacsim import SimulationApp  # noqa: PLC0415
+
         # Initialize SimulationApp
         # hack sys module to make sure that the SimulationApp is initialized correctly
         # this is to avoid the warnings from the simulation app about not ok modules
@@ -1197,6 +1359,8 @@ class AppLauncher:
 
     def is_isaac_sim_version_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_5"):
+            import isaacsim  # noqa: PLC0415
+
             # 1) Try to read the VERSION file (for manual / binary installs)
             version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
             if os.path.isfile(version_path):
