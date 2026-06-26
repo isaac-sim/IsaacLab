@@ -247,6 +247,52 @@ def test_apply_articulation_root_properties_fix_root_link_requires_rigid_body():
         )
 
 
+def test_apply_articulation_root_properties_fix_root_link_without_backend_raises(monkeypatch):
+    """Creating a fixed root joint with no backend creator registered raises a clear error: the
+    PhysX-specific creation logic lives in the backend, so core cannot fix the base on its own.
+
+    Uses monkeypatch to clear the module-global creator (other tests register the PhysX creator
+    session-wide); monkeypatch restores it afterwards so this stays isolated.
+    """
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+    from isaaclab.sim.schemas import schemas as core_schemas
+
+    monkeypatch.setattr(core_schemas, "_FIXED_ROOT_JOINT_CREATOR", None)
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    root = _make_xform(stage, "/World/Robot3")
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    with pytest.raises(RuntimeError):
+        apply_articulation_root_properties("/World/Robot3", [], stage, fix_root_link=True)
+
+
+def test_register_fixed_root_joint_creator_is_invoked(monkeypatch):
+    """The core writer delegates fixed-root-joint creation to whatever creator is registered."""
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+    from isaaclab.sim.schemas import schemas as core_schemas
+    from isaaclab.sim.schemas.schemas import register_fixed_root_joint_creator
+
+    monkeypatch.setattr(core_schemas, "_FIXED_ROOT_JOINT_CREATOR", None)
+    called = {}
+
+    def _creator(articulation_prim, stage):
+        called["path"] = articulation_prim.GetPath().pathString
+
+    register_fixed_root_joint_creator(_creator)
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    root = _make_xform(stage, "/World/Robot4")
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    apply_articulation_root_properties("/World/Robot4", [], stage, fix_root_link=True)
+    assert called["path"] == "/World/Robot4"
+
+
 # -------------------------------------------------------------------------------------
 # public imports
 # -------------------------------------------------------------------------------------
