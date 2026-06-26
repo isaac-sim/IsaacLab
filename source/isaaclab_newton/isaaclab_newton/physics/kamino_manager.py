@@ -30,6 +30,29 @@ class NewtonKaminoManager(NewtonManager):
     Kamino's internal collision detector handles contact generation.
     """
 
+    # Host-side flag mirroring the shared reset masks. Set by :meth:`invalidate_fk`
+    # whenever joint / root state is written, cleared once the masks are consumed
+    # by :meth:`forward` or :meth:`step`. Kamino-specific: it gates the eager
+    # ``solver.reset()`` so a host-side check avoids a GPU -> CPU mask readback.
+    _reset_pending: bool = False
+
+    @classmethod
+    def invalidate_fk(
+        cls,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+        articulation_ids: wp.array | None = None,
+    ) -> None:
+        """Accumulate the reset masks and mark a Kamino reset as pending.
+
+        Delegates the mask accumulation to :meth:`NewtonManager.invalidate_fk`,
+        then records that the next :meth:`forward` / :meth:`step` must run the
+        Kamino solver reset once. See :attr:`_reset_pending`.
+        """
+        super().invalidate_fk(env_mask=env_mask, env_ids=env_ids, articulation_ids=articulation_ids)
+        if cls._world_reset_mask is not None and cls._fk_reset_mask is not None:
+            NewtonKaminoManager._reset_pending = True
+
     @classmethod
     def _forward_kamino(cls, world_mask: wp.array | None = None) -> None:
         """Kamino-specific forward kinematics via ``solver.reset()``.
@@ -83,7 +106,7 @@ class NewtonKaminoManager(NewtonManager):
         cls._update_sensors(None)
         NewtonManager._world_reset_mask.zero_()
         NewtonManager._fk_reset_mask.zero_()
-        NewtonManager._reset_pending = False
+        NewtonKaminoManager._reset_pending = False
 
     @classmethod
     def forward(cls) -> None:
@@ -177,6 +200,7 @@ class NewtonKaminoManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
         NewtonManager._reset_passive_joints = True
+        NewtonKaminoManager._reset_pending = False
 
     @classmethod
     def _capture_or_defer_cuda_graph(cls) -> None:
