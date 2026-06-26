@@ -105,8 +105,17 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
     make the object static and will not be affected by gravity or other forces.
     """
 
-    collision_props: schemas.CollisionPropertiesCfg | None = None
-    """Properties to apply to all collision meshes."""
+    collision_props: (
+        schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
+    ) = None
+    """Properties to apply to all collision meshes.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
+    (e.g. ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``). When a fragment list is given,
+    ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes its own
+    namespace.
+    """
 
     activate_contact_sensors: bool = False
     """Activate contact reporting on all rigid bodies. Defaults to False.

@@ -352,7 +352,12 @@ def _spawn_from_usd_file(
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
-        schemas.modify_collision_properties(prim_path, cfg.collision_props)
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
+        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
+            schemas.apply_collision_properties(prim_path, coll_frags)
+        else:
+            schemas.modify_collision_properties(prim_path, cfg.collision_props)
     # modify mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> modify_*)
     if cfg.mass_props is not None:
         # normalize a single fragment to a list so the convenience form routes like a list

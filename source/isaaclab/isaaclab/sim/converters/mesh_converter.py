@@ -126,9 +126,16 @@ class MeshConverter(AssetConverterBase):
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
                     # -- Collider properties such as offset, scale, etc.
-                    schemas.define_collision_properties(
-                        prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
+                    # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
+                    coll_frags = (
+                        cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
                     )
+                    if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
+                        schemas.apply_collision_properties(str(child_mesh_prim.GetPath()), coll_frags, stage=stage)
+                    else:
+                        schemas.define_collision_properties(
+                            prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
+                        )
                 # Add collision mesh
                 if cfg.mesh_collision_props is not None:
                     schemas.define_mesh_collision_properties(

@@ -557,6 +557,36 @@ Collision properties.
 """
 
 
+def apply_collision_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of collision fragments to a prim.
+
+    Applies ``UsdPhysics.CollisionAPI`` as the implicit anchor (the defining schema for a
+    collider), then dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the collision schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.CollisionFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not UsdPhysics.CollisionAPI(prim):
+        UsdPhysics.CollisionAPI.Apply(prim)
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
+
+
 def define_collision_properties(
     prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage | None = None
 ):
