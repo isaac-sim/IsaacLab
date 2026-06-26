@@ -414,9 +414,10 @@ class PhysxManager(PhysicsManager):
         """Clean up physics resources."""
         # Detach PhysX from the stage FIRST to prevent shape/actor cleanup errors
         # This disconnects PhysX from USD before any deletion events are fired
-        omni.physx.get_physx_simulation_interface().detach_stage()
-        # Pump the app to flush pending PhysX cleanup operations
-        omni.kit.app.get_app().update()
+        if physx_sim := omni.physx.get_physx_simulation_interface():
+            physx_sim.detach_stage()
+            # Pump the app to flush pending PhysX cleanup operations
+            omni.kit.app.get_app().update()
 
         # Now invalidate views (they're already disconnected from PhysX)
         cls._invalidate_views()
@@ -788,7 +789,7 @@ class PhysxManager(PhysicsManager):
             cls._view_warp.set_subspace_roots("/")
 
         # Final update after view creation
-        omni.physx.get_physx_interface().update_simulation(cls.get_physics_dt(), 0.0)
+        physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
         cls._scene_data_backend.simulation_view = cls._view
 
