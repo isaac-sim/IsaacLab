@@ -35,7 +35,6 @@ from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg, SensorBase, 
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage, get_current_stage_id
 from isaaclab.sim.views import FrameView
-from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 
 # Note: This is a temporary import for the VisuoTactileSensorCfg class.
 # It will be removed once the VisuoTactileSensor class is added to the core Isaac Lab framework.
@@ -45,6 +44,8 @@ from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
     from pxr import Sdf  # noqa: F401
+
+    from isaaclab.terrains import TerrainImporter
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -740,6 +741,8 @@ class InteractiveScene:
     def _add_entities_from_cfg(self):  # noqa: C901
         """Add scene entities from the config."""
         from isaaclab_physx.assets import SurfaceGripperCfg  # noqa: PLC0415
+
+        from isaaclab.terrains import TerrainImporterCfg  # noqa: PLC0415
 
         # store paths that are in global collision filter
         self._global_prim_paths = list()

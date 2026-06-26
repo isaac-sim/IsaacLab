@@ -17,29 +17,33 @@ from isaaclab.app import AppLauncher
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
-def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
-    """Test that launcher arg registration does not import Isaac Sim runtime modules."""
+SOURCE_PATHS = [
+    "source/isaaclab",
+    "source/isaaclab_tasks",
+    "source/isaaclab_assets",
+    "source/isaaclab_rl",
+    "source/isaaclab_newton",
+    "source/isaaclab_ovphysx",
+    "source/isaaclab_physx",
+]
+
+
+def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str]) -> None:
+    """Run ``code`` in a subprocess and assert forbidden root modules are not imported."""
     program = textwrap.dedent(
         """
-        import argparse
         import json
         import sys
         import traceback
         from pathlib import Path
 
         repo_root = Path(sys.argv[1])
-        for rel_path in [
-            "source/isaaclab",
-            "source/isaaclab_tasks",
-            "source/isaaclab_assets",
-            "source/isaaclab_rl",
-            "source/isaaclab_newton",
-            "source/isaaclab_ovphysx",
-            "source/isaaclab_physx",
-        ]:
+        forbidden = set(json.loads(sys.argv[2]))
+        code = sys.argv[3]
+
+        for rel_path in json.loads(sys.argv[4]):
             sys.path.insert(0, str(repo_root / rel_path))
 
-        forbidden = {"pxr", "omni", "carb", "isaacsim", "usdrt"}
         violations = {}
         original_import = __builtins__.__import__
 
@@ -51,10 +55,7 @@ def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
 
         __builtins__.__import__ = import_hook
         try:
-            from isaaclab.app import add_launcher_args
-
-            parser = argparse.ArgumentParser(add_help=False)
-            add_launcher_args(parser)
+            exec(code, {})
         finally:
             __builtins__.__import__ = original_import
 
@@ -63,7 +64,15 @@ def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
     )
 
     result = subprocess.run(
-        [sys.executable, "-c", program, str(REPO_ROOT)],
+        [
+            sys.executable,
+            "-c",
+            program,
+            str(REPO_ROOT),
+            json.dumps(sorted(forbidden)),
+            textwrap.dedent(code),
+            json.dumps(SOURCE_PATHS),
+        ],
         capture_output=True,
         check=True,
         text=True,
@@ -71,58 +80,59 @@ def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
 
     violations = json.loads(result.stdout)
     assert violations == {}
+
+
+def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
+    """Test that launcher arg registration does not import Isaac Sim runtime modules."""
+    _assert_import_code_does_not_import_modules(
+        """
+        import argparse
+
+        from isaaclab.app import add_launcher_args
+
+        parser = argparse.ArgumentParser(add_help=False)
+        add_launcher_args(parser)
+        """,
+        {"pxr", "omni", "carb", "isaacsim", "usdrt"},
+    )
 
 
 def test_simulation_context_import_does_not_import_pxr_before_launch():
     """Test that resolving SimulationContext does not import USD modules."""
-    program = textwrap.dedent(
+    _assert_import_code_does_not_import_modules(
         """
-        import json
-        import sys
-        import traceback
-        from pathlib import Path
+        from isaaclab.sim import SimulationContext
 
-        repo_root = Path(sys.argv[1])
-        for rel_path in [
-            "source/isaaclab",
-            "source/isaaclab_tasks",
-            "source/isaaclab_assets",
-            "source/isaaclab_rl",
-            "source/isaaclab_newton",
-            "source/isaaclab_ovphysx",
-            "source/isaaclab_physx",
-        ]:
-            sys.path.insert(0, str(repo_root / rel_path))
-
-        violations = {}
-        original_import = __builtins__.__import__
-
-        def import_hook(name, globals=None, locals=None, fromlist=(), level=0):
-            if name.split(".")[0] == "pxr" and "pxr" not in violations:
-                violations["pxr"] = "".join(traceback.format_stack(limit=18))
-            return original_import(name, globals, locals, fromlist, level)
-
-        __builtins__.__import__ = import_hook
-        try:
-            from isaaclab.sim import SimulationContext
-
-            assert SimulationContext.__name__ == "SimulationContext"
-        finally:
-            __builtins__.__import__ = original_import
-
-        print(json.dumps(violations, sort_keys=True))
-        """
+        assert SimulationContext.__name__ == "SimulationContext"
+        """,
+        {"pxr"},
     )
 
-    result = subprocess.run(
-        [sys.executable, "-c", program, str(REPO_ROOT)],
-        capture_output=True,
-        check=True,
-        text=True,
+
+def test_direct_rl_env_import_does_not_import_pxr_before_launch():
+    """Test that resolving DirectRLEnv does not import USD modules."""
+    _assert_import_code_does_not_import_modules(
+        """
+        from isaaclab.envs import DirectRLEnv
+
+        assert DirectRLEnv.__name__ == "DirectRLEnv"
+        """,
+        {"pxr"},
     )
 
-    violations = json.loads(result.stdout)
-    assert violations == {}
+
+def test_cartpole_task_import_does_not_import_pxr_before_launch():
+    """Test that resolving the cartpole task module does not import USD modules."""
+    _assert_import_code_does_not_import_modules(
+        """
+        import importlib
+
+        module = importlib.import_module("isaaclab_tasks.core.cartpole.cartpole_direct_env")
+
+        assert module.CartpoleEnv.__name__ == "CartpoleEnv"
+        """,
+        {"pxr"},
+    )
 
 
 @pytest.mark.usefixtures("mocker")

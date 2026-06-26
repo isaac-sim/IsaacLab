@@ -20,13 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from pxr import UsdPhysics
-
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim
-from isaaclab.sim.utils.transforms import resolve_prim_pose
 
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
@@ -227,6 +222,8 @@ class SensorBase(ABC):
         self._sim_physics_dt = sim.get_physics_dt()
         # Count number of environments. Prefer the active simulation's clone plan when USD
         # only carries the env_0 prototype (e.g. Newton clones solver-side).
+        from isaaclab.cloner.cloner_utils import iter_clone_plan_matches  # noqa: PLC0415
+
         self._clone_plan = sim.get_clone_plan()
         clone_plan = self._clone_plan
         clone_plan_matches = ()
@@ -457,6 +454,11 @@ class SensorBase(ABC):
               mounted directly at the body origin.
         """
         prim, target_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
+
+        from pxr import UsdPhysics  # noqa: PLC0415
+
+        from isaaclab.sim.utils.queries import get_first_matching_ancestor_prim  # noqa: PLC0415
+        from isaaclab.sim.utils.transforms import resolve_prim_pose  # noqa: PLC0415
 
         ancestor_prim = get_first_matching_ancestor_prim(
             prim.GetPath(), predicate=lambda _prim: _prim.HasAPI(UsdPhysics.RigidBodyAPI)
