@@ -280,6 +280,12 @@ to the base config class for the task and be assigned to the variable ``events``
   class MyTaskConfig:
     events: EventCfg = EventCfg()
 
+.. seealso::
+
+   The example above randomizes *physical* properties. For randomizing *visual*
+   appearance (color, texture, lighting) and which properties are supported on each
+   rendering backend, see :doc:`/source/how-to/randomize_rendering`.
+
 
 Action and Observation Noise
 ----------------------------

@@ -89,6 +89,17 @@ This guide demonstrates how to select rendering mode presets and overwrite prese
 
     configure_rendering
 
+Randomizing Rendered Appearance
+-------------------------------
+
+This guide explains what visual domain randomization (color, texture, lighting) is available
+out of the box, how it behaves across the rendering backends, and where the current gaps are.
+
+.. toctree::
+    :maxdepth: 1
+
+    randomize_rendering
+
 Drawing Markers
 ---------------
 

@@ -125,6 +125,11 @@ Each of these are specified through the :class:`managers.EventTermCfg` class, wh
 takes in the :attr:`managers.EventTermCfg.func` that specifies the function or callable
 class that performs the event.
 
+.. seealso::
+
+   For varying visual appearance (color, texture, lighting) and which properties are
+   supported on each rendering backend, see :doc:`/source/how-to/randomize_rendering`.
+
 Additionally, it expects the **mode** of the event. The mode specifies when the event term should be applied.
 It is possible to specify your own mode. For this, you'll need to adapt the :class:`~envs.ManagerBasedEnv` class.
 However, out of the box, Isaac Lab provides three commonly used modes:
