@@ -400,7 +400,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render.carb_settings = {
             "rtx.raytracing.fractionalCutoutOpacity": True,
         }
-        self.sim.render.rendering_mode = "quality"
         self.sim.render.antialiasing_mode = "DLAA"
 
 

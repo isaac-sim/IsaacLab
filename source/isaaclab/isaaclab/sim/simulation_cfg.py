@@ -216,12 +216,6 @@ class RenderCfg:
     ``rtx.translucency.enabled: False`` (.kit), or ``rtx_translucency_enabled: False`` (python).
     """
 
-    rendering_mode: Literal["performance", "balanced", "quality"] | None = None
-    """The rendering mode.
-
-    This behaves the same as the passing the CLI arg ``--rendering_mode`` to an executable script.
-    """
-
 
 @configclass
 class SimulationCfg:

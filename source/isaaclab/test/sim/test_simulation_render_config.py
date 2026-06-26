@@ -14,16 +14,11 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import os
-
-import flatdict
 import pytest
-import tomllib
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.version import get_isaac_sim_version
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
@@ -131,59 +126,38 @@ def test_render_cfg():
 
 
 @pytest.mark.isaacsim_ci
-def test_render_cfg_presets():
-    """Test that the simulation context is created with the correct render cfg preset with overrides."""
+def test_render_cfg_defaults_and_overrides():
+    """Test that high-fidelity RTX defaults are applied and overridden by RenderCfg settings."""
 
     # carb setting dictionary overrides
     carb_settings = {"/rtx/raytracing/subpixel/mode": 3, "/rtx/pathtracing/maxSamplesPerLaunch": 999999}
-    # user-friendly setting overrides
-    dlss_mode = ("/rtx/post/dlss/execMode", 5)
+    # user-friendly setting override
+    dlss_mode = ("/rtx/post/dlss/execMode", 1)
 
-    rendering_modes = ["performance", "balanced", "quality"]
+    # Clear any existing simulation context before creating a new one
+    SimulationContext.clear_instance()
 
-    for rendering_mode in rendering_modes:
-        # Clear any existing simulation context before creating a new one
-        SimulationContext.clear_instance()
+    render_cfg = RenderCfg(
+        dlss_mode=dlss_mode[1],
+        carb_settings=carb_settings,
+    )
 
-        # grab isaac lab apps path
-        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-        # for Isaac Sim 5 compatibility, we use the 5 rendering mode app files in a different folder
-        if get_isaac_sim_version().major < 6:
-            isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
+    cfg = SimulationCfg(render=render_cfg)
 
-        # grab preset settings
-        preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename, "rb") as file:
-            preset_dict = tomllib.load(file)
-        preset_dict = dict(flatdict.FlatDict(preset_dict, delimiter="."))
+    SimulationContext(cfg)
 
-        render_cfg = RenderCfg(
-            rendering_mode=rendering_mode,
-            dlss_mode=dlss_mode[1],
-            carb_settings=carb_settings,
-        )
+    settings = get_settings_manager()
+    for setting_name, default_val in SimulationContext._DEFAULT_RTX_SETTINGS.items():
+        if setting_name in carb_settings:
+            setting_gt = carb_settings[setting_name]
+        elif setting_name == dlss_mode[0]:
+            setting_gt = dlss_mode[1]
+        else:
+            setting_gt = default_val
 
-        cfg = SimulationCfg(render=render_cfg)
+        setting_val = settings.get(setting_name)
 
-        SimulationContext(cfg)
-
-        settings = get_settings_manager()
-        for key, val in preset_dict.items():
-            setting_name = "/" + key.replace(".", "/")  # convert to setting path format
-
-            if setting_name in carb_settings:
-                setting_gt = carb_settings[setting_name]
-            elif setting_name == dlss_mode[0]:
-                setting_gt = dlss_mode[1]
-            else:
-                setting_gt = val
-
-            setting_val = settings.get(setting_name)
-
-            assert setting_gt == setting_val, (
-                f"Mismatch for '{setting_name}' in mode '{rendering_mode}': "
-                f"expected {setting_gt!r}, got {setting_val!r}"
-            )
+        assert setting_gt == setting_val, f"Mismatch for '{setting_name}': expected {setting_gt!r}, got {setting_val!r}"
 
     # Clean up after the test
     SimulationContext.clear_instance()

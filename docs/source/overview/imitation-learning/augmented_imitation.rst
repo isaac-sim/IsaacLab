@@ -27,8 +27,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
     ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
     --device cpu --enable_cameras --num_envs 10 --generation_num_trials 1000 \
     --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0 \
-    --rendering_mode performance
+    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
 
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
@@ -392,8 +391,7 @@ Example usage for the cube stacking task:
     --log_file result \
     --enable_cameras \
     --seeds 0 \
-    --num_rollouts 15 \
-    --rendering_mode performance
+    --num_rollouts 15
 
 .. tip::
    Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.

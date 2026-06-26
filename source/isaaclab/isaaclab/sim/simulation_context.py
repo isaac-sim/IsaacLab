@@ -7,14 +7,12 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import tomllib
 import torch
 
 import isaaclab.sim as sim_utils
@@ -222,50 +220,55 @@ class SimulationContext:
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
+    _DEFAULT_RTX_SETTINGS: dict[str, Any] = {
+        # RT2 path tracing
+        "/rtx/rtpt/maxBounces": 3,
+        "/rtx/rtpt/cached/enabled": False,
+        "/rtx/rtpt/lightcache/cached/enabled": False,
+        "/rtx/rtpt/translucency/virtualMotion/enabled": False,
+        "/rtx/rtpt/splitRoughReflection": True,
+        # Adaptive sampling for disocclusion (reduces ghosting / temporal artifacts)
+        "/rtx/rtpt/adaptiveSampling/disocclusion/enabled": True,
+        "/rtx/rtpt/adaptiveSampling/disocclusion/spp": 4,
+        "/rtx/sceneDb/ambientLightIntensity": 1.0,
+        "/rtx/shadows/enabled": True,
+        "/rtx/ambientOcclusion/enabled": True,
+        "/rtx/ambientOcclusion/denoiserMode": 0,
+        "/rtx/raytracing/subpixel/mode": 1,
+        "/rtx/raytracing/cached/enabled": True,
+        # DLSS frame generation does not yet support tiled cameras well
+        "/rtx-transient/dlssg/enabled": False,
+        # DLSS model: 0 (Performance), 1 (Balanced), 2 (Quality), 3 (Auto)
+        "/rtx/post/dlss/execMode": 2,
+        # Avoids replicator warning
+        "/rtx/pathtracing/maxSamplesPerLaunch": 1000000,
+        # Avoids silent trimming of tiles
+        "/rtx/viewTile/limit": 1000000,
+    }
+    """High-fidelity RTX defaults applied to all RTX renders unless overridden via
+    :class:`~isaaclab.sim.RenderCfg`. These mirror the formerly-named ``quality`` rendering preset."""
+
     def _apply_render_cfg_settings(self) -> None:
-        """Apply render preset and overrides from SimulationCfg.render."""
-        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
-        # (name subject to change) to keep quality profiles and carb mappings centralized.
+        """Apply high-fidelity render defaults and overrides from SimulationCfg.render.
+
+        When camera (RGB) rendering is enabled, a set of high-fidelity RTX defaults
+        (see :attr:`_DEFAULT_RTX_SETTINGS`) is applied first so that camera rendering looks good
+        out-of-the-box. Any field set on :class:`~isaaclab.sim.RenderCfg` (or entries in
+        :attr:`~isaaclab.sim.RenderCfg.carb_settings`) then overrides these defaults.
+
+        Users who need high-performance rendering instead of high fidelity should use the RTX Minimal
+        renderer (see the renderers overview) rather than these RTX defaults.
+        """
         render_cfg = getattr(self.cfg, "render", None)
         if render_cfg is None:
             return
 
-        # Priority:
-        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
-        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = getattr(render_cfg, "rendering_mode", None)
-
-        if rendering_mode:
-            supported_rendering_modes = {"performance", "balanced", "quality"}
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
-                    f"{sorted(supported_rendering_modes)}."
-                )
-
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
-
-            if get_isaac_sim_version().major < 6:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            if os.path.exists(preset_filename):
-                with open(preset_filename, "rb") as file:
-                    preset_dict = tomllib.load(file)
-
-                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
-                    for key, value in data.items():
-                        key_path = f"{path}/{key}" if path else f"/{key}"
-                        if isinstance(value, dict):
-                            _apply_nested(value, key_path)
-                        else:
-                            self.set_setting(key_path.replace(".", "/"), value)
-
-                _apply_nested(preset_dict)
-            else:
-                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
+        # Apply high-fidelity RTX defaults only when camera (RGB) rendering is enabled. These mirror
+        # the formerly-named ``quality`` rendering preset and can be overridden by RenderCfg fields /
+        # carb_settings below.
+        if self.get_setting("/isaaclab/render/enable_cameras"):
+            for setting_path, value in self._DEFAULT_RTX_SETTINGS.items():
+                self.set_setting(setting_path, value)
 
         # RenderCfg fields mapped to setting paths (stored via SettingsManager)
         field_to_setting = {
@@ -294,7 +297,7 @@ class SimulationContext:
         }
 
         for key, value in vars(render_cfg).items():
-            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
+            if value is None or key in {"carb_settings", "antialiasing_mode"}:
                 continue
             setting_path = field_to_setting.get(key)
             if setting_path is not None:

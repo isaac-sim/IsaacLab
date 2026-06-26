@@ -1,0 +1,2 @@
+Removed the redundant ``rendering_mode`` assignment from the trocar assembly env config now that
+high-fidelity RTX defaults are applied automatically. No user-facing change.
