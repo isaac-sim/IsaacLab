@@ -327,7 +327,11 @@ def apply_articulation_root_properties(
 
     Raises:
         ValueError: When the prim path is not valid.
-        NotImplementedError: When the root prim is not a rigid body and a fixed joint is to be created.
+        RuntimeError: When ``fix_root_link`` is True and a fixed joint must be created, but no backend
+            creator has been registered (see :func:`register_fixed_root_joint_creator`) -- e.g. no
+            physics backend extension such as ``isaaclab_physx`` was imported.
+        NotImplementedError: Propagated from the registered creator when it cannot create the fixed
+            joint (e.g. the resolved root prim is not a rigid body).
     """
     if stage is None:
         stage = get_current_stage()
