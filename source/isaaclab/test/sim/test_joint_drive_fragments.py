@@ -339,6 +339,42 @@ def test_apply_joint_drive_properties_skips_tendon_child_joint():
     assert not joint.GetAttribute("physxJoint:maxJointVelocity").HasAuthoredValue()
 
 
+def test_apply_joint_drive_properties_skips_joint_via_registered_predicate(monkeypatch):
+    """Core delegates joint exclusion to backend-registered predicates: one returning True skips the
+    joint, with no backend-specific schema knowledge in core.
+
+    monkeypatch clears the module-global predicate list (other tests register the PhysX detector
+    session-wide) and restores it afterwards, keeping this isolated.
+    """
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
+    from isaaclab.sim.schemas import schemas as core_schemas
+
+    monkeypatch.setattr(core_schemas, "_JOINT_DRIVE_SKIP_PREDICATES", [])
+    core_schemas.register_joint_drive_skip_predicate(lambda prim: True)  # exclude every joint
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    joint = _make_revolute_joint(stage)
+    apply_joint_drive_properties("/World/Articulation", [UsdPhysicsDriveCfg(stiffness=10.0)], stage)
+    assert not bool(UsdPhysics.DriveAPI(joint, "angular"))
+
+
+def test_apply_joint_drive_properties_authors_when_no_skip_predicate(monkeypatch):
+    """Empty predicate registry (the default) skips nothing -- the writer authors on the joint."""
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
+    from isaaclab.sim.schemas import schemas as core_schemas
+
+    monkeypatch.setattr(core_schemas, "_JOINT_DRIVE_SKIP_PREDICATES", [])
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    joint = _make_revolute_joint(stage)
+    apply_joint_drive_properties("/World/Articulation", [UsdPhysicsDriveCfg(stiffness=10.0)], stage)
+    assert bool(UsdPhysics.DriveAPI(joint, "angular"))
+
+
 def test_apply_joint_drive_properties_ensure_drives_exist_seeds_stiffness():
     from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
 
