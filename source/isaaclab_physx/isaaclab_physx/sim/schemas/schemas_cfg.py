@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -14,10 +15,12 @@ from isaaclab.sim.schemas.schemas_cfg import (
     CollisionBaseCfg,
     CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
+    FixedTendonFragment,
     JointDriveBaseCfg,
     MeshCollisionBaseCfg,
     RigidBodyBaseCfg,
     RigidBodyFragment,
+    SpatialTendonFragment,
 )
 from isaaclab.utils.configclass import configclass
 
@@ -1069,3 +1072,96 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
             stacklevel=2,
         )
         super().__post_init__()
+
+
+@configclass
+class PhysxFixedTendonCfg(FixedTendonFragment):
+    """PhysX fixed-tendon attributes from `PhysxTendonAxisRootAPI`_.
+
+    A fixed-tendon fragment (see :class:`~isaaclab.sim.schemas.FixedTendonFragment`) for the
+    PhysX fixed-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
+    fragment: the multi-instance ``PhysxTendonAxisRootAPI:<inst>`` schemas already exist on the
+    prim (authored in the source asset), so the fragment overrides
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_fixed_tendon`, which
+    descends the prim subtree and tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance
+    directly.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+
+    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
+    """
+
+    # Not namespace-driven: the custom applier matches the multi-instance schema explicitly, so
+    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
+    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
+    _usd_namespace: ClassVar[str | None] = None
+    # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits [N/m]."""
+
+    offset: float | None = None
+    """Length offset term for the tendon [m].
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
+
+    rest_length: float | None = None
+    """Spring rest length of the tendon [m]."""
+
+
+@configclass
+class PhysxSpatialTendonCfg(SpatialTendonFragment):
+    """PhysX spatial-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
+
+    A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
+    PhysX spatial-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
+    fragment: the multi-instance ``PhysxTendonAttachmentRootAPI:<inst>`` /
+    ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas already exist on the prim (authored in the
+    source asset), so the fragment overrides
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_spatial_tendon`, which
+    descends the prim subtree and tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
+    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance directly.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
+
+    .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
+    """
+
+    # Not namespace-driven: the custom applier matches the multi-instance schemas explicitly, so
+    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
+    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
+    _usd_namespace: ClassVar[str | None] = None
+    # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
+    # schemas, which the generic ``apply_namespaced`` cannot.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits [N/m]."""
+
+    offset: float | None = None
+    """Length offset term for the tendon [m].
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """

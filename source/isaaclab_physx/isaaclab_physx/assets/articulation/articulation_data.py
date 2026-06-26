@@ -196,6 +196,32 @@ class ArticulationData(BaseArticulationData):
         )
         self._fk_timestamp = -1.0
 
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets."""
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_com_vel_w,
+                self._root_link_vel_w,
+                self._body_com_pose_w,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+                self._body_com_jacobian_w,
+                self._mass_matrix,
+                self._gravity_compensation_forces,
+            ]
+        )
+
     """
     Names.
     """
@@ -914,8 +940,8 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
+        if self._body_com_pose_b.timestamp < 0.0:
+            # Body-frame CoM offsets are model properties; cache them until an explicit CoM write updates them.
             self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf))
             self._body_com_pose_b.timestamp = self._sim_timestamp
 

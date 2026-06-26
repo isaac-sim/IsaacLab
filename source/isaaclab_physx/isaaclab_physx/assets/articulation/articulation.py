@@ -2357,6 +2357,11 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if self.data._body_com_pose_b.timestamp < 0.0 and (
+            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
+        ):
+            # Partial writes need the current model-property cache as a base for untouched entries.
+            self.data.body_com_pose_b
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer,
@@ -2372,6 +2377,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
+        self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
