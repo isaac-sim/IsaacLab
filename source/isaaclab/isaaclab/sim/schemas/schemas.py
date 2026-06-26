@@ -875,6 +875,25 @@ Joint drive properties.
 """
 
 
+def _drive_instance_name(prim) -> str | None:
+    """Return the ``UsdPhysics.DriveAPI`` instance for a joint prim, or ``None`` if it has no drive.
+
+    Revolute joints use the ``"angular"`` instance, prismatic joints the ``"linear"`` instance; any
+    other prim type has no joint drive. Shared by :func:`apply_drive` and :func:`_ensure_drive_exists`.
+
+    Args:
+        prim: The candidate joint prim.
+
+    Returns:
+        ``"angular"``, ``"linear"``, or ``None`` when the prim is not a revolute/prismatic joint.
+    """
+    if prim.IsA(UsdPhysics.RevoluteJoint):
+        return "angular"
+    if prim.IsA(UsdPhysics.PrismaticJoint):
+        return "linear"
+    return None
+
+
 def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Apply a :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment to a single joint prim.
 
@@ -912,11 +931,8 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
 
     # select the drive instance based on the joint type
-    if prim.IsA(UsdPhysics.RevoluteJoint):
-        drive_api_name = "angular"
-    elif prim.IsA(UsdPhysics.PrismaticJoint):
-        drive_api_name = "linear"
-    else:
+    drive_api_name = _drive_instance_name(prim)
+    if drive_api_name is None:
         return False
     # skip tendon child prims (carry PhysxTendonAxisAPI but not the root API)
     applied_schemas_str = str(prim.GetAppliedSchemas())
@@ -935,8 +951,7 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     damping = cfg.damping
 
     # angular drives use degree units in USD; convert stiffness/damping from radian units
-    is_linear_drive = prim.IsA(UsdPhysics.PrismaticJoint)
-    if not is_linear_drive:
+    if drive_api_name == "angular":
         if stiffness is not None:
             # N-m/rad --> N-m/deg
             stiffness = stiffness * math.pi / 180.0
@@ -1065,11 +1080,8 @@ def _ensure_drive_exists(drive_cfg, prim) -> None:
     """
     if drive_cfg.stiffness is not None or drive_cfg.damping is not None:
         return
-    if prim.IsA(UsdPhysics.RevoluteJoint):
-        drive_api_name = "angular"
-    elif prim.IsA(UsdPhysics.PrismaticJoint):
-        drive_api_name = "linear"
-    else:
+    drive_api_name = _drive_instance_name(prim)
+    if drive_api_name is None:
         return
     usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
     if not usd_drive_api:
