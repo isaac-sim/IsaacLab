@@ -539,6 +539,102 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
     assert arr.dtype == expected_dtype, f"{name}: expected dtype {expected_dtype}, got {arr.dtype}"
 
 
+def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
+    """Create deterministic backend-order body data with identity rotations."""
+    root_pose = np.zeros((num_instances, 7), dtype=np.float32)
+    root_pose[:, 6] = 1.0
+    root_vel = np.zeros((num_instances, 6), dtype=np.float32)
+    link_pose = np.zeros((num_instances, num_bodies, 7), dtype=np.float32)
+    com_pose_b = np.zeros((num_instances, num_bodies, 7), dtype=np.float32)
+    body_com_vel = np.zeros((num_instances, num_bodies, 6), dtype=np.float32)
+    body_acc = np.zeros((num_instances, num_bodies, 6), dtype=np.float32)
+
+    for env_index in range(num_instances):
+        root_pose[env_index, :3] = (10.0 + env_index, 0.0, 0.0)
+        root_vel[env_index, 0] = 3.0 + env_index
+        root_vel[env_index, 5] = 7.0 + env_index
+        for body_index in range(num_bodies):
+            link_pose[env_index, body_index, :3] = (10.0 * body_index, float(env_index), 0.0)
+            link_pose[env_index, body_index, 6] = 1.0
+            com_pose_b[env_index, body_index, :3] = (float(body_index + 1), 0.0, 0.0)
+            com_pose_b[env_index, body_index, 6] = 1.0
+            body_com_vel[env_index, body_index, 0] = 20.0 + body_index
+            body_com_vel[env_index, body_index, 5] = 30.0 + body_index
+            body_acc[env_index, body_index, 0] = 100.0 + body_index
+            body_acc[env_index, body_index, 3] = 200.0 + body_index
+
+    return root_pose, root_vel, link_pose, com_pose_b, body_com_vel, body_acc
+
+
+def _install_reversed_body_ordering(art) -> np.ndarray:
+    """Install a reversed public body ordering on an already constructed articulation."""
+    art.cfg = art.cfg.replace(body_ordering=tuple(reversed(art.backend_body_names)))
+    art._resolve_and_install_ordering_maps()
+    art._cache_ordering_maps()
+    return np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+
+
+def _set_body_ordering_backend_data(
+    backend: str,
+    art,
+    raw_backend,
+    root_pose: np.ndarray,
+    root_vel: np.ndarray,
+    link_pose: np.ndarray,
+    com_pose_b: np.ndarray,
+    body_com_vel: np.ndarray,
+    body_acc: np.ndarray,
+) -> None:
+    """Write deterministic backend-order body state into the backend mock."""
+    if backend == "physx":
+        raw_backend._root_transforms = wp.array(root_pose, dtype=wp.float32, device=art.device)
+        raw_backend._root_velocities = wp.array(root_vel, dtype=wp.float32, device=art.device)
+        raw_backend._link_transforms = wp.array(link_pose, dtype=wp.float32, device=art.device)
+        raw_backend._link_velocities = wp.array(body_com_vel, dtype=wp.float32, device=art.device)
+        raw_backend._link_accelerations = wp.array(body_acc, dtype=wp.float32, device=art.device)
+        raw_backend._coms = wp.array(com_pose_b, dtype=wp.float32, device="cpu")
+    elif backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        raw_backend.bindings[TT.ROOT_POSE]._data = root_pose.copy()
+        raw_backend.bindings[TT.ROOT_VELOCITY]._data = root_vel.copy()
+        raw_backend.bindings[TT.LINK_POSE]._data = link_pose.copy()
+        raw_backend.bindings[TT.LINK_VELOCITY]._data = body_com_vel.copy()
+        raw_backend.bindings[TT.LINK_ACCELERATION]._data = body_acc.copy()
+        raw_backend.bindings[TT.BODY_COM_POSE]._data = com_pose_b.copy()
+    elif backend == "newton":
+        root_pose_wp = wp.array(root_pose[:, None, :], dtype=wp.transformf, device=art.device)
+        root_vel_wp = wp.array(root_vel[:, None, :], dtype=wp.spatial_vectorf, device=art.device)
+        link_pose_wp = wp.array(link_pose[:, None, :, :], dtype=wp.transformf, device=art.device)
+        body_com_vel_wp = wp.array(body_com_vel[:, None, :, :], dtype=wp.spatial_vectorf, device=art.device)
+        body_com_pos_wp = wp.array(com_pose_b[:, None, :, :3], dtype=wp.vec3f, device=art.device)
+        raw_backend.set_mock_root_transforms(root_pose_wp)
+        raw_backend.set_mock_root_velocities(root_vel_wp)
+        raw_backend.set_mock_link_transforms(link_pose_wp)
+        raw_backend.set_mock_link_velocities(body_com_vel_wp)
+        raw_backend.set_mock_coms(body_com_pos_wp)
+        art.data._sim_bind_root_link_pose_w.assign(root_pose_wp[:, 0])
+        art.data._sim_bind_root_com_vel_w.assign(root_vel_wp[:, 0])
+        art.data._sim_bind_body_link_pose_w.assign(link_pose_wp[:, 0])
+        art.data._sim_bind_body_com_vel_w.assign(body_com_vel_wp[:, 0])
+        art.data._sim_bind_body_com_pos_b.assign(body_com_pos_wp[:, 0])
+        art.data._previous_body_com_vel.assign(
+            wp.zeros((art.num_instances, art.num_bodies), dtype=wp.spatial_vectorf, device=art.device)
+        )
+    else:
+        raise AssertionError(f"Unsupported backend for body-ordering test: {backend}")
+
+
+def _clone_proxy_tensor(arr) -> torch.Tensor:
+    """Return a CPU clone of a proxy array's torch view."""
+    return arr.torch.detach().cpu().clone()
+
+
+def _assert_proxy_close(actual, expected: torch.Tensor) -> None:
+    """Assert a proxy array is close to a CPU tensor."""
+    torch.testing.assert_close(actual.torch.cpu(), expected, rtol=1.0e-5, atol=1.0e-5)
+
+
 # Common parametrize decorator for all interface tests
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
 
@@ -1025,6 +1121,36 @@ class TestArticulationDataDerivedProperties:
 
 class TestArticulationDataBodyState:
     """Test data properties for all body states."""
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 1, 3)])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_reversed_body_ordering_reorders_public_body_quantities(
+        self, backend, num_instances, num_joints, num_bodies, device
+    ):
+        identity_art, identity_raw = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        ordered_art, ordered_raw = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        raw_data = _make_body_ordering_backend_data(num_instances, num_bodies)
+        _set_body_ordering_backend_data(backend, identity_art, identity_raw, *raw_data)
+        _set_body_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_data)
+        user_to_backend = _install_reversed_body_ordering(ordered_art)
+
+        identity_art.data.update(dt=0.01)
+        ordered_art.data.update(dt=0.01)
+
+        identity_body_com_pose_b = _clone_proxy_tensor(identity_art.data.body_com_pose_b)
+        identity_body_com_acc_w = _clone_proxy_tensor(identity_art.data.body_com_acc_w)
+        identity_body_link_vel_w = _clone_proxy_tensor(identity_art.data.body_link_vel_w)
+        identity_body_com_pose_w = _clone_proxy_tensor(identity_art.data.body_com_pose_w)
+        identity_root_com_pose_w = _clone_proxy_tensor(identity_art.data.root_com_pose_w)
+        identity_root_link_vel_w = _clone_proxy_tensor(identity_art.data.root_link_vel_w)
+
+        _assert_proxy_close(ordered_art.data.body_com_pose_b, identity_body_com_pose_b[:, user_to_backend])
+        _assert_proxy_close(ordered_art.data.body_com_acc_w, identity_body_com_acc_w[:, user_to_backend])
+        _assert_proxy_close(ordered_art.data.body_link_vel_w, identity_body_link_vel_w[:, user_to_backend])
+        _assert_proxy_close(ordered_art.data.body_com_pose_w, identity_body_com_pose_w[:, user_to_backend])
+        _assert_proxy_close(ordered_art.data.root_com_pose_w, identity_root_com_pose_w)
+        _assert_proxy_close(ordered_art.data.root_link_vel_w, identity_root_link_vel_w)
 
     @_backends
     @_default_dims

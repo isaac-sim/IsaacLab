@@ -731,13 +731,14 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
+            body_com_pose_b = self._backend_body_com_pose_b if self._has_body_ordering else self.body_com_pose_b
             wp.launch(
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
                 inputs=[
                     self.root_com_vel_w,
                     self.root_link_pose_w,
-                    self.body_com_pose_b,
+                    body_com_pose_b,
                 ],
                 outputs=[
                     self._root_link_vel_w.data,
@@ -759,13 +760,13 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            # apply local transform to center of mass frame
+            body_com_pose_b = self._backend_body_com_pose_b if self._has_body_ordering else self.body_com_pose_b
             wp.launch(
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w,
-                    self.body_com_pose_b,
+                    body_com_pose_b,
                 ],
                 outputs=[
                     self._root_com_pose_w.data,
@@ -793,6 +794,14 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_vel_w_ta is None:
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
+
+    @property
+    def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
+        """Backend-order body COM pose buffer for root-only computations."""
+        if self._body_com_pose_b_backend.timestamp < self._sim_timestamp:
+            self._body_com_pose_b_backend.data.assign(self._root_view.get_coms().view(wp.transformf))
+            self._body_com_pose_b_backend.timestamp = self._sim_timestamp
+        return self._body_com_pose_b_backend.data
 
     """
     Body state properties.
@@ -964,8 +973,17 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            # read data from simulation and set the buffer data and timestamp
-            self._body_com_acc_w.data = self._root_view.get_link_accelerations().view(wp.spatial_vectorf)
+            backend_acceleration = self._root_view.get_link_accelerations().view(wp.spatial_vectorf)
+            if self._has_body_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies),
+                    inputs=[backend_acceleration, self._body_user_to_backend],
+                    outputs=[self._body_com_acc_w.data],
+                    device=self.device,
+                )
+            else:
+                self._body_com_acc_w.data = backend_acceleration
             self._body_com_acc_w.timestamp = self._sim_timestamp
 
         if self._body_com_acc_w_ta is None:
@@ -983,7 +1001,16 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_pose_b.timestamp < 0.0:
             # Body-frame CoM offsets are model properties; cache them until an explicit CoM write updates them.
-            self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf))
+            if self._has_body_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies),
+                    inputs=[self._backend_body_com_pose_b, self._body_user_to_backend],
+                    outputs=[self._body_com_pose_b.data],
+                    device=self.device,
+                )
+            else:
+                self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf))
             self._body_com_pose_b.timestamp = self._sim_timestamp
 
         if self._body_com_pose_b_ta is None:
@@ -1571,6 +1598,9 @@ class ArticulationData(BaseArticulationData):
         )
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer((self._num_instances, self._num_bodies), self.device, wp.transformf)
+        self._body_com_pose_b_backend = TimestampedBuffer(
+            (self._num_instances, self._num_bodies), self.device, wp.transformf
+        )
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
         self._root_com_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)

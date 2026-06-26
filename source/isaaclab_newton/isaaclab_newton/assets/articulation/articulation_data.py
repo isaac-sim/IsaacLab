@@ -694,7 +694,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[
                     self.root_com_vel_w.warp,
                     self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
+                    self._sim_bind_body_com_pos_b,
                 ],
                 outputs=[
                     self._root_link_vel_w.data,
@@ -722,7 +722,7 @@ class ArticulationData(BaseArticulationData):
                 dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
+                    self._sim_bind_body_com_pos_b,
                 ],
                 outputs=[
                     self._root_com_pose_w.data,
@@ -895,6 +895,7 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            body_com_acc_w = self._body_com_acc_w_backend.data if self._has_body_ordering else self._body_com_acc_w.data
             wp.launch(
                 shared_kernels.derive_body_acceleration_from_body_com_velocities,
                 dim=(self._num_instances, self._num_bodies),
@@ -905,12 +906,18 @@ class ArticulationData(BaseArticulationData):
                     self._previous_body_com_vel,
                 ],
                 outputs=[
-                    self._body_com_acc_w.data,
+                    body_com_acc_w,
                 ],
             )
-            # set the buffer data and timestamp
+            if self._has_body_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies),
+                    inputs=[self._body_com_acc_w_backend.data, self._body_user_to_backend],
+                    outputs=[self._body_com_acc_w.data],
+                    device=self.device,
+                )
             self._body_com_acc_w.timestamp = self._sim_timestamp
-            # update the previous velocity
         return self._body_com_acc_w_ta
 
     @property
@@ -1846,6 +1853,9 @@ class ArticulationData(BaseArticulationData):
             shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
         )
         self._body_com_acc_w = TimestampedBuffer(
+            shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
+        )
+        self._body_com_acc_w_backend = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
         # -- derived properties (these are cached to avoid repeated memory allocations)

@@ -801,13 +801,13 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         # ovphysx ROOT_VELOCITY is COM velocity; link velocity comes from the first
-        # element of the per-link velocity tensor.
-        self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_link_vel_w)
+        # element of the backend-order per-link velocity tensor.
+        self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_link_vel_w_backend)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             wp.launch(
                 _copy_first_body,
                 dim=self.num_instances,
-                inputs=[self._body_link_vel_w.data],
+                inputs=[self._body_link_vel_w_backend.data],
                 outputs=[self._root_link_vel_w.data],
                 device=self.device,
             )
@@ -830,7 +830,7 @@ class ArticulationData(BaseArticulationData):
             wp.launch(
                 _compose_root_com_pose,
                 dim=self.num_instances,
-                inputs=[self.root_link_pose_w, self.body_com_pose_b],
+                inputs=[self.root_link_pose_w, self._backend_body_com_pose_b],
                 outputs=[self._root_com_pose_w.data],
                 device=self.device,
             )
@@ -853,6 +853,12 @@ class ArticulationData(BaseArticulationData):
         if self._root_com_vel_w_ta is None:
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
+
+    @property
+    def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
+        """Backend-order body COM pose buffer for root-only computations."""
+        self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b_backend)
+        return self._body_com_pose_b_backend.data
 
     """
     Body state properties.
@@ -1023,7 +1029,17 @@ class ArticulationData(BaseArticulationData):
 
         All values are relative to the world.
         """
-        self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w)
+        if self._has_body_ordering:
+            self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w_backend)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[self._body_com_acc_w_backend.data, self._body_user_to_backend],
+                outputs=[self._body_com_acc_w.data],
+                device=self.device,
+            )
+        else:
+            self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w)
         if self._body_com_acc_w_ta is None:
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
         return self._body_com_acc_w_ta
@@ -1039,7 +1055,17 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_b.timestamp < 0.0:
-            self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
+            if self._has_body_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[self._backend_body_com_pose_b, self._body_user_to_backend],
+                    outputs=[self._body_com_pose_b.data],
+                    device=self.device,
+                )
+                self._body_com_pose_b.timestamp = self._body_com_pose_b_backend.timestamp
+            else:
+                self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
         if self._body_com_pose_b_ta is None:
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
@@ -1512,11 +1538,14 @@ class ArticulationData(BaseArticulationData):
         self._body_link_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_link_pose_w_backend = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_link_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
+        self._body_link_vel_w_backend = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_pose_b = TimestampedBuffer((N, L), dev, wp.transformf)
+        self._body_com_pose_b_backend = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_vel_w_backend = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
+        self._body_com_acc_w_backend = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_pos_backend = TimestampedBuffer((N, D), dev, wp.float32)
