@@ -171,6 +171,21 @@ def test_mujoco_joint_fragment_writes_mjc_namespace():
     assert prim.GetAttribute("mjc:actuatorgravcomp").Get() is True
 
 
+def test_mujoco_joint_applier_does_not_write_actuatorgravcomp_when_none():
+    # fragment-path equivalent of the legacy test_mujoco_actuatorgravcomp_not_written_when_none:
+    # an unset actuatorgravcomp must not *author* mjc:actuatorgravcomp through the joint applier.
+    # (Unlike the legacy path, the fragment applies its MjcJointAPI schema, so the attribute exists
+    # and resolves to the schema default ``False`` -- but it must not be authored to ``True``.)
+    from isaaclab_newton.sim.schemas import MujocoJointCfg, apply_mujoco_joint
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_revolute_joint(stage)
+    apply_mujoco_joint(MujocoJointCfg(), prim.GetPath().pathString, stage)
+    assert not prim.GetAttribute("mjc:actuatorgravcomp").HasAuthoredValue()
+
+
 def test_mujoco_joint_actuatorgravcomp_enables_child_body_gravcomp():
     # actuatorgravcomp is inert unless the actuated body has non-zero mjc:gravcomp, so the Mujoco
     # joint applier flips gravcomp on the joint's child body (physics:body1) when it is unset
