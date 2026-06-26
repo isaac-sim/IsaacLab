@@ -703,6 +703,34 @@ def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -
     assert user_names == ("knee", "hip", "ankle")
 
 
+def test_base_articulation_keeps_none_ordering_on_default_path() -> None:
+    """Keep the default public ordering path free of ordering maps."""
+    apply_calls = []
+    data = types.SimpleNamespace(
+        joint_ordering=None,
+        body_ordering=None,
+        joint_names=None,
+        body_names=None,
+        _apply_ordering_maps_after_resolve=lambda: apply_calls.append("called"),
+    )
+    articulation = types.SimpleNamespace(
+        __backend_name__="mock",
+        cfg=types.SimpleNamespace(joint_ordering=None, body_ordering=None),
+        data=data,
+        backend_joint_names=["hip", "knee"],
+        backend_body_names=["base", "foot"],
+        device="cpu",
+    )
+
+    BaseArticulation._resolve_and_install_ordering_maps(articulation)
+
+    assert data.joint_ordering is None
+    assert data.body_ordering is None
+    assert data.joint_names == ["hip", "knee"]
+    assert data.body_names == ["base", "foot"]
+    assert apply_calls == []
+
+
 def test_base_articulation_exposes_ordering_introspection_contract() -> None:
     """Require concrete articulations to expose backend and public ordering state."""
     for property_name in ("backend_joint_names", "backend_body_names", "joint_ordering", "body_ordering"):

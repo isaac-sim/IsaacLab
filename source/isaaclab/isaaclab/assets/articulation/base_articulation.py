@@ -205,37 +205,49 @@ class BaseArticulation(AssetBase):
 
     def _resolve_and_install_ordering_maps(self) -> None:
         """Resolve configured articulation name orderings and store maps on :attr:`data`."""
-        joint_user_names = resolve_articulation_ordering_names(
-            kind="joint",
-            backend_names=self.backend_joint_names,
-            ordering=self.cfg.joint_ordering,
-            active_backend_name=self.__backend_name__,
-            articulation=self,
-        )
-        body_user_names = resolve_articulation_ordering_names(
-            kind="body",
-            backend_names=self.backend_body_names,
-            ordering=self.cfg.body_ordering,
-            active_backend_name=self.__backend_name__,
-            articulation=self,
-        )
+        had_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
 
-        self.data.joint_ordering = build_articulation_name_map(
-            kind="joint",
-            backend_names=self.backend_joint_names,
-            user_names=joint_user_names,
-            device=self.device,
-        )
-        self.data.body_ordering = build_articulation_name_map(
-            kind="body",
-            backend_names=self.backend_body_names,
-            user_names=body_user_names,
-            device=self.device,
-        )
-        self.data.joint_names = list(self.data.joint_ordering.user_names)
-        self.data.body_names = list(self.data.body_ordering.user_names)
+        if self.cfg.joint_ordering is None:
+            self.data.joint_ordering = None
+            self.data.joint_names = list(self.backend_joint_names)
+        else:
+            joint_user_names = resolve_articulation_ordering_names(
+                kind="joint",
+                backend_names=self.backend_joint_names,
+                ordering=self.cfg.joint_ordering,
+                active_backend_name=self.__backend_name__,
+                articulation=self,
+            )
+            self.data.joint_ordering = build_articulation_name_map(
+                kind="joint",
+                backend_names=self.backend_joint_names,
+                user_names=joint_user_names,
+                device=self.device,
+            )
+            self.data.joint_names = list(self.data.joint_ordering.user_names)
+
+        if self.cfg.body_ordering is None:
+            self.data.body_ordering = None
+            self.data.body_names = list(self.backend_body_names)
+        else:
+            body_user_names = resolve_articulation_ordering_names(
+                kind="body",
+                backend_names=self.backend_body_names,
+                ordering=self.cfg.body_ordering,
+                active_backend_name=self.__backend_name__,
+                articulation=self,
+            )
+            self.data.body_ordering = build_articulation_name_map(
+                kind="body",
+                backend_names=self.backend_body_names,
+                user_names=body_user_names,
+                device=self.device,
+            )
+            self.data.body_names = list(self.data.body_ordering.user_names)
+
         apply_ordering_maps = getattr(self.data, "_apply_ordering_maps_after_resolve", None)
-        if apply_ordering_maps is not None:
+        has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
+        if apply_ordering_maps is not None and (had_ordering or has_ordering):
             apply_ordering_maps()
 
     def _cache_ordering_maps(self) -> None:

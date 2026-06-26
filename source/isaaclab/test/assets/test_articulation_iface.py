@@ -205,6 +205,9 @@ def create_physx_articulation(
         articulation, "_ALL_BODY_INDICES_WP", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
     )
 
+    articulation._resolve_and_install_ordering_maps()
+    articulation._cache_ordering_maps()
+
     # Initialize joint targets
     object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
     object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
@@ -275,6 +278,7 @@ def create_ovphysx_articulation(
 
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_ovphysx", MagicMock())
+    object.__setattr__(articulation, "_root_view", mock_bindings.view)
     object.__setattr__(articulation, "_bindings", mock_bindings.bindings)
     object.__setattr__(articulation, "_num_instances", num_instances)
     object.__setattr__(articulation, "_num_joints", num_joints)
@@ -287,8 +291,8 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_num_fixed_tendons", num_fixed_tendons)
     object.__setattr__(articulation, "_num_spatial_tendons", num_spatial_tendons)
 
-    # Create ArticulationData; counts come from the bindings, names are set after.
-    data = OvPhysxArticulationData(mock_bindings.bindings, device)
+    # Create ArticulationData; counts come from the view, names are set after.
+    data = OvPhysxArticulationData(mock_bindings.view, device)
     data.body_names = body_names
     data.joint_names = joint_names
     data.fixed_tendon_names = fixed_tendon_names
@@ -299,7 +303,9 @@ def create_ovphysx_articulation(
     # Allocate the articulation-side index/mask caches and wrench buffer that
     # _initialize_impl would normally populate.  Wrench composers created here
     # are immediately overwritten by the mocks below.
+    articulation._resolve_and_install_ordering_maps()
     articulation._create_buffers()
+    articulation._cache_ordering_maps()
 
     # Wrench composers
     mock_inst_wrench = MockWrenchComposer(articulation)
@@ -419,6 +425,9 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_ALL_ENV_MASK", wp.ones((num_instances,), dtype=wp.bool, device=device))
     object.__setattr__(articulation, "_ALL_BODY_MASK", wp.ones((num_bodies,), dtype=wp.bool, device=device))
     object.__setattr__(articulation, "_ALL_JOINT_MASK", wp.ones((num_joints,), dtype=wp.bool, device=device))
+
+    articulation._resolve_and_install_ordering_maps()
+    articulation._cache_ordering_maps()
 
     # Tendon arrays (empty)
     object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device))
