@@ -37,14 +37,10 @@ _KITLESS_PHYSICS_CFGS = ("NewtonCfg", "OvPhysxCfg")
 
 
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
-    """Add simulation-launcher CLI arguments (``--headless``, ``--device``, etc.) to *parser*.
+    """Add simulation-launcher CLI arguments (``--headless``, ``--device``, etc.) to *parser*."""
+    from isaaclab.app.app_launcher_args import add_app_launcher_args as _add_app_launcher_args
 
-    Delegates to :meth:`AppLauncher.add_app_launcher_args` so that user scripts
-    do not need to import ``AppLauncher`` directly.
-    """
-    from isaaclab.app import AppLauncher
-
-    AppLauncher.add_app_launcher_args(parser)
+    _add_app_launcher_args(parser)
 
 
 def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:

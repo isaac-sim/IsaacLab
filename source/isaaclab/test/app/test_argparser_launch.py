@@ -4,10 +4,77 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import json
+import subprocess
+import sys
+import textwrap
+from pathlib import Path
 
 import pytest
 
 from isaaclab.app import AppLauncher
+
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
+    """Test that lightweight launcher arg registration does not import Isaac Sim runtime modules."""
+    program = textwrap.dedent(
+        """
+        import argparse
+        import json
+        import sys
+        import traceback
+        from pathlib import Path
+
+        repo_root = Path(sys.argv[1])
+        for rel_path in [
+            "source/isaaclab",
+            "source/isaaclab_tasks",
+            "source/isaaclab_assets",
+            "source/isaaclab_rl",
+            "source/isaaclab_newton",
+            "source/isaaclab_ovphysx",
+            "source/isaaclab_physx",
+        ]:
+            sys.path.insert(0, str(repo_root / rel_path))
+
+        forbidden = {"pxr", "omni", "carb", "isaacsim", "usdrt"}
+        violations = {}
+        original_import = __builtins__.__import__
+
+        def import_hook(name, globals=None, locals=None, fromlist=(), level=0):
+            root_name = name.split(".")[0]
+            if root_name in forbidden and root_name not in violations:
+                violations[root_name] = "".join(traceback.format_stack(limit=18))
+            return original_import(name, globals, locals, fromlist, level)
+
+        __builtins__.__import__ = import_hook
+        try:
+            from isaaclab.app import add_launcher_args
+
+            parser = argparse.ArgumentParser(add_help=False)
+            add_launcher_args(parser)
+        finally:
+            __builtins__.__import__ = original_import
+
+        print("__VIOLATIONS__" + json.dumps(violations, sort_keys=True))
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(REPO_ROOT)],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    result_line = next(line for line in result.stdout.splitlines() if line.startswith("__VIOLATIONS__"))
+    violations = json.loads(result_line.removeprefix("__VIOLATIONS__"))
+    assert not violations, (chr(10) * 2).join(
+        f"{module_name} imported before simulation launch:{chr(10)}{stack}" for module_name, stack in violations.items()
+    )
 
 
 @pytest.mark.usefixtures("mocker")
