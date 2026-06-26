@@ -12,10 +12,10 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from .measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
+from isaaclab.test.benchmark.measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
 if TYPE_CHECKING:
-    from .schema import RuntimeBundle, StartupBundle, TrainingBundle
+    from isaaclab.test.benchmark.schema import RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,8 @@ def get_default_output_filename(prefix: str = "benchmark") -> str:
     return f"{prefix}_{datetime_str}"
 
 
-class MetricsBackendInterface(ABC):
-    """Abstract base class for metrics backends."""
+class MetricsFormaterInterface(ABC):
+    """Abstract base class for metrics Formaters."""
 
     @abstractmethod
     def add_metrics(self, test_phase: TestPhase) -> None:
@@ -51,49 +51,49 @@ class MetricsBackendInterface(ABC):
 
         Args:
             output_path: Path to write output file(s).
-            **kwargs: Additional backend-specific options.
+            **kwargs: Additional formater-specific options.
         """
         pass
 
 
-class MetricsBackend:
-    """Factory for creating metrics backend instances."""
+class MetricsFromater:
+    """Factory for creating metrics formater instances."""
 
-    _instances: dict[str, MetricsBackendInterface] = {}
+    _instances: dict[str, MetricsFormatInterface] = {}
 
     @classmethod
-    def get_instance(cls, instance_type: str) -> MetricsBackendInterface:
-        """Get or create a backend instance by type name.
+    def get_instance(cls, instance_type: str) -> MetricsFormatInterface:
+        """Get or create a formater instance by type name.
 
         Args:
-            instance_type: Type of backend to create ("json", "osmo", "omniperf", "summary", or "schema").
+            instance_type: Type of formater to create ("json", "osmo", "omniperf", "summary", or "schema").
 
         Returns:
-            Backend instance of the requested type.
+            Formater instance of the requested type.
 
         Raises:
             ValueError: If the instance_type is not recognized.
         """
         if instance_type not in cls._instances:
-            backend_map = {
+            formater_map = {
                 "json": JSONFileMetrics,
                 "osmo": OsmoKPIFile,
                 "omniperf": OmniPerfKPIFile,
                 "summary": SummaryMetrics,
                 "schema": SchemaBundleFile,
             }
-            if instance_type not in backend_map:
-                raise ValueError(f"Unknown backend type: {instance_type}. Available: {list(backend_map.keys())}")
-            cls._instances[instance_type] = backend_map[instance_type]()
+            if instance_type not in formater_map:
+                raise ValueError(f"Unknown formater type: {instance_type}. Available: {list(formater_map.keys())}")
+            cls._instances[instance_type] = formater_map[instance_type]()
         return cls._instances[instance_type]
 
     @classmethod
     def reset_instances(cls) -> None:
-        """Reset all cached backend instances. Useful for testing."""
+        """Reset all cached formater instances. Useful for testing."""
         cls._instances.clear()
 
 
-class JSONFileMetrics(MetricsBackendInterface):
+class JSONFileMetrics(MetricsFormaterInterface):
     """Write metrics to a JSON file at the end of a session."""
 
     def __init__(self) -> None:
@@ -110,7 +110,7 @@ class JSONFileMetrics(MetricsBackendInterface):
 
         .. code-block:: python
 
-            backend.add_metrics(test_phase)
+            formater.add_metrics(test_phase)
         """
         self.data.append(copy.deepcopy(test_phase))
 
@@ -120,13 +120,13 @@ class JSONFileMetrics(MetricsBackendInterface):
         Args:
             output_path: Output path in which metrics file will be stored.
             output_filename: Output filename.
-            **kwargs: Additional backend-specific options.
+            **kwargs: Additional formater-specific options.
 
         Example:
 
         .. code-block:: python
 
-            backend.finalize("/tmp/metrics", "metrics")
+            formater.finalize("/tmp/metrics", "metrics")
         """
         if not self.data:
             logger.warning("No test data to write. Skipping metrics file generation.")
@@ -161,23 +161,23 @@ class JSONFileMetrics(MetricsBackendInterface):
         self.data.clear()
 
 
-class SummaryMetrics(MetricsBackendInterface):
+class SummaryMetrics(MetricsFormaterInterface):
     """Print a human-readable summary and write JSON metrics."""
 
     def __init__(self) -> None:
-        """Initialize internal phase storage and JSON backend."""
+        """Initialize internal phase storage and JSON formater."""
         self._phases: list[TestPhase] = []
-        self._json_backend = JSONFileMetrics()
+        self._json_formater = JSONFileMetrics()
         self._report_width = 86
 
     def add_metrics(self, test_phase: TestPhase) -> None:
-        """Add metrics from a test phase; store for summary and forward to JSON backend.
+        """Add metrics from a test phase; store for summary and forward to JSON formater.
 
         Args:
             test_phase: Test phase containing measurements and metadata.
         """
         self._phases.append(copy.deepcopy(test_phase))
-        self._json_backend.add_metrics(test_phase)
+        self._json_formater.add_metrics(test_phase)
 
     def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
         """Write JSON output and print human-readable summary to console.
@@ -185,9 +185,9 @@ class SummaryMetrics(MetricsBackendInterface):
         Args:
             output_path: Path to write output file(s).
             output_filename: Base filename for the JSON file.
-            **kwargs: Additional options passed to the JSON backend.
+            **kwargs: Additional options passed to the JSON formater.
         """
-        self._json_backend.finalize(output_path, output_filename, **kwargs)
+        self._json_formater.finalize(output_path, output_filename, **kwargs)
         if self._phases:
             self._print_summary()
         self._phases.clear()
@@ -489,7 +489,7 @@ class SummaryMetrics(MetricsBackendInterface):
         return str(value)
 
 
-class OsmoKPIFile(MetricsBackendInterface):
+class OsmoKPIFile(MetricsFormaterInterface):
     """Write per-phase KPI documents for Osmo ingestion.
 
     Only SingleMeasurement metrics and metadata are written as key-value pairs.
@@ -508,7 +508,7 @@ class OsmoKPIFile(MetricsBackendInterface):
 
         .. code-block:: python
 
-            backend.add_metrics(test_phase)
+            formater.add_metrics(test_phase)
         """
         self._test_phases.append(test_phase)
 
@@ -521,13 +521,13 @@ class OsmoKPIFile(MetricsBackendInterface):
         Args:
             output_path: Output path in which metrics files will be stored.
             output_filename: Output filename.
-            **kwargs: Additional backend-specific options.
+            **kwargs: Additional formater-specific options.
 
         Example:
 
         .. code-block:: python
 
-            backend.finalize("/tmp/metrics", "kpis")
+            formater.finalize("/tmp/metrics", "kpis")
         """
         for test_phase in self._test_phases:
             # Retrieve useful metadata from test_phase
@@ -553,7 +553,7 @@ class OsmoKPIFile(MetricsBackendInterface):
             print(f"Results written to: {metrics_path}")
 
 
-class OmniPerfKPIFile(MetricsBackendInterface):
+class OmniPerfKPIFile(MetricsFormaterInterface):
     """Write KPI metrics for upload to a PostgreSQL database."""
 
     def __init__(self) -> None:
@@ -569,7 +569,7 @@ class OmniPerfKPIFile(MetricsBackendInterface):
 
         .. code-block:: python
 
-            backend.add_metrics(test_phase)
+            formater.add_metrics(test_phase)
         """
         self._test_phases.append(test_phase)
 
@@ -582,13 +582,13 @@ class OmniPerfKPIFile(MetricsBackendInterface):
         Args:
             output_path: Output path in which metrics file will be stored.
             output_filename: Output filename.
-            **kwargs: Additional backend-specific options.
+            **kwargs: Additional formater-specific options.
 
         Example:
 
         .. code-block:: python
 
-            backend.finalize("/tmp/metrics", "omniperf")
+            formater.finalize("/tmp/metrics", "omniperf")
         """
         if not self._test_phases:
             logger.warning("No test phases to write. Skipping metrics file generation.")
@@ -629,10 +629,10 @@ class OmniPerfKPIFile(MetricsBackendInterface):
         print(f"Results written to: {metrics_path}")
 
 
-class SchemaBundleFile(MetricsBackendInterface):
+class SchemaBundleFile(MetricsFormaterInterface):
     """Serialize a typed benchmark bundle to schema-v1 JSON.
 
-    Unlike the other backends, this one does not consume the flat measurement
+    Unlike the other formater, this one does not consume the flat measurement
     phases collected during a run. Instead it serializes the typed bundle
     attached via :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`.
     """
@@ -640,7 +640,7 @@ class SchemaBundleFile(MetricsBackendInterface):
     def add_metrics(self, test_phase: TestPhase) -> None:
         """Ignore the provided test phase.
 
-        This backend serializes the typed bundle attached via
+        This formater serializes the typed bundle attached via
         :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`,
         not the flat measurement phases, so accumulated phases are ignored by design.
 
@@ -663,13 +663,13 @@ class SchemaBundleFile(MetricsBackendInterface):
             output_filename: Output filename (without extension).
             bundle: Typed benchmark bundle to serialize. When ``None``, no file
                 is written.
-            **kwargs: Additional backend-specific options (ignored).
+            **kwargs: Additional formater-specific options (ignored).
         """
         if bundle is None:
             logger.warning("SchemaBundleFile selected but no bundle was attached; skipping schema file.")
             return
 
-        # Lazy import keeps backends.py free of the schema layer at module import time.
+        # Lazy import keeps formater.py free of the schema layer at module import time.
         from isaaclab.test.benchmark.serialize import write_bundle_file
 
         path = os.path.join(output_path, f"{output_filename}.json")

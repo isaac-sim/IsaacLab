@@ -3,13 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Per-backend descriptors for the unified training benchmark.
+"""Per rl library descriptors to unify the field names in the training benchmark.
 
-Pure data — no RL library imports. The thin per-backend adapters under
-``scripts/benchmarks/<backend>/`` consume these to know each framework's
-TensorBoard event-file location and which scalar tags carry the reward /
-episode-length series. Framework-specific *launch* logic stays in the adapters;
-only the declarative metadata lives here.
+Thin rl-library adapters to map library specific names to a unified naming convention.
+It maps TensorBoard event-file location and which scalar tags carry the reward / episode-length series.
 """
 
 from __future__ import annotations
@@ -20,8 +17,8 @@ from isaaclab.test.benchmark.schema import Framework
 
 
 @dataclass(frozen=True)
-class BackendDescriptor:
-    """Declarative metadata for one RL backend's benchmark integration.
+class RLLibraryDescriptor:
+    """Declarative metadata for one RL library benchmark integration.
 
     Args:
         framework: Schema framework id.
@@ -38,31 +35,29 @@ class BackendDescriptor:
     ep_length_tag: str
 
 
-_DESCRIPTORS = [
-    BackendDescriptor(
+BACKEND_DESCRIPTORS: dict[Framework, RLLibraryDescriptor] = {
+    "rsl_rl": BackendDescriptor(
         framework="rsl_rl",
         tfevents_pattern="events*",
         reward_tag="Train/mean_reward",
         ep_length_tag="Train/mean_episode_length",
     ),
-    BackendDescriptor(
+    "rl_games": BackendDescriptor(
         framework="rl_games",
         tfevents_pattern="summaries/events*",
         reward_tag="rewards/iter",
         ep_length_tag="episode_lengths/iter",
     ),
-    BackendDescriptor(
+    "skrl": BackendDescriptor(
         framework="skrl",
         tfevents_pattern="events*",
         reward_tag="Reward / Total reward (mean)",
         ep_length_tag="Episode / Total timesteps (mean)",
     ),
-    BackendDescriptor(
+    "sb3": BackendDescriptor(
         framework="sb3",
         tfevents_pattern="PPO_*/events*",
         reward_tag="rollout/ep_rew_mean",
         ep_length_tag="rollout/ep_len_mean",
     ),
-]
-
-BACKEND_DESCRIPTORS: dict[Framework, BackendDescriptor] = {d.framework: d for d in _DESCRIPTORS}
+}

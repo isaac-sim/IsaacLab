@@ -8,10 +8,6 @@
 Converts already-extracted per-iteration series and scalar measurements into
 the frozen :mod:`~isaaclab.test.benchmark.schema` dataclasses that are then
 serialised by :func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.
-
-This module intentionally imports nothing from Isaac Sim, Torch, or any RL
-library.  All heavy lifting (data capture, TensorBoard parsing) lives upstream;
-builders perform only aggregation and struct packing.
 """
 
 from __future__ import annotations

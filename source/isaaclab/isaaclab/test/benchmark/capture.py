@@ -24,9 +24,9 @@ from typing import Any
 
 from isaaclab.test.benchmark.schema import GpuDeviceInfo, Hardware, MeanStd, Resources, RunConfig, Versions
 
-# ---------------------------------------------------------------------------
+###
 # Private helpers
-# ---------------------------------------------------------------------------
+###
 
 
 def _metadata(metadata_list: Any) -> dict[str, Any]:
@@ -44,7 +44,7 @@ def _metadata(metadata_list: Any) -> dict[str, Any]:
     return {m.name: m.data for m in metadata_list}
 
 
-def _measurement_value(measurements: Any, name: str, default: float = 0.0) -> float:
+def _find_value(measurements: Any, name: str, default: float = 0.0) -> float:
     """Scan a measurement list for a :class:`~.measurements.SingleMeasurement` by name.
 
     Args:
@@ -84,9 +84,9 @@ def _get_recorder_data(bm: Any, key: str) -> Any | None:
     return rec.get_data()
 
 
-# ---------------------------------------------------------------------------
+###
 # Public API — run-identity helpers
-# ---------------------------------------------------------------------------
+###
 
 
 def now_utc_iso() -> str:
@@ -96,15 +96,6 @@ def now_utc_iso() -> str:
         ISO-8601 formatted current UTC timestamp.
     """
     return datetime.now(timezone.utc).isoformat()
-
-
-def hostname() -> str:
-    """Return the network hostname of the current machine.
-
-    Returns:
-        Hostname string from :func:`socket.gethostname`.
-    """
-    return socket.gethostname()
 
 
 def synth_run_id(
@@ -131,9 +122,9 @@ def synth_run_id(
     return f"{fw}_{physics_backend}_{task}_{stamp}_seed{seed}"
 
 
-# ---------------------------------------------------------------------------
+###
 # Public API — schema capture functions
-# ---------------------------------------------------------------------------
+###
 
 
 def capture_versions(bm: Any) -> Versions:
@@ -237,7 +228,7 @@ def capture_hardware(bm: Any) -> Hardware:
         ram_gb = float(mem_md.get("total_ram_gb", 0.0))
 
     return Hardware(
-        hostname=hostname(),
+        hostname=socket.gethostname(),
         gpu_devices=gpu_devices,
         cpu_name=cpu_name,
         cpu_count=cpu_count,
@@ -300,26 +291,26 @@ def capture_resources(bm: Any) -> Resources:
     # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
 
-    gpu_util_mean = _measurement_value(gpu_meas, "GPU Utilization")
-    gpu_util_std = _measurement_value(gpu_meas, "GPU Utilization std")
+    gpu_util_mean = _find_value(gpu_meas, "GPU Utilization")
+    gpu_util_std = _find_value(gpu_meas, "GPU Utilization std")
 
-    gpu_mem_mean = _measurement_value(gpu_meas, "GPU Memory Used")
-    gpu_mem_std = _measurement_value(gpu_meas, "GPU Memory Used std")
-    _gpu_mem_peak_raw = _measurement_value(gpu_meas, "GPU Memory Used peak", default=0.0)
+    gpu_mem_mean = _find_value(gpu_meas, "GPU Memory Used")
+    gpu_mem_std = _find_value(gpu_meas, "GPU Memory Used std")
+    _gpu_mem_peak_raw = _find_value(gpu_meas, "GPU Memory Used peak", default=0.0)
     gpu_mem_peak = max(gpu_mem_mean, _gpu_mem_peak_raw)
 
     # --- CPU ---
     cpu_meas = cpu_data.measurements if cpu_data is not None else []
 
-    cpu_util_mean = _measurement_value(cpu_meas, "CPU Utilization")
-    cpu_util_std = _measurement_value(cpu_meas, "CPU Utilization std")
+    cpu_util_mean = _find_value(cpu_meas, "CPU Utilization")
+    cpu_util_std = _find_value(cpu_meas, "CPU Utilization std")
 
     # --- Memory ---
     mem_meas = mem_data.measurements if mem_data is not None else []
 
-    ram_mean = _measurement_value(mem_meas, "System Memory RSS")
-    ram_std = _measurement_value(mem_meas, "System Memory RSS std")
-    _ram_peak_raw = _measurement_value(mem_meas, "System Memory RSS peak", default=0.0)
+    ram_mean = _find_value(mem_meas, "System Memory RSS")
+    ram_std = _find_value(mem_meas, "System Memory RSS std")
+    _ram_peak_raw = _find_value(mem_meas, "System Memory RSS peak", default=0.0)
     ram_peak = max(ram_mean, _ram_peak_raw)
 
     return Resources(

@@ -10,14 +10,14 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from . import backends
-from .backends import get_default_output_filename
-from .interfaces import MeasurementDataRecorder
-from .measurements import DictMetadata, FloatMetadata, IntMetadata, Measurement, MetadataBase, StringMetadata, TestPhase
-from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from isaaclab.test.benchmark import formaters
+from isaaclab.test.benchmark.formaters import get_default_output_filename
+from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder
+from isaaclab.test.benchmark.measurements import DictMetadata, FloatMetadata, IntMetadata, Measurement, MetadataBase, StringMetadata, TestPhase
+from isaaclab.test.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
 
 if TYPE_CHECKING:
-    from .schema import RuntimeBundle, StartupBundle, TrainingBundle
+    from isaaclab.test.benchmark.schema import RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class BaseIsaacLabBenchmark:
     def __init__(
         self,
         benchmark_name: str,
-        backend_type: str | list[str],
+        formater_type: str | list[str],
         output_path: str,
         use_recorders: bool = True,
         output_prefix: str | None = None,
@@ -60,9 +60,9 @@ class BaseIsaacLabBenchmark:
 
         Args:
             benchmark_name: Name of benchmark to use in outputs.
-            backend_type: Backend(s) used to collect and print metrics. Accepts a single
+            formater_type: Formater(s) used to collect and print metrics. Accepts a single
                 type name, a list of type names, or a comma-separated string (e.g.
-                ``"schema,omniperf"``); each selected backend writes its own output file.
+                ``"schema,omniperf"``); each selected formater writes its own output file.
             output_path: Path to output directory.
             use_recorders: Whether to use recorders to collect metrics. Defaults to True.
             output_filename: Filename to use for the output file, defaults to None.
@@ -83,18 +83,14 @@ class BaseIsaacLabBenchmark:
             logger.warning("No output prefix provided, using default prefix: benchmark")
         self.output_prefix = get_default_output_filename(output_prefix)
 
-        # Get metrics backends (one or more).
-        if isinstance(backend_type, str):
-            backend_type = [t.strip() for t in backend_type.split(",") if t.strip()] or ["omniperf"]
-        # De-duplicate while preserving order so the same backend cannot be registered twice
+        # Get metrics formater (one or more).
+        if isinstance(formater_type, str):
+            formater_type = [t.strip() for t in formater_type.split(",") if t.strip()] or ["omniperf"]
+        # De-duplicate while preserving order so the same formater cannot be registered twice
         # (which would run a second finalize pass writing the same output file).
-        deduped: list[str] = []
-        for t in backend_type:
-            if t not in deduped:
-                deduped.append(t)
-        backend_type = deduped
-        logger.info("Using metrics backends = %s", backend_type)
-        self._metrics = [(t, backends.MetricsBackend.get_instance(instance_type=t)) for t in backend_type]
+        formater_type = list(set(formater_type))
+        logger.info("Using metrics formaters = %s", formater_type)
+        self._metrics = [(t, formaters.MetricsBackend.get_instance(instance_type=t)) for t in formater_type]
         self._bundle = None
         self._phases: dict[str, TestPhase] = {}
 
@@ -231,11 +227,11 @@ class BaseIsaacLabBenchmark:
         return metadata
 
     def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None") -> None:
-        """Attach a typed benchmark bundle for the ``"schema"`` backend to serialize on finalize.
+        """Attach a typed benchmark bundle for the ``"schema"`` formater to serialize on finalize.
 
         Args:
             bundle: A :class:`~isaaclab.test.benchmark.RuntimeBundle`, ``TrainingBundle`` or
-                ``StartupBundle``. Ignored by every backend except ``schema``.
+                ``StartupBundle``. Ignored by every formater except ``schema``.
         """
         self._bundle = bundle
 
@@ -264,7 +260,7 @@ class BaseIsaacLabBenchmark:
         """
         if phase_name not in self._phases:
             self._phases[phase_name] = TestPhase(phase_name=phase_name)
-            # Add required phase metadata for backends
+            # Add required phase metadata for formaters
             phase_metadata = StringMetadata(name="phase", data=phase_name)
             workflow_metadata = StringMetadata(name="workflow_name", data=self.benchmark_name)
             self._phases[phase_name].metadata.extend([phase_metadata, workflow_metadata])
@@ -323,14 +319,14 @@ class BaseIsaacLabBenchmark:
             logger.warning("No phases collected.No metrics will be written.")
             return
 
-        # Add the phases to each metrics backend and write its output file. When more than one
-        # backend is selected, suffix the filename with the backend key so they don't collide on
+        # Add the phases to each metrics formater and write its output file. When more than one
+        # formater is selected, suffix the filename with the formater key so they don't collide on
         # the shared ".json" extension.
         multi = len(self._metrics) > 1
-        for backend_key, metrics in self._metrics:
+        for formater_key, metrics in self._metrics:
             for phase in self._phases.values():
                 metrics.add_metrics(phase)
-            filename = f"{self.output_prefix}_{backend_key}" if multi else self.output_prefix
+            filename = f"{self.output_prefix}_{formater_key}" if multi else self.output_prefix
             metrics.finalize(self.output_path, filename, bundle=self._bundle)
         self._manual_recorders = None
         self._frametime_recorders = None
