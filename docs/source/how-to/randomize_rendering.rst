@@ -7,7 +7,7 @@ gap. This guide covers what visual DR is available out of the box and how it dif
 Isaac Lab's three rendering backends.
 
 See :ref:`overview_renderers` for backend selection and
-:doc:`/source/tutorials/03_envs/create_manager_rl_env` for event terms in general. This is the
+:doc:`/source/tutorials/03_envs/create_manager_base_env` for event terms in general. This is the
 *visual* counterpart to the *physics* DR in
 :doc:`/source/tutorials/03_envs/create_direct_rl_env`.
 
