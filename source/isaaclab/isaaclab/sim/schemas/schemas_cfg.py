@@ -195,7 +195,10 @@ class MeshCollisionFragment(SchemaFragment):
     :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
     """
 
-    pass
+    # Mesh-collision fragments author the shared ``physics:approximation`` token in addition to their
+    # own namespaced cooking attrs, so they dispatch through :func:`~isaaclab.sim.schemas.apply_mesh_collision`
+    # (not the generic :func:`~isaaclab.sim.schemas.apply_namespaced`). See that func for the token coupling.
+    func: Callable | str = "isaaclab.sim.schemas:apply_mesh_collision"
 
 
 @configclass

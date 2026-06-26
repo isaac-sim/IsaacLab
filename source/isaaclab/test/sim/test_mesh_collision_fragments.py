@@ -52,7 +52,7 @@ def test_mesh_collision_fragment_metadata_defaults():
     assert isinstance(cfg, MeshCollisionFragment) and isinstance(cfg, SchemaFragment)
     assert type(cfg)._usd_namespace == "physics"
     assert type(cfg)._usd_applied_schema is None  # anchor applies MeshCollisionAPI, not the fragment
-    assert cfg.func == "isaaclab.sim.schemas:apply_namespaced"
+    assert cfg.func == "isaaclab.sim.schemas:apply_mesh_collision"
     assert cfg.mesh_approximation_name == "convexHull"
 
 
@@ -275,8 +275,8 @@ def test_apply_mesh_collision_properties_aggregates_fragment_results():
 
 
 def test_apply_mesh_collision_properties_accepts_generator():
-    # the writer iterates fragments twice (token resolution + dispatch); a one-shot generator must
-    # be materialized, not silently exhausted by the first pass
+    # the writer dispatches fragments from any iterable; a one-shot generator is consumed once and
+    # each fragment authors both its namespace and its implied approximation token
     from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
 
     from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision_properties
@@ -291,6 +291,41 @@ def test_apply_mesh_collision_properties_accepts_generator():
     # both passes ran: approximation token resolved AND the per-fragment namespaced attr written
     assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
     assert prim.GetAttribute("physxConvexHullCollision:hullVertexLimit").Get() == 48
+
+
+# -------------------------------------------------------------------------------------
+# apply_mesh_collision: the per-fragment func carrying the approximation-token coupling
+# -------------------------------------------------------------------------------------
+
+
+def test_apply_mesh_collision_writes_namespace_and_implied_token():
+    # the per-fragment func (the default ``func`` of every MeshCollisionFragment) writes the
+    # fragment's namespaced cooking attrs AND the ``physics:approximation`` token it implies
+    from isaaclab_physx.sim.schemas import PhysxConvexHullCfg
+
+    from isaaclab.sim.schemas import apply_mesh_collision
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/Mfunc")
+    UsdPhysics.MeshCollisionAPI.Apply(prim)
+    apply_mesh_collision(PhysxConvexHullCfg(hull_vertex_limit=16), "/World/Mfunc", stage)
+    assert prim.GetAttribute("physxConvexHullCollision:hullVertexLimit").Get() == 16
+    assert prim.GetAttribute("physics:approximation").Get() == "convexHull"
+
+
+def test_apply_mesh_collision_rejects_invalid_token():
+    import pytest
+
+    from isaaclab.sim.schemas import UsdPhysicsMeshCollisionCfg, apply_mesh_collision
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/Mfunc2")
+    with pytest.raises(ValueError):
+        apply_mesh_collision(UsdPhysicsMeshCollisionCfg(mesh_approximation_name="notAToken"), "/World/Mfunc2", stage)
 
 
 # -------------------------------------------------------------------------------------
@@ -312,6 +347,7 @@ def test_public_imports():
         MeshCollisionFragment,
         SchemaFragment,
         UsdPhysicsMeshCollisionCfg,
+        apply_mesh_collision,
         apply_mesh_collision_properties,
         apply_namespaced,
     )
