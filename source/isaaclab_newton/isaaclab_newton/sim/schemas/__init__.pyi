@@ -5,6 +5,8 @@
 
 __all__ = [
     "MujocoJointCfg",
+    "apply_mujoco_fixed_tendon",
+    "MujocoFixedTendonCfg",
     "MujocoJointDrivePropertiesCfg",
     "MujocoRigidBodyCfg",
     "MujocoRigidBodyPropertiesCfg",
@@ -21,9 +23,11 @@ __all__ = [
 ]
 
 from .schemas import (
+    apply_mujoco_fixed_tendon,
     apply_mujoco_joint,
 )
 from .schemas_cfg import (
+    MujocoFixedTendonCfg,
     MujocoJointCfg,
     MujocoJointDrivePropertiesCfg,
     MujocoRigidBodyCfg,

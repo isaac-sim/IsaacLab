@@ -3,4 +3,4 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from .mock_ovphysx_bindings import MockTensorBinding, MockOvPhysxBindingSet
+from .mock_ovphysx_bindings import MockOvPhysxBindingSet, MockOvPhysxView, MockTensorBinding

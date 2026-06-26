@@ -5,6 +5,8 @@
 
 __all__ = [
     "apply_physx_joint",
+    "apply_fixed_tendon",
+    "apply_spatial_tendon",
     "define_deformable_body_properties",
     "modify_deformable_body_properties",
     "ArticulationRootPropertiesCfg",
@@ -23,12 +25,14 @@ __all__ = [
     "PhysxConvexHullPropertiesCfg",
     "PhysxDeformableBodyPropertiesCfg",
     "PhysxDeformableCollisionPropertiesCfg",
+    "PhysxFixedTendonCfg",
     "PhysxFixedTendonPropertiesCfg",
     "PhysxJointCfg",
     "PhysxJointDrivePropertiesCfg",
     "PhysxRigidBodyCfg",
     "PhysxRigidBodyPropertiesCfg",
     "PhysxSDFMeshPropertiesCfg",
+    "PhysxSpatialTendonCfg",
     "PhysxSpatialTendonPropertiesCfg",
     "PhysxTriangleMeshPropertiesCfg",
     "PhysxTriangleMeshSimplificationPropertiesCfg",
@@ -41,6 +45,8 @@ __all__ = [
 
 from .schemas import (
     apply_physx_joint,
+    apply_fixed_tendon,
+    apply_spatial_tendon,
     define_deformable_body_properties,
     modify_deformable_body_properties,
 )
@@ -61,12 +67,14 @@ from .schemas_cfg import (
     PhysxConvexHullPropertiesCfg,
     PhysxDeformableBodyPropertiesCfg,
     PhysxDeformableCollisionPropertiesCfg,
+    PhysxFixedTendonCfg,
     PhysxFixedTendonPropertiesCfg,
     PhysxJointCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyCfg,
     PhysxRigidBodyPropertiesCfg,
     PhysxSDFMeshPropertiesCfg,
+    PhysxSpatialTendonCfg,
     PhysxSpatialTendonPropertiesCfg,
     PhysxTriangleMeshPropertiesCfg,
     PhysxTriangleMeshSimplificationPropertiesCfg,

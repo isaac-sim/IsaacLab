@@ -1097,6 +1097,133 @@ class TestArticulationDataBodyState:
             name="body_com_pose_b",
         )
 
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_body_com_pose_b_is_cached_across_sim_timestamps(self):
+        art, view = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+
+        num_get_coms_calls = 0
+        get_coms = view.get_coms
+
+        def counted_get_coms():
+            nonlocal num_get_coms_calls
+            num_get_coms_calls += 1
+            return get_coms()
+
+        view.get_coms = counted_get_coms
+
+        art.data.update(dt=0.01)
+        art.data.body_com_pose_b
+        assert num_get_coms_calls == 1
+
+        art.data.update(dt=0.01)
+        art.data.body_com_pose_b
+        assert num_get_coms_calls == 1
+
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_set_coms_index_updates_body_com_pose_b_cache(self):
+        art, view = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+
+        num_get_coms_calls = 0
+        get_coms = view.get_coms
+
+        def counted_get_coms():
+            nonlocal num_get_coms_calls
+            num_get_coms_calls += 1
+            return get_coms()
+
+        view.get_coms = counted_get_coms
+
+        coms = wp.zeros((art.num_instances, art.num_bodies), dtype=wp.transformf, device="cpu")
+        art.set_coms_index(coms=coms, full_data=True)
+        art.data.body_com_pose_b
+
+        assert num_get_coms_calls == 0
+
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_joint_position_write_preserves_body_com_pose_b_cache(self):
+        art, view = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+
+        num_get_coms_calls = 0
+        get_coms = view.get_coms
+
+        def counted_get_coms():
+            nonlocal num_get_coms_calls
+            num_get_coms_calls += 1
+            return get_coms()
+
+        view.get_coms = counted_get_coms
+
+        art.data.update(dt=0.01)
+        art.data.body_com_pose_b
+        assert num_get_coms_calls == 1
+
+        joint_pos = torch.zeros((art.num_instances, art.num_joints), device="cpu")
+        art.write_joint_position_to_sim_index(position=joint_pos, full_data=True)
+        art.data.body_com_pose_b
+
+        assert num_get_coms_calls == 1
+
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_partial_set_coms_index_initializes_cold_body_com_pose_b_cache(self):
+        art, view = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+        initial_coms = view.get_coms().numpy().copy()
+
+        num_get_coms_calls = 0
+        get_coms = view.get_coms
+
+        def counted_get_coms():
+            nonlocal num_get_coms_calls
+            num_get_coms_calls += 1
+            return get_coms()
+
+        view.get_coms = counted_get_coms
+
+        coms = wp.zeros((1, 1), dtype=wp.transformf, device="cpu")
+        art.set_coms_index(
+            coms=coms,
+            env_ids=wp.array([0], dtype=wp.int32, device="cpu"),
+            body_ids=wp.array([0], dtype=wp.int32, device="cpu"),
+        )
+        body_com_pose_b = art.data.body_com_pose_b.torch
+
+        assert num_get_coms_calls == 1
+        torch.testing.assert_close(body_com_pose_b[1, 1], torch.from_numpy(initial_coms[1, 1]))
+
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_set_coms_index_invalidates_body_com_pose_b_dependents(self):
+        art, _ = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+
+        art.data.update(dt=0.01)
+        dependent_buffers = [
+            ("root_com_pose_w", art.data._root_com_pose_w),
+            ("root_com_vel_w", art.data._root_com_vel_w),
+            ("root_link_vel_w", art.data._root_link_vel_w),
+            ("body_com_pose_w", art.data._body_com_pose_w),
+            ("body_com_vel_w", art.data._body_com_vel_w),
+            ("body_link_vel_w", art.data._body_link_vel_w),
+            ("root_link_lin_vel_b", art.data._root_link_lin_vel_b),
+            ("root_link_ang_vel_b", art.data._root_link_ang_vel_b),
+            ("root_com_lin_vel_b", art.data._root_com_lin_vel_b),
+            ("root_com_ang_vel_b", art.data._root_com_ang_vel_b),
+            ("root_state_w", art.data._root_state_w),
+            ("root_link_state_w", art.data._root_link_state_w),
+            ("root_com_state_w", art.data._root_com_state_w),
+            ("body_state_w", art.data._body_state_w),
+            ("body_link_state_w", art.data._body_link_state_w),
+            ("body_com_state_w", art.data._body_com_state_w),
+            ("body_com_jacobian_w", art.data._body_com_jacobian_w),
+            ("mass_matrix", art.data._mass_matrix),
+            ("gravity_compensation_forces", art.data._gravity_compensation_forces),
+        ]
+        for _, buffer in dependent_buffers:
+            buffer.timestamp = art.data._sim_timestamp
+
+        coms = wp.zeros((art.num_instances, art.num_bodies), dtype=wp.transformf, device="cpu")
+        art.set_coms_index(coms=coms, full_data=True)
+
+        for name, buffer in dependent_buffers:
+            assert buffer.timestamp < art.data._sim_timestamp, name
+
     @_backends
     @_default_dims
     @_default_devices

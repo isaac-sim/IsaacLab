@@ -61,6 +61,14 @@ inputs:
     description: 'Comma-separated list of specific test files to include'
     default: ''
     required: false
+  test-node-ids-file:
+    description: 'TOML file containing exact pytest node IDs to run'
+    default: ''
+    required: false
+  test-node-ids-key:
+    description: 'Top-level key in test-node-ids-file containing the node IDs for this job'
+    default: ''
+    required: false
   pytest-options:
     description: 'Additional pytest options'
     default: ''
@@ -148,6 +156,8 @@ runs:
         curobo-only: ${{ inputs.curobo-only }}
         quarantined-only: ${{ inputs.quarantined-only }}
         include-files: ${{ inputs.include-files }}
+        test-node-ids-file: ${{ inputs.test-node-ids-file }}
+        test-node-ids-key: ${{ inputs.test-node-ids-key }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
 
