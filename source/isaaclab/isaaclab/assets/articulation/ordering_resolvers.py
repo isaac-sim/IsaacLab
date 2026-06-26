@@ -256,6 +256,54 @@ def _filter_complete_backend_name_order(
     return tuple(filtered_names)
 
 
+def _canonical_joint_dof_name(name: str) -> str:
+    """Return a backend-agnostic spelling for per-DoF joint names."""
+    return name.replace(":", "_")
+
+
+def _match_backend_joint_name_spellings(
+    names: Sequence[str],
+    backend_names: Sequence[str],
+) -> tuple[str, ...]:
+    """Return convention names rewritten with active-backend joint-name spellings."""
+    names = tuple(names)
+    backend_names = tuple(backend_names)
+    if set(names) == set(backend_names):
+        return names
+
+    backend_name_by_canonical: dict[str, str] = {}
+    for backend_name in backend_names:
+        canonical_name = _canonical_joint_dof_name(backend_name)
+        if canonical_name in backend_name_by_canonical:
+            return names
+        backend_name_by_canonical[canonical_name] = backend_name
+
+    matched_names: list[str] = []
+    seen_backend_names: set[str] = set()
+    for name in names:
+        backend_name = backend_name_by_canonical.get(_canonical_joint_dof_name(name))
+        if backend_name is None or backend_name in seen_backend_names:
+            return names
+        matched_names.append(backend_name)
+        seen_backend_names.add(backend_name)
+
+    if seen_backend_names != set(backend_names):
+        return names
+    return tuple(matched_names)
+
+
+def _match_backend_name_spellings(
+    *,
+    kind: Literal["joint", "body"],
+    names: Sequence[str],
+    backend_names: Sequence[str],
+) -> tuple[str, ...]:
+    """Return convention names rewritten with active-backend spellings when needed."""
+    if kind == "joint":
+        return _match_backend_joint_name_spellings(names, backend_names)
+    return tuple(names)
+
+
 def _get_source_asset_prim(articulation: object) -> object | None:
     """Return the source asset prim for an articulation config when available."""
     cfg = _get_attr_or_none(articulation, "cfg")
@@ -590,13 +638,15 @@ def resolve_articulation_ordering_names(
     if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
         return backend_names
     if articulation is not None:
-        return resolve_articulation_convention_name_ordering(
+        convention_names = resolve_articulation_convention_name_ordering(
             articulation=articulation,
             convention=convention,
             kind=kind,
         )
+        return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
     if convention_name_resolver is not None:
-        return tuple(convention_name_resolver(convention, kind))
+        convention_names = tuple(convention_name_resolver(convention, kind))
+        return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
 
     raise NotImplementedError(
         f"Resolving {convention.value} {kind} ordering from backend '{active_backend_name}' requires an "

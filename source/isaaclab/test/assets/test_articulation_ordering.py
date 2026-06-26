@@ -703,6 +703,40 @@ def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -
     assert user_names == ("knee", "hip", "ankle")
 
 
+def test_symbolic_cross_backend_resolver_normalizes_newton_multi_dof_joint_names() -> None:
+    """Resolve Newton multi-DoF names to active-backend spellings."""
+
+    class _RootView:
+        joint_dof_names = ["ball:rot_x", "ball:rot_y", "ball:rot_z", "hinge"]
+        link_names = []
+
+    class _Articulation:
+        __backend_name__ = "physx"
+        root_view = _RootView()
+
+        @property
+        def backend_joint_names(self) -> list[str]:
+            return ["hinge", "ball_rot_z", "ball_rot_x", "ball_rot_y"]
+
+    articulation = _Articulation()
+    user_names = resolve_articulation_ordering_names(
+        kind="joint",
+        backend_names=articulation.backend_joint_names,
+        ordering=ArticulationOrderingConvention.MJWARP,
+        active_backend_name=articulation.__backend_name__,
+        articulation=articulation,
+    )
+
+    assert user_names == ("ball_rot_x", "ball_rot_y", "ball_rot_z", "hinge")
+    name_map = build_articulation_name_map(
+        kind="joint",
+        backend_names=articulation.backend_joint_names,
+        user_names=user_names,
+        device="cpu",
+    )
+    assert name_map.user_to_backend_indices == (2, 3, 1, 0)
+
+
 def test_base_articulation_keeps_none_ordering_on_default_path() -> None:
     """Keep the default public ordering path free of ordering maps."""
     apply_calls = []
