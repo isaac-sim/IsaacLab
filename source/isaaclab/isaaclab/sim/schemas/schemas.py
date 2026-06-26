@@ -557,6 +557,36 @@ Collision properties.
 """
 
 
+def apply_collision_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of collision fragments to a prim.
+
+    Applies ``UsdPhysics.CollisionAPI`` as the implicit anchor (the defining schema for a
+    collider), then dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the collision schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.CollisionFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not UsdPhysics.CollisionAPI(prim):
+        UsdPhysics.CollisionAPI.Apply(prim)
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
+
+
 def define_collision_properties(
     prim_path: str, cfg: schemas_cfg.CollisionPropertiesCfg, stage: Usd.Stage | None = None
 ):
@@ -649,6 +679,39 @@ def modify_collision_properties(
 """
 Mass properties.
 """
+
+
+def apply_mass_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.MassFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of mass fragments to a prim.
+
+    Applies ``UsdPhysics.MassAPI`` as the implicit anchor (the defining schema for mass properties),
+    then dispatches each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+
+    Args:
+        prim_path: The prim path to apply the mass schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.MassFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_mass_properties writer)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not UsdPhysics.MassAPI(prim):
+        UsdPhysics.MassAPI.Apply(prim)
+    # aggregate per-fragment results so a reported failure is not masked by the always-applied anchor
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
@@ -927,6 +990,48 @@ Fixed tendon properties.
 """
 
 
+def apply_fixed_tendon_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of fixed-tendon fragments to a prim.
+
+    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
+    multi-instance schemas already exist on the prim (authored in the source asset). This writer
+    therefore applies no anchor schema; it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Each fragment tunes only its own schema and returns ``False`` when that schema is not
+    present on the prim. A prim carries a single tendon backend, so compose backends across
+    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+
+    Args:
+        prim_path: The prim path to apply the fixed-tendon schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # tune-not-apply: the PhysxTendonAxisRootAPI instances already exist; apply no anchor.
+    # aggregate per-fragment results so a reported failure is not silently masked.
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
+
+
 @apply_nested
 def modify_fixed_tendon_properties(
     prim_path: str, cfg: schemas_cfg.PhysxFixedTendonPropertiesCfg, stage: Usd.Stage | None = None
@@ -958,6 +1063,9 @@ def modify_fixed_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
+    # Retained for backward compatibility with callers passing PhysxFixedTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_fixed_tendon_properties path.
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -985,6 +1093,7 @@ def modify_fixed_tendon_properties(
                     camel_case=False,
                 )
     else:
+        # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
         # only stiffness and damping in the cfg map to mjc attributes
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
@@ -997,6 +1106,50 @@ def modify_fixed_tendon_properties(
 """
 Spatial tendon properties.
 """
+
+
+def apply_spatial_tendon_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of spatial-tendon fragments to a prim.
+
+    Spatial tendons are a *tune-not-apply* family: the applied
+    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
+    already exist on the prim (authored in the source asset). This writer therefore applies no
+    anchor schema; it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Each fragment tunes only its own schema and returns ``False`` when that schema is not
+    present on the prim. A prim carries a single tendon backend, so compose backends across
+    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+
+    Args:
+        prim_path: The prim path to apply the spatial-tendon schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # tune-not-apply: the PhysxTendonAttachmentRootAPI / PhysxTendonAttachmentLeafAPI instances
+    # already exist; apply no anchor.
+    # aggregate per-fragment results so a reported failure is not silently masked.
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 @apply_nested
@@ -1032,6 +1185,9 @@ def modify_spatial_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
+    # Retained for backward compatibility with callers passing PhysxSpatialTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_spatial_tendon_properties path.
     # obtain stage
     if stage is None:
         stage = get_current_stage()

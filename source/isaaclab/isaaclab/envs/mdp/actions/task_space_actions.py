@@ -90,6 +90,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._ik_controller = DifferentialIKController(
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
+        # joint limits are injected lazily on the first apply (asset data is populated by then) so
+        # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
+        self._limits_injected = False
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -201,6 +204,12 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        # lazily provide joint limits to the controller for null-space joint-limit avoidance
+        # (limits are uniform across envs for these articulations; env 0 is representative)
+        if not self._limits_injected and getattr(self.cfg.controller, "joint_limit_avoidance_gain", 0.0) > 0.0:
+            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
+            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
+            self._limits_injected = True
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()

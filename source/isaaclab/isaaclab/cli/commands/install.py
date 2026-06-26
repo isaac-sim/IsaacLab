@@ -79,22 +79,6 @@ def _install_system_deps() -> None:
             ]
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
-        # nlopt has no aarch64 manylinux wheel for the version pinned by
-        # isaacteleop[retargeters], so pip falls back to a CMake source build
-        # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
-        if not shutil.which("swig"):
-            if os.geteuid() != 0 and not shutil.which("sudo"):
-                print_info(
-                    "swig is missing and sudo is unavailable; skipping swig install. "
-                    "Pre-install swig in your image if you need to build nlopt from source."
-                )
-            else:
-                print_info("Installing swig (required for building nlopt on ARM)...")
-                cmd = ["apt-get", "update"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-                cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-
         # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a
         # CMake source build that needs GL/X11 dev headers (via glfw).
         # Mirrors the apt step in docker/Dockerfile.base.
@@ -154,25 +138,6 @@ sys.exit(0)
     return result.returncode == 1
 
 
-def _maybe_preinstall_arm_nlopt(pip_cmd: list[str]) -> None:
-    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
-
-    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
-    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
-    that hides the host-Python ``numpy`` from its isolated build env. Mirror
-    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
-    in the host Python first, then ``--no-build-isolation`` install nlopt so
-    later submodule installs see it as already satisfied.
-    """
-    if is_windows() or not is_arm():
-        return
-    print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
-    print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
-    run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
-    print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
-    run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
-
-
 def _maybe_uninstall_prebundled_torch(
     python_exe: str,
     pip_cmd: list[str],
@@ -193,6 +158,92 @@ def _maybe_uninstall_prebundled_torch(
         pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
         check=False,
     )
+
+
+def _ensure_swig_installed() -> bool:
+    """Install ``swig`` via apt when missing so the nlopt source build can run.
+
+    Returns:
+        ``True`` when this call installed ``swig`` (so the caller is responsible
+        for purging it afterwards), ``False`` when ``swig`` was already present or
+        could not be installed.
+    """
+    if shutil.which("swig"):
+        return False
+    if os.geteuid() != 0 and not shutil.which("sudo"):
+        print_warning(
+            "swig is required to build nlopt==2.6.2 from source on ARM but is missing and sudo is "
+            "unavailable. Pre-install swig (or nlopt==2.6.2) manually; the build below will fail otherwise."
+        )
+        return False
+    print_info("Temporarily installing swig to build nlopt==2.6.2 from source on ARM...")
+    update = ["apt-get", "update"]
+    run_command(["sudo"] + update if os.geteuid() != 0 else update)
+    install = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
+    run_command(["sudo"] + install if os.geteuid() != 0 else install)
+    return shutil.which("swig") is not None
+
+
+def _purge_swig() -> None:
+    """Remove the ``swig`` package that was installed for the nlopt build.
+
+    ``swig`` is GPL-licensed and must not be shipped (e.g. in the Docker image),
+    so it is purged immediately after nlopt is built. ``nlopt`` is already a
+    compiled wheel at this point and does not need ``swig`` at runtime.
+    Best-effort: failures are logged but do not abort the install.
+    """
+    print_info("Removing swig now that nlopt is built (it must not remain installed)...")
+    purge = ["apt-get", "purge", "-y", "--auto-remove", "swig"]
+    run_command(["sudo"] + purge if os.geteuid() != 0 else purge, check=False)
+
+
+def _maybe_preinstall_arm_nlopt(python_exe: str, pip_cmd: list[str]) -> None:
+    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
+
+    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
+    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
+    that hides the host-Python ``numpy`` from its isolated build env. Mirror
+    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
+    in the host Python first, then ``--no-build-isolation`` install nlopt so
+    later submodule installs see it as already satisfied.
+
+    The source build requires ``swig``. When it is missing it is installed via
+    apt only for the duration of the build and purged afterwards, so the
+    GPL-licensed ``swig`` package is never left behind — in particular it is
+    never shipped in the Docker image. In the Docker build nlopt is pre-installed,
+    so this function returns early and never touches ``swig`` (the Dockerfile
+    manages its own temporary swig install and purge).
+    """
+    if is_windows() or not is_arm():
+        return
+
+    probe_result = run_command(
+        [
+            python_exe,
+            "-c",
+            "import importlib.metadata as metadata; import nlopt; "
+            "raise SystemExit(0 if metadata.version('nlopt') == '2.6.2' else 1)",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if probe_result.returncode == 0:
+        print_info("nlopt==2.6.2 is already installed on ARM.")
+        return
+
+    # The from-source build needs swig; install it only if missing and purge it
+    # afterwards so swig is never left behind (it is GPL and must not ship).
+    swig_installed_by_us = _ensure_swig_installed()
+    try:
+        print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
+        print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
+        run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
+        print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
+        run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
+    finally:
+        if swig_installed_by_us:
+            _purge_swig()
 
 
 # Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
@@ -953,7 +1004,7 @@ def command_install(install_type: str = "all") -> None:
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
 
         # On ARM Linux pre-install nlopt to dodge its from-source build fallback.
-        _maybe_preinstall_arm_nlopt(pip_cmd)
+        _maybe_preinstall_arm_nlopt(python_exe, pip_cmd)
 
         # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
         _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)

@@ -51,6 +51,7 @@ def test_launch_simulation_passes_visualizer_intent_to_applauncher(monkeypatch):
             captured["closed"] = False
             self.app = types.SimpleNamespace(close=lambda: captured.update({"closed": True}))
 
+    monkeypatch.setitem(sys.modules, "isaaclab.utils", types.SimpleNamespace(has_kit=lambda: False))
     monkeypatch.setitem(sys.modules, "isaaclab.app", types.SimpleNamespace(AppLauncher=_FakeAppLauncher))
     monkeypatch.setattr("importlib.util.find_spec", lambda name: object() if name == "omni.kit" else None)
 

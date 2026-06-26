@@ -1753,8 +1753,9 @@ def test_body_root_state(sim, num_articulations, device, with_offset):
     link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
     new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
     com[:, arm_idx, :3] = new_com.squeeze(-2)
-    articulation.root_view.set_coms(
-        wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32)
+    articulation.set_coms_index(
+        coms=wp.from_torch(com.to(device).contiguous(), dtype=wp.transformf),
+        env_ids=wp.from_torch(env_idx, dtype=wp.int32),
     )
 
     # check they are set
@@ -1869,8 +1870,9 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
     com = wp.to_torch(articulation.root_view.get_coms())
     new_com = offset
     com[:, 0, :3] = new_com.squeeze(-2)
-    articulation.root_view.set_coms(
-        wp.from_torch(com.cpu(), dtype=wp.float32), wp.from_torch(env_idx.cpu(), dtype=wp.int32)
+    articulation.set_coms_index(
+        coms=wp.from_torch(com.to(device).contiguous(), dtype=wp.transformf),
+        env_ids=wp.from_torch(env_idx, dtype=wp.int32),
     )
 
     # check they are set

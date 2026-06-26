@@ -37,11 +37,23 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     articulation_props: schemas.ArticulationRootPropertiesCfg | None = None
     """Properties to apply to the articulation root."""
 
-    fixed_tendons_props: schemas.FixedTendonPropertiesCfg | None = None
-    """Properties to apply to the fixed tendons (if any)."""
+    fixed_tendons_props: (
+        schemas.FixedTendonPropertiesCfg | schemas.FixedTendonFragment | list[schemas.FixedTendonFragment] | None
+    ) = None
+    """Properties to apply to the fixed tendons (if any).
 
-    spatial_tendons_props: schemas.SpatialTendonPropertiesCfg | None = None
-    """Properties to apply to the spatial tendons (if any)."""
+    Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`
+    or one or more :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
+    """
+
+    spatial_tendons_props: (
+        schemas.SpatialTendonPropertiesCfg | schemas.SpatialTendonFragment | list[schemas.SpatialTendonFragment] | None
+    ) = None
+    """Properties to apply to the spatial tendons (if any).
+
+    Accepts either the legacy :class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`
+    or one or more :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+    """
 
     joint_drive_props: schemas.JointDriveBaseCfg | None = None
     """Properties to apply to a joint.
