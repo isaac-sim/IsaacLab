@@ -17,8 +17,12 @@ __all__ = [
     "NewtonMeshCollisionPropertiesCfg",
     "NewtonRigidBodyPropertiesCfg",
     "NewtonSDFCollisionPropertiesCfg",
+    "apply_mujoco_joint",
 ]
 
+from .schemas import (
+    apply_mujoco_joint,
+)
 from .schemas_cfg import (
     MujocoJointCfg,
     MujocoJointDrivePropertiesCfg,

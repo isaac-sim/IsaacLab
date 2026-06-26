@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import ClassVar, Literal
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -119,12 +120,18 @@ class MujocoJointCfg(JointDriveFragment):
     A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) carrying
     joint-level gravity compensation. Applied alongside
     :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` via
-    :func:`~isaaclab.sim.schemas.apply_joint_drive_properties` and written with the generic
-    :func:`~isaaclab.sim.schemas.apply_namespaced` writer.
+    :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. It overrides :attr:`func` with
+    :func:`~isaaclab_newton.sim.schemas.apply_mujoco_joint`, which writes the ``mjc:*`` attributes
+    and enforces the body-level gravcomp coupling that joint-level ``actuatorgravcomp`` requires.
     """
 
     _usd_namespace: ClassVar[str | None] = "mjc"
     _usd_applied_schema: ClassVar[str | None] = "MjcJointAPI"
+
+    # Custom applier: writes the mjc:* joint attrs and, when ``actuatorgravcomp`` is requested, flips
+    # body-level ``mjc:gravcomp`` on the joint's child body (the coupling lives in the backend applier
+    # so the core spawner stays backend-free). See :func:`~isaaclab_newton.sim.schemas.apply_mujoco_joint`.
+    func: Callable | str = "isaaclab_newton.sim.schemas:apply_mujoco_joint"
 
     actuatorgravcomp: bool | None = None
     """Route gravity compensation forces through the actuator channel.

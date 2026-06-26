@@ -171,6 +171,41 @@ def test_mujoco_joint_fragment_writes_mjc_namespace():
     assert prim.GetAttribute("mjc:actuatorgravcomp").Get() is True
 
 
+def test_mujoco_joint_actuatorgravcomp_enables_child_body_gravcomp():
+    # actuatorgravcomp is inert unless the actuated body has non-zero mjc:gravcomp, so the Mujoco
+    # joint applier flips gravcomp on the joint's child body (physics:body1) when it is unset
+    from isaaclab_newton.sim.schemas import MujocoJointCfg
+
+    from isaaclab.sim.schemas import apply_joint_drive_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_revolute_joint(stage)
+    UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
+    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg(actuatorgravcomp=True)], stage)
+    body = stage.GetPrimAtPath("/World/Articulation/body1")
+    assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
+
+
+def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp():
+    # an explicitly authored body gravcomp must not be clobbered by the actuatorgravcomp auto-enable
+    from isaaclab_newton.sim.schemas import MujocoJointCfg
+
+    from isaaclab.sim.schemas import apply_joint_drive_properties
+    from isaaclab.sim.utils import safe_set_attribute_on_usd_prim
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_revolute_joint(stage)
+    UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
+    body = stage.GetPrimAtPath("/World/Articulation/body1")
+    safe_set_attribute_on_usd_prim(body, "mjc:gravcomp", 0.5, camel_case=False)
+    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg(actuatorgravcomp=True)], stage)
+    assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(0.5)
+
+
 # -------------------------------------------------------------------------------------
 # apply_joint_drive_properties dispatch (presence-gated DriveAPI + multi-namespace)
 # -------------------------------------------------------------------------------------

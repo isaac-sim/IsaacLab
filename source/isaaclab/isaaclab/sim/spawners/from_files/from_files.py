@@ -384,7 +384,6 @@ def _spawn_from_usd_file(
         # Only auto-populates when the user did not already set ``gravcomp`` themselves;
         # an explicit ``MujocoRigidBodyPropertiesCfg(gravcomp=0.5)`` is preserved as-is.
         from isaaclab_newton.sim.schemas.schemas_cfg import (
-            MujocoJointCfg,
             MujocoJointDrivePropertiesCfg,
             MujocoRigidBodyCfg,
             MujocoRigidBodyPropertiesCfg,
@@ -404,10 +403,11 @@ def _spawn_from_usd_file(
             isinstance(f, (MujocoRigidBodyPropertiesCfg, MujocoRigidBodyCfg)) and f.gravcomp is not None
             for f in rigid_props_list
         )
-        # joint-level actuatorgravcomp may be requested via the legacy MujocoJointDrivePropertiesCfg
-        # or via a MujocoJointCfg fragment in a joint-drive list.
+        # joint-level actuatorgravcomp via the legacy MujocoJointDrivePropertiesCfg only; the
+        # MujocoJointCfg fragment handles its own body-gravcomp coupling in apply_mujoco_joint, so
+        # no backend coupling is added in core for the fragment path.
         actuatorgravcomp_requested = any(
-            isinstance(f, (MujocoJointDrivePropertiesCfg, MujocoJointCfg)) and f.actuatorgravcomp for f in joint_frags
+            isinstance(f, MujocoJointDrivePropertiesCfg) and f.actuatorgravcomp for f in joint_frags
         )
         if actuatorgravcomp_requested and body_gravcomp_unset:
             logger.info(
