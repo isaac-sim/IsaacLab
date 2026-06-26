@@ -73,6 +73,58 @@ def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
     assert violations == {}
 
 
+def test_simulation_context_import_does_not_import_pxr_before_launch():
+    """Test that resolving SimulationContext does not import USD modules."""
+    program = textwrap.dedent(
+        """
+        import json
+        import sys
+        import traceback
+        from pathlib import Path
+
+        repo_root = Path(sys.argv[1])
+        for rel_path in [
+            "source/isaaclab",
+            "source/isaaclab_tasks",
+            "source/isaaclab_assets",
+            "source/isaaclab_rl",
+            "source/isaaclab_newton",
+            "source/isaaclab_ovphysx",
+            "source/isaaclab_physx",
+        ]:
+            sys.path.insert(0, str(repo_root / rel_path))
+
+        violations = {}
+        original_import = __builtins__.__import__
+
+        def import_hook(name, globals=None, locals=None, fromlist=(), level=0):
+            if name.split(".")[0] == "pxr" and "pxr" not in violations:
+                violations["pxr"] = "".join(traceback.format_stack(limit=18))
+            return original_import(name, globals, locals, fromlist, level)
+
+        __builtins__.__import__ = import_hook
+        try:
+            from isaaclab.sim import SimulationContext
+
+            assert SimulationContext.__name__ == "SimulationContext"
+        finally:
+            __builtins__.__import__ = original_import
+
+        print(json.dumps(violations, sort_keys=True))
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", program, str(REPO_ROOT)],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+
+    violations = json.loads(result.stdout)
+    assert violations == {}
+
+
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_argparser(mocker):
     """Test launching with argparser arguments."""
