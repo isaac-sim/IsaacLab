@@ -188,6 +188,45 @@ def test_mujoco_joint_actuatorgravcomp_enables_child_body_gravcomp():
     assert body.GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
 
 
+def test_mujoco_joint_without_actuatorgravcomp_leaves_body_gravcomp_untouched():
+    # the gravcomp coupling must fire ONLY when actuatorgravcomp is requested; an unset flag leaves
+    # the child body's mjc:gravcomp unauthored
+    from isaaclab_newton.sim.schemas import MujocoJointCfg
+
+    from isaaclab.sim.schemas import apply_joint_drive_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_revolute_joint(stage)
+    UsdPhysics.RevoluteJoint(prim).CreateBody1Rel().SetTargets(["/World/Articulation/body1"])
+    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg()], stage)
+    body = stage.GetPrimAtPath("/World/Articulation/body1")
+    assert body.GetAttribute("mjc:gravcomp").Get() is None
+
+
+def test_mujoco_joint_actuatorgravcomp_enables_gravcomp_on_every_joint_body():
+    # per-joint dispatch must enable gravcomp on each joint's own child body across the articulation
+    from isaaclab_newton.sim.schemas import MujocoJointCfg
+
+    from isaaclab.sim.schemas import apply_joint_drive_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    UsdGeom.Xform.Define(stage, "/World/Articulation")
+    for link in ("link_a", "link_b"):
+        UsdGeom.Cube.Define(stage, f"/World/Articulation/{link}")
+    j0 = UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation/joint_0")
+    j0.CreateBody1Rel().SetTargets(["/World/Articulation/link_a"])
+    j1 = UsdPhysics.PrismaticJoint.Define(stage, "/World/Articulation/joint_1")
+    j1.CreateBody1Rel().SetTargets(["/World/Articulation/link_b"])
+    apply_joint_drive_properties("/World/Articulation", [MujocoJointCfg(actuatorgravcomp=True)], stage)
+    # both the revolute joint's body and the prismatic joint's body get gravcomp enabled
+    assert stage.GetPrimAtPath("/World/Articulation/link_a").GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
+    assert stage.GetPrimAtPath("/World/Articulation/link_b").GetAttribute("mjc:gravcomp").Get() == pytest.approx(1.0)
+
+
 def test_mujoco_joint_actuatorgravcomp_preserves_authored_body_gravcomp():
     # an explicitly authored body gravcomp must not be clobbered by the actuatorgravcomp auto-enable
     from isaaclab_newton.sim.schemas import MujocoJointCfg
