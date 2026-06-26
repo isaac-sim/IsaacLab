@@ -9,6 +9,9 @@
 
     ActuatorBase
     ActuatorBaseCfg
+    ActuatorCollection
+    ActuatorControl
+    ActuatorJointProperties
     ImplicitActuator
     ImplicitActuatorCfg
     IdealPDActuator
@@ -35,6 +38,25 @@ Actuator Base
   :members:
   :inherited-members:
   :exclude-members: __init__, class_type
+
+Actuator Collection
+-------------------
+
+.. autoclass:: ActuatorCollection
+  :members:
+  :inherited-members:
+
+Actuator Control
+----------------
+
+.. autoclass:: ActuatorControl
+  :members:
+  :inherited-members:
+
+.. autoclass:: ActuatorJointProperties
+  :members:
+  :inherited-members:
+  :exclude-members: __init__
 
 Implicit Actuator
 -----------------

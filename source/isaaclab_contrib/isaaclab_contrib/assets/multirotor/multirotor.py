@@ -31,6 +31,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class _ThrusterCollection(dict):
+    """Name-keyed mapping of :class:`~isaaclab_contrib.actuators.Thruster` actuators.
+
+    Multirotors are controlled through thrusters rather than joint actuators, so
+    :class:`Multirotor` stores its actuators in this lightweight ``dict`` subclass instead of a
+    joint-based :class:`~isaaclab.actuators.ActuatorCollection`. Behaving as a plain ``dict`` keeps
+    the existing name-based access (``self.actuators["thrusters"]``, iteration, ``.values()``) while
+    exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
+    """
+
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+        """Reset every thruster actuator for the given environments.
+
+        Args:
+            env_ids: Environment indices to reset. Defaults to None (all environments).
+        """
+        for actuator in self.values():
+            actuator.reset(env_ids)
+
+
 class Multirotor(Articulation):
     """A multirotor articulation asset class.
 
@@ -405,7 +425,7 @@ class Multirotor(Articulation):
     def _process_thruster_cfg(self):
         """Process and apply multirotor thruster properties."""
         # create actuators
-        self.actuators = dict()
+        self.actuators = _ThrusterCollection()
         self._has_implicit_actuators = False
 
         # Check for mixed configurations (same as before)

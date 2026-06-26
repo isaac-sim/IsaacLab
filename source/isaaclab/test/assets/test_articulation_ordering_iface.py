@@ -1843,7 +1843,7 @@ class TestArticulationOrderingWriteParity:
             device="cpu",
             joint_ordering=_joint_ordering_for_mode("reversed", num_joints),
         )
-        art._effort_write_view = object()
+        object.__setattr__(art, "_can_write_effort", True)
         user_to_backend = _ordering_user_to_backend(art.joint_ordering, num_joints)
 
         # Persist raw effort targets through the public setter, in backend order via the
@@ -2105,7 +2105,6 @@ class TestArticulationOperations:
         object.__setattr__(art, "_physx_actuator_wrapper", wrapper)
         object.__setattr__(art, "_has_newton_actuators", True)
         object.__setattr__(art, "_has_implicit_actuators", False)
-        art._apply_actuator_model_newton = MagicMock()
         captured = {}
 
         def _capture_forces(forces, indices):

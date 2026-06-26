@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 
     import omni.physics.tensors as physx
 
+    from isaaclab.actuators import ActuatorCollection
+
 # import logger
 logger = logging.getLogger(__name__)
 
@@ -92,6 +94,7 @@ class ArticulationData(BaseArticulationData):
         self._read_launch_cache = _WarpLaunchCache(device)
         self._joint_dof_signs = wp.ones(root_view.max_dofs, dtype=wp.int32, device=device)
         self._has_reversed_joints = False
+        self._actuator_collection: ActuatorCollection | None = None
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
@@ -112,6 +115,39 @@ class ArticulationData(BaseArticulationData):
     def is_primed(self) -> bool:
         """Whether the articulation data is fully instantiated and ready to use."""
         return self._is_primed
+
+    def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
+        """Bind collection-owned actuator buffers for deprecated data aliases."""
+        self._actuator_collection = actuators
+        self._joint_pos_target = actuators.joint_pos_target.warp
+        self._joint_vel_target = actuators.joint_vel_target.warp
+        self._joint_effort_target = actuators.joint_effort_target.warp
+        self._computed_torque = actuators.computed_torque.warp
+        self._applied_torque = actuators.applied_torque.warp
+        self._soft_joint_vel_limits = actuators.soft_joint_vel_limits.warp
+        self._gear_ratio = actuators.gear_ratio.warp
+        self._joint_pos_target_ta = actuators.joint_pos_target
+        self._joint_vel_target_ta = actuators.joint_vel_target
+        self._joint_effort_target_ta = actuators.joint_effort_target
+        self._computed_torque_ta = actuators.computed_torque
+        self._applied_torque_ta = actuators.applied_torque
+        self._soft_joint_vel_limits_ta = actuators.soft_joint_vel_limits
+        self._gear_ratio_ta = actuators.gear_ratio
+
+    def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
+        collection = self._actuator_collection
+        if collection is not None:
+            warnings.warn(
+                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{name} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return getattr(collection, name)
+        proxy = getattr(self, proxy_name)
+        if proxy is None:
+            proxy = ProxyArray(getattr(self, buffer_name))
+            setattr(self, proxy_name, proxy)
+        return proxy
 
     @is_primed.setter
     def is_primed(self, value: bool) -> None:
@@ -393,9 +429,7 @@ class ArticulationData(BaseArticulationData):
         For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
         which are then set into the simulation.
         """
-        if self._joint_pos_target_ta is None:
-            self._joint_pos_target_ta = ProxyArray(self._joint_pos_target)
-        return self._joint_pos_target_ta
+        return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
     def joint_vel_target(self) -> ProxyArray:
@@ -407,9 +441,7 @@ class ArticulationData(BaseArticulationData):
         For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
         which are then set into the simulation.
         """
-        if self._joint_vel_target_ta is None:
-            self._joint_vel_target_ta = ProxyArray(self._joint_vel_target)
-        return self._joint_vel_target_ta
+        return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
     def joint_effort_target(self) -> ProxyArray:
@@ -421,9 +453,9 @@ class ArticulationData(BaseArticulationData):
         For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
         which are then set into the simulation.
         """
-        if self._joint_effort_target_ta is None:
-            self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
-        return self._joint_effort_target_ta
+        return self._get_actuator_collection_proxy(
+            "joint_effort_target", "_joint_effort_target", "_joint_effort_target_ta"
+        )
 
     """
     Joint commands -- Explicit actuators.
@@ -439,9 +471,7 @@ class ArticulationData(BaseArticulationData):
         It is exposed for users who want to inspect the computations inside the actuator model.
         For instance, to penalize the learning agent for a difference between the computed and applied torques.
         """
-        if self._computed_torque_ta is None:
-            self._computed_torque_ta = ProxyArray(self._computed_torque)
-        return self._computed_torque_ta
+        return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
     def applied_torque(self) -> ProxyArray:
@@ -452,9 +482,7 @@ class ArticulationData(BaseArticulationData):
         These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
         actuator model.
         """
-        if self._applied_torque_ta is None:
-            self._applied_torque_ta = ProxyArray(self._applied_torque)
-        return self._applied_torque_ta
+        return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 
     """
     Joint properties
@@ -603,9 +631,9 @@ class ArticulationData(BaseArticulationData):
         These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
         has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
         """
-        if self._soft_joint_vel_limits_ta is None:
-            self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-        return self._soft_joint_vel_limits_ta
+        return self._get_actuator_collection_proxy(
+            "soft_joint_vel_limits", "_soft_joint_vel_limits", "_soft_joint_vel_limits_ta"
+        )
 
     @property
     def gear_ratio(self) -> ProxyArray:
@@ -613,9 +641,7 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
-        if self._gear_ratio_ta is None:
-            self._gear_ratio_ta = ProxyArray(self._gear_ratio)
-        return self._gear_ratio_ta
+        return self._get_actuator_collection_proxy("gear_ratio", "_gear_ratio", "_gear_ratio_ta")
 
     """
     Fixed tendon properties.

@@ -6,6 +6,9 @@
 __all__ = [
     "ActuatorBase",
     "ActuatorBaseCfg",
+    "ActuatorCollection",
+    "ActuatorControl",
+    "ActuatorJointProperties",
     "ActuatorNetLSTM",
     "ActuatorNetMLP",
     "ActuatorNetLSTMCfg",
@@ -24,6 +27,8 @@ __all__ = [
 
 from .actuator_base import ActuatorBase
 from .actuator_base_cfg import ActuatorBaseCfg
+from .actuator_collection import ActuatorCollection
+from .actuator_control import ActuatorControl, ActuatorJointProperties
 from .actuator_net import ActuatorNetLSTM, ActuatorNetMLP
 from .actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from .actuator_pd import (

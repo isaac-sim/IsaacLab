@@ -112,6 +112,7 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
+    object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     # Create ArticulationData instance (SimulationManager already mocked at module level)
     data = ArticulationData(mock_view, device)
@@ -185,6 +186,14 @@ def create_test_articulation(
     object.__setattr__(
         articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu", pinned=True)
     )
+
+    from isaaclab.actuators import ActuatorCollection
+
+    from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
+
+    control = PhysxActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view, None
 

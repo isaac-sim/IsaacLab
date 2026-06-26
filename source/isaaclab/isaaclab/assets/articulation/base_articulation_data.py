@@ -301,13 +301,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user.
+        """Deprecated. Use ``articulation.actuators.joint_pos_target`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Joint position targets commanded by the user [m or rad, depending on joint type].
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 
@@ -315,13 +312,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user.
+        """Deprecated. Use ``articulation.actuators.joint_vel_target`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 
@@ -329,13 +323,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user.
+        """Deprecated. Use ``articulation.actuators.joint_effort_target`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Joint effort targets commanded by the user [N or N·m, depending on joint type].
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 
@@ -347,13 +338,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/computed_torque")
     def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping).
+        """Deprecated. Use ``articulation.actuators.computed_torque`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-        It is exposed for users who want to inspect the computations inside the actuator model.
-        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        Joint torques computed from the actuator model before clipping [N or N·m,
+        depending on joint type]. Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 
@@ -361,12 +349,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/applied_torque")
     def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping).
+        """Deprecated. Use ``articulation.actuators.applied_torque`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-        actuator model.
+        Joint torques applied from the actuator model after clipping [N or N·m,
+        depending on joint type]. Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 
@@ -490,12 +476,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints.
+        """Deprecated. Use ``articulation.actuators.soft_joint_vel_limits`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
-        has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
+        Soft joint velocity limits for all joints [m/s or rad/s, depending on joint type].
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 
@@ -503,9 +487,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied Joint torques.
+        """Deprecated. Use ``articulation.actuators.gear_ratio`` instead.
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        Gear ratio for relating motor torques to applied joint torques [dimensionless].
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         raise NotImplementedError
 

@@ -1483,12 +1483,11 @@ class randomize_actuator_gains(ManagerTermBase):
                         damping=damping, joint_ids=actuator.joint_indices, env_ids=env_ids
                     )
 
-        # Push DR updates to explicit Newton-actuator controllers via the asset's
-        # own write methods. Each backend's articulation iterates the adapter's
-        # actuators and propagates per actuator, using the appropriate backend
-        # mechanism (Newton ``ArticulationView`` on the Newton backend, an
-        # in-place scatter kernel on PhysX).
-        if not hasattr(self.asset, "write_actuator_stiffness_to_sim"):
+        # Push DR updates to actuator gain buffers and any backend-native controllers.
+        actuator_writer = getattr(self.asset, "actuators", self.asset)
+        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
+            actuator_writer = self.asset
+        if not hasattr(actuator_writer, "write_actuator_stiffness_to_sim"):
             return
 
         if isinstance(self.asset_cfg.joint_ids, slice):
@@ -1506,7 +1505,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.write_actuator_stiffness_to_sim(
+            actuator_writer.write_actuator_stiffness_to_sim(
                 stiffness=new_stiffness,
                 env_ids=env_ids,
                 joint_ids=joint_ids,
@@ -1521,7 +1520,7 @@ class randomize_actuator_gains(ManagerTermBase):
                 operation=operation,
                 distribution=distribution,
             )
-            self.asset.write_actuator_damping_to_sim(
+            actuator_writer.write_actuator_damping_to_sim(
                 damping=new_damping,
                 env_ids=env_ids,
                 joint_ids=joint_ids,

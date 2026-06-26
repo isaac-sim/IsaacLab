@@ -1298,10 +1298,10 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     data = articulation.data
     assert (data.joint_ordering is not None) is has_ordering
 
-    # Prime: explicit (IdealPD) actuators keep their PD in the Lab-owned records,
+    # Prime: explicit (IdealPD) actuators keep their PD in the collection-owned records,
     # while the solver's sim gains are zeroed so it applies no PD on these DOFs.
-    np.testing.assert_allclose(data._actuator_stiffness.numpy(), 40.0)
-    np.testing.assert_allclose(data._actuator_damping.numpy(), 5.0)
+    np.testing.assert_allclose(articulation.actuators.actuator_stiffness.warp.numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators.actuator_damping.warp.numpy(), 5.0)
     np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), 0.0)
     np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), 0.0)
 
@@ -1325,9 +1325,9 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
     SimulationManager._model = new_model
     data._create_simulation_bindings()
 
-    # The Lab-owned actuator gains must survive the rebind unchanged...
-    np.testing.assert_allclose(data._actuator_stiffness.numpy(), 40.0)
-    np.testing.assert_allclose(data._actuator_damping.numpy(), 5.0)
+    # The collection-owned actuator gains must survive the rebind unchanged...
+    np.testing.assert_allclose(articulation.actuators.actuator_stiffness.warp.numpy(), 40.0)
+    np.testing.assert_allclose(articulation.actuators.actuator_damping.warp.numpy(), 5.0)
     # ...while the sim-owned mirrors track the solver's freshly seeded (sentinel) gains.
     if has_ordering:
         np.testing.assert_allclose(data._joint_stiffness_user.numpy(), sentinel_ke)
@@ -1493,7 +1493,11 @@ def test_write_data_to_sim_gathers_joint_targets_only_when_ordering_active(
         # Identity ordering copies straight into the sim binds -- no target gather,
         # and the sim-bound position target mirrors its user-order source.
         assert target_gather not in launched_kernels
-        expected_source = articulation.data._joint_pos_target if on_newton_path else articulation._joint_pos_target_sim
+        expected_source = (
+            articulation.actuators.joint_pos_target.warp
+            if on_newton_path
+            else articulation.actuators.joint_pos_target_sim.warp
+        )
         np.testing.assert_allclose(articulation.data._sim_bind_joint_position_target.numpy(), expected_source.numpy())
 
 
