@@ -84,7 +84,9 @@ def _make_articulation_shell() -> Articulation:
         num_fixed_tendons=1,
         num_spatial_tendons=1,
     )
-    object.__setattr__(articulation, "_bindings", bindings.bindings)
+    # The migrated Articulation reads tendon counts off its OvPhysxView; inject the mock
+    # view over these bindings so the metadata passthrough resolves without a real view.
+    object.__setattr__(articulation, "_root_view", bindings.view)
     object.__setattr__(articulation, "_articulation_root_path", "/World/envs/env_0/Robot/root")
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)

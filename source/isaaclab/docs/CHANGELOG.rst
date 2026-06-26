@@ -1,6 +1,53 @@
 Changelog
 ---------
 
+7.3.0 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the mass schema-fragment API: the :class:`~isaaclab.sim.schemas.MassFragment` marker and
+  :class:`~isaaclab.sim.schemas.MassCfg` (writes ``physics:mass`` / ``physics:density`` via
+  ``UsdPhysics.MassAPI``). The legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg` remains the
+  canonical name and continues to work unchanged.
+* Added :func:`~isaaclab.sim.schemas.apply_mass_properties`, which applies a list of mass fragments
+  with ``UsdPhysics.MassAPI`` as the implicit anchor.
+* Added the collision schema-fragment API: the
+  :class:`~isaaclab.sim.schemas.CollisionFragment` marker and
+  :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` (the ``physics:collisionEnabled``
+  single-namespace fragment). Each fragment carries ``_usd_namespace`` / ``_usd_applied_schema``
+  metadata and a ``func`` applier so a prim can carry collision properties from multiple USD
+  namespaces at once.
+* Added :func:`~isaaclab.sim.schemas.apply_collision_properties`, which applies a list of
+  collision fragments with ``UsdPhysics.CollisionAPI`` as the implicit anchor.
+
+Changed
+^^^^^^^
+
+* Changed automatic ``rtx`` launch-time renderer resolution to support the
+  ``renderer=rtx`` selector.
+* Changed the spawner ``mass_props`` slot
+  (:attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.mass_props`) to also accept a single
+  :class:`~isaaclab.sim.schemas.MassFragment` or a list of them. Legacy
+  :class:`~isaaclab.sim.schemas.MassPropertiesCfg` cfgs continue to work through a transition bridge
+  in the spawn writers.
+* Changed the spawner ``collision_props`` slot
+  (:attr:`~isaaclab.sim.spawners.RigidObjectSpawnerCfg.collision_props`) and the mesh-converter
+  ``collision_props`` slot to also accept a list of
+  :class:`~isaaclab.sim.schemas.CollisionFragment` fragments. Legacy single cfgs continue to work
+  through a transition bridge in the spawn writers.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.sim.schemas.apply_mass_properties` to raise ``ValueError`` on an invalid
+  prim path and to aggregate per-fragment results instead of always returning ``True``, matching
+  :func:`~isaaclab.sim.schemas.apply_rigid_body_properties`.
+* Fixed the spawn writers so an empty ``mass_props`` list is a harmless no-op rather than being
+  forwarded to :func:`~isaaclab.sim.schemas.define_mass_properties` as an unexpected list.
+
+
 7.2.0 (2026-06-25)
 ~~~~~~~~~~~~~~~~~~
 

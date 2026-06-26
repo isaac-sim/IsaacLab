@@ -202,6 +202,35 @@ class MeshCollisionFragment(SchemaFragment):
 
 
 @configclass
+class FixedTendonFragment(SchemaFragment):
+    """Marker base for fixed-tendon fragments; types the ``fixed_tendons_props`` slot.
+
+    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
+    multi-instance schemas already exist on the prim (authored in the source asset), so the
+    family writer (:func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) does not apply
+    any anchor schema; it only tunes the existing instances via each fragment's
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    """
+
+    pass
+
+
+@configclass
+class SpatialTendonFragment(SchemaFragment):
+    """Marker base for spatial-tendon fragments; types the ``spatial_tendons_props`` slot.
+
+    Spatial tendons are a *tune-not-apply* family: the applied
+    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
+    already exist on the prim (authored in the source asset), so the family writer
+    (:func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`) does not apply any anchor
+    schema; it only tunes the existing instances via each fragment's
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    """
+
+    pass
+
+
+@configclass
 class UsdPhysicsCollisionCfg(CollisionFragment):
     """``physics:*`` collision attributes from `UsdPhysics.CollisionAPI`_.
 
