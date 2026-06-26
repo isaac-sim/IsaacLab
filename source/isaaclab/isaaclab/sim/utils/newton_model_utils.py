@@ -13,7 +13,6 @@ to be deprecated and removed.
 from __future__ import annotations
 
 import logging
-import os
 import warnings
 from typing import Any
 
@@ -22,7 +21,7 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdShade
 
-__all__ = ["replace_newton_shape_colors"]
+__all__ = ["replace_newton_builder_shape_colors"]
 
 logger = logging.getLogger(__name__)
 
@@ -36,39 +35,15 @@ _OMNIPBR_DEFAULTS: dict[str, tuple[float, float, float]] = {
 _UNBOUND_DEFAULT_FALLBACK_GRAY = (0.18, 0.18, 0.18)
 
 
-@wp.func
-def _linear_channel_to_srgb_warp(c: float) -> float:
-    """Per-channel sRGB OETF on device: linear ``[0, 1]`` to sRGB-encoded ``[0, 1]``."""
+def _linear_channel_to_srgb(c: float) -> float:
+    """Per-channel sRGB OETF on host: linear ``[0, 1]`` to sRGB-encoded ``[0, 1]``."""
     if c <= 0.0:
         return 0.0
     if c <= 0.0031308:
         return 12.92 * c
     if c >= 1.0:
         return 1.0
-    return 1.055 * wp.pow(c, 1.0 / 2.4) - 0.055
-
-
-@wp.func
-def _linear_rgb_to_srgb_warp(linear_rgb: wp.vec3) -> wp.vec3:
-    """Apply sRGB OETF per channel: linear RGB ``[0, 1]`` to sRGB-encoded ``[0, 1]``."""
-    return wp.vec3(
-        _linear_channel_to_srgb_warp(linear_rgb[0]),
-        _linear_channel_to_srgb_warp(linear_rgb[1]),
-        _linear_channel_to_srgb_warp(linear_rgb[2]),
-    )
-
-
-@wp.kernel
-def _scatter_shape_color_rows_kernel(
-    shape_colors: wp.array(dtype=wp.vec3),  # type: ignore
-    row_indices: wp.array(dtype=wp.int32),  # type: ignore
-    row_colors: wp.array(dtype=wp.vec3),  # type: ignore
-):
-    """Write per-row sRGB colors into ``shape_colors``."""
-    tid = wp.tid()
-    index = row_indices[tid]
-    color = row_colors[tid]
-    shape_colors[index] = _linear_rgb_to_srgb_warp(color)
+    return 1.055 * (c ** (1.0 / 2.4)) - 0.055
 
 
 def _canonical_prim_lookup_key(prim: Usd.Prim) -> str:
@@ -203,7 +178,7 @@ def _resolve_shape_color(
     """Resolve replacement linear RGB for one prim path (sRGB encoding is applied in the scatter kernel).
 
     Returns:
-        Linear RGB to pass to :func:`_scatter_shape_color_rows_kernel`, or ``None`` to leave the row unchanged.
+        Linear RGB to pass, or ``None`` to leave the row unchanged.
     """
     shape_prim = stage.GetPrimAtPath(prim_path)
     if not shape_prim.IsValid():
@@ -231,43 +206,29 @@ def _resolve_shape_color(
     return material_color
 
 
-def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None) -> int:
-    """Align Newton visualization colors with the USD stage.
+def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
+    """Align a Newton ``ModelBuilder``'s shape colors with the USD stage before clone replication.
 
-    Newton assigns a per-shape palette to ``shape_color``. This overwrites those rows so rendering matches authored USD
-    data where supported:
+    Overwrites entries in ``builder.shape_color`` so that colors match the authored USD data:
 
-    - **No bound material**: use authored ``primvars:displayColor`` (treated as linear RGB), or a neutral 18% linear
-      gray if ``displayColor`` is not authored; linear values are encoded to sRGB in the scatter kernel.
-    - **OmniPBR**: use ``diffuse_color_constant`` times ``diffuse_tint`` (linear RGB, with MDL defaults when inputs are
-      not authored), encoded to sRGB in the scatter kernel.
-    - **Other materials**: leave the existing Newton color for that shape.
-    - **Guide purpose** prims (``UsdGeom.Tokens.guide``): leave unchanged so guide visualization stays on the palette.
+    - **No bound material**: use authored ``primvars:displayColor`` (treated as linear RGB), or a
+      neutral 18% linear gray if ``displayColor`` is not authored.
+    - **OmniPBR**: use ``diffuse_color_constant`` × ``diffuse_tint`` (linear RGB, with MDL defaults
+      when inputs are not authored).
+    - **Other materials**: leave the existing Newton color for that shape unchanged.
+    - **Guide purpose** prims (``UsdGeom.Tokens.guide``): leave unchanged so guide visualization
+      stays on the Newton palette.
+
+    Linear RGB values are encoded to sRGB before being written into ``builder.shape_color``.
 
     Args:
-        model: Object with ``shape_label`` (``list`` of USD prim paths) and ``shape_color`` (``wp.array`` of
-            ``wp.vec3``), typically a finalized Newton model.
-        stage: USD stage to read from. If ``None``, uses :func:`~isaaclab.sim.utils.stage.get_current_stage`.
+        builder: Object with ``shape_label`` (``list`` of USD prim paths) and ``shape_color``
+            (``list`` of ``wp.vec3``), typically a Newton ``ModelBuilder`` before finalization.
+        stage: USD stage to read material and primvar data from.
 
     Returns:
         Number of shapes that had their colors replaced.
-
-    Note:
-        Set ``ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS`` to ``0``, ``false``, ``off``, or ``no`` to skip this pass
-        entirely (returns ``0``).
-
-        This pass exists only while Isaac Lab and Isaac Sim content still relies on NVIDIA-specific MDL and OmniPBR
-        materials; after migration to neutral USD materials that Newton can consume directly, this path is expected to
-        be deprecated and removed.
-
-        Wall time for USD resolution and the GPU scatter is measured with :class:`~isaaclab.utils.timer.Timer`, which
-        may print a timing summary when the timer is enabled.
     """
-    env_val = os.getenv("ISAACLAB_REPLACE_NEWTON_SHAPE_COLORS")
-    if env_val is not None and env_val.strip().lower() in ["false", "0", "off", "no"]:
-        logger.debug("Newton shape color replacement is disabled")
-        return 0
-
     warnings.warn(
         "Newton shape color replacement is enabled; this workaround will be deprecated in a future release.",
         FutureWarning,
@@ -275,78 +236,38 @@ def replace_newton_shape_colors(model: Any, stage: Usd.Stage | None = None) -> i
     )
 
     # Use duck typing to avoid introducing hard dependencies on newton.
-    shape_labels = getattr(model, "shape_label", None)
-    shape_colors = getattr(model, "shape_color", None)
+    shape_labels = getattr(builder, "shape_label", None)
+    shape_colors = getattr(builder, "shape_color", None)
 
     if not isinstance(shape_labels, list):
         logger.debug("shape_label must be a list, got %s", type(shape_labels))
         return 0
 
-    if not isinstance(shape_colors, wp.array):
-        logger.debug("shape_color must be a Warp array, got %s", type(shape_colors))
+    if not isinstance(shape_colors, list):
+        logger.debug("shape_color must be a list, got %s", type(shape_colors))
         return 0
 
-    num_shapes = len(shape_labels)
-    if num_shapes == 0:
-        logger.debug("Found empty list of shape labels")
-        return 0
-
-    if num_shapes != len(shape_colors):
-        logger.debug("Mismatching length of shape_labels and shape_colors: %d != %d", num_shapes, len(shape_colors))
-        return 0
+    if len(shape_labels) != len(shape_colors):
+        raise ValueError(
+            f"Mismatching length of shape_label and shape_color: {len(shape_labels)} != {len(shape_colors)}"
+        )
 
     from isaaclab.utils.timer import Timer
 
-    num_color_updates = 0
-
-    with Timer(f"[INFO]: Time taken for replace_newton_shape_colors for {num_shapes} shapes", enable=False):
-        if stage is None:
-            from .stage import get_current_stage
-
-            stage = get_current_stage()
-
-        shape_keys: list[str] = []
-
-        for label in shape_labels:
-            prim = stage.GetPrimAtPath(label)
-            shape_keys.append(_canonical_prim_lookup_key(prim) if prim.IsValid() else label)
-
-        # shape_keys must stay the same length as shape labels, to guarantee the correctness of
-        # shape indices that will be used in the scatter kernel.
-        assert num_shapes == len(shape_keys)
-
-        resolved_color_cache: dict[str, tuple[float, float, float] | None] = {}
+    with Timer(
+        f"[INFO]: Time taken for replace_newton_builder_shape_colors for {len(shape_labels)} shapes", enable=False
+    ):
+        num_color_updates = 0
         material_color_cache: dict[str, tuple[float, float, float] | None] = {}
-
-        unique_keys = dict.fromkeys(shape_keys)
-        for key in unique_keys:
-            color = _resolve_shape_color(stage, key, material_color_cache)
-            resolved_color_cache[key] = color
-
-        # Prepare the indices and colors for the scatter kernel:
-        # - Indices point to the slots in the shape_colors array that should be updated
-        # - Colors are the new values to write into the slots
-        indices_np = np.empty(num_shapes, dtype=np.int32)
-        colors_np = np.empty((num_shapes, 3), dtype=np.float32)
-
-        for i, shape_key in enumerate(shape_keys):
-            if rgb := resolved_color_cache.get(shape_key):
-                indices_np[num_color_updates] = i
-                colors_np[num_color_updates] = rgb
+        for i, label in enumerate(shape_labels):
+            rgb = _resolve_shape_color(stage, label, material_color_cache)
+            if rgb is not None:
+                shape_colors[i] = wp.vec3(
+                    _linear_channel_to_srgb(rgb[0]),
+                    _linear_channel_to_srgb(rgb[1]),
+                    _linear_channel_to_srgb(rgb[2]),
+                )
                 num_color_updates += 1
 
-        # If there are any color updates, launch the scatter kernel to update the shape_colors array.
-        if num_color_updates != 0:
-            indices_wp = wp.from_numpy(indices_np[:num_color_updates], dtype=wp.int32, device=shape_colors.device)
-            colors_wp = wp.from_numpy(colors_np[:num_color_updates], dtype=wp.vec3, device=shape_colors.device)
-
-            wp.launch(
-                kernel=_scatter_shape_color_rows_kernel,
-                dim=num_color_updates,
-                inputs=[shape_colors, indices_wp, colors_wp],
-                device=shape_colors.device,
-            )
-
-        logger.debug("Replaced colors for %d / %d shapes", num_color_updates, num_shapes)
-
-    return num_color_updates
+        logger.debug("Replaced builder colors for %d / %d shapes", num_color_updates, len(shape_labels))
+        return num_color_updates

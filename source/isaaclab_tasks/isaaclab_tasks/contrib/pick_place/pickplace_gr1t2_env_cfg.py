@@ -402,14 +402,14 @@ class ActionsCfg:
             fail_on_joint_limit_violation=False,
             variable_input_tasks=[
                 FrameTaskCfg(
-                    frame="GR1T2_fourier_hand_6dof_left_hand_pitch_link",
+                    frame="left_hand_pitch_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=12,  # dampening for solver for step jumps
                     gain=0.5,
                 ),
                 FrameTaskCfg(
-                    frame="GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                    frame="right_hand_pitch_link",
                     position_cost=8.0,  # [cost] / [m]
                     orientation_cost=1.0,  # [cost] / [rad]
                     lm_damping=12,  # dampening for solver for step jumps
@@ -422,8 +422,8 @@ class ActionsCfg:
                     cost=0.5,
                     lm_damping=1,
                     controlled_frames=[
-                        "GR1T2_fourier_hand_6dof_left_hand_pitch_link",
-                        "GR1T2_fourier_hand_6dof_right_hand_pitch_link",
+                        "left_hand_pitch_link",
+                        "right_hand_pitch_link",
                     ],
                     controlled_joints=[
                         "left_shoulder_pitch_joint",

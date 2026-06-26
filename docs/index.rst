@@ -35,7 +35,7 @@ Isaac lab is developed with specific robot assets that are now **Batteries-inclu
 
 - **Classic** Cartpole, Humanoid, Ant
 - **Fixed-Arm and Hands**: UR10, Franka, Allegro, Shadow Hand
-- **Quadrupeds**: Anybotics Anymal-B, Anymal-C, Anymal-D, Unitree A1, Unitree Go1, Unitree Go2, Boston Dynamics Spot
+- **Quadrupeds**: Anybotics AnymalB, AnymalC, AnymalD, Unitree A1, Unitree Go1, Unitree Go2, Boston Dynamics Spot
 - **Humanoids**: Unitree H1, Unitree G1
 - **Quadcopter**: Crazyflie
 

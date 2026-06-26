@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script tests the functionality of texture randomization applied to the cartpole scene.
+This script tests the functionality of color randomization applied to the cartpole scene.
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -66,12 +66,11 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    # on prestartup apply a new set of textures
-    # note from @mayank: Changed from 'reset' to 'prestartup' to make test pass.
-    #   The error happens otherwise on Kit thread which is not the main thread.
-    cart_texture_randomizer = EventTerm(
+    # Color randomization terms; the mode is overridden per parametrization in
+    # :func:`test_color_randomization` (both "prestartup" and "reset" are exercised).
+    cart_color_randomizer = EventTerm(
         func=mdp.randomize_visual_color,
-        mode="prestartup",
+        mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["cart"]),
             "colors": {"r": (0.0, 1.0), "g": (0.0, 1.0), "b": (0.0, 1.0)},
@@ -79,8 +78,7 @@ class EventCfg:
         },
     )
 
-    # on reset apply a new set of textures
-    pole_texture_randomizer = EventTerm(
+    pole_color_randomizer = EventTerm(
         func=mdp.randomize_visual_color,
         mode="reset",
         params={
@@ -135,8 +133,15 @@ class CartpoleEnvCfg(ManagerBasedEnvCfg):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_color_randomization(device):
-    """Test color randomization for cartpole environment."""
+@pytest.mark.parametrize("mode", ["prestartup", "reset"])
+def test_color_randomization(mode, device):
+    """Test color randomization for the cartpole environment in both event modes.
+
+    The randomizer is exercised in both ``prestartup`` and ``reset`` modes. The ``reset`` case is a
+    regression guard: reset-mode color randomization on the articulation used to invalidate the
+    PhysX articulation view and crash environment construction with an
+    ``AttributeError: 'NoneType' object has no attribute 'link_count'``.
+    """
     # skip test if stage in memory is not supported
     if get_isaac_sim_version().major < 5:
         pytest.skip("Color randomization test hangs in this version of Isaac Sim")
@@ -150,6 +155,9 @@ def test_color_randomization(device):
         env_cfg.scene.num_envs = 16
         env_cfg.scene.replicate_physics = False
         env_cfg.sim.device = device
+        # exercise the parametrized event mode for both color terms
+        env_cfg.events.cart_color_randomizer.mode = mode
+        env_cfg.events.pole_color_randomizer.mode = mode
 
         # Setup base environment
         env = ManagerBasedEnv(cfg=env_cfg)

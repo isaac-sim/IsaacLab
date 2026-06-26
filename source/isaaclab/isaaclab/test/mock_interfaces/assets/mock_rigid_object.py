@@ -525,6 +525,14 @@ class MockRigidObjectData(BaseRigidObjectData):
         """Update data (no-op for mock)."""
         pass
 
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Invalidate pose-dependent caches (no-op for mock)."""
+        pass
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Invalidate velocity-dependent caches (no-op for mock)."""
+        pass
+
     # -- Setters --
 
     def set_default_root_pose(self, value: torch.Tensor) -> None:

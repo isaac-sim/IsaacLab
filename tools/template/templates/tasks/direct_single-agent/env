@@ -3,11 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+{% set ns = namespace(amp_selected=false) %}
+{% for rl_library in rl_libraries %}
+{% if rl_library.name == "skrl" and "amp" in rl_library.algorithms %}
+{% set ns.amp_selected = true %}
+{% endif %}
+{% endfor %}
+
 from __future__ import annotations
 
 import math
-import torch
 from collections.abc import Sequence
+
+{% if ns.amp_selected %}
+import gymnasium as gym
+import numpy as np
+import torch
+{% else %}
+import torch
+{% endif %}
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -30,6 +44,15 @@ class {{ task.classname }}Env(DirectRLEnv):
 
         self.joint_pos = self.robot.data.joint_pos
         self.joint_vel = self.robot.data.joint_vel
+        {% if ns.amp_selected %}
+
+        # reconfigure AMP observation space according to the number of observations and create the buffer
+        self.amp_observation_size = self.cfg.num_amp_observations * self.cfg.amp_observation_space
+        self.amp_observation_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(self.amp_observation_size,))
+        self.amp_observation_buffer = torch.zeros(
+            (self.num_envs, self.cfg.num_amp_observations, self.cfg.amp_observation_space), device=self.device
+        )
+        {% endif %}
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
@@ -65,6 +88,16 @@ class {{ task.classname }}Env(DirectRLEnv):
             ),
             dim=-1,
         )
+        {% if ns.amp_selected %}
+
+        # update AMP observation history
+        for i in reversed(range(self.cfg.num_amp_observations - 1)):
+            self.amp_observation_buffer[:, i + 1] = self.amp_observation_buffer[:, i]
+        # build AMP observation
+        self.amp_observation_buffer[:, 0] = obs.clone()
+        self.extras = {"amp_obs": self.amp_observation_buffer.view(-1, self.amp_observation_size)}
+
+        {% endif %}
         observations = {"policy": obs}
         return observations
 
@@ -116,6 +149,12 @@ class {{ task.classname }}Env(DirectRLEnv):
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
+{% if ns.amp_selected %}
+    def collect_reference_motions(self, num_samples: int, current_times: np.ndarray | None = None) -> torch.Tensor:
+        # note: This is a placeholder for the reference motions. It should be implemented for the specific task.
+        # Refer to the `collect_reference_motions` method in the Humanoid-AMP task for an example.
+        return torch.zeros((num_samples, self.amp_observation_size), device=self.device)
+{% endif %}
 
 @torch.jit.script
 def compute_rewards(

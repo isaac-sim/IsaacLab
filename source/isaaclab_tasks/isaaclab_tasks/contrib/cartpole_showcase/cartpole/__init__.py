@@ -20,7 +20,7 @@ from . import agents
 # the canonical ``box_box`` shape; for other variants pass the matching
 # ``--agent skrl_<obs>_<action>_cfg_entry_point``.
 gym.register(
-    id="Isaac-Cartpole-Showcase-Direct",
+    id="IsaacContrib-Cartpole-Showcase-Direct",
     entry_point=f"{__name__}.cartpole_env:CartpoleShowcaseEnv",
     disable_env_checker=True,
     kwargs={

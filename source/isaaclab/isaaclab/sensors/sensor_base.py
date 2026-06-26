@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-import re
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -366,10 +365,7 @@ class SensorBase(ABC):
         if prim_path == "/":
             self._clear_callbacks()
             return
-        result = re.match(
-            pattern="^" + "/".join(self.cfg.prim_path.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
-        )
-        if result:
+        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:

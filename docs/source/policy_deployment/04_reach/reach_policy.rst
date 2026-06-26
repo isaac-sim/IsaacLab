@@ -422,7 +422,7 @@ Before starting full training, launch a quick visualization run to verify the en
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -431,7 +431,7 @@ Before starting full training, launch a quick visualization run to verify the en
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -466,7 +466,7 @@ Launch full training with many parallel environments in headless mode:
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-Reach-UR10e-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-Reach-UR10e-ROS-Inference \
                 --num_envs 4096 \
                 --video --video_length 720 --video_interval 72000
 
@@ -475,7 +475,7 @@ Launch full training with many parallel environments in headless mode:
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference \
                 --num_envs 4096 \
                 --video --video_length 720 --video_interval 72000
 
@@ -573,7 +573,7 @@ Once training completes, evaluate the policy in the play environment:
         .. code-block:: bash
 
             ./isaaclab.sh play --rl_library rsl_rl \
-                --task Isaac-Deploy-Reach-UR10e-Play-v0 \
+                --task IsaacContrib-Deploy-Reach-UR10e-Play \
                 --num_envs 50 \
                 --visualizer kit
 
@@ -582,7 +582,7 @@ Once training completes, evaluate the policy in the play environment:
         .. code-block:: bash
 
             ./isaaclab.sh play --rl_library rsl_rl \
-                --task Isaac-Deploy-Reach-Rizon4s-Play-v0 \
+                --task IsaacContrib-Deploy-Reach-Rizon4s-Play \
                 --num_envs 50 \
                 --visualizer kit
 
@@ -600,12 +600,12 @@ To load a specific checkpoint, use these arguments:
 
     # Load from a specific run folder
     ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Deploy-Reach-UR10e-Play-v0 \
+        --task IsaacContrib-Deploy-Reach-UR10e-Play \
         --load_run 2025-01-15_14-30-00
 
     # Load a specific checkpoint file
     ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Deploy-Reach-UR10e-Play-v0 \
+        --task IsaacContrib-Deploy-Reach-UR10e-Play \
         --checkpoint /path/to/model_1500.pt
 
 

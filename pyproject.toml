@@ -42,7 +42,7 @@ dependencies = [
     "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.13.0",
+    "warp-lang==1.14.0",
     "matplotlib>=3.10.3",
     "pillow==12.1.1",  # keep consistent with isaac sim
     "botocore",  # omni.replicator.core S3 backend
@@ -55,7 +55,7 @@ dependencies = [
     "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # OpenUSD (kit-less mode)
-    "usd-core>=25.0.0 ; platform_machine in 'x86_64 AMD64'",
+    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
     "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
@@ -125,7 +125,6 @@ rtx = ["ovrtx>=0.3.0,<0.4.0"]
 mimic = [
     "isaaclab-mimic",
     "ipywidgets>=8.1.5",
-    "nvidia-srl-usd-to-urdf ; platform_machine != 'aarch64'",  # no aarch64 wheels
     "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
 ]
 teleop = [
@@ -149,14 +148,10 @@ rlinf = [
 ]
 # Everything that co-resolves with isaacsim in one shot (the documented
 # ``[all,isaacsim]`` install). Excludes extras whose pins clash with isaacsim's:
-# ``teleop`` (lxml vs mimic), ``ov`` (packaging<24), ``viser`` (websockets==12.0),
-# and mimic's nvidia-srl-usd-to-urdf (numpy<2). Install those via their own extra.
+# ``teleop`` (lxml vs mimic), ``ov`` (packaging<24), and ``viser``
+# (websockets==12.0). Install those via their own extra.
 all = [
-    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf]",
-    # mimic without nvidia-srl-usd-to-urdf (its numpy<2 clashes with isaacsim)
-    "isaaclab-mimic",
-    "ipywidgets>=8.1.5",
-    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
+    "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
 ]
 
 # Single source of truth for externally-pinned package versions. Read by the docs
@@ -299,6 +294,8 @@ ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty,segway"
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
+    "windows_ci: mark test to run on Windows platforms in CI",
+    "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.

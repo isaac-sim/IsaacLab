@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates different single-arm manipulators.
+"""This script demonstrates different single-arm manipulators.
 
 .. code-block:: bash
 
@@ -60,7 +59,7 @@ if TYPE_CHECKING:
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the the scene."""
+    """Defines the origins of the scene."""
     # create tensor based on number of environments
     env_origins = torch.zeros(num_origins, 3)
     # create a grid of origins

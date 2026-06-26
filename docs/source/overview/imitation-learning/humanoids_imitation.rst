@@ -79,7 +79,7 @@ Collect five demonstrations by running the following command:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --xr \
    --device cpu \
@@ -88,7 +88,7 @@ Collect five demonstrations by running the following command:
 
 
 .. note::
-   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0``.
+   We also provide a GR-1 pick and place task with waist degrees-of-freedom enabled ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` (see :ref:`environments` for details on the available environments, including the GR1 Waist Enabled variant). The same command above applies but with the task name changed to ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs``.
 
 .. tip::
    If a demo fails during data collection, the environment can be reset using the teleoperation controls panel in the XR teleop client
@@ -101,7 +101,7 @@ You can replay the collected demonstrations by running the following command:
 .. code:: bash
 
    ./isaaclab.sh -p scripts/tools/replay_demos.py \
-   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
    --dataset_file ./datasets/dataset_gr1.hdf5
@@ -182,7 +182,7 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a policy for the gener
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --task IsaacContrib-PickPlace-GR1T2-Abs \
    --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_gr1.hdf5
@@ -202,7 +202,7 @@ Visualize the results of the trained policy by running the following command, us
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-   --task Isaac-PickPlace-GR1T2-Abs-v0 \
+   --task IsaacContrib-PickPlace-GR1T2-Abs \
    --visualizer kit \
    --device cpu \
    --num_rollouts 50 \
@@ -272,7 +272,7 @@ generated using Isaac Lab Mimic for the ``Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-
    .. code:: bash
 
       ./isaaclab.sh -p scripts/tools/record_demos.py \
-      --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+      --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
       --visualizer kit \
       --device cpu \
       --xr \
@@ -319,7 +319,7 @@ Use `Robomimic <https://robomimic.github.io/>`__ to train a visuomotor BC agent 
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+   --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
    --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_gr1_nut_pouring.hdf5
@@ -345,7 +345,7 @@ Visualize the results of the trained policy by running the following command, us
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
-   --task Isaac-NutPour-GR1T2-Pink-IK-Abs-v0 \
+   --task IsaacContrib-NutPour-GR1T2-Pink-IK-Abs \
    --visualizer kit \
    --device cpu \
    --enable_cameras \
@@ -414,7 +414,7 @@ Generate the manipulation dataset
 The same data generation and policy training steps from Demo 1 can be applied to the G1 humanoid robot with locomanipulation capabilities.
 This demonstration shows how to train a G1 robot to perform pick and place tasks with full-body locomotion and manipulation.
 
-The process follows the same workflow as Demo 1, but uses the ``Isaac-PickPlace-Locomanipulation-G1-Abs-v0`` task environment.
+The process follows the same workflow as Demo 1, but uses the ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs`` task environment.
 
 Follow the same data collection, annotation, and generation process as demonstrated in Demo 1, but adapted for the G1 locomanipulation task.
 
@@ -434,7 +434,7 @@ Follow the same data collection, annotation, and generation process as demonstra
       --device cpu \
       --xr \
       --visualizer kit \
-      --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5 \
       --num_demos 5
 
@@ -449,7 +449,7 @@ Follow the same data collection, annotation, and generation process as demonstra
       ./isaaclab.sh -p scripts/tools/replay_demos.py \
       --device cpu \
       --visualizer kit \
-      --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+      --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
       --dataset_file ./datasets/dataset_g1_locomanip.hdf5
 
    To annotate the demonstrations:
@@ -483,7 +483,7 @@ At this point you can train a policy that only performs manipulation tasks using
 .. code:: bash
 
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-   --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 --algo bc \
+   --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --algo bc \
    --normalize_training_actions \
    --dataset ./datasets/generated_dataset_g1_locomanip.hdf5
 
@@ -497,7 +497,7 @@ Visualize the trained policy performance:
    ./isaaclab.sh -p scripts/imitation_learning/robomimic/play.py \
    --device cpu \
    --visualizer kit \
-   --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+   --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
    --num_rollouts 50 \
    --horizon 400 \
    --norm_factor_min <NORM_FACTOR_MIN> \

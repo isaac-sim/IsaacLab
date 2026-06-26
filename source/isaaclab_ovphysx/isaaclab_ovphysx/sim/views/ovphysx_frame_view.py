@@ -357,6 +357,7 @@ class OvPhysxFrameView(BaseFrameView):
           ``env_0`` replaced by the row's env_id.
         """
         from isaaclab_ovphysx import tensor_types as TT  # noqa: PLC0415
+        from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
 
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         identity_xform7 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -406,8 +407,11 @@ class OvPhysxFrameView(BaseFrameView):
         # 4. Create the RIGID_BODY_POSE binding (or operate in world-only mode).
         if patterns:
             pattern = patterns[0]
-            self._pose_binding = physx.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
-            if self._pose_binding.shape[0] == 0:
+            self._root_view = OvPhysxView(physx, pattern=pattern, device=self._device)
+            # ``try_binding_for`` returns None for a zero-match binding (the view rejects a
+            # 0-count binding); surface that as the explicit zero-bodies error below.
+            self._pose_binding = self._root_view.try_binding_for(TT.RIGID_BODY_POSE)
+            if self._pose_binding is None:
                 raise RuntimeError(
                     f"OvPhysxFrameView: RIGID_BODY_POSE binding for pattern {pattern!r} matched zero bodies."
                 )
@@ -415,6 +419,7 @@ class OvPhysxFrameView(BaseFrameView):
             binding_paths: list[str] = list(self._pose_binding.prim_paths)
         else:
             # All prims resolved as world-attached: no binding needed; kernels only hit the -1 branch.
+            self._root_view = None
             self._pose_binding = None
             self._pose_buf = wp.zeros((1, 7), dtype=wp.float32, device=self._device)
             binding_paths = []
@@ -613,7 +618,7 @@ class OvPhysxFrameView(BaseFrameView):
             buffer ``[num_bodies]``.
         """
         if self._pose_binding is not None:
-            self._pose_binding.read(self._pose_buf)
+            self._root_view.read_into("rigid_body_pose", self._pose_buf)
         return self._pose_buf.view(wp.transformf)
 
     # ------------------------------------------------------------------
