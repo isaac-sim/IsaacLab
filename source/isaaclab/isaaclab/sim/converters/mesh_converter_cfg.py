@@ -26,8 +26,15 @@ class MeshConverterCfg(AssetConverterBaseCfg):
         If None, then no rigid body properties will be added.
     """
 
-    collision_props: schemas_cfg.CollisionPropertiesCfg = None
+    collision_props: (
+        schemas_cfg.CollisionPropertiesCfg | schemas_cfg.CollisionFragment | list[schemas_cfg.CollisionFragment]
+    ) = None
     """Collision properties to apply to the USD. Defaults to None.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments. When a fragment list is
+    given, ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes
+    its own namespace.
 
     Note:
         If None, then no collision properties will be added.
