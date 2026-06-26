@@ -19,11 +19,14 @@ which works because :func:`isaaclab.app.has_kit` returns False in this
 environment.
 
 PhysX-specific ``cube_object.root_view.set_X(...)`` / ``get_X(...)`` calls are
-adapted to OVPhysX by going through the backend's per-tensor-type binding
-dictionary (``cube_object._bindings`` / :meth:`~isaaclab_ovphysx.assets.Articulation._get_binding`)
-and the public setters (:meth:`set_masses_index`, :meth:`set_coms_index`,
-:meth:`set_inertias_index`).  Reads use the data-class properties
-(``cube_object.data.body_mass``, ``body_inertia``, ``body_com_pose_b``).
+adapted to OVPhysX by going through
+:attr:`~isaaclab_ovphysx.assets.Articulation.root_view`, an
+:class:`~isaaclab_ovphysx.sim.views.OvPhysxView` over the per-tensor-type bindings
+(``root_view.get_attribute(tensor_type)`` /
+:meth:`~isaaclab_ovphysx.assets.Articulation._get_binding`), and the public setters
+(:meth:`set_masses_index`, :meth:`set_coms_index`, :meth:`set_inertias_index`).
+Reads use the data-class properties (``cube_object.data.body_mass``,
+``body_inertia``, ``body_com_pose_b``).
 
 Process-global device lock
 --------------------------
@@ -51,7 +54,6 @@ from __future__ import annotations
 
 import sys
 
-import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -94,26 +96,25 @@ _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
 
 _MATERIAL_GAP_REASON = (
     "Requires a ``RIGID_BODY_MATERIAL`` TensorType (or a view-helper) on the "
-    "ovphysx wheel side.  ``Articulation.root_view`` is a per-tensor-type "
-    "bindings dict on OVPhysX, so ``root_view.get_material_properties()`` / "
+    "ovphysx wheel side.  ``Articulation.root_view`` is an ``OvPhysxView`` over "
+    "the per-tensor-type bindings on OVPhysX, so ``root_view.get_material_properties()`` / "
     "``set_material_properties()`` / ``max_shapes`` are not available.  See "
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
 
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
-    """Read an OVPhysX TensorBinding into a torch tensor on *device*.
+    """Read an OVPhysX attribute into a torch tensor on *device*.
 
     Test-side adapter for the verbatim PhysX mirror.  PhysX cross-checks the
     data class against the simulation via ``articulation.root_view.get_X()``
-    accessors; on OVPhysX, ``root_view`` is a per-tensor-type bindings dict
-    (no view-level getters), so we read the binding directly into a CPU
-    numpy buffer (CPU-only types) and move the result to *device*.
+    accessors; on OVPhysX we go through the equivalent
+    :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute`, which returns a
+    freshly allocated ``float32`` array on the attribute's native device (CPU for
+    CPU-only property types), then move the result to *device*.
     """
-    binding = articulation.root_view[tensor_type]
-    np_buf = np.zeros(binding.shape, dtype=np.float32)
-    binding.read(np_buf)
-    return torch.from_numpy(np_buf).to(device)
+    arr = articulation.root_view.get_attribute(tensor_type)
+    return wp.to_torch(arr).to(device)
 
 
 # Session-locked device.  Set on the first parametrized test that runs and
@@ -365,15 +366,17 @@ def test_initialization_floating_base_non_root(sim, num_articulations, device, a
 
     # Cross-check binding shapes against cached counts.  PhysX does this via
     # ``root_view.max_dofs == shared_metatype.dof_count``; on OVPhysX
-    # ``root_view`` is the per-tensor-type bindings dict, so the equivalent
+    # ``root_view`` is an ``OvPhysxView`` over the per-tensor-type bindings, so the equivalent
     # invariant is that each per-DOF / per-link binding's shape agrees with
     # the count cached on the asset.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # Body-name ordering check is degenerate on OVPhysX: ``body_names`` is
     # sourced from binding metadata (``sample.body_names``), so the PhysX
     # ``link_paths[0]`` round-trip is a no-op here and is omitted.
@@ -428,15 +431,17 @@ def test_initialization_floating_base(sim, num_articulations, device, add_ground
 
     # Cross-check binding shapes against cached counts.  PhysX does this via
     # ``root_view.max_dofs == shared_metatype.dof_count``; on OVPhysX
-    # ``root_view`` is the per-tensor-type bindings dict, so the equivalent
+    # ``root_view`` is an ``OvPhysxView`` over the per-tensor-type bindings, so the equivalent
     # invariant is that each per-DOF / per-link binding's shape agrees with
     # the count cached on the asset.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # Body-name ordering check is degenerate on OVPhysX: ``body_names`` is
     # sourced from binding metadata (``sample.body_names``), so the PhysX
     # ``link_paths[0]`` round-trip is a no-op here and is omitted.
@@ -490,15 +495,17 @@ def test_initialization_fixed_base(sim, num_articulations, device):
 
     # Cross-check binding shapes against cached counts.  PhysX does this via
     # ``root_view.max_dofs == shared_metatype.dof_count``; on OVPhysX
-    # ``root_view`` is the per-tensor-type bindings dict, so the equivalent
+    # ``root_view`` is an ``OvPhysxView`` over the per-tensor-type bindings, so the equivalent
     # invariant is that each per-DOF / per-link binding's shape agrees with
     # the count cached on the asset.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # Body-name ordering check is degenerate on OVPhysX: ``body_names`` is
     # sourced from binding metadata (``sample.body_names``), so the PhysX
     # ``link_paths[0]`` round-trip is a no-op here and is omitted.
@@ -561,15 +568,17 @@ def test_initialization_fixed_base_single_joint(sim, num_articulations, device, 
 
     # Cross-check binding shapes against cached counts.  PhysX does this via
     # ``root_view.max_dofs == shared_metatype.dof_count``; on OVPhysX
-    # ``root_view`` is the per-tensor-type bindings dict, so the equivalent
+    # ``root_view`` is an ``OvPhysxView`` over the per-tensor-type bindings, so the equivalent
     # invariant is that each per-DOF / per-link binding's shape agrees with
     # the count cached on the asset.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # Body-name ordering check is degenerate on OVPhysX: ``body_names`` is
     # sourced from binding metadata (``sample.body_names``), so the PhysX
     # ``link_paths[0]`` round-trip is a no-op here and is omitted.
@@ -634,11 +643,13 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device):
     # PhysX ``root_view.max_dofs == shared_metatype.dof_count`` identity is
     # replaced with binding-shape checks on OVPhysX.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # -- actuator type
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
@@ -690,15 +701,17 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 
     # Cross-check binding shapes against cached counts.  PhysX does this via
     # ``root_view.max_dofs == shared_metatype.dof_count``; on OVPhysX
-    # ``root_view`` is the per-tensor-type bindings dict, so the equivalent
+    # ``root_view`` is an ``OvPhysxView`` over the per-tensor-type bindings, so the equivalent
     # invariant is that each per-DOF / per-link binding's shape agrees with
     # the count cached on the asset.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # Body-name ordering check is degenerate on OVPhysX: ``body_names`` is
     # sourced from binding metadata (``sample.body_names``), so the PhysX
     # ``link_paths[0]`` round-trip is a no-op here and is omitted.
@@ -756,15 +769,17 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
 
     # Cross-check binding shapes against cached counts.  PhysX does this via
     # ``root_view.max_dofs == shared_metatype.dof_count``; on OVPhysX
-    # ``root_view`` is the per-tensor-type bindings dict, so the equivalent
+    # ``root_view`` is an ``OvPhysxView`` over the per-tensor-type bindings, so the equivalent
     # invariant is that each per-DOF / per-link binding's shape agrees with
     # the count cached on the asset.
     for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_joints
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_joints
     for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
-        if tt in articulation.root_view:
-            assert articulation.root_view[tt].shape[1] == articulation.num_bodies
+        binding = articulation.root_view.try_binding_for(tt)
+        if binding is not None:
+            assert binding.shape[1] == articulation.num_bodies
     # Body-name ordering check is degenerate on OVPhysX: ``body_names`` is
     # sourced from binding metadata (``sample.body_names``), so the PhysX
     # ``link_paths[0]`` round-trip is a no-op here and is omitted.
@@ -1976,6 +1991,51 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
         elif state_location == "link":
             torch.testing.assert_close(rand_state[..., :7], articulation.data.root_link_pose_w.torch)
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
+    """Body-frame COM offsets stay cached and invalidate derived buffers after writes."""
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+
+    sim.reset()
+    articulation.update(sim.cfg.dt)
+
+    articulation.data.body_com_pose_b
+    first_timestamp = articulation.data._body_com_pose_b.timestamp
+    articulation.update(sim.cfg.dt)
+    articulation.data.body_com_pose_b
+    assert articulation.data._body_com_pose_b.timestamp == first_timestamp
+
+    dependent_buffers = [
+        ("root_com_pose_w", articulation.data._root_com_pose_w),
+        ("root_com_vel_w", articulation.data._root_com_vel_w),
+        ("root_link_vel_w", articulation.data._root_link_vel_w),
+        ("body_com_pose_w", articulation.data._body_com_pose_w),
+        ("body_com_vel_w", articulation.data._body_com_vel_w),
+        ("body_link_vel_w", articulation.data._body_link_vel_w),
+        ("root_link_lin_vel_b", articulation.data._root_link_lin_vel_b),
+        ("root_link_ang_vel_b", articulation.data._root_link_ang_vel_b),
+        ("root_com_lin_vel_b", articulation.data._root_com_lin_vel_b),
+        ("root_com_ang_vel_b", articulation.data._root_com_ang_vel_b),
+        ("root_state_w", articulation.data._root_state_w_buf),
+        ("root_link_state_w", articulation.data._root_link_state_w_buf),
+        ("root_com_state_w", articulation.data._root_com_state_w_buf),
+        ("body_state_w", articulation.data._body_state_w_buf),
+        ("body_link_state_w", articulation.data._body_link_state_w_buf),
+        ("body_com_state_w", articulation.data._body_com_state_w_buf),
+    ]
+    for _, buffer in dependent_buffers:
+        buffer.timestamp = articulation.data._sim_timestamp
+
+    coms = wp.zeros((articulation.num_instances, articulation.num_bodies), dtype=wp.transformf, device=device)
+    articulation.set_coms_index(coms=coms)
+
+    assert articulation.data._body_com_pose_b.timestamp == articulation.data._sim_timestamp
+    for name, buffer in dependent_buffers:
+        assert buffer.timestamp < articulation.data._sim_timestamp, name
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

@@ -352,19 +352,53 @@ def _spawn_from_usd_file(
             schemas.modify_rigid_body_properties(prim_path, cfg.rigid_props)
     # modify collision properties
     if cfg.collision_props is not None:
-        schemas.modify_collision_properties(prim_path, cfg.collision_props)
-    # modify mass properties
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
+        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
+            schemas.apply_collision_properties(prim_path, coll_frags)
+        else:
+            schemas.modify_collision_properties(prim_path, cfg.collision_props)
+    # modify mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> modify_*)
     if cfg.mass_props is not None:
-        schemas.modify_mass_properties(prim_path, cfg.mass_props)
+        # normalize a single fragment to a list so the convenience form routes like a list
+        mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
+        if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
+            schemas.apply_mass_properties(prim_path, mass_frags)
+        else:
+            schemas.modify_mass_properties(prim_path, cfg.mass_props)
 
     # modify articulation root properties
     if cfg.articulation_props is not None:
         schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
-        schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
+        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*
+        # normalize a single fragment to a list so the convenience form (and an empty list) route like a list
+        fixed_tendon_frags = (
+            [cfg.fixed_tendons_props]
+            if isinstance(cfg.fixed_tendons_props, schemas.SchemaFragment)
+            else cfg.fixed_tendons_props
+        )
+        if isinstance(fixed_tendon_frags, (list, tuple)) and all(
+            isinstance(f, schemas.SchemaFragment) for f in fixed_tendon_frags
+        ):
+            schemas.apply_fixed_tendon_properties(prim_path, fixed_tendon_frags)
+        else:
+            schemas.modify_fixed_tendon_properties(prim_path, cfg.fixed_tendons_props)
     if cfg.spatial_tendons_props is not None:
-        schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
+        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*
+        # normalize a single fragment to a list so the convenience form (and an empty list) route like a list
+        spatial_tendon_frags = (
+            [cfg.spatial_tendons_props]
+            if isinstance(cfg.spatial_tendons_props, schemas.SchemaFragment)
+            else cfg.spatial_tendons_props
+        )
+        if isinstance(spatial_tendon_frags, (list, tuple)) and all(
+            isinstance(f, schemas.SchemaFragment) for f in spatial_tendon_frags
+        ):
+            schemas.apply_spatial_tendon_properties(prim_path, spatial_tendon_frags)
+        else:
+            schemas.modify_spatial_tendon_properties(prim_path, cfg.spatial_tendons_props)
     # define drive API on the joints
     # note: these are only for setting low-level simulation properties. all others should be set or are
     #  and overridden by the articulation/actuator properties.

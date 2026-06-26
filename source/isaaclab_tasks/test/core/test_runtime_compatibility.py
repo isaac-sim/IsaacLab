@@ -16,9 +16,13 @@ import argparse
 import sys
 
 import pytest
+from isaaclab_ov.renderers import OVRTXRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+import isaaclab.app.sim_launcher as sim_launcher_module
+import isaaclab.utils as isaaclab_utils
 from isaaclab.app import scan
-from isaaclab.app.sim_launcher import _validate_runtime
+from isaaclab.app.sim_launcher import _validate_runtime, launch_simulation
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -28,7 +32,9 @@ _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 def validate_runtime_compatibility(env_cfg, launcher_args=None):
     """Run the single-scan runtime validation for *env_cfg* (test adapter)."""
-    _validate_runtime(scan(env_cfg), launcher_args)
+    config_scan = scan(env_cfg, launcher_args)
+    _validate_runtime(config_scan, launcher_args)
+    return config_scan
 
 
 def _resolve_with_presets(presets: str):
@@ -130,6 +136,58 @@ def test_default_preset_is_valid():
     """The default preset (PhysX + Isaac RTX) is supported."""
     env_cfg = _resolve_with_presets("default")
     validate_runtime_compatibility(env_cfg)
+
+
+def test_rtx_with_default_physx_is_valid_and_resolves_to_isaac_rtx():
+    """The RTX preset chooses the Kit-compatible renderer for PhysX."""
+    env_cfg = _resolve_with_presets("rtx")
+    config_scan = validate_runtime_compatibility(env_cfg)
+
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
+
+
+def test_rtx_with_newton_is_valid_and_resolves_to_ovrtx():
+    """The RTX preset chooses OVRTX when no Isaac Sim runtime is needed."""
+    env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
+    config_scan = validate_runtime_compatibility(env_cfg)
+
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
+
+
+def test_rtx_with_ovphysx_is_valid_and_resolves_to_ovrtx():
+    """The RTX preset chooses OVRTX for an OvPhysX kitless run."""
+    env_cfg = _resolve_with_presets("ovphysx,rtx")
+    config_scan = validate_runtime_compatibility(env_cfg)
+
+    assert config_scan.has_ovphysx_physics is True
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
+
+
+def test_rtx_with_kit_visualizer_is_valid_and_resolves_to_isaac_rtx():
+    """The RTX preset chooses Isaac RTX when the Kit visualizer is requested."""
+    env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
+    config_scan = validate_runtime_compatibility(env_cfg, argparse.Namespace(visualizer="kit"))
+
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
+    assert config_scan.needs_kit is True
+
+
+def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pytest.MonkeyPatch):
+    """Livestreaming should make ``presets=newton_mjwarp,rtx`` choose Isaac RTX."""
+    env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
+    launcher_args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=False)
+    monkeypatch.setattr(sim_launcher_module, "_ensure_isaac_sim_available", lambda: None)
+    monkeypatch.setattr(isaaclab_utils, "has_kit", lambda: True)
+
+    with launch_simulation(env_cfg, launcher_args) as physics_cfg:
+        assert type(physics_cfg).__name__ == "NewtonCfg"
+
+    assert launcher_args.visualizer == ["kit"]
+    assert launcher_args.enable_cameras is True
+    assert isinstance(env_cfg.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
 
 
 def test_newton_plus_isaacsim_rtx_is_valid():

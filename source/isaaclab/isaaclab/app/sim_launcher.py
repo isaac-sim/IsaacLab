@@ -22,8 +22,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from isaaclab_newton.physics import NewtonCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -78,6 +80,11 @@ def _is_ovrtx_renderer(node) -> bool:
     return isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"
 
 
+def _is_auto_rtx_renderer(node) -> bool:
+    """True when the node is an automatic RTX renderer placeholder."""
+    return getattr(node, "renderer_type", None) == "auto_rtx"
+
+
 def _is_kit_camera(node) -> bool:
     """True for a CameraCfg whose renderer requires Kit (not Newton)."""
     if not isinstance(node, CameraCfg):
@@ -85,6 +92,10 @@ def _is_kit_camera(node) -> bool:
     renderer_cfg = getattr(node, "renderer_cfg", None)
     if renderer_cfg is None:
         return True
+    if _is_auto_rtx_renderer(renderer_cfg):
+        # ``auto_rtx`` is resolved after the initial scan once physics and
+        # visualizer intent are known; ie. it may become OVRTX for a kitless run.
+        return False
     if isinstance(renderer_cfg, RendererCfg):
         return renderer_cfg.renderer_type in ("default", "isaac_rtx")
     # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved during
@@ -182,10 +193,12 @@ The Single Scan.
 class Scan:
     """Signals gathered from one walk of the config tree (see :func:`scan`).
 
-    Every field is a plain snapshot computed during that single walk; nothing here
-    is recomputed or mutated afterwards. ``needs_kit`` is the headline decision: a
-    Kit-renderer camera or non-kitless physics requires Kit (the launcher additionally
-    forces Kit when ``--visualizer kit`` is requested).
+    Every field starts as a plain snapshot computed during that single walk.
+    Automatic RTX renderer placeholders are also recorded so launch-time resolution
+    can update the renderer-related fields without traversing the config tree again.
+    ``needs_kit`` is the headline decision: a Kit-renderer camera or non-kitless
+    physics requires Kit (the launcher additionally forces Kit when ``--visualizer
+    kit`` is requested).
     """
 
     resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
@@ -199,21 +212,30 @@ class Scan:
     needs_kit: bool
 
 
-def scan(cfg, physics_str: str | None = None) -> Scan:
+def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     """Walk *cfg* once, collecting all launch signals and applying ``--physics``.
 
-    When *physics_str* is set, every physics config is replaced by the requested
-    backend (see :func:`make_physics_cfg`): nested configs in place, a root config
-    via :attr:`Scan.effective_cfg` (it cannot be mutated in place).
+    When the ``physics`` key is present in *launcher_args*, every physics config is
+    replaced by the requested backend (see :func:`make_physics_cfg`): nested configs
+    in place, a root config via :attr:`Scan.effective_cfg` (it cannot be mutated in
+    place). Automatic RTX renderer placeholders (``renderer_type="auto_rtx"``) are
+    also resolved at this stage using the full *launcher_args* context.
     """
+    physics_str = _get_arg(launcher_args, "physics", None)
     physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
     has_ovrtx = False
+    has_auto_rtx = False
     has_kit_camera = False
+    auto_rtx_locations: list[tuple[Any, Any, bool]] = []  # (parent, key, is_cam_renderer) for each auto RTX placeholder
     visited: set[int] = set()
 
-    def visit(node, parent, attr):
-        nonlocal effective_cfg, has_ovrtx, has_kit_camera
+    def visit(node, parent, key):
+        nonlocal effective_cfg, has_ovrtx, has_auto_rtx, has_kit_camera
+        if _is_auto_rtx_renderer(node):
+            has_auto_rtx = True
+            auto_rtx_locations.append((parent, key, isinstance(parent, CameraCfg) and key == "renderer_cfg"))
+
         if id(node) in visited:
             return
         visited.add(id(node))
@@ -222,7 +244,7 @@ def scan(cfg, physics_str: str | None = None) -> Scan:
             if physics_str:
                 node = make_physics_cfg(physics_str)
                 if parent is not None:
-                    setattr(parent, attr, node)
+                    setattr(parent, key, node)
                 else:
                     effective_cfg = node
             physics_cfgs.append(node)
@@ -244,7 +266,7 @@ def scan(cfg, physics_str: str | None = None) -> Scan:
 
     names = [type(pcfg).__name__ for pcfg in physics_cfgs]
     has_kitless_physics = any(name in _KITLESS_PHYSICS_CFGS for name in names)
-    return Scan(
+    config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
         visualizer_intent=_get_visualizer_intent(cfg),
@@ -256,10 +278,45 @@ def scan(cfg, physics_str: str | None = None) -> Scan:
         needs_kit=has_kit_camera or not has_kitless_physics,
     )
 
+    # Resolve recorded auto RTX renderer placeholders
+    if not has_auto_rtx:
+        return config_scan
+
+    use_isaac_sim = _uses_isaac_sim_runtime(config_scan, launcher_args)
+    renderer_factory = IsaacRtxRendererCfg if use_isaac_sim else OVRTXRendererCfg
+
+    # Resolve every auto RTX placeholder in place, tracking camera renderers that may require Kit.
+    has_auto_camera = False
+    for location in auto_rtx_locations:
+        if location[0] is None:
+            raise ValueError("Automatic RTX renderer placeholders cannot be resolved as the root config.")
+        setattr(location[0], location[1], renderer_factory())
+        has_auto_camera = has_auto_camera or location[2]
+
+    # Update the scan with the resolved auto RTX renderer type and Kit-camera status.
+    if use_isaac_sim:
+        config_scan.has_kit_camera = config_scan.has_kit_camera or has_auto_camera
+    else:
+        config_scan.has_ovrtx = True
+    config_scan.needs_kit = config_scan.has_kit_camera or not config_scan.has_kitless_physics
+
+    return config_scan
+
 
 """
 Launch Decisions (derived purely from a scan).
 """
+
+
+def _has_kit_visualizer(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
+    """Return whether the run requests the Kit visualizer through config or CLI."""
+    visualizer_types = _get_visualizer_types(launcher_args)
+    return "kit" in visualizer_types or config_scan.visualizer_intent["has_kit_visualizer"]
+
+
+def _uses_isaac_sim_runtime(config_scan: Scan, launcher_args: argparse.Namespace | dict | None) -> bool:
+    """Return whether the scanned config requires Isaac Sim / Kit."""
+    return config_scan.needs_kit or _has_kit_visualizer(config_scan, launcher_args)
 
 
 def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | None) -> None:
@@ -268,8 +325,7 @@ def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | Non
     OVRTX is kitless and cannot share a process with Kit-based runtimes (PhysX physics
     or the Kit visualizer); OvPhysX physics likewise cannot run with the Kit visualizer.
     """
-    visualizer_types = _get_visualizer_types(launcher_args)
-    has_kit_visualizer = "kit" in visualizer_types or scan.visualizer_intent["has_kit_visualizer"]
+    has_kit_visualizer = _has_kit_visualizer(scan, launcher_args)
 
     if scan.has_ovphysx_physics and has_kit_visualizer:
         raise ValueError(
@@ -352,11 +408,14 @@ def launch_simulation(
 
     Callers that do not need the value simply omit ``as``.
     """
+    # Livestreaming implies a Kit visualizer; make that visible to auto RTX
+    # resolution during the single scan.
+    _ensure_livestream_kit_visualizer(launcher_args)
+
     # The single walk: collect every signal and apply the --physics override.
-    config_scan = scan(cfg, _get_arg(launcher_args, "physics"))
+    config_scan = scan(cfg, launcher_args)
     effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
-    _ensure_livestream_kit_visualizer(launcher_args)
     visualizer_types = _get_visualizer_types(launcher_args)
 
     # ovrtx + Kit visualizer share conflicting RTX hydra libraries under different USD
@@ -372,7 +431,7 @@ def launch_simulation(
         )
 
     _validate_runtime(config_scan, launcher_args)
-    needs_kit = config_scan.needs_kit or "kit" in visualizer_types
+    needs_kit = _uses_isaac_sim_runtime(config_scan, launcher_args)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
 
     if needs_kit and config_scan.has_kit_camera and launcher_args is not None:

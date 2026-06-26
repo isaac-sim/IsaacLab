@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+8.0.7 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"normals"`` to the rendering correctness validation suite. The ``normals`` data type
+  (float32 surface normal vectors in ``[-1, 1]``) is now included in
+  :data:`~rendering_test_utils._DEFAULT_SENSOR_DATA_TYPES` for all RTX-based renderer
+  combinations and as an explicit parameter for the Newton Warp renderer.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg` to
+  expose automatic ``rtx`` selection through ``renderer=rtx``.
+
+
 8.0.6 (2026-06-25)
 ~~~~~~~~~~~~~~~~~~
 
