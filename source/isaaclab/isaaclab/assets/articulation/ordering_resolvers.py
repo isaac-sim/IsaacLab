@@ -45,14 +45,6 @@ def _get_attr_or_none(obj: object, name: str) -> object | None:
         return None
 
 
-def _get_articulation_root_view(articulation: object) -> object | None:
-    """Return a public root view, falling back to legacy private storage."""
-    root_view = _get_attr_or_none(articulation, "root_view")
-    if root_view is not None:
-        return root_view
-    return _get_attr_or_none(articulation, "_root_view")
-
-
 def _get_backend_names(articulation: object, kind: Literal["joint", "body"]) -> tuple[str, ...]:
     """Return active backend names from an articulation."""
     attr_name = "backend_joint_names" if kind == "joint" else "backend_body_names"
@@ -420,8 +412,6 @@ def _get_root_view_convention_names(
     if convention is ArticulationOrderingConvention.PHYSX:
         shared_metatype = _get_attr_or_none(root_view, "shared_metatype")
         if shared_metatype is None:
-            shared_metatype = _get_attr_or_none(root_view, "_shared_metatype")
-        if shared_metatype is None:
             return None
         attr_name = "dof_names" if kind == "joint" else "link_names"
         return _coerce_name_sequence(_get_attr_or_none(shared_metatype, attr_name))
@@ -475,7 +465,7 @@ def resolve_articulation_convention_name_ordering(
             _cache_convention_names(articulation, parsed_convention, {kind: robot_schema_names})
             return robot_schema_names
 
-    root_view = _get_articulation_root_view(articulation)
+    root_view = _get_attr_or_none(articulation, "root_view")
     if root_view is not None:
         root_view_names = _get_root_view_convention_names(root_view, parsed_convention, kind)
         if root_view_names is not None:

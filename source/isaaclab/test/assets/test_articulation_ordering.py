@@ -47,6 +47,8 @@ sim_stub.SimulationContext = _SimulationContext
 sim_stub.SpawnerCfg = _SpawnerCfg
 simulation_context_stub = types.ModuleType("isaaclab.sim.simulation_context")
 simulation_context_stub.SimulationContext = _SimulationContext
+_inserted_sim_stub = "isaaclab.sim" not in sys.modules
+_inserted_sim_context_stub = "isaaclab.sim.simulation_context" not in sys.modules
 sys.modules.setdefault("isaaclab.sim", sim_stub)
 sys.modules.setdefault("isaaclab.sim.simulation_context", simulation_context_stub)
 
@@ -60,6 +62,7 @@ class _AssetBase:
 
 
 asset_base_stub.AssetBase = _AssetBase
+_inserted_asset_base_stub = "isaaclab.assets.asset_base" not in sys.modules
 sys.modules.setdefault("isaaclab.assets.asset_base", asset_base_stub)
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -76,6 +79,13 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_scalar_user_to_backend_with_indices,
     write_scalar_user_to_backend_with_mask,
 )
+
+if _inserted_sim_stub:
+    sys.modules.pop("isaaclab.sim", None)
+if _inserted_sim_context_stub:
+    sys.modules.pop("isaaclab.sim.simulation_context", None)
+if _inserted_asset_base_stub:
+    sys.modules.pop("isaaclab.assets.asset_base", None)
 
 
 def test_parse_articulation_ordering_convention_accepts_none_strings_and_enum() -> None:
@@ -298,6 +308,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
     queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
     sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
     monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
 
@@ -406,6 +417,7 @@ def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypat
     queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
     sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
     monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
 
@@ -501,6 +513,7 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
     sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
     monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
     monkeypatch.setitem(sys.modules, "newton", newton_mod)
     monkeypatch.setitem(sys.modules, "newton.selection", selection_mod)
     monkeypatch.setitem(sys.modules, "newton._src.usd.schemas", schemas_mod)
@@ -614,6 +627,7 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
     sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
     monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
     monkeypatch.setitem(sys.modules, "newton", newton_mod)
     monkeypatch.setitem(sys.modules, "newton.selection", selection_mod)
     monkeypatch.setitem(sys.modules, "newton._src.usd.schemas", schemas_mod)

@@ -1225,7 +1225,9 @@ class Articulation(BaseArticulation):
             self._data._joint_stiffness.data, self._data._joint_stiffness_backend.data
         )
         wp.copy(self.data._cpu_joint_stiffness, joint_stiffness_backend)
-        self._root_view.set_attribute(TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_damping_to_sim_index(
         self,
@@ -1317,7 +1319,9 @@ class Articulation(BaseArticulation):
             self._data._joint_damping.data, self._data._joint_damping_backend.data
         )
         wp.copy(self.data._cpu_joint_damping, joint_damping_backend)
-        self._root_view.set_attribute(TT.DOF_DAMPING, self.data._cpu_joint_damping, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_DAMPING, self.data._cpu_joint_damping, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_position_limit_to_sim_index(
         self,
@@ -1612,7 +1616,9 @@ class Articulation(BaseArticulation):
             self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend.data
         )
         wp.copy(self.data._cpu_joint_velocity_limit, joint_vel_limits_backend)
-        self._root_view.set_attribute(TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1704,7 +1710,9 @@ class Articulation(BaseArticulation):
             self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend.data
         )
         wp.copy(self.data._cpu_joint_effort_limit, joint_effort_limits_backend)
-        self._root_view.set_attribute(TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_armature_to_sim_index(
         self,
@@ -1796,7 +1804,9 @@ class Articulation(BaseArticulation):
             self._data._joint_armature.data, self._data._joint_armature_backend.data
         )
         wp.copy(self.data._cpu_joint_armature, joint_armature_backend)
-        self._root_view.set_attribute(TT.DOF_ARMATURE, self.data._cpu_joint_armature, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_ARMATURE, self.data._cpu_joint_armature, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
@@ -1924,7 +1934,9 @@ class Articulation(BaseArticulation):
             self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_dynamic_friction_coefficient_to_sim_index(
         self,
@@ -2030,7 +2042,9 @@ class Articulation(BaseArticulation):
             self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_viscous_friction_coefficient_to_sim_index(
         self,
@@ -2138,7 +2152,9 @@ class Articulation(BaseArticulation):
             self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
-        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     """
     Operations - Setters.
@@ -3770,16 +3786,14 @@ class Articulation(BaseArticulation):
         # build actuator instances and write drive properties to PhysX
         self._process_actuators_cfg()
 
-        # cache effort / target bindings and write-views for write_data_to_sim().
-        # The effort view aliases applied_torque so the binding gets the actuator
-        # output without an extra copy.
-        self._effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
-        if self._effort_binding is not None:
+        # cache write views for write_data_to_sim(). The effort view aliases applied_torque
+        # so the binding gets the actuator output without an extra copy.
+        effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
+        if effort_binding is not None:
             torque = self._data._applied_torque
-            shape = self._effort_binding.shape
             self._effort_write_view = wp.array(
                 ptr=torque.ptr,
-                shape=shape,
+                shape=effort_binding.shape,
                 dtype=wp.float32,
                 device=str(torque.device),
                 copy=False,
@@ -3788,18 +3802,13 @@ class Articulation(BaseArticulation):
             self._effort_write_view = None
 
         def _make_write_view(tt, buf):
-            b = self._get_binding(tt)
-            if b is None or buf is None:
-                return None, None
-            v = wp.array(ptr=buf.ptr, shape=b.shape, dtype=wp.float32, device=str(buf.device), copy=False)
-            return b, v
+            binding = self._get_binding(tt)
+            if binding is None or buf is None:
+                return None
+            return wp.array(ptr=buf.ptr, shape=binding.shape, dtype=wp.float32, device=str(buf.device), copy=False)
 
-        self._pos_target_binding, self._pos_target_write_view = _make_write_view(
-            TT.DOF_POSITION_TARGET, self._data._joint_pos_target
-        )
-        self._vel_target_binding, self._vel_target_write_view = _make_write_view(
-            TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target
-        )
+        self._pos_target_write_view = _make_write_view(TT.DOF_POSITION_TARGET, self._data._joint_pos_target)
+        self._vel_target_write_view = _make_write_view(TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target)
 
         # validate the resolved configuration AFTER actuator/tendon processing
         # so the values reflect any overrides applied by the actuator models
