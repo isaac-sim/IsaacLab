@@ -268,6 +268,27 @@ Articulation root properties.
 """
 
 
+# Backend-registered creator that fixes an articulation base by authoring a world<->root fixed joint.
+# Creating it is backend-specific (the PhysX parser requires relocating the articulation root to the
+# parent prim), so the backend registers its implementation via :func:`register_fixed_root_joint_creator`
+# rather than core carrying the backend logic.
+_FIXED_ROOT_JOINT_CREATOR = None
+
+
+def register_fixed_root_joint_creator(creator) -> None:
+    """Register the backend handler that fixes an articulation base via a world<->root fixed joint.
+
+    Called by :func:`apply_articulation_root_properties` when ``fix_root_link=True`` and no fixed joint
+    yet exists. Keeps the backend-specific joint-creation logic (e.g. PhysX's parser workaround) out of
+    core; a physics backend extension (e.g. ``isaaclab_physx``) registers its creator on import.
+
+    Args:
+        creator: A callable ``creator(articulation_prim, stage)`` that authors the fixed joint.
+    """
+    global _FIXED_ROOT_JOINT_CREATOR
+    _FIXED_ROOT_JOINT_CREATOR = creator
+
+
 def apply_articulation_root_properties(
     prim_path: str,
     fragments,
@@ -344,54 +365,16 @@ def apply_articulation_root_properties(
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
             logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
-
-            # note: we have to assume that the root prim is a rigid body,
-            #   i.e. we don't handle the case where the root prim is not a rigid body but has articulation api on it
-            # Currently, there is no obvious way to get first rigid body link identified by the PhysX parser
-            if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                raise NotImplementedError(
-                    f"The articulation prim '{root_path}' does not have the RigidBodyAPI applied."
-                    " To create a fixed joint, we need to determine the first rigid body link in"
-                    " the articulation tree. However, this is not implemented yet."
+            # Creating a world<->root fixed joint to fix the base is backend-specific (the PhysX parser
+            # needs the articulation root relocated to the parent prim). Delegate to the backend-registered
+            # creator so core carries no backend logic; see register_fixed_root_joint_creator.
+            if _FIXED_ROOT_JOINT_CREATOR is None:
+                raise RuntimeError(
+                    f"Cannot fix the articulation root '{root_path}': no fixed-root-joint creator is"
+                    " registered. Import a physics backend extension (e.g. isaaclab_physx) so it can"
+                    " register one."
                 )
-
-            # create a fixed joint between the root link and the world frame
-            from omni.physx.scripts import utils as physx_utils
-
-            physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
-
-            # Having a fixed joint on a rigid body is not treated as "fixed base articulation".
-            # instead, it is treated as a part of the maximal coordinate tree.
-            # Moving the articulation root to the parent solves this issue. This is a limitation of the PhysX parser.
-            # get parent prim
-            parent_prim = articulation_prim.GetParent()
-            # apply api to parent
-            UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
-            parent_applied = parent_prim.GetAppliedSchemas()
-            if "PhysxArticulationAPI" not in parent_applied:
-                parent_prim.AddAppliedSchema("PhysxArticulationAPI")
-
-            # copy the attributes
-            # -- usd attributes
-            usd_articulation_api = UsdPhysics.ArticulationRootAPI(articulation_prim)
-            for attr_name in usd_articulation_api.GetSchemaAttributeNames():
-                attr = articulation_prim.GetAttribute(attr_name)
-                parent_attr = parent_prim.GetAttribute(attr_name)
-                if not parent_attr:
-                    parent_attr = parent_prim.CreateAttribute(attr_name, attr.GetTypeName())
-                parent_attr.Set(attr.Get())
-            # -- physx attributes (copy by name prefix)
-            for attr in articulation_prim.GetAttributes():
-                aname = attr.GetName()
-                if aname.startswith("physxArticulation:"):
-                    parent_attr = parent_prim.GetAttribute(aname)
-                    if not parent_attr:
-                        parent_attr = parent_prim.CreateAttribute(aname, attr.GetTypeName())
-                    parent_attr.Set(attr.Get())
-
-            # remove api from root
-            articulation_prim.RemoveAppliedSchema("PhysxArticulationAPI")
-            articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+            _FIXED_ROOT_JOINT_CREATOR(articulation_prim, stage)
 
     return True
 
