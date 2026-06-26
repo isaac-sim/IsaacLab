@@ -268,25 +268,40 @@ Articulation root properties.
 """
 
 
-# Backend-registered creator that fixes an articulation base by authoring a world<->root fixed joint.
-# Creating it is backend-specific (the PhysX parser requires relocating the articulation root to the
-# parent prim), so the backend registers its implementation via :func:`register_fixed_root_joint_creator`
-# rather than core carrying the backend logic.
-_FIXED_ROOT_JOINT_CREATOR = None
+# Backend-registered creators that fix an articulation base by authoring a world<->root fixed joint.
+# Creating it is backend-specific (PhysX requires relocating the articulation root to the parent prim
+# to work around its parser; Newton reads the fixed joint directly), so each backend registers its own
+# creator plus a predicate that reports when that backend is the active simulation. This keeps core
+# free of backend knowledge while letting each backend run on its own.
+_FIXED_ROOT_JOINT_CREATORS: list = []
 
 
-def register_fixed_root_joint_creator(creator) -> None:
-    """Register the backend handler that fixes an articulation base via a world<->root fixed joint.
+def register_fixed_root_joint_creator(creator, is_active) -> None:
+    """Register a backend creator that fixes an articulation base via a world<->root fixed joint.
 
     Called by :func:`apply_articulation_root_properties` when ``fix_root_link=True`` and no fixed joint
-    yet exists. Keeps the backend-specific joint-creation logic (e.g. PhysX's parser workaround) out of
-    core; a physics backend extension (e.g. ``isaaclab_physx``) registers its creator on import.
+    yet exists. Multiple backends may register; the creator whose ``is_active()`` predicate returns True
+    for the running simulation is selected, so each physics backend (e.g. ``isaaclab_physx``,
+    ``isaaclab_newton``) provides and is matched to its own implementation without core knowing any of
+    them.
 
     Args:
         creator: A callable ``creator(articulation_prim, stage)`` that authors the fixed joint.
+        is_active: A callable ``is_active() -> bool`` returning True when ``creator``'s backend is the
+            active simulation backend.
     """
-    global _FIXED_ROOT_JOINT_CREATOR
-    _FIXED_ROOT_JOINT_CREATOR = creator
+    _FIXED_ROOT_JOINT_CREATORS.append((is_active, creator))
+
+
+def _resolve_fixed_root_joint_creator():
+    """Return the creator whose backend is active, or None if no registered backend matches."""
+    for is_active, creator in _FIXED_ROOT_JOINT_CREATORS:
+        try:
+            if is_active():
+                return creator
+        except Exception:  # noqa: BLE001 -- a backend's probe must never break creator resolution
+            continue
+    return None
 
 
 def apply_articulation_root_properties(
@@ -369,16 +384,17 @@ def apply_articulation_root_properties(
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
             logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
-            # Creating a world<->root fixed joint to fix the base is backend-specific (the PhysX parser
-            # needs the articulation root relocated to the parent prim). Delegate to the backend-registered
-            # creator so core carries no backend logic; see register_fixed_root_joint_creator.
-            if _FIXED_ROOT_JOINT_CREATOR is None:
+            # Creating a world<->root fixed joint to fix the base is backend-specific. Delegate to the
+            # creator for the active backend so core carries no backend logic; see
+            # register_fixed_root_joint_creator.
+            creator = _resolve_fixed_root_joint_creator()
+            if creator is None:
                 raise RuntimeError(
                     f"Cannot fix the articulation root '{root_path}': no fixed-root-joint creator is"
-                    " registered. Import a physics backend extension (e.g. isaaclab_physx) so it can"
-                    " register one."
+                    " registered for the active physics backend. Import the matching backend extension"
+                    " (e.g. isaaclab_physx or isaaclab_newton) so it can register one."
                 )
-            _FIXED_ROOT_JOINT_CREATOR(articulation_prim, stage)
+            creator(articulation_prim, stage)
 
     return True
 

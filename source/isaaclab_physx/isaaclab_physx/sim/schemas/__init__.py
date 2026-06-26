@@ -75,7 +75,17 @@ def _create_fixed_root_joint(articulation_prim, stage) -> None:
     articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
 
 
-# Keep PhysX articulation-root logic out of core: register the creator with the core articulation-root
-# writer. Registered on import of this package (which a caller does to construct PhysX schema
-# fragments), inverting the dependency so core carries no PhysX-specific articulation logic.
-register_fixed_root_joint_creator(_create_fixed_root_joint)
+def _physx_is_active() -> bool:
+    """Return whether the running simulation uses the PhysX backend."""
+    from isaaclab.sim import SimulationContext
+
+    from isaaclab_physx.physics import PhysxCfg
+
+    sim = SimulationContext.instance()
+    return sim is not None and isinstance(sim.cfg.physics, PhysxCfg)
+
+
+# Keep PhysX articulation-root logic out of core: register the creator (matched to the active PhysX
+# backend) with the core articulation-root writer. Registered on import of this package (which a caller
+# does to construct PhysX schema fragments), inverting the dependency so core carries no PhysX logic.
+register_fixed_root_joint_creator(_create_fixed_root_joint, _physx_is_active)
