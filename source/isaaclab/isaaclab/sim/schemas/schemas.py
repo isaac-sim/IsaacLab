@@ -894,6 +894,32 @@ def _drive_instance_name(prim) -> str | None:
     return None
 
 
+# Backend-registered predicates that exclude a joint prim from joint-drive authoring. Backends (e.g.
+# PhysX tendons) register here via :func:`register_joint_drive_skip_predicate` so the core joint-drive
+# writers can skip backend-controlled joints without core carrying any backend-specific schema name.
+_JOINT_DRIVE_SKIP_PREDICATES: list = []
+
+
+def register_joint_drive_skip_predicate(predicate) -> None:
+    """Register a predicate that excludes a joint prim from joint-drive authoring.
+
+    The joint-drive writers (:func:`apply_drive`, :func:`apply_joint_drive_properties`) skip any joint
+    for which a registered predicate returns ``True``. This is the backend hook for cases like PhysX
+    fixed tendons, where the controlling backend owns certain joints and no drive should be authored
+    on them -- the backend registers its own detector so core needs no backend-specific knowledge.
+
+    Args:
+        predicate: A callable ``predicate(prim) -> bool`` returning True to exclude the prim.
+    """
+    if predicate not in _JOINT_DRIVE_SKIP_PREDICATES:
+        _JOINT_DRIVE_SKIP_PREDICATES.append(predicate)
+
+
+def _skip_joint_drive(prim) -> bool:
+    """Return whether any backend-registered predicate excludes ``prim`` from joint-drive authoring."""
+    return any(predicate(prim) for predicate in _JOINT_DRIVE_SKIP_PREDICATES)
+
+
 def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     """Apply a :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment to a single joint prim.
 
@@ -904,8 +930,8 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
 
     * Selects the drive instance: ``"angular"`` for a revolute joint, ``"linear"`` for a prismatic
       joint. For any other prim type, the function is a no-op and returns ``False``.
-    * Skips tendon child prims (prims carrying ``PhysxTendonAxisAPI`` without
-      ``PhysxTendonAxisRootAPI``), returning ``False``.
+    * Skips joints excluded by a backend-registered predicate (see
+      :func:`register_joint_drive_skip_predicate`, e.g. PhysX tendon members), returning ``False``.
     * Applies ``UsdPhysics.DriveAPI`` for the selected instance (presence-gated -- only applied when
       this fragment is present).
     * Converts angular-drive :attr:`stiffness` and :attr:`damping` from radians to degrees
@@ -934,9 +960,8 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     drive_api_name = _drive_instance_name(prim)
     if drive_api_name is None:
         return False
-    # skip tendon child prims (carry PhysxTendonAxisAPI but not the root API)
-    applied_schemas_str = str(prim.GetAppliedSchemas())
-    if "PhysxTendonAxisAPI" in applied_schemas_str and "PhysxTendonAxisRootAPI" not in applied_schemas_str:
+    # skip joints a backend owns (e.g. PhysX tendon members); see register_joint_drive_skip_predicate
+    if _skip_joint_drive(prim):
         return False
 
     # apply the multi-instance drive API (presence-gated anchor for the joint-drive family)
@@ -1034,11 +1059,10 @@ def apply_joint_drive_properties(
         if not is_joint:
             all_prims += child_prim.GetChildren()
             continue
-        # skip tendon-child joints (PhysxTendonAxisAPI without the root API) wholesale: no fragment
-        # may author on them, matching the legacy modify_joint_drive_properties writer. apply_drive
-        # guards itself too, but the physxJoint/mjc fragments would otherwise leak onto them.
-        applied_schemas_str = str(child_prim.GetAppliedSchemas())
-        if "PhysxTendonAxisAPI" in applied_schemas_str and "PhysxTendonAxisRootAPI" not in applied_schemas_str:
+        # skip backend-owned joints wholesale (e.g. PhysX tendon members): no fragment may author on
+        # them. The backend registers the detector via register_joint_drive_skip_predicate, so this
+        # gate carries no backend-specific knowledge; descend into children to reach nested joints.
+        if _skip_joint_drive(child_prim):
             all_prims += child_prim.GetChildren()
             continue
         # dispatch each fragment via its func
