@@ -227,69 +227,31 @@ class SimulationContext:
         (``apps/isaaclab.python.rendering.kit`` and ``apps/isaaclab.python.headless.rendering.kit``),
         which Kit loads only when camera (RGB) rendering is enabled. Any field set on
         :class:`~isaaclab.sim.RenderCfg` (or entries in :attr:`~isaaclab.sim.RenderCfg.carb_settings`)
-        then overrides those defaults here.
+        then overrides those defaults.
 
         Users who need high-performance rendering instead of high fidelity should use the RTX Minimal
         renderer (see the renderers overview) rather than these RTX defaults.
+
+        Note:
+            :class:`~isaaclab.sim.RenderCfg` is RTX-specific, so the field-to-carb-path mapping is owned by
+            the RTX backend (:func:`isaaclab_physx.renderers.apply_rtx_render_settings`); core holds no
+            renderer knowledge and simply delegates with the correct timing. The overrides must be applied
+            exactly once, before :meth:`reset`, while no renderer backend instance exists yet (RTX backends
+            are created lazily per camera, after ``PHYSICS_READY``), which makes ``SimulationContext.__init__``
+            the only viable one-shot hook. When the RTX backend is not installed (e.g. a Newton-only setup),
+            there is nothing to apply.
         """
         render_cfg = getattr(self.cfg, "render", None)
         if render_cfg is None:
             return
 
-        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
-        field_to_setting = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-            "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
-            "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
-            "subpixel_mode": "/rtx/raytracing/subpixel/mode",
-            "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
-            "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
-            "view_tile_limit": "/rtx/viewTile/limit",
-            # RT2 path tracing settings
-            "max_bounces": "/rtx/rtpt/maxBounces",
-            "split_glass": "/rtx/rtpt/splitGlass",
-            "split_clearcoat": "/rtx/rtpt/splitClearcoat",
-            "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
-        }
+        try:
+            from isaaclab_physx.renderers import apply_rtx_render_settings
+        except ImportError:
+            # RenderCfg is RTX-specific; without the RTX backend there is nothing to apply.
+            return
 
-        for key, value in vars(render_cfg).items():
-            if value is None or key in {"carb_settings", "antialiasing_mode"}:
-                continue
-            setting_path = field_to_setting.get(key)
-            if setting_path is not None:
-                self.set_setting(setting_path, value)
-
-        # Raw overrides from render_cfg (stored via SettingsManager)
-        extra_settings = getattr(render_cfg, "carb_settings", None)
-        if extra_settings:
-            for key, value in extra_settings.items():
-                if "_" in key:
-                    path = "/" + key.replace("_", "/")
-                elif "." in key:
-                    path = "/" + key.replace(".", "/")
-                else:
-                    path = key
-                self.set_setting(path, value)
-
-        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
-        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
-        if antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-            except Exception:
-                pass
+        apply_rtx_render_settings(render_cfg, self.set_setting)
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
