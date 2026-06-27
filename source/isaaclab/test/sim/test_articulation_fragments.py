@@ -256,7 +256,7 @@ def test_apply_articulation_root_properties_fix_root_link_without_backend_raises
     """
     from isaaclab.sim.schemas import _backend_hooks, apply_articulation_root_properties
 
-    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", [])
+    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", {})
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -269,20 +269,28 @@ def test_apply_articulation_root_properties_fix_root_link_without_backend_raises
 
 
 def test_register_fixed_root_joint_creator_selects_active_backend(monkeypatch):
-    """The writer selects the registered creator whose backend predicate reports active, and ignores
-    creators whose backend is inactive."""
+    """The writer selects the creator registered for the active simulation's ``cfg.physics`` type and
+    ignores creators registered for other backend cfg types -- no probing of inactive backends."""
     from isaaclab.sim.schemas import _backend_hooks, apply_articulation_root_properties
-    from isaaclab.sim.schemas._backend_hooks import register_fixed_root_joint_creator
 
-    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", [])
+    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", {})
     called = {}
-
-    # an inactive backend's creator must be skipped, the active one's used
-    register_fixed_root_joint_creator(lambda p, s: called.__setitem__("path", "INACTIVE"), lambda: False)
-    register_fixed_root_joint_creator(lambda p, s: called.__setitem__("path", p.GetPath().pathString), lambda: True)
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
+    active_cfg_type = type(SimulationContext.instance().cfg.physics)
+
+    class _OtherBackendCfg:
+        """Stand-in for an inactive backend's physics-cfg type."""
+
+    # a creator keyed by an inactive backend's cfg type must be ignored; the active one's is used
+    _backend_hooks.register_fixed_root_joint_creator(
+        _OtherBackendCfg, lambda p, s: called.__setitem__("path", "INACTIVE")
+    )
+    _backend_hooks.register_fixed_root_joint_creator(
+        active_cfg_type, lambda p, s: called.__setitem__("path", p.GetPath().pathString)
+    )
+
     stage = sim_utils.get_current_stage()
     root = _make_xform(stage, "/World/Robot4")
     UsdPhysics.RigidBodyAPI.Apply(root)

@@ -8,6 +8,8 @@
 from isaaclab.sim.schemas._backend_hooks import register_fixed_root_joint_creator
 from isaaclab.utils.module import lazy_export
 
+from isaaclab_newton.physics import NewtonCfg
+
 lazy_export()
 
 
@@ -41,17 +43,9 @@ def _create_fixed_root_joint_newton(articulation_prim, stage) -> None:
     physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
 
 
-def _newton_is_active() -> bool:
-    """Return whether the running simulation uses the Newton backend."""
-    from isaaclab.sim import SimulationContext
-
-    from isaaclab_newton.physics import NewtonCfg
-
-    sim = SimulationContext.instance()
-    return sim is not None and isinstance(sim.cfg.physics, NewtonCfg)
-
-
-# Register the Newton fixed-root-joint creator (matched to the active Newton backend) so fixing an
-# articulation base works in a Newton-only run, without core carrying any backend logic. Registered on
-# import of this package (which a caller does to construct Newton schema fragments).
-register_fixed_root_joint_creator(_create_fixed_root_joint_newton, _newton_is_active)
+# Register the Newton fixed-root-joint creator with the core articulation-root writer keyed by
+# ``NewtonCfg``, so the writer selects it only when Newton is the active simulation backend
+# (``cfg.physics`` is a ``NewtonCfg``). This makes fixing an articulation base work in a Newton-only run
+# without core carrying any backend logic. Registered on import of this package (which a caller does to
+# construct Newton schema fragments).
+register_fixed_root_joint_creator(NewtonCfg, _create_fixed_root_joint_newton)

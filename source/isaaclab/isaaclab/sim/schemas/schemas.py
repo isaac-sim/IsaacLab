@@ -356,10 +356,13 @@ def apply_articulation_root_properties(
             existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
         elif fix_root_link:
             logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
-            # Creating a world<->root fixed joint to fix the base is backend-specific. Delegate to the
-            # creator for the active backend so core carries no backend logic; see
-            # register_fixed_root_joint_creator.
-            creator = _resolve_fixed_root_joint_creator()
+            # Creating a world<->root fixed joint to fix the base is backend-specific. Look up the
+            # creator registered for the active simulation's physics-cfg type so core carries no backend
+            # logic and never touches a non-active backend; see register_fixed_root_joint_creator.
+            from isaaclab.sim import SimulationContext
+
+            sim = SimulationContext.instance()
+            creator = _resolve_fixed_root_joint_creator(type(sim.cfg.physics) if sim is not None else None)
             if creator is None:
                 raise RuntimeError(
                     f"Cannot fix the articulation root '{root_path}': no fixed-root-joint creator is"

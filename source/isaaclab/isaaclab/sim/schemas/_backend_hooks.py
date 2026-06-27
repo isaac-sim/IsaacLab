@@ -16,37 +16,39 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-# Backend-registered creators that fix an articulation base by authoring a world<->root fixed joint.
-# Creating it is backend-specific (PhysX requires relocating the articulation root to the parent prim
-# to work around its parser; Newton reads the fixed joint directly), so each backend registers its own
-# creator plus a predicate that reports when that backend is the active simulation. This keeps core
-# free of backend knowledge while letting each backend run on its own.
-_FIXED_ROOT_JOINT_CREATORS: list[tuple[Callable, Callable]] = []
+# Backend-registered creators that fix an articulation base by authoring a world<->root fixed joint,
+# keyed by the backend's physics-cfg class (the type of ``SimulationContext.cfg.physics``). Creating it
+# is backend-specific (PhysX relocates the articulation root to the parent prim to work around its
+# parser; Newton reads the fixed joint directly), so each backend registers its own creator under its
+# cfg type. The writer looks up the creator for the active simulation's ``cfg.physics`` type -- a plain
+# dict lookup that never imports or executes a non-active backend, and "active" comes solely from the
+# live ``cfg.physics`` rather than from which backends happen to be imported.
+_FIXED_ROOT_JOINT_CREATORS: dict[type, Callable] = {}
 
 
-def register_fixed_root_joint_creator(creator: Callable, is_active: Callable) -> None:
-    """Register a backend creator that fixes an articulation base via a world<->root fixed joint.
+def register_fixed_root_joint_creator(physics_cfg: type, creator: Callable) -> None:
+    """Register the creator that fixes an articulation base for a given physics-backend cfg type.
 
     Called by :func:`~isaaclab.sim.schemas.apply_articulation_root_properties` when ``fix_root_link``
-    is True and no fixed joint yet exists. Multiple backends may register; the creator whose
-    ``is_active()`` predicate returns True for the running simulation is selected, so each physics
-    backend (e.g. ``isaaclab_physx``, ``isaaclab_newton``) provides and is matched to its own
-    implementation without core knowing any of them.
+    is True and no fixed joint yet exists. Each physics backend (e.g. ``isaaclab_physx``,
+    ``isaaclab_newton``) registers its own creator keyed by its physics-cfg class; the writer looks up
+    the creator for the active simulation's ``cfg.physics`` type, so core selects the right backend
+    without importing or probing any of them.
 
     Args:
+        physics_cfg: The backend's physics-cfg class (the type of ``SimulationContext.cfg.physics`` for
+            that backend), used as the lookup key.
         creator: A callable ``creator(articulation_prim, stage)`` that authors the fixed joint.
-        is_active: A callable ``is_active() -> bool`` returning True when ``creator``'s backend is the
-            active simulation backend.
     """
-    _FIXED_ROOT_JOINT_CREATORS.append((is_active, creator))
+    _FIXED_ROOT_JOINT_CREATORS[physics_cfg] = creator
 
 
-def _resolve_fixed_root_joint_creator():
-    """Return the creator whose backend is active, or None if no registered backend matches."""
-    for is_active, creator in _FIXED_ROOT_JOINT_CREATORS:
-        try:
-            if is_active():
-                return creator
-        except Exception:  # noqa: BLE001 -- a backend's probe must never break creator resolution
-            continue
-    return None
+def _resolve_fixed_root_joint_creator(physics_cfg: type | None) -> Callable | None:
+    """Return the creator registered for the active backend's physics-cfg type, or None.
+
+    Args:
+        physics_cfg: The type of the active simulation's ``cfg.physics`` (or None if no simulation).
+    """
+    if physics_cfg is None:
+        return None
+    return _FIXED_ROOT_JOINT_CREATORS.get(physics_cfg)
