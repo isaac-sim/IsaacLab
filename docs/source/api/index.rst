@@ -154,7 +154,6 @@ The following modules are available in the ``isaaclab_newton`` extension:
    renderers
    sensors
    sim.schemas
-   video_recording
 
 .. toctree::
    :hidden:

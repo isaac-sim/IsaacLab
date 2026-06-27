@@ -13,6 +13,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 from newton.viewer import ViewerGL
@@ -852,6 +853,19 @@ class NewtonVisualizer(BaseVisualizer):
         self.cfg.eye = eye_t
         self.cfg.lookat = target_t
         self._apply_camera_pose((eye_t, target_t))
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Return the latest RGB frame rendered by the Newton viewer.
+
+        Returns:
+            The latest viewer framebuffer as a uint8 array with shape ``(height, width, 3)``.
+
+        Raises:
+            RuntimeError: If the visualizer has not been initialized.
+        """
+        if self._viewer is None:
+            raise RuntimeError("NewtonVisualizer must be initialized before capturing an RGB frame.")
+        return self._viewer.get_frame().numpy()
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""
