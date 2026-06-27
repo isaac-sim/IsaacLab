@@ -134,6 +134,7 @@ class NewtonVisualizationMarkers:
         translations = state["translations"]
         if translations is None:
             return
+        translations = _apply_marker_world_offsets(viewer, translations, state["world_indices"], num_envs)
         orientations = state["orientations"]
         if orientations is None:
             orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(state["count"], 1)
@@ -413,6 +414,7 @@ def _filter_marker_state(
     visible_env_ids: list[int] | None,
     num_envs: int,
 ) -> dict[str, Any]:
+    """Filter an environment-major marker batch and retain each marker's owning world."""
     if visible_env_ids is None or marker.count == 0 or num_envs <= 0 or marker.count % num_envs != 0:
         return {
             "visible": marker.visible,
@@ -421,18 +423,22 @@ def _filter_marker_state(
             "scales": marker.scales,
             "marker_indices": marker.marker_indices,
             "count": marker.count,
+            "world_indices": None,
         }
 
     keep: list[int] = []
+    world_ids: list[int] = []
     repeat_count = marker.count // num_envs
-    for block_idx in range(repeat_count):
-        base = block_idx * num_envs
-        for env_id in visible_env_ids:
-            idx = base + env_id
-            if idx < marker.count:
-                keep.append(idx)
+    for env_id in dict.fromkeys(visible_env_ids):
+        if env_id < 0 or env_id >= num_envs:
+            continue
+        start = env_id * repeat_count
+        for idx in range(start, start + repeat_count):
+            keep.append(idx)
+            world_ids.append(env_id)
+    world_indices = torch.tensor(world_ids, dtype=torch.long, device=marker.infer_device())
 
-    if len(keep) == marker.count:
+    if keep == list(range(marker.count)):
         return {
             "visible": marker.visible,
             "translations": marker.translations,
@@ -440,6 +446,7 @@ def _filter_marker_state(
             "scales": marker.scales,
             "marker_indices": marker.marker_indices,
             "count": marker.count,
+            "world_indices": world_indices,
         }
 
     index = torch.tensor(keep, dtype=torch.long, device=marker.infer_device())
@@ -450,7 +457,43 @@ def _filter_marker_state(
         "scales": marker.scales.index_select(0, index) if marker.scales is not None else None,
         "marker_indices": marker.marker_indices.index_select(0, index) if marker.marker_indices is not None else None,
         "count": len(keep),
+        "world_indices": world_indices,
     }
+
+
+def _apply_marker_world_offsets(
+    viewer, translations: torch.Tensor, world_indices: torch.Tensor | None, num_envs: int
+) -> torch.Tensor:
+    """Apply a Newton viewer's visual world offsets to env-owned markers."""
+    spacing = getattr(viewer, "_user_spacing", None)
+    if spacing is not None and all(float(spacing[axis]) == 0.0 for axis in range(3)):
+        return translations
+
+    world_offsets = getattr(viewer, "world_offsets", None)
+    if world_offsets is None:
+        return translations
+
+    if isinstance(world_offsets, torch.Tensor):
+        offsets = world_offsets
+    elif isinstance(world_offsets, np.ndarray):
+        offsets = torch.as_tensor(world_offsets)
+    else:
+        try:
+            offsets = wp.to_torch(world_offsets)
+        except (AttributeError, RuntimeError, TypeError):
+            return translations
+    if offsets.ndim != 2 or offsets.shape[1] != 3:
+        return translations
+
+    if world_indices is None:
+        if num_envs <= 0 or translations.shape[0] % num_envs != 0:
+            return translations
+        repeat_count = translations.shape[0] // num_envs
+        world_indices = torch.arange(num_envs, device=translations.device).repeat_interleave(repeat_count)
+
+    indices = world_indices.to(device=offsets.device)
+    selected_offsets = offsets.index_select(0, indices).to(device=translations.device, dtype=translations.dtype)
+    return translations + selected_offsets
 
 
 def _extract_scale_hint(marker_cfg: object) -> tuple[float, float, float]:
