@@ -80,6 +80,32 @@ precedence and only one ``--video`` stream is recorded. Rerun records ``.rrd`` r
 the Rerun visualizer rather than producing ``--video`` clips, and Viser does not currently provide a
 ``--video`` recording backend.
 
+When the Newton visualizer selects the backend, video capture mirrors its effective
+``visible_env_indices`` and ``max_visible_envs`` selection. For example,
+``visible_env_indices=[0, 1, 2, 3]`` makes both the live Newton view and the recorded clip contain
+only those four simulation worlds. This mirroring does not apply when
+``VideoRecorderCfg.backend_source = "renderer"``, because renderer-selected capture is independent
+of active visualizers.
+
+When ``scene.env_spacing`` is zero, selected worlds still share the same simulated coordinates.
+Set :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing` to add visual-only
+offsets [m]. The recorder mirrors this setting, so four worlds can be arranged in a compact 2-by-2
+grid without changing physics:
+
+.. code-block:: python
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+
+    NewtonVisualizerCfg(
+        visible_env_indices=[0, 1, 2, 3],
+        world_spacing=(2.0, 2.0, 0.0),
+    )
+
+The Newton GL recorder also renders active :class:`~isaaclab.markers.VisualizationMarkers` when
+:attr:`~isaaclab.visualizers.VisualizerCfg.enable_markers` is enabled. This includes visual-only
+task geometry such as Dexsuite's colored table. Marker instances follow the same selected-world
+offsets as model geometry; set ``enable_markers=False`` to omit them from both views.
+
 Set ``VideoRecorderCfg.backend_source = "renderer"`` to ignore active visualizers and choose from the
 physics/renderer stack instead. In that mode, PhysX physics (``physics=physx``) or Isaac RTX
 (``renderer=isaacsim_rtx_renderer``) selects the Kit path. Newton physics (``physics=newton_mjwarp``) or
@@ -160,7 +186,8 @@ Summary
      - Visualizer ``eye`` / ``lookat`` copied to ``/OmniverseKit_Persp`` + Replicator RGB
    * - ``--visualizer newton`` with default ``backend_source``
      - Newton GL (``"newton_gl"``)
-     - Visualizer ``eye`` / ``lookat`` initially, then live Newton viewer camera sync per frame
+     - Visualizer ``eye`` / ``lookat`` initially, then live camera, visible-environment
+       selection, world-spacing, and marker-overlay sync per frame
 
 
 See also
