@@ -29,6 +29,7 @@ from ..utils import (
     safe_set_attribute_on_usd_schema,
 )
 from . import schemas_cfg
+from ._backend_hooks import _resolve_fixed_root_joint_creator
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -266,42 +267,6 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
 """
 Articulation root properties.
 """
-
-
-# Backend-registered creators that fix an articulation base by authoring a world<->root fixed joint.
-# Creating it is backend-specific (PhysX requires relocating the articulation root to the parent prim
-# to work around its parser; Newton reads the fixed joint directly), so each backend registers its own
-# creator plus a predicate that reports when that backend is the active simulation. This keeps core
-# free of backend knowledge while letting each backend run on its own.
-_FIXED_ROOT_JOINT_CREATORS: list = []
-
-
-def register_fixed_root_joint_creator(creator, is_active) -> None:
-    """Register a backend creator that fixes an articulation base via a world<->root fixed joint.
-
-    Called by :func:`apply_articulation_root_properties` when ``fix_root_link=True`` and no fixed joint
-    yet exists. Multiple backends may register; the creator whose ``is_active()`` predicate returns True
-    for the running simulation is selected, so each physics backend (e.g. ``isaaclab_physx``,
-    ``isaaclab_newton``) provides and is matched to its own implementation without core knowing any of
-    them.
-
-    Args:
-        creator: A callable ``creator(articulation_prim, stage)`` that authors the fixed joint.
-        is_active: A callable ``is_active() -> bool`` returning True when ``creator``'s backend is the
-            active simulation backend.
-    """
-    _FIXED_ROOT_JOINT_CREATORS.append((is_active, creator))
-
-
-def _resolve_fixed_root_joint_creator():
-    """Return the creator whose backend is active, or None if no registered backend matches."""
-    for is_active, creator in _FIXED_ROOT_JOINT_CREATORS:
-        try:
-            if is_active():
-                return creator
-        except Exception:  # noqa: BLE001 -- a backend's probe must never break creator resolution
-            continue
-    return None
 
 
 def apply_articulation_root_properties(

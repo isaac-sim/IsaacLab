@@ -5,7 +5,7 @@
 
 """Sub-module containing PhysX schema configuration exports."""
 
-from isaaclab.sim.schemas.schemas import register_fixed_root_joint_creator
+from isaaclab.sim.schemas._backend_hooks import register_fixed_root_joint_creator
 from isaaclab.utils.module import lazy_export
 
 lazy_export()

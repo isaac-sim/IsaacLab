@@ -254,10 +254,9 @@ def test_apply_articulation_root_properties_fix_root_link_without_backend_raises
     Uses monkeypatch to clear the module-global creator registry (other tests/backends register
     session-wide); monkeypatch restores it afterwards so this stays isolated.
     """
-    from isaaclab.sim.schemas import apply_articulation_root_properties
-    from isaaclab.sim.schemas import schemas as core_schemas
+    from isaaclab.sim.schemas import _backend_hooks, apply_articulation_root_properties
 
-    monkeypatch.setattr(core_schemas, "_FIXED_ROOT_JOINT_CREATORS", [])
+    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", [])
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -272,11 +271,10 @@ def test_apply_articulation_root_properties_fix_root_link_without_backend_raises
 def test_register_fixed_root_joint_creator_selects_active_backend(monkeypatch):
     """The writer selects the registered creator whose backend predicate reports active, and ignores
     creators whose backend is inactive."""
-    from isaaclab.sim.schemas import apply_articulation_root_properties
-    from isaaclab.sim.schemas import schemas as core_schemas
-    from isaaclab.sim.schemas.schemas import register_fixed_root_joint_creator
+    from isaaclab.sim.schemas import _backend_hooks, apply_articulation_root_properties
+    from isaaclab.sim.schemas._backend_hooks import register_fixed_root_joint_creator
 
-    monkeypatch.setattr(core_schemas, "_FIXED_ROOT_JOINT_CREATORS", [])
+    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", [])
     called = {}
 
     # an inactive backend's creator must be skipped, the active one's used
