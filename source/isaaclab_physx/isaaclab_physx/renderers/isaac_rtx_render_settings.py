@@ -5,12 +5,9 @@
 
 """Translation of :class:`~isaaclab.sim.RenderCfg` overrides into RTX carb settings.
 
-The high-fidelity RTX defaults live in the rendering experience files
-(``apps/isaaclab.python.rendering.kit`` and ``apps/isaaclab.python.headless.rendering.kit``), which
-Kit loads only when camera (RGB) rendering is enabled. This module owns the RTX-specific knowledge of
-which :class:`~isaaclab.sim.RenderCfg` field maps to which ``/rtx/...`` carb setting, so that core
-(:mod:`isaaclab`) does not need to know about renderer internals. The mapping is applied on top of the
-experience-file defaults, so any value set on :class:`~isaaclab.sim.RenderCfg` overrides them.
+This module owns the RTX-specific mapping from each :class:`~isaaclab.sim.RenderCfg` field to its
+``/rtx/...`` carb setting. The mapping is applied on top of the RTX defaults from the rendering
+experience files, so any value set on :class:`~isaaclab.sim.RenderCfg` overrides them.
 """
 
 from __future__ import annotations
@@ -54,15 +51,11 @@ def apply_rtx_render_settings(render_cfg: RenderCfg, set_setting: Callable[[str,
     Each non-``None`` :class:`~isaaclab.sim.RenderCfg` field is written to its mapped ``/rtx/...`` carb
     path, entries in :attr:`~isaaclab.sim.RenderCfg.carb_settings` are normalized to carb paths and
     written verbatim, and :attr:`~isaaclab.sim.RenderCfg.antialiasing_mode` is applied through Replicator
-    when available.
-
-    This must be called once before :meth:`~isaaclab.sim.SimulationContext.reset`, while no renderer
-    backend instance exists yet (RTX backends are created lazily per camera). The caller owns that timing
-    and the settings backend (via ``set_setting``); this function owns only the RTX field-to-path mapping.
+    when available. Call once before :meth:`~isaaclab.sim.SimulationContext.reset`.
 
     Args:
         render_cfg: The render configuration whose set fields override the experience-file defaults.
-        set_setting: Callable writing a carb setting, e.g. :meth:`isaaclab.sim.SimulationContext.set_setting`.
+        set_setting: Callable that writes a carb setting, e.g. :meth:`isaaclab.sim.SimulationContext.set_setting`.
     """
     # Mapped RenderCfg fields (carb_settings and antialiasing_mode are handled separately below).
     for key, value in vars(render_cfg).items():

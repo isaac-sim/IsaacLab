@@ -223,23 +223,13 @@ class SimulationContext:
     def _apply_render_cfg_settings(self) -> None:
         """Apply :class:`~isaaclab.sim.RenderCfg` overrides on top of the experience-file render defaults.
 
-        The high-fidelity RTX defaults live in the rendering experience files
-        (``apps/isaaclab.python.rendering.kit`` and ``apps/isaaclab.python.headless.rendering.kit``),
-        which Kit loads only when camera (RGB) rendering is enabled. Any field set on
-        :class:`~isaaclab.sim.RenderCfg` (or entries in :attr:`~isaaclab.sim.RenderCfg.carb_settings`)
-        then overrides those defaults.
+        The RTX render defaults are defined in the rendering experience files and loaded by Kit when
+        camera (RGB) rendering is enabled. Any field set on :class:`~isaaclab.sim.RenderCfg` (or entry in
+        :attr:`~isaaclab.sim.RenderCfg.carb_settings`) overrides those defaults.
 
-        Users who need high-performance rendering instead of high fidelity should use the RTX Minimal
-        renderer (see the renderers overview) rather than these RTX defaults.
-
-        Note:
-            :class:`~isaaclab.sim.RenderCfg` is RTX-specific, so the field-to-carb-path mapping is owned by
-            the RTX backend (:func:`isaaclab_physx.renderers.apply_rtx_render_settings`); core holds no
-            renderer knowledge and simply delegates with the correct timing. The overrides must be applied
-            exactly once, before :meth:`reset`, while no renderer backend instance exists yet (RTX backends
-            are created lazily per camera, after ``PHYSICS_READY``), which makes ``SimulationContext.__init__``
-            the only viable one-shot hook. When the RTX backend is not installed (e.g. a Newton-only setup),
-            there is nothing to apply.
+        :class:`~isaaclab.sim.RenderCfg` is RTX-specific, so the field-to-setting mapping is delegated to
+        :func:`isaaclab_physx.renderers.apply_rtx_render_settings`. The call is a no-op when the RTX
+        backend is not installed.
         """
         render_cfg = getattr(self.cfg, "render", None)
         if render_cfg is None:

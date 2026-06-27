@@ -50,9 +50,8 @@ app.enableStdoutOutput = false
 # set the default ros bridge to disable on startup
 isaac.startup.ros_bridge_extension = ""
 
-# High-fidelity RTX defaults applied to camera (RGB) rendering. These mirror the formerly-named
-# "quality" rendering preset and can be overridden per-simulation via isaaclab.sim.RenderCfg.
-# For high-performance rendering instead, use the RTX Minimal renderer.
+# High-fidelity RTX defaults applied to camera (RGB) rendering. Override per-simulation via
+# isaaclab.sim.RenderCfg. For high-performance rendering instead, use the RTX Minimal renderer.
 
 # RT1 transmissive / indirect effects (off by default; enable via RenderCfg if needed)
 rtx.translucency.enabled = false
