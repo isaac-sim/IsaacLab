@@ -16,15 +16,18 @@ be customized via :class:`~sim.RenderCfg`, as described below.
 
 .. note::
 
-   Isaac Lab previously shipped three preset rendering modes (``performance``, ``balanced``, and
-   ``quality``), selectable via ``--rendering_mode`` or ``RenderCfg.rendering_mode``. These presets
-   have been **removed**. The high-fidelity defaults applied today match the former ``quality`` preset.
+   Before Isaac Lab 3.0, Isaac Lab shipped three preset rendering modes (``performance``,
+   ``balanced``, and ``quality``), selectable via ``--rendering_mode`` or
+   ``RenderCfg.rendering_mode``. These presets were **removed in Isaac Lab 3.0**. The high-fidelity
+   defaults applied today match the former ``quality`` preset.
 
    If you require **high-performance rendering**, use the **RTX Minimal** renderer instead of tuning
    these RTX settings. See :ref:`overview_renderers` for the available renderers and how to select them.
 
 The high-fidelity defaults are applied automatically whenever RTX rendering is active (for example, when
-launching with ``--enable_cameras``).
+launching with ``--enable_cameras``). They are defined in Isaac Lab's rendering experience files
+(``apps/isaaclab.python.rendering.kit`` and ``apps/isaaclab.python.headless.rendering.kit``), which Kit
+loads only when camera rendering is enabled.
 
 .. image:: ../_static/how-to/howto_rendering_example_quality.jpg
    :width: 100%

@@ -35,6 +35,12 @@ Additionally, the number of environments in the ``--num_envs`` parameter can be 
 The suggested number of 10 can be executed on a moderate laptop CPU.
 On a more powerful desktop machine, use a larger number of environments for a significant speedup of this step.
 
+.. tip::
+   Dataset generation and policy rollout render many camera frames and can be bound by RTX rendering.
+   If throughput matters more than photorealism, consider using the **RTX Minimal** renderer instead of
+   the default high-fidelity RTX renderer. See :ref:`overview_renderers` for the available renderers and
+   how to select them.
+
 Cosmos Augmentation
 ~~~~~~~~~~~~~~~~~~~
 
