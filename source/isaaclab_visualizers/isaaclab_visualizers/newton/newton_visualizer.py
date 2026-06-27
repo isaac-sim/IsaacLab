@@ -508,7 +508,7 @@ class NewtonVisualizer(BaseVisualizer):
                 max_visible_envs=self.cfg.max_visible_envs,
                 num_envs=num_envs,
             )
-            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+            self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
@@ -599,10 +599,7 @@ class NewtonVisualizer(BaseVisualizer):
                             self._viewer.log_contacts(contacts, self._state)
                         else:
                             self._log_scene_contact_sensor_arrows(num_envs)
-                        if self.cfg.enable_markers:
-                            render_newton_visualization_markers(
-                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                            )
+                        self.render_markers(self._viewer, num_envs=num_envs)
                         self._log_camera_sensor_image()
                 finally:
                     self._viewer.end_frame()
@@ -852,6 +849,22 @@ class NewtonVisualizer(BaseVisualizer):
         self.cfg.eye = eye_t
         self.cfg.lookat = target_t
         self._apply_camera_pose((eye_t, target_t))
+
+    def render_markers(self, viewer: ViewerGL, num_envs: int | None = None) -> None:
+        """Render active Isaac Lab marker groups into a Newton viewer.
+
+        Args:
+            viewer: Newton viewer that receives the marker overlays.
+            num_envs: Total number of simulation environments. If ``None``, the count is
+                queried from the active Newton manager.
+        """
+        if not self.cfg.enable_markers:
+            return
+        if num_envs is None:
+            from isaaclab_newton.physics import NewtonManager
+
+            num_envs = NewtonManager.get_num_envs()
+        render_newton_visualization_markers(viewer, self._resolved_visible_env_ids, num_envs=num_envs)
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""
