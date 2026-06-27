@@ -19,6 +19,7 @@ from isaaclab.sensors.pva import BasePva
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .kernels import pva_reset_kernel, pva_update_kernel
 from .pva_data import PvaData
@@ -67,7 +68,7 @@ class Pva(BasePva):
         self._rigid_parent_expr: str | None = None
         # Sentinel — set in :meth:`_initialize_impl`; ``None`` means the sensor has not been bound yet
         # (used by :meth:`_debug_vis_callback` to safely no-op before init).
-        self._pose_binding = None
+        self._root_view: OvPhysxView | None = None
 
     def __str__(self) -> str:
         """Returns: A string containing information about the instance."""
@@ -143,10 +144,8 @@ class Pva(BasePva):
         # Translate the regex-style path expression to an ovphysx fnmatch glob.
         pattern = self._rigid_parent_expr.replace(".*", "*")
 
-        self._pose_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
-        self._vel_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_VELOCITY)
-        self._com_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_COM_POSE)
-        self._num_bodies = self._pose_binding.count
+        self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
+        self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
 
         if self._num_bodies != self._num_envs:
             raise ValueError(
@@ -178,19 +177,26 @@ class Pva(BasePva):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Drop the OVPhysX view when physics stops."""
+        super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) so a stale/destroyed handle is not held
+        # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # ovphysx ``binding.read(dst)`` writes into the pre-allocated dst buffer;
-        # ``_*_view`` are float32 aliases of the structured-dtype buffers below.
-        self._pose_binding.read(self._transforms_view)
-        self._vel_binding.read(self._velocities_view)
+        # ``OvPhysxView.read_into`` fills the structured-dtype buffer in place via a
+        # cached float32 reinterpret; no manual float32 alias is needed.
+        self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
+        self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
         # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
         # For GPU simulations, stage on CPU then copy into the kernel buffer.
-        self._com_binding.read(self._coms_read_view)
-        if self._coms_read_view is not self._coms_gpu_view:
-            wp.copy(self._coms_gpu_view, self._coms_read_view)
+        self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
+        if self._coms_read_view is not self._coms_buffer:
+            wp.copy(self._coms_buffer, self._coms_read_view)
 
         wp.launch(
             pva_update_kernel,
@@ -231,36 +237,18 @@ class Pva(BasePva):
         self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
         self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
 
-        # Structured-dtype buffers consumed by the kernel.
+        # Structured-dtype buffers filled in place by :meth:`OvPhysxView.read_into`.
         self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
         self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
         self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
 
-        self._transforms_view = wp.array(
-            ptr=self._transforms.ptr,
-            shape=self._pose_binding.shape,
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
-        self._velocities_view = wp.array(
-            ptr=self._velocities.ptr,
-            shape=self._vel_binding.shape,
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
-        self._coms_gpu_view = wp.array(
-            ptr=self._coms_buffer.ptr,
-            shape=self._com_binding.shape,
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
+        # RIGID_BODY_COM_POSE is CPU-resident even on a GPU sim, so its binding requires a
+        # CPU destination. On a GPU sim, stage the read into a pinned CPU buffer and copy into
+        # the kernel buffer; on a CPU sim, read straight into the kernel buffer.
         if self._device == "cpu":
-            self._coms_read_view = self._coms_gpu_view
+            self._coms_read_view = self._coms_buffer
         else:
-            self._coms_read_view = wp.zeros(self._com_binding.shape, dtype=wp.float32, device="cpu", pinned=True)
+            self._coms_read_view = wp.zeros(self._num_bodies, dtype=wp.transformf, device="cpu", pinned=True)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         if debug_vis:
@@ -273,7 +261,7 @@ class Pva(BasePva):
 
     def _debug_vis_callback(self, event):
         # safely return if the sensor has not been bound yet (matches the PhysX `_view is None` idiom)
-        if self._pose_binding is None:
+        if self._root_view is None:
             return
         # get marker location
         # -- base state (convert warp -> torch for visualization)

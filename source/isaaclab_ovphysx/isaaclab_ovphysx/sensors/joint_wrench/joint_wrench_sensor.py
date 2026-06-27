@@ -22,6 +22,7 @@ from isaaclab.sim.utils.queries import find_first_matching_prim, get_all_matchin
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .joint_wrench_sensor_data import JointWrenchSensorData
 from .kernels import joint_wrench_reset_kernel, joint_wrench_split_kernel
@@ -63,9 +64,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         self._data = JointWrenchSensorData()
         self._physx_instance: Any = None
+        self._root_view: OvPhysxView | None = None
         self._wrench_binding: Any = None
         self._wrench_buf: wp.array | None = None
-        self._wrench_read_view: wp.array | None = None
         self._joint_pos_b: wp.array | None = None
         self._joint_quat_b: wp.array | None = None
         self._num_bodies: int = 0
@@ -135,9 +136,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         pattern = re.sub(r"\{ENV_REGEX_NS\}", "*", root_prim_path_expr)
         pattern = re.sub(r"\.\*", "*", pattern)
 
-        self._wrench_binding = physx_instance.create_tensor_binding(
-            pattern=pattern, tensor_type=TT.LINK_INCOMING_JOINT_FORCE
-        )
+        self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
+        self._wrench_binding = self._root_view.binding_for(TT.LINK_INCOMING_JOINT_FORCE)
         if self._wrench_binding.body_count == 0 or self._wrench_binding.count == 0:
             raise RuntimeError(f"Joint wrench sensor matched zero bodies at '{self.cfg.prim_path}'.")
 
@@ -160,17 +160,10 @@ class JointWrenchSensor(BaseJointWrenchSensor):
 
         self._create_joint_frame_buffers()
 
-        # Wrench storage as (N, L) spatial_vectorf; a float32 alias view targets the
-        # same memory and is the buffer passed to TensorBinding.read(...). Mirrors the
-        # OVPhysX Articulation pattern (see articulation_data.py:_get_read_view).
+        # Wrench storage as (N, L) spatial_vectorf, read each step via the view. The view
+        # reinterprets this structured buffer off the binding's flat float32 shape and caches
+        # that reinterpret per destination buffer, so no manual float32 alias is needed here.
         self._wrench_buf = wp.zeros((self._num_envs, self._num_bodies), dtype=wp.spatial_vectorf, device=self._device)
-        self._wrench_read_view = wp.array(
-            ptr=self._wrench_buf.ptr,
-            shape=self._wrench_binding.shape,
-            dtype=wp.float32,
-            device=str(self._wrench_buf.device),
-            copy=False,
-        )
 
         self._data.create_buffers(num_envs=self._num_envs, num_bodies=self._num_bodies, device=self._device)
 
@@ -250,7 +243,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         Args:
             env_mask: A mask containing which environments need to be updated. Shape is ``(num_envs,)``.
         """
-        if self._wrench_binding is None or self._wrench_buf is None or self._wrench_read_view is None:
+        if self._root_view is None or self._wrench_buf is None:
             raise RuntimeError(
                 f"Joint wrench sensor '{self.cfg.prim_path}': not initialized."
                 " Access sensor data only after sim.reset() has been called."
@@ -258,7 +251,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         if self._joint_pos_b is None or self._joint_quat_b is None:
             raise RuntimeError(f"Joint wrench sensor '{self.cfg.prim_path}': joint frame buffers are not initialized.")
 
-        self._wrench_binding.read(self._wrench_read_view)
+        self._root_view.read_into(TT.LINK_INCOMING_JOINT_FORCE, self._wrench_buf)
         wp.launch(
             joint_wrench_split_kernel,
             dim=(self._num_envs, self._num_bodies),
@@ -281,10 +274,10 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             event: An invalidate event.
         """
         super()._invalidate_initialize_callback(event)
-        # Drop the float32 alias view before the wrench buffer it aliases via raw
-        # ptr: if the buffer is freed while the alias still references its memory,
-        # Warp's array deallocator aborts.
-        self._wrench_read_view = None
+        # Drop the view (and the binding it owns) before the wrench buffer it reads into:
+        # the view caches a float32 reinterpret of that buffer, so releasing it first keeps
+        # Warp's array deallocator from aborting on a freed-but-still-referenced allocation.
+        self._root_view = None
         self._wrench_binding = None
         self._physx_instance = None
         self._wrench_buf = None

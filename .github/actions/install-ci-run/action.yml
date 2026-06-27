@@ -48,9 +48,19 @@ runs:
         tools/run_install_ci.py "${args[@]}"
     - name: Upload JUnit XML report
       if: always()
+      id: upload-junit-report
       uses: actions/upload-artifact@v7
       with:
         name: install-ci-junit-${{ runner.arch }}
         path: ${{ github.workspace }}/results/results.xml
         if-no-files-found: ignore
         retention-days: 7
+
+    - name: Upload omni-github test results
+      if: always()
+      uses: ./.github/actions/upload-omni-github-test-results
+      with:
+        junit-file: ${{ github.workspace }}/results/results.xml
+        junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
+        artifact-prefix: pytest-results-${{ github.job }}-${{ runner.arch }}
+        test-type: installation-e2e
