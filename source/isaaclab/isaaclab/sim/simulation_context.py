@@ -220,41 +220,14 @@ class SimulationContext:
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    _DEFAULT_RTX_SETTINGS: dict[str, Any] = {
-        # RT2 path tracing
-        "/rtx/rtpt/maxBounces": 3,
-        "/rtx/rtpt/cached/enabled": False,
-        "/rtx/rtpt/lightcache/cached/enabled": False,
-        "/rtx/rtpt/translucency/virtualMotion/enabled": False,
-        "/rtx/rtpt/splitRoughReflection": True,
-        # Adaptive sampling for disocclusion (reduces ghosting / temporal artifacts)
-        "/rtx/rtpt/adaptiveSampling/disocclusion/enabled": True,
-        "/rtx/rtpt/adaptiveSampling/disocclusion/spp": 4,
-        "/rtx/sceneDb/ambientLightIntensity": 1.0,
-        "/rtx/shadows/enabled": True,
-        "/rtx/ambientOcclusion/enabled": True,
-        "/rtx/ambientOcclusion/denoiserMode": 0,
-        "/rtx/raytracing/subpixel/mode": 1,
-        "/rtx/raytracing/cached/enabled": True,
-        # DLSS frame generation does not yet support tiled cameras well
-        "/rtx-transient/dlssg/enabled": False,
-        # DLSS model: 0 (Performance), 1 (Balanced), 2 (Quality), 3 (Auto)
-        "/rtx/post/dlss/execMode": 2,
-        # Avoids replicator warning
-        "/rtx/pathtracing/maxSamplesPerLaunch": 1000000,
-        # Avoids silent trimming of tiles
-        "/rtx/viewTile/limit": 1000000,
-    }
-    """High-fidelity RTX defaults applied to all RTX renders unless overridden via
-    :class:`~isaaclab.sim.RenderCfg`. These mirror the formerly-named ``quality`` rendering preset."""
-
     def _apply_render_cfg_settings(self) -> None:
-        """Apply high-fidelity render defaults and overrides from SimulationCfg.render.
+        """Apply :class:`~isaaclab.sim.RenderCfg` overrides on top of the experience-file render defaults.
 
-        When camera (RGB) rendering is enabled, a set of high-fidelity RTX defaults
-        (see :attr:`_DEFAULT_RTX_SETTINGS`) is applied first so that camera rendering looks good
-        out-of-the-box. Any field set on :class:`~isaaclab.sim.RenderCfg` (or entries in
-        :attr:`~isaaclab.sim.RenderCfg.carb_settings`) then overrides these defaults.
+        The high-fidelity RTX defaults live in the rendering experience files
+        (``apps/isaaclab.python.rendering.kit`` and ``apps/isaaclab.python.headless.rendering.kit``),
+        which Kit loads only when camera (RGB) rendering is enabled. Any field set on
+        :class:`~isaaclab.sim.RenderCfg` (or entries in :attr:`~isaaclab.sim.RenderCfg.carb_settings`)
+        then overrides those defaults here.
 
         Users who need high-performance rendering instead of high fidelity should use the RTX Minimal
         renderer (see the renderers overview) rather than these RTX defaults.
@@ -262,13 +235,6 @@ class SimulationContext:
         render_cfg = getattr(self.cfg, "render", None)
         if render_cfg is None:
             return
-
-        # Apply high-fidelity RTX defaults only when camera (RGB) rendering is enabled. These mirror
-        # the formerly-named ``quality`` rendering preset and can be overridden by RenderCfg fields /
-        # carb_settings below.
-        if self.get_setting("/isaaclab/render/enable_cameras"):
-            for setting_path, value in self._DEFAULT_RTX_SETTINGS.items():
-                self.set_setting(setting_path, value)
 
         # RenderCfg fields mapped to setting paths (stored via SettingsManager)
         field_to_setting = {

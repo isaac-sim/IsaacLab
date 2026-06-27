@@ -1251,10 +1251,6 @@ class AppLauncher:
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 
-        # set setting to indicate camera (RGB) rendering is enabled. This drives whether the
-        # high-fidelity RTX defaults are applied by the SimulationContext.
-        settings.set_bool("/isaaclab/render/enable_cameras", self._enable_cameras)
-
         # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
 

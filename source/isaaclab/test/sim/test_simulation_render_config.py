@@ -127,12 +127,23 @@ def test_render_cfg():
 
 @pytest.mark.isaacsim_ci
 def test_render_cfg_defaults_and_overrides():
-    """Test that high-fidelity RTX defaults are applied and overridden by RenderCfg settings."""
+    """Test that RenderCfg settings override the high-fidelity defaults from the rendering experience files."""
 
     # carb setting dictionary overrides
     carb_settings = {"/rtx/raytracing/subpixel/mode": 3, "/rtx/pathtracing/maxSamplesPerLaunch": 999999}
     # user-friendly setting override
     dlss_mode = ("/rtx/post/dlss/execMode", 1)
+
+    # Representative high-fidelity defaults set by the rendering experience files
+    # (apps/isaaclab.python.*.rendering.kit). These entries are NOT overridden below, so they must
+    # retain the experience-file values after the simulation context applies the RenderCfg.
+    kit_defaults = {
+        "/rtx/rtpt/maxBounces": 3,
+        "/rtx/shadows/enabled": True,
+        "/rtx/ambientOcclusion/enabled": True,
+        "/rtx/raytracing/cached/enabled": True,
+        "/rtx/viewTile/limit": 1000000,
+    }
 
     # Clear any existing simulation context before creating a new one
     SimulationContext.clear_instance()
@@ -147,17 +158,18 @@ def test_render_cfg_defaults_and_overrides():
     SimulationContext(cfg)
 
     settings = get_settings_manager()
-    for setting_name, default_val in SimulationContext._DEFAULT_RTX_SETTINGS.items():
-        if setting_name in carb_settings:
-            setting_gt = carb_settings[setting_name]
-        elif setting_name == dlss_mode[0]:
-            setting_gt = dlss_mode[1]
-        else:
-            setting_gt = default_val
 
+    # RenderCfg overrides win over the experience-file defaults.
+    assert settings.get(dlss_mode[0]) == dlss_mode[1]
+    for setting_name, override_val in carb_settings.items():
+        assert settings.get(setting_name) == override_val, f"Override not applied for '{setting_name}'"
+
+    # Untouched defaults remain as set by the experience files.
+    for setting_name, default_val in kit_defaults.items():
         setting_val = settings.get(setting_name)
-
-        assert setting_gt == setting_val, f"Mismatch for '{setting_name}': expected {setting_gt!r}, got {setting_val!r}"
+        assert setting_val == default_val, (
+            f"Mismatch for '{setting_name}': expected {default_val!r}, got {setting_val!r}"
+        )
 
     # Clean up after the test
     SimulationContext.clear_instance()
