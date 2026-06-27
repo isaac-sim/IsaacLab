@@ -124,8 +124,6 @@ class NewtonVisualizationMarkers:
         if marker_indices is not None:
             self.marker_indices = marker_indices.detach().to(dtype=torch.int32)
             self.count = marker_indices.shape[0]
-        elif self.count != 0:
-            self.marker_indices = torch.zeros(self.count, dtype=torch.int32, device=self.infer_device())
 
     def render(self, viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
         """Render marker state to a Newton viewer.
@@ -139,34 +137,27 @@ class NewtonVisualizationMarkers:
         marker_indices = self.marker_indices
         count = self.count
 
+        if not self.visible:
+            for name, newton_cfg in self._marker_specs.items():
+                self._hide_batch(viewer, name, newton_cfg)
+            return
+
         if count > 0 and num_envs > 0 and count % num_envs == 0:
             markers_per_env = count // num_envs
-            device = self.infer_device()
-            env_ids = (
-                torch.arange(num_envs, dtype=torch.long, device=device)
-                if visible_env_ids is None
-                else torch.tensor(visible_env_ids, dtype=torch.long, device=device)
-            )
-            if visible_env_ids is not None:
-                index = (
-                    env_ids.unsqueeze(1) * markers_per_env
-                    + torch.arange(markers_per_env, dtype=torch.long, device=device).unsqueeze(0)
-                ).flatten()
-                if translations is not None:
-                    translations = translations.index_select(0, index)
-                if orientations is not None:
-                    orientations = orientations.index_select(0, index)
-                if scales is not None:
-                    scales = scales.index_select(0, index)
-                if marker_indices is not None:
-                    marker_indices = marker_indices.index_select(0, index)
-                count = index.numel()
+            env_selection = slice(num_envs) if visible_env_ids is None else visible_env_ids
+            selected_env_count = num_envs if visible_env_ids is None else len(visible_env_ids)
             if translations is not None:
-                offsets = wp.to_torch(viewer.world_offsets)
-                offset_env_ids = env_ids.to(device=offsets.device)
-                selected_offsets = offsets.index_select(0, offset_env_ids)
-                selected_offsets = selected_offsets.to(device=translations.device, dtype=translations.dtype)
-                translations = translations + selected_offsets.repeat_interleave(markers_per_env, dim=0)
+                translations = translations.reshape(num_envs, markers_per_env, 3)[env_selection]
+            if orientations is not None:
+                orientations = orientations.reshape(num_envs, markers_per_env, 4)[env_selection].flatten(0, 1)
+            if scales is not None:
+                scales = scales.reshape(num_envs, markers_per_env, 3)[env_selection].flatten(0, 1)
+            if marker_indices is not None:
+                marker_indices = marker_indices.reshape(num_envs, markers_per_env)[env_selection].flatten(0, 1)
+            count = selected_env_count * markers_per_env
+            if translations is not None:
+                offsets = wp.to_torch(viewer.world_offsets)[env_selection].to(translations)
+                translations = (translations + offsets[:, None, :]).flatten(0, 1)
 
         if count == 0:
             for name, newton_cfg in self._marker_specs.items():
@@ -175,20 +166,20 @@ class NewtonVisualizationMarkers:
 
         if translations is None:
             return
-        if orientations is None:
-            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(count, 1)
-        if scales is None:
-            scales = torch.ones((count, 3), dtype=torch.float32, device=translations.device)
-        if marker_indices is None:
-            marker_indices = torch.zeros(count, dtype=torch.int64, device=translations.device)
 
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
             batch_name = f"{self.group_id}/{name}"
-            selected = marker_indices == proto_index
-            if not self.visible or int(selected.sum().item()) == 0:
-                self._hide_batch(viewer, name, newton_cfg)
-                continue
+            if marker_indices is None:
+                if proto_index != 0:
+                    self._hide_batch(viewer, name, newton_cfg)
+                    continue
+                selected = slice(None)
+            else:
+                selected = marker_indices == proto_index
+                if not torch.any(selected):
+                    self._hide_batch(viewer, name, newton_cfg)
+                    continue
 
             if newton_cfg.renderer == "none":
                 unsupported_key = f"{self.group_id}:{name}"
@@ -202,24 +193,28 @@ class NewtonVisualizationMarkers:
                 continue
 
             selected_translations = translations[selected]
-            selected_orientations = orientations[selected]
+            selected_count = selected_translations.shape[0]
+            if orientations is None:
+                selected_orientations = selected_translations.new_tensor((0.0, 0.0, 0.0, 1.0)).expand(
+                    selected_count, -1
+                )
+            else:
+                selected_orientations = orientations[selected]
             default_scale = newton_cfg.scale or _extract_scale_hint(marker_cfg)
-            selected_scales = scales[selected] * torch.tensor(
-                default_scale, dtype=torch.float32, device=scales.device
-            ).unsqueeze(0)
+            default_scale_tensor = selected_translations.new_tensor(default_scale)
+            if scales is None:
+                selected_scales = default_scale_tensor.expand(selected_count, -1)
+            else:
+                selected_scales = scales[selected] * default_scale_tensor
 
             if newton_cfg.renderer == "mesh":
                 mesh_name = f"{self.group_id}/meshes/{name}"
                 self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
                 color = newton_cfg.color or _extract_color(marker_cfg)
-                colors = torch.tensor(color, dtype=torch.float32, device=scales.device).repeat(
-                    selected_scales.shape[0], 1
-                )
-                materials = torch.zeros((selected_scales.shape[0], 4), dtype=torch.float32, device=scales.device)
-                if newton_cfg.texture is not None:
-                    # ViewerGL gates texture sampling with material.w. Rerun and
-                    # Viser ignore this flag but consume the mesh texture.
-                    materials[:, 3] = 1.0
+                colors = selected_translations.new_tensor(color).expand(selected_count, -1)
+                # ViewerGL gates texture sampling with material.w. Rerun and Viser ignore this flag.
+                texture_flag = float(newton_cfg.texture is not None)
+                materials = selected_translations.new_tensor((0.0, 0.0, 0.0, texture_flag)).expand(selected_count, -1)
                 xforms = torch.cat((selected_translations, selected_orientations), dim=1).detach().cpu().numpy()
                 viewer.log_instances(
                     batch_name,
