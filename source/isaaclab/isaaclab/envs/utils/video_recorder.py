@@ -213,7 +213,7 @@ class VideoRecorder:
                 self._capture = create_isaacsim_kit_perspective_video(kcfg)
 
     def _sync_newton_camera(self) -> None:
-        """Push the Newton visualizer's live camera pose into the capture object.
+        """Push the Newton visualizer's world layout and live camera pose into the capture object.
 
         Called once per :meth:`render_rgb_array` when a Newton visualizer is active.
         The live visualizer instance is resolved lazily (visualizers are initialised by
@@ -226,6 +226,34 @@ class VideoRecorder:
                     break
             if self._live_visualizer is None:
                 return
+
+        get_visualized_env_ids = getattr(self._live_visualizer, "get_visualized_env_ids", None)
+        if callable(get_visualized_env_ids):
+            visible_env_ids = get_visualized_env_ids()
+            max_visible_envs = getattr(self._live_visualizer.cfg, "max_visible_envs", None)
+            if visible_env_ids is not None:
+                visible_env_ids = list(visible_env_ids)
+                if max_visible_envs is not None:
+                    visible_env_ids = visible_env_ids[: max(0, int(max_visible_envs))]
+            elif max_visible_envs is not None and self._scene.num_envs > 0:
+                num_envs = max(0, int(self._scene.num_envs))
+                visible_env_ids = list(range(min(max(0, int(max_visible_envs)), num_envs)))
+
+            set_visible_worlds = getattr(self._capture, "set_visible_worlds", None)
+            if callable(set_visible_worlds):
+                set_visible_worlds(visible_env_ids)
+
+        world_spacing = getattr(self._live_visualizer.cfg, "world_spacing", None)
+        set_world_offsets = getattr(self._capture, "set_world_offsets", None)
+        if world_spacing is not None and callable(set_world_offsets):
+            set_world_offsets(world_spacing)
+
+        set_frame_overlay_callback = getattr(self._capture, "set_frame_overlay_callback", None)
+        render_markers = getattr(self._live_visualizer, "render_markers", None)
+        if callable(set_frame_overlay_callback):
+            enable_markers = bool(getattr(self._live_visualizer.cfg, "enable_markers", False))
+            callback = render_markers if enable_markers and callable(render_markers) else None
+            set_frame_overlay_callback(callback)
 
         viewer = getattr(self._live_visualizer, "_viewer", None)
         if viewer is None:
@@ -248,8 +276,8 @@ class VideoRecorder:
         if self._backend is None or self._capture is None:
             return None
         if self._matched_visualizer == "newton":
-            # Newton GL camera state lives in the capture object and must be synced each frame
-            # to follow interactive viewer movement.
+            # Newton GL world layout and camera state live in the capture object and must be synced
+            # each frame to follow the active visualizer.
             self._sync_newton_camera()
         # Kit capture uses the configured eye/lookat applied to the recording camera at construction time.
         return self._capture.render_rgb_array()

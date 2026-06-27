@@ -7,7 +7,7 @@
 import math
 import sys
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import numpy as np
 import pytest
@@ -326,10 +326,22 @@ def test_render_rgb_array_skips_sync_when_no_visualizer():
     mock_sync.assert_not_called()
 
 
-def _make_newton_visualizer(pos=(1.0, 2.0, 3.0), yaw_deg=45.0, pitch_deg=30.0):
+def _make_newton_visualizer(
+    pos=(1.0, 2.0, 3.0),
+    yaw_deg=45.0,
+    pitch_deg=30.0,
+    visible_env_ids=None,
+    max_visible_envs=None,
+    world_spacing=(0.0, 0.0, 0.0),
+    enable_markers=True,
+):
     """Return a mock that quacks like a NewtonVisualizer with a live camera."""
     viz = MagicMock()
     viz.cfg.visualizer_type = "newton"
+    viz.cfg.max_visible_envs = max_visible_envs
+    viz.cfg.world_spacing = world_spacing
+    viz.cfg.enable_markers = enable_markers
+    viz.get_visualized_env_ids.return_value = visible_env_ids
     cam = MagicMock()
     cam.pos = pos
     cam.yaw = yaw_deg
@@ -401,6 +413,117 @@ def test_sync_newton_camera_target_derived_from_pitch_yaw():
     assert abs(dx - 1.0) < 1e-6
     assert abs(dy) < 1e-6
     assert abs(dz) < 1e-6
+
+
+def test_sync_newton_camera_forwards_visible_env_ids_before_camera():
+    """Resolved visualizer env ids reach the capture before its lazy camera initialization."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=[0, 1, 2, 3], world_spacing=(2.0, 2.0, 0.0))
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = 16
+
+    recorder._sync_newton_camera()
+
+    assert recorder._capture.method_calls[0] == call.set_visible_worlds([0, 1, 2, 3])
+    assert recorder._capture.method_calls[1] == call.set_world_offsets((2.0, 2.0, 0.0))
+    assert recorder._capture.method_calls[2] == call.set_frame_overlay_callback(newton_viz.render_markers)
+    assert recorder._capture.method_calls[3][0] == "update_camera"
+
+
+def test_sync_newton_camera_disables_marker_overlays_with_visualizer():
+    """The recording viewer omits markers when the active visualizer disables them."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(enable_markers=False)
+    recorder._live_visualizer = newton_viz
+
+    recorder._sync_newton_camera()
+
+    recorder._capture.set_frame_overlay_callback.assert_called_once_with(None)
+
+
+def test_sync_newton_camera_truncates_explicit_visible_env_ids_to_cap():
+    """An explicit visualizer selection is truncated by max_visible_envs before capture."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=[7, 2, 5], max_visible_envs=2)
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = 8
+
+    recorder._sync_newton_camera()
+
+    recorder._capture.set_visible_worlds.assert_called_once_with([7, 2])
+
+
+@pytest.mark.parametrize(
+    ("num_envs", "max_visible_envs", "expected"),
+    [
+        (16, 4, [0, 1, 2, 3]),
+        (2, 4, [0, 1]),
+        (16, 0, []),
+        (0, 4, None),
+    ],
+)
+def test_sync_newton_camera_resolves_cap_only_visible_env_ids(num_envs, max_visible_envs, expected):
+    """A cap-only visualizer selection becomes a clamped contiguous env-id list."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=None, max_visible_envs=max_visible_envs)
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = num_envs
+
+    recorder._sync_newton_camera()
+
+    recorder._capture.set_visible_worlds.assert_called_once_with(expected)
+
+
+def test_sync_newton_camera_forwards_none_when_all_envs_are_visible():
+    """None is forwarded when neither an explicit selection nor a cap is configured."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=None, max_visible_envs=None)
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = 8
+
+    recorder._sync_newton_camera()
+
+    recorder._capture.set_visible_worlds.assert_called_once_with(None)
+
+
+def test_sync_newton_camera_preserves_empty_visible_env_selection():
+    """An explicit empty selection remains empty rather than becoming the all-envs sentinel."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=[], max_visible_envs=None)
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = 8
+
+    recorder._sync_newton_camera()
+
+    recorder._capture.set_visible_worlds.assert_called_once_with([])
+
+
+def test_sync_newton_camera_forwards_visibility_without_live_viewer():
+    """Visibility sync does not depend on the interactive viewer camera being initialized."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=[0, 1, 2, 3])
+    newton_viz._viewer = None
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = 8
+
+    recorder._sync_newton_camera()
+
+    recorder._capture.set_visible_worlds.assert_called_once_with([0, 1, 2, 3])
+    recorder._capture.update_camera.assert_not_called()
+
+
+def test_sync_newton_camera_supports_capture_without_visibility_setter():
+    """Custom legacy capture classes without set_visible_worlds still receive camera updates."""
+    recorder = _create_recorder(_backend="newton_gl", _matched_visualizer="newton")
+    newton_viz = _make_newton_visualizer(visible_env_ids=[0, 1])
+    recorder._live_visualizer = newton_viz
+    recorder._scene.num_envs = 8
+    update_camera = MagicMock()
+    recorder._capture = SimpleNamespace(update_camera=update_camera)
+
+    recorder._sync_newton_camera()
+
+    update_camera.assert_called_once()
 
 
 def test_sync_newton_camera_no_visualizer_does_not_raise():
