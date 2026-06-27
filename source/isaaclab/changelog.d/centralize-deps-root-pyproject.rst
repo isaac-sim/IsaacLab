@@ -5,10 +5,15 @@ Changed
   into the root ``pyproject.toml`` as the single source of truth. The wheel
   builder (``tools/wheel_builder/gen_pyproject.py``) and the ``./isaaclab.sh -i``
   install CLI now read the root project's ``dependencies`` and
-  ``optional-dependencies`` instead of per-sub-package declarations and
-  ``tools/wheel_builder/res/python_packages.toml`` (removed). Sub-package
-  ``pyproject.toml`` files no longer declare dependencies. The ``./isaaclab.sh -i``
-  token syntax is unchanged.
+  ``optional-dependencies`` instead of ``tools/wheel_builder/res/python_packages.toml``
+  (removed). The ``./isaaclab.sh -i`` token syntax is unchanged.
+* Each sub-package's ``pyproject.toml`` keeps complete, self-contained
+  (relaxed, ``>=``) dependency metadata, but the declarations are generated from
+  the root ``[tool.isaaclab.packages]`` table by ``tools/gen_package_pyproject.py``
+  so they are still edited in one place. Exact, known-good versions live in the
+  root ``[tool.uv]`` configuration and ``uv.lock`` (not in the published package
+  metadata). A pre-commit hook / unit test fails if a sub-package drifts out of
+  sync with the root table.
 * **Changed:** Newton (``newton[sim]``) is now a core dependency installed in
   every environment as the default physics engine, rather than an opt-in extra.
   The Newton interactive viewer GUI is also part of the base install, so the

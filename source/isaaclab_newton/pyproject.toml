@@ -16,8 +16,14 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "newton"]
 requires-python = ">=3.12"
-# Third-party requirements are centralized in the root pyproject.toml.
-dependencies = []
+# >>> BEGIN auto-generated dependencies -- edit [tool.isaaclab.packages] in the root pyproject.toml and run tools/gen_package_pyproject.py >>>
+dependencies = [
+    "newton[sim]>=1.2.0",
+    "prettytable>=3.3.0",
+    "PyOpenGL-accelerate>=3.1.0",
+    "pyglet>=2.1.6,<3",
+]
+# <<< END auto-generated dependencies <<<
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
