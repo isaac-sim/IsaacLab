@@ -30,6 +30,10 @@ def _create_fixed_root_joint(articulation_prim, stage) -> None:
         NotImplementedError: When the root prim is not a rigid body (the first rigid-body link cannot
             be determined to attach the fixed joint).
     """
+    # Imports are deferred to call time on purpose: this creator only runs while a simulation is live
+    # (USD available), whereas this package is imported eagerly when a config references a PhysX cfg
+    # name. ``pxr`` and ``schemas.schemas`` (which imports ``pxr`` at its top) must stay off that eager
+    # path to keep config import free of the USD/Omniverse runtime.
     from pxr import UsdPhysics
 
     from isaaclab.sim.schemas.schemas import create_fixed_root_joint
