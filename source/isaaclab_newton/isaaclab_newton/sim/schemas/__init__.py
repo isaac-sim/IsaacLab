@@ -19,8 +19,8 @@ def _create_fixed_root_joint_newton(articulation_prim, stage) -> None:
     Backend creator registered with the core articulation-root writer for the Newton backend. Newton's
     importer reads a ``UsdPhysics.FixedJoint`` directly as a fixed root joint (a jointless root would
     otherwise default to floating), so -- unlike PhysX -- no articulation-root relocation is needed. The
-    joint is authored with the Kit ``omni.physx`` utility (a USD-authoring helper present in any Isaac
-    Sim app regardless of the active solver), so nothing is hand-rolled.
+    joint is authored with the backend-neutral :func:`~isaaclab.sim.schemas.create_fixed_root_joint`
+    helper (pure USD, no Kit/``omni`` dependency), so the Newton backend pulls in nothing PhysX-flavored.
 
     Args:
         articulation_prim: The resolved articulation-root prim to fix to the world frame.
@@ -32,7 +32,7 @@ def _create_fixed_root_joint_newton(articulation_prim, stage) -> None:
     """
     from pxr import UsdPhysics
 
-    from omni.physx.scripts import utils as physx_utils
+    from isaaclab.sim.schemas.schemas import create_fixed_root_joint
 
     if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
         raise NotImplementedError(
@@ -40,7 +40,7 @@ def _create_fixed_root_joint_newton(articulation_prim, stage) -> None:
             " RigidBodyAPI applied. To create a fixed joint, we need to determine the first rigid body"
             " link in the articulation tree. However, this is not implemented yet."
         )
-    physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+    create_fixed_root_joint(articulation_prim, stage)
 
 
 # Register the Newton fixed-root-joint creator with the core articulation-root writer keyed by

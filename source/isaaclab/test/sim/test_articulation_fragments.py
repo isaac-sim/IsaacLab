@@ -14,7 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import pytest
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -300,6 +300,125 @@ def test_register_fixed_root_joint_creator_selects_active_backend(monkeypatch):
 
 
 # -------------------------------------------------------------------------------------
+# create_fixed_root_joint -- backend-neutral, pure-USD world<->prim fixed joint
+# -------------------------------------------------------------------------------------
+
+
+def test_create_fixed_root_joint_authors_world_anchored_joint():
+    """create_fixed_root_joint authors a world<->prim ``UsdPhysics.FixedJoint``: ``body1`` targets the
+    prim, ``body0`` is left empty (the world frame), and the body1-side local frame is identity."""
+    from isaaclab.sim.schemas import create_fixed_root_joint
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/Fix1")
+    joint_prim = create_fixed_root_joint(prim, stage)
+
+    assert joint_prim.IsA(UsdPhysics.FixedJoint)
+    joint = UsdPhysics.FixedJoint(joint_prim)
+    assert list(joint.GetBody1Rel().GetTargets()) == [prim.GetPath()]
+    # body0 left empty -> the world frame
+    body0_rel = joint.GetBody0Rel()
+    assert not body0_rel or list(body0_rel.GetTargets()) == []
+    # the body1-side local frame is identity
+    assert joint_prim.GetAttribute("physics:localPos1").Get() == Gf.Vec3f(0.0)
+    assert joint_prim.GetAttribute("physics:localRot1").Get() == Gf.Quatf(1.0)
+
+
+def test_create_fixed_root_joint_pins_prim_at_current_world_pose():
+    """The world-side local frame is set to the prim's current world transform, so the constraint pins
+    the body where it is rather than teleporting it to the world origin."""
+    from isaaclab.sim.schemas import create_fixed_root_joint
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/Fix2")
+    UsdGeom.Xform(prim).AddTranslateOp().Set(Gf.Vec3d(1.0, 2.0, 3.0))
+
+    joint_prim = create_fixed_root_joint(prim, stage)
+    pos0 = joint_prim.GetAttribute("physics:localPos0").Get()
+    assert (pos0[0], pos0[1], pos0[2]) == pytest.approx((1.0, 2.0, 3.0))
+
+
+def test_create_fixed_root_joint_uses_unique_names():
+    """Repeated calls author distinct joint prims (no path collision)."""
+    from isaaclab.sim.schemas import create_fixed_root_joint
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/Fix3")
+    first = create_fixed_root_joint(prim, stage)
+    second = create_fixed_root_joint(prim, stage)
+    assert first.GetPath() != second.GetPath()
+    assert first.IsA(UsdPhysics.FixedJoint) and second.IsA(UsdPhysics.FixedJoint)
+
+
+# -------------------------------------------------------------------------------------
+# active-backend detection: creator is resolved by the live cfg.physics type
+# -------------------------------------------------------------------------------------
+
+
+def test_resolve_fixed_root_joint_creator_matches_cfg_type(monkeypatch):
+    """_resolve_fixed_root_joint_creator returns the creator registered for the given physics-cfg type,
+    and None for an unregistered type or no active simulation -- a pure dict lookup, no probing."""
+    from isaaclab.sim.schemas import _backend_hooks
+
+    monkeypatch.setattr(_backend_hooks, "_FIXED_ROOT_JOINT_CREATORS", {})
+
+    class _CfgA:
+        pass
+
+    class _CfgB:
+        pass
+
+    def _creator_a(prim, stage):
+        pass
+
+    _backend_hooks.register_fixed_root_joint_creator(_CfgA, _creator_a)
+
+    assert _backend_hooks._resolve_fixed_root_joint_creator(_CfgA) is _creator_a
+    assert _backend_hooks._resolve_fixed_root_joint_creator(_CfgB) is None
+    assert _backend_hooks._resolve_fixed_root_joint_creator(None) is None
+
+
+def test_newton_creator_authors_joint_without_reparenting():
+    """The Newton fixed-root-joint creator authors a ``UsdPhysics.FixedJoint`` but, unlike PhysX, leaves
+    the articulation root in place (Newton reads the fixed joint directly), and pulls in no PhysX deps."""
+    from isaaclab_newton.sim.schemas import _create_fixed_root_joint_newton
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/NewtonRobot")
+    root = _make_xform(stage, "/World/NewtonRobot/base")
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+
+    _create_fixed_root_joint_newton(root, stage)
+
+    assert any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
+    # Newton does NOT relocate the articulation root to the parent (that is a PhysX-parser workaround)
+    assert root.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not stage.GetPrimAtPath("/World/NewtonRobot").HasAPI(UsdPhysics.ArticulationRootAPI)
+
+
+def test_newton_creator_requires_rigid_body():
+    """The Newton creator raises NotImplementedError on a non-rigid-body root (cannot anchor the joint)."""
+    from isaaclab_newton.sim.schemas import _create_fixed_root_joint_newton
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    root = _make_xform(stage, "/World/NewtonNoRB")
+    UsdPhysics.ArticulationRootAPI.Apply(root)  # articulation root but NOT a rigid body
+    with pytest.raises(NotImplementedError):
+        _create_fixed_root_joint_newton(root, stage)
+
+
+# -------------------------------------------------------------------------------------
 # public imports
 # -------------------------------------------------------------------------------------
 
@@ -312,4 +431,5 @@ def test_public_imports():
         ArticulationRootFragment,
         SchemaFragment,
         apply_articulation_root_properties,
+        create_fixed_root_joint,
     )

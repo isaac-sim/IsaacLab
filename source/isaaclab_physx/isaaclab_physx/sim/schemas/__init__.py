@@ -32,7 +32,7 @@ def _create_fixed_root_joint(articulation_prim, stage) -> None:
     """
     from pxr import UsdPhysics
 
-    from omni.physx.scripts import utils as physx_utils
+    from isaaclab.sim.schemas.schemas import create_fixed_root_joint
 
     # note: we assume the root prim is a rigid body; there is no obvious way to get the first rigid
     #   body link identified by the PhysX parser when it is not.
@@ -44,7 +44,7 @@ def _create_fixed_root_joint(articulation_prim, stage) -> None:
         )
 
     # create a fixed joint between the root link and the world frame
-    physx_utils.createJoint(stage=stage, joint_type="Fixed", from_prim=None, to_prim=articulation_prim)
+    create_fixed_root_joint(articulation_prim, stage)
 
     # Having a fixed joint on a rigid body is not treated as "fixed base articulation"; it is treated as
     # part of the maximal coordinate tree. Moving the articulation root to the parent solves this (a
