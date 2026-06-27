@@ -366,9 +366,7 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 3
         for camera_cfg in (self.scene.table_cam, self.scene.wrist_cam):
-            set_isaac_rtx_global_settings(
-                camera_cfg.renderer_cfg, antialiasing_mode="DLAA"
-            )
+            set_isaac_rtx_global_settings(camera_cfg.renderer_cfg, antialiasing_mode="DLAA")
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]

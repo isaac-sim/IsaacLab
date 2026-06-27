@@ -35,13 +35,14 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import isaaclab.sim as sim_utils
-from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
 from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
     apply_isaac_rtx_global_settings,
 )
+
+import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
 def add_remote_usd_reference(prim_path: str, usd_path: str) -> None:
@@ -66,8 +67,7 @@ def main():
     settings = get_settings_manager()
     # Initialize and apply Isaac RTX global settings.
     render_cfg = IsaacRtxRendererGlobalSettingsCfg(
-        rendering_mode=settings.get("/isaaclab/rendering/rendering_mode")
-        or rendering_mode,
+        rendering_mode=settings.get("/isaaclab/rendering/rendering_mode") or rendering_mode,
         carb_settings=carb_settings,
     )
     apply_isaac_rtx_global_settings(render_cfg, settings)

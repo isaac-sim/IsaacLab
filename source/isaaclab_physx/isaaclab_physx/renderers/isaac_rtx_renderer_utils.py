@@ -10,8 +10,9 @@ from __future__ import annotations
 import logging
 import os
 import time
-import tomllib
 from typing import Any
+
+import tomllib
 
 import omni.usd
 
@@ -81,9 +82,7 @@ def _set_setting(settings: Any, path: str, value: Any) -> None:
         settings.set(path, value)
 
 
-def _apply_nested_preset(
-    settings: Any, data: dict[str, Any], path: str = ""
-) -> None:
+def _apply_nested_preset(settings: Any, data: dict[str, Any], path: str = "") -> None:
     """Apply nested preset dictionaries loaded from a .kit file."""
     for key, value in data.items():
         key_path = f"{path}/{key}" if path else f"/{key}"
@@ -103,17 +102,13 @@ def _apply_rendering_mode_preset(settings: Any, rendering_mode: str) -> None:
             f"{sorted(supported_rendering_modes)}."
         )
 
-    isaaclab_app_exp_path = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps"
-    )
+    isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
     from isaaclab.utils.version import get_isaac_sim_version
 
     if get_isaac_sim_version().major < 6:
         isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
-    preset_filename = os.path.join(
-        isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit"
-    )
+    preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
     if os.path.exists(preset_filename):
         with open(preset_filename, "rb") as file:
             _apply_nested_preset(settings, tomllib.load(file))
@@ -150,6 +145,7 @@ def apply_isaac_rtx_global_settings(global_settings: Any, settings: Any) -> None
             rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
         except Exception:
             pass
+
 
 def _get_stage_streaming_busy() -> bool:
     """Synchronously query whether RTX stage streaming is still in progress."""

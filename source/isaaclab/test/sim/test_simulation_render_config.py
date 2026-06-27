@@ -13,11 +13,10 @@ import sys
 import types
 
 import tomllib
-from packaging.version import Version
-
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
     IsaacRtxRendererGlobalSettingsCfg,
 )
+from packaging.version import Version
 
 
 class _FakeSettings:
@@ -67,9 +66,7 @@ def _install_omni_stubs(monkeypatch) -> _FakeReplicatorSettings:
 def _import_isaac_rtx_utils(monkeypatch):
     """Import Isaac RTX utilities after installing Kit/Replicator stubs."""
     _install_omni_stubs(monkeypatch)
-    return importlib.import_module(
-        "isaaclab_physx.renderers.isaac_rtx_renderer_utils"
-    )
+    return importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
 
 
 def _flatten_preset(data: dict, prefix: str = "") -> dict[str, object]:
@@ -87,9 +84,7 @@ def _flatten_preset(data: dict, prefix: str = "") -> dict[str, object]:
 def test_isaac_rtx_global_settings(monkeypatch):
     """Test that Isaac RTX global settings are applied by the helper."""
     rep_settings = _install_omni_stubs(monkeypatch)
-    utils = importlib.import_module(
-        "isaaclab_physx.renderers.isaac_rtx_renderer_utils"
-    )
+    utils = importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
     settings = _FakeSettings()
     global_settings = IsaacRtxRendererGlobalSettingsCfg(
         enable_translucency=True,
@@ -124,9 +119,7 @@ def test_isaac_rtx_global_settings(monkeypatch):
     assert settings.get("/rtx-transient/dldenoiser/enabled") is True
     assert settings.get("/rtx/post/dlss/execMode") == 0
     assert settings.get("/rtx/directLighting/enabled") is True
-    assert (
-        settings.get("/rtx/directLighting/sampledLighting/samplesPerPixel") == 4
-    )
+    assert settings.get("/rtx/directLighting/sampledLighting/samplesPerPixel") == 4
     assert settings.get("/rtx/shadows/enabled") is True
     assert settings.get("/rtx/ambientOcclusion/enabled") is True
     assert settings.get("/rtx/rtpt/maxBounces") == 4
@@ -147,9 +140,7 @@ def test_isaac_rtx_global_settings_presets(monkeypatch):
     utils = _import_isaac_rtx_utils(monkeypatch)
     import isaaclab.utils.version as version_utils
 
-    monkeypatch.setattr(
-        version_utils, "get_isaac_sim_version", lambda: Version("6.0.0")
-    )
+    monkeypatch.setattr(version_utils, "get_isaac_sim_version", lambda: Version("6.0.0"))
 
     carb_settings = {
         "/rtx/raytracing/subpixel/mode": 3,
@@ -161,12 +152,8 @@ def test_isaac_rtx_global_settings_presets(monkeypatch):
 
     for rendering_mode in rendering_modes:
         settings = _FakeSettings()
-        isaaclab_app_exp_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps"
-        )
-        preset_filename = os.path.join(
-            isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit"
-        )
+        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
+        preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename, "rb") as file:
             preset_dict = tomllib.load(file)
         preset_dict = _flatten_preset(preset_dict)

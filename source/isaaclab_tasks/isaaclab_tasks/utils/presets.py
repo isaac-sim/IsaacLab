@@ -37,9 +37,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
         if cfg is None or id(cfg) in visited:
             return
         visited.add(id(cfg))
-        if getattr(cfg, "renderer_type", None) == "isaac_rtx" and hasattr(
-            cfg, "global_settings"
-        ):
+        if getattr(cfg, "renderer_type", None) == "isaac_rtx" and hasattr(cfg, "global_settings"):
             for key, value in settings.items():
                 setattr(cfg.global_settings, key, value)
         for attr_name in ("default", "isaacsim_rtx_renderer"):

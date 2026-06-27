@@ -29,9 +29,7 @@ class IsaacRtxRendererGlobalSettingsCfg:
     enable_global_illumination: bool | None = None
     """Enable diffuse global illumination."""
 
-    antialiasing_mode: (
-        Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None
-    ) = None
+    antialiasing_mode: Literal["Off", "FXAA", "DLSS", "TAA", "DLAA"] | None = None
     """Anti-aliasing mode selected through Replicator."""
 
     enable_dlssg: bool | None = None
@@ -107,9 +105,7 @@ class IsaacRtxRendererCfg(RendererCfg):
     renderer_type: str = "isaac_rtx"
     """Type identifier for Isaac RTX renderer."""
 
-    global_settings: IsaacRtxRendererGlobalSettingsCfg = (
-        IsaacRtxRendererGlobalSettingsCfg()
-    )
+    global_settings: IsaacRtxRendererGlobalSettingsCfg = IsaacRtxRendererGlobalSettingsCfg()
     """Global Kit/RTX quality settings applied before RTX Hydra attach."""
 
     semantic_filter: str | list[str] = "*:*"

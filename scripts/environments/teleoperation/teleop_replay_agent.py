@@ -378,15 +378,15 @@ from typing import Protocol, runtime_checkable
 
 import gymnasium as gym
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+)
 from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_control_events
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-    apply_isaac_rtx_global_settings,
-)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg

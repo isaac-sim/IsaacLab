@@ -48,14 +48,10 @@ class RenderContext:
 
     def _check_global_settings_compatible(self, cfg: RendererCfg) -> None:
         """Reject conflicting process-global renderer settings."""
-        if getattr(cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(
-            cfg, "global_settings"
-        ):
+        if getattr(cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(cfg, "global_settings"):
             return
         for stored_cfg, _renderer in self._renderer_entries:
-            if getattr(stored_cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(
-                stored_cfg, "global_settings"
-            ):
+            if getattr(stored_cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(stored_cfg, "global_settings"):
                 continue
             if stored_cfg.global_settings != cfg.global_settings:
                 raise ValueError(

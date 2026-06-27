@@ -89,6 +89,10 @@ import logging
 
 import gymnasium as gym
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+)
 
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
@@ -96,10 +100,6 @@ from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-    apply_isaac_rtx_global_settings,
-)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift import mdp
