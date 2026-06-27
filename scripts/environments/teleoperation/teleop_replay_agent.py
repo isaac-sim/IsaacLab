@@ -380,8 +380,13 @@ import gymnasium as gym
 import torch
 from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_control_events
 
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+)
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
@@ -1038,7 +1043,10 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
     if hasattr(env_cfg.terminations, "time_out"):
         env_cfg.terminations.time_out = None
     env_cfg = remove_camera_configs(env_cfg)
-    env_cfg.sim.render.antialiasing_mode = "DLSS"
+    apply_isaac_rtx_global_settings(
+        IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+        get_settings_manager(),
+    )
     return env_cfg, success_term
 
 

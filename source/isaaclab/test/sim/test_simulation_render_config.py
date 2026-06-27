@@ -24,6 +24,7 @@ from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.sim.simulation_cfg import RenderCfg, SimulationCfg
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 
 @pytest.mark.skip(reason="Timeline not stopped")
@@ -165,7 +166,8 @@ def test_render_cfg_presets():
 
         cfg = SimulationCfg(render=render_cfg)
 
-        SimulationContext(cfg)
+        sim = SimulationContext(cfg)
+        sim.render_context.get_renderer(IsaacRtxRendererCfg())
 
         settings = get_settings_manager()
         for key, val in preset_dict.items():

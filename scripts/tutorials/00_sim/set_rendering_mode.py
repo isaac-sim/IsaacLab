@@ -36,7 +36,12 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+)
 
 
 def add_remote_usd_reference(prim_path: str, usd_path: str) -> None:
@@ -58,14 +63,17 @@ def main():
     # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting
     carb_settings = {"rtx.reflections.enabled": True}
 
-    # Initialize render config
-    render_cfg = sim_utils.RenderCfg(
-        rendering_mode=rendering_mode,
+    settings = get_settings_manager()
+    # Initialize and apply Isaac RTX global settings.
+    render_cfg = IsaacRtxRendererGlobalSettingsCfg(
+        rendering_mode=settings.get("/isaaclab/rendering/rendering_mode")
+        or rendering_mode,
         carb_settings=carb_settings,
     )
+    apply_isaac_rtx_global_settings(render_cfg, settings)
 
-    # Initialize the simulation context with render coofig
-    sim_cfg = sim_utils.SimulationCfg(render=render_cfg)
+    # Initialize the simulation context.
+    sim_cfg = sim_utils.SimulationCfg()
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Pose camera in the hospital lobby area

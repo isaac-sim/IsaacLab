@@ -28,6 +28,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 from . import mdp
 
@@ -355,7 +356,9 @@ class NutPourGR1T2BaseEnvCfg(ManagerBasedRLEnvCfg):
 
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 3
-        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
+        set_isaac_rtx_global_settings(
+            self.scene.robot_pov_cam.renderer_cfg, antialiasing_mode="DLAA"
+        )
 
         # List of image observations in policy observations
         self.image_obs_list = ["robot_pov_cam"]

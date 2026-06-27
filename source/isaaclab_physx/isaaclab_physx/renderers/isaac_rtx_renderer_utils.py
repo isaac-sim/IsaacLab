@@ -8,14 +8,46 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any
 
 import omni.usd
+import tomllib
 
 import isaaclab.sim as sim_utils
 
 logger = logging.getLogger(__name__)
+
+_RTX_FIELD_TO_SETTING = {
+    "enable_translucency": "/rtx/translucency/enabled",
+    "enable_reflections": "/rtx/reflections/enabled",
+    "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+    "enable_dlssg": "/rtx-transient/dlssg/enabled",
+    "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+    "dlss_mode": "/rtx/post/dlss/execMode",
+    "enable_direct_lighting": "/rtx/directLighting/enabled",
+    "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+    "enable_shadows": "/rtx/shadows/enabled",
+    "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+    "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+    "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
+    "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
+    "subpixel_mode": "/rtx/raytracing/subpixel/mode",
+    "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
+    "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
+    "view_tile_limit": "/rtx/viewTile/limit",
+    # RT2 path tracing settings
+    "max_bounces": "/rtx/rtpt/maxBounces",
+    "split_glass": "/rtx/rtpt/splitGlass",
+    "split_clearcoat": "/rtx/rtpt/splitClearcoat",
+    "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
+}
+
+_RTX_GLOBAL_SETTING_FIELDS = (
+    tuple(_RTX_FIELD_TO_SETTING.keys())
+    + ("antialiasing_mode", "carb_settings", "rendering_mode")
+)
 
 # Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
@@ -24,6 +56,124 @@ logger = logging.getLogger(__name__)
 _last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
+
+
+def _setting_path_from_key(key: str) -> str:
+    """Convert a user-friendly carb setting key to a carb path."""
+    if key.startswith("/"):
+        return key
+    if "_" in key:
+        return "/" + key.replace("_", "/")
+    if "." in key:
+        return "/" + key.replace(".", "/")
+    return key
+
+
+def _set_setting(settings: Any, path: str, value: Any) -> None:
+    """Set a carb setting through SettingsManager-like objects."""
+    if hasattr(settings, "set"):
+        settings.set(path, value)
+        return
+    if isinstance(value, bool):
+        settings.set_bool(path, value)
+    elif isinstance(value, int):
+        settings.set_int(path, value)
+    elif isinstance(value, float):
+        settings.set_float(path, value)
+    elif isinstance(value, str):
+        settings.set_string(path, value)
+    else:
+        settings.set(path, value)
+
+
+def _apply_nested_preset(
+    settings: Any, data: dict[str, Any], path: str = ""
+) -> None:
+    """Apply nested preset dictionaries loaded from a .kit file."""
+    for key, value in data.items():
+        key_path = f"{path}/{key}" if path else f"/{key}"
+        if isinstance(value, dict):
+            _apply_nested_preset(settings, value, key_path)
+        else:
+            _set_setting(settings, key_path.replace(".", "/"), value)
+
+
+def _apply_rendering_mode_preset(settings: Any, rendering_mode: str) -> None:
+    """Apply an Isaac Lab rendering-mode preset."""
+    supported_rendering_modes = {"performance", "balanced", "quality"}
+    if rendering_mode not in supported_rendering_modes:
+        raise ValueError(
+            f"IsaacRtxRendererCfg rendering mode '{rendering_mode}' not in "
+            "supported modes "
+            f"{sorted(supported_rendering_modes)}."
+        )
+
+    isaaclab_app_exp_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps"
+    )
+    from isaaclab.utils.version import get_isaac_sim_version
+
+    if get_isaac_sim_version().major < 6:
+        isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
+
+    preset_filename = os.path.join(
+        isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit"
+    )
+    if os.path.exists(preset_filename):
+        with open(preset_filename, "rb") as file:
+            _apply_nested_preset(settings, tomllib.load(file))
+    else:
+        logger.warning("[isaac_rtx] Render preset file not found: %s", preset_filename)
+
+
+def apply_isaac_rtx_global_settings(global_settings: Any, settings: Any) -> None:
+    """Apply global Isaac RTX settings before renderer initialization.
+
+    Args:
+        global_settings: :class:`IsaacRtxRendererGlobalSettingsCfg`-like object.
+        settings: Settings manager or carb settings interface.
+    """
+    rendering_mode = getattr(global_settings, "rendering_mode", None)
+    if rendering_mode:
+        _apply_rendering_mode_preset(settings, rendering_mode)
+
+    for field_name, setting_path in _RTX_FIELD_TO_SETTING.items():
+        value = getattr(global_settings, field_name, None)
+        if value is not None:
+            _set_setting(settings, setting_path, value)
+
+    extra_settings = getattr(global_settings, "carb_settings", None)
+    if extra_settings:
+        for key, value in extra_settings.items():
+            _set_setting(settings, _setting_path_from_key(key), value)
+
+    antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
+    if antialiasing_mode is not None:
+        try:
+            import omni.replicator.core as rep
+
+            rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
+        except Exception:
+            pass
+
+
+def merge_legacy_render_cfg_into_global_settings(
+    global_settings: Any, render_cfg: Any, rendering_mode: str | None
+) -> None:
+    """Merge deprecated :class:`RenderCfg` values into Isaac RTX global settings.
+
+    Explicit values already present on ``global_settings`` take precedence over
+    legacy ``SimulationCfg.render`` values. A CLI-provided ``rendering_mode``
+    still wins because that was the historical behavior.
+    """
+    if render_cfg is not None:
+        for field_name in _RTX_GLOBAL_SETTING_FIELDS:
+            if getattr(global_settings, field_name, None) is None:
+                legacy_value = getattr(render_cfg, field_name, None)
+                if legacy_value is not None:
+                    setattr(global_settings, field_name, legacy_value)
+    if rendering_mode:
+        global_settings.rendering_mode = rendering_mode
 
 
 def _get_stage_streaming_busy() -> bool:
