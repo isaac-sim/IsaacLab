@@ -46,35 +46,6 @@ class RenderContext:
         self._prepared_num_envs: int | None = None
         self._last_transforms_step: int | None = None
 
-    def _normalize_renderer_cfg(self, cfg: RendererCfg) -> RendererCfg:
-        """Apply transition-time renderer config normalization before lookup."""
-        if getattr(cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(
-            cfg, "global_settings"
-        ):
-            return cfg
-        try:
-            import isaaclab.sim as sim_utils
-            from isaaclab.app.settings_manager import get_settings_manager
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-                merge_legacy_render_cfg_into_global_settings,
-            )
-        except (ImportError, ModuleNotFoundError):
-            return cfg
-
-        sim = sim_utils.SimulationContext.instance()
-        legacy_render_cfg = (
-            getattr(getattr(sim, "cfg", None), "render", None)
-            if sim is not None
-            else None
-        )
-        rendering_mode = get_settings_manager().get(
-            "/isaaclab/rendering/rendering_mode"
-        )
-        merge_legacy_render_cfg_into_global_settings(
-            cfg.global_settings, legacy_render_cfg, rendering_mode
-        )
-        return cfg
-
     def _check_global_settings_compatible(self, cfg: RendererCfg) -> None:
         """Reject conflicting process-global renderer settings."""
         if getattr(cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(
@@ -105,7 +76,6 @@ class RenderContext:
         Returns:
             A shared or newly created renderer backend.
         """
-        cfg = self._normalize_renderer_cfg(cfg)
         self._check_global_settings_compatible(cfg)
         for stored_cfg, r in self._renderer_entries:
             if type(stored_cfg) is type(cfg) and stored_cfg == cfg:

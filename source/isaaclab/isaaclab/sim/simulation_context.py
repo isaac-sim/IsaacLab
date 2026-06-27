@@ -173,7 +173,6 @@ class SimulationContext:
             self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
-        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
@@ -219,28 +218,6 @@ class SimulationContext:
         self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
-
-    def _apply_render_cfg_settings(self) -> None:
-        """Apply deprecated ``SimulationCfg.render`` through the Isaac RTX helper."""
-        render_cfg = getattr(self.cfg, "render", None)
-        if render_cfg is None:
-            return
-        try:
-            from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-                apply_isaac_rtx_global_settings,
-                merge_legacy_render_cfg_into_global_settings,
-            )
-        except (ImportError, ModuleNotFoundError):
-            return
-
-        global_settings = IsaacRtxRendererGlobalSettingsCfg()
-        merge_legacy_render_cfg_into_global_settings(
-            global_settings,
-            render_cfg,
-            self.get_setting("/isaaclab/rendering/rendering_mode"),
-        )
-        apply_isaac_rtx_global_settings(global_settings, self.settings)
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""

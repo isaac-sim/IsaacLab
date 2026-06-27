@@ -10,10 +10,10 @@ from __future__ import annotations
 import logging
 import os
 import time
+import tomllib
 from typing import Any
 
 import omni.usd
-import tomllib
 
 import isaaclab.sim as sim_utils
 
@@ -43,11 +43,6 @@ _RTX_FIELD_TO_SETTING = {
     "split_clearcoat": "/rtx/rtpt/splitClearcoat",
     "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
 }
-
-_RTX_GLOBAL_SETTING_FIELDS = (
-    tuple(_RTX_FIELD_TO_SETTING.keys())
-    + ("antialiasing_mode", "carb_settings", "rendering_mode")
-)
 
 # Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
@@ -155,26 +150,6 @@ def apply_isaac_rtx_global_settings(global_settings: Any, settings: Any) -> None
             rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
         except Exception:
             pass
-
-
-def merge_legacy_render_cfg_into_global_settings(
-    global_settings: Any, render_cfg: Any, rendering_mode: str | None
-) -> None:
-    """Merge deprecated :class:`RenderCfg` values into Isaac RTX global settings.
-
-    Explicit values already present on ``global_settings`` take precedence over
-    legacy ``SimulationCfg.render`` values. A CLI-provided ``rendering_mode``
-    still wins because that was the historical behavior.
-    """
-    if render_cfg is not None:
-        for field_name in _RTX_GLOBAL_SETTING_FIELDS:
-            if getattr(global_settings, field_name, None) is None:
-                legacy_value = getattr(render_cfg, field_name, None)
-                if legacy_value is not None:
-                    setattr(global_settings, field_name, legacy_value)
-    if rendering_mode:
-        global_settings.rendering_mode = rendering_mode
-
 
 def _get_stage_streaming_busy() -> bool:
     """Synchronously query whether RTX stage streaming is still in progress."""
