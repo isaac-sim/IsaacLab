@@ -1,3 +1,0 @@
-Moved the RTX ``RenderCfg`` field-to-carb-path mapping out of core into
-``isaaclab_physx.renderers.apply_rtx_render_settings``, so the RTX-specific knowledge lives in the
-backend. Internal refactor with no user-facing change.
