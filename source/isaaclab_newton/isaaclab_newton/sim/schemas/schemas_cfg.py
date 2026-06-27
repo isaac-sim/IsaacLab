@@ -17,6 +17,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveBaseCfg,
     JointDriveFragment,
     MeshCollisionBaseCfg,
+    MeshCollisionFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
 )
@@ -348,6 +349,118 @@ class NewtonSDFCollisionPropertiesCfg(NewtonCollisionPropertiesCfg):
     Both participating collision shapes must enable hydroelastic contacts for
     Newton to use this path. Written to ``newton:hydroelasticEnabled`` via
     ``NewtonSDFCollisionAPI``.
+    """
+
+    hydroelastic_stiffness: float | None = None
+    """Hydroelastic contact stiffness.
+
+    Written to ``newton:hydroelasticStiffness`` via ``NewtonSDFCollisionAPI``.
+    """
+
+
+# -------------------------------------------------------------------------------------
+# Mesh-collision cooking fragments (single-namespace; Newton cooking add-on schemas).
+#
+# Each fragment owns the ``newton`` namespace + its applied schema, dispatched via ``apply_namespaced``.
+# They author no ``mesh_approximation_name`` (the token is set by the PhysX/USD fragment in the same
+# list), so they only tune Newton-native cooking attributes.
+# -------------------------------------------------------------------------------------
+
+
+@configclass
+class NewtonMeshCollisionCfg(MeshCollisionFragment):
+    """``newton:maxHullVertices`` mesh-cooking attribute from ``NewtonMeshCollisionAPI``.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) carrying
+    Newton's convex-hull vertex limit. Dispatched alongside the USD/PhysX mesh-collision fragments
+    via :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. note::
+        If the values are None, they are not modified.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = "NewtonMeshCollisionAPI"
+
+    max_hull_vertices: int | None = None
+    """Maximum vertices in the convex hull approximation [dimensionless].
+
+    Only relevant when ``physics:approximation = "convexHull"``.
+    Written to ``newton:maxHullVertices`` via ``NewtonMeshCollisionAPI``.
+    Set to ``-1`` to use as many vertices as needed for a perfect hull.
+    """
+
+
+@configclass
+class NewtonSDFCollisionCfg(MeshCollisionFragment):
+    """``newton:*`` SDF and hydroelastic mesh-cooking attributes from ``NewtonSDFCollisionAPI``.
+
+    A single-namespace fragment carrying Newton SDF generation and hydroelastic-contact attributes
+    consumed by Newton's USD importer. Mirrors the legacy
+    :class:`NewtonSDFCollisionPropertiesCfg`. Dispatched alongside the USD/PhysX mesh-collision
+    fragments via :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. note::
+        These ``newton:sdf*`` / ``newton:hydroelastic*`` attributes are read by Newton's USD
+        importer starting in Newton 1.3.0 (which also detects the unregistered
+        ``NewtonSDFCollisionAPI`` token via the raw ``apiSchemas`` list-op). On older Newton builds
+        they are authored but inert.
+
+    .. note::
+        If the values are None, they are not modified.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    # ``NewtonSDFCollisionAPI`` is authored into the prim's ``apiSchemas`` listOp (matching the
+    # legacy ``NewtonSDFCollisionPropertiesCfg``). It is not a *registered* applied API schema in
+    # the current Newton build, so it does not appear in the composed ``GetAppliedSchemas()`` until
+    # the schema ships -- but it is authored, and Newton's importer reads the ``newton:*`` attrs.
+    _usd_applied_schema: ClassVar[str | None] = "NewtonSDFCollisionAPI"
+
+    sdf_max_resolution: int | None = None
+    """Maximum SDF grid dimension [dimensionless].
+
+    Newton requires this value to be divisible by 8. If :attr:`sdf_target_voxel_size` is also
+    authored, Newton uses the target voxel size and ignores this resolution.
+    Written to ``newton:sdfMaxResolution`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_narrow_band_inner: float | None = None
+    """Inner narrow-band distance for SDF generation [m].
+
+    Written to ``newton:sdfNarrowBandInner`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_narrow_band_outer: float | None = None
+    """Outer narrow-band distance for SDF generation [m].
+
+    Written to ``newton:sdfNarrowBandOuter`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_target_voxel_size: float | None = None
+    """Target SDF voxel size [m].
+
+    Takes precedence over :attr:`sdf_max_resolution` in Newton's USD importer.
+    Written to ``newton:sdfTargetVoxelSize`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_texture_format: Literal["uint8", "uint16", "float32"] | None = None
+    """Subgrid texture storage format for generated SDFs.
+
+    Written to ``newton:sdfTextureFormat`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    sdf_padding: float | None = None
+    """SDF AABB padding [m].
+
+    Written to ``newton:sdfPadding`` via ``NewtonSDFCollisionAPI``.
+    """
+
+    hydroelastic_enabled: bool | None = None
+    """Whether Newton should use SDF-based hydroelastic contacts for this shape.
+
+    Both participating collision shapes must enable hydroelastic contacts for Newton to use this
+    path. Written to ``newton:hydroelasticEnabled`` via ``NewtonSDFCollisionAPI``.
     """
 
     hydroelastic_stiffness: float | None = None

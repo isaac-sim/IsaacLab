@@ -18,6 +18,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     JointDriveBaseCfg,
     JointDriveFragment,
     MeshCollisionBaseCfg,
+    MeshCollisionFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
     SpatialTendonFragment,
@@ -641,6 +642,171 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
             stacklevel=2,
         )
         super().__post_init__()
+
+
+# -------------------------------------------------------------------------------------
+# Mesh-collision cooking fragments (single-namespace; PhysX cooking add-on schemas).
+#
+# Each fragment owns one ``physx*Collision:*`` namespace + applied schema; its
+# ``mesh_approximation_name`` default encodes the ``physics:approximation`` token its cooking
+# schema implies. The token is written by the family writer
+# ``isaaclab.sim.schemas.apply_mesh_collision_properties``; tuning attrs go via ``apply_namespaced``.
+# -------------------------------------------------------------------------------------
+
+
+@configclass
+class PhysxConvexHullCfg(MeshCollisionFragment):
+    """``physxConvexHullCollision:*`` mesh-cooking attributes from `PhysxConvexHullCollisionAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the PhysX
+    convex-hull cooking schema. The ``convexHull`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxConvexHullCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxConvexHullCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
+
+    mesh_approximation_name: str = "convexHull"
+    """Name of mesh collision approximation method. Default: "convexHull"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
+
+    min_thickness: float | None = None
+    """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
+
+
+@configclass
+class PhysxConvexDecompositionCfg(MeshCollisionFragment):
+    """``physxConvexDecompositionCollision:*`` mesh-cooking attributes from `PhysxConvexDecompositionCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX convex-decomposition cooking schema. The
+    ``convexDecomposition`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxConvexDecompositionCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxConvexDecompositionCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
+
+    mesh_approximation_name: str = "convexDecomposition"
+    """Name of mesh collision approximation method. Default: "convexDecomposition"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
+
+    max_convex_hulls: int | None = None
+    """Maximum of convex hulls created during convex decomposition [dimensionless]. Default value is 32."""
+
+    min_thickness: float | None = None
+    """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
+
+    voxel_resolution: int | None = None
+    """Voxel resolution used for convex decomposition [dimensionless]. Defaults to 500,000 voxels."""
+
+    error_percentage: float | None = None
+    """Convex decomposition error percentage parameter [%]. Defaults to 10 percent."""
+
+    shrink_wrap: bool | None = None
+    """Attempts to adjust the convex hull points so that they are projected onto the surface of the
+    original graphics mesh. Defaults to False.
+    """
+
+
+@configclass
+class PhysxTriangleMeshCfg(MeshCollisionFragment):
+    """``physxTriangleMeshCollision:*`` mesh-cooking attributes from `PhysxTriangleMeshCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX triangle-mesh cooking schema (PhysX-only colliders).
+
+    .. _PhysxTriangleMeshCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance controlling the distance at which vertices are welded [m].
+
+    Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
+    Range: [0, inf).
+    """
+
+
+@configclass
+class PhysxTriangleMeshSimplificationCfg(MeshCollisionFragment):
+    """``physxTriangleMeshSimplificationCollision:*`` attributes from `PhysxTriangleMeshSimplificationCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX triangle-mesh-simplification cooking schema. The
+    ``meshSimplification`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxTriangleMeshSimplificationCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshSimplificationCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
+
+    mesh_approximation_name: str = "meshSimplification"
+    """Name of mesh collision approximation method. Default: "meshSimplification"."""
+
+    simplification_metric: float | None = None
+    """Mesh simplification accuracy [dimensionless]. Defaults to 0.55."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance controlling the distance at which vertices are welded [m].
+
+    Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
+    Range: [0, inf).
+    """
+
+
+@configclass
+class PhysxSDFMeshCfg(MeshCollisionFragment):
+    """``physxSDFMeshCollision:*`` mesh-cooking attributes from `PhysxSDFMeshCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX signed-distance-field cooking schema (PhysX-only
+    colliders). The ``sdf`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxSDFMeshCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxSDFMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
+
+    mesh_approximation_name: str = "sdf"
+    """Name of mesh collision approximation method. Default: "sdf"."""
+
+    sdf_margin: float | None = None
+    """Margin to increase the size of the SDF relative to the mesh bounding-box diagonal [dimensionless].
+
+    Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, inf).
+    """
+
+    sdf_narrow_band_thickness: float | None = None
+    """Size of the narrow band around the mesh surface with high-resolution SDF samples [dimensionless].
+
+    Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, 1].
+    """
+
+    sdf_resolution: int | None = None
+    """Uniform SDF sampling resolution (largest AABB extent divided by this value) [dimensionless].
+
+    Default value is 256. Range: (1, inf).
+    """
+
+    sdf_subgrid_resolution: int | None = None
+    """Subgrid resolution enabling SDF sparsity; ``0`` selects a dense SDF [dimensionless].
+
+    Default value is 6. Range: [0, inf).
+    """
 
 
 @configclass
