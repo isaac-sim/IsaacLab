@@ -1,0 +1,119 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Upload omni-github test results'
+description: >
+  Converts a JUnit XML report into the omni-github test-result artifact
+  contract and uploads it with the current GitHub repository identity.
+
+inputs:
+  junit-file:
+    description: 'Path to the JUnit XML report to convert'
+    required: true
+  junit-log-url:
+    description: 'URL of the uploaded JUnit XML artifact'
+    default: ''
+    required: false
+  comparison-images-url:
+    description: 'URL of the uploaded comparison images artifact'
+    default: ''
+    required: false
+  artifact-prefix:
+    description: 'Artifact name prefix'
+    required: true
+  test-tool-id:
+    description: 'Identifier for the test runner that produced the JUnit report'
+    default: 'pytest'
+    required: false
+  test-type:
+    description: >-
+      Suite category stored on each uploaded omni-github test row, such as
+      training-e2e, rendering-correctness, pytest, etc.
+    default: 'pytest'
+    required: false
+  retention-days:
+    description: 'GitHub artifact retention in days'
+    default: '7'
+    required: false
+
+runs:
+  using: composite
+  steps:
+    - name: Convert JUnit XML to omni-github results
+      id: convert
+      shell: bash
+      env:
+        ARTIFACT_PREFIX: ${{ inputs.artifact-prefix }}
+        JUNIT_FILE: ${{ inputs.junit-file }}
+        TEST_TOOL_ID: ${{ inputs.test-tool-id }}
+        TEST_TYPE: ${{ inputs.test-type }}
+      run: |
+        set -euo pipefail
+
+        if [ ! -f "$JUNIT_FILE" ]; then
+          echo "::warning::Skipping omni-github upload because JUnit report was not found: $JUNIT_FILE"
+          echo "upload=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        case "${RUNNER_OS:-unknown}-${RUNNER_ARCH:-unknown}" in
+          Linux-X64) app_platform="linux-x86_64" ;;
+          Linux-ARM64) app_platform="linux-aarch64" ;;
+          Windows-X64) app_platform="windows-x86_64" ;;
+          Windows-ARM64) app_platform="windows-aarch64" ;;
+          macOS-X64) app_platform="macos-x86_64" ;;
+          macOS-ARM64) app_platform="macos-aarch64" ;;
+          *) app_platform="$(printf '%s-%s' "${RUNNER_OS:-unknown}" "${RUNNER_ARCH:-unknown}" | tr '[:upper:]' '[:lower:]')" ;;
+        esac
+
+        run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
+        retries=0
+
+        # Run attempt > 1 means this job is a re-run, so adjust the retries count accordingly
+        [[ "$run_attempt" =~ ^[1-9][0-9]*$ ]] && retries=$((run_attempt - 1))
+
+        # Base directory for the artifact, which will be uploaded to GitHub
+        artifact_dir="${RUNNER_TEMP}/omni-github-test-results/${ARTIFACT_PREFIX}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}"
+        rm -rf "$artifact_dir"
+        mkdir -p "$artifact_dir"
+
+        python3 "$GITHUB_ACTION_PATH/junit_to_omni_github_results.py" \
+          --junit-file "$JUNIT_FILE" \
+          --output-dir "$artifact_dir" \
+          --test-tool-id "$TEST_TOOL_ID" \
+          --test-type "$TEST_TYPE" \
+          --app-platform "$app_platform" \
+          --app-config "${GITHUB_JOB:-github-job}" \
+          --group-name "${GITHUB_WORKFLOW:-github-workflow} / ${GITHUB_JOB:-github-job}" \
+          --junit-log-url "${{ inputs.junit-log-url }}" \
+          --comparison-images-url "${{ inputs.comparison-images-url }}" \
+          --retries "$retries"
+
+        result_json="$artifact_dir/_testoutput/test_results.json"
+
+        # Validating with a local pinned copy of the schemas is recommended by the omni-github team.
+        schema_venv="${RUNNER_TEMP}/omni-github-jsonschema-venv"
+        python3 -m venv "$schema_venv"
+        "$schema_venv/bin/python" -m pip install -q jsonschema
+        if ! "$schema_venv/bin/python" -m jsonschema \
+          "$GITHUB_ACTION_PATH/result-json.schema.json" \
+          --instance "$result_json"; then
+          echo "::warning::Skipping omni-github upload because converted results failed schema validation: $JUNIT_FILE"
+          echo "upload=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        echo "artifact_dir=$artifact_dir" >> "$GITHUB_OUTPUT"
+        echo "upload=true" >> "$GITHUB_OUTPUT"
+
+    - name: Upload omni-github test results
+      if: always() && steps.convert.outputs.upload == 'true'
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-prefix }}--v1-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ job.check_run_id }}
+        path: ${{ steps.convert.outputs.artifact_dir }}
+        if-no-files-found: error
+        retention-days: ${{ inputs.retention-days }}
+        compression-level: 9

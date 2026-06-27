@@ -731,6 +731,7 @@ jobs:
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
+        omni-github-test-type: training-e2e
 
   test-rendering-correctness:
     name: "rendering-correctness"
@@ -759,6 +760,7 @@ jobs:
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         container-name: isaac-lab-rendering-correctness-test
+        omni-github-test-type: rendering-correctness
 
   test-rendering-correctness-kitless:
     name: "rendering-correctness-kitless"
@@ -787,6 +789,7 @@ jobs:
         test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
         test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
         container-name: isaac-lab-rendering-correctness-kitless-test
+        omni-github-test-type: rendering-correctness-kitless
   #endregion
 
 #region disabled quarantined tests

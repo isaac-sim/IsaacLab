@@ -98,6 +98,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             device: Warp device string used to allocate the staging and merged buffers.
         """
         from isaaclab_ovphysx import tensor_types as TT  # local: keep heavy ovphysx out of module load
+        from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
         self._physx = physx
         self._rigid_bindings = []
@@ -119,7 +120,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         total_count = 0
         for pattern in sorted(patterns):
             try:
-                pose_binding = physx.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
+                view = OvPhysxView(physx, pattern=pattern, device=device)
+                pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
             except Exception as exc:
                 logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
                 continue
@@ -141,6 +143,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             self._rigid_bindings.append(
                 {
                     "pattern": pattern,
+                    "view": view,
                     "pose": pose_binding,
                     "pose_buf": pose_buf,
                     "pose_buf_transformf": pose_buf_transformf,
@@ -175,7 +178,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         for entry in self._rigid_bindings:
             try:
-                entry["pose"].read(entry["pose_buf"])
+                entry["view"].read_into("rigid_body_pose", entry["pose_buf"])
             except Exception as exc:
                 logger.warning("RIGID_BODY_POSE read failed for %s: %s", entry["pattern"], exc)
                 continue
