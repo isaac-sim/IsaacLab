@@ -28,6 +28,7 @@ from ..utils import (
     safe_set_attribute_on_usd_schema,
 )
 from . import schemas_cfg
+from ._backend_hooks import _skip_joint_drive
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -892,32 +893,6 @@ def _drive_instance_name(prim) -> str | None:
     if prim.IsA(UsdPhysics.PrismaticJoint):
         return "linear"
     return None
-
-
-# Backend-registered predicates that exclude a joint prim from joint-drive authoring. Backends (e.g.
-# PhysX tendons) register here via :func:`register_joint_drive_skip_predicate` so the core joint-drive
-# writers can skip backend-controlled joints without core carrying any backend-specific schema name.
-_JOINT_DRIVE_SKIP_PREDICATES: list = []
-
-
-def register_joint_drive_skip_predicate(predicate) -> None:
-    """Register a predicate that excludes a joint prim from joint-drive authoring.
-
-    The joint-drive writers (:func:`apply_drive`, :func:`apply_joint_drive_properties`) skip any joint
-    for which a registered predicate returns ``True``. This is the backend hook for cases like PhysX
-    fixed tendons, where the controlling backend owns certain joints and no drive should be authored
-    on them -- the backend registers its own detector so core needs no backend-specific knowledge.
-
-    Args:
-        predicate: A callable ``predicate(prim) -> bool`` returning True to exclude the prim.
-    """
-    if predicate not in _JOINT_DRIVE_SKIP_PREDICATES:
-        _JOINT_DRIVE_SKIP_PREDICATES.append(predicate)
-
-
-def _skip_joint_drive(prim) -> bool:
-    """Return whether any backend-registered predicate excludes ``prim`` from joint-drive authoring."""
-    return any(predicate(prim) for predicate in _JOINT_DRIVE_SKIP_PREDICATES)
 
 
 def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:

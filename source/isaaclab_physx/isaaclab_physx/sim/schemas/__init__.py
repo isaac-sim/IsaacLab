@@ -5,7 +5,7 @@
 
 """Sub-module containing PhysX schema configuration exports."""
 
-from isaaclab.sim.schemas.schemas import register_joint_drive_skip_predicate
+from isaaclab.sim.schemas._backend_hooks import register_joint_drive_skip_predicate
 from isaaclab.utils.module import lazy_export
 
 lazy_export()

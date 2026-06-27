@@ -346,11 +346,10 @@ def test_apply_joint_drive_properties_skips_joint_via_registered_predicate(monke
     monkeypatch clears the module-global predicate list (other tests register the PhysX detector
     session-wide) and restores it afterwards, keeping this isolated.
     """
-    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
-    from isaaclab.sim.schemas import schemas as core_schemas
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, _backend_hooks, apply_joint_drive_properties
 
-    monkeypatch.setattr(core_schemas, "_JOINT_DRIVE_SKIP_PREDICATES", [])
-    core_schemas.register_joint_drive_skip_predicate(lambda prim: True)  # exclude every joint
+    monkeypatch.setattr(_backend_hooks, "_JOINT_DRIVE_SKIP_PREDICATES", [])
+    _backend_hooks.register_joint_drive_skip_predicate(lambda prim: True)  # exclude every joint
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -362,10 +361,9 @@ def test_apply_joint_drive_properties_skips_joint_via_registered_predicate(monke
 
 def test_apply_joint_drive_properties_authors_when_no_skip_predicate(monkeypatch):
     """Empty predicate registry (the default) skips nothing -- the writer authors on the joint."""
-    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, apply_joint_drive_properties
-    from isaaclab.sim.schemas import schemas as core_schemas
+    from isaaclab.sim.schemas import UsdPhysicsDriveCfg, _backend_hooks, apply_joint_drive_properties
 
-    monkeypatch.setattr(core_schemas, "_JOINT_DRIVE_SKIP_PREDICATES", [])
+    monkeypatch.setattr(_backend_hooks, "_JOINT_DRIVE_SKIP_PREDICATES", [])
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
