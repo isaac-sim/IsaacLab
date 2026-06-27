@@ -32,7 +32,7 @@ from isaaclab.envs.utils.camera_view import (
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
@@ -477,6 +477,7 @@ class NewtonVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._model = NewtonManager.get_model()
         self._state = NewtonManager.get_state(self._scene_data_provider)
 
@@ -502,12 +503,7 @@ class NewtonVisualizer(BaseVisualizer):
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
-            apply_viewer_visible_worlds(
-                self._viewer,
-                env_ids=self._env_ids,
-                max_visible_envs=self.cfg.max_visible_envs,
-                num_envs=num_envs,
-            )
+            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
             self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
@@ -535,7 +531,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._setup_camera_sensor_view(num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
@@ -599,7 +594,10 @@ class NewtonVisualizer(BaseVisualizer):
                             self._viewer.log_contacts(contacts, self._state)
                         else:
                             self._log_scene_contact_sensor_arrows(num_envs)
-                        self.render_markers(self._viewer, num_envs=num_envs)
+                        if self.cfg.enable_markers:
+                            render_newton_visualization_markers(
+                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                            )
                         self._log_camera_sensor_image()
                 finally:
                     self._viewer.end_frame()
@@ -849,22 +847,6 @@ class NewtonVisualizer(BaseVisualizer):
         self.cfg.eye = eye_t
         self.cfg.lookat = target_t
         self._apply_camera_pose((eye_t, target_t))
-
-    def render_markers(self, viewer: ViewerGL, num_envs: int | None = None) -> None:
-        """Render active Isaac Lab marker groups into a Newton viewer.
-
-        Args:
-            viewer: Newton viewer that receives the marker overlays.
-            num_envs: Total number of simulation environments. If ``None``, the count is
-                queried from the active Newton manager.
-        """
-        if not self.cfg.enable_markers:
-            return
-        if num_envs is None:
-            from isaaclab_newton.physics import NewtonManager
-
-            num_envs = NewtonManager.get_num_envs()
-        render_newton_visualization_markers(viewer, self._resolved_visible_env_ids, num_envs=num_envs)
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""

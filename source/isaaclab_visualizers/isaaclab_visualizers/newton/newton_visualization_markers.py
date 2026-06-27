@@ -15,6 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 from newton import Axis, Mesh
+from newton.viewer import ViewerBase
 
 import isaaclab.sim as sim_utils
 from isaaclab.markers.visualization_markers_cfg import VisualizationMarkersCfg
@@ -49,7 +50,7 @@ class _MeshData:
     uvs: np.ndarray
 
 
-def render_newton_visualization_markers(viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
+def render_newton_visualization_markers(viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
     """Render all active Newton visualization marker groups into a Newton-family viewer."""
     sim = sim_utils.SimulationContext.instance()
     if sim is None:
@@ -74,6 +75,9 @@ class NewtonVisualizationMarkers:
         self.count = len(cfg.markers)
         self._registered_meshes: set[tuple[int, str]] = set()
         self._warned_unsupported: set[str] = set()
+        self._marker_specs: dict[str, _NewtonMarkerSpec] = {
+            name: _infer_newton_marker_cfg(marker_cfg) for name, marker_cfg in cfg.markers.items()
+        }
 
         sim = sim_utils.SimulationContext.instance()
         if sim is not None:
@@ -123,33 +127,66 @@ class NewtonVisualizationMarkers:
         elif self.count != 0:
             self.marker_indices = torch.zeros(self.count, dtype=torch.int32, device=self.infer_device())
 
-    def render(self, viewer, visible_env_ids: list[int] | None, num_envs: int) -> None:
-        """Render marker state to a Newton viewer."""
-        state = _filter_marker_state(self, visible_env_ids=visible_env_ids, num_envs=num_envs)
-        if state["count"] == 0:
-            for name, marker_cfg in self.cfg.markers.items():
-                self._hide_batch(viewer, name, _resolve_newton_marker_cfg(name, marker_cfg, self.cfg))
+    def render(self, viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
+        """Render marker state to a Newton viewer.
+
+        Marker batches divisible by ``num_envs`` are interpreted as dense environment-major arrays
+        with shape ``(num_envs, markers_per_env, ...)``. Other batches are rendered as global markers.
+        """
+        translations = self.translations
+        orientations = self.orientations
+        scales = self.scales
+        marker_indices = self.marker_indices
+        count = self.count
+
+        if count > 0 and num_envs > 0 and count % num_envs == 0:
+            markers_per_env = count // num_envs
+            device = self.infer_device()
+            env_ids = (
+                torch.arange(num_envs, dtype=torch.long, device=device)
+                if visible_env_ids is None
+                else torch.tensor(visible_env_ids, dtype=torch.long, device=device)
+            )
+            if visible_env_ids is not None:
+                index = (
+                    env_ids.unsqueeze(1) * markers_per_env
+                    + torch.arange(markers_per_env, dtype=torch.long, device=device).unsqueeze(0)
+                ).flatten()
+                if translations is not None:
+                    translations = translations.index_select(0, index)
+                if orientations is not None:
+                    orientations = orientations.index_select(0, index)
+                if scales is not None:
+                    scales = scales.index_select(0, index)
+                if marker_indices is not None:
+                    marker_indices = marker_indices.index_select(0, index)
+                count = index.numel()
+            if translations is not None:
+                offsets = wp.to_torch(viewer.world_offsets)
+                offset_env_ids = env_ids.to(device=offsets.device)
+                selected_offsets = offsets.index_select(0, offset_env_ids)
+                selected_offsets = selected_offsets.to(device=translations.device, dtype=translations.dtype)
+                translations = translations + selected_offsets.repeat_interleave(markers_per_env, dim=0)
+
+        if count == 0:
+            for name, newton_cfg in self._marker_specs.items():
+                self._hide_batch(viewer, name, newton_cfg)
             return
 
-        translations = state["translations"]
         if translations is None:
             return
-        translations = _apply_marker_world_offsets(viewer, translations, state["world_indices"], num_envs)
-        orientations = state["orientations"]
         if orientations is None:
-            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(state["count"], 1)
-        scales = state["scales"]
+            orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=translations.device).repeat(count, 1)
         if scales is None:
-            scales = torch.ones((state["count"], 3), dtype=torch.float32, device=translations.device)
-        marker_indices = state["marker_indices"]
+            scales = torch.ones((count, 3), dtype=torch.float32, device=translations.device)
         if marker_indices is None:
-            marker_indices = torch.zeros(state["count"], dtype=torch.int64, device=translations.device)
+            marker_indices = torch.zeros(count, dtype=torch.int64, device=translations.device)
 
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
-            newton_cfg = _resolve_newton_marker_cfg(name, marker_cfg, self.cfg)
+            newton_cfg = self._marker_specs[name]
             batch_name = f"{self.group_id}/{name}"
             selected = marker_indices == proto_index
-            if not state["visible"] or int(selected.sum().item()) == 0:
+            if not self.visible or int(selected.sum().item()) == 0:
                 self._hide_batch(viewer, name, newton_cfg)
                 continue
 
@@ -205,7 +242,7 @@ class NewtonVisualizationMarkers:
                     hidden=False,
                 )
 
-    def _hide_batch(self, viewer, name: str, newton_cfg: _NewtonMarkerSpec) -> None:
+    def _hide_batch(self, viewer: ViewerBase, name: str, newton_cfg: _NewtonMarkerSpec) -> None:
         batch_name = f"{self.group_id}/{name}"
         if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
             mesh_name = f"{self.group_id}/meshes/{name}"
@@ -214,7 +251,7 @@ class NewtonVisualizationMarkers:
         elif newton_cfg.renderer == "frame":
             viewer.log_lines(batch_name, None, None, None, hidden=True)
 
-    def _ensure_mesh_registered(self, viewer, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
+    def _ensure_mesh_registered(self, viewer: ViewerBase, mesh_name: str, newton_cfg: _NewtonMarkerSpec) -> None:
         # The marker backend is shared by all Newton-family visualizers. Mesh
         # registration is viewer-local, so the same marker mesh must be logged
         # once per viewer (for example, once for Rerun and once for Viser).
@@ -232,11 +269,6 @@ class NewtonVisualizationMarkers:
             hidden=True,
         )
         self._registered_meshes.add(registered_key)
-
-
-def _resolve_newton_marker_cfg(name: str, marker_cfg: object, cfg: VisualizationMarkersCfg) -> _NewtonMarkerSpec:
-    del name, cfg
-    return _infer_newton_marker_cfg(marker_cfg)
 
 
 def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
@@ -407,93 +439,6 @@ def _create_textured_box_mesh(size: tuple[float, float, float]) -> _MeshData:
         normals=np.zeros((0, 3), dtype=np.float32),
         uvs=uvs,
     )
-
-
-def _filter_marker_state(
-    marker: NewtonVisualizationMarkers,
-    visible_env_ids: list[int] | None,
-    num_envs: int,
-) -> dict[str, Any]:
-    """Filter an environment-major marker batch and retain each marker's owning world."""
-    if visible_env_ids is None or marker.count == 0 or num_envs <= 0 or marker.count % num_envs != 0:
-        return {
-            "visible": marker.visible,
-            "translations": marker.translations,
-            "orientations": marker.orientations,
-            "scales": marker.scales,
-            "marker_indices": marker.marker_indices,
-            "count": marker.count,
-            "world_indices": None,
-        }
-
-    keep: list[int] = []
-    world_ids: list[int] = []
-    repeat_count = marker.count // num_envs
-    for env_id in dict.fromkeys(visible_env_ids):
-        if env_id < 0 or env_id >= num_envs:
-            continue
-        start = env_id * repeat_count
-        for idx in range(start, start + repeat_count):
-            keep.append(idx)
-            world_ids.append(env_id)
-    world_indices = torch.tensor(world_ids, dtype=torch.long, device=marker.infer_device())
-
-    if keep == list(range(marker.count)):
-        return {
-            "visible": marker.visible,
-            "translations": marker.translations,
-            "orientations": marker.orientations,
-            "scales": marker.scales,
-            "marker_indices": marker.marker_indices,
-            "count": marker.count,
-            "world_indices": world_indices,
-        }
-
-    index = torch.tensor(keep, dtype=torch.long, device=marker.infer_device())
-    return {
-        "visible": marker.visible,
-        "translations": marker.translations.index_select(0, index) if marker.translations is not None else None,
-        "orientations": marker.orientations.index_select(0, index) if marker.orientations is not None else None,
-        "scales": marker.scales.index_select(0, index) if marker.scales is not None else None,
-        "marker_indices": marker.marker_indices.index_select(0, index) if marker.marker_indices is not None else None,
-        "count": len(keep),
-        "world_indices": world_indices,
-    }
-
-
-def _apply_marker_world_offsets(
-    viewer, translations: torch.Tensor, world_indices: torch.Tensor | None, num_envs: int
-) -> torch.Tensor:
-    """Apply a Newton viewer's visual world offsets to env-owned markers."""
-    spacing = getattr(viewer, "_user_spacing", None)
-    if spacing is not None and all(float(spacing[axis]) == 0.0 for axis in range(3)):
-        return translations
-
-    world_offsets = getattr(viewer, "world_offsets", None)
-    if world_offsets is None:
-        return translations
-
-    if isinstance(world_offsets, torch.Tensor):
-        offsets = world_offsets
-    elif isinstance(world_offsets, np.ndarray):
-        offsets = torch.as_tensor(world_offsets)
-    else:
-        try:
-            offsets = wp.to_torch(world_offsets)
-        except (AttributeError, RuntimeError, TypeError):
-            return translations
-    if offsets.ndim != 2 or offsets.shape[1] != 3:
-        return translations
-
-    if world_indices is None:
-        if num_envs <= 0 or translations.shape[0] % num_envs != 0:
-            return translations
-        repeat_count = translations.shape[0] // num_envs
-        world_indices = torch.arange(num_envs, device=translations.device).repeat_interleave(repeat_count)
-
-    indices = world_indices.to(device=offsets.device)
-    selected_offsets = offsets.index_select(0, indices).to(device=translations.device, dtype=translations.dtype)
-    return translations + selected_offsets
 
 
 def _extract_scale_hint(marker_cfg: object) -> tuple[float, float, float]:
