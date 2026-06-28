@@ -19,7 +19,6 @@ from pxr import UsdPhysics, UsdShade
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
-
 # -------------------------------------------------------------------------------------
 # RigidBodyMaterialFragment marker + metadata
 # -------------------------------------------------------------------------------------
@@ -112,12 +111,12 @@ def test_spawn_physics_material_dispatches_fragments_and_legacy():
     SimulationContext(SimulationCfg(dt=0.01))
 
     # fragment-list form
-    frag_prim = spawn_physics_material("/World/MatA", [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4)])
+    frag_prim = spawn_physics_material("/World/MaterialA", [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4)])
     assert bool(UsdPhysics.MaterialAPI(frag_prim))
     assert frag_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.4)
 
     # legacy single-cfg form (RigidBodyMaterialBaseCfg subclass with its own spawner func)
-    legacy_prim = spawn_physics_material("/World/MatB", PhysxRigidBodyMaterialCfg(static_friction=0.9))
+    legacy_prim = spawn_physics_material("/World/MaterialB", PhysxRigidBodyMaterialCfg(static_friction=0.9))
     assert bool(UsdPhysics.MaterialAPI(legacy_prim))
     assert legacy_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.9)
 
