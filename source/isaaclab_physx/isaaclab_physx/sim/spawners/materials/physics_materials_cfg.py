@@ -12,6 +12,7 @@ from typing import ClassVar, Literal
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
+    RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from isaaclab.utils.configclass import configclass
@@ -201,6 +202,43 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
         the higher priority will be used. The priority order is provided `here
         <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
     """
+
+
+@configclass
+class PhysxMaterialCfg(RigidBodyMaterialFragment):
+    """``physxMaterial:*`` rigid-body material attributes from `PhysxMaterialAPI`_.
+
+    Single-namespace fragment (see :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`)
+    for the PhysX-only material knobs: compliant-contact spring (stiffness/damping) and the
+    friction/restitution combine-mode tokens. The ``PhysxMaterialAPI`` schema is applied (and the
+    ``physxMaterial:*`` attributes authored) by the generic
+    :func:`~isaaclab.sim.schemas.apply_namespaced` writer. ``None`` fields are left unchanged.
+
+    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_material_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxMaterial"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxMaterialAPI"
+
+    compliant_contact_stiffness: float | None = None
+    """Spring stiffness for a compliant contact model using implicit springs.
+
+    A higher stiffness results in behavior closer to a rigid contact. The compliant contact model is
+    only enabled if the stiffness is larger than 0. Writes ``physxMaterial:compliantContactStiffness``.
+    """
+
+    compliant_contact_damping: float | None = None
+    """Damping coefficient for a compliant contact model using implicit springs.
+
+    Irrelevant if compliant contacts are disabled (``compliant_contact_stiffness`` is zero). Writes
+    ``physxMaterial:compliantContactDamping``.
+    """
+
+    friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """How friction is combined during collisions. Writes ``physxMaterial:frictionCombineMode``."""
+
+    restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """How restitution is combined during collisions. Writes ``physxMaterial:restitutionCombineMode``."""
 
 
 @configclass
