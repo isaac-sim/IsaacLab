@@ -249,7 +249,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
-            if self.cfg.compute_final_obs:
+            # note: getattr guards cfgs that derive from ManagerBasedEnvCfg (rather than
+            # ManagerBasedRLEnvCfg) but are still run as RL envs, which do not define this field.
+            if getattr(self.cfg, "compute_final_obs", False):
                 self.extras["final_obs"] = self.observation_manager.compute()
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
