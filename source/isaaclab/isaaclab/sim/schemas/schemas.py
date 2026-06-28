@@ -29,7 +29,7 @@ from ..utils import (
     safe_set_attribute_on_usd_schema,
 )
 from . import schemas_cfg
-from ._backend_hooks import _resolve_fixed_root_joint_creator
+from ._backend_hooks import _resolve_fixed_root_joint_creator, _skip_joint_drive
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1137,6 +1137,226 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
 """
 Joint drive properties.
 """
+
+
+def _drive_instance_name(prim) -> str | None:
+    """Return the ``UsdPhysics.DriveAPI`` instance for a joint prim, or ``None`` if it has no drive.
+
+    Revolute joints use the ``"angular"`` instance, prismatic joints the ``"linear"`` instance; any
+    other prim type has no joint drive. Shared by :func:`apply_drive` and :func:`_ensure_drive_exists`.
+
+    Args:
+        prim: The candidate joint prim.
+
+    Returns:
+        ``"angular"``, ``"linear"``, or ``None`` when the prim is not a revolute/prismatic joint.
+    """
+    if prim.IsA(UsdPhysics.RevoluteJoint):
+        return "angular"
+    if prim.IsA(UsdPhysics.PrismaticJoint):
+        return "linear"
+    return None
+
+
+def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Apply a :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment to a single joint prim.
+
+    This is the override ``func`` for the ``UsdPhysics.DriveAPI`` fragment: the drive attributes
+    live under a multi-instance schema, so the generic :func:`apply_namespaced` writer cannot be
+    used. The writer reproduces the solver-common drive logic of
+    :func:`modify_joint_drive_properties`:
+
+    * Selects the drive instance: ``"angular"`` for a revolute joint, ``"linear"`` for a prismatic
+      joint. For any other prim type, the function is a no-op and returns ``False``.
+    * Skips joints excluded by a backend-registered predicate (see
+      :func:`register_joint_drive_skip_predicate`, e.g. PhysX tendon members), returning ``False``.
+    * Applies ``UsdPhysics.DriveAPI`` for the selected instance (presence-gated -- only applied when
+      this fragment is present).
+    * Converts angular-drive :attr:`stiffness` and :attr:`damping` from radians to degrees
+      (``N·m/rad`` -> ``N·m/deg`` and ``N·m·s/rad`` -> ``N·m·s/deg``); linear drives are written
+      as-is.
+    * Writes the typed ``drive:<inst>:physics:{type,maxForce,stiffness,damping}`` attributes,
+      mapping the :attr:`drive_type` field to the USD attribute named ``type``.
+
+    Args:
+        cfg: The :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment to apply.
+        prim_path: The joint prim path to author on.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the drive was applied to a joint prim, False if the prim is not a revolute or
+        prismatic joint (or is a tendon child).
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    # select the drive instance based on the joint type
+    drive_api_name = _drive_instance_name(prim)
+    if drive_api_name is None:
+        return False
+    # skip joints a backend owns (e.g. PhysX tendon members); see register_joint_drive_skip_predicate
+    if _skip_joint_drive(prim):
+        return False
+
+    # apply the multi-instance drive API (presence-gated anchor for the joint-drive family)
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
+    if not usd_drive_api:
+        usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
+
+    # gather the solver-common drive fields
+    drive_type = cfg.drive_type
+    max_force = cfg.max_force
+    stiffness = cfg.stiffness
+    damping = cfg.damping
+
+    # angular drives use degree units in USD; convert stiffness/damping from radian units
+    if drive_api_name == "angular":
+        if stiffness is not None:
+            # N-m/rad --> N-m/deg
+            stiffness = stiffness * math.pi / 180.0
+        if damping is not None:
+            # N-m-s/rad --> N-m-s/deg
+            damping = damping * math.pi / 180.0
+
+    # ``drive_type`` is a permanent inline carve-out: the USD attribute is named ``type``
+    # (a Python keyword-like name we cannot use as a cfg field). All other solver-common
+    # joint-drive fields follow the snake_case = camelCase convention.
+    for field_name, value in (
+        ("drive_type", drive_type),
+        ("max_force", max_force),
+        ("stiffness", stiffness),
+        ("damping", damping),
+    ):
+        if value is None:
+            continue
+        usd_attr_name = "type" if field_name == "drive_type" else field_name
+        safe_set_attribute_on_usd_schema(usd_drive_api, usd_attr_name, value, camel_case=True)
+
+    return True
+
+
+def apply_joint_drive_properties(
+    prim_path: str, fragments, stage: Usd.Stage | None = None, ensure_drives_exist: bool = False
+) -> bool:
+    """Apply a list of joint-drive fragments to all joint prims under a prim path.
+
+    Mirrors the recursion behaviour of :func:`modify_joint_drive_properties` (decorated with
+    :func:`~isaaclab.sim.utils.apply_nested`): the prim path and all its descendants are visited,
+    and the fragments are dispatched to every revolute/prismatic joint prim found. As soon as a
+    prim is successfully handled, its children are not descended into (nested joints are not
+    allowed).
+
+    Unlike :func:`apply_rigid_body_properties`, the joint-drive family has no implicit anchor:
+    ``UsdPhysics.DriveAPI`` is *presence-gated* and applied only by :func:`apply_drive` when a
+    :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present in ``fragments``. Each
+    fragment is dispatched via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, so backend
+    fragments carry backend-specific funcs and core never imports a backend.
+
+    Args:
+        prim_path: The root prim path to search for joint prims under.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.JointDriveFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+        ensure_drives_exist: If True, write a minimal stiffness (``1e-3``) to any drive whose
+            authored stiffness *and* damping are both zero, so that backends (e.g. Newton) treat
+            the drive as active. Reproduces the legacy
+            :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.ensure_drives_exist` behaviour. This is
+            a spawner-level flag, not a fragment field.
+
+    Returns:
+        True if the fragments were applied to at least one joint prim, False otherwise.
+    """
+    if stage is None:
+        stage = get_current_stage()
+
+    fragments = list(fragments)
+    # detect whether a UsdPhysics.DriveAPI fragment is present (governs presence-gating + the
+    # ensure_drives_exist behaviour, which only makes sense for the solver-common drive fragment)
+    drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
+
+    root_prim = stage.GetPrimAtPath(prim_path)
+    if not root_prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    count_success = 0
+    instanced_prim_paths = []
+    all_prims = [root_prim]
+    while len(all_prims) > 0:
+        child_prim = all_prims.pop(0)
+        child_prim_path = child_prim.GetPath().pathString
+        # skip instanced prims (cannot author on prototypes)
+        if child_prim.IsInstance():
+            instanced_prim_paths.append(child_prim_path)
+            continue
+        # a prim is a valid joint-drive target only if it is a revolute/prismatic joint
+        is_joint = child_prim.IsA(UsdPhysics.RevoluteJoint) or child_prim.IsA(UsdPhysics.PrismaticJoint)
+        if not is_joint:
+            all_prims += child_prim.GetChildren()
+            continue
+        # skip backend-owned joints wholesale (e.g. PhysX tendon members): no fragment may author on
+        # them. The backend registers the detector via register_joint_drive_skip_predicate, so this
+        # gate carries no backend-specific knowledge; descend into children to reach nested joints.
+        if _skip_joint_drive(child_prim):
+            all_prims += child_prim.GetChildren()
+            continue
+        # dispatch each fragment via its func
+        success = False
+        for cfg in fragments:
+            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+            if func(cfg, child_prim_path, stage):
+                success = True
+        # seed a minimal stiffness only when the drive fragment authored neither stiffness nor
+        # damping and the resulting drive is fully passive
+        if ensure_drives_exist and drive_cfg is not None and success:
+            _ensure_drive_exists(drive_cfg, child_prim)
+        if success:
+            count_success += 1
+        else:
+            all_prims += child_prim.GetChildren()
+
+    if count_success == 0:
+        logger.warning(
+            f"Could not apply joint-drive properties on any prims under: '{prim_path}'."
+            " This might be because no revolute/prismatic joint prims were found, or they are"
+            f" instanced. Discovered list of instanced prim paths: {instanced_prim_paths}"
+        )
+    return count_success > 0
+
+
+def _ensure_drive_exists(drive_cfg, prim) -> None:
+    """Seed a minimal stiffness on a fully-passive drive so backends treat it as active.
+
+    Reproduces the legacy ``ensure_drives_exist`` behaviour: if the drive fragment authored
+    neither :attr:`stiffness` nor :attr:`damping` and the authored drive currently has zero
+    (or unset) stiffness *and* damping, write a minimal stiffness of ``1e-3`` directly to the
+    drive API (converted to degree units for angular drives, matching :func:`apply_drive`). The
+    fragment is not mutated, so this is safe across multiple joint prims sharing one fragment.
+
+    Args:
+        drive_cfg: The :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment.
+        prim: The joint prim being authored.
+    """
+    if drive_cfg.stiffness is not None or drive_cfg.damping is not None:
+        return
+    drive_api_name = _drive_instance_name(prim)
+    if drive_api_name is None:
+        return
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
+    if not usd_drive_api:
+        usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
+    cur_stiffness = usd_drive_api.GetStiffnessAttr().Get()
+    cur_damping = usd_drive_api.GetDampingAttr().Get()
+    if (cur_stiffness is None or cur_stiffness == 0.0) and (cur_damping is None or cur_damping == 0.0):
+        # mirror the legacy writer: 1e-3 is set before the rad->deg conversion, so an angular
+        # drive ends up with ``1e-3 * pi / 180``.
+        stiffness = 1e-3
+        if drive_api_name == "angular":
+            stiffness = stiffness * math.pi / 180.0
+        safe_set_attribute_on_usd_schema(usd_drive_api, "stiffness", stiffness, camel_case=True)
 
 
 @apply_nested

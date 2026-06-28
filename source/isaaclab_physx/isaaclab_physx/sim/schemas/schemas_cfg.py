@@ -17,11 +17,13 @@ from isaaclab.sim.schemas.schemas_cfg import (
     DeformableBodyPropertiesBaseCfg,
     FixedTendonFragment,
     JointDriveBaseCfg,
+    JointDriveFragment,
     MeshCollisionBaseCfg,
     MeshCollisionFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
     SpatialTendonFragment,
+    _deprecate_field_alias,
 )
 from isaaclab.utils.configclass import configclass
 
@@ -347,6 +349,56 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
             stacklevel=2,
         )
         super().__post_init__()
+
+
+@configclass
+class PhysxJointCfg(JointDriveFragment):
+    """``physxJoint:*`` joint attributes from `PhysxJointAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX joint add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg`
+    via :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. Written with the dedicated
+    :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` writer, which converts
+    :attr:`max_joint_velocity` from rad/s to deg/s for angular (revolute) joints.
+
+    .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxJoint"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxJointAPI"
+    # Override the generic applier: ``max_joint_velocity`` needs joint-type-aware rad->deg
+    # conversion for angular joints, which ``apply_namespaced`` cannot do.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_physx_joint"
+
+    def __post_init__(self):
+        # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (the USD attr is
+        # ``maxJointVelocity``). Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
+        _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
+
+    max_joint_velocity: float | None = None
+    """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
+
+    Notes:
+        Today this writes ``physxJoint:maxJointVelocity`` (a PhysX add-on schema attribute).
+        Newton's USD importer consumes the same attribute via its PhysX-bridge resolver and
+        populates ``Model.joint_velocity_limit``; the PhysX engine consumes it natively.
+
+    .. note::
+        Authored in rad/s; :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` converts it to
+        deg/s for angular (revolute) joints (PhysX's angular convention) and writes linear
+        (prismatic) joints unchanged, matching the legacy
+        :func:`~isaaclab.sim.schemas.modify_joint_drive_properties`.
+    """
+
+    max_velocity: float | None = None
+    """Deprecated alias for :attr:`max_joint_velocity`.
+
+    .. deprecated:: 4.6.25
+        Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
+        maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
+        alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
+        removed in 4.0.
+    """
 
 
 @configclass
