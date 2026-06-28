@@ -24,6 +24,7 @@ Use this file as an evaluation checklist for the migration skill, not as a ready
 
 - Read the IsaacGymEnvs source task and config.
 - Start with a direct Isaac Lab environment target.
+- Recommend a manager-based follow-up after the direct task validates, especially for reusable velocity commands, observations, rewards, randomization events, and terminations.
 - Produce an explicit mapping for terrain, sensors, observations, rewards, resets, randomization, and backend settings.
 - Identify behavior differences between the legacy task and maintained Isaac Lab examples.
 - Define small import, reset, step, and training smoke tests before scaling.
@@ -101,4 +102,4 @@ In Isaac Lab, first migrate the direct task until it runs with the maintained ba
 
 The migration skill is actionable for a non-toy rough-terrain locomotion task. The direct-first path remains valid because Isaac Lab has a direct rough Anymal-C task at `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`.
 
-This validation also shows the limits of direct copying: terrain generation, sensor models, observation layout, randomization timing, and PhysX/Newton support must be mapped deliberately through Isaac Lab docs and maintained source.
+This validation also shows the limits of direct copying: terrain generation, sensor models, observation layout, randomization timing, and PhysX/Newton support must be mapped deliberately through Isaac Lab docs and maintained source. After the parity pass works, the agent should steer users toward manager-based task structure for reusable Isaac Lab development.

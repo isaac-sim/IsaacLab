@@ -18,16 +18,18 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 ## Workflow
 
 1. Identify the Isaac Gym task structure: assets, environment state tensors, observations, rewards, resets, and training runner.
-2. Read the IsaacGymEnvs migration guide and direct workflow docs before proposing edits.
-3. Migrate to a direct workflow first by default. This preserves the single-class structure that most Isaac Gym tasks already use.
-4. Choose the initial backend target. Start with PhysX when matching Isaac Gym behavior; add Newton only after the direct PhysX migration is validated or if the user explicitly targets Newton.
-5. Map Isaac Gym PhysX parameters through the schema cfg docs: first to Isaac Lab PhysX cfgs, then to backend-portable base cfgs or Newton/MuJoCo cfgs where an equivalent exists.
-6. Map assets to Isaac Lab asset configs and scene entities.
-7. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
-8. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
-9. Run a small smoke test before scaling training.
-10. Only convert to a manager-based environment if the user asks for modular managers or the task benefits from reusable observation, reward, command, curriculum, or event terms.
-11. Iterate through the validation loop until the environment resets, steps, and trains without shape or device errors.
+2. If the user expects execution or training, run a runtime preflight before a long port: verify Python, `EXP_PATH`, `isaacsim`, `omni`, `isaacsim.simulation_app`, and the requested RL library are compatible with the Isaac Lab checkout.
+3. Read the IsaacGymEnvs migration guide and direct workflow docs before proposing edits.
+4. Migrate to a direct workflow first by default. This preserves the single-class structure that most Isaac Gym tasks already use.
+5. Choose the initial backend target. Start with PhysX when matching Isaac Gym behavior; add Newton only after the direct PhysX migration is validated or if the user explicitly targets Newton.
+6. Map Isaac Gym PhysX parameters through the schema cfg docs: first to Isaac Lab PhysX cfgs, then to backend-portable base cfgs or Newton/MuJoCo cfgs where an equivalent exists.
+7. Map assets to Isaac Lab asset configs and scene entities.
+8. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
+9. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
+10. Run a small smoke test before scaling training.
+11. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
+12. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
+13. Iterate through the validation loop until the environment resets, steps, and trains without shape or device errors.
 
 ## Validation
 
@@ -37,7 +39,13 @@ Use this feedback loop:
 ./isaaclab.sh -p -m pytest PATH_TO_MIGRATION_TEST
 ```
 
-For manual smoke testing, run the smallest training or random-action entry point available for the migrated task.
+For manual smoke testing, run the smallest random-action entry point available for the migrated task before training. For external scratch packages, ensure the task package is imported before Gym lookup; use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
+
+Runtime preflight for execution/training requests:
+
+```bash
+./isaaclab.sh -p -c "import importlib.util, os, sys; print(sys.version); print(os.environ.get('EXP_PATH')); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('isaacsim.simulation_app')); print(importlib.util.find_spec('omni'))"
+```
 
 For skill changes, run:
 
@@ -54,7 +62,9 @@ Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgym
 - [Reference](reference.md)
 - [Examples](examples.md)
 - [Rough locomotion validation](validation-rough-locomotion.md)
+- [Fresh Ant validation](validation-ant-fresh-agent.md)
 - [Evaluations](evaluations.md)
+- [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
 - [IsaacGymEnvs migration guide](../../../docs/source/migration/migrating_from_isaacgymenvs.rst)
 - [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
 - [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)

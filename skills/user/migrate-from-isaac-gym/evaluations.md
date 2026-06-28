@@ -16,11 +16,13 @@ Expected behavior:
 - Identifies terrain generation, robot asset, commands, observations, rewards, resets, sensors, randomization, and training configuration.
 - Recommends a direct environment as the first migration target.
 - Maps reward, termination, command, and reset logic into direct environment methods.
+- Recommends a manager-based follow-up after direct reset, step, and short training validation.
 - Gives a smoke-test plan before training at scale.
 
 Known failure modes:
 
 - Starts by decomposing into manager terms before preserving behavior in direct form.
+- Treats the direct migration as the final structure even after behavior is stable and reusable manager terms would help.
 - Omits terrain or sensor behavior from the migration plan.
 
 ## Scenario 2: Sensor and Terrain Migration

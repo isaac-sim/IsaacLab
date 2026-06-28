@@ -25,6 +25,20 @@ Use this mapping as the default starting point:
 | Domain randomization hooks | Direct reset/startup logic first, event terms if the user wants manager-style randomization |
 | RL runner script | Isaac Lab training script for the chosen framework |
 
+## External Scratch Packages
+
+When validating a migration outside the Isaac Lab tree, keep the package importable through `PYTHONPATH` and register the Gym task by importing the package before `gym.make()` or registry lookups. For scripts that do not expose `--external_callback`, create a small wrapper that imports the migrated package before running the Isaac Lab entry point. For training scripts that support external callbacks, point the callback to a registration function such as `my_migrated_task.register.register`.
+
+Do not treat successful config loading as training success. Import/register, config resolution, static compilation, reset/step, random-agent, and short training are separate gates.
+
+## Legacy Force And Torque Sensors
+
+Isaac Gym locomotion tasks may use force sensor tensors or net contact force tensors as policy inputs. In Isaac Lab, map these deliberately:
+
+- Use `ContactSensorCfg` when the legacy observation only needs body net contact forces.
+- Use wrench or joint-wrench sensors when the legacy task depends on torque components.
+- Preserve the original observation shape only when parity requires it, and document any zero-padded or intentionally dropped torque slots.
+
 ## Backend Mapping
 
 Use PhysX as the first target when preserving Isaac Gym behavior, because Isaac Gym tasks were PhysX-based. Do not assume every PhysX parameter has a Newton equivalent.
@@ -50,7 +64,7 @@ Import backend schema classes from their backend packages, not through deprecate
 
 ## Manager-Based Follow-Up Mapping
 
-Only use this mapping when the user asks for manager-based organization or when the task needs reusable manager terms:
+Use this mapping after the direct migration has reset, stepped, and trained. Recommend the manager-based follow-up when the task's observation, reward, command, event, curriculum, or termination logic should be reusable across robots, terrains, backends, or experiments. Use the `isaaclab-converting-direct-to-manager` skill for the conversion workflow.
 
 | Direct migration concern | Manager-based target |
 | --- | --- |
@@ -64,7 +78,7 @@ Only use this mapping when the user asks for manager-based organization or when 
 
 Prefer a direct environment for the first migration pass. This is closer to Isaac Gym task structure and makes it easier to compare observations, rewards, resets, and actions against the original implementation.
 
-Move to manager-based environments only when the user asks for a modular task or after the direct migration is validated.
+After the direct migration is validated, recommend trying a manager-based version when the task should benefit from Isaac Lab's reusable managers. Keep the first pass direct, but do not leave users with the impression that direct is the desired long-term structure for reusable Isaac Lab tasks.
 
 ## Old Patterns
 

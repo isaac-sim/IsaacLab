@@ -20,9 +20,22 @@ Output: an Isaac Lab direct environment with:
 - Direct command, action, observation, reward, termination, and reset methods.
 - Randomization added after the deterministic direct task runs.
 
+Follow-up: after reset, step, and short training pass, recommend converting reusable command, observation, reward, termination, event, and curriculum logic into a manager-based environment with `isaaclab-converting-direct-to-manager`.
+
 ## Domain Randomization Handoff
 
 When the migration task is mostly about randomization behavior, first preserve behavior in the direct migration. If the user asks for manager-based randomization or reusable event terms, switch to the `isaaclab-randomizing-with-events` skill.
+
+## Manager-Based Follow-Up
+
+Input: a migrated direct locomotion task now runs and trains, and the user wants reusable terms.
+
+Expected workflow:
+
+- Use `isaaclab-converting-direct-to-manager`.
+- Keep the direct environment as a parity baseline until the manager-based version matches core behavior.
+- Move observations to `ObsTerm` entries, rewards to `RewTerm` entries, resets/randomization to `EventTerm` entries, termination checks to `DoneTerm` entries, and command sampling to command configs.
+- Validate the manager-based task with the same random-agent and short-training gates used for the direct migration.
 
 ## PhysX to Newton Follow-Up
 
