@@ -93,10 +93,26 @@ def spawn_physics_material(
 
     Returns:
         The spawned material prim.
+
+    Raises:
+        ValueError: When ``material`` is an empty list.
+        TypeError: When ``material`` is a list containing anything other than
+            :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
     """
-    fragments = material if isinstance(material, (list, tuple)) else [material]
-    if fragments and all(isinstance(f, physics_materials_cfg.RigidBodyMaterialFragment) for f in fragments):
-        return spawn_rigid_body_material_from_fragments(prim_path, list(fragments), stage)
+    # a list/tuple slot value is the fragment-list form; validate it up front so a malformed list
+    # surfaces a clear error here rather than an opaque ``AttributeError`` on the legacy path below
+    if isinstance(material, (list, tuple)):
+        if not material:
+            raise ValueError(f"Cannot spawn a physics material at '{prim_path}' from an empty fragment list.")
+        if not all(isinstance(f, physics_materials_cfg.RigidBodyMaterialFragment) for f in material):
+            raise TypeError(
+                "A physics-material fragment list must contain only RigidBodyMaterialFragment instances; got"
+                f" {[type(f).__name__ for f in material]}."
+            )
+        return spawn_rigid_body_material_from_fragments(prim_path, list(material), stage)
+    # a lone fragment routes through the fragment writer too
+    if isinstance(material, physics_materials_cfg.RigidBodyMaterialFragment):
+        return spawn_rigid_body_material_from_fragments(prim_path, [material], stage)
     # legacy single-cfg path (rigid or deformable material cfg with its own spawner ``func``).
     # NOTE: legacy material funcs take only ``(prim_path, cfg)`` and resolve the stage internally via
     # ``get_current_stage()``; they have no ``stage`` parameter, so ``stage`` is intentionally not

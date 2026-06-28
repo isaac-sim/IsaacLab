@@ -121,6 +121,26 @@ def test_spawn_physics_material_dispatches_fragments_and_legacy():
     assert legacy_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.9)
 
 
+def test_spawn_physics_material_rejects_empty_and_mixed_lists():
+    """A malformed fragment list surfaces a clear error rather than an opaque AttributeError."""
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+
+    from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+
+    with pytest.raises(ValueError):
+        spawn_physics_material("/World/MatEmpty", [])
+    # a list mixing a fragment with a legacy cfg is not a valid fragment list
+    with pytest.raises(TypeError):
+        spawn_physics_material(
+            "/World/MatMixed",
+            [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4), PhysxRigidBodyMaterialCfg(static_friction=0.9)],
+        )
+
+
 def test_spawn_rigid_body_material_from_fragments_leaves_none_fields_unwritten():
     from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
