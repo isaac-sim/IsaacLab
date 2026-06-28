@@ -30,6 +30,12 @@ def spawn_rigid_body_material_from_fragments(
     Backend fragments carry backend-specific namespaces (e.g. PhysX ``physxMaterial:*``) without core
     importing a backend.
 
+    .. note::
+        Unlike the ``@clone``-decorated :func:`spawn_rigid_body_material`, this writer expects a
+        concrete ``prim_path`` and does not resolve regex prim-path patterns. Physics materials are
+        spawned at a single derived path by :func:`spawn_physics_material` and the spawner internals,
+        so regex resolution does not apply here.
+
     Args:
         prim_path: The prim path to spawn the material at.
         fragments: A single :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or a list
@@ -67,7 +73,9 @@ def spawn_rigid_body_material_from_fragments(
 
 def spawn_physics_material(
     prim_path: str,
-    material,
+    material: physics_materials_cfg.PhysicsMaterialCfg
+    | physics_materials_cfg.RigidBodyMaterialFragment
+    | list[physics_materials_cfg.RigidBodyMaterialFragment],
     stage: Usd.Stage | None = None,
 ) -> Usd.Prim:
     """Spawn a physics material from a spawner ``physics_material`` slot value.
@@ -89,7 +97,10 @@ def spawn_physics_material(
     fragments = material if isinstance(material, (list, tuple)) else [material]
     if fragments and all(isinstance(f, physics_materials_cfg.RigidBodyMaterialFragment) for f in fragments):
         return spawn_rigid_body_material_from_fragments(prim_path, list(fragments), stage)
-    # legacy single-cfg path (rigid or deformable material cfg with its own spawner ``func``)
+    # legacy single-cfg path (rigid or deformable material cfg with its own spawner ``func``).
+    # NOTE: legacy material funcs take only ``(prim_path, cfg)`` and resolve the stage internally via
+    # ``get_current_stage()``; they have no ``stage`` parameter, so ``stage`` is intentionally not
+    # forwarded here. This is invisible in single-stage workflows (the only ones materials are used in).
     return material.func(prim_path, material)
 
 
