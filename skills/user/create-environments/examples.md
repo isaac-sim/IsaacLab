@@ -8,6 +8,7 @@ Start from:
 
 - `docs/source/tutorials/03_envs/create_direct_rl_env.rst`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
 
 Smoke-test pattern:
 
@@ -30,6 +31,13 @@ Start from:
 - `docs/source/tutorials/03_envs/create_manager_base_env.rst`
 - `docs/source/tutorials/03_envs/create_manager_rl_env.rst`
 - `source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
+- `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py`
+
+For quadruped locomotion requests with custom command sampling or custom rewards, first decide whether the requested behavior is novel task control flow or a reusable manager term:
+
+- Use direct workflow first when the user needs bespoke command sampling, reward computation, or reset/step behavior that should be stabilized before abstraction. Inspect `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`.
+- Use manager-based workflow when the customization is parameter tuning or reusable terms that fit `CommandManager`, `RewardManager`, and shared MDP functions. Inspect `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py` and robot-specific configs such as `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/go2/rough_env_cfg.py`.
 
 Smoke-test pattern:
 

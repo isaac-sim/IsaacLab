@@ -34,5 +34,5 @@ Input: a PR modifies `skills/user/domain-randomization-events/SKILL.md`.
 Expected workflow:
 
 1. Run `./isaaclab.sh -p tools/skills/cli.py check`.
-2. Confirm the skill has current references and evaluations.
+2. Inspect `skills/user/domain-randomization-events/evaluations.md` and directly linked `examples.md` or `reference.md` to confirm scenarios, examples, and source references still match the changed guidance.
 3. Let the path-scoped skills CI gate validate the change on the PR.

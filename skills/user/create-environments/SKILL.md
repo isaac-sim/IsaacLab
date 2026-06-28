@@ -19,15 +19,16 @@ Do not use this skill for migrating Isaac Gym tasks. Use the `isaaclab-migrating
 
 1. Identify the task type, assets, action space, observation needs, rewards, resets, termination conditions, sensors, training framework, and target backend.
 2. Read the task workflow overview and the relevant direct or manager-based tutorial before proposing code.
-3. Choose direct workflow when the task needs custom control flow, close parity with a monolithic source task, or rapid prototyping.
-4. Choose manager-based workflow when the task benefits from reusable observation, reward, command, event, termination, or curriculum terms.
-5. Start from the closest maintained source example under `source/isaaclab_tasks/isaaclab_tasks/`.
-6. Define the scene and asset configs before adding rewards or training configuration.
-7. Add observations, actions, rewards, resets, and terminations incrementally.
-8. Register the environment and connect the smallest compatible agent config.
-9. Use suffixless task names in smoke-test and training commands.
-10. Run a random-action or short training smoke test before scaling environment count.
-11. Move reusable logic into shared MDP terms only after the behavior is stable.
+3. Choose direct workflow when the task needs custom control flow, a custom command sampler or reward loop that does not already fit existing manager terms, close parity with a monolithic source task, or rapid prototyping.
+4. Choose manager-based workflow when the task benefits from reusable observation, reward, command, event, termination, or curriculum terms and the requested behavior can be expressed as manager terms.
+5. When a request mentions custom commands or rewards but does not say whether reuse is required, ask one clarifying question; if the behavior is central to the task and still ambiguous, start direct and explain the manager-based alternative.
+6. Start from the closest maintained source example under `source/isaaclab_tasks/isaaclab_tasks/`.
+7. Define the scene and asset configs before adding rewards or training configuration.
+8. Add observations, actions, rewards, resets, and terminations incrementally.
+9. Register the environment and connect the smallest compatible agent config.
+10. Use suffixless task names in smoke-test and training commands.
+11. Run a random-action or short training smoke test before scaling environment count.
+12. Move reusable logic into shared MDP terms only after the behavior is stable.
 
 ## Validation
 

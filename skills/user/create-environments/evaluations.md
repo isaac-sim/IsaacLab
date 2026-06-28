@@ -8,13 +8,14 @@ Expected behavior:
 
 - Asks for assets, actions, observations, rewards, reset conditions, sensors, and backend targets.
 - Recommends direct workflow first if custom control flow is central to the task.
-- Points to maintained locomotion examples and direct environment tutorials.
+- Points to current maintained locomotion examples such as `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py` and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`, plus direct environment tutorials.
 - Defines a smoke-test plan before training.
 
 Known failure modes:
 
 - Starts from manager terms without preserving the requested custom task behavior.
 - Copies tutorial code without checking the task's action and observation requirements.
+- Uses stale source paths from older Isaac Lab layouts instead of current `source/isaaclab_tasks/isaaclab_tasks/core/` or `contrib/` examples.
 
 ## Scenario 2: Build A Manager-Based Task
 

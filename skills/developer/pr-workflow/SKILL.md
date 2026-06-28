@@ -20,11 +20,12 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 1. Inspect the changed files and identify touched packages.
 2. Confirm the branch is focused on one logical change.
 3. Run targeted tests for the touched behavior.
-4. Run formatting and lint checks with `./isaaclab.sh -f`.
-5. Add package changelog fragments when `source/<package>/` code changes.
-6. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
-7. Draft a commit message in imperative mood with no AI attribution.
-8. Use the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
+4. For skill changes, inspect the changed skill's adjacent `evaluations.md` when present, plus directly linked `examples.md` or `reference.md`, and confirm the representative scenarios still match the skill guidance.
+5. Run formatting and lint checks with `./isaaclab.sh -f`.
+6. Add package changelog fragments when `source/<package>/` code changes.
+7. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
+8. Draft a commit message in imperative mood with no AI attribution.
+9. Use the PR checklist in `.github/PULL_REQUEST_TEMPLATE.md`.
 
 ## Validation
 
