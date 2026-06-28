@@ -1,0 +1,4 @@
+Docs: documented the schema "fragment" framework in the ``isaaclab.sim.schemas`` API
+reference -- the single-namespace fragment classes (``SchemaFragment``, the per-family
+marker bases, and the ``UsdPhysics*Cfg`` fragments) and the family writers
+(``apply_namespaced`` and the ``apply_*_properties`` functions).
