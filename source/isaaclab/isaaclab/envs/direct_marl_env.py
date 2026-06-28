@@ -481,9 +481,16 @@ class DirectMARLEnv(gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
-            # capture the per-agent terminal observation before reset and expose it for Same-Step autoreset.
+            # capture the per-agent terminal observation before reset and expose it for Same-Step
+            # autoreset. apply the same observation noise as the returned obs so the bootstrapped
+            # terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                for agent, obs in self._capture_terminal_obs().items():
+                terminal_obs = self._get_observations()
+                if self.cfg.observation_noise_model:
+                    for agent, obs in terminal_obs.items():
+                        if agent in self._observation_noise_model:
+                            terminal_obs[agent] = self._observation_noise_model[agent](obs)
+                for agent, obs in terminal_obs.items():
                     self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)
 
@@ -776,23 +783,6 @@ class DirectMARLEnv(gym.Env):
             The observations for the environment (keyed by the agent ID).
         """
         raise NotImplementedError(f"Please implement the '_get_observations' method for {self.__class__.__name__}.")
-
-    def _capture_terminal_obs(self) -> dict[AgentID, ObsType]:
-        """Compute the per-agent terminal observation prior to a Same-Step autoreset.
-
-        The observation is computed before :meth:`_reset_idx` is called, so it reflects the state at
-        which the episode terminated. The configured per-agent observation noise model is applied to
-        match the distribution of the returned observation.
-
-        Returns:
-            The terminal observation keyed by agent ID, exposed through ``extras[agent]["final_obs"]``.
-        """
-        terminal_obs = self._get_observations()
-        if self.cfg.observation_noise_model:
-            for agent, obs in terminal_obs.items():
-                if agent in self._observation_noise_model:
-                    terminal_obs[agent] = self._observation_noise_model[agent](obs)
-        return terminal_obs
 
     @abstractmethod
     def _get_states(self) -> StateType:
