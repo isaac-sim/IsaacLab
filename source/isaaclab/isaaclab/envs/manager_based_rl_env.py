@@ -95,7 +95,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        self.last_terminal_obs: dict[str, Any] | None = None
         print("[INFO]: Completed setting up the environment...")
 
     """
@@ -249,8 +248,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
-            self.last_terminal_obs = self.observation_manager.compute()
-            self.extras["final_obs"] = self.last_terminal_obs
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            if self.cfg.compute_final_obs:
+                self.extras["final_obs"] = self.observation_manager.compute()
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 

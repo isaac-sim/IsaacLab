@@ -231,7 +231,6 @@ class DirectRLEnv(gym.Env):
 
         # allocate dictionary to store metrics
         self.extras = {}
-        self.last_terminal_obs: VecEnvObs | None = None
 
         # initialize data and constants
         # -- counter for simulation steps
@@ -473,8 +472,9 @@ class DirectRLEnv(gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
-            self.last_terminal_obs = self._get_observations()
-            self.extras["final_obs"] = self.last_terminal_obs
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            if self.cfg.compute_final_obs:
+                self.extras["final_obs"] = self._capture_terminal_obs()
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
@@ -734,6 +734,21 @@ class DirectRLEnv(gym.Env):
             The observations for the environment.
         """
         raise NotImplementedError(f"Please implement the '_get_observations' method for {self.__class__.__name__}.")
+
+    def _capture_terminal_obs(self) -> VecEnvObs:
+        """Compute the terminal observation prior to a Same-Step autoreset.
+
+        The observation is computed before :meth:`_reset_idx` is called, so it reflects the state at
+        which the episode terminated. The configured observation noise model is applied to the policy
+        observation (but not the state space) to match the distribution of the returned observation.
+
+        Returns:
+            The terminal observation, exposed to wrappers through ``extras["final_obs"]``.
+        """
+        terminal_obs = self._get_observations()
+        if self.cfg.observation_noise_model:
+            terminal_obs["policy"] = self._observation_noise_model(terminal_obs["policy"])
+        return terminal_obs
 
     def _get_states(self) -> VecEnvObs | None:
         """Compute and return the states for the environment.
