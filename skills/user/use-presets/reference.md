@@ -18,6 +18,7 @@ Good candidates:
 - Renderer settings, such as Isaac RTX, Newton Warp, or OVRTX renderers.
 - Camera data types, such as RGB, depth, albedo, or segmentation.
 - Backend-specific event or sensor configs.
+- Backend-specific schema cfg choices when PhysX, Newton, or MuJoCo require different USD physics attributes.
 - Domain variants where one task supports multiple authored modes.
 
 ## When Presets Are Unnecessary
@@ -79,3 +80,4 @@ For multi-backend tasks, keep backend-specific solver values in the preset wrapp
 - Selector names match existing conventions such as `physx`, `newton_mjwarp`, `newton_kamino`, `ovphysx`, `rgb`, and `depth`.
 - A small random-agent rollout succeeds for each variant.
 - Training commands include only preset names that the task exposes.
+- Backend-specific schema, sensor, or event variants are kept inside preset classes rather than hidden in scattered runtime conditionals.

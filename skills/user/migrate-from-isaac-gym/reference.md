@@ -29,17 +29,24 @@ Use this mapping as the default starting point:
 
 Use PhysX as the first target when preserving Isaac Gym behavior, because Isaac Gym tasks were PhysX-based. Do not assume every PhysX parameter has a Newton equivalent.
 
-Map backend parameters through the official schema docs:
+Map backend parameters through the official schema docs. Current spawner slots may accept either property cfg wrappers or schema-fragment lists. Use property cfg wrappers for the common single-cfg path, and use fragments when a slot must combine multiple USD namespaces such as universal USD physics plus PhysX, Newton, or MuJoCo attributes.
 
 | Isaac Gym / PhysX concern | Isaac Lab PhysX target | Newton target |
 | --- | --- | --- |
 | Simulation-level PhysX settings | `PhysxCfg` on `SimulationCfg.physics` | `NewtonCfg` with a solver cfg such as `MJWarpSolverCfg` |
-| Rigid-body settings | `PhysxRigidBodyPropertiesCfg` or backend-portable `RigidBodyBaseCfg` | `NewtonRigidBodyPropertiesCfg` or `MujocoRigidBodyPropertiesCfg` when using the MuJoCo solver |
-| Collision settings | `PhysxCollisionPropertiesCfg` or `CollisionBaseCfg` | `NewtonCollisionPropertiesCfg` or `NewtonMeshCollisionPropertiesCfg` |
-| Joint-drive settings | `JointDriveBaseCfg` plus PhysX-specific classes when needed | `NewtonJointDrivePropertiesCfg` or `MujocoJointDrivePropertiesCfg` |
+| Rigid-body settings | `PhysxRigidBodyPropertiesCfg`, backend-portable `RigidBodyBaseCfg`, or fragments such as `UsdPhysicsRigidBodyCfg` plus `PhysxRigidBodyCfg` | `NewtonRigidBodyPropertiesCfg`, `MujocoRigidBodyPropertiesCfg`, or fragments such as `MujocoRigidBodyCfg` |
+| Collision settings | `PhysxCollisionPropertiesCfg`, `CollisionBaseCfg`, or fragments such as `UsdPhysicsCollisionCfg` plus `PhysxCollisionCfg` | `NewtonCollisionPropertiesCfg`, `NewtonMeshCollisionPropertiesCfg`, `NewtonSDFCollisionPropertiesCfg`, or fragments such as `NewtonCollisionCfg` |
+| Mesh cooking settings | `PhysxConvexHullPropertiesCfg`, `PhysxConvexDecompositionPropertiesCfg`, `PhysxTriangleMeshPropertiesCfg`, `PhysxTriangleMeshSimplificationPropertiesCfg`, or `PhysxSDFMeshPropertiesCfg` | `NewtonMeshCollisionPropertiesCfg` or `NewtonSDFCollisionPropertiesCfg` |
+| Joint-drive settings | `JointDriveBaseCfg` or fragments such as `UsdPhysicsDriveCfg` plus `PhysxJointCfg` | `NewtonJointDrivePropertiesCfg`, `MujocoJointDrivePropertiesCfg`, or fragments such as `MujocoJointCfg` |
 | Material settings | `PhysxRigidBodyMaterialCfg` or `RigidBodyMaterialBaseCfg` | `NewtonMaterialPropertiesCfg` |
 
 For multi-backend tasks, use `PresetCfg` variants so the PhysX and Newton configs can differ cleanly. Keep backend-specific ranges, solver values, and unsupported options in separate presets.
+
+Import backend schema classes from their backend packages, not through deprecated core shims:
+
+- Core universal fragments/base cfgs: `from isaaclab.sim import schemas`
+- PhysX cfgs/fragments: `from isaaclab_physx.sim import schemas as physx_schemas`
+- Newton and MuJoCo cfgs/fragments: `from isaaclab_newton.sim import schemas as newton_schemas`
 
 ## Manager-Based Follow-Up Mapping
 

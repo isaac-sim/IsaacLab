@@ -42,3 +42,4 @@ Repeat the same small smoke test on every backend before comparing training curv
 - Use Newton when the task specifically targets kit-less or Warp-native workflows.
 - Use backend presets for solver, contact, material, sensor, and renderer differences.
 - Do not copy PhysX parameters directly into Newton configs without checking schema docs.
+- For USD physics authoring, import backend schema cfgs from `isaaclab_physx.sim.schemas` or `isaaclab_newton.sim.schemas`. Use backend-specific property cfgs for simple spawner slots, and schema fragments such as `PhysxRigidBodyCfg`, `PhysxCollisionCfg`, `NewtonCollisionCfg`, or `MujocoJointCfg` when combining multiple USD namespaces in one slot.

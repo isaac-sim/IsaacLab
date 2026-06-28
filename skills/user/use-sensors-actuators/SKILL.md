@@ -26,7 +26,8 @@ Do not use this skill as a complete sensor or actuator catalog. Point to the API
 7. For contact-heavy tasks, verify body name patterns and history length.
 8. For ray-cast terrain perception, verify mesh paths and terrain import setup.
 9. For camera-based RL, start with small environment counts and confirm renderer memory behavior.
-10. For actuator changes, compare default joint names, limits, stiffness, damping, effort limits, and backend differences.
+10. For multi-backend contact, ray, frame, IMU, PVA, or joint-wrench sensors, check whether the task needs backend-specific sensor cfgs from `isaaclab_physx.sensors` or `isaaclab_newton.sensors` wrapped in `PresetCfg`.
+11. For actuator changes, compare default joint names, limits, stiffness, damping, effort limits, and backend differences.
 
 ## Validation
 

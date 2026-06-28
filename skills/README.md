@@ -49,10 +49,15 @@ Use these current import paths before searching for alternatives:
 | Simulation config | `from isaaclab.sim import SimulationCfg` |
 | PhysX physics config | `from isaaclab_physx.physics import PhysxCfg` |
 | Newton physics config | `from isaaclab_newton.physics import NewtonCfg` |
-| Contact sensor config | `from isaaclab.sensors import ContactSensorCfg` |
+| Base contact sensor config | `from isaaclab.sensors import ContactSensorCfg` |
+| PhysX contact sensor config | `from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg` |
+| Newton contact sensor config | `from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg` |
 | Ray caster config | `from isaaclab.sensors import RayCasterCfg` |
 | Tiled camera config | `from isaaclab.sensors import TiledCameraCfg` |
 | Implicit actuator config | `from isaaclab.actuators import ImplicitActuatorCfg` |
+| Core schema fragments and base cfgs | `from isaaclab.sim import schemas` |
+| PhysX schema cfgs | `from isaaclab_physx.sim import schemas as physx_schemas` |
+| Newton schema cfgs | `from isaaclab_newton.sim import schemas as newton_schemas` |
 
 ## Authoring Rules
 

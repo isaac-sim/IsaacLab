@@ -9,6 +9,8 @@ Examples to inspect:
 - `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/anymal_c_env_cfg.py`
 - `source/isaaclab_tasks/isaaclab_tasks/core/velocity/velocity_env_cfg.py`
 
+For multi-backend tasks, follow the `VelocityEnvContactSensorCfg` pattern: wrap PhysX, Newton, and OvPhysX contact sensor configs in a `PresetCfg` instead of assuming the base contact sensor cfg works identically on every backend.
+
 Validation checklist:
 
 - Body name patterns match the asset.
