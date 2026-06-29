@@ -1143,12 +1143,8 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # set into simulation
-        joint_selection_is_partial = joint_mask is not None
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = self._resolve_joint_mask(joint_mask)
-        if joint_selection_is_partial:
-            self.data._get_joint_pos_write_buffer(True)
-            self.data._get_joint_vel_write_buffer(True)
         self.write_joint_state_to_sim_index(
             position=position,
             velocity=velocity,
@@ -1249,11 +1245,8 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        joint_selection_is_partial = joint_mask is not None
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = self._resolve_joint_mask(joint_mask)
-        if joint_selection_is_partial:
-            self.data._get_joint_pos_write_buffer(True)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_position_to_sim_index(
             position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1350,11 +1343,8 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
-        joint_selection_is_partial = joint_mask is not None
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = self._resolve_joint_mask(joint_mask)
-        if joint_selection_is_partial:
-            self.data._get_joint_vel_write_buffer(True)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_velocity_to_sim_index(
             velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
