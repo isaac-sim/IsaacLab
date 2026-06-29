@@ -218,13 +218,39 @@ mismatch before production code is changed.
   new overrides and assert compatibility fallbacks work and emit the documented
   deprecation warning.
 
+### Resolver-specific coverage
+
+Resolver tests must use an articulation whose branching topology produces
+different PhysX and MJWarp joint/body orders. A small deterministic branching
+USD fixture is the primary unit/integration guardrail; its expected convention
+name sequences are asserted explicitly so the test cannot pass after the two
+orders accidentally converge.
+
+ANYmal-D is the representative live robot because it exercises the locomotion
+sim-to-sim use case and has convention-dependent traversal order. Before any
+value assertions, the test must assert that the requested preset produced a
+non-identity joint map, body map, or both. If both maps are identity, the test
+fails with a setup message explaining that the asset no longer covers
+cross-backend ordering.
+
+Panda must not be used as evidence that the `physx` or `mjwarp` convention
+resolvers work: those backends can agree on its body order. Panda may still be
+used with an explicit manual permutation to test backend read/write machinery.
+
 ### Live integration coverage
 
-Update the existing live PhysX Panda smoke to keep the fixed root first while
-reversing all remaining bodies. Extend it with one external-wrench assertion or
-add one equivalent live smoke if the backend view exposes a stable force
-readback. Real sim-to-sim tests remain smoke tests; they do not replace the
-deterministic mocked value matrix.
+Keep two distinct live checks:
+
+- Update the existing PhysX Panda smoke to keep the fixed root first while
+  manually reversing all remaining bodies. This covers the fixed-base data path
+  only and is named/documented accordingly.
+- Run ANYmal-D with the opposite backend convention (`mjwarp` on PhysX or
+  `physx` on Newton), assert that the resolved map is non-identity, and compare
+  named state/command values at the backend boundary.
+
+Add one external-wrench assertion to either live smoke if the backend view
+exposes stable force readback. Real sim-to-sim tests remain smoke tests; they do
+not replace the deterministic mocked value matrix.
 
 ### Verification commands
 
