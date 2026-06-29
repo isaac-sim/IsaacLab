@@ -259,7 +259,7 @@ At minimum:
 ```bash
 ./isaaclab.sh -p -m pytest source/isaaclab/test/assets/test_articulation_ordering.py -q
 ./isaaclab.sh -p -m pytest source/isaaclab/test/assets/test_articulation_iface.py -q
-./isaaclab.sh -p -m pytest source/isaaclab_physx/test/assets/test_articulation.py::test_live_reversed_ordering_reorders_backend_reads_and_writes -q
+./isaaclab.sh -p -m pytest source/isaaclab_physx/test/assets/test_articulation.py::test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes -q
 ./isaaclab.sh -f
 ```
 

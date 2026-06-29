@@ -344,6 +344,7 @@ _PANDA_BODY_NAMES = (
     "panda_leftfinger",
     "panda_rightfinger",
 )
+_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_PANDA_BODY_NAMES[0], *reversed(_PANDA_BODY_NAMES[1:]))
 
 _NEWTON_USER_ORDER_STATE_CACHES = (
     "_joint_pos_user",
@@ -549,7 +550,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     """Invalidate user-order state caches when Newton simulation bindings are re-created."""
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
         joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
-        body_ordering=tuple(reversed(_PANDA_BODY_NAMES)),
+        body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 

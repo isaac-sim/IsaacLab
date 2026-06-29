@@ -110,6 +110,9 @@ def create_physx_articulation(
     num_fixed_tendons: int = 0,
     num_spatial_tendons: int = 0,
     device: str = "cuda:0",
+    is_fixed_base: bool = False,
+    joint_ordering: tuple[str, ...] | None = None,
+    body_ordering: tuple[str, ...] | None = None,
 ):
     """Create a test Articulation instance with mocked dependencies."""
     joint_names = [f"joint_{i}" for i in range(num_joints)]
@@ -123,6 +126,8 @@ def create_physx_articulation(
         prim_path="/World/Robot",
         soft_joint_pos_limit_factor=1.0,
         actuators={},
+        joint_ordering=joint_ordering,
+        body_ordering=body_ordering,
     )
 
     # Create PhysX mock view
@@ -139,7 +144,7 @@ def create_physx_articulation(
 
     # Set up the mock view's metatype for accessing names/counts
     mock_metatype = MagicMock()
-    mock_metatype.fixed_base = False
+    mock_metatype.fixed_base = is_fixed_base
     mock_metatype.dof_count = num_joints
     mock_metatype.link_count = num_bodies
     mock_metatype.dof_names = joint_names
@@ -247,6 +252,9 @@ def create_ovphysx_articulation(
     num_fixed_tendons: int = 0,
     num_spatial_tendons: int = 0,
     device: str = "cuda:0",
+    is_fixed_base: bool = False,
+    joint_ordering: tuple[str, ...] | None = None,
+    body_ordering: tuple[str, ...] | None = None,
 ):
     """Create a test OvPhysX Articulation instance with mocked tensor bindings."""
     joint_names = [f"joint_{i}" for i in range(num_joints)]
@@ -258,6 +266,8 @@ def create_ovphysx_articulation(
         prim_path="/World/Robot",
         soft_joint_pos_limit_factor=1.0,
         actuators={},
+        joint_ordering=joint_ordering,
+        body_ordering=body_ordering,
     )
 
     # Create mock binding set
@@ -265,7 +275,7 @@ def create_ovphysx_articulation(
         num_instances=num_instances,
         num_joints=num_joints,
         num_bodies=num_bodies,
-        is_fixed_base=False,
+        is_fixed_base=is_fixed_base,
         joint_names=joint_names,
         body_names=body_names,
         num_fixed_tendons=num_fixed_tendons,
@@ -283,7 +293,7 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_num_instances", num_instances)
     object.__setattr__(articulation, "_num_joints", num_joints)
     object.__setattr__(articulation, "_num_bodies", num_bodies)
-    object.__setattr__(articulation, "_is_fixed_base", False)
+    object.__setattr__(articulation, "_is_fixed_base", is_fixed_base)
     object.__setattr__(articulation, "_joint_names", joint_names)
     object.__setattr__(articulation, "_body_names", body_names)
     object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
@@ -297,7 +307,7 @@ def create_ovphysx_articulation(
     data.joint_names = joint_names
     data.fixed_tendon_names = fixed_tendon_names
     data.spatial_tendon_names = spatial_tendon_names
-    data._is_fixed_base = False
+    data._is_fixed_base = is_fixed_base
     object.__setattr__(articulation, "_data", data)
 
     # Allocate the articulation-side index/mask caches and wrench buffer that
@@ -328,6 +338,9 @@ def create_newton_articulation(
     num_joints: int = 6,
     num_bodies: int = 7,
     device: str = "cuda:0",
+    is_fixed_base: bool = False,
+    joint_ordering: tuple[str, ...] | None = None,
+    body_ordering: tuple[str, ...] | None = None,
 ):
     """Create a test Newton Articulation instance with mocked dependencies."""
     import isaaclab_newton.assets.articulation.articulation_data as newton_data_module
@@ -341,7 +354,7 @@ def create_newton_articulation(
         num_bodies=num_bodies,
         num_joints=num_joints,
         device=device,
-        is_fixed_base=False,
+        is_fixed_base=is_fixed_base,
         joint_names=joint_names,
         body_names=body_names,
     )
@@ -356,7 +369,7 @@ def create_newton_articulation(
     # single homogeneous world.
     mock_model.articulation_count = num_instances
     mock_model.max_joints_per_articulation = num_bodies
-    total_dofs = num_joints + 6
+    total_dofs = num_joints + (0 if is_fixed_base else 6)
     mock_model.max_dofs_per_articulation = total_dofs
     mock_model.joint_dof_count = num_instances * total_dofs
     mock_model.body_count = num_instances * num_bodies
@@ -385,6 +398,8 @@ def create_newton_articulation(
         prim_path="/World/Robot",
         soft_joint_pos_limit_factor=1.0,
         actuators={},
+        joint_ordering=joint_ordering,
+        body_ordering=body_ordering,
     )
 
     object.__setattr__(articulation, "_root_view", mock_view)
@@ -488,17 +503,44 @@ def get_articulation(
     num_fixed_tendons: int = 0,
     num_spatial_tendons: int = 0,
     device: str = "cuda:0",
+    is_fixed_base: bool = False,
+    joint_ordering: tuple[str, ...] | None = None,
+    body_ordering: tuple[str, ...] | None = None,
 ):
     if backend == "physx":
         return create_physx_articulation(
-            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+            num_instances,
+            num_joints,
+            num_bodies,
+            num_fixed_tendons,
+            num_spatial_tendons,
+            device,
+            is_fixed_base=is_fixed_base,
+            joint_ordering=joint_ordering,
+            body_ordering=body_ordering,
         )
     elif backend == "ovphysx":
         return create_ovphysx_articulation(
-            num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+            num_instances,
+            num_joints,
+            num_bodies,
+            num_fixed_tendons,
+            num_spatial_tendons,
+            device,
+            is_fixed_base=is_fixed_base,
+            joint_ordering=joint_ordering,
+            body_ordering=body_ordering,
         )
     elif backend == "newton":
-        return create_newton_articulation(num_instances, num_joints, num_bodies, device)
+        return create_newton_articulation(
+            num_instances,
+            num_joints,
+            num_bodies,
+            device,
+            is_fixed_base=is_fixed_base,
+            joint_ordering=joint_ordering,
+            body_ordering=body_ordering,
+        )
     elif backend.lower() == "mock":
         return create_mock_articulation(
             num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
@@ -568,9 +610,13 @@ def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tup
     return root_pose, root_vel, link_pose, com_pose_b, body_com_vel, body_acc
 
 
-def _install_reversed_body_ordering(art) -> np.ndarray:
-    """Install a reversed public body ordering on an already constructed articulation."""
-    art.cfg = art.cfg.replace(body_ordering=tuple(reversed(art.backend_body_names)))
+def _install_test_body_ordering(art) -> np.ndarray:
+    """Install a non-identity body ordering that preserves a fixed root body."""
+    if art.is_fixed_base:
+        body_ordering = (art.backend_body_names[0], *reversed(art.backend_body_names[1:]))
+    else:
+        body_ordering = tuple(reversed(art.backend_body_names))
+    art.cfg = art.cfg.replace(body_ordering=body_ordering)
     art._resolve_and_install_ordering_maps()
     art._cache_ordering_maps()
     return np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
@@ -630,7 +676,12 @@ def _set_dynamics_ordering_backend_data(
         raw_backend.set_mock_generalized_mass_matrices(wp.array(mass_matrix, dtype=wp.float32, device=art.device))
         raw_backend.set_mock_gravity_compensation_forces(wp.array(gravity, dtype=wp.float32, device=art.device))
     elif backend == "newton":
-        raw_backend.set_mock_jacobians(wp.array(jacobian, dtype=wp.float32, device=art.device))
+        if art.is_fixed_base:
+            model_jacobian = np.zeros((art.num_instances, art.num_bodies, 6, art.num_joints), dtype=np.float32)
+            model_jacobian[:, 1:] = jacobian
+        else:
+            model_jacobian = jacobian
+        raw_backend.set_mock_jacobians(wp.array(model_jacobian, dtype=wp.float32, device=art.device))
         raw_backend.set_mock_mass_matrices(wp.array(mass_matrix, dtype=wp.float32, device=art.device))
     else:
         raise AssertionError(f"Unsupported backend for dynamics-ordering test: {backend}")
@@ -1200,7 +1251,7 @@ class TestArticulationDataBodyState:
         raw_data = _make_body_ordering_backend_data(num_instances, num_bodies)
         _set_body_ordering_backend_data(backend, identity_art, identity_raw, *raw_data)
         _set_body_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_data)
-        user_to_backend = _install_reversed_body_ordering(ordered_art)
+        user_to_backend = _install_test_body_ordering(ordered_art)
 
         identity_art.data.update(dt=0.01)
         ordered_art.data.update(dt=0.01)
@@ -1229,7 +1280,7 @@ class TestArticulationDataBodyState:
         art, raw_backend = get_articulation("ovphysx", num_instances, num_joints, num_bodies, device="cpu")
         raw_data = _make_body_ordering_backend_data(num_instances, num_bodies)
         _set_body_ordering_backend_data("ovphysx", art, raw_backend, *raw_data)
-        user_to_backend = _install_reversed_body_ordering(art)
+        user_to_backend = _install_test_body_ordering(art)
         art.data.update(dt=0.01)
 
         _ = _clone_proxy_tensor(art.data.body_link_pose_w)
@@ -1255,11 +1306,16 @@ class TestArticulationDataBodyState:
     @_dynamics_ordering_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 4)])
     @pytest.mark.parametrize("device", ["cpu"])
-    def test_reversed_ordering_reorders_public_dynamics_quantities(
-        self, backend, num_instances, num_joints, num_bodies, device
+    @pytest.mark.parametrize("is_fixed_base", [False, True], ids=["floating", "fixed"])
+    def test_ordering_reorders_public_dynamics_quantities(
+        self, backend, num_instances, num_joints, num_bodies, device, is_fixed_base
     ):
-        identity_art, identity_raw = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
-        ordered_art, ordered_raw = get_articulation(backend, num_instances, num_joints, num_bodies, device=device)
+        identity_art, identity_raw = get_articulation(
+            backend, num_instances, num_joints, num_bodies, device=device, is_fixed_base=is_fixed_base
+        )
+        ordered_art, ordered_raw = get_articulation(
+            backend, num_instances, num_joints, num_bodies, device=device, is_fixed_base=is_fixed_base
+        )
         raw_body_data = _make_body_ordering_backend_data(num_instances, num_bodies)
         _set_body_ordering_backend_data(backend, identity_art, identity_raw, *raw_body_data)
         _set_body_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_body_data)
@@ -1271,7 +1327,7 @@ class TestArticulationDataBodyState:
         )
         _set_dynamics_ordering_backend_data(backend, identity_art, identity_raw, *raw_dynamics_data)
         _set_dynamics_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_dynamics_data)
-        body_user_to_backend = _install_reversed_body_ordering(ordered_art)
+        body_user_to_backend = _install_test_body_ordering(ordered_art)
         joint_user_to_backend = _install_reversed_joint_ordering(ordered_art)
 
         identity_art.data.update(dt=0.01)

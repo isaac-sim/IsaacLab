@@ -315,6 +315,7 @@ _PANDA_BODY_NAMES = (
     "panda_leftfinger",
     "panda_rightfinger",
 )
+_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_PANDA_BODY_NAMES[0], *reversed(_PANDA_BODY_NAMES[1:]))
 
 
 def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
@@ -357,12 +358,12 @@ def sim(request):
 
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
-def test_live_reversed_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
+def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
     """Smoke-test non-identity joint/body ordering through a live PhysX articulation."""
     articulation_cfg = FRANKA_PANDA_CFG.replace(
         prim_path="/World/Robot",
         joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
-        body_ordering=tuple(reversed(_PANDA_BODY_NAMES)),
+        body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
     )
     articulation = Articulation(articulation_cfg)
 
