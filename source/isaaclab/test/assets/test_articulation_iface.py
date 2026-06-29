@@ -663,6 +663,70 @@ def _joint_ordering_for_mode(mode: str, num_joints: int) -> tuple[str, ...] | No
     raise ValueError(f"Unsupported joint ordering mode: {mode}")
 
 
+def _body_ordering_for_mode(mode: str, num_bodies: int) -> tuple[str, ...] | None:
+    """Return the configured public body ordering for a parity-test mode."""
+    backend_names = tuple(f"body_{index}" for index in range(num_bodies))
+    if mode == "none":
+        return None
+    if mode == "identity":
+        return backend_names
+    if mode == "reversed":
+        return tuple(reversed(backend_names))
+    raise ValueError(f"Unsupported body ordering mode: {mode}")
+
+
+def _make_backend_com_poses(num_instances: int, num_bodies: int) -> np.ndarray:
+    """Create distinct deterministic body COM transforms in backend order."""
+    coms = np.zeros((num_instances, num_bodies, 7), dtype=np.float32)
+    for env_index in range(num_instances):
+        for body_index in range(num_bodies):
+            value = float(100 * env_index + 10 * body_index)
+            coms[env_index, body_index, :3] = (value + 1.0, value + 2.0, value + 3.0)
+            coms[env_index, body_index, 6] = 1.0
+    return coms
+
+
+def _seed_backend_com_poses(backend: str, art, raw_backend, coms: np.ndarray) -> None:
+    """Seed backend-order COM transforms and invalidate both public and ordered caches."""
+    if backend == "physx":
+        raw_backend._coms = wp.array(coms, dtype=wp.float32, device="cpu")
+    elif backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        raw_backend.bindings[TT.BODY_COM_POSE]._data = coms.copy()
+    else:
+        raise AssertionError(f"Unsupported backend for COM parity test: {backend}")
+
+    art.data._body_com_pose_b.timestamp = -1.0
+    backend_staging = art.data._body_com_pose_b_backend
+    if backend_staging is not None:
+        backend_staging.timestamp = -1.0
+
+
+def _read_backend_com_poses(backend: str, art, raw_backend) -> np.ndarray:
+    """Read complete backend-order body COM transforms through the backend API."""
+    if backend == "physx":
+        return raw_backend.get_coms().numpy().reshape(art.num_instances, art.num_bodies, 7).copy()
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        return (
+            art.root_view.get_attribute(TT.BODY_COM_POSE).numpy().reshape(art.num_instances, art.num_bodies, 7).copy()
+        )
+    raise AssertionError(f"Unsupported backend for COM parity test: {backend}")
+
+
+def _make_selected_com_poses(env_ids: list[int], body_ids: list[int], base_value: float) -> np.ndarray:
+    """Create distinct deterministic public-order COM transforms for a selected rectangle."""
+    coms = np.zeros((len(env_ids), len(body_ids), 7), dtype=np.float32)
+    for env_offset, env_id in enumerate(env_ids):
+        for body_offset, body_id in enumerate(body_ids):
+            value = base_value + float(100 * env_id + 10 * body_id)
+            coms[env_offset, body_offset, :3] = (value + 1.0, value + 2.0, value + 3.0)
+            coms[env_offset, body_offset, 6] = 1.0
+    return coms
+
+
 def _seed_backend_joint_state(
     backend: str,
     art,
@@ -1079,7 +1143,8 @@ def _set_body_ordering_backend_data(
         raw_backend.bindings[TT.LINK_ACCELERATION]._data = body_acc.copy()
         raw_backend.bindings[TT.BODY_COM_POSE]._data = com_pose_b.copy()
         art.data._body_com_pose_b.timestamp = -1.0
-        art.data._body_com_pose_b_backend.timestamp = -1.0
+        if art.data._body_com_pose_b_backend is not None:
+            art.data._body_com_pose_b_backend.timestamp = -1.0
     elif backend == "newton":
         root_pose_wp = wp.array(root_pose[:, None, :], dtype=wp.transformf, device=art.device)
         root_vel_wp = wp.array(root_vel[:, None, :], dtype=wp.spatial_vectorf, device=art.device)
@@ -2208,6 +2273,177 @@ class TestArticulationDataBodyState:
             expected_dtype=wp.quatf,
             name="body_com_quat_b",
         )
+
+
+class TestArticulationOrderingComWrites:
+    """Test coherent partial COM writes and step-independent static COM caches."""
+
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize(
+        "coverage",
+        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
+    )
+    def test_ovphysx_partial_com_write_preserves_backend_rows(
+        self,
+        ordering_mode: str,
+        selection: str,
+        coverage: str,
+    ) -> None:
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        art, raw_backend = get_articulation(
+            "ovphysx",
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            body_ordering=_body_ordering_for_mode(ordering_mode, num_bodies),
+        )
+        backend_seed = _make_backend_com_poses(num_instances, num_bodies)
+        _seed_backend_com_poses("ovphysx", art, raw_backend, backend_seed)
+        np.testing.assert_array_equal(_read_backend_com_poses("ovphysx", art, raw_backend), backend_seed)
+
+        art.data._body_com_pose_b.timestamp = -1.0
+        backend_staging = art.data._body_com_pose_b_backend
+        if backend_staging is not None:
+            backend_staging.timestamp = -1.0
+
+        if art.body_ordering is None:
+            user_to_backend = np.arange(num_bodies, dtype=np.int64)
+        else:
+            user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+
+        first_env_ids, first_body_ids = _coverage_ids(coverage, num_instances, num_bodies)
+        if len(first_body_ids) == num_bodies:
+            second_env_ids = [0]
+            second_body_ids = first_body_ids
+        else:
+            second_env_ids = first_env_ids
+            second_body_ids = [1]
+        write_selections = (
+            (first_env_ids, first_body_ids, 1000.0),
+            (second_env_ids, second_body_ids, 2000.0),
+        )
+        if ordering_mode == "reversed":
+            for _, body_ids, _ in write_selections:
+                if len(body_ids) < num_bodies:
+                    assert all(user_to_backend[body_id] != body_id for body_id in body_ids)
+
+        expected_backend = backend_seed.copy()
+        first_backend_cells = None
+        first_payload = None
+        backend_after = None
+        for write_index, (env_ids, body_ids, base_value) in enumerate(write_selections):
+            payload = _make_selected_com_poses(env_ids, body_ids, base_value)
+            expected_before = expected_backend.copy()
+            if selection == "index":
+                art.set_coms_index(
+                    coms=wp.array(payload, dtype=wp.transformf, device=art.device),
+                    env_ids=wp.array(env_ids, dtype=wp.int32, device=art.device),
+                    body_ids=wp.array(body_ids, dtype=wp.int32, device=art.device),
+                )
+            else:
+                full_coms = np.zeros_like(backend_seed)
+                full_coms[np.ix_(env_ids, body_ids)] = payload
+                env_mask = wp.array(
+                    [env_index in env_ids for env_index in range(num_instances)],
+                    dtype=wp.bool,
+                    device=art.device,
+                )
+                body_mask = None
+                if len(body_ids) < num_bodies:
+                    body_mask = wp.array(
+                        [body_index in body_ids for body_index in range(num_bodies)],
+                        dtype=wp.bool,
+                        device=art.device,
+                    )
+                art.set_coms_mask(
+                    coms=wp.array(full_coms, dtype=wp.transformf, device=art.device),
+                    env_mask=env_mask,
+                    body_mask=body_mask,
+                )
+
+            backend_body_ids = user_to_backend[np.asarray(body_ids, dtype=np.int64)]
+            selected_cells = np.ix_(env_ids, backend_body_ids)
+            selected_mask = np.zeros((num_instances, num_bodies), dtype=bool)
+            selected_mask[selected_cells] = True
+            expected_backend[selected_cells] = payload
+
+            backend_after = _read_backend_com_poses("ovphysx", art, raw_backend)
+            np.testing.assert_array_equal(backend_after, expected_backend)
+            np.testing.assert_array_equal(backend_after[~selected_mask], expected_before[~selected_mask])
+            public_coms = art.data.body_com_pose_b.torch.detach().cpu().numpy()
+            np.testing.assert_array_equal(public_coms, expected_backend[:, user_to_backend])
+
+            if write_index == 0:
+                first_backend_cells = selected_cells
+                first_payload = payload.copy()
+
+        assert backend_after is not None
+        assert first_backend_cells is not None
+        assert first_payload is not None
+        np.testing.assert_array_equal(backend_after[first_backend_cells], first_payload)
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    def test_static_com_cache_does_not_follow_sim_timestamp(self, backend: str, ordering_mode: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            body_ordering=_body_ordering_for_mode(ordering_mode, num_bodies),
+        )
+        root_pose = np.zeros((num_instances, 7), dtype=np.float32)
+        root_pose[:, :3] = np.asarray([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], dtype=np.float32)
+        root_pose[:, 6] = 1.0
+        backend_seed = _make_backend_com_poses(num_instances, num_bodies)
+        if backend == "physx":
+            raw_backend._root_transforms = wp.array(root_pose, dtype=wp.float32, device=art.device)
+        else:
+            from isaaclab_ovphysx import tensor_types as TT
+
+            raw_backend.bindings[TT.ROOT_POSE]._data = root_pose.copy()
+        _seed_backend_com_poses(backend, art, raw_backend, backend_seed)
+        np.testing.assert_array_equal(_read_backend_com_poses(backend, art, raw_backend), backend_seed)
+        art.data._body_com_pose_b.timestamp = -1.0
+        backend_staging = art.data._body_com_pose_b_backend
+        if backend_staging is not None:
+            backend_staging.timestamp = -1.0
+
+        if art.body_ordering is None:
+            user_to_backend = np.arange(num_bodies, dtype=np.int64)
+        else:
+            user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+        expected_public = backend_seed[:, user_to_backend]
+        expected_root = root_pose.copy()
+        expected_root[:, :3] += backend_seed[:, 0, :3]
+
+        if backend == "physx":
+            raw_backend.get_coms = MagicMock(wraps=raw_backend.get_coms)
+            read_spy = raw_backend.get_coms
+        else:
+            com_binding = raw_backend.bindings[TT.BODY_COM_POSE]
+            com_binding.read = MagicMock(wraps=com_binding.read)
+            read_spy = com_binding.read
+
+        np.testing.assert_array_equal(art.data.body_com_pose_b.torch.detach().cpu().numpy(), expected_public)
+        np.testing.assert_array_equal(art.data.root_com_pose_w.torch.detach().cpu().numpy(), expected_root)
+        assert read_spy.call_count == 1
+
+        for _ in range(3):
+            art.data.update(dt=0.01)
+            np.testing.assert_array_equal(art.data.body_com_pose_b.torch.detach().cpu().numpy(), expected_public)
+            np.testing.assert_array_equal(art.data.root_com_pose_w.torch.detach().cpu().numpy(), expected_root)
+            assert read_spy.call_count == 1
 
 
 # ---------------------------------------------------------------------------

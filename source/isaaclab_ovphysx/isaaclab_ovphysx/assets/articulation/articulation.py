@@ -2320,6 +2320,26 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        body_selection_is_partial = body_ids.shape[0] < self.num_bodies
+        backend_staging = self._data._body_com_pose_b_backend
+        if self._has_body_ordering and backend_staging is None:
+            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
+        cache_was_valid = self._data._body_com_pose_b.timestamp >= 0.0 and (
+            not self._has_body_ordering or backend_staging.timestamp >= 0.0
+        )
+        if body_selection_is_partial:
+            self._data._ensure_body_com_pose_b_current()
+        all_rows_written = env_ids.shape[0] == self.num_instances and body_ids.shape[0] == self.num_bodies
+        cache_is_valid = (
+            cache_was_valid
+            or all_rows_written
+            or (
+                body_selection_is_partial
+                and self._data._body_com_pose_b.timestamp >= 0.0
+                and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
+            )
+        )
+
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer_index,
             dim=(env_ids.shape[0], body_ids.shape[0]),
@@ -2327,11 +2347,18 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_com_pose_b.data],
             device=self._device,
         )
-        self._data._body_com_pose_b.timestamp = self._data._sim_timestamp
         self._data._reset_body_com_pose_b_dependents()
-        body_com_backend = self._get_backend_ordered_body_buffer(
-            self._data._body_com_pose_b.data, self._data._body_com_pose_b_backend.data
-        )
+        if self._has_body_ordering:
+            body_com_backend = self._get_backend_ordered_body_buffer(
+                self._data._body_com_pose_b.data, backend_staging.data
+            )
+        else:
+            body_com_backend = self._data._body_com_pose_b.data
+        validity = 0.0 if cache_is_valid else -1.0
+        self._data._body_com_pose_b.timestamp = validity
+        if self._has_body_ordering:
+            backend_staging.timestamp = validity
+
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_coms, body_com_backend)
         self._root_view.set_attribute(TT.BODY_COM_POSE, self.data._cpu_body_coms, indices=cpu_env_ids)
@@ -2364,9 +2391,29 @@ class Articulation(BaseArticulation):
             env_mask: Environment mask.  If None, all instances are updated.
                 Shape is (num_instances,).
         """
+        body_selection_is_partial = body_mask is not None
+        all_rows_written = env_mask is None and body_mask is None
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
+        backend_staging = self._data._body_com_pose_b_backend
+        if self._has_body_ordering and backend_staging is None:
+            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
+        cache_was_valid = self._data._body_com_pose_b.timestamp >= 0.0 and (
+            not self._has_body_ordering or backend_staging.timestamp >= 0.0
+        )
+        if body_selection_is_partial:
+            self._data._ensure_body_com_pose_b_current()
+        cache_is_valid = (
+            cache_was_valid
+            or all_rows_written
+            or (
+                body_selection_is_partial
+                and self._data._body_com_pose_b.timestamp >= 0.0
+                and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
+            )
+        )
+
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer_mask,
             dim=(self._num_instances, self._num_bodies),
@@ -2374,11 +2421,18 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_com_pose_b.data],
             device=self._device,
         )
-        self._data._body_com_pose_b.timestamp = self._data._sim_timestamp
         self._data._reset_body_com_pose_b_dependents()
-        body_com_backend = self._get_backend_ordered_body_buffer(
-            self._data._body_com_pose_b.data, self._data._body_com_pose_b_backend.data
-        )
+        if self._has_body_ordering:
+            body_com_backend = self._get_backend_ordered_body_buffer(
+                self._data._body_com_pose_b.data, backend_staging.data
+            )
+        else:
+            body_com_backend = self._data._body_com_pose_b.data
+        validity = 0.0 if cache_is_valid else -1.0
+        self._data._body_com_pose_b.timestamp = validity
+        if self._has_body_ordering:
+            backend_staging.timestamp = validity
+
         wp.copy(self.data._cpu_body_coms, body_com_backend)
         self._root_view.set_attribute(
             TT.BODY_COM_POSE, self.data._cpu_body_coms, mask=self._get_cpu_env_mask(env_mask_wp)

@@ -2555,11 +2555,26 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
-        if self.data._body_com_pose_b.timestamp < 0.0 and (
-            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
-        ):
-            # Partial writes need the current model-property cache as a base for untouched entries.
-            self.data.body_com_pose_b
+        body_selection_is_partial = body_ids.shape[0] < self.num_bodies
+        backend_staging = self.data._body_com_pose_b_backend
+        if self._has_body_ordering and backend_staging is None:
+            raise RuntimeError("PhysX body COM ordering staging was not initialized.")
+        cache_was_valid = self.data._body_com_pose_b.timestamp >= 0.0 and (
+            not self._has_body_ordering or backend_staging.timestamp >= 0.0
+        )
+        if body_selection_is_partial:
+            self.data._ensure_body_com_pose_b_current()
+        all_rows_written = env_ids.shape[0] == self.num_instances and body_ids.shape[0] == self.num_bodies
+        cache_is_valid = (
+            cache_was_valid
+            or all_rows_written
+            or (
+                body_selection_is_partial
+                and self.data._body_com_pose_b.timestamp >= 0.0
+                and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
+            )
+        )
+
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer,
@@ -2575,14 +2590,21 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
         self.data._reset_body_com_pose_b_dependents()
+        if self._has_body_ordering:
+            body_com_backend = self._get_backend_ordered_body_buffer(
+                self.data._body_com_pose_b.data, backend_staging.data
+            )
+        else:
+            body_com_backend = self.data._body_com_pose_b.data
+        validity = 0.0 if cache_is_valid else -1.0
+        self.data._body_com_pose_b.timestamp = validity
+        if self._has_body_ordering:
+            backend_staging.timestamp = validity
+
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        body_com_backend = self._get_backend_ordered_body_buffer(
-            self.data._body_com_pose_b.data, self.data._body_com_pose_b_backend.data
-        )
         body_com_flat = (
             wp.clone(body_com_backend, device="cpu").view(wp.float32).reshape((self.num_instances, self.num_bodies, 7))
         )

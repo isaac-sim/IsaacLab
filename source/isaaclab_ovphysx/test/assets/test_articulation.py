@@ -118,6 +118,21 @@ _ANYMAL_PHYSX_JOINT_NAMES = (
 )
 
 
+_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (
+    "panda_link0",
+    "panda_rightfinger",
+    "panda_leftfinger",
+    "panda_hand",
+    "panda_link7",
+    "panda_link6",
+    "panda_link5",
+    "panda_link4",
+    "panda_link3",
+    "panda_link2",
+    "panda_link1",
+)
+
+
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute into a torch tensor on *device*.
 
@@ -375,6 +390,62 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
     expected = backend_before.clone()
     expected[0, backend_joint_id] = selected_value
     torch.testing.assert_close(backend_after, expected, rtol=0.0, atol=0.0)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_live_panda_manual_body_ordering_preserves_unselected_coms(sim, num_articulations, device):
+    """Test that a partial ordered COM write preserves every unselected backend body."""
+    articulation_cfg = FRANKA_PANDA_CFG.replace(body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+
+    body_ordering = articulation.body_ordering
+    assert body_ordering is not None
+    assert not body_ordering.is_identity
+    backend_before = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device).clone()
+    assert torch.unique(backend_before[0], dim=0).shape[0] > 1
+
+    articulation.data._body_com_pose_b.timestamp = -1.0
+    backend_staging = articulation.data._body_com_pose_b_backend
+    if backend_staging is not None:
+        backend_staging.timestamp = -1.0
+
+    public_body_id = 1
+    backend_body_id = body_ordering.user_to_backend_indices[public_body_id]
+    assert backend_body_id != public_body_id
+    selected_com = backend_before[0, backend_body_id].clone()
+    selected_com[0] += 0.001
+
+    articulation.set_coms_index(
+        coms=wp.from_torch(selected_com.reshape(1, 1, 7).contiguous(), dtype=wp.transformf),
+        env_ids=wp.array([0], dtype=wp.int32, device=device),
+        body_ids=wp.array([public_body_id], dtype=wp.int32, device=device),
+    )
+
+    backend_after = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device).clone()
+
+    articulation.root_view.set_attribute(TT.BODY_COM_POSE, wp.from_torch(backend_before.contiguous()))
+    noop_after = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device).clone()
+    unselected_body_mask = torch.ones(backend_before.shape[1], dtype=torch.bool, device=device)
+    unselected_body_mask[backend_body_id] = False
+
+    assert torch.equal(noop_after[..., :3], backend_before[..., :3])
+    assert torch.equal(backend_after[0, backend_body_id, :3], selected_com[:3])
+    assert torch.equal(backend_after[0, unselected_body_mask, :3], backend_before[0, unselected_body_mask, :3])
+
+    # Bound semantic orientation equality by the native setter's float32 no-op normalization.
+    native_orientation_atol = torch.max(
+        torch.abs(noop_after[0, unselected_body_mask, 3:7] - backend_before[0, unselected_body_mask, 3:7])
+    ).item()
+    assert native_orientation_atol <= torch.finfo(backend_before.dtype).eps
+    torch.testing.assert_close(
+        backend_after[0, unselected_body_mask, 3:7],
+        backend_before[0, unselected_body_mask, 3:7],
+        rtol=0.0,
+        atol=native_orientation_atol,
+    )
+    assert torch.equal(backend_after[..., 3:7], noop_after[..., 3:7])
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
@@ -2081,7 +2152,7 @@ def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
     coms = wp.zeros((articulation.num_instances, articulation.num_bodies), dtype=wp.transformf, device=device)
     articulation.set_coms_index(coms=coms)
 
-    assert articulation.data._body_com_pose_b.timestamp == articulation.data._sim_timestamp
+    assert articulation.data._body_com_pose_b.timestamp >= 0.0
     for name, buffer in dependent_buffers:
         assert buffer.timestamp < articulation.data._sim_timestamp, name
 

@@ -832,10 +832,11 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
+            body_com_pose_b = self._backend_body_com_pose_b if self._has_body_ordering else self.body_com_pose_b
             wp.launch(
                 _compose_root_com_pose,
                 dim=self.num_instances,
-                inputs=[self.root_link_pose_w, self._backend_body_com_pose_b],
+                inputs=[self.root_link_pose_w, body_com_pose_b],
                 outputs=[self._root_com_pose_w.data],
                 device=self.device,
             )
@@ -859,11 +860,38 @@ class ArticulationData(BaseArticulationData):
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
 
+    def _ensure_body_com_pose_b_current(self) -> None:
+        """Refresh the static body COM pose cache when explicitly invalidated."""
+        if self._body_com_pose_b.timestamp >= 0.0:
+            return
+        if not self._has_body_ordering:
+            self._read_static_binding_into_buf(TT.BODY_COM_POSE, self._body_com_pose_b)
+            return
+
+        backend_staging = self._body_com_pose_b_backend
+        if backend_staging is None:
+            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
+        self._read_static_binding_into_buf(TT.BODY_COM_POSE, backend_staging)
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[backend_staging.data, self._body_user_to_backend],
+            outputs=[self._body_com_pose_b.data],
+            device=self.device,
+        )
+        self._body_com_pose_b.timestamp = backend_staging.timestamp
+
     @property
     def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
         """Backend-order body COM pose buffer for root-only computations."""
-        self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b_backend)
-        return self._body_com_pose_b_backend.data
+        if not self._has_body_ordering:
+            self._ensure_body_com_pose_b_current()
+            return self._body_com_pose_b.data
+        backend_staging = self._body_com_pose_b_backend
+        if backend_staging is None:
+            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
+        self._read_static_binding_into_buf(TT.BODY_COM_POSE, backend_staging)
+        return backend_staging.data
 
     """
     Body state properties.
@@ -1069,18 +1097,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_com_pose_b.timestamp < 0.0:
-            if self._has_body_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[self._backend_body_com_pose_b, self._body_user_to_backend],
-                    outputs=[self._body_com_pose_b.data],
-                    device=self.device,
-                )
-                self._body_com_pose_b.timestamp = self._body_com_pose_b_backend.timestamp
-            else:
-                self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
+        self._ensure_body_com_pose_b_current()
         if self._body_com_pose_b_ta is None:
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
@@ -1592,7 +1609,7 @@ class ArticulationData(BaseArticulationData):
         self._body_link_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_link_vel_w_backend = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_pose_b = TimestampedBuffer((N, L), dev, wp.transformf)
-        self._body_com_pose_b_backend = TimestampedBuffer((N, L), dev, wp.transformf)
+        self._body_com_pose_b_backend: TimestampedBuffer | None = None
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_vel_w_backend = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
@@ -1952,6 +1969,15 @@ class ArticulationData(BaseArticulationData):
         body_ordering = self.body_ordering
         self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
         self._body_user_to_backend = body_ordering.user_to_backend if body_ordering is not None else None
+        if self._has_body_ordering:
+            if self._body_com_pose_b_backend is None:
+                self._body_com_pose_b_backend = TimestampedBuffer(
+                    (self.num_instances, self.num_bodies), self.device, wp.transformf
+                )
+            reset_timestamps([self._body_com_pose_b, self._body_com_pose_b_backend])
+        else:
+            self._body_com_pose_b_backend = None
+            self._body_com_pose_b.timestamp = -1.0
         if self._has_joint_ordering:
             if self._joint_pos_backend is None:
                 self._joint_pos_backend = TimestampedBuffer(
@@ -2192,6 +2218,15 @@ class ArticulationData(BaseArticulationData):
             The TensorBinding, or ``None`` if not available for these prims.
         """
         return self._view.try_binding_for(tensor_type)
+
+    def _read_static_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
+        """Read a static binding once after explicit invalidation."""
+        if buf.timestamp >= 0.0:
+            return
+        if self._get_binding(tensor_type) is None:
+            return
+        self._binding_read(tensor_type, buf.data)
+        buf.timestamp = 0.0
 
     def _read_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
         """Refresh *buf* from the matching binding via the view, skipping if fresh or absent.
