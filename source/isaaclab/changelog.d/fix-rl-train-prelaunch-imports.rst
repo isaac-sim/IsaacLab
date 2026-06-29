@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed launcher argument registration importing Isaac Sim runtime modules before simulation launch.
+* Fixed pre-launch imports that loaded Isaac Sim runtime or USD modules before simulation launch.

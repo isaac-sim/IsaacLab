@@ -121,6 +121,19 @@ def test_direct_rl_env_import_does_not_import_pxr_before_launch():
     )
 
 
+def test_from_files_spawner_import_does_not_import_pxr_before_launch():
+    """Test that resolving file spawners does not import USD modules."""
+    _assert_import_code_does_not_import_modules(
+        """
+        from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+
+        assert GroundPlaneCfg.__name__ == "GroundPlaneCfg"
+        assert spawn_ground_plane.__name__ == "spawn_ground_plane"
+        """,
+        {"pxr"},
+    )
+
+
 def test_cartpole_task_import_does_not_import_pxr_before_launch():
     """Test that resolving the cartpole task module does not import USD modules."""
     _assert_import_code_does_not_import_modules(

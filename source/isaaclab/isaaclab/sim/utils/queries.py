@@ -12,7 +12,6 @@ import re
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from isaaclab.cloner.cloner_utils import resolve_clone_plan_source
 from isaaclab.sim.simulation_context import SimulationContext
 
 from .stage import get_current_stage
@@ -418,7 +417,11 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
-    resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
+    resolved = None
+    if plan is not None:
+        from isaaclab.cloner.cloner_utils import resolve_clone_plan_source  # noqa: PLC0415
+
+        resolved = resolve_clone_plan_source(path_expr, plan)
     if resolved is not None:
         source_path, dest_glob, asset_suffix = resolved
         walk_root = source_path + asset_suffix

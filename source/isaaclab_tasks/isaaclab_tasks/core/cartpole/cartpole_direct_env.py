@@ -15,6 +15,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform
 
 if TYPE_CHECKING:
@@ -37,8 +38,6 @@ class CartpoleEnv(DirectRLEnv):
         self.joint_vel = self.cartpole.data.joint_vel.torch
 
     def _setup_scene(self):
-        from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane  # noqa: PLC0415
-
         self.cartpole = Articulation(self.cfg.robot_cfg)
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
