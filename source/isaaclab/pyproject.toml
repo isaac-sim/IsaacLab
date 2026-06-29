@@ -37,7 +37,7 @@ dependencies = [
     # image processing
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.14.0",
+    "warp-lang==1.15.0.dev20260626",
     "matplotlib>=3.10.3",
     # keep consistent with isaac sim version
     "pillow==12.1.1",
