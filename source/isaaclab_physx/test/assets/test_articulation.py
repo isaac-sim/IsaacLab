@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import sys
+from pathlib import Path
 
 import pytest
 import torch
@@ -28,7 +29,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, apply_articulation_ordering_preset, get_mjwarp_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -45,7 +46,13 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG, SHADOW_HAND_CFG  # isort:skip
+from isaaclab_assets import (  # isort:skip
+    ANYMAL_C_CFG,
+    ANYMAL_D_CFG,
+    FRANKA_PANDA_CFG,
+    FRANKA_PANDA_HIGH_PD_CFG,
+    SHADOW_HAND_CFG,
+)
 
 
 def generate_articulation_cfg(
@@ -434,6 +441,105 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
     )
     torch.testing.assert_close(articulation.data.body_pos_w.torch, articulation.data.body_link_pose_w.torch[..., :3])
     torch.testing.assert_close(articulation.data.body_quat_w.torch, articulation.data.body_link_pose_w.torch[..., 3:])
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_enabled):
+    """Resolve concrete breadth-first PhysX and depth-first MJWarp name orders."""
+    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+            joint_ordering="mjwarp",
+            body_ordering="mjwarp",
+        )
+    )
+    sim.reset()
+    assert articulation.is_initialized
+
+    expected_physx_joint_names = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
+    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
+    expected_physx_body_names = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
+    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
+
+    assert tuple(articulation.backend_joint_names) == expected_physx_joint_names
+    assert tuple(articulation.backend_body_names) == expected_physx_body_names
+    assert get_mjwarp_articulation_name_ordering(articulation, "joint") == expected_mjwarp_joint_names
+    assert get_mjwarp_articulation_name_ordering(articulation, "body") == expected_mjwarp_body_names
+    assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
+    assert tuple(articulation.body_names) == expected_mjwarp_body_names
+    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
+    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_live_anymal_d_mjwarp_ordering_reorders_named_state(sim, device, gravity_enabled):
+    """Exercise resolver-driven MJWarp ordering across live PhysX read/write boundaries."""
+    cfg = apply_articulation_ordering_preset(
+        ANYMAL_D_CFG.replace(prim_path="/World/Robot"),
+        "mjwarp",
+    )
+    articulation = Articulation(cfg)
+    sim.reset()
+    assert articulation.is_initialized
+
+    joint_ordering = articulation.joint_ordering
+    body_ordering = articulation.body_ordering
+    joint_non_identity = joint_ordering is not None and not joint_ordering.is_identity
+    body_non_identity = body_ordering is not None and not body_ordering.is_identity
+    assert joint_non_identity or body_non_identity, (
+        "ANYmal-D no longer produces a non-identity PhysX/MJWarp ordering map; choose a representative "
+        "branching asset before treating this as cross-backend coverage."
+    )
+
+    joint_user_to_backend = (
+        list(joint_ordering.user_to_backend_indices)
+        if joint_ordering is not None
+        else list(range(articulation.num_joints))
+    )
+    joint_backend_to_user = (
+        list(joint_ordering.backend_to_user_indices)
+        if joint_ordering is not None
+        else list(range(articulation.num_joints))
+    )
+    body_user_to_backend = (
+        list(body_ordering.user_to_backend_indices)
+        if body_ordering is not None
+        else list(range(articulation.num_bodies))
+    )
+    joint_pos = torch.linspace(-0.1, 0.1, articulation.num_joints, device=device).unsqueeze(0)
+    joint_vel = torch.linspace(0.01, 0.02, articulation.num_joints, device=device).unsqueeze(0)
+
+    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
+    articulation.write_data_to_sim()
+
+    _assert_user_write_reaches_backend(
+        joint_pos,
+        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
+        joint_backend_to_user,
+    )
+    _assert_user_write_reaches_backend(
+        joint_vel,
+        _to_device_tensor(articulation.root_view.get_dof_velocities(), device),
+        joint_backend_to_user,
+    )
+
+    sim.step()
+    articulation.update(sim.cfg.dt)
+    _assert_backend_to_user(
+        articulation.data.joint_pos.torch,
+        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
+        joint_user_to_backend,
+    )
+    _assert_backend_to_user(
+        articulation.data.body_link_pose_w.torch,
+        _to_device_tensor(articulation.root_view.get_link_transforms(), device),
+        body_user_to_backend,
+    )
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

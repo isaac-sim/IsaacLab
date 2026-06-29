@@ -523,21 +523,9 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articula
 
     sim.reset()
 
-    class _PhysxLikeArticulation:
-        __backend_name__ = "physx"
-        cfg = articulation.cfg
-        backend_joint_names = list(reversed(articulation.backend_joint_names))
-        backend_body_names = list(reversed(articulation.backend_body_names))
-
     assert articulation.is_initialized
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
-    assert get_mjwarp_articulation_name_ordering(_PhysxLikeArticulation(), kind="joint") == tuple(
-        articulation.backend_joint_names
-    )
-    assert get_mjwarp_articulation_name_ordering(_PhysxLikeArticulation(), kind="body") == tuple(
-        articulation.backend_body_names
-    )
 
 
 @pytest.mark.parametrize("num_articulations", [1])
