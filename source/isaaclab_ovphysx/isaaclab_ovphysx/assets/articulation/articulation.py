@@ -946,10 +946,8 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        if self._has_joint_ordering:
-            joint_pos_backend = self._data._joint_pos_backend.data
-        else:
-            joint_pos_backend = self._data._joint_pos_buf.data
+        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
+        joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -992,13 +990,11 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        joint_selection_is_partial = joint_mask is not None
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
-        if self._has_joint_ordering:
-            joint_pos_backend = self._data._joint_pos_backend.data
-        else:
-            joint_pos_backend = self._data._joint_pos_buf.data
+        joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1042,10 +1038,8 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        if self._has_joint_ordering:
-            joint_vel_backend = self._data._joint_vel_backend.data
-        else:
-            joint_vel_backend = self._data._joint_vel_buf.data
+        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
+        joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1091,13 +1085,11 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        joint_selection_is_partial = joint_mask is not None
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
         self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
-        if self._has_joint_ordering:
-            joint_vel_backend = self._data._joint_vel_backend.data
-        else:
-            joint_vel_backend = self._data._joint_vel_buf.data
+        joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_mask,
             dim=(self._num_instances, self._num_joints),
@@ -1146,17 +1138,40 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_joint_position_to_sim_mask(
-            position=position, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
+        joint_selection_is_partial = joint_mask is not None
+        env_mask_wp = self._resolve_env_mask(env_mask)
+        joint_mask_wp = self._resolve_joint_mask(joint_mask)
+        self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, (self._num_instances, self._num_joints), wp.float32, "velocity")
+        joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
+        joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
+        wp.launch(
+            ordering_kernels.write_joint_state_user_to_backend_with_mask,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[
+                position,
+                velocity,
+                env_mask_wp,
+                joint_mask_wp,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+            ],
+            outputs=[
+                self._data._joint_pos_buf.data,
+                self._data._joint_vel_buf.data,
+                self._data._previous_joint_vel,
+                self._data._joint_acc.data,
+                joint_pos_backend,
+                joint_vel_backend,
+            ],
+            device=self._device,
         )
-        self.write_joint_velocity_to_sim_mask(
-            velocity=velocity, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
-        )
-        # The sub-writers skipped their composite invalidation (skip_forward=True); do it once here.
-        # The velocity sub-writer already reset the joint-acceleration baseline unconditionally.
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
         if not skip_forward:
             self._data._reset_pose()
             self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, mask=env_mask_wp)
 
     """
     Operations - Simulation Parameters Writers.
@@ -4498,8 +4513,40 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
+        joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
+        joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
+        wp.launch(
+            ordering_kernels.write_joint_state_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                position,
+                velocity,
+                env_ids,
+                joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
+            ],
+            outputs=[
+                self._data._joint_pos_buf.data,
+                self._data._joint_vel_buf.data,
+                self._data._previous_joint_vel,
+                self._data._joint_acc.data,
+                joint_pos_backend,
+                joint_vel_backend,
+            ],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
+        self._data._reset_pose()
+        self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_POSITION, joint_pos_backend, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, joint_vel_backend, indices=env_ids)
 
     def write_joint_friction_coefficient_to_sim(
         self,

@@ -102,6 +102,21 @@ _MATERIAL_GAP_REASON = (
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
 
+_ANYMAL_PHYSX_JOINT_NAMES = (
+    "LF_HAA",
+    "LH_HAA",
+    "RF_HAA",
+    "RH_HAA",
+    "LF_HFE",
+    "LH_HFE",
+    "RF_HFE",
+    "RH_HFE",
+    "LF_KFE",
+    "LH_KFE",
+    "RF_KFE",
+    "RH_KFE",
+)
+
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute into a torch tensor on *device*.
@@ -327,6 +342,38 @@ def sim(request):
     ) as sim:
         sim._app_control_on_stop_handle = None
         yield sim
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(sim, num_articulations, device):
+    """Test that a partial ordered write preserves every unselected backend joint."""
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
+        joint_ordering=tuple(reversed(_ANYMAL_PHYSX_JOINT_NAMES))
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+
+    joint_ordering = articulation.joint_ordering
+    assert joint_ordering is not None
+    assert not joint_ordering.is_identity
+    backend_seed = torch.arange(1, articulation.num_joints + 1, dtype=torch.float32, device=device).reshape(1, -1)
+    backend_seed *= 0.001
+    articulation.root_view.set_attribute(TT.DOF_POSITION, wp.from_torch(backend_seed))
+    backend_before = wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)).clone()
+    backend_joint_id = joint_ordering.user_to_backend_indices[0]
+    selected_value = backend_before[0, backend_joint_id] + 0.001
+
+    articulation.write_joint_position_to_sim_index(
+        position=selected_value.reshape(1, 1),
+        env_ids=wp.array([0], dtype=wp.int32, device=device),
+        joint_ids=wp.array([0], dtype=wp.int32, device=device),
+    )
+
+    backend_after = wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)).clone()
+    expected = backend_before.clone()
+    expected[0, backend_joint_id] = selected_value
+    torch.testing.assert_close(backend_after, expected, rtol=0.0, atol=0.0)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

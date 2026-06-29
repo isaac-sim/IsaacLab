@@ -2200,6 +2200,42 @@ class TestArticulationOrderingWriteParity:
             pytest.skip("PhysX backend is not available")
         _exercise_partial_joint_write("physx", ordering_mode, selection, operation, coverage)
 
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    @pytest.mark.parametrize(
+        "coverage",
+        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
+    )
+    def test_ovphysx_partial_joint_write_preserves_backend_rows(
+        self,
+        ordering_mode: str,
+        selection: str,
+        operation: str,
+        coverage: str,
+    ) -> None:
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        _exercise_partial_joint_write("ovphysx", ordering_mode, selection, operation, coverage)
+
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    @pytest.mark.parametrize(
+        "coverage",
+        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
+    )
+    def test_newton_partial_joint_write_preserves_backend_columns(
+        self,
+        ordering_mode: str,
+        selection: str,
+        operation: str,
+        coverage: str,
+    ) -> None:
+        if "newton" not in BACKENDS:
+            pytest.skip("Newton backend is not available")
+        _exercise_partial_joint_write("newton", ordering_mode, selection, operation, coverage)
+
     @pytest.mark.parametrize(
         "operation, expected_position_refreshes, expected_velocity_refreshes",
         [("position", 1, 0), ("velocity", 0, 1), ("state", 1, 1)],
