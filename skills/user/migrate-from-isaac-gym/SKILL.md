@@ -27,10 +27,10 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 8. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
 9. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
 10. Run a small smoke test before scaling training.
-11. For locomotion migrations, validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately. If the legacy task's command range is broad, use a staged command curriculum or a simpler flat source config such as IsaacGymEnvs `Anymal.yaml` before claiming policy success.
+11. For locomotion migrations, run the policy-success validation loop in [Reference](reference.md#policy-success-validation-loop). Validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately. If the legacy task's command range is broad, use a staged command curriculum or a simpler flat source config such as IsaacGymEnvs `Anymal.yaml` before claiming policy success.
 12. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
 13. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
-14. Iterate through the validation loop until the environment resets, steps, trains, and reaches a task-appropriate policy metric.
+14. Iterate through the validation loop until the environment resets, steps, trains, and reaches a task-appropriate policy metric. Do not claim policy success from a completed training command, checkpoint file, or improving scalar alone; parse training metrics and run a bounded checkpoint rollout.
 
 ## Validation
 
@@ -41,6 +41,8 @@ Use this feedback loop:
 ```
 
 For manual smoke testing, run the smallest random-action entry point available for the migrated task before training. For external scratch packages, put the scratch package and every package under the Isaac Lab checkout's `source/` directory at the front of `PYTHONPATH`; this avoids accidentally importing `isaaclab_tasks` or extension packages from another checkout or installed wheel. Ensure the task package is imported before Gym lookup; use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
+
+For policy validation, follow the policy-success loop in [Reference](reference.md#policy-success-validation-loop). The loop must import/register the migrated task, smoke-test reset and random steps, train to a useful budget, parse TensorBoard or equivalent scalars, evaluate the saved checkpoint in a bounded rollout, then adjust the migration and rerun the shortest affected gate until the policy succeeds or a concrete blocker is identified.
 
 Runtime preflight for execution/training requests:
 

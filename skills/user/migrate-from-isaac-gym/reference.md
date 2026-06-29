@@ -3,6 +3,10 @@
 ## Contents
 
 - Direct workflow mapping
+- External scratch packages
+- Locomotion training gates
+- Policy success validation loop
+- Legacy force and torque sensors
 - Backend mapping
 - Manager-based follow-up mapping
 - Current workflow
@@ -43,6 +47,75 @@ Treat these as separate gates:
 - Flat training improves reward and mean episode length toward the timeout horizon.
 - The saved checkpoint loads in `play` or an equivalent bounded rollout.
 - Rough-terrain training starts only after the flat policy is healthy, then tracks terrain-specific curriculum, height-scanner, and contact metrics.
+
+## Policy Success Validation Loop
+
+When a user asks for a migrated RL environment that trains successfully, automate the full train/evaluate/iterate loop. A training command with exit code 0 only proves that the runner executed. A checkpoint file only proves that the runner saved state. Policy success requires task-level evidence from training metrics and a loaded checkpoint rollout.
+
+Before training, define the success criteria in the validation notes. Prefer an explicit task success metric from the source task or benchmark. If the task has no explicit success scalar, define proxy gates such as:
+
+- Mean episode reward improves and remains stable over the last training window.
+- Mean episode length approaches the task timeout horizon instead of ending mostly from falls, collisions, or invalid resets.
+- Checkpoint rollout loads the saved policy and completes bounded episodes with behavior consistent with the task.
+- Locomotion tasks keep base-contact or fall terminations low and report reasonable command-tracking errors.
+- Any task-specific success rate, distance, velocity error, pose error, or object-state metric crosses the declared threshold.
+
+Use this loop for each implementation iteration:
+
+1. Register the migrated task from the external package or local module before any Gym lookup.
+2. Run import and registration checks against the active Isaac Lab checkout.
+3. Run a small reset and random-step smoke test; treat sensor-path warnings, invalid observation shapes, NaNs, and immediate terminations as failures.
+4. Run a short training smoke only to verify runner integration.
+5. Run the policy training budget needed for the task's declared success criteria.
+6. Parse TensorBoard, JSON, or stdout scalars from that run; do not inspect only the final terminal lines.
+7. Load the saved checkpoint in `play` or an equivalent bounded rollout and collect rollout metrics.
+8. If the policy fails, modify the migration and rerun the shortest affected gate. Continue until success or until a concrete blocker is documented.
+
+For an external scratch package, use commands like these as templates. Replace the task id, callback, runner, and log paths with the migrated package names:
+
+```bash
+export LAB=/path/to/IsaacLab
+export SCRATCH=/path/to/migration-scratch
+export PYTHONPATH="$SCRATCH:$(find "$LAB/source" -mindepth 1 -maxdepth 1 -type d | paste -sd: -)"
+
+./isaaclab.sh -p -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
+
+./isaaclab.sh -p validation/smoke_my_task.py --headless --device cuda:0 --num_envs 16 --steps 8
+
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+  --task My-Migrated-Task-v0 \
+  --external_callback my_migration.register.register \
+  --headless --device cuda:0 --num_envs 4096 --max_iterations 500
+
+./isaaclab.sh -p validation/parse_tensorboard.py logs/path/to/run --output validation/train_metrics.json
+
+./isaaclab.sh -p validation/evaluate_checkpoint.py \
+  --checkpoint logs/path/to/run/model_499.pt \
+  --num_envs 64 --steps 256 --device cuda:0 --headless
+```
+
+On Windows, use `.\isaaclab.bat` and set the same path order with PowerShell:
+
+```powershell
+$lab = "C:/path/to/IsaacLab"
+$scratch = "C:/path/to/migration-scratch"
+$srcs = Get-ChildItem "$lab/source" -Directory | ForEach-Object { $_.FullName }
+$env:PYTHONPATH = $scratch + ";" + ($srcs -join ";")
+```
+
+If no validation helper scripts exist, create the smallest scratch-only smoke, scalar parsing, and checkpoint evaluation scripts needed for the migration task. Do not add those helpers to Isaac Lab unless the user asks for committed validation files.
+
+When a locomotion policy fails despite import/reset/step/training success, check these migration points before increasing training time:
+
+- Command ranges and curriculum staging; broad yaw or velocity ranges may need staged validation.
+- Reward signs, scales, clipping, alive terms, and episode-length scaling.
+- Fall, base-contact, and timeout termination thresholds.
+- Contact sensor, force sensor, ray caster, and body-name paths.
+- Default pose, joint order, action scaling, PD gains, and drive modes.
+- Observation order, units, clipping, normalization, noise, and missing history terms.
+- Reset height, terrain origin, terrain curriculum, friction, mass, and push randomization.
+
+For IsaacGymEnvs Anymal migration, validate flat walking before rough terrain. If `AnymalTerrain.yaml`'s full yaw command range prevents a healthy policy, narrow or curriculum-stage the commands, or first migrate the flat `Anymal.yaml` behavior, then reintroduce AnymalTerrain yaw ranges and rough-terrain curriculum.
 
 ## Legacy Force And Torque Sensors
 
@@ -106,4 +179,6 @@ Legacy Isaac Gym tasks often combine asset loading, reward computation, reset lo
 - Sensor paths resolve without missing rigid-body or contact-report warnings.
 - Rewards and terminations match the intended task behavior.
 - Training starts with the chosen RL framework.
+- TensorBoard, JSON, or equivalent scalar parsing shows the declared policy-success metrics.
+- A saved checkpoint loads in a bounded rollout and meets the declared rollout thresholds.
 - A short training run only proves the runner can execute. Claim a successful policy only after a run of sufficient length shows stable reward improvement, episode lengths approaching the task horizon, or the task's explicit success metric.
