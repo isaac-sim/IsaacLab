@@ -2389,6 +2389,104 @@ class TestArticulationOrderingComWrites:
 
     @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
     @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    def test_duplicate_body_ids_preserve_omitted_backend_com(self, backend: str, ordering_mode: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            body_ordering=_body_ordering_for_mode(ordering_mode, num_bodies),
+        )
+        if backend == "physx":
+            raw_backend._noop_setters = False
+        backend_seed = _make_backend_com_poses(num_instances, num_bodies)
+        _seed_backend_com_poses(backend, art, raw_backend, backend_seed)
+        np.testing.assert_array_equal(_read_backend_com_poses(backend, art, raw_backend), backend_seed)
+
+        if art.body_ordering is None:
+            user_to_backend = np.arange(num_bodies, dtype=np.int64)
+        else:
+            user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+        duplicate_body_ids = [0, 1, 1, 2]
+        omitted_public_body_id = 3
+        env_ids = list(range(num_instances))
+        payload = _make_selected_com_poses(env_ids, duplicate_body_ids, 3000.0)
+
+        art.set_coms_index(
+            coms=wp.array(payload, dtype=wp.transformf, device=art.device),
+            body_ids=wp.array(duplicate_body_ids, dtype=wp.int32, device=art.device),
+        )
+
+        expected_backend = backend_seed.copy()
+        for env_offset, env_id in enumerate(env_ids):
+            for body_offset, public_body_id in enumerate(duplicate_body_ids):
+                expected_backend[env_id, user_to_backend[public_body_id]] = payload[env_offset, body_offset]
+        backend_after = _read_backend_com_poses(backend, art, raw_backend)
+        np.testing.assert_array_equal(backend_after, expected_backend)
+        np.testing.assert_array_equal(
+            backend_after[:, user_to_backend[omitted_public_body_id]],
+            backend_seed[:, user_to_backend[omitted_public_body_id]],
+        )
+        public_after = art.data.body_com_pose_b.torch.detach().cpu().numpy()
+        np.testing.assert_array_equal(public_after, expected_backend[:, user_to_backend])
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    def test_duplicate_env_ids_leave_global_com_cache_invalid(self, backend: str, ordering_mode: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            body_ordering=_body_ordering_for_mode(ordering_mode, num_bodies),
+        )
+        if backend == "physx":
+            raw_backend._noop_setters = False
+        backend_seed = _make_backend_com_poses(num_instances, num_bodies)
+        _seed_backend_com_poses(backend, art, raw_backend, backend_seed)
+        np.testing.assert_array_equal(_read_backend_com_poses(backend, art, raw_backend), backend_seed)
+
+        if art.body_ordering is None:
+            user_to_backend = np.arange(num_bodies, dtype=np.int64)
+        else:
+            user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+        duplicate_env_ids = [1, 1]
+        omitted_env_id = 0
+        public_body_ids = list(range(num_bodies))
+        payload = _make_selected_com_poses(duplicate_env_ids, public_body_ids, 4000.0)
+
+        art.set_coms_index(
+            coms=wp.array(payload, dtype=wp.transformf, device=art.device),
+            env_ids=wp.array(duplicate_env_ids, dtype=wp.int32, device=art.device),
+        )
+
+        expected_backend = backend_seed.copy()
+        for env_offset, env_id in enumerate(duplicate_env_ids):
+            expected_backend[env_id, user_to_backend] = payload[env_offset]
+        backend_after = _read_backend_com_poses(backend, art, raw_backend)
+        np.testing.assert_array_equal(backend_after, expected_backend)
+        np.testing.assert_array_equal(backend_after[omitted_env_id], backend_seed[omitted_env_id])
+
+        public_cache_was_invalid = art.data._body_com_pose_b.timestamp < 0.0
+        backend_staging = art.data._body_com_pose_b_backend
+        backend_cache_was_invalid = backend_staging is None or backend_staging.timestamp < 0.0
+        public_after = art.data.body_com_pose_b.torch.detach().cpu().numpy()
+        np.testing.assert_array_equal(public_after, expected_backend[:, user_to_backend])
+        assert public_cache_was_invalid
+        assert backend_cache_was_invalid
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
     def test_static_com_cache_does_not_follow_sim_timestamp(self, backend: str, ordering_mode: str) -> None:
         if backend not in BACKENDS:
             pytest.skip(f"{backend} backend is not available")

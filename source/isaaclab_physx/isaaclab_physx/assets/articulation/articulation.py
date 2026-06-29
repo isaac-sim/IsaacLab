@@ -2548,6 +2548,8 @@ class Articulation(BaseArticulation):
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
         """
+        all_envs_selected = env_ids is None
+        all_bodies_selected = body_ids is None
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -2555,24 +2557,14 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
-        body_selection_is_partial = body_ids.shape[0] < self.num_bodies
         backend_staging = self.data._body_com_pose_b_backend
         if self._has_body_ordering and backend_staging is None:
             raise RuntimeError("PhysX body COM ordering staging was not initialized.")
-        cache_was_valid = self.data._body_com_pose_b.timestamp >= 0.0 and (
-            not self._has_body_ordering or backend_staging.timestamp >= 0.0
-        )
-        if body_selection_is_partial:
+        if not all_bodies_selected:
             self.data._ensure_body_com_pose_b_current()
-        all_rows_written = env_ids.shape[0] == self.num_instances and body_ids.shape[0] == self.num_bodies
-        cache_is_valid = (
-            cache_was_valid
-            or all_rows_written
-            or (
-                body_selection_is_partial
-                and self.data._body_com_pose_b.timestamp >= 0.0
-                and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
-            )
+        cache_is_valid = (all_envs_selected and all_bodies_selected) or (
+            self.data._body_com_pose_b.timestamp >= 0.0
+            and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
         )
 
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
@@ -2632,9 +2624,11 @@ class Articulation(BaseArticulation):
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
+        all_envs_selected = env_mask is None
+        all_bodies_selected = body_mask is None
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        body_ids = self._resolve_body_mask(body_mask)
+        env_ids = None if all_envs_selected else self._resolve_env_mask(env_mask)
+        body_ids = None if all_bodies_selected else self._resolve_body_mask(body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 

@@ -2312,32 +2312,24 @@ class Articulation(BaseArticulation):
             allow graphed pipelines, the mask method must be used.
 
         Args:
-            coms: Body center-of-mass poses [m, quaternion (w, x, y, z)].
+            coms: Body center-of-mass poses [m, quaternion (x, y, z, w)].
                 Shape is (len(env_ids), len(body_ids)) with dtype wp.transformf.
             body_ids: Body indices.  Defaults to None (all bodies).
             env_ids: Environment indices.  Defaults to None (all environments).
         """
+        all_envs_selected = env_ids is None
+        all_bodies_selected = body_ids is None
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
-        body_selection_is_partial = body_ids.shape[0] < self.num_bodies
         backend_staging = self._data._body_com_pose_b_backend
         if self._has_body_ordering and backend_staging is None:
             raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
-        cache_was_valid = self._data._body_com_pose_b.timestamp >= 0.0 and (
-            not self._has_body_ordering or backend_staging.timestamp >= 0.0
-        )
-        if body_selection_is_partial:
+        if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
-        all_rows_written = env_ids.shape[0] == self.num_instances and body_ids.shape[0] == self.num_bodies
-        cache_is_valid = (
-            cache_was_valid
-            or all_rows_written
-            or (
-                body_selection_is_partial
-                and self._data._body_com_pose_b.timestamp >= 0.0
-                and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
-            )
+        cache_is_valid = (all_envs_selected and all_bodies_selected) or (
+            self._data._body_com_pose_b.timestamp >= 0.0
+            and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
         )
 
         wp.launch(
@@ -2384,34 +2376,26 @@ class Articulation(BaseArticulation):
             allow graphed pipelines, the mask method must be used.
 
         Args:
-            coms: Body center-of-mass poses [m, quaternion (w, x, y, z)].
+            coms: Body center-of-mass poses [m, quaternion (x, y, z, w)].
                 Shape is (num_instances, num_bodies) with dtype wp.transformf.
             body_mask: Body mask.  If None, all bodies are updated.
                 Shape is (num_bodies,).
             env_mask: Environment mask.  If None, all instances are updated.
                 Shape is (num_instances,).
         """
-        body_selection_is_partial = body_mask is not None
-        all_rows_written = env_mask is None and body_mask is None
+        all_envs_selected = env_mask is None
+        all_bodies_selected = body_mask is None
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         backend_staging = self._data._body_com_pose_b_backend
         if self._has_body_ordering and backend_staging is None:
             raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
-        cache_was_valid = self._data._body_com_pose_b.timestamp >= 0.0 and (
-            not self._has_body_ordering or backend_staging.timestamp >= 0.0
-        )
-        if body_selection_is_partial:
+        if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
-        cache_is_valid = (
-            cache_was_valid
-            or all_rows_written
-            or (
-                body_selection_is_partial
-                and self._data._body_com_pose_b.timestamp >= 0.0
-                and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
-            )
+        cache_is_valid = (all_envs_selected and all_bodies_selected) or (
+            self._data._body_com_pose_b.timestamp >= 0.0
+            and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
         )
 
         wp.launch(
