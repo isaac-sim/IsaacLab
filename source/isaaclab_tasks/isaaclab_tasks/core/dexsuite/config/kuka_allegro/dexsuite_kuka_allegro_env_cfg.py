@@ -88,6 +88,7 @@ class KukaAllegroMixinCfg:
     def __post_init__(self: dexsuite.DexsuiteReorientEnvCfg):
         super().__post_init__()
         self.commands.object_pose.body_name = "palm_link"
+        self.events.reset_robot_wrist_joint.params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")
 
 
 @configclass

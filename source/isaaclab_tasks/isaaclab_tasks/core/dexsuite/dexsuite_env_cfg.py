@@ -10,7 +10,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
+from isaaclab.envs import ManagerBasedEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -345,7 +345,7 @@ class EventCfg:
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names="iiwa7_joint_7"),
+            "asset_cfg": SceneEntityCfg("robot", joint_names="wrist"),
             "position_range": [-3, 3],
             "velocity_range": [0.0, 0.0],
         },
@@ -365,14 +365,14 @@ class RewardsCfg:
 
     action_rate_l2 = RewTerm(func=mdp.action_rate_l2_clamped, weight=-0.005)
 
-    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=1.0)
+    fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.25)
 
     position_tracking = RewTerm(
         func=mdp.position_command_error_tanh,
         weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 0.2,
+            "std": 0.1,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
@@ -383,7 +383,7 @@ class RewardsCfg:
         weight=4.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "std": 1.5,
+            "std": 1.0,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
         },
@@ -394,7 +394,7 @@ class RewardsCfg:
         weight=10,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "pos_std": 0.1,
+            "pos_std": 0.05,
             "rot_std": 0.5,
             "command_name": "object_pose",
             "align_asset_cfg": SceneEntityCfg("object"),
@@ -413,7 +413,7 @@ class TerminationsCfg:
     object_out_of_bound = DoneTerm(
         func=mdp.out_of_bound,
         params={
-            "in_bound_range": {"x": (-1.5, 0.5), "y": (-2.0, 2.0), "z": (0.0, 2.0)},
+            "in_bound_range": {"x": (-1.5, 0.5), "y": (-2.0, 2.0), "z": (0.3, 2.0)},
             "asset_cfg": SceneEntityCfg("object"),
         },
     )
@@ -444,18 +444,18 @@ class PhysicsCfg(PresetCfg):
         ),
         collision_cfg=NewtonCollisionPipelineCfg(),
         default_shape_cfg=NewtonShapeCfg(),
-        num_substeps=2,
+        num_substeps=6,
         debug_mode=False,
     )
     physx = default
 
 
 @configclass
-class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
+class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
     """Dexsuite reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
 
     # Scene settings
-    viewer: ViewerCfg = ViewerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45), origin_type="env")
+    viewer: ViewerCfg = ViewerCfg(eye=(-2.25, 0.0, 0.75), lookat=(0.0, 0.0, 0.45), origin_type="env", env_index=0)
     scene: SceneCfg = SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
