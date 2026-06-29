@@ -35,6 +35,8 @@ Do not treat successful config loading as training success. Import/register, con
 
 For quadruped and rough-terrain migrations, start with the flat walking variant before training terrain curriculum. A rough-terrain run can execute while still failing behaviorally because the robot falls or terminates on base contact immediately.
 
+Full legacy command ranges may be too hard for a first policy validation. For example, IsaacGymEnvs `AnymalTerrain.yaml` samples yaw commands across `[-3.14, 3.14]`. When the goal is to prove a walking policy, either stage the command ranges as curriculum or validate first against the simpler flat `Anymal.yaml` behavior, and document the temporary deviation from exact terrain-task parity.
+
 Treat these as separate gates:
 
 - Flat task reset/step succeeds with expected observation and action shapes.

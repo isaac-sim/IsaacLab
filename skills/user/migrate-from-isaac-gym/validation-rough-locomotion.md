@@ -104,12 +104,16 @@ In Isaac Lab, first migrate the direct task until it runs with the maintained ba
 
 Use IsaacGymEnvs `AnymalTerrain` as the source mapping, but validate training in stages:
 
-1. Start from the direct flat Anymal-C migration target and confirm it can learn a walking policy.
+1. Start from a direct flat migration target and confirm it can learn a walking policy.
 2. Load the saved checkpoint in a bounded play rollout.
 3. Move to the direct rough Anymal-C target and treat immediate base-contact termination as a behavioral failure even if the runner completes.
 4. Convert the reusable command, observation, reward, terrain curriculum, and termination logic to the manager workflow after the direct parity pass is healthy.
 
-A validation run on the direct flat Anymal-C task trained RSL-RL for 100 iterations, then resumed from `model_99.pt` through `model_598.pt`. Mean reward improved from about `-0.12` at the resume point to `5.49`, and mean episode length improved from about `14` steps to about `893` steps, near the 1000-step timeout horizon. The final checkpoint loaded successfully in a bounded 200-step play rollout. A 20-iteration rough-terrain run constructed and trained, but most episodes terminated immediately on base contact, so it is not a successful rough-terrain policy.
+A fresh-agent validation used this skill to clone IsaacGymEnvs, migrate AnymalTerrain into an external package named `isaacgym_anymal_migration`, and register `IsaacGym-AnymalTerrain-Flat-Migrated-Direct-v0`. The package implemented its own `DirectRLEnv`, preserved a 188-dimensional AnymalTerrain-style observation, and validated import, registration, reset, random steps, RSL-RL training, and checkpoint loading.
+
+The migrated task trained for 500 RSL-RL iterations with 4096 environments. Mean reward improved from `0.003` to `3.30`, and XY velocity error improved from `0.735` to `0.222`, but the result was not a successful walking policy: final mean episode length was about `293` steps against a 1000-step horizon, yaw error stayed high at about `1.43`, success rate stayed near `0.12`, and base-contact terminations remained common. A 256-step checkpoint rollout with 64 environments had mean completed episode length `135.3` and success rate `0.165`.
+
+This failure mode points to command staging rather than simple execution failure. IsaacGymEnvs `AnymalTerrain.yaml` uses a yaw command range of `[-3.14, 3.14]`, which made the flat walking validation unstable. Future validation agents should narrow or curriculum-stage commands, or first migrate the simpler `Anymal.yaml` flat behavior, before returning to full AnymalTerrain parity and rough-terrain curriculum.
 
 ## Result
 

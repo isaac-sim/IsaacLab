@@ -27,7 +27,7 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 8. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
 9. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
 10. Run a small smoke test before scaling training.
-11. For locomotion migrations, validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately.
+11. For locomotion migrations, validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately. If the legacy task's command range is broad, use a staged command curriculum or a simpler flat source config such as IsaacGymEnvs `Anymal.yaml` before claiming policy success.
 12. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
 13. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
 14. Iterate through the validation loop until the environment resets, steps, trains, and reaches a task-appropriate policy metric.
