@@ -83,8 +83,8 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 
     # ground plane
     ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
+        prim_path="{ENV_REGEX_NS}/GroundPlane",
+        spawn=sim_utils.GroundPlaneCfg(size=(2.0, 2.0)),
     )
 
     # cartpole

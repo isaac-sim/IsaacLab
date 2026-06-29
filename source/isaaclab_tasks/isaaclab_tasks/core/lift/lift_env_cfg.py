@@ -51,9 +51,9 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # plane
     plane = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        init_state=AssetBaseCfg.InitialStateCfg(pos=[0, 0, -1.05]),
-        spawn=GroundPlaneCfg(),
+        prim_path="{ENV_REGEX_NS}/GroundPlane",
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, -1.05)),
+        spawn=GroundPlaneCfg(size=(2.0, 2.0)),
     )
 
     # lights

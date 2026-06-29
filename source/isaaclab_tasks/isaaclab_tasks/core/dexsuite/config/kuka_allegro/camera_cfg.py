@@ -58,7 +58,7 @@ RAYCASTER_CAMERA_MESH_PRIM_PATHS = [
         track_mesh_transforms=False,
     ),
     MultiMeshRayCasterCameraCfg.RaycastTargetCfg(
-        prim_expr="/World/GroundPlane",
+        prim_expr="{ENV_REGEX_NS}/GroundPlane",
         track_mesh_transforms=False,
     ),
     MultiMeshRayCasterCameraCfg.RaycastTargetCfg(

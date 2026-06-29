@@ -103,17 +103,16 @@ class SceneCfg(InteractiveSceneCfg):
 
     # table
     table: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/table",
+        prim_path="{ENV_REGEX_NS}/table",
         spawn=TABLE_SPAWN_CFG,
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.55, 0.0, 0.235), rot=(0.0, 0.0, 0.0, 1.0)),
     )
 
     # plane
     plane = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
+        prim_path="{ENV_REGEX_NS}/GroundPlane",
         init_state=AssetBaseCfg.InitialStateCfg(),
-        spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0)),
-        collision_group=-1,
+        spawn=sim_utils.GroundPlaneCfg(color=(1.0, 1.0, 1.0), size=(2.0, 2.0)),
     )
 
     # lights

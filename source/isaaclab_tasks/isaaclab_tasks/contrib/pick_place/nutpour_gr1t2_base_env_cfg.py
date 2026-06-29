@@ -43,7 +43,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Table
     table = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Table",
+        prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/nut_pour_task/nut_pour_assets/table.usd",
@@ -105,7 +105,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     robot: ArticulationCfg = GR1T2_CFG.replace(
-        prim_path="/World/envs/env_.*/Robot",
+        prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
             rot=(0.0, 0.0, 0.7071, 0.7071),
@@ -174,8 +174,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
 
     # Ground plane
     ground = AssetBaseCfg(
-        prim_path="/World/GroundPlane",
-        spawn=GroundPlaneCfg(),
+        prim_path="{ENV_REGEX_NS}/GroundPlane",
+        spawn=GroundPlaneCfg(size=(2.0, 2.0)),
     )
 
     # Lights

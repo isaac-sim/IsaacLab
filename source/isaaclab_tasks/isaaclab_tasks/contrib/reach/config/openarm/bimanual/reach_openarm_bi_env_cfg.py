@@ -37,8 +37,8 @@ class ReachSceneCfg(InteractiveSceneCfg):
 
     # world
     ground = AssetBaseCfg(
-        prim_path="/World/ground",
-        spawn=sim_utils.GroundPlaneCfg(),
+        prim_path="{ENV_REGEX_NS}/GroundPlane",
+        spawn=sim_utils.GroundPlaneCfg(size=(2.0, 2.0)),
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0)),
     )
 
