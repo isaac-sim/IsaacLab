@@ -14,8 +14,8 @@ import pytest
 from isaaclab.app import AppLauncher
 
 
-def test_simulation_context_import_does_not_import_kit_runtime_before_launch():
-    """Test that resolving SimulationContext does not import Isaac Sim runtime modules."""
+def test_prelaunch_imports_do_not_import_runtime_modules():
+    """Test that pre-launch imports do not import Isaac Sim runtime modules."""
     program = textwrap.dedent(
         """
         import json
@@ -40,8 +40,10 @@ def test_simulation_context_import_does_not_import_kit_runtime_before_launch():
         __builtins__.__import__ = import_hook
         try:
             from isaaclab.sim import SimulationContext
+            from isaaclab_tasks.core.cartpole import cartpole_direct_env
 
             assert SimulationContext.__name__ == "SimulationContext"
+            assert cartpole_direct_env.CartpoleEnv.__name__ == "CartpoleEnv"
         finally:
             __builtins__.__import__ = original_import
 
