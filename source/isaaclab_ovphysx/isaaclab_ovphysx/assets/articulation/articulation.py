@@ -4086,7 +4086,7 @@ class Articulation(BaseArticulation):
         buf_np = buffer.numpy()
         modified = False
         for pattern, value in pattern_dict.items():
-            for j, name in enumerate(self._joint_names):
+            for j, name in enumerate(self.joint_names):
                 if re.fullmatch(pattern, name):
                     buf_np[:, j] = value
                     modified = True

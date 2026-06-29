@@ -3142,6 +3142,28 @@ class TestArticulationOperations:
         assert art._body_wrench_force_backend is None
         assert art._body_wrench_torque_backend is None
 
+    def test_ovphysx_configured_defaults_use_public_joint_names(self):
+        """Resolve configured OVPhysX defaults against public joint names."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        art, _ = get_articulation(
+            "ovphysx",
+            1,
+            3,
+            2,
+            device="cpu",
+            joint_ordering=("joint_2", "joint_1", "joint_0"),
+        )
+        zeros = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+        art.data._default_joint_pos.assign(zeros)
+        art.data._default_joint_vel.assign(zeros)
+        patterns = {"joint_0": 10.0, "joint_1": 20.0, "joint_2": 30.0}
+
+        art._resolve_joint_values(patterns, art.data._default_joint_pos)
+
+        expected = np.asarray([[patterns[name] for name in art.joint_names]], dtype=np.float32)
+        np.testing.assert_array_equal(art.data.default_joint_pos.warp.numpy(), expected)
+
     def test_physx_newton_actuator_forces_are_written_in_backend_order(self):
         """Write Newton-actuator PhysX forces in backend joint order."""
         if "physx" not in BACKENDS:
@@ -3172,6 +3194,51 @@ class TestArticulationOperations:
 
         backend_to_user = np.asarray(art.joint_ordering.backend_to_user_indices, dtype=np.int64)
         np.testing.assert_allclose(captured["forces"], user_forces_np[:, backend_to_user])
+
+    @pytest.mark.parametrize(
+        ("method_name", "value_name", "controller_attr"),
+        [
+            ("write_actuator_stiffness_to_sim", "stiffness", "kp"),
+            ("write_actuator_damping_to_sim", "damping", "kd"),
+        ],
+    )
+    def test_physx_newton_actuator_gain_updates_use_public_joint_ids(
+        self, method_name: str, value_name: str, controller_attr: str
+    ):
+        """Route PhysX Newton-actuator gain updates by public joint ID."""
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        art, _ = get_articulation(
+            "physx",
+            1,
+            3,
+            2,
+            device="cpu",
+            joint_ordering=("joint_2", "joint_1", "joint_0"),
+        )
+        controller = MagicMock(
+            kp=wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"),
+            kd=wp.array([1.0, 2.0, 3.0], dtype=wp.float32, device="cpu"),
+        )
+        actuator = MagicMock(
+            controller=controller,
+            indices=wp.array([0, 1, 2], dtype=wp.uint32, device="cpu"),
+        )
+        adapter = MagicMock(actuators=[actuator])
+        object.__setattr__(art, "newton_actuator_adapter", adapter)
+
+        getattr(art, method_name)(
+            **{
+                value_name: torch.tensor([[99.0]], dtype=torch.float32),
+                "env_ids": torch.tensor([0], dtype=torch.int32),
+                "joint_ids": torch.tensor([0], dtype=torch.int32),
+            }
+        )
+
+        np.testing.assert_array_equal(
+            getattr(controller, controller_attr).numpy(),
+            np.asarray([99.0, 2.0, 3.0], dtype=np.float32),
+        )
 
     def test_physx_validate_cfg_reports_velocity_limits_in_public_joint_order(self):
         """Pair public default velocities with limits for the same named joint."""
