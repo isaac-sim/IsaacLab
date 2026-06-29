@@ -2,7 +2,7 @@
 
 ## Scope
 
-A fresh agent used this skill to clone `https://github.com/isaac-sim/IsaacGymEnvs`, select the Ant locomotion task, and build a scratch Isaac Lab direct migration outside the Isaac Lab checkout.
+A fresh agent used this skill to clone `https://github.com/isaac-sim/IsaacGymEnvs`, select the Ant locomotion task, and build a scratch Isaac Lab direct migration outside the Isaac Lab checkout. For future validations, start this scratch work from the Isaac Lab template generator's external project layout.
 
 Source artifacts:
 
@@ -25,21 +25,21 @@ Runtime rerun with a compatible Isaac Sim runtime:
 
 - `./isaaclab.sh -p` used the PR checkout, Python 3.12.13, and a Kit 110-era Isaac Sim runtime.
 - `isaacsim` and `omni` resolved from the active runtime. The `isaacsim.simulation_app` submodule was not present as a standalone import, but Isaac Lab's `AppLauncher` worked.
-- A clean `PYTHONPATH` was required: the scratch package first, then every package directory under this checkout's `source/`. Without this, Python mixed packages from another Isaac Lab checkout and hit duplicate Gym registrations.
+- A clean `PYTHONPATH` was required: the generated project extension first, then every package directory under this checkout's `source/`. Without this, Python mixed packages from another Isaac Lab checkout and hit duplicate Gym registrations.
 - The migrated environment constructed with 4 environments on `cuda:0`, `reset()` returned observations with shape `(4, 60)`, and one random step returned observations with shape `(4, 60)`.
 - A 2-iteration RSL-RL smoke run with 64 environments completed and wrote metrics. Iteration 0 logged mean reward `4.10`, mean episode length `13.00`, and success rate `1.0000`; iteration 1 logged mean reward `-19.77`, mean episode length `43.29`, and success rate `0.0000`.
 
 Open gates:
 
 - The scratch migration used a broad `ContactSensorCfg` pattern for foot observations and emitted missing rigid-body/contact-report warnings. Future migrations should validate sensor body names and use `JointWrenchSensorCfg` when legacy force-torque observations need torque components.
-- Isaac Lab's random-agent entry point was not validated for this external scratch package because it needs a wrapper or callback that imports the task before Gym lookup.
+- Isaac Lab's random-agent entry point was not validated for this external migration package because it needs a wrapper or callback that imports the task before Gym lookup.
 - The short training smoke proved that training starts and steps, but did not prove a successful Ant policy. Do not claim policy success until a longer run shows stable success or reward improvement.
 
 ## Skill Updates From This Validation
 
 - Run runtime preflight through the target checkout's `./isaaclab.sh -p` before promising reset, random-agent, or training success.
-- Put scratch packages and all target checkout `source/` packages first on `PYTHONPATH` during external validation.
-- Make external scratch package registration explicit for scripts that do not expose `--external_callback`.
+- Start external migrations from the Isaac Lab template generator, then put the generated project extension and all target checkout `source/` packages first on `PYTHONPATH` during external validation.
+- Make external migration package registration explicit for scripts that do not expose `--external_callback`.
 - Add legacy force/torque sensor mapping guidance so agents do not silently drop force sensor observations or ignore unresolved sensor prim warnings.
 
 ## Pass Criteria For A Complete Runtime Validation

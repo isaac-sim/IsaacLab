@@ -3,7 +3,7 @@
 ## Contents
 
 - Direct workflow mapping
-- External scratch packages
+- External template projects
 - Locomotion training gates
 - Policy success validation loop
 - Legacy force and torque sensors
@@ -29,9 +29,19 @@ Use this mapping as the default starting point:
 | Domain randomization hooks | Direct reset/startup logic first, event terms if the user wants manager-style randomization |
 | RL runner script | Isaac Lab training script for the chosen framework |
 
-## External Scratch Packages
+## External Template Projects
 
-When validating a migration outside the Isaac Lab tree, keep the package importable through `PYTHONPATH` and register the Gym task by importing the package before `gym.make()` or registry lookups. Put the scratch package first, then every package directory under the target Isaac Lab checkout's `source/` directory. This prevents Python from mixing the active checkout with another installed Isaac Lab checkout and causing duplicate Gym registration or stale task imports. For scripts that do not expose `--external_callback`, create a small wrapper that imports the migrated package before running the Isaac Lab entry point. For training scripts that support external callbacks, point the callback to a registration function such as `my_migrated_task.register.register`.
+When validating a migration outside the Isaac Lab tree, start with the template generator instead of hand-rolling the external package structure. Run `./isaaclab.sh -n` or `isaaclab.bat -n`, then choose:
+
+- `External` project.
+- The scratch directory as the project path.
+- A valid Python identifier for the project name, such as `isaacgym_anymal_migration`.
+- `Direct | single-agent` for the first Isaac Gym parity pass.
+- The target RL library, usually `rsl_rl` for locomotion validation.
+
+Replace the generated task implementation with the migrated environment, config, registration, and agent config, preserving the generated project layout. The generated project gives agents a known `source/<project>/<project>/tasks/...` structure, `pyproject.toml`, extension metadata, scripts, and task registration pattern.
+
+For validation, install the generated extension in editable mode with the target Isaac Lab Python, or keep it importable through `PYTHONPATH`. If using `PYTHONPATH`, put the generated project's extension package first, then every package directory under the target Isaac Lab checkout's `source/` directory. This prevents Python from mixing the active checkout with another installed Isaac Lab checkout and causing duplicate Gym registration or stale task imports. If editable install makes task registration available automatically, omit external callbacks. For uninstalled scratch validation, use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
 
 Do not treat successful config loading as training success. Import/register, config resolution, static compilation, reset/step, random-agent, and short training are separate gates.
 
@@ -71,36 +81,43 @@ Use this loop for each implementation iteration:
 7. Load the saved checkpoint in `play` or an equivalent bounded rollout and collect rollout metrics.
 8. If the policy fails, modify the migration and rerun the shortest affected gate. Continue until success or until a concrete blocker is documented.
 
-For an external scratch package, use commands like these as templates. Replace the task id, callback, runner, and log paths with the migrated package names:
+For an external template project, use commands like these as templates. Replace the task id, callback, project path, extension path, and log paths with the migrated package names:
 
 ```bash
 export LAB=/path/to/IsaacLab
-export SCRATCH=/path/to/migration-scratch
-export PYTHONPATH="$SCRATCH:$(find "$LAB/source" -mindepth 1 -maxdepth 1 -type d | paste -sd: -)"
+export PROJECT=/path/to/migration-scratch/isaacgym_anymal_migration
+export EXTENSION="$PROJECT/source/isaacgym_anymal_migration"
+export PYTHONPATH="$EXTENSION:$(find "$LAB/source" -mindepth 1 -maxdepth 1 -type d | paste -sd: -)"
+
+# Optional when validating as an installed template project:
+./isaaclab.sh -p -m pip install -e "$EXTENSION"
 
 ./isaaclab.sh -p -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
 
-./isaaclab.sh -p validation/smoke_my_task.py --headless --device cuda:0 --num_envs 16 --steps 8
+./isaaclab.sh -p "$PROJECT/validation/smoke_my_task.py" --device cuda:0 --num_envs 16 --steps 8
 
-./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+./isaaclab.sh train --rl_library rsl_rl \
   --task My-Migrated-Task-v0 \
   --external_callback my_migration.register.register \
-  --headless --device cuda:0 --num_envs 4096 --max_iterations 500
+  --device cuda:0 --num_envs 4096 --max_iterations 500
 
-./isaaclab.sh -p validation/parse_tensorboard.py logs/path/to/run --output validation/train_metrics.json
+./isaaclab.sh -p "$PROJECT/validation/parse_tensorboard.py" "$PROJECT/logs/path/to/run" --output "$PROJECT/validation/train_metrics.json"
 
-./isaaclab.sh -p validation/evaluate_checkpoint.py \
-  --checkpoint logs/path/to/run/model_499.pt \
-  --num_envs 64 --steps 256 --device cuda:0 --headless
+./isaaclab.sh -p "$PROJECT/validation/evaluate_checkpoint.py" \
+  --checkpoint "$PROJECT/logs/path/to/run/model_499.pt" \
+  --num_envs 64 --steps 256 --device cuda:0
 ```
+
+Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers. Do not use deprecated `--headless` in new validation commands.
 
 On Windows, use `.\isaaclab.bat` and set the same path order with PowerShell:
 
 ```powershell
 $lab = "C:/path/to/IsaacLab"
-$scratch = "C:/path/to/migration-scratch"
+$project = "C:/path/to/migration-scratch/isaacgym_anymal_migration"
+$extension = "$project/source/isaacgym_anymal_migration"
 $srcs = Get-ChildItem "$lab/source" -Directory | ForEach-Object { $_.FullName }
-$env:PYTHONPATH = $scratch + ";" + ($srcs -join ";")
+$env:PYTHONPATH = $extension + ";" + ($srcs -join ";")
 ```
 
 If no validation helper scripts exist, create the smallest scratch-only smoke, scalar parsing, and checkpoint evaluation scripts needed for the migration task. Do not add those helpers to Isaac Lab unless the user asks for committed validation files.
