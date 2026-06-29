@@ -796,6 +796,56 @@ def _assert_proxy_close(actual, expected: torch.Tensor) -> None:
     torch.testing.assert_close(actual.torch.cpu(), expected, rtol=1.0e-5, atol=1.0e-5)
 
 
+def _clone_backend_tensor(array) -> torch.Tensor:
+    """Return a CPU tensor clone from a backend Warp or NumPy array."""
+    if isinstance(array, np.ndarray):
+        return torch.from_numpy(array.copy())
+    return wp.to_torch(array).detach().cpu().clone()
+
+
+def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[str, torch.Tensor]:
+    """Return backend-order joint property values for ordering parity checks."""
+    if backend == "physx":
+        return {
+            "stiffness": _clone_backend_tensor(raw_backend.get_dof_stiffnesses()),
+            "damping": _clone_backend_tensor(raw_backend.get_dof_dampings()),
+            "armature": _clone_backend_tensor(raw_backend.get_dof_armatures()),
+            "position_limits": _clone_backend_tensor(raw_backend.get_dof_limits()),
+            "velocity_limits": _clone_backend_tensor(raw_backend.get_dof_max_velocities()),
+            "effort_limits": _clone_backend_tensor(raw_backend.get_dof_max_forces()),
+            "friction": _clone_backend_tensor(raw_backend.get_dof_friction_properties())[..., 0],
+        }
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        return {
+            "stiffness": _clone_backend_tensor(raw_backend.bindings[TT.DOF_STIFFNESS]._data),
+            "damping": _clone_backend_tensor(raw_backend.bindings[TT.DOF_DAMPING]._data),
+            "armature": _clone_backend_tensor(raw_backend.bindings[TT.DOF_ARMATURE]._data),
+            "position_limits": _clone_backend_tensor(raw_backend.bindings[TT.DOF_LIMIT]._data),
+            "velocity_limits": _clone_backend_tensor(raw_backend.bindings[TT.DOF_MAX_VELOCITY]._data),
+            "effort_limits": _clone_backend_tensor(raw_backend.bindings[TT.DOF_MAX_FORCE]._data),
+            "friction": _clone_backend_tensor(raw_backend.bindings[TT.DOF_FRICTION_PROPERTIES]._data)[..., 0],
+        }
+    if backend == "newton":
+        return {
+            "stiffness": _clone_backend_tensor(art.data._sim_bind_joint_stiffness_sim),
+            "damping": _clone_backend_tensor(art.data._sim_bind_joint_damping_sim),
+            "armature": _clone_backend_tensor(art.data._sim_bind_joint_armature),
+            "position_limits": torch.stack(
+                (
+                    _clone_backend_tensor(art.data._sim_bind_joint_pos_limits_lower),
+                    _clone_backend_tensor(art.data._sim_bind_joint_pos_limits_upper),
+                ),
+                dim=-1,
+            ),
+            "velocity_limits": _clone_backend_tensor(art.data._sim_bind_joint_vel_limits_sim),
+            "effort_limits": _clone_backend_tensor(art.data._sim_bind_joint_effort_limits_sim),
+            "friction": _clone_backend_tensor(art.data._sim_bind_joint_friction_coeff),
+        }
+    raise AssertionError(f"Unsupported backend for joint-property ordering test: {backend}")
+
+
 # Common parametrize decorator for all interface tests
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
 
@@ -1878,6 +1928,57 @@ class TestArticulationDataJointState:
             torch.from_numpy((second - first)[:, user_to_backend] / 0.1),
         )
 
+    def test_ovphysx_ordered_joint_state_is_cached_per_sim_timestamp(self):
+        """Gather ordered OVPhysX joint position and velocity at most once per timestamp."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        art, _ = get_articulation(
+            "ovphysx",
+            2,
+            3,
+            2,
+            device="cpu",
+            joint_ordering=("joint_2", "joint_1", "joint_0"),
+        )
+        art.data.update(0.01)
+
+        art.data.joint_pos.torch.clone()
+        art.data.joint_vel.torch.clone()
+
+        assert art.data._joint_pos_buf.timestamp == art.data._sim_timestamp
+        assert art.data._joint_vel_buf.timestamp == art.data._sim_timestamp
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 2)])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_reversed_joint_ordering_reorders_public_joint_properties(
+        self, backend, num_instances, num_joints, num_bodies, device
+    ):
+        """Expose every backend joint property under the matching public joint name."""
+        joint_ordering = tuple(f"joint_{index}" for index in reversed(range(num_joints)))
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances,
+            num_joints,
+            num_bodies,
+            device=device,
+            joint_ordering=joint_ordering,
+        )
+        user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
+        backend_properties = _get_backend_joint_property_tensors(backend, art, raw_backend)
+        public_properties = {
+            "stiffness": art.data.joint_stiffness,
+            "damping": art.data.joint_damping,
+            "armature": art.data.joint_armature,
+            "position_limits": art.data.joint_pos_limits,
+            "velocity_limits": art.data.joint_vel_limits,
+            "effort_limits": art.data.joint_effort_limits,
+            "friction": art.data.joint_friction_coeff,
+        }
+
+        for property_name, public_property in public_properties.items():
+            _assert_proxy_close(public_property, backend_properties[property_name][:, user_to_backend])
+
     @_backends
     @_default_dims
     @_default_devices
@@ -2275,6 +2376,31 @@ class TestArticulationOperations:
 
         backend_to_user = np.asarray(art.joint_ordering.backend_to_user_indices, dtype=np.int64)
         np.testing.assert_allclose(captured["forces"], user_forces_np[:, backend_to_user])
+
+    def test_physx_validate_cfg_reports_velocity_limits_in_public_joint_order(self):
+        """Pair public default velocities with limits for the same named joint."""
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        art, raw_backend = get_articulation(
+            "physx",
+            1,
+            3,
+            2,
+            device="cpu",
+            joint_ordering=("joint_2", "joint_1", "joint_0"),
+        )
+        backend_velocity_limits = np.asarray([[1.0, 100.0, 100.0]], dtype=np.float32)
+        public_velocity_limits = backend_velocity_limits[:, [2, 1, 0]]
+        raw_backend.set_mock_dof_max_velocities(wp.array(backend_velocity_limits, dtype=wp.float32, device="cpu"))
+        art.data._joint_vel_limits.assign(wp.array(public_velocity_limits, dtype=wp.float32, device="cpu"))
+        art.data._joint_pos_limits.assign(wp.array(np.tile((-100.0, 100.0), (1, 3, 1)), dtype=wp.vec2f, device="cpu"))
+        art.data._default_joint_pos.assign(wp.zeros((1, 3), dtype=wp.float32, device="cpu"))
+        art.data._default_joint_vel.assign(
+            wp.array(np.asarray([[50.0, 50.0, 2.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+        )
+
+        with pytest.raises(ValueError, match=r"'joint_0': 2\.000 not in \[-1\.000, 1\.000\]"):
+            art._validate_cfg()
 
 
 # ---------------------------------------------------------------------------

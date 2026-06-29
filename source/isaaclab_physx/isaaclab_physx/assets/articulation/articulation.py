@@ -4629,7 +4629,7 @@ class Articulation(BaseArticulation):
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
+        joint_max_vel = self._data.joint_vel_limits.torch[0]
         out_of_range = torch.abs(self._data.default_joint_vel.torch[0]) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:

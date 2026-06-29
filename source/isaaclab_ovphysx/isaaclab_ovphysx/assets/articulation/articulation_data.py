@@ -1096,14 +1096,16 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         if self._has_joint_ordering:
-            self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_backend)
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[self._joint_pos_backend.data, self._joint_user_to_backend],
-                outputs=[self._joint_pos_buf.data],
-                device=self.device,
-            )
+            if self._joint_pos_buf.timestamp < self._sim_timestamp:
+                self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_backend)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[self._joint_pos_backend.data, self._joint_user_to_backend],
+                    outputs=[self._joint_pos_buf.data],
+                    device=self.device,
+                )
+                self._joint_pos_buf.timestamp = self._joint_pos_backend.timestamp
         else:
             self._read_binding_into_buf(TT.DOF_POSITION, self._joint_pos_buf)
         if self._joint_pos_ta is None:
@@ -1117,14 +1119,16 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32.
         """
         if self._has_joint_ordering:
-            self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_backend)
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self.num_instances, self.num_joints),
-                inputs=[self._joint_vel_backend.data, self._joint_user_to_backend],
-                outputs=[self._joint_vel_buf.data],
-                device=self.device,
-            )
+            if self._joint_vel_buf.timestamp < self._sim_timestamp:
+                self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_backend)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[self._joint_vel_backend.data, self._joint_user_to_backend],
+                    outputs=[self._joint_vel_buf.data],
+                    device=self.device,
+                )
+                self._joint_vel_buf.timestamp = self._joint_vel_backend.timestamp
         else:
             self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_buf)
         if self._joint_vel_ta is None:

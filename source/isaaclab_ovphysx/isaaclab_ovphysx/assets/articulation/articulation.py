@@ -3893,7 +3893,7 @@ class Articulation(BaseArticulation):
         self._ALL_TRUE_SPATIAL_TENDON_MASK = wp.array(np.ones(ST, dtype=bool), dtype=wp.bool, device=device)
 
         # Wrench buffer (force, torque, position) per body, written by the
-        # ``_body_wrench_to_world`` kernel and consumed by the
+        # ``_body_wrench_to_world_ordered`` kernel and consumed by the
         # ``LINK_WRENCH`` binding which expects the 3D ``(N, B, 9)`` shape.
         self._wrench_buf = wp.zeros((N, B, 9), dtype=wp.float32, device=device)
         self._joint_pos_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
