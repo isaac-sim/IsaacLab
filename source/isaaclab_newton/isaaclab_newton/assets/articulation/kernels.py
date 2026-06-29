@@ -38,6 +38,27 @@ Articulation-specific warp kernels.
 
 
 @wp.kernel
+def update_wrench_array_with_force_and_torque_ordered(
+    forces: wp.array2d(dtype=wp.vec3f),
+    torques: wp.array2d(dtype=wp.vec3f),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    wrench: wp.array2d(dtype=wp.spatial_vectorf),
+    env_mask: wp.array(dtype=wp.bool),
+    body_mask: wp.array(dtype=wp.bool),
+) -> None:
+    """Write public-order force and torque into a backend-order wrench array."""
+    env_id, user_body_id = wp.tid()
+    if env_mask[env_id] and body_mask[user_body_id]:
+        backend_body_id = user_body_id
+        if has_ordering:
+            backend_body_id = user_to_backend[user_body_id]
+        wrench[env_id, backend_body_id] = wp.spatial_vector(
+            forces[env_id, user_body_id], torques[env_id, user_body_id], wp.float32
+        )
+
+
+@wp.kernel
 def get_joint_acc_from_joint_vel(
     joint_vel: wp.array2d(dtype=wp.float32),
     prev_joint_vel: wp.array2d(dtype=wp.float32),

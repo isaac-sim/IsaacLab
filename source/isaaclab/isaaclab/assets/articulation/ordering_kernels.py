@@ -74,6 +74,21 @@ def reorder_2d_user_to_backend(
 
 
 @wp.kernel
+def reorder_body_wrench_user_to_backend(
+    user_force: wp.array2d(dtype=wp.vec3f),
+    user_torque: wp.array2d(dtype=wp.vec3f),
+    backend_to_user: wp.array(dtype=wp.int32),
+    backend_force: wp.array2d(dtype=wp.vec3f),
+    backend_torque: wp.array2d(dtype=wp.vec3f),
+) -> None:
+    """Reorder public body-frame force and torque into backend body order."""
+    env_id, backend_body_id = wp.tid()
+    user_body_id = backend_to_user[backend_body_id]
+    backend_force[env_id, backend_body_id] = user_force[env_id, user_body_id]
+    backend_torque[env_id, backend_body_id] = user_torque[env_id, user_body_id]
+
+
+@wp.kernel
 def reorder_3d_user_to_backend(
     user_data: wp.array3d(dtype=Any),
     backend_to_user: wp.array(dtype=wp.int32),

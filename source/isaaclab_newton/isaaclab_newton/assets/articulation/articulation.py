@@ -351,12 +351,14 @@ class Articulation(BaseArticulation):
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
             wp.launch(
-                shared_kernels.update_wrench_array_with_force_and_torque,
+                articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    composer.out_force_b.warp,
+                    composer.out_torque_b.warp,
+                    self._body_user_to_backend,
+                    self._has_body_ordering,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,

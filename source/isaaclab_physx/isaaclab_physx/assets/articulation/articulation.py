@@ -273,6 +273,17 @@ class Articulation(BaseArticulation):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
+    def _cache_ordering_maps(self) -> None:
+        """Cache ordering maps and allocate ordered-wrench staging when required."""
+        super()._cache_ordering_maps()
+        if self._has_body_ordering:
+            shape = (self.num_instances, self.num_bodies)
+            self._body_wrench_force_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+            self._body_wrench_torque_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+        else:
+            self._body_wrench_force_backend = None
+            self._body_wrench_torque_backend = None
+
     def _get_backend_ordered_joint_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
         """Return a backend-order view/copy for a public user-order joint buffer."""
         if not self._has_joint_ordering:
@@ -362,13 +373,29 @@ class Articulation(BaseArticulation):
             else:
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
-            self.root_view.apply_forces_and_torques_at_position(
-                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
-                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
-                position_data=None,
-                indices=self._ALL_INDICES,
-                is_global=False,
-            )
+            if self._has_body_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_body_wrench_user_to_backend,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[composer.out_force_b.warp, composer.out_torque_b.warp, self._body_backend_to_user],
+                    outputs=[self._body_wrench_force_backend, self._body_wrench_torque_backend],
+                    device=self.device,
+                )
+                self.root_view.apply_forces_and_torques_at_position(
+                    force_data=self._body_wrench_force_backend.flatten().view(wp.float32),
+                    torque_data=self._body_wrench_torque_backend.flatten().view(wp.float32),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
+            else:
+                self.root_view.apply_forces_and_torques_at_position(
+                    force_data=composer.out_force_b.warp.flatten().view(wp.float32),
+                    torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
+                    position_data=None,
+                    indices=self._ALL_INDICES,
+                    is_global=False,
+                )
         self._instantaneous_wrench_composer.reset()
 
         if getattr(self, "_has_newton_actuators", False):

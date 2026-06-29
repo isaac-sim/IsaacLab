@@ -30,7 +30,6 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
-from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
 from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
 from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
@@ -322,9 +321,9 @@ class Articulation(BaseArticulation):
             # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``
             poses = self._data.body_link_pose_w.warp
             wp.launch(
-                _body_wrench_to_world,
+                shared_kernels._body_wrench_to_world_ordered,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[force_b, torque_b, poses],
+                inputs=[force_b, torque_b, poses, self._body_user_to_backend, self._has_body_ordering],
                 outputs=[self._wrench_buf],
                 device=self._device,
             )

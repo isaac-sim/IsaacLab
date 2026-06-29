@@ -57,6 +57,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+from isaaclab.utils.wrench_composer import WrenchComposer
 
 # Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity.
 # This is needed because the PhysX Data classes call
@@ -214,9 +215,25 @@ def create_physx_articulation(
     articulation._cache_ordering_maps()
 
     # Initialize joint targets
-    object.__setattr__(articulation, "_joint_pos_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_vel_target_sim", torch.zeros(num_instances, num_joints, device=device))
-    object.__setattr__(articulation, "_joint_effort_target_sim", torch.zeros(num_instances, num_joints, device=device))
+    joint_target_shape = (num_instances, num_joints)
+    object.__setattr__(
+        articulation, "_joint_pos_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+    )
+    object.__setattr__(
+        articulation, "_joint_vel_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+    )
+    object.__setattr__(
+        articulation, "_joint_effort_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+    )
+    object.__setattr__(
+        articulation, "_joint_pos_target_backend", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+    )
+    object.__setattr__(
+        articulation, "_joint_vel_target_backend", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+    )
+    object.__setattr__(
+        articulation, "_joint_effort_target_backend", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+    )
 
     # Cached .view(wp.float32) wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
@@ -322,6 +339,9 @@ def create_ovphysx_articulation(
     mock_perm_wrench = MockWrenchComposer(articulation)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
+    object.__setattr__(articulation, "_effort_write_view", None)
+    object.__setattr__(articulation, "_pos_target_write_view", None)
+    object.__setattr__(articulation, "_vel_target_write_view", None)
 
     # Prevent __del__ / _clear_callbacks from raising
     object.__setattr__(articulation, "_initialize_handle", None)
@@ -329,6 +349,7 @@ def create_ovphysx_articulation(
     object.__setattr__(articulation, "_prim_deletion_handle", None)
     object.__setattr__(articulation, "_debug_vis_handle", None)
     object.__setattr__(articulation, "actuators", {})
+    object.__setattr__(articulation, "_has_implicit_actuators", False)
 
     return articulation, mock_bindings
 
@@ -738,6 +759,31 @@ def _set_body_ordering_backend_data(
         )
     else:
         raise AssertionError(f"Unsupported backend for body-ordering test: {backend}")
+
+
+def _set_identity_body_poses(backend: str, art, raw_backend) -> None:
+    """Give the OVPhysX wrench transform deterministic identity rotations."""
+    if backend != "ovphysx":
+        return
+    from isaaclab_ovphysx import tensor_types as TT
+
+    poses = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
+    poses[..., 6] = 1.0
+    raw_backend.bindings[TT.LINK_POSE]._data = poses
+    art.data._reset_pose()
+
+
+def _read_backend_wrench(backend: str, art, raw_backend, captured: dict) -> tuple[np.ndarray, np.ndarray]:
+    """Return force and torque from the concrete backend write target."""
+    if backend == "physx":
+        return captured["force"], captured["torque"]
+    if backend == "newton":
+        wrench = art.data._sim_bind_body_external_wrench.numpy()
+        return wrench[..., :3], wrench[..., 3:6]
+    from isaaclab_ovphysx import tensor_types as TT
+
+    wrench = raw_backend.bindings[TT.LINK_WRENCH]._data
+    return wrench[..., :3], wrench[..., 3:6]
 
 
 def _clone_proxy_tensor(arr) -> torch.Tensor:
@@ -2048,6 +2094,71 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 
 class TestArticulationOperations:
     """Test cross-cutting articulation operations."""
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("with_body_ordering", [False, True], ids=["none", "ordered"])
+    @pytest.mark.parametrize("is_fixed_base", [False, True], ids=["floating", "fixed"])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_external_wrenches_are_written_in_backend_body_order(
+        self, backend, with_body_ordering, is_fixed_base, device
+    ):
+        """Write public-order body wrenches to each backend in backend body order."""
+        num_instances, num_joints, num_bodies = 2, 1, 4
+        backend_body_names = tuple(f"body_{index}" for index in range(num_bodies))
+        body_ordering = None
+        if with_body_ordering:
+            if is_fixed_base:
+                body_ordering = (backend_body_names[0], *reversed(backend_body_names[1:]))
+            else:
+                body_ordering = tuple(reversed(backend_body_names))
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances,
+            num_joints,
+            num_bodies,
+            device=device,
+            is_fixed_base=is_fixed_base,
+            body_ordering=body_ordering,
+        )
+        _set_identity_body_poses(backend, art, raw_backend)
+        object.__setattr__(art, "_instantaneous_wrench_composer", WrenchComposer(art))
+        object.__setattr__(art, "_permanent_wrench_composer", WrenchComposer(art))
+        captured = {}
+        if backend == "physx":
+
+            def capture_wrench(*, force_data, torque_data, position_data, indices, is_global):
+                captured["force"] = force_data.numpy().reshape(num_instances, num_bodies, 3).copy()
+                captured["torque"] = torque_data.numpy().reshape(num_instances, num_bodies, 3).copy()
+
+            raw_backend.apply_forces_and_torques_at_position = capture_wrench
+
+        forces = np.arange(num_instances * num_bodies * 3, dtype=np.float32).reshape(num_instances, num_bodies, 3)
+        torques = forces + 100.0
+        art.instantaneous_wrench_composer.set_forces_and_torques_index(
+            forces=wp.array(forces, dtype=wp.vec3f, device=device),
+            torques=wp.array(torques, dtype=wp.vec3f, device=device),
+        )
+
+        art.write_data_to_sim()
+
+        backend_to_user = (
+            np.arange(num_bodies, dtype=np.int64)
+            if art.body_ordering is None
+            else np.asarray(art.body_ordering.backend_to_user_indices, dtype=np.int64)
+        )
+        backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
+        np.testing.assert_allclose(backend_force, forces[:, backend_to_user])
+        np.testing.assert_allclose(backend_torque, torques[:, backend_to_user])
+
+    def test_physx_none_ordering_allocates_no_external_wrench_staging_buffers(self):
+        """Keep the default PhysX wrench path free of reorder staging allocations."""
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        art, _ = get_articulation("physx", 2, 1, 4, device="cpu")
+
+        assert art.body_ordering is None
+        assert art._body_wrench_force_backend is None
+        assert art._body_wrench_torque_backend is None
 
     def test_physx_newton_actuator_forces_are_written_in_backend_order(self):
         """Write Newton-actuator PhysX forces in backend joint order."""
