@@ -712,6 +712,24 @@ regardless of import path order.
 """
 
 
+def _force_remove(path: Path) -> None:
+    """Recursively remove a file, directory, or symlink. A missing path is a no-op.
+
+    Uses absolute-path :func:`os.unlink` / :func:`os.rmdir` rather than the
+    ``dir_fd``-relative operations :func:`shutil.rmtree` performs internally. On
+    an overlayfs *lower* layer (e.g. inside a Docker image build) the ``dir_fd``
+    variant raises ``EINVAL``, whereas the plain ``unlink(2)`` / ``rmdir(2)``
+    syscalls create the proper whiteout. This makes prebundle neutralization
+    behave identically on a normal filesystem and on an overlayfs lower layer.
+    """
+    if path.is_symlink() or path.is_file():
+        os.unlink(path)
+    elif path.is_dir():
+        for child in path.iterdir():
+            _force_remove(child)
+        os.rmdir(path)
+
+
 def _repoint_prebundle_packages() -> None:
     """Replace prebundled packages in Isaac Sim with symlinks to the active environment.
 
@@ -791,16 +809,15 @@ def _repoint_prebundle_packages() -> None:
                 continue
 
             try:
-                if prebundled.is_symlink():
-                    if prebundled.resolve() == venv_pkg.resolve():
-                        continue
-                    prebundled.unlink()
-                else:
-                    backup = prebundle_dir / f"{pkg_name}.bak"
-                    if backup.exists() or backup.is_symlink():
-                        shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
-                    prebundled.rename(backup)
-
+                # Already repointed to the right place — nothing to do.
+                if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
+                    continue
+                # Replace the prebundled copy (a stale symlink or a real directory)
+                # with a symlink to the active environment. We remove rather than
+                # rename-to-``.bak``: the env copy is the symlink target, so the
+                # prebundle content is redundant, and renaming a directory on an
+                # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
+                _force_remove(prebundled)
                 if use_symlinks:
                     prebundled.symlink_to(venv_pkg)
                 else:
@@ -816,6 +833,24 @@ def _repoint_prebundle_packages() -> None:
         )
     else:
         print_debug("All prebundled packages already up-to-date — nothing to repoint.")
+
+    # Fail loud: a real (non-symlink) prebundled ``torch`` left behind shadows the
+    # pip-installed torch on launch paths that do not import ``isaaclab`` (e.g.
+    # ``isaac-sim.streaming.sh``), pulling a mismatched NCCL and crashing with
+    # ``undefined symbol: ncclDevCommCreate``. Never let that state ship silently.
+    # Only relevant when symlinking (Linux); the Windows branch deliberately copies the
+    # env package into the prebundle, which is a real directory by design.
+    if use_symlinks and (site_packages / "torch").exists():
+        shadowing = [
+            prebundle_dir / "torch"
+            for prebundle_dir in prebundle_dirs
+            if (prebundle_dir / "torch").is_dir() and not (prebundle_dir / "torch").is_symlink()
+        ]
+        if shadowing:
+            raise RuntimeError(
+                "Failed to neutralize prebundled torch under Isaac Sim; the following would shadow the "
+                "pip-installed torch and crash non-isaaclab launches:\n  " + "\n  ".join(str(p) for p in shadowing)
+            )
 
 
 def command_install(install_type: str = "all") -> None:
