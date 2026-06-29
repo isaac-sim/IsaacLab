@@ -9,18 +9,12 @@ from pathlib import Path
 
 import pytest
 
-# scripts/benchmarks/test/conftest.py -> repo root is parents[3]
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 @pytest.fixture
 def require_isaacsim():
-    """Skip the test up-front when Isaac Sim is unavailable in this environment.
-
-    Checks before launching the benchmark subprocess so that a genuine non-zero
-    exit (broken import, unregistered task, adapter crash) is reported as a real
-    failure rather than masked as "Isaac Sim unavailable".
-    """
+    """Skip benchmark smoke tests when Isaac Sim is unavailable."""
     try:
         import isaacsim  # noqa: F401
     except ImportError:

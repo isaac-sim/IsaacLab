@@ -21,27 +21,17 @@ Usage example::
 from __future__ import annotations
 
 import argparse
-import os
 import sys
-
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-
-from scripts.benchmarks._common import get_formatter_types, preset_tokens  # noqa: E402
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
-    """Parse CLI arguments and forward the remaining Hydra preset tokens via ``sys.argv``.
-
-    Builds the parser, appends launcher args via :func:`~isaaclab.app.add_launcher_args`, then
-    calls :func:`~isaaclab_tasks.utils.setup_preset_cli` to split known args from the verbatim
-    remainder (``physics=`` / ``renderer=`` / ``presets=`` tokens). The remainder is written back
-    to ``sys.argv`` so that Hydra and ``launch_simulation`` pick up the preset selection.
+    """Parse benchmark arguments and retain Hydra overrides in ``sys.argv``.
 
     Args:
-        argv: Raw command-line arguments (``sys.argv[1:]``).
+        argv: Command-line arguments excluding the script path.
 
     Returns:
-        Tuple of ``(parsed_args, remaining)`` where *remaining* are the Hydra preset tokens.
+        Parsed arguments and the remaining Hydra overrides.
     """
     from isaaclab.app import add_launcher_args
 
@@ -59,7 +49,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         default="schema",
         help=(
             "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-            " 'omniperf', 'osmo', 'json', 'summary'. Legacy long-form aliases accepted."
+            " 'omniperf', 'osmo', 'json', 'summary'."
             " Example: 'schema,omniperf'."
         ),
     )
@@ -74,8 +64,7 @@ def run(argv: list[str]) -> None:
     """Run the runtime benchmark and write a :class:`~isaaclab.test.benchmark.schema.RuntimeBundle`.
 
     Args:
-        argv: Command-line arguments, excluding the script path (i.e.
-            ``sys.argv[1:]``).
+        argv: Command-line arguments excluding the script path.
     """
     import contextlib
     import time
@@ -110,12 +99,13 @@ def run(argv: list[str]) -> None:
         if args.seed is not None:
             env_cfg.seed = args.seed
 
-        formatter_types = get_formatter_types(args.benchmark_formatter)
-        tokens = preset_tokens(remaining)
+        formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
+        formatter_types = formatter_types or ["omniperf"]
+        cfg = capture.run_config_from_presets(remaining)
 
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_runtime",
-            formatter_type=formatter_types,
+            formatter_type=args.benchmark_formatter,
             output_path=args.output_path,
             use_recorders=True,
             frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
@@ -125,73 +115,69 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args.task},
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
-                    {"name": "presets", "data": ",".join(tokens)},
+                    {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
         )
 
         env_t0 = time.perf_counter_ns()
-        env = gym.make(args.task, cfg=env_cfg)
-        env_t1 = time.perf_counter_ns()
+        with contextlib.closing(gym.make(args.task, cfg=env_cfg)) as env:
+            env_t1 = time.perf_counter_ns()
 
-        num_envs = env.unwrapped.num_envs
+            num_envs = env.unwrapped.num_envs
 
-        with BenchmarkMonitor(benchmark, interval=1.0):
-            step_times_s = stepping.run_runtime_loop(env, args.num_frames)
+            with BenchmarkMonitor(benchmark, interval=1.0):
+                step_times_s = stepping.run_runtime_loop(env, args.num_frames)
 
-        benchmark.update_manual_recorders()
+            benchmark.update_manual_recorders()
 
-        startup = StartupTime(
-            app_launch=(app_t1 - app_t0) / 1e9,
-            env_creation=(env_t1 - env_t0) / 1e9,
-            first_step=(step_times_s[0] if step_times_s else 0.0),
-        )
+            startup = StartupTime(
+                app_launch=(app_t1 - app_t0) / 1e9,
+                env_creation=(env_t1 - env_t0) / 1e9,
+                first_step=(step_times_s[0] if step_times_s else 0.0),
+            )
 
-        fps = [num_envs / t for t in step_times_s if t > 0]
-        runtime = builders.build_runtime(
-            startup_time_s=startup,
-            iteration_times_s=step_times_s,
-            collection_fps=fps,
-            total_fps=fps,
-            steps_per_iteration=num_envs,
-        )
+            fps = [num_envs / t for t in step_times_s if t > 0]
+            runtime = builders.build_runtime(
+                startup_time_s=startup,
+                iteration_times_s=step_times_s,
+                collection_fps=fps,
+                total_fps=fps,
+                steps_per_iteration=num_envs,
+            )
 
-        versions = capture.capture_versions(benchmark)
-        hardware = capture.capture_hardware(benchmark)
-        resources = capture.capture_resources(benchmark)
+            versions = capture.capture_versions(benchmark)
+            hardware = capture.capture_hardware(benchmark)
+            resources = capture.capture_resources(benchmark)
 
-        cfg = capture.run_config_from_presets(tokens)
+            end_utc = capture.now_utc_iso()
+            stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
 
-        end_utc = capture.now_utc_iso()
-        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+            seed = args.seed if args.seed is not None else 0
+            run_id = capture.synth_run_id(None, cfg.physics_backend, args.task, seed, stamp)
 
-        seed = args.seed if args.seed is not None else 0
-        run_id = capture.synth_run_id(None, cfg.physics_backend, args.task, seed, stamp)
+            run = builders.build_run_identity(
+                run_id=run_id,
+                framework=None,
+                config=cfg,
+                task=args.task,
+                seed=seed,
+                start_utc=start_utc,
+                end_utc=end_utc,
+                num_envs=num_envs,
+            )
 
-        run = builders.build_run_identity(
-            run_id=run_id,
-            framework=None,
-            config=cfg,
-            task=args.task,
-            seed=seed,
-            start_utc=start_utc,
-            end_utc=end_utc,
-            num_envs=num_envs,
-        )
+            bundle = builders.build_runtime_bundle(
+                run=run,
+                versions=versions,
+                hardware=hardware,
+                runtime=runtime,
+                resources=resources,
+            )
 
-        bundle = builders.build_runtime_bundle(
-            run=run,
-            versions=versions,
-            hardware=hardware,
-            runtime=runtime,
-            resources=resources,
-        )
+            benchmark.attach_bundle(bundle)
 
-        benchmark.attach_bundle(bundle)
-
-        benchmark._finalize_impl()
-
-        env.close()
+            benchmark._finalize_impl()
 
 
 if __name__ == "__main__":

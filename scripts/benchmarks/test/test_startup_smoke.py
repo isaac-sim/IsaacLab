@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Smoke test for scripts/benchmarks/startup.py (Newton/MJWarp = Isaac-Sim-free)."""
+"""Smoke test for the startup benchmark entry point."""
 
 import json
 import subprocess
@@ -16,24 +16,6 @@ ROOT = Path(__file__).resolve().parents[3]
 _TASK = "Isaac-Cartpole-Direct"
 
 _EXPECTED_PHASES = {"app_launch", "python_imports", "task_config", "env_creation", "first_step"}
-
-# Top-level keys that identify a schema StartupBundle.
-_STARTUP_BUNDLE_KEYS = {"run", "phases"}
-
-
-def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
-    """Return the parsed JSON whose top-level keys cover ``expected_keys``.
-
-    The schema formatter names its file from a timestamped prefix, so the smoke
-    tests glob the output directory rather than hardcode the filename.
-    """
-    candidates = sorted(out_dir.glob("*.json"))
-    assert candidates, f"no *.json written to {out_dir}"
-    for path in candidates:
-        data = json.loads(path.read_text())
-        if expected_keys <= set(data):
-            return data
-    pytest.fail(f"no bundle in {out_dir} contained keys {expected_keys}; found {[p.name for p in candidates]}")
 
 
 def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
@@ -57,30 +39,24 @@ def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
     if res.returncode != 0:
         pytest.fail(f"startup.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
 
-    data = _find_bundle(tmp_path, _STARTUP_BUNDLE_KEYS)
+    files = list(tmp_path.glob("*.json"))
+    assert len(files) == 1, f"expected one JSON file, found {[path.name for path in files]}"
+    data = json.loads(files[0].read_text())
 
-    # Top-level schema
     assert data["schema_version"] == "1.0", f"unexpected schema_version: {data['schema_version']}"
     assert data["run"]["framework"] is None, "startup bundle should have framework=null"
+    assert data["run"]["duration_s"] >= sum(phase["total_time_s"] for phase in data["phases"].values())
 
-    # All five phases must be present
     assert set(data["phases"].keys()) == _EXPECTED_PHASES, f"unexpected phases: {set(data['phases'].keys())}"
 
-    # Each phase must have a positive total_time_s
     for phase_name, phase in data["phases"].items():
         assert phase["total_time_s"] > 0, f"phase '{phase_name}' has total_time_s <= 0"
 
-    # At least one phase must have top_functions with a valid 'calls' int
-    has_calls = False
-    for phase in data["phases"].values():
-        for fn in phase.get("top_functions", []):
-            if isinstance(fn.get("calls"), int):
-                has_calls = True
-                break
-        if has_calls:
-            break
-    assert has_calls, "No top_functions entry with an integer 'calls' field found"
+    assert any(
+        isinstance(function.get("calls"), int)
+        for phase in data["phases"].values()
+        for function in phase.get("top_functions", [])
+    )
 
-    # Config block must be present with top_n
     assert "config" in data, "StartupBundle missing 'config' field"
     assert isinstance(data["config"]["top_n"], int), "config.top_n should be an integer"

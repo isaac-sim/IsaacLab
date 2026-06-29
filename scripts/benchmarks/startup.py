@@ -5,17 +5,17 @@
 
 """Profile IsaacLab startup phases and emit a :class:`~isaaclab.test.benchmark.schema.StartupBundle`.
 
-Standalone script (no dispatch) that wraps each of the five startup phases in
-its own ``cProfile`` session and writes a schema-v1 JSON bundle to disk.
+Each phase runs in an independent ``cProfile`` session and the results are
+written as a schema-v1 JSON bundle.
 
 Profiled phases
 ---------------
-* **app_launch** — :func:`~isaaclab.app.launch_simulation` call (Isaac Sim
+* **app_launch**: :func:`~isaaclab.app.launch_simulation` call (Isaac Sim
   fabric startup).
-* **python_imports** — top-level Python imports (gymnasium, torch, isaaclab envs).
-* **task_config** — :func:`~isaaclab_tasks.utils.resolve_task_config`.
-* **env_creation** — :func:`gym.make` + ``env.reset()``.
-* **first_step** — first ``env.step()`` call.
+* **python_imports**: top-level Python imports (gymnasium, torch, isaaclab envs).
+* **task_config**: :func:`~isaaclab_tasks.utils.resolve_task_config`.
+* **env_creation**: :func:`gym.make` + ``env.reset()``.
+* **first_step**: first ``env.step()`` call.
 
 Usage example::
 
@@ -32,12 +32,15 @@ import cProfile
 import os
 import sys
 import time
+from datetime import datetime, timezone
 
 from isaaclab.app import AppLauncher
 
 from isaaclab_tasks.utils import setup_preset_cli
 
-# CLI parsing must happen before module-level profile blocks.
+_start_utc = datetime.now(timezone.utc).isoformat()
+
+# Parse Hydra overrides before starting module-level import profiling.
 
 _parser = argparse.ArgumentParser(description="Profile IsaacLab startup phases and emit a StartupBundle.")
 _parser.add_argument("--task", type=str, required=True, help="Gym task id to profile.")
@@ -55,7 +58,7 @@ _parser.add_argument(
     default="schema",
     help=(
         "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-        " 'omniperf', 'osmo', 'json', 'summary'. Legacy long-form aliases accepted."
+        " 'omniperf', 'osmo', 'json', 'summary'."
         " Example: 'schema,omniperf'."
     ),
 )
@@ -71,11 +74,6 @@ AppLauncher.add_app_launcher_args(_parser)
 args_cli, _hydra_args = setup_preset_cli(_parser)
 sys.argv = [sys.argv[0]] + _hydra_args
 
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
-
-from scripts.benchmarks._common import get_formatter_types, preset_tokens  # noqa: E402
-
-# Profile Python imports at module load time.
 
 _imports_profile = cProfile.Profile()
 _imports_time_begin = time.perf_counter_ns()
@@ -103,7 +101,6 @@ if torch.cuda.is_available() and torch.cuda.is_initialized():
     torch.cuda.synchronize()
 _imports_time_end = time.perf_counter_ns()
 
-# Profile task configuration at module load time.
 
 _task_config_profile = cProfile.Profile()
 _task_config_time_begin = time.perf_counter_ns()
@@ -114,7 +111,6 @@ _env_cfg, _agent_cfg = resolve_task_config(args_cli.task, None)
 _task_config_profile.disable()
 _task_config_time_end = time.perf_counter_ns()
 
-# Detect Isaac Lab source prefixes for cProfile filtering.
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 _source_dir = os.path.join(_REPO_ROOT, "source")
@@ -126,7 +122,6 @@ else:
     print(f"[WARNING] IsaacLab source directory not found at '{_source_dir}'. Function-level profiling will be empty.")
     _ISAACLAB_PREFIXES = []
 
-# Load the optional cProfile whitelist.
 
 _WHITELIST: dict[str, list[str]] = {}
 if args_cli.whitelist_config is not None:
@@ -167,7 +162,6 @@ if args_cli.whitelist_config is not None:
                 sys.exit(1)
         _WHITELIST = _raw
 
-# Resolve top_n default: 5 when using whitelist, 30 otherwise
 if args_cli.top_n is None:
     args_cli.top_n = 5 if _WHITELIST else 30
 
@@ -177,18 +171,13 @@ def _run_main(
     app_launch_profile: cProfile.Profile,
     app_launch_wall_ms: float,
 ) -> None:
-    """Collect env-creation/first-step profiles and assemble the StartupBundle.
-
-    This is separated from ``__main__`` so it executes inside the
-    ``launch_simulation`` context, ensuring env_creation and first_step are
-    profiled with the simulator live.
+    """Profile environment creation and the first step while simulation is active.
 
     Args:
         env_cfg: Resolved environment configuration for the task.
         app_launch_profile: Completed cProfile session for the app-launch phase.
         app_launch_wall_ms: Wall-clock duration of the app-launch phase [ms].
     """
-    # Apply CLI overrides to env config
     if args_cli.num_envs is not None:
         env_cfg.scene.num_envs = args_cli.num_envs
     if args_cli.device is not None:
@@ -196,24 +185,20 @@ def _run_main(
     if args_cli.seed is not None:
         env_cfg.seed = args_cli.seed
 
-    # Profile environment creation.
-
     env = None
     env_creation_profile = cProfile.Profile()
     env_creation_time_begin = time.perf_counter_ns()
-    env_creation_profile.enable()
     try:
-        env = gym.make(args_cli.task, cfg=env_cfg)
-        env.reset()
-    finally:
-        env_creation_profile.disable()
+        env_creation_profile.enable()
+        try:
+            env = gym.make(args_cli.task, cfg=env_cfg)
+            env.reset()
+        finally:
+            env_creation_profile.disable()
 
-    try:
         if torch.cuda.is_available() and torch.cuda.is_initialized():
             torch.cuda.synchronize()
         env_creation_time_end = time.perf_counter_ns()
-
-        # Profile the first environment step.
 
         np_actions = np.stack([env.unwrapped.single_action_space.sample() for _ in range(env.unwrapped.num_envs)])
         actions = torch.as_tensor(np_actions, dtype=torch.float32, device=env.unwrapped.device)
@@ -230,14 +215,10 @@ def _run_main(
             torch.cuda.synchronize()
         first_step_time_end = time.perf_counter_ns()
 
-        # Convert wall-clock durations to milliseconds.
-
         imports_wall_ms = (_imports_time_end - _imports_time_begin) / 1e6
         task_config_wall_ms = (_task_config_time_end - _task_config_time_begin) / 1e6
         env_creation_wall_ms = (env_creation_time_end - env_creation_time_begin) / 1e6
         first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
-
-        # Build the per-phase cProfile summaries.
 
         _phase_raw: dict[str, tuple[cProfile.Profile, float]] = {
             "app_launch": (app_launch_profile, app_launch_wall_ms),
@@ -265,12 +246,8 @@ def _run_main(
                 ],
             )
 
-        # Assemble and write the bundle.
+        cfg = capture.run_config_from_presets(_hydra_args)
 
-        tokens = preset_tokens(_hydra_args)
-        cfg = capture.run_config_from_presets(tokens)
-
-        start_utc = capture.now_utc_iso()
         end_utc = capture.now_utc_iso()
         stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
 
@@ -283,16 +260,15 @@ def _run_main(
             config=cfg,
             task=args_cli.task,
             seed=seed,
-            start_utc=start_utc,
+            start_utc=_start_utc,
             end_utc=end_utc,
             num_envs=None,
             max_iterations=None,
         )
 
-        formatter_types = get_formatter_types(args_cli.benchmark_formatter)
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_startup",
-            formatter_type=formatter_types,
+            formatter_type=args_cli.benchmark_formatter,
             output_path=args_cli.output_path,
             use_recorders=True,
             output_prefix=f"startup_{args_cli.task}",
@@ -302,7 +278,7 @@ def _run_main(
                     {"name": "seed", "data": args_cli.seed},
                     {"name": "num_envs", "data": args_cli.num_envs},
                     {"name": "top_n", "data": args_cli.top_n},
-                    {"name": "presets", "data": ",".join(tokens)},
+                    {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
         )
@@ -330,8 +306,6 @@ def _run_main(
 
 
 if __name__ == "__main__":
-    # Profile application launch.
-
     _app_launch_profile = cProfile.Profile()
     _app_launch_time_begin = time.perf_counter_ns()
     _app_launch_profile.enable()
