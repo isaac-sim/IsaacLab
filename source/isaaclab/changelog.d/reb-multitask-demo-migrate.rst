@@ -5,6 +5,13 @@ Added
   :class:`~isaaclab.scene.SelectorCfg` support for heterogeneous scenes backed
   by direct clone plans.
 
+* Added :func:`~isaaclab.scene.scene_add` to compose spawned scene assets into
+  heterogeneous clone combinations while deduplicating equivalent environment
+  definitions and validating shared global assets.
+* Added a direct clone-only demo that composes registered flat PhysX task
+  scenes, replaces task lights with one Dome light, and reports unsupported
+  configurations without constructing task environments.
+
 Fixed
 ^^^^^
 
