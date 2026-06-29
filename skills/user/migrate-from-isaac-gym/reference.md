@@ -31,7 +31,7 @@ Use this mapping as the default starting point:
 
 ## External Template Projects
 
-When validating a migration outside the Isaac Lab tree, start with the template generator instead of hand-rolling the external package structure. Run `./isaaclab.sh -n` or `isaaclab.bat -n`, then choose:
+When validating a migration outside the Isaac Lab tree, start with the template generator instead of hand-rolling the external package structure. Run `uv run --project PATH_TO_ISAACLAB isaaclab -n`, then choose:
 
 - `External` project.
 - The scratch directory as the project path.
@@ -41,7 +41,7 @@ When validating a migration outside the Isaac Lab tree, start with the template 
 
 Replace the generated task implementation with the migrated environment, config, registration, and agent config, preserving the generated project layout. The generated project gives agents a known `source/<project>/<project>/tasks/...` structure, `pyproject.toml`, extension metadata, scripts, and task registration pattern.
 
-For validation, install the generated extension in editable mode with the target Isaac Lab Python, or keep it importable through `PYTHONPATH`. If using `PYTHONPATH`, put the generated project's extension package first, then every package directory under the target Isaac Lab checkout's `source/` directory. This prevents Python from mixing the active checkout with another installed Isaac Lab checkout and causing duplicate Gym registration or stale task imports. If editable install makes task registration available automatically, omit external callbacks. For uninstalled scratch validation, use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
+For validation, install the generated extension in editable mode with `uv pip` for the target Isaac Lab environment, or keep it importable through `PYTHONPATH`. If using `PYTHONPATH`, put the generated project's extension package first, then every package directory under the target Isaac Lab checkout's `source/` directory. This prevents Python from mixing the active checkout with another installed Isaac Lab checkout and causing duplicate Gym registration or stale task imports. If editable install makes task registration available automatically, omit external callbacks. For uninstalled scratch validation, use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
 
 Do not treat successful config loading as training success. Import/register, config resolution, static compilation, reset/step, random-agent, and short training are separate gates.
 
@@ -88,29 +88,30 @@ export LAB=/path/to/IsaacLab
 export PROJECT=/path/to/migration-scratch/isaacgym_anymal_migration
 export EXTENSION="$PROJECT/source/isaacgym_anymal_migration"
 export PYTHONPATH="$EXTENSION:$(find "$LAB/source" -mindepth 1 -maxdepth 1 -type d | paste -sd: -)"
+cd "$PROJECT"
 
 # Optional when validating as an installed template project:
-./isaaclab.sh -p -m pip install -e "$EXTENSION"
+uv pip install -e "$EXTENSION"
 
-./isaaclab.sh -p -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
+uv run --project "$LAB" python -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
 
-./isaaclab.sh -p "$PROJECT/validation/smoke_my_task.py" --device cuda:0 --num_envs 16 --steps 8
+uv run --project "$LAB" python validation/smoke_my_task.py --device cuda:0 --num_envs 16 --steps 8
 
-./isaaclab.sh train --rl_library rsl_rl \
+uv run --project "$LAB" train --rl_library rsl_rl \
   --task My-Migrated-Task-v0 \
   --external_callback my_migration.register.register \
   --device cuda:0 --num_envs 4096 --max_iterations 500
 
-./isaaclab.sh -p "$PROJECT/validation/parse_tensorboard.py" "$PROJECT/logs/path/to/run" --output "$PROJECT/validation/train_metrics.json"
+uv run --project "$LAB" python validation/parse_tensorboard.py logs/path/to/run --output validation/train_metrics.json
 
-./isaaclab.sh -p "$PROJECT/validation/evaluate_checkpoint.py" \
-  --checkpoint "$PROJECT/logs/path/to/run/model_499.pt" \
+uv run --project "$LAB" python validation/evaluate_checkpoint.py \
+  --checkpoint logs/path/to/run/model_499.pt \
   --num_envs 64 --steps 256 --device cuda:0
 ```
 
 Omit `--viz` for headless validation. Use `--viz none` only when a config or command would otherwise enable visualizers. Do not use deprecated `--headless` in new validation commands.
 
-On Windows, use `.\isaaclab.bat` and set the same path order with PowerShell:
+On Windows, use the same `uv` commands from PowerShell and set the same path order:
 
 ```powershell
 $lab = "C:/path/to/IsaacLab"

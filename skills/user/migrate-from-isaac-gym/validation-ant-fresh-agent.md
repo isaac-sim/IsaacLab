@@ -37,7 +37,7 @@ Open gates:
 
 ## Skill Updates From This Validation
 
-- Run runtime preflight through the target checkout's `./isaaclab.sh -p` before promising reset, random-agent, or training success.
+- Run runtime preflight through `uv run --project PATH_TO_ISAACLAB python` before promising reset, random-agent, or training success.
 - Start external migrations from the Isaac Lab template generator, then put the generated project extension and all target checkout `source/` packages first on `PYTHONPATH` during external validation.
 - Make external migration package registration explicit for scripts that do not expose `--external_callback`.
 - Add legacy force/torque sensor mapping guidance so agents do not silently drop force sensor observations or ignore unresolved sensor prim warnings.
