@@ -21,7 +21,7 @@ def test_simulation_context_import_does_not_import_kit_runtime_before_launch():
         import json
         import traceback
 
-        forbidden = {"omni.kit", "omni.usd", "carb", "isaacsim", "usdrt"}
+        forbidden = {"pxr", "omni.kit", "omni.usd", "carb", "isaacsim", "usdrt"}
         violations = {}
         original_import = __builtins__.__import__
 
