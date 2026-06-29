@@ -228,10 +228,10 @@ class ArticulationData(BaseArticulationData):
     """
 
     body_names: list[str] = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_names: list[str] = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public order (configured ordering when set, otherwise backend order)."""
 
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
@@ -813,17 +813,6 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
         """
-        backend_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        if self._has_body_ordering:
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[backend_mass, self._body_user_to_backend],
-                outputs=[self._body_mass],
-                device=self.device,
-            )
-        else:
-            self._body_mass.assign(backend_mass)
         if self._body_mass_ta is None:
             self._body_mass_ta = ProxyArray(self._body_mass)
         return self._body_mass_ta
@@ -835,17 +824,6 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
         """
-        backend_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
-        if self._has_body_ordering:
-            wp.launch(
-                ordering_kernels.reorder_3d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies, 9),
-                inputs=[backend_inertia, self._body_user_to_backend],
-                outputs=[self._body_inertia],
-                device=self.device,
-            )
-        else:
-            self._body_inertia.assign(backend_inertia)
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia)
         return self._body_inertia_ta
@@ -1965,6 +1943,22 @@ class ArticulationData(BaseArticulationData):
                     self._body_link_state_w,
                     self._body_com_state_w,
                 ]
+            )
+            self._body_mass_backend.assign(self._body_mass)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[self._body_mass_backend, self._body_user_to_backend],
+                outputs=[self._body_mass],
+                device=self.device,
+            )
+            self._body_inertia_backend.assign(self._body_inertia)
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies, 9),
+                inputs=[self._body_inertia_backend, self._body_user_to_backend],
+                outputs=[self._body_inertia],
+                device=self.device,
             )
 
         if self._has_body_ordering or self._has_joint_ordering:

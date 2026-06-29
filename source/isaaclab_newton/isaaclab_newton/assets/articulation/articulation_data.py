@@ -215,10 +215,10 @@ class ArticulationData(BaseArticulationData):
     """
 
     body_names: list[str] = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_names: list[str] = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public order (configured ordering when set, otherwise backend order)."""
 
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
@@ -462,43 +462,26 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
             )
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits)
-        if self._has_joint_ordering:
-            if self._joint_pos_limits_backend is None:
-                self._joint_pos_limits_backend = wp.zeros(
-                    (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
-                )
+        if self._joint_pos_limits_timestamp < self._sim_timestamp:
+            joint_pos_limits_lower = (
+                self._joint_pos_limits_lower_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_lower
+            )
+            joint_pos_limits_upper = (
+                self._joint_pos_limits_upper_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_upper
+            )
             wp.launch(
                 articulation_kernels.concat_joint_pos_limits_lower_and_upper,
                 dim=(self._num_instances, self._num_joints),
                 inputs=[
-                    self._sim_bind_joint_pos_limits_lower,
-                    self._sim_bind_joint_pos_limits_upper,
-                ],
-                outputs=[
-                    self._joint_pos_limits_backend,
-                ],
-                device=self.device,
-            )
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[self._joint_pos_limits_backend, self._joint_user_to_backend],
-                outputs=[self._joint_pos_limits],
-                device=self.device,
-            )
-        else:
-            wp.launch(
-                articulation_kernels.concat_joint_pos_limits_lower_and_upper,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[
-                    self._sim_bind_joint_pos_limits_lower,
-                    self._sim_bind_joint_pos_limits_upper,
+                    joint_pos_limits_lower,
+                    joint_pos_limits_upper,
                 ],
                 outputs=[
                     self._joint_pos_limits,
                 ],
                 device=self.device,
             )
+            self._joint_pos_limits_timestamp = self._sim_timestamp
         return self._joint_pos_limits_ta
 
     @property
@@ -754,14 +737,6 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
         """
-        if self._has_body_ordering:
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self._sim_bind_body_mass, self._body_user_to_backend],
-                outputs=[self._body_mass_user],
-                device=self.device,
-            )
         return self._body_mass_ta
 
     @property
@@ -771,14 +746,6 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
         """
-        if self._has_body_ordering:
-            wp.launch(
-                ordering_kernels.reorder_3d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies, 9),
-                inputs=[self._sim_bind_body_inertia, self._body_user_to_backend],
-                outputs=[self._body_inertia_user],
-                device=self.device,
-            )
         return self._body_inertia_ta
 
     @property
@@ -929,14 +896,6 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the center of mass location relative to its body's link frame.
         """
-        if self._has_body_ordering:
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self._sim_bind_body_com_pos_b, self._body_user_to_backend],
-                outputs=[self._body_com_pos_b_user],
-                device=self.device,
-            )
         return self._body_com_pos_b_ta
 
     @property
@@ -2057,6 +2016,9 @@ class ArticulationData(BaseArticulationData):
                 device=self.device,
             )
             self._sync_user_ordered_joint_property_buffers()
+            self._joint_pos_limits_timestamp = -1.0
+        if self._has_body_ordering:
+            self._sync_user_ordered_body_property_buffers()
         self._pin_proxy_arrays()
 
     def _sync_user_ordered_joint_property_buffers(self) -> None:
@@ -2081,6 +2043,30 @@ class ArticulationData(BaseArticulationData):
                 device=self.device,
             )
 
+    def _sync_user_ordered_body_property_buffers(self) -> None:
+        """Refresh user-order body property buffers from sim-bound backend-order arrays."""
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[self._sim_bind_body_mass, self._body_user_to_backend],
+            outputs=[self._body_mass_user],
+            device=self.device,
+        )
+        wp.launch(
+            ordering_kernels.reorder_3d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies, 9),
+            inputs=[self._sim_bind_body_inertia, self._body_user_to_backend],
+            outputs=[self._body_inertia_user],
+            device=self.device,
+        )
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[self._sim_bind_body_com_pos_b, self._body_user_to_backend],
+            outputs=[self._body_com_pos_b_user],
+            device=self.device,
+        )
+
     def _pin_proxy_arrays(self) -> None:
         """Create or rebind all pinned ProxyArray wrappers.
 
@@ -2091,6 +2077,9 @@ class ArticulationData(BaseArticulationData):
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
         if is_rebind and self._has_joint_ordering:
             self._sync_user_ordered_joint_property_buffers()
+            self._joint_pos_limits_timestamp = -1.0
+        if is_rebind and self._has_body_ordering:
+            self._sync_user_ordered_body_property_buffers()
         if is_rebind:
             reset_timestamps(
                 [
@@ -2266,7 +2255,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_quat_b = None
         self._joint_pos_limits_ta: ProxyArray | None = None
         self._joint_pos_limits = None
-        self._joint_pos_limits_backend = None
+        self._joint_pos_limits_timestamp = -1.0
         self._root_link_lin_vel_b_ta: ProxyArray | None = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b_ta: ProxyArray | None = None

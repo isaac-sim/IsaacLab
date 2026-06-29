@@ -204,6 +204,7 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_com_pose_w if from_link else None,
                 self._body_link_pose_w,
+                self._body_link_pose_w_backend,
                 self._body_com_pose_w,
                 self._root_state_w_buf,
                 self._root_link_state_w_buf,
@@ -234,6 +235,7 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_link_vel_w if from_com else None,
                 self._body_com_vel_w,
+                self._body_com_vel_w_backend,
                 self._body_link_vel_w,
                 self._root_state_w_buf,
                 self._root_link_state_w_buf,
@@ -274,10 +276,10 @@ class ArticulationData(BaseArticulationData):
     """
 
     body_names: list[str] = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_names: list[str] = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public order (configured ordering when set, otherwise backend order)."""
 
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by USD."""
@@ -874,14 +876,16 @@ class ArticulationData(BaseArticulationData):
         binding is CPU-only (``ARTICULATION_BODY_MASS``).
         """
         if self._has_body_ordering:
-            self._read_scalar_binding(TT.BODY_MASS, self._body_mass_backend)
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[self._body_mass_backend.data, self._body_user_to_backend],
-                outputs=[self._body_mass.data],
-                device=self.device,
-            )
+            if self._body_mass.timestamp < self._sim_timestamp:
+                self._read_scalar_binding(TT.BODY_MASS, self._body_mass_backend)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[self._body_mass_backend.data, self._body_user_to_backend],
+                    outputs=[self._body_mass.data],
+                    device=self.device,
+                )
+                self._body_mass.timestamp = self._body_mass_backend.timestamp
         else:
             self._read_scalar_binding(TT.BODY_MASS, self._body_mass)
         if self._body_mass_ta is None:
@@ -899,14 +903,16 @@ class ArticulationData(BaseArticulationData):
         a CPU-only binding).
         """
         if self._has_body_ordering:
-            self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia_backend)
-            wp.launch(
-                ordering_kernels.reorder_3d_backend_to_user,
-                dim=(self.num_instances, self.num_bodies, 9),
-                inputs=[self._body_inertia_backend.data, self._body_user_to_backend],
-                outputs=[self._body_inertia.data],
-                device=self.device,
-            )
+            if self._body_inertia.timestamp < self._sim_timestamp:
+                self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia_backend)
+                wp.launch(
+                    ordering_kernels.reorder_3d_backend_to_user,
+                    dim=(self.num_instances, self.num_bodies, 9),
+                    inputs=[self._body_inertia_backend.data, self._body_user_to_backend],
+                    outputs=[self._body_inertia.data],
+                    device=self.device,
+                )
+                self._body_inertia.timestamp = self._body_inertia_backend.timestamp
         else:
             self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia)
         if self._body_inertia_ta is None:
@@ -925,14 +931,16 @@ class ArticulationData(BaseArticulationData):
         """
         self._ensure_fk_fresh()
         if self._has_body_ordering:
-            self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w_backend)
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[self._body_link_pose_w_backend.data, self._body_user_to_backend],
-                outputs=[self._body_link_pose_w.data],
-                device=self.device,
-            )
+            if self._body_link_pose_w.timestamp < self._sim_timestamp:
+                self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w_backend)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[self._body_link_pose_w_backend.data, self._body_user_to_backend],
+                    outputs=[self._body_link_pose_w.data],
+                    device=self.device,
+                )
+                self._body_link_pose_w.timestamp = self._body_link_pose_w_backend.timestamp
         else:
             self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
@@ -948,14 +956,16 @@ class ArticulationData(BaseArticulationData):
         """
         self._ensure_fk_fresh()
         if self._has_body_ordering:
-            self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w_backend)
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[self._body_com_vel_w_backend.data, self._body_user_to_backend],
-                outputs=[self._body_com_vel_w.data],
-                device=self.device,
-            )
+            if self._body_com_vel_w.timestamp < self._sim_timestamp:
+                self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w_backend)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[self._body_com_vel_w_backend.data, self._body_user_to_backend],
+                    outputs=[self._body_com_vel_w.data],
+                    device=self.device,
+                )
+                self._body_com_vel_w.timestamp = self._body_com_vel_w_backend.timestamp
         else:
             self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
         if self._body_com_vel_w_ta is None:
@@ -1030,14 +1040,16 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._has_body_ordering:
-            self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w_backend)
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self.num_instances, self.num_bodies),
-                inputs=[self._body_com_acc_w_backend.data, self._body_user_to_backend],
-                outputs=[self._body_com_acc_w.data],
-                device=self.device,
-            )
+            if self._body_com_acc_w.timestamp < self._sim_timestamp:
+                self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w_backend)
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[self._body_com_acc_w_backend.data, self._body_user_to_backend],
+                    outputs=[self._body_com_acc_w.data],
+                    device=self.device,
+                )
+                self._body_com_acc_w.timestamp = self._body_com_acc_w_backend.timestamp
         else:
             self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w)
         if self._body_com_acc_w_ta is None:
@@ -1931,6 +1943,23 @@ class ArticulationData(BaseArticulationData):
                 dim=(self.num_instances, self.num_joints, 3),
                 inputs=[friction_props_backend, self._joint_user_to_backend],
                 outputs=[self._joint_friction_props_buf.data],
+                device=self.device,
+            )
+        if self._has_body_ordering:
+            body_mass_backend = wp.clone(self._body_mass.data, device=self.device)
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies),
+                inputs=[body_mass_backend, self._body_user_to_backend],
+                outputs=[self._body_mass.data],
+                device=self.device,
+            )
+            body_inertia_backend = wp.clone(self._body_inertia.data, device=self.device)
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self.num_instances, self.num_bodies, 9),
+                inputs=[body_inertia_backend, self._body_user_to_backend],
+                outputs=[self._body_inertia.data],
                 device=self.device,
             )
 

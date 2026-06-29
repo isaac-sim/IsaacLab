@@ -308,6 +308,30 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
 
+    def _assign_backend_ordered_body_buffer(self, backend_buffer: wp.array, user_buffer: wp.array) -> None:
+        """Assign a public user-order body buffer into a backend-order simulation buffer."""
+        if not self._has_body_ordering:
+            return
+        wp.launch(
+            ordering_kernels.reorder_2d_user_to_backend,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[user_buffer, self._body_backend_to_user],
+            outputs=[backend_buffer],
+            device=self.device,
+        )
+
+    def _assign_backend_ordered_body_3d_buffer(self, backend_buffer: wp.array, user_buffer: wp.array) -> None:
+        """Assign a public user-order 3-D body buffer into a backend-order simulation buffer."""
+        if not self._has_body_ordering:
+            return
+        wp.launch(
+            ordering_kernels.reorder_3d_user_to_backend,
+            dim=(self.num_instances, self.num_bodies, 9),
+            inputs=[user_buffer, self._body_backend_to_user],
+            outputs=[backend_buffer],
+            device=self.device,
+        )
+
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
 
@@ -1744,6 +1768,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -1816,6 +1841,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -2174,6 +2200,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_mass, self.data._body_mass_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2215,6 +2242,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_mass, self.data._body_mass_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2263,6 +2291,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_com_pos_b, self.data._body_com_pos_b_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2311,6 +2340,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_com_pos_b, self.data._body_com_pos_b_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2354,6 +2384,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self._assign_backend_ordered_body_3d_buffer(self.data._sim_bind_body_inertia, self.data._body_inertia_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2395,6 +2426,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self._assign_backend_ordered_body_3d_buffer(self.data._sim_bind_body_inertia, self.data._body_inertia_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -3683,6 +3715,8 @@ class Articulation(BaseArticulation):
                         self._implicit_dof_mask,
                         self._data._sim_bind_joint_effort,
                         self._data._sim_bind_joint_computed_effort,
+                        self._joint_user_to_backend,
+                        self._has_joint_ordering,
                     ],
                     outputs=[
                         self._data._computed_torque,

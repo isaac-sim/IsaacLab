@@ -73,16 +73,16 @@ class ArticulationCfg(AssetBaseCfg):
     """Optional public joint ordering convention or complete joint-name permutation.
 
     If ``None``, the public joint order follows the active backend order and preserves
-    the direct identity path. String aliases currently accept ``"physx"`` and
-    ``"mjwarp"``.
+    the direct identity path. String aliases currently accept ``"physx"``, ``"mjwarp"``, and
+    ``"robot_schema"``.
     """
 
     body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Optional public body ordering convention or complete body-name permutation.
 
     If ``None``, the public body order follows the active backend order and preserves
-    the direct identity path. String aliases currently accept ``"physx"`` and
-    ``"mjwarp"``.
+    the direct identity path. String aliases currently accept ``"physx"``, ``"mjwarp"``, and
+    ``"robot_schema"``.
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING

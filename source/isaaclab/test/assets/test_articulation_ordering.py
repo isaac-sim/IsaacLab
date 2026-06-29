@@ -18,6 +18,7 @@ except ModuleNotFoundError:
     sys.modules["torch"] = torch_stub
 
 from isaaclab.assets.articulation.ordering import (
+    ArticulationNameMap,
     ArticulationOrderingConvention,
     apply_articulation_ordering_preset,
     build_articulation_name_map,
@@ -65,6 +66,8 @@ asset_base_stub.AssetBase = _AssetBase
 _inserted_asset_base_stub = "isaaclab.assets.asset_base" not in sys.modules
 sys.modules.setdefault("isaaclab.assets.asset_base", asset_base_stub)
 
+from isaaclab_newton.actuators.kernels import sync_torque_telemetry
+
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -106,6 +109,16 @@ def test_parse_articulation_ordering_convention_rejects_unknown_string() -> None
         parse_articulation_ordering_convention("backend")
 
 
+def test_assets_package_reexports_public_ordering_symbols() -> None:
+    """Expose ordering helpers from the public assets package."""
+    from isaaclab import assets
+
+    assert assets.ArticulationNameMap is ArticulationNameMap
+    assert assets.ArticulationOrderingConvention is ArticulationOrderingConvention
+    assert assets.build_articulation_name_map is build_articulation_name_map
+    assert assets.resolve_articulation_ordering_names is resolve_articulation_ordering_names
+
+
 def test_articulation_cfg_accepts_optional_ordering_fields() -> None:
     """Configure explicit or symbolic public articulation ordering."""
     explicit_joint_order = ("shoulder", "elbow", "wrist")
@@ -130,6 +143,24 @@ def test_apply_articulation_ordering_preset_sets_joint_and_body_ordering() -> No
     assert ordered_cfg.joint_ordering is ArticulationOrderingConvention.PHYSX
     assert ordered_cfg.body_ordering is ArticulationOrderingConvention.PHYSX
     assert apply_articulation_ordering_preset(cfg, None) is cfg
+
+
+def test_articulation_name_map_direct_constructor_validates_maps() -> None:
+    """Reject inconsistent public name maps built without the factory."""
+    identity_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
+    reversed_map = wp.array((2, 1, 0), dtype=wp.int32, device="cpu")
+
+    with pytest.raises(ValueError, match="inverse"):
+        ArticulationNameMap(
+            kind="joint",
+            backend_names=("joint_0", "joint_1", "joint_2"),
+            user_names=("joint_2", "joint_1", "joint_0"),
+            user_to_backend_indices=(2, 1, 0),
+            backend_to_user_indices=(0, 1, 2),
+            user_to_backend=reversed_map,
+            backend_to_user=identity_map,
+            is_identity=False,
+        )
 
 
 def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None:
@@ -703,6 +734,29 @@ def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -
     assert user_names == ("knee", "hip", "ankle")
 
 
+def test_symbolic_cross_backend_resolver_prefers_explicit_name_resolver() -> None:
+    """Use the optional resolver even when an articulation object is supplied."""
+
+    class _RootView:
+        joint_dof_names = ["articulation_order"]
+        link_names = []
+
+    class _Articulation:
+        __backend_name__ = "mock"
+        root_view = _RootView()
+
+    user_names = resolve_articulation_ordering_names(
+        kind="joint",
+        backend_names=("resolver_order",),
+        ordering=ArticulationOrderingConvention.MJWARP,
+        active_backend_name="mock",
+        articulation=_Articulation(),
+        convention_name_resolver=lambda convention, kind: ("resolver_order",),
+    )
+
+    assert user_names == ("resolver_order",)
+
+
 def test_symbolic_cross_backend_resolver_normalizes_newton_multi_dof_joint_names() -> None:
     """Resolve Newton multi-DoF names to active-backend spellings."""
 
@@ -879,6 +933,90 @@ def test_reorder_2d_backend_to_user_gathers_user_axis() -> None:
 
     expected = np.asarray([[12.0, 10.0, 11.0], [22.0, 20.0, 21.0]], dtype=np.float32)
     np.testing.assert_allclose(user_data.numpy(), expected)
+
+
+def test_sync_torque_telemetry_reads_backend_effort_buffers_in_user_order() -> None:
+    """Report torque telemetry in public joint order from backend-order effort buffers."""
+    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+    joint_vel = wp.zeros_like(joint_pos)
+    joint_pos_target = wp.zeros_like(joint_pos)
+    joint_vel_target = wp.zeros_like(joint_pos)
+    joint_stiffness = wp.zeros_like(joint_pos)
+    joint_damping = wp.zeros_like(joint_pos)
+    effort_limit = wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu")
+    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    sim_bind_joint_effort = wp.array(
+        np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    actuator_computed_effort = wp.array(
+        np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    computed = wp.zeros_like(joint_pos)
+    applied = wp.zeros_like(joint_pos)
+
+    wp.launch(
+        sync_torque_telemetry,
+        dim=joint_pos.shape,
+        inputs=[
+            joint_pos,
+            joint_vel,
+            joint_pos_target,
+            joint_vel_target,
+            joint_stiffness,
+            joint_damping,
+            effort_limit,
+            joint_modes,
+            sim_bind_joint_effort,
+            actuator_computed_effort,
+            user_to_backend,
+            True,
+        ],
+        outputs=[computed, applied],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(computed.numpy(), np.asarray([[30.0, 100.0, 20.0]], dtype=np.float32))
+    np.testing.assert_allclose(applied.numpy(), np.asarray([[300.0, 100.0, 200.0]], dtype=np.float32))
+
+
+def test_sync_torque_telemetry_keeps_user_order_effort_buffers_unmapped() -> None:
+    """Report torque telemetry directly from user-order actuator buffers."""
+    joint_pos = wp.zeros((1, 3), dtype=wp.float32, device="cpu")
+    joint_modes = wp.array(np.asarray([0, 1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array(np.asarray([2, 0, 1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_effort = wp.array(np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    user_computed_effort = wp.array(np.asarray([[10.0, 20.0, 30.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    computed = wp.zeros_like(joint_pos)
+    applied = wp.zeros_like(joint_pos)
+
+    wp.launch(
+        sync_torque_telemetry,
+        dim=joint_pos.shape,
+        inputs=[
+            joint_pos,
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.zeros_like(joint_pos),
+            wp.full((1, 3), 1000.0, dtype=wp.float32, device="cpu"),
+            joint_modes,
+            user_effort,
+            user_computed_effort,
+            user_to_backend,
+            False,
+        ],
+        outputs=[computed, applied],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(computed.numpy(), np.asarray([[10.0, 200.0, 30.0]], dtype=np.float32))
+    np.testing.assert_allclose(applied.numpy(), np.asarray([[100.0, 200.0, 300.0]], dtype=np.float32))
 
 
 def test_reorder_2d_user_to_backend_scatters_backend_axis() -> None:

@@ -637,15 +637,15 @@ def resolve_articulation_ordering_names(
     convention = parse_articulation_ordering_convention(ordering)
     if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
         return backend_names
+    if convention_name_resolver is not None:
+        convention_names = tuple(convention_name_resolver(convention, kind))
+        return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
     if articulation is not None:
         convention_names = resolve_articulation_convention_name_ordering(
             articulation=articulation,
             convention=convention,
             kind=kind,
         )
-        return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
-    if convention_name_resolver is not None:
-        convention_names = tuple(convention_name_resolver(convention, kind))
         return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
 
     raise NotImplementedError(

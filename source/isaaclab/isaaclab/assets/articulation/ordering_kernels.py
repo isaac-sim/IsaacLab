@@ -62,53 +62,6 @@ def write_scalar_user_to_backend_with_mask(
 
 
 @wp.kernel
-def write_2d_user_to_backend_with_indices(
-    in_data: wp.array2d(dtype=Any),
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
-    full_data: bool,
-    user_data: wp.array2d(dtype=Any),
-    backend_data: wp.array2d(dtype=Any),
-) -> None:
-    """Write indexed user-order data into user and backend-order buffers."""
-    i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
-
-    if full_data:
-        value = in_data[env_id, user_id]
-    else:
-        value = in_data[i, j]
-
-    user_data[env_id, user_id] = value
-    backend_data[env_id, backend_id] = value
-
-
-@wp.kernel
-def write_2d_user_to_backend_with_mask(
-    in_data: wp.array2d(dtype=Any),
-    env_mask: wp.array(dtype=wp.bool),
-    user_mask: wp.array(dtype=wp.bool),
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
-    user_data: wp.array2d(dtype=Any),
-    backend_data: wp.array2d(dtype=Any),
-) -> None:
-    """Write masked user-order data into user and backend-order buffers."""
-    env_id, user_id = wp.tid()
-    if not env_mask[env_id] or not user_mask[user_id]:
-        return
-
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
-    value = in_data[env_id, user_id]
-    user_data[env_id, user_id] = value
-    backend_data[env_id, backend_id] = value
-
-
-@wp.kernel
 def reorder_2d_user_to_backend(
     user_data: wp.array2d(dtype=Any),
     backend_to_user: wp.array(dtype=wp.int32),

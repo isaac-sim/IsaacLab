@@ -53,6 +53,46 @@ class ArticulationNameMap:
     is_identity: bool
     """Whether user and backend name order are identical."""
 
+    def __post_init__(self) -> None:
+        """Validate CPU-side name-map invariants."""
+        if self.kind not in {"joint", "body"}:
+            raise ValueError(f"ArticulationNameMap kind must be 'joint' or 'body'. Got {self.kind!r}.")
+
+        object.__setattr__(self, "backend_names", tuple(self.backend_names))
+        object.__setattr__(self, "user_names", tuple(self.user_names))
+        object.__setattr__(self, "user_to_backend_indices", tuple(int(index) for index in self.user_to_backend_indices))
+        object.__setattr__(self, "backend_to_user_indices", tuple(int(index) for index in self.backend_to_user_indices))
+
+        num_names = len(self.backend_names)
+        if len(self.user_names) != num_names:
+            raise ValueError("ArticulationNameMap user_names and backend_names must have the same length.")
+        if len(self.user_to_backend_indices) != num_names or len(self.backend_to_user_indices) != num_names:
+            raise ValueError("ArticulationNameMap CPU index maps must match the number of names.")
+        if len(set(self.backend_names)) != num_names:
+            raise ValueError(f"Duplicate backend {self.kind} names are not supported: {self.backend_names}.")
+        if len(set(self.user_names)) != num_names:
+            raise ValueError(f"Duplicate user {self.kind} names are not supported: {self.user_names}.")
+
+        expected_indices = set(range(num_names))
+        user_to_backend = self.user_to_backend_indices
+        backend_to_user = self.backend_to_user_indices
+        if set(user_to_backend) != expected_indices:
+            raise ValueError("ArticulationNameMap user_to_backend_indices must be a complete permutation.")
+        if set(backend_to_user) != expected_indices:
+            raise ValueError("ArticulationNameMap backend_to_user_indices must be a complete permutation.")
+        for user_index, backend_index in enumerate(user_to_backend):
+            if backend_to_user[backend_index] != user_index:
+                raise ValueError("ArticulationNameMap CPU index maps must be inverse permutations.")
+
+        identity_indices = tuple(range(num_names))
+        expected_identity = (
+            self.user_names == self.backend_names
+            and user_to_backend == identity_indices
+            and backend_to_user == identity_indices
+        )
+        if self.is_identity != expected_identity:
+            raise ValueError("ArticulationNameMap is_identity is inconsistent with names and index maps.")
+
 
 def parse_articulation_ordering_convention(
     ordering: str | ArticulationOrderingConvention | None,

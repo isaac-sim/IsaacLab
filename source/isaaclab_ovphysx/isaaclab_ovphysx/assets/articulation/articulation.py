@@ -268,6 +268,34 @@ class Articulation(BaseArticulation):
         )
         return backend_buffer
 
+    def _get_backend_ordered_body_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
+        """Return a backend-order view/copy for a public user-order body buffer."""
+        if not self._has_body_ordering:
+            return user_buffer
+        wp.launch(
+            ordering_kernels.reorder_2d_user_to_backend,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[user_buffer, self._body_backend_to_user],
+            outputs=[backend_buffer],
+            device=self._device,
+        )
+        return backend_buffer
+
+    def _get_backend_ordered_body_3d_buffer(
+        self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
+    ) -> wp.array:
+        """Return a backend-order view/copy for a public user-order 3-D body buffer."""
+        if not self._has_body_ordering:
+            return user_buffer
+        wp.launch(
+            ordering_kernels.reorder_3d_user_to_backend,
+            dim=(self._num_instances, self._num_bodies, component_count),
+            inputs=[user_buffer, self._body_backend_to_user],
+            outputs=[backend_buffer],
+            device=self._device,
+        )
+        return backend_buffer
+
     def write_data_to_sim(self) -> None:
         """Write external wrenches and joint commands to the simulation.
 
@@ -2196,8 +2224,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_mass.data],
             device=self._device,
         )
+        self._data._body_mass.timestamp = self._data._sim_timestamp
+        body_mass_backend = self._get_backend_ordered_body_buffer(
+            self._data._body_mass.data, self._data._body_mass_backend.data
+        )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self.data._cpu_body_mass, self._data._body_mass.data)
+        wp.copy(self.data._cpu_body_mass, body_mass_backend)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, indices=cpu_env_ids)
 
     def set_masses_mask(
@@ -2238,7 +2270,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_mass.data],
             device=self._device,
         )
-        wp.copy(self.data._cpu_body_mass, self._data._body_mass.data)
+        self._data._body_mass.timestamp = self._data._sim_timestamp
+        body_mass_backend = self._get_backend_ordered_body_buffer(
+            self._data._body_mass.data, self._data._body_mass_backend.data
+        )
+        wp.copy(self.data._cpu_body_mass, body_mass_backend)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, mask=self._get_cpu_env_mask(env_mask_wp))
 
     def set_coms_index(
@@ -2279,8 +2315,11 @@ class Articulation(BaseArticulation):
         )
         self._data._body_com_pose_b.timestamp = self._data._sim_timestamp
         self._data._reset_body_com_pose_b_dependents()
+        body_com_backend = self._get_backend_ordered_body_buffer(
+            self._data._body_com_pose_b.data, self._data._body_com_pose_b_backend.data
+        )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self.data._cpu_body_coms, self._data._body_com_pose_b.data)
+        wp.copy(self.data._cpu_body_coms, body_com_backend)
         self._root_view.set_attribute(TT.BODY_COM_POSE, self.data._cpu_body_coms, indices=cpu_env_ids)
 
     def set_coms_mask(
@@ -2323,7 +2362,10 @@ class Articulation(BaseArticulation):
         )
         self._data._body_com_pose_b.timestamp = self._data._sim_timestamp
         self._data._reset_body_com_pose_b_dependents()
-        wp.copy(self.data._cpu_body_coms, self._data._body_com_pose_b.data)
+        body_com_backend = self._get_backend_ordered_body_buffer(
+            self._data._body_com_pose_b.data, self._data._body_com_pose_b_backend.data
+        )
+        wp.copy(self.data._cpu_body_coms, body_com_backend)
         self._root_view.set_attribute(
             TT.BODY_COM_POSE, self.data._cpu_body_coms, mask=self._get_cpu_env_mask(env_mask_wp)
         )
@@ -2364,8 +2406,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_inertia.data],
             device=self._device,
         )
+        self._data._body_inertia.timestamp = self._data._sim_timestamp
+        body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
+            self._data._body_inertia.data, self._data._body_inertia_backend.data, 9
+        )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self.data._cpu_body_inertia, self._data._body_inertia.data)
+        wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
         self._root_view.set_attribute(TT.BODY_INERTIA, self.data._cpu_body_inertia, indices=cpu_env_ids)
 
     def set_inertias_mask(
@@ -2406,7 +2452,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_inertia.data],
             device=self._device,
         )
-        wp.copy(self.data._cpu_body_inertia, self._data._body_inertia.data)
+        self._data._body_inertia.timestamp = self._data._sim_timestamp
+        body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
+            self._data._body_inertia.data, self._data._body_inertia_backend.data, 9
+        )
+        wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
         self._root_view.set_attribute(
             TT.BODY_INERTIA, self.data._cpu_body_inertia, mask=self._get_cpu_env_mask(env_mask_wp)
         )

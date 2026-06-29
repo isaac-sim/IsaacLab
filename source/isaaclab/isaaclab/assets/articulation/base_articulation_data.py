@@ -95,10 +95,10 @@ class BaseArticulationData(ABC):
     ##
 
     body_names: list[str] | None = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_names: list[str] | None = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_ordering: ArticulationNameMap | None = None
     """Mapping between backend and public joint order, if ordering has been resolved."""

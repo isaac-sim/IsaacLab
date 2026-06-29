@@ -1217,6 +1217,39 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(ordered_art.data.root_com_pose_w, identity_root_com_pose_w)
         _assert_proxy_close(ordered_art.data.root_link_vel_w, identity_root_link_vel_w)
 
+    def test_ovphysx_reversed_body_ordering_rereads_backend_shadows_after_reset(self):
+        """Refresh OVPhysX backend shadow buffers after same-step pose/velocity invalidation."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        num_instances = 2
+        num_joints = 1
+        num_bodies = 3
+        art, raw_backend = get_articulation("ovphysx", num_instances, num_joints, num_bodies, device="cpu")
+        raw_data = _make_body_ordering_backend_data(num_instances, num_bodies)
+        _set_body_ordering_backend_data("ovphysx", art, raw_backend, *raw_data)
+        user_to_backend = _install_reversed_body_ordering(art)
+        art.data.update(dt=0.01)
+
+        _ = _clone_proxy_tensor(art.data.body_link_pose_w)
+        _ = _clone_proxy_tensor(art.data.body_com_vel_w)
+
+        from isaaclab_ovphysx import tensor_types as TT
+
+        next_link_pose = raw_data[2].copy()
+        next_link_pose[..., 0] += 1000.0
+        next_body_com_vel = raw_data[4].copy()
+        next_body_com_vel[..., 0] += 500.0
+        raw_backend.bindings[TT.LINK_POSE]._data = next_link_pose
+        raw_backend.bindings[TT.LINK_VELOCITY]._data = next_body_com_vel
+
+        art.data._reset_pose()
+        art.data._reset_velocity()
+
+        expected_link_pose = torch.from_numpy(next_link_pose[:, user_to_backend])
+        expected_body_com_vel = torch.from_numpy(next_body_com_vel[:, user_to_backend])
+        _assert_proxy_close(art.data.body_link_pose_w, expected_link_pose)
+        _assert_proxy_close(art.data.body_com_vel_w, expected_body_com_vel)
+
     @_dynamics_ordering_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 4)])
     @pytest.mark.parametrize("device", ["cpu"])
@@ -1948,6 +1981,46 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
     for i in selected:
         mask_np[i] = True
     return wp.array(mask_np, dtype=wp.bool, device=device)
+
+
+# ---------------------------------------------------------------------------
+# Tests: Articulation operations
+# ---------------------------------------------------------------------------
+
+
+class TestArticulationOperations:
+    """Test cross-cutting articulation operations."""
+
+    def test_physx_newton_actuator_forces_are_written_in_backend_order(self):
+        """Write Newton-actuator PhysX forces in backend joint order."""
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        num_instances = 2
+        num_joints = 4
+        num_bodies = 2
+        art, raw_backend = get_articulation("physx", num_instances, num_joints, num_bodies, device="cpu")
+        _install_reversed_joint_ordering(art)
+        user_forces_np = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
+        user_forces = wp.array(user_forces_np, dtype=wp.float32, device=art.device)
+        object.__setattr__(art, "_joint_effort_target_backend", wp.zeros_like(art.data.joint_effort_target.warp))
+        wrapper = MagicMock()
+        wrapper.joint_f_2d = user_forces
+        object.__setattr__(art, "_physx_actuator_wrapper", wrapper)
+        object.__setattr__(art, "_has_newton_actuators", True)
+        object.__setattr__(art, "_has_implicit_actuators", False)
+        art._apply_actuator_model_newton = MagicMock()
+        captured = {}
+
+        def _capture_forces(forces, indices):
+            captured["forces"] = wp.clone(forces, device="cpu").numpy()
+            captured["indices"] = wp.clone(indices, device="cpu").numpy()
+
+        raw_backend.set_dof_actuation_forces = _capture_forces
+
+        art.write_data_to_sim()
+
+        backend_to_user = np.asarray(art.joint_ordering.backend_to_user_indices, dtype=np.int64)
+        np.testing.assert_allclose(captured["forces"], user_forces_np[:, backend_to_user])
 
 
 # ---------------------------------------------------------------------------

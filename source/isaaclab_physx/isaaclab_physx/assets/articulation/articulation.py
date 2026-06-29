@@ -378,10 +378,10 @@ class Articulation(BaseArticulation):
             # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
             # to PhysX as the actuation force.
             self._apply_actuator_model_newton()
-            self.root_view.set_dof_actuation_forces(
-                self._physx_actuator_wrapper.joint_f_2d,
-                self._ALL_INDICES,
+            effort_target = self._get_backend_ordered_joint_buffer(
+                self._physx_actuator_wrapper.joint_f_2d, self._joint_effort_target_backend
             )
+            self.root_view.set_dof_actuation_forces(effort_target, self._ALL_INDICES)
             if self._has_implicit_actuators:
                 pos_target = self._get_backend_ordered_joint_buffer(
                     self._data._joint_pos_target, self._joint_pos_target_backend
@@ -2560,10 +2560,11 @@ class Articulation(BaseArticulation):
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
+        body_com_backend = self._get_backend_ordered_body_buffer(
+            self.data._body_com_pose_b.data, self.data._body_com_pose_b_backend.data
+        )
         body_com_flat = (
-            wp.clone(self.data._body_com_pose_b.data, device="cpu")
-            .view(wp.float32)
-            .reshape((self.num_instances, self.num_bodies, 7))
+            wp.clone(body_com_backend, device="cpu").view(wp.float32).reshape((self.num_instances, self.num_bodies, 7))
         )
         self.root_view.set_coms(body_com_flat, indices=cpu_env_ids)
 
@@ -4561,6 +4562,8 @@ class Articulation(BaseArticulation):
                 self._implicit_dof_mask,
                 w.joint_f_2d,
                 self._data._sim_bind_joint_computed_effort,
+                self._ALL_JOINT_INDICES,
+                False,
             ],
             outputs=[
                 self._data._computed_torque,
