@@ -294,7 +294,12 @@ def _spawn_geom_from_prim_type(
     create_prim(mesh_prim_path, prim_type, scale=scale, attributes=attributes, stage=stage)
     # apply collision properties
     if cfg.collision_props is not None:
-        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
+        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
+            schemas.apply_collision_properties(mesh_prim_path, coll_frags, stage=stage)
+        else:
+            schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
     # apply visual material
     if cfg.visual_material is not None:
         if not cfg.visual_material_path.startswith("/"):
@@ -319,7 +324,18 @@ def _spawn_geom_from_prim_type(
     # note: we apply rigid properties in the end to later make the instanceable prim
     # apply mass properties
     if cfg.mass_props is not None:
-        schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
+        # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> define_*
+        # normalize a single fragment to a list so the convenience form routes like a list
+        mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
+        if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
+            schemas.apply_mass_properties(prim_path, mass_frags, stage=stage)
+        else:
+            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
     # apply rigid body properties
     if cfg.rigid_props is not None:
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
+        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+        else:
+            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

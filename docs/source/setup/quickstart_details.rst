@@ -84,9 +84,16 @@ Available Presets
 - ``isaacsim_rtx_renderer`` — Isaac Sim RTX (default with Isaac Sim)
 - ``newton_renderer`` — Newton Warp renderer
 - ``ovrtx_renderer`` — OV RTX renderer (kit-less)
+- ``rtx`` — automatic RTX renderer selection
 
 **Domain presets** (``presets=NAME[,NAME,...]``) are task-specific — run
 ``--task=<name> --help`` to list them.
+
+Use ``renderer=rtx`` for automatic RTX selection on tasks that expose the
+multi-backend renderer selector. The selection follows the runtime: it uses
+Isaac Sim RTX when the run needs Isaac Sim/Kit, such as ``physics=physx`` or
+``--visualizer kit``, and uses OVRTX when the run is fully kit-less. For example,
+``physics=ovphysx renderer=rtx`` selects OVRTX;
 
 Common combinations:
 
@@ -94,6 +101,7 @@ Common combinations:
 
    physics=newton_mjwarp renderer=newton_renderer presets=rgb
    physics=newton_mjwarp renderer=newton_renderer presets=depth
+   physics=newton_mjwarp renderer=rtx presets=rgb
    physics=physx renderer=isaacsim_rtx_renderer presets=rgb
    physics=physx renderer=isaacsim_rtx_renderer presets=depth
    physics=physx renderer=isaacsim_rtx_renderer presets=albedo

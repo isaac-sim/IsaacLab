@@ -10,7 +10,6 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
-from typing import Any
 
 import numpy as np
 import torch
@@ -29,6 +28,7 @@ from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
 from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .rigid_object_data import RigidObjectData
 
@@ -64,9 +64,9 @@ class RigidObject(BaseRigidObject):
         """
         super().__init__(cfg)
         queue_ovphysx_replication(cfg)
-        # Bindings are created lazily (on first access) to avoid allocating
-        # handles for tensor types the user never queries.
-        self._bindings: dict[int, Any] = {}
+        # The binding manager is created in ``_initialize_impl``; it owns all
+        # TensorBinding creation, caching, and the CPU/GPU device policy.
+        self._root_view: OvPhysxView | None = None
 
     """
     Properties
@@ -94,20 +94,23 @@ class RigidObject(BaseRigidObject):
         return self._body_names
 
     @property
-    def root_view(self) -> dict[int, Any]:
+    def root_view(self) -> OvPhysxView:
         """Root view for the asset.
 
-        OVPhysX exposes per-tensor-type bindings rather than a single opaque view object
-        as used by the PhysX and Newton backends. Callers that need low-level binding
-        access should call :meth:`_get_binding` rather than iterating this dict directly.
-        For high-level state access (instance counts, prim paths, transforms), use the
+        On OVPhysX this is an :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`: a
+        string-keyed binding manager over the per-tensor-type ``TensorBinding`` handles,
+        rather than the single opaque view object used by the PhysX and Newton backends.
+        Address attributes by their lowercased ``TensorType`` name (e.g.
+        ``root_view.get_attribute("rigid_body_pose")``) or by the
+        :class:`~isaaclab_ovphysx.tensor_types.TensorType` member itself. For high-level
+        state access (instance counts, prim paths, transforms), prefer the
         :attr:`num_instances`, :attr:`body_names`, and
         :attr:`~RigidObjectData.root_link_pose_w` accessors instead.
 
         .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._bindings
+        return self._root_view
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer | None:
@@ -178,8 +181,7 @@ class RigidObject(BaseRigidObject):
             outputs=[self._wrench_buf],
             device=self._device,
         )
-        binding = self._get_binding(TT.RIGID_BODY_WRENCH)
-        binding.write(self._wrench_buf_flat)
+        self._root_view.set_attribute(TT.RIGID_BODY_WRENCH, self._wrench_buf_flat)
         inst.reset()
 
     def update(self, dt: float) -> None:
@@ -362,8 +364,9 @@ class RigidObject(BaseRigidObject):
         if not skip_forward:
             self.data._reset_pose()
         # Push cache to the wheel via an indexed write.
-        binding = self._get_binding(TT.RIGID_BODY_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids
+        )
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -401,8 +404,9 @@ class RigidObject(BaseRigidObject):
         )
         if not skip_forward:
             self.data._reset_pose()
-        binding = self._get_binding(TT.RIGID_BODY_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
+        )
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -441,8 +445,9 @@ class RigidObject(BaseRigidObject):
         )
         if not skip_forward:
             self.data._reset_pose(from_link=False)
-        binding = self._get_binding(TT.RIGID_BODY_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids
+        )
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -481,8 +486,9 @@ class RigidObject(BaseRigidObject):
         )
         if not skip_forward:
             self.data._reset_pose(from_link=False)
-        binding = self._get_binding(TT.RIGID_BODY_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
+        )
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -524,8 +530,9 @@ class RigidObject(BaseRigidObject):
         # Invalidate dependent timestamps.
         if not skip_forward:
             self.data._reset_velocity()
-        binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids
+        )
 
     def write_root_com_velocity_to_sim_mask(
         self,
@@ -566,8 +573,9 @@ class RigidObject(BaseRigidObject):
         )
         if not skip_forward:
             self.data._reset_velocity()
-        binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp
+        )
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -614,8 +622,9 @@ class RigidObject(BaseRigidObject):
         )
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
-        binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids
+        )
 
     def write_root_link_velocity_to_sim_mask(
         self,
@@ -656,8 +665,9 @@ class RigidObject(BaseRigidObject):
         )
         if not skip_forward:
             self.data._reset_velocity(from_com=False)
-        binding = self._get_binding(TT.RIGID_BODY_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp
+        )
 
     """
     Operations - Setters.
@@ -698,8 +708,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_MASS is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_mass, self.data._body_mass)
-        binding = self._get_binding(TT.RIGID_BODY_MASS)
-        binding.write(self._cpu_body_mass.flatten(), indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -733,8 +742,9 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         wp.copy(self._cpu_body_mass, self.data._body_mass)
-        binding = self._get_binding(TT.RIGID_BODY_MASS)
-        binding.write(self._cpu_body_mass.flatten(), mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def set_coms_index(
         self,
@@ -773,9 +783,10 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
-        binding = self._get_binding(TT.RIGID_BODY_COM_POSE)
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
-        binding.write(self._cpu_body_coms.reshape((self._num_instances, 7)), indices=cpu_env_ids)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_COM_POSE, self._cpu_body_coms.reshape((self._num_instances, 7)), indices=cpu_env_ids
+        )
 
     def set_coms_mask(
         self,
@@ -810,8 +821,11 @@ class RigidObject(BaseRigidObject):
         )
         self.data._root_com_pose_w.timestamp = -1.0
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
-        binding = self._get_binding(TT.RIGID_BODY_COM_POSE)
-        binding.write(self._cpu_body_coms.reshape((self._num_instances, 7)), mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_COM_POSE,
+            self._cpu_body_coms.reshape((self._num_instances, 7)),
+            mask=self._get_cpu_env_mask(env_mask_wp),
+        )
 
     def set_inertias_index(
         self,
@@ -847,9 +861,10 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_INERTIA is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
-        binding = self._get_binding(TT.RIGID_BODY_INERTIA)
         # Wheel binding shape is (N, 9); flatten the singleton body dim.
-        binding.write(self._cpu_body_inertia.reshape((self._num_instances, 9)), indices=cpu_env_ids)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_INERTIA, self._cpu_body_inertia.reshape((self._num_instances, 9)), indices=cpu_env_ids
+        )
 
     def set_inertias_mask(
         self,
@@ -883,9 +898,10 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
-        binding = self._get_binding(TT.RIGID_BODY_INERTIA)
-        binding.write(
-            self._cpu_body_inertia.reshape((self._num_instances, 9)), mask=self._get_cpu_env_mask(env_mask_wp)
+        self._root_view.set_attribute(
+            TT.RIGID_BODY_INERTIA,
+            self._cpu_body_inertia.reshape((self._num_instances, 9)),
+            mask=self._get_cpu_env_mask(env_mask_wp),
         )
 
     """
@@ -920,6 +936,7 @@ class RigidObject(BaseRigidObject):
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
+        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
         for tt in (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,
@@ -929,7 +946,7 @@ class RigidObject(BaseRigidObject):
             TT.RIGID_BODY_INERTIA,
         ):
             try:
-                self._get_binding(tt)
+                self._root_view.binding_for(tt)
             except Exception as e:
                 raise RuntimeError(
                     f"OVPhysX could not create rigid-body binding {tt!r}. "
@@ -941,7 +958,7 @@ class RigidObject(BaseRigidObject):
                 ) from e
 
         # read counts and body names from the root-pose binding
-        root_pose = self._bindings[TT.RIGID_BODY_POSE]
+        root_pose = self._root_view.binding_for(TT.RIGID_BODY_POSE)
         self._num_instances = root_pose.count
         self._num_bodies = 1
         try:
@@ -957,7 +974,7 @@ class RigidObject(BaseRigidObject):
             self._body_names = ["base_link"]
 
         # container for data access
-        self._data = RigidObjectData(self._bindings, self._device, check_shapes=self._check_shapes)
+        self._data = RigidObjectData(self._root_view, self._device, check_shapes=self._check_shapes)
 
         # create buffers
         self._create_buffers()
@@ -977,7 +994,7 @@ class RigidObject(BaseRigidObject):
         # constants
         self._ALL_INDICES = wp.array(np.arange(N, dtype=np.int32), device=device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B, dtype=np.int32), device=device)
-        # All-true masks for default mask paths. These let ``binding.write(..., mask=...)``
+        # All-true masks for default mask paths. These let ``set_attribute(..., mask=...)``
         # cover all instances when no env_mask is supplied, without converting back to indices.
         self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=device)
         self._ALL_TRUE_BODY_MASK = wp.array(np.ones(B, dtype=bool), dtype=wp.bool, device=device)
@@ -1093,8 +1110,8 @@ class RigidObject(BaseRigidObject):
     def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
         """Return a pinned-host CPU copy of *env_mask* for a CPU-only binding write.
 
-        The wheel's ``binding.write(mask=...)`` requires the mask on the binding's
-        device, which is CPU for mass / coms / inertia. Reuses the pre-allocated
+        ``set_attribute(mask=...)`` requires the mask on the binding's native device,
+        which is CPU for mass / coms / inertia. Reuses the pre-allocated
         ``_cpu_env_mask`` pinned buffer.
         """
         wp.copy(self._cpu_env_mask, env_mask)
@@ -1126,12 +1143,7 @@ class RigidObject(BaseRigidObject):
         Returns:
             The cached TensorBinding for ``tensor_type``.
         """
-        binding = self._bindings.get(tensor_type)
-        if binding is not None:
-            return binding
-        binding = self._ovphysx.create_tensor_binding(pattern=self._binding_pattern, tensor_type=tensor_type)
-        self._bindings[tensor_type] = binding
-        return binding
+        return self._root_view.try_binding_for(tensor_type)
 
     """
     Internal simulation callbacks.
@@ -1140,6 +1152,9 @@ class RigidObject(BaseRigidObject):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) on stop so a destroyed/stale binding is
+        # not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     def write_root_state_to_sim(
         self,
