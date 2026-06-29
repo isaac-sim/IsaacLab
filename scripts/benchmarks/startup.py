@@ -37,9 +37,7 @@ from isaaclab.app import AppLauncher
 
 from isaaclab_tasks.utils import setup_preset_cli
 
-# ---------------------------------------------------------------------------
-# CLI parsing (must happen before module-level profile blocks)
-# ---------------------------------------------------------------------------
+# CLI parsing must happen before module-level profile blocks.
 
 _parser = argparse.ArgumentParser(description="Profile IsaacLab startup phases and emit a StartupBundle.")
 _parser.add_argument("--task", type=str, required=True, help="Gym task id to profile.")
@@ -52,7 +50,7 @@ _parser.add_argument(
     help="Number of top cProfile functions per phase (default: 5 with whitelist, 30 otherwise).",
 )
 _parser.add_argument(
-    "--benchmark_backend",
+    "--benchmark_formatter",
     type=str,
     default="schema",
     help=(
@@ -75,11 +73,9 @@ sys.argv = [sys.argv[0]] + _hydra_args
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
-from scripts.benchmarks._common import get_backend_types, preset_tokens  # noqa: E402
+from scripts.benchmarks._common import get_formatter_types, preset_tokens  # noqa: E402
 
-# ---------------------------------------------------------------------------
-# Phase 1: python_imports (module-level profiling — timing must be real)
-# ---------------------------------------------------------------------------
+# Profile Python imports at module load time.
 
 _imports_profile = cProfile.Profile()
 _imports_time_begin = time.perf_counter_ns()
@@ -107,9 +103,7 @@ if torch.cuda.is_available() and torch.cuda.is_initialized():
     torch.cuda.synchronize()
 _imports_time_end = time.perf_counter_ns()
 
-# ---------------------------------------------------------------------------
-# Phase 2: task_config (module-level profiling)
-# ---------------------------------------------------------------------------
+# Profile task configuration at module load time.
 
 _task_config_profile = cProfile.Profile()
 _task_config_time_begin = time.perf_counter_ns()
@@ -120,9 +114,7 @@ _env_cfg, _agent_cfg = resolve_task_config(args_cli.task, None)
 _task_config_profile.disable()
 _task_config_time_end = time.perf_counter_ns()
 
-# ---------------------------------------------------------------------------
-# Detect IsaacLab source prefixes for cProfile filtering
-# ---------------------------------------------------------------------------
+# Detect Isaac Lab source prefixes for cProfile filtering.
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 _source_dir = os.path.join(_REPO_ROOT, "source")
@@ -134,9 +126,7 @@ else:
     print(f"[WARNING] IsaacLab source directory not found at '{_source_dir}'. Function-level profiling will be empty.")
     _ISAACLAB_PREFIXES = []
 
-# ---------------------------------------------------------------------------
-# Load whitelist config
-# ---------------------------------------------------------------------------
+# Load the optional cProfile whitelist.
 
 _WHITELIST: dict[str, list[str]] = {}
 if args_cli.whitelist_config is not None:
@@ -182,11 +172,6 @@ if args_cli.top_n is None:
     args_cli.top_n = 5 if _WHITELIST else 30
 
 
-# ---------------------------------------------------------------------------
-# Main profiling and bundle-assembly logic
-# ---------------------------------------------------------------------------
-
-
 def _run_main(
     env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
     app_launch_profile: cProfile.Profile,
@@ -211,7 +196,7 @@ def _run_main(
     if args_cli.seed is not None:
         env_cfg.seed = args_cli.seed
 
-    # ---- Phase: env_creation ---------------------------------------------------
+    # Profile environment creation.
 
     env = None
     env_creation_profile = cProfile.Profile()
@@ -228,7 +213,7 @@ def _run_main(
             torch.cuda.synchronize()
         env_creation_time_end = time.perf_counter_ns()
 
-        # ---- Phase: first_step -------------------------------------------------
+        # Profile the first environment step.
 
         np_actions = np.stack([env.unwrapped.single_action_space.sample() for _ in range(env.unwrapped.num_envs)])
         actions = torch.as_tensor(np_actions, dtype=torch.float32, device=env.unwrapped.device)
@@ -245,14 +230,14 @@ def _run_main(
             torch.cuda.synchronize()
         first_step_time_end = time.perf_counter_ns()
 
-        # ---- Compute wall-clock durations [ms] ---------------------------------
+        # Convert wall-clock durations to milliseconds.
 
         imports_wall_ms = (_imports_time_end - _imports_time_begin) / 1e6
         task_config_wall_ms = (_task_config_time_end - _task_config_time_begin) / 1e6
         env_creation_wall_ms = (env_creation_time_end - env_creation_time_begin) / 1e6
         first_step_wall_ms = (first_step_time_end - first_step_time_begin) / 1e6
 
-        # ---- Parse cProfile data and build StartupPhase objects ----------------
+        # Build the per-phase cProfile summaries.
 
         _phase_raw: dict[str, tuple[cProfile.Profile, float]] = {
             "app_launch": (app_launch_profile, app_launch_wall_ms),
@@ -280,7 +265,7 @@ def _run_main(
                 ],
             )
 
-        # ---- Assemble and write the bundle -------------------------------------
+        # Assemble and write the bundle.
 
         tokens = preset_tokens(_hydra_args)
         cfg = capture.run_config_from_presets(tokens)
@@ -304,10 +289,10 @@ def _run_main(
             max_iterations=None,
         )
 
-        backend_types = get_backend_types(args_cli.benchmark_backend)
+        formatter_types = get_formatter_types(args_cli.benchmark_formatter)
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_startup",
-            backend_type=backend_types,
+            formatter_type=formatter_types,
             output_path=args_cli.output_path,
             use_recorders=True,
             output_prefix=f"startup_{args_cli.task}",
@@ -345,7 +330,7 @@ def _run_main(
 
 
 if __name__ == "__main__":
-    # ---- Phase: app_launch (profiled) -----------------------------------------
+    # Profile application launch.
 
     _app_launch_profile = cProfile.Profile()
     _app_launch_time_begin = time.perf_counter_ns()

@@ -22,7 +22,7 @@ _RUNTIME_BUNDLE_KEYS = {"run", "versions", "hardware", "runtime", "resources"}
 def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
     """Return the parsed JSON whose top-level keys cover ``expected_keys``.
 
-    The schema backend names its file from a timestamped prefix, so the smoke
+    The schema formatter names its file from a timestamped prefix, so the smoke
     tests glob the output directory rather than hardcode the filename.
     """
     candidates = sorted(out_dir.glob("*.json"))
@@ -65,8 +65,8 @@ def test_runtime_writes_runtime_bundle(tmp_path, require_isaacsim):
     assert data["runtime"]["total_fps"]["mean"] > 0
 
 
-def test_runtime_multi_backend_writes_schema_and_omniperf(tmp_path, require_isaacsim):
-    """Two backends -> two files, suffixed ``_schema.json`` and ``_omniperf.json``."""
+def test_runtime_multi_formatter_writes_schema_and_omniperf(tmp_path, require_isaacsim):
+    """Two formatters -> two files, suffixed ``_schema.json`` and ``_omniperf.json``."""
     sh = ROOT / "isaaclab.sh"
     cmd = [
         str(sh),
@@ -82,7 +82,7 @@ def test_runtime_multi_backend_writes_schema_and_omniperf(tmp_path, require_isaa
         "0",
         "--output_path",
         str(tmp_path),
-        "--benchmark_backend",
+        "--benchmark_formatter",
         "schema,omniperf",
         "presets=newton_mjwarp",
         "--headless",

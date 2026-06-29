@@ -13,15 +13,15 @@ import sys
 from types import ModuleType
 
 
-def get_backend_type(cli_backend: str) -> str:
-    """Map CLI backend names to canonical backend type strings.
+def get_formatter_type(cli_formatter: str) -> str:
+    """Map CLI formatter names to canonical formatter type strings.
 
     Args:
-        cli_backend: The backend name from CLI arguments (legacy long-form or
+        cli_formatter: The formatter name from CLI arguments (legacy long-form or
             short canonical form).
 
     Returns:
-        Canonical backend type string; defaults to ``"omniperf"`` for unknown values.
+        Canonical formatter type string; defaults to ``"omniperf"`` for unknown values.
     """
     mapping = {
         "OmniPerfKPIFile": "omniperf",
@@ -34,28 +34,28 @@ def get_backend_type(cli_backend: str) -> str:
         "summary": "summary",
         "schema": "schema",
     }
-    return mapping.get(cli_backend, "omniperf")
+    return mapping.get(cli_formatter, "omniperf")
 
 
-def get_backend_types(cli_backend: str) -> list[str]:
-    """Split a comma-separated ``--benchmark_backend`` value into canonical backend types.
+def get_formatter_types(cli_formatter: str) -> list[str]:
+    """Split a comma-separated ``--benchmark_formatter`` value into canonical formatter types.
 
-    Each token is normalized with :func:`get_backend_type` (so legacy long-form aliases and
+    Each token is normalized with :func:`get_formatter_type` (so legacy long-form aliases and
     unknown-token fallback to ``"omniperf"`` still apply). Order is preserved and duplicates
     are removed. An empty input yields ``["omniperf"]``.
 
     Args:
-        cli_backend: Raw ``--benchmark_backend`` value, e.g. ``"schema"`` or ``"schema,omniperf"``.
+        cli_formatter: Raw ``--benchmark_formatter`` value, e.g. ``"schema"`` or ``"schema,omniperf"``.
 
     Returns:
-        Ordered, de-duplicated list of canonical backend type strings.
+        Ordered, de-duplicated list of canonical formatter type strings.
     """
     out: list[str] = []
-    for tok in cli_backend.split(","):
+    for tok in cli_formatter.split(","):
         tok = tok.strip()
         if not tok:
             continue
-        canon = get_backend_type(tok)
+        canon = get_formatter_type(tok)
         if canon not in out:
             out.append(canon)
     return out or ["omniperf"]

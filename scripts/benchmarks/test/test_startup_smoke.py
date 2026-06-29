@@ -24,7 +24,7 @@ _STARTUP_BUNDLE_KEYS = {"run", "phases"}
 def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
     """Return the parsed JSON whose top-level keys cover ``expected_keys``.
 
-    The schema backend names its file from a timestamped prefix, so the smoke
+    The schema formatter names its file from a timestamped prefix, so the smoke
     tests glob the output directory rather than hardcode the filename.
     """
     candidates = sorted(out_dir.glob("*.json"))

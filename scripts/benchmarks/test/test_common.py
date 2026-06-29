@@ -11,16 +11,11 @@ import sys
 
 import pytest
 
+from scripts.benchmarks import _common
 from scripts.benchmarks._common import (
-    get_backend_type,
-    get_backend_types,
     import_module_from_path,
     preset_tokens,
 )
-
-# ---------------------------------------------------------------------------
-# preset_tokens
-# ---------------------------------------------------------------------------
 
 
 class TestPresetTokens:
@@ -47,79 +42,64 @@ class TestPresetTokens:
         assert preset_tokens([]) == []
 
 
-# ---------------------------------------------------------------------------
-# get_backend_type
-# ---------------------------------------------------------------------------
-
-
-class TestGetBackendType:
-    """Test cases for the CLI backend name to canonical type mapping."""
+class TestGetFormatterType:
+    """Test cases for the CLI formatter name to canonical type mapping."""
 
     def test_omniperf_canonical(self):
         """Test that the canonical short name maps to itself."""
-        assert get_backend_type("omniperf") == "omniperf"
+        assert _common.get_formatter_type("omniperf") == "omniperf"
 
     def test_json_file_metrics_legacy(self):
         """Test that the legacy long-form JSONFileMetrics maps to json."""
-        assert get_backend_type("JSONFileMetrics") == "json"
+        assert _common.get_formatter_type("JSONFileMetrics") == "json"
 
     def test_osmo_kpi_file_legacy(self):
         """Test that the legacy long-form OsmoKPIFile maps to osmo."""
-        assert get_backend_type("OsmoKPIFile") == "osmo"
+        assert _common.get_formatter_type("OsmoKPIFile") == "osmo"
 
     def test_summary_canonical(self):
-        """Test that the summary backend maps to itself."""
-        assert get_backend_type("summary") == "summary"
+        """Test that the summary formatter maps to itself."""
+        assert _common.get_formatter_type("summary") == "summary"
 
     def test_unknown_defaults_to_omniperf(self):
-        """Test that an unknown backend name falls back to omniperf."""
-        assert get_backend_type("unknown") == "omniperf"
+        """Test that an unknown formatter name falls back to omniperf."""
+        assert _common.get_formatter_type("unknown") == "omniperf"
 
     def test_schema_canonical(self):
-        """Test that the schema backend maps to itself."""
-        assert get_backend_type("schema") == "schema"
+        """Test that the schema formatter maps to itself."""
+        assert _common.get_formatter_type("schema") == "schema"
 
 
-# ---------------------------------------------------------------------------
-# get_backend_types
-# ---------------------------------------------------------------------------
-
-
-class TestGetBackendTypes:
-    """Test cases for splitting a comma-separated --benchmark_backend value."""
+class TestGetFormatterTypes:
+    """Test cases for splitting a comma-separated --benchmark_formatter value."""
 
     def test_single_token(self):
         """Test that a single token yields a one-element list."""
-        assert get_backend_types("schema") == ["schema"]
+        assert _common.get_formatter_types("schema") == ["schema"]
 
     def test_comma_separated_tokens(self):
         """Test that comma-separated tokens map to an ordered list."""
-        assert get_backend_types("schema,omniperf") == ["schema", "omniperf"]
+        assert _common.get_formatter_types("schema,omniperf") == ["schema", "omniperf"]
 
     def test_duplicate_tokens_deduplicated(self):
         """Test that duplicate canonical types are removed while preserving order."""
-        assert get_backend_types("schema,schema") == ["schema"]
+        assert _common.get_formatter_types("schema,schema") == ["schema"]
 
     def test_empty_input_falls_back_to_omniperf(self):
-        """Test that an empty input yields the default omniperf backend."""
-        assert get_backend_types("") == ["omniperf"]
+        """Test that an empty input yields the default omniperf formatter."""
+        assert _common.get_formatter_types("") == ["omniperf"]
 
     def test_unknown_token_falls_back_to_omniperf(self):
         """Test that an unknown token falls back to omniperf."""
-        assert get_backend_types("nonsense") == ["omniperf"]
+        assert _common.get_formatter_types("nonsense") == ["omniperf"]
 
     def test_legacy_alias_and_canonical(self):
         """Test that a legacy long-form alias and a canonical token both normalize."""
-        assert get_backend_types("JSONFileMetrics,osmo") == ["json", "osmo"]
+        assert _common.get_formatter_types("JSONFileMetrics,osmo") == ["json", "osmo"]
 
     def test_whitespace_tokens_ignored(self):
         """Test that surrounding whitespace around tokens is stripped."""
-        assert get_backend_types(" schema , omniperf ") == ["schema", "omniperf"]
-
-
-# ---------------------------------------------------------------------------
-# import_module_from_path
-# ---------------------------------------------------------------------------
+        assert _common.get_formatter_types(" schema , omniperf ") == ["schema", "omniperf"]
 
 
 class TestImportModuleFromPath:

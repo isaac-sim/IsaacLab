@@ -26,11 +26,7 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
-from scripts.benchmarks._common import get_backend_types, preset_tokens  # noqa: E402
-
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
+from scripts.benchmarks._common import get_formatter_types, preset_tokens  # noqa: E402
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -58,7 +54,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--benchmark_backend",
+        "--benchmark_formatter",
         type=str,
         default="schema",
         help=(
@@ -72,11 +68,6 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     args, remaining = setup_preset_cli(parser, argv)
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
-
-
-# ---------------------------------------------------------------------------
-# Main entry point
-# ---------------------------------------------------------------------------
 
 
 def run(argv: list[str]) -> None:
@@ -119,15 +110,15 @@ def run(argv: list[str]) -> None:
         if args.seed is not None:
             env_cfg.seed = args.seed
 
-        backend_types = get_backend_types(args.benchmark_backend)
+        formatter_types = get_formatter_types(args.benchmark_formatter)
         tokens = preset_tokens(remaining)
 
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_runtime",
-            backend_type=backend_types,
+            formatter_type=formatter_types,
             output_path=args.output_path,
             use_recorders=True,
-            frametime_recorders=any(t in ("summary", "omniperf") for t in backend_types),
+            frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
             output_prefix=f"benchmark_runtime_{args.task}",
             workflow_metadata={
                 "metadata": [
