@@ -274,7 +274,7 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --benchmark_backend summary \
+        --benchmark_formatter summary \
         --output_path benchmarks/stable
 
     # Warp variant — same task with -Warp- suffix
@@ -283,10 +283,10 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --benchmark_backend summary \
+        --benchmark_formatter summary \
         --output_path benchmarks/warp
 
-The ``summary`` backend prints step time (min / mean / max) and total throughput. Compare
+The ``summary`` formatter prints step time (min / mean / max) and total throughput. Compare
 "step time" between the two runs to estimate the gain per env step.
 
 **Sweep across all available tasks**

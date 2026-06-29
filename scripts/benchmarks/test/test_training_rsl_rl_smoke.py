@@ -22,7 +22,7 @@ _TRAINING_BUNDLE_KEYS = {"run", "versions", "hardware", "runtime", "resources", 
 def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
     """Return the parsed JSON whose top-level keys cover ``expected_keys``.
 
-    The schema backend names its file from a timestamped prefix, so the smoke
+    The schema formatter names its file from a timestamped prefix, so the smoke
     tests glob the output directory rather than hardcode the filename.
     """
     candidates = sorted(out_dir.glob("*.json"))
@@ -50,6 +50,8 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
         "5",
         "--seed",
         "0",
+        "--benchmark_formatter",
+        "schema",
         "--output_path",
         str(tmp_path),
         "presets=newton_mjwarp",

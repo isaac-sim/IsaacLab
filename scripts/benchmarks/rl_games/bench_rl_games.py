@@ -15,23 +15,13 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from scripts.benchmarks._common import get_backend_types, import_module_from_path, preset_tokens
-
-# ---------------------------------------------------------------------------
-# Path setup — locate scripts/reinforcement_learning and load common helpers
-# via explicit file path so that scripts/reinforcement_learning is never added
-# to sys.path (it has no __init__.py and is not an importable package).
-# ---------------------------------------------------------------------------
-
 _BENCH_DIR = Path(__file__).resolve().parents[1]
 _RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
 
-_common = import_module_from_path("isaaclab_rl_common", _RL_SCRIPTS / "common.py")
+if str(_RL_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_RL_SCRIPTS))
 
-
-# ---------------------------------------------------------------------------
-# Argument parsing
-# ---------------------------------------------------------------------------
+import common as _common  # noqa: E402
 
 
 def _parse_args(argv: list[str]):
@@ -61,15 +51,14 @@ def _parse_args(argv: list[str]):
     )
     add_isaaclab_launcher_args(parser)
 
-    # benchmark-specific args
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--benchmark_backend",
+        "--benchmark_formatter",
         type=str,
         default="schema",
         help=(
             "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
-            " 'omniperf', 'osmo', 'json', 'summary'. Legacy long-form aliases accepted."
+            " 'omniperf', 'osmo', 'json', 'summary'"
             " Example: 'schema,omniperf'."
         ),
     )
@@ -97,11 +86,6 @@ def _parse_args(argv: list[str]):
     return args_cli, remaining_args
 
 
-# ---------------------------------------------------------------------------
-# Main run function (dispatch contract)
-# ---------------------------------------------------------------------------
-
-
 def run(argv: list[str]) -> None:
     """Run the RL-Games training benchmark and write a :class:`~isaaclab.test.benchmark.schema.TrainingBundle`.
 
@@ -124,8 +108,8 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
-    from isaaclab.test.benchmark.backend_descriptor import BACKEND_DESCRIPTORS
     from isaaclab.test.benchmark.metrics import parse_tf_logs
+    from isaaclab.test.benchmark.rllib_descriptor import RL_LIBRARY_DESCRIPTORS
     from isaaclab.test.benchmark.schema import StartupTime
 
     from isaaclab_rl.rl_games import RlGamesGpuEnv, RlGamesVecEnvWrapper
@@ -169,15 +153,16 @@ def run(argv: list[str]) -> None:
 
         env_cfg.seed = agent_cfg["params"]["seed"]
 
-        backend_types = get_backend_types(args_cli.benchmark_backend)
-        tokens = preset_tokens(remaining_args)
+        cfg = capture.run_config_from_presets(remaining_args)
+        formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
+        formatter_types = formatter_types or ["omniperf"]
 
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_training",
-            backend_type=backend_types,
+            formatter_type=formatter_types,
             output_path=args_cli.output_path,
             use_recorders=True,
-            frametime_recorders=any(t in ("summary", "omniperf") for t in backend_types),
+            frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
             output_prefix=f"benchmark_training_{args_cli.task}",
             workflow_metadata={
                 "metadata": [
@@ -185,7 +170,7 @@ def run(argv: list[str]) -> None:
                     {"name": "seed", "data": agent_cfg["params"]["seed"]},
                     {"name": "num_envs", "data": args_cli.num_envs},
                     {"name": "max_iterations", "data": agent_cfg["params"]["config"].get("max_epochs")},
-                    {"name": "presets", "data": ",".join(tokens)},
+                    {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
         )
@@ -248,7 +233,7 @@ def run(argv: list[str]) -> None:
                 )
 
         # Parse TensorBoard logs.
-        desc = BACKEND_DESCRIPTORS["rl_games"]
+        desc = RL_LIBRARY_DESCRIPTORS["rl_games"]
         tb_dir = os.path.join(log_root_path, log_dir)
         log_data = parse_tf_logs(tb_dir, desc.tfevents_pattern)
         max_epochs = agent_cfg["params"]["config"].get("max_epochs", 1)
@@ -294,7 +279,6 @@ def run(argv: list[str]) -> None:
         versions = capture.capture_versions(benchmark)
         hardware = capture.capture_hardware(benchmark)
         resources = capture.capture_resources(benchmark)
-        cfg = capture.run_config_from_presets(tokens)
 
         end_utc = capture.now_utc_iso()
         stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]

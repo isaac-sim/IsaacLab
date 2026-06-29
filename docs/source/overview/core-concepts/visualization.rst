@@ -313,7 +313,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
+     --benchmark_formatter=summary \
      physics=newton_mjwarp renderer=ovrtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
@@ -330,7 +330,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
+     --benchmark_formatter=summary \
      physics=physx renderer=isaacsim_rtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Kit video backend**
@@ -347,7 +347,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
+     --benchmark_formatter=summary \
      physics=physx renderer=isaacsim_rtx presets=rgb
 
 

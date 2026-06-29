@@ -6,7 +6,7 @@
 """Unified training-benchmark dispatcher (mirrors scripts/reinforcement_learning/train.py).
 
 Selects the RL library via ``--rl_library`` and forwards remaining args to the matching
-benchmark adapter under ``scripts/benchmarks/<backend>/bench_<backend>.py``, which runs real
+benchmark adapter under ``scripts/benchmarks/<library>/bench_<library>.py``, which runs real
 training under a ``BenchmarkMonitor`` and emits a ``TrainingBundle``.
 """
 

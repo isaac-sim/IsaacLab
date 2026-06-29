@@ -127,7 +127,7 @@ Measure environment stepping performance without any RL library:
 RL Training Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Measure training performance.  Use ``--rl_library`` to select the backend
+Measure training performance.  Use ``--rl_library`` to select the RL library
 (``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``):
 
 .. code-block:: bash
@@ -138,7 +138,7 @@ Measure training performance.  Use ``--rl_library`` to select the backend
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
 
    # Benchmark with RL Games
@@ -308,7 +308,7 @@ RL Training Arguments
      - Description
    * - ``--rl_library``
      - required
-     - RL backend: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
+     - RL library: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
    * - ``--task``
      - required
      - Environment task name
@@ -663,7 +663,7 @@ The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD 
      run: |
        ./isaaclab.sh -p scripts/benchmarks/training.py \
            --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
-           --max_iterations 500 --benchmark_backend json \
+           --max_iterations 500 --benchmark_formatter json \
            --output_path ./benchmark_results
 
    - name: Upload Results
