@@ -42,6 +42,22 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
+    compute_final_obs: bool = False
+    """Whether to capture the terminal observation before a Same-Step autoreset and expose it.
+
+    Under Same-Step autoreset (see :attr:`~isaaclab.envs.ManagerBasedRLEnv.metadata`), an environment
+    that terminates is reset within the same :meth:`~isaaclab.envs.ManagerBasedRLEnv.step` call, so the
+    returned observation belongs to the *new* episode. When this flag is True, the observation is
+    computed once more *before* the reset and stored under ``extras["final_obs"]``, so wrappers can
+    report it as the true terminal observation for value bootstrapping.
+
+    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
+    ``extras["final_obs"]`` is not populated, and the extra observation computation is skipped.
+
+    Note:
+        Currently consumed by the :class:`~isaaclab_rl.sb3.Sb3VecEnvWrapper` wrapper.
+    """
+
     episode_length_s: float = MISSING
     """Duration of an episode (in seconds).
 
