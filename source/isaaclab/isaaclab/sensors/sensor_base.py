@@ -20,8 +20,6 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-from pxr import UsdPhysics
-
 import isaaclab.sim as sim_utils
 from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
 from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -456,6 +454,8 @@ class SensorBase(ABC):
               quaternion ``(x, y, z, w)``, or ``None`` when the sensor is
               mounted directly at the body origin.
         """
+        from pxr import UsdPhysics  # noqa: PLC0415
+
         prim, target_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
 
         ancestor_prim = get_first_matching_ancestor_prim(

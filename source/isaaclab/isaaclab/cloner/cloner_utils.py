@@ -15,13 +15,11 @@ from typing import TYPE_CHECKING, Any
 
 import torch
 
-from pxr import Sdf, Usd, UsdGeom
-
 from .clone_plan import ClonePlan
 from .cloner_strategies import sequential
 
 if TYPE_CHECKING:
-    pass
+    from pxr import Usd
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +365,7 @@ def filter_collisions(
         global_paths: Optional global-collider paths.
 
     """
+    from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
 
     scene_prim = stage.GetPrimAtPath(physicsscene_path)
     # We invert the collision group filters for more efficient collision filtering across environments

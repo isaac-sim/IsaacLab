@@ -136,15 +136,31 @@ def resolve_paths(
 # ##############################################################################
 
 
-try:
-    # _context is a singleton design in isaacsim and for that reason
-    #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
-    #  that singleton to this _context
-    from isaacsim.core.experimental.utils import stage as sim_stage
+_isaacsim_context_shared = False
 
-    sim_stage._context = _context  # type: ignore
-except ImportError:
-    pass
+
+def _share_context_with_isaacsim() -> None:
+    """Point isaacsim's experimental stage singleton at this module's thread-local context.
+
+    ``isaacsim.core.experimental.utils.stage`` keeps its own ``_context`` singleton; until all
+    callers are migrated off it (e.g. ``XformPrim``, ``Prim``), the two must reference the same
+    object so a stage set here is visible there.
+
+    Deferred and idempotent: importing ``isaacsim`` at module-import time would pull ``pxr`` into
+    ``sys.modules`` before Kit registers its bundled USD, causing a duplicate USD class-registration
+    crash. Called lazily from the stage-establishing entry points, by which point Kit is running and
+    the bundled USD is the resolved binding. A no-op when ``isaacsim`` is unavailable (kitless).
+    """
+    global _isaacsim_context_shared
+    if _isaacsim_context_shared:
+        return
+    try:
+        from isaacsim.core.experimental.utils import stage as sim_stage  # noqa: PLC0415
+
+        sim_stage._context = _context  # type: ignore
+    except ImportError:
+        pass
+    _isaacsim_context_shared = True
 
 
 def create_new_stage() -> Usd.Stage:
@@ -170,6 +186,7 @@ def create_new_stage() -> Usd.Stage:
     from pxr import Usd, UsdUtils  # noqa: PLC0415
 
     stage: Usd.Stage = Usd.Stage.CreateInMemory()
+    _share_context_with_isaacsim()
     _context.stage = stage
     UsdUtils.StageCache.Get().Insert(stage)
     return stage
@@ -235,6 +252,7 @@ def open_stage(usd_path: str) -> Usd.Stage:
     if stage is None:
         raise RuntimeError(f"Failed to open USD stage at path '{usd_path}'.")
     # Set as current stage so get_current_stage() can find it
+    _share_context_with_isaacsim()
     _context.stage = stage
     return stage
 
@@ -284,6 +302,7 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         previous_stage = getattr(_context, "stage", None)
         # set new context value
         try:
+            _share_context_with_isaacsim()
             _context.stage = stage
             yield
         # remove context value or restore previous one if it exists

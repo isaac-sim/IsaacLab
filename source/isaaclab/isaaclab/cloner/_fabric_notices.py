@@ -22,8 +22,10 @@ import ctypes
 import logging
 import threading
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
-from pxr import Usd, UsdUtils
+if TYPE_CHECKING:
+    from pxr import Usd
 
 logger = logging.getLogger(__name__)
 
@@ -194,6 +196,8 @@ def disabled_fabric_change_notifies(stage: Usd.Stage, *, restore: bool = True) -
 
     # Avoid leaking a strong reference into the global ``StageCache`` for stages we did not
     # author into the cache: ``Insert`` keeps the stage alive for the rest of the process.
+    from pxr import UsdUtils  # noqa: PLC0415
+
     cache = UsdUtils.StageCache.Get()
     cached_id = cache.GetId(stage)
     stage_id = cached_id.ToLongInt() if cached_id.IsValid() else cache.Insert(stage).ToLongInt()

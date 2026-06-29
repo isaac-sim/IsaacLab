@@ -6,15 +6,16 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import torch
-
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .cloner_utils import split_clone_template
 from .replicate_session import REPLICATION_QUEUE
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 
 def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
@@ -106,6 +107,8 @@ class UsdReplicateContext:
 
     def _apply_queue(self) -> None:
         """Author the queued copy specs into the stage's root layer."""
+        from pxr import Gf, Sdf, UsdGeom, Vt  # noqa: PLC0415
+
         rl = self.stage.GetRootLayer()
 
         def dp_depth(template: str) -> int:

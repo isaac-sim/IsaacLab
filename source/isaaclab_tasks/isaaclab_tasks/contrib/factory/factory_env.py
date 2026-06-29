@@ -6,8 +6,6 @@
 import numpy as np
 import torch
 
-import carb
-
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
@@ -624,6 +622,8 @@ class FactoryEnv(DirectRLEnv):
 
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
+        import carb  # noqa: PLC0415
+
         # Disable gravity.
         physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
         physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))

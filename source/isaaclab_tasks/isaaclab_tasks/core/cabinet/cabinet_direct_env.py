@@ -10,8 +10,6 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from pxr import UsdGeom
-
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
@@ -36,6 +34,8 @@ class CabinetDirectEnv(DirectRLEnv):
     cfg: CabinetDirectEnvCfg
 
     def __init__(self, cfg: CabinetDirectEnvCfg, render_mode: str | None = None, **kwargs):
+        from pxr import UsdGeom  # noqa: PLC0415
+
         super().__init__(cfg, render_mode, **kwargs)
 
         def get_env_local_pose(env_pos: torch.Tensor, xformable: UsdGeom.Xformable, device: torch.device):

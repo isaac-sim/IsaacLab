@@ -72,7 +72,9 @@ _ALL_ISAAC_TASKS = sorted(name for name in gymnasium.registry if name.startswith
 
 def _build_batch_script(task_names: list[str]) -> str:
     return textwrap.dedent(f"""\
-        import sys, traceback, json
+        import sys, traceback, json, importlib
+
+        import gymnasium
 
         FORBIDDEN = {list(_FORBIDDEN_PREFIXES)!r}
         task_names = {task_names!r}
@@ -86,6 +88,7 @@ def _build_batch_script(task_names: list[str]) -> str:
         for task_name in task_names:
             violations = {{}}
             load_error = None
+            entry_error = None
 
             _orig_import = __builtins__.__import__
 
@@ -97,9 +100,26 @@ def _build_batch_script(task_names: list[str]) -> str:
 
             __builtins__.__import__ = _hook
             try:
-                cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-            except Exception as exc:
-                load_error = str(exc)
+                try:
+                    cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+                except Exception as exc:
+                    load_error = str(exc)
+
+                # Also import the env-class entry point -- the module gym.make()
+                # imports via load_env_creator().  This is the path that pulls in
+                # the asset/sim/scene-data stack, which is where eager pxr/omni
+                # imports actually leak (the env_cfg above is pure data and never
+                # touches it).  We capture the import error separately so a
+                # missing optional dependency does not mask the violation: the
+                # hook still records any forbidden import made *during* the
+                # attempt, before any failure.
+                try:
+                    spec = gymnasium.registry.get(task_name)
+                    entry = getattr(spec, "entry_point", None)
+                    if isinstance(entry, str):
+                        importlib.import_module(entry.split(":")[0])
+                except Exception as exc:
+                    entry_error = str(exc)
             finally:
                 __builtins__.__import__ = _orig_import
 
@@ -112,6 +132,7 @@ def _build_batch_script(task_names: list[str]) -> str:
 
             results[task_name] = {{
                 'load_error': load_error,
+                'entry_error': entry_error,
                 'violations': violations,
             }}
 
@@ -154,14 +175,19 @@ def all_cfg_check_results() -> dict:
 
 @pytest.mark.parametrize("task_name", _ALL_ISAAC_TASKS)
 def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_check_results: dict):
-    """Config loading must not import forbidden runtime modules.
+    """Loading a task must not import forbidden runtime modules at import time.
 
-    Config classes are pure data.  They must not pull in backend modules
-    (pxr, omni, carb, isaacsim) or heavyweight libraries (scipy).
+    Covers both pre-launch paths: the ``env_cfg_entry_point`` (pure-data config)
+    and the env-class ``entry_point`` (the module ``gym.make()`` imports, which
+    pulls in the asset/sim/scene-data stack).  Neither may pull in backend
+    modules (pxr, omni, carb, isaacsim) or heavyweight libraries (scipy) at
+    module-import time -- those bind a backend before Kit establishes the
+    bundled one.
 
     Fix: use lazy_loader.attach_stub with .pyi stubs in __init__.py files,
-    TYPE_CHECKING guards for annotation-only imports, and string references
-    for class_type/func fields in cfg files.
+    TYPE_CHECKING guards for annotation-only imports, string references for
+    class_type/func fields in cfg files, and function-local (``# noqa: PLC0415``)
+    imports for pxr/omni/carb/isaacsim inside the bodies that use them.
     """
     if "__subprocess_crash__" in all_cfg_check_results:
         pytest.fail(f"Batch check subprocess crashed:\n{all_cfg_check_results['__subprocess_crash__']}")
@@ -171,11 +197,17 @@ def test_config_load_does_not_import_backend_modules(task_name: str, all_cfg_che
 
     info = all_cfg_check_results[task_name]
     load_error = info.get("load_error")
+    entry_error = info.get("entry_error")
     violations = info.get("violations", {})
 
     messages = []
     if load_error:
         messages.append(f"ERROR: config load crashed: {load_error}")
+    if entry_error and violations:
+        # Informational only: the entry-point import may fail for unrelated
+        # reasons (e.g. a missing optional extension).  We surface it solely to
+        # explain where a recorded violation came from; we never assert on it.
+        messages.append(f"NOTE: env-class entry_point import raised: {entry_error}")
     if violations:
         messages.append(f"FAIL: {len(violations)} forbidden top-level module(s) imported:")
         for mod, stack in sorted(violations.items()):

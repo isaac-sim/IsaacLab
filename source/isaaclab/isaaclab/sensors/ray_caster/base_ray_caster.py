@@ -13,8 +13,6 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom
-
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.cloner import queue_usd_replication
@@ -159,6 +157,8 @@ class BaseRayCaster(SensorBase):
         raise NotImplementedError(f"{self.__class__.__name__} must initialize backend pose tracking.")
 
     def _initialize_warp_meshes(self):
+        from pxr import Gf, Usd, UsdGeom  # noqa: PLC0415
+
         # check number of mesh prims provided
         if len(self.cfg.mesh_prim_paths) != 1:
             raise NotImplementedError(

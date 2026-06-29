@@ -11,8 +11,6 @@ import torch
 import trimesh
 import warp as wp
 
-from pxr import UsdGeom
-
 import isaaclab.sim as sim_utils
 from isaaclab.utils.warp import raycast_mesh
 
@@ -102,6 +100,8 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     sim_utils.define_collision_properties(prim.GetPrimPath(), collider_cfg)
     # add rgba color to the mesh primvars
     if mesh.visual.vertex_colors is not None:
+        from pxr import UsdGeom  # noqa: PLC0415
+
         # obtain color from the mesh
         rgba_colors = np.asarray(mesh.visual.vertex_colors).astype(np.float32) / 255.0
         # displayColor is a primvar attribute that is used to color the mesh

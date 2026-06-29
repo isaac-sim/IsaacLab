@@ -13,8 +13,6 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import UsdGeom, UsdPhysics
-
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
 from isaaclab.cloner import queue_usd_replication
@@ -32,6 +30,8 @@ from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
+    from pxr import UsdGeom
+
     from .camera_cfg import CameraCfg
 
 # import logger
@@ -143,6 +143,8 @@ class Camera(SensorBase):
             RuntimeError: If no camera prim is found at the given path.
             ValueError: If the provided data types are not supported by the camera.
         """
+        from pxr import UsdPhysics  # noqa: PLC0415
+
         # perform check on supported data types
         self._check_supported_data_types(cfg)
         # initialize base class
@@ -395,6 +397,8 @@ class Camera(SensorBase):
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
         """
+        from pxr import UsdGeom  # noqa: PLC0415
+
         if isinstance(eyes, np.ndarray):
             eyes = torch.from_numpy(eyes).to(device=self._device)
         elif not isinstance(eyes, torch.Tensor):
@@ -479,6 +483,8 @@ class Camera(SensorBase):
                 runtime requirements are not satisfied (e.g. the RTX backend requires the
                 simulation app to be launched with ``--enable_cameras``).
         """
+        from pxr import UsdGeom  # noqa: PLC0415
+
         # Initialize parent class
         super()._initialize_impl()
 
