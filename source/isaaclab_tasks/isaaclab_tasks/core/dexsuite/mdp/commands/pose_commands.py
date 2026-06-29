@@ -89,7 +89,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.cfg.element_names = self.cfg.element_names or POSE7_ELEMENT_NAMES
 
     def __str__(self) -> str:
-        msg = "UniformPoseCommand:\n"
+        msg = "ObjectUniformPoseCommand:\n"
         msg += f"\tCommand dimension: {tuple(self.command.shape[1:])}\n"
         msg += f"\tResampling time range: {self.cfg.resampling_time_range}\n"
         return msg

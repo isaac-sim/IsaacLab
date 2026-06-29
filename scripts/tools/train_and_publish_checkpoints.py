@@ -77,7 +77,7 @@ A job consists of a workflow and a task name, separated by a colon (wildcards ar
 
     rl_games:Isaac-Humanoid-*        # Wildcard for any Humanoid version
     rsl_rl:Isaac-Ant-*               # Wildcard for any Ant environment
-    *:Isaac-Velocity-Flat-Spot-v0    # Wildcard for any workflow, specific task
+    *:Isaac-Velocity-Flat-Spot    # Wildcard for any workflow, specific task
 
 Wildcards can be used in either the workflow or task name to match multiple entries.
 """,

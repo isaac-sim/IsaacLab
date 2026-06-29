@@ -253,13 +253,13 @@ class PickAndLiftSm:
 def main():
     # parse configuration
     env_cfg: LiftEnvCfg = parse_env_cfg(
-        "Isaac-Lift-Cube-Franka-IK-Abs-v0",
+        "IsaacContrib-Lift-Cube-Franka-IK-Abs",
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Lift-Cube-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("IsaacContrib-Lift-Cube-Franka-IK-Abs", cfg=env_cfg)
     # reset environment at start
     env.reset()
 

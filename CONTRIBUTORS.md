@@ -110,6 +110,7 @@ Guidelines for modifications:
 * Jingzhou Liu
 * Jinqi Wei
 * Jinyeob Kim
+* Jiwen Cai
 * Johnson Sun
 * Juana Du
 * Kaixi Bao
@@ -130,6 +131,7 @@ Guidelines for modifications:
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
+* Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni
 * Mingxue Gu
@@ -184,6 +186,7 @@ Guidelines for modifications:
 * Tsz Ki GAO
 * Tyler Lum
 * Victor Khaustov
+* Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang

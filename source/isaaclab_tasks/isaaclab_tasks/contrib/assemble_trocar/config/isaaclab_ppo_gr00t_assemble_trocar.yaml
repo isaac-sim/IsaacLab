@@ -111,7 +111,7 @@ env:
       info_on_video: True
       video_base_dir: ${runner.logger.log_path}/video/train
     init_params:
-      id: "Isaac-Assemble-Trocar-G129-Dex3-v0"
+      id: "IsaacContrib-Assemble-Trocar-G129-Dex3"
       num_envs: null
       max_episode_steps: ${env.train.max_episode_steps}
       task_description: "assemble trocar from tray"
@@ -187,7 +187,7 @@ env:
       info_on_video: True
       video_base_dir: ${runner.logger.log_path}/video/eval
     init_params:
-      id: "Isaac-Assemble-Trocar-G129-Dex3-Eval-v0"
+      id: "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
       num_envs: null
       max_episode_steps: ${env.eval.max_episode_steps}
       task_description: "install trocar from box"

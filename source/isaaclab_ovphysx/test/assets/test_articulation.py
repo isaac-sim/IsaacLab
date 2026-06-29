@@ -1980,6 +1980,51 @@ def test_write_root_state(sim, num_articulations, device, with_offset, state_loc
             torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
 
 
+@pytest.mark.parametrize("device", ["cpu"])
+def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
+    """Body-frame COM offsets stay cached and invalidate derived buffers after writes."""
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+
+    sim.reset()
+    articulation.update(sim.cfg.dt)
+
+    articulation.data.body_com_pose_b
+    first_timestamp = articulation.data._body_com_pose_b.timestamp
+    articulation.update(sim.cfg.dt)
+    articulation.data.body_com_pose_b
+    assert articulation.data._body_com_pose_b.timestamp == first_timestamp
+
+    dependent_buffers = [
+        ("root_com_pose_w", articulation.data._root_com_pose_w),
+        ("root_com_vel_w", articulation.data._root_com_vel_w),
+        ("root_link_vel_w", articulation.data._root_link_vel_w),
+        ("body_com_pose_w", articulation.data._body_com_pose_w),
+        ("body_com_vel_w", articulation.data._body_com_vel_w),
+        ("body_link_vel_w", articulation.data._body_link_vel_w),
+        ("root_link_lin_vel_b", articulation.data._root_link_lin_vel_b),
+        ("root_link_ang_vel_b", articulation.data._root_link_ang_vel_b),
+        ("root_com_lin_vel_b", articulation.data._root_com_lin_vel_b),
+        ("root_com_ang_vel_b", articulation.data._root_com_ang_vel_b),
+        ("root_state_w", articulation.data._root_state_w_buf),
+        ("root_link_state_w", articulation.data._root_link_state_w_buf),
+        ("root_com_state_w", articulation.data._root_com_state_w_buf),
+        ("body_state_w", articulation.data._body_state_w_buf),
+        ("body_link_state_w", articulation.data._body_link_state_w_buf),
+        ("body_com_state_w", articulation.data._body_com_state_w_buf),
+    ]
+    for _, buffer in dependent_buffers:
+        buffer.timestamp = articulation.data._sim_timestamp
+
+    coms = wp.zeros((articulation.num_instances, articulation.num_bodies), dtype=wp.transformf, device=device)
+    articulation.set_coms_index(coms=coms)
+
+    assert articulation.data._body_com_pose_b.timestamp == articulation.data._sim_timestamp
+    for name, buffer in dependent_buffers:
+        assert buffer.timestamp < articulation.data._sim_timestamp, name
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", test_devices())
 def test_body_incoming_joint_wrench_b_single_joint(sim, num_articulations, device):

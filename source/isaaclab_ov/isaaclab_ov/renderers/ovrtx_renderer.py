@@ -226,6 +226,11 @@ class OVRTXRenderer(BaseRenderer):
 
     cfg: OVRTXRendererCfg
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        # OV-RTX, like Isaac RTX, temporally accumulates only the rgb/rgba beauty buffer (DLSS).
+        return data_type in ("rgb", "rgba")
+
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
@@ -241,6 +246,7 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
         }
 
     @property
@@ -287,15 +293,16 @@ class OVRTXRenderer(BaseRenderer):
         the RTX exposure model OVRTX embeds does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
         """
-        if not spec.camera_prim_paths or spec.cfg.isp_cfg is None:
+        if spec.cfg.isp_cfg is None:
             return
         try:
             from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
         except ModuleNotFoundError as exc:
             _raise_missing_ppisp_error(exc)
 
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
-        if spec.cfg.isp_cfg is None:
+        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
@@ -751,7 +758,7 @@ class OVRTXRenderer(BaseRenderer):
                     tiled_data = wp.from_dlpack(mapping.tensor)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
 
-        for depth_var in ["DistanceToImagePlaneSD", "DepthSD"]:
+        for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
             with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
@@ -796,6 +803,22 @@ class OVRTXRenderer(BaseRenderer):
                     output_buffers,
                     "semantic_segmentation",
                     suffix="semantic",
+                )
+
+        if "NormalSD" in frame.render_vars and "normals" in output_buffers:
+            with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
+                tiled_normals_data = wp.from_dlpack(mapping.tensor)
+                wp.launch(
+                    kernel=extract_all_rgb_float_tiles_kernel,
+                    dim=(render_data.num_envs, render_data.height, render_data.width),
+                    inputs=[
+                        tiled_normals_data,
+                        output_buffers["normals"],
+                        render_data.num_cols,
+                        render_data.width,
+                        render_data.height,
+                    ],
+                    device=self._device,
                 )
 
     def render(self, render_data: OVRTXRenderData) -> None:

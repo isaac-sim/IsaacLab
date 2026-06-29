@@ -13,7 +13,7 @@ from isaaclab_tasks.contrib.velocity.config.anymal_c import agents
 ##
 
 gym.register(
-    id="Isaac-Velocity-Flat-Anymal-C-Warp-v0",
+    id="Isaac-Velocity-Flat-AnymalC-Warp-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={
@@ -26,7 +26,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Anymal-C-Warp-Play-v0",
+    id="Isaac-Velocity-Flat-AnymalC-Warp-Play-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={

@@ -73,7 +73,7 @@ def main():
         command.extend(
             [
                 "scripts/reinforcement_learning/rl_games/train.py",
-                "--task=Isaac-AutoMate-Assembly-Direct-v0",
+                "--task=IsaacContrib-AutoMate-Assembly-Direct",
                 f"--seed={args.seed}",
                 f"--max_iterations={args.max_iterations}",
             ]
@@ -81,7 +81,9 @@ def main():
     else:
         if not args.checkpoint:
             raise ValueError("No checkpoint provided for evaluation.")
-        command.extend(["scripts/reinforcement_learning/rl_games/play.py", "--task=Isaac-AutoMate-Assembly-Direct-v0"])
+        command.extend(
+            ["scripts/reinforcement_learning/rl_games/play.py", "--task=IsaacContrib-AutoMate-Assembly-Direct"]
+        )
 
     command.append(f"--num_envs={args.num_envs}")
 

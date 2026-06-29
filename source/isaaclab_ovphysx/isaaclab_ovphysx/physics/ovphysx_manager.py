@@ -98,6 +98,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             device: Warp device string used to allocate the staging and merged buffers.
         """
         from isaaclab_ovphysx import tensor_types as TT  # local: keep heavy ovphysx out of module load
+        from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
         self._physx = physx
         self._rigid_bindings = []
@@ -119,7 +120,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         total_count = 0
         for pattern in sorted(patterns):
             try:
-                pose_binding = physx.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
+                view = OvPhysxView(physx, pattern=pattern, device=device)
+                pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
             except Exception as exc:
                 logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
                 continue
@@ -141,6 +143,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             self._rigid_bindings.append(
                 {
                     "pattern": pattern,
+                    "view": view,
                     "pose": pose_binding,
                     "pose_buf": pose_buf,
                     "pose_buf_transformf": pose_buf_transformf,
@@ -175,7 +178,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         for entry in self._rigid_bindings:
             try:
-                entry["pose"].read(entry["pose_buf"])
+                entry["view"].read_into("rigid_body_pose", entry["pose_buf"])
             except Exception as exc:
                 logger.warning("RIGID_BODY_POSE read failed for %s: %s", entry["pattern"], exc)
                 continue
@@ -389,6 +392,20 @@ class OvPhysxManager(PhysicsManager):
     def get_physx_instance(cls) -> Any:
         """Return the underlying ovphysx.PhysX instance (or None if not yet created)."""
         return cls._physx
+
+    @classmethod
+    def get_gravity(cls) -> tuple[float, float, float]:
+        """Return the world-frame gravity vector [m/s^2] from the active simulation cfg.
+
+        Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
+        can read gravity through one classmethod.
+
+        Raises:
+            RuntimeError: If no simulation is active. Call :meth:`initialize` first.
+        """
+        if cls._sim is None or not hasattr(cls._sim, "cfg"):
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+        return cls._sim.cfg.gravity
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:

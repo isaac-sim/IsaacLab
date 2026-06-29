@@ -76,6 +76,18 @@ def get_suffix(path_expr: str, destination_template: str) -> str | None:
     return None if suffix and not suffix.startswith("/") else suffix
 
 
+def replace_path_prefix(path: str, source_prefix: str, destination_prefix: str) -> str:
+    """Replace ``source_prefix`` in ``path`` with ``destination_prefix`` on a path boundary."""
+    source_prefix = source_prefix.rstrip("/") or "/"
+    destination_prefix = destination_prefix.rstrip("/") or "/"
+    if not path.startswith(source_prefix):
+        return path
+    suffix = path[len(source_prefix) :]
+    if suffix and not suffix.startswith("/"):
+        return path
+    return destination_prefix + suffix
+
+
 def resolve_clone_plan_source(path_expr: str, plan: ClonePlan) -> tuple[str, str, str] | None:
     """Resolve a destination path expression to its row's source path, destination glob, and asset suffix.
 

@@ -31,3 +31,41 @@ Newton provides the backend-specific deformable material cfgs. Deformable materi
     :members:
     :show-inheritance:
     :exclude-members: __init__, func
+
+.. automodule:: isaaclab_newton.sim.spawners.mpm
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    MPMParticleSpawnerCfg
+    MPMGridCfg
+    MPMPointsCfg
+    MPMParticleMaterialCfg
+
+MPM Particles
+-------------
+
+Declarative particle generation for :class:`~isaaclab_newton.assets.MPMObject`.
+The spawner creates a placeholder ``Xform`` prim; the particles themselves are
+emitted into the Newton model builder during replication.
+
+.. autoclass:: MPMParticleSpawnerCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: MPMGridCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: MPMPointsCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: MPMParticleMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__

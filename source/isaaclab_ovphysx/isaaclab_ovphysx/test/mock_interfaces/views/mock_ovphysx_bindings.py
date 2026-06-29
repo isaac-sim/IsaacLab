@@ -158,6 +158,129 @@ class MockTensorBinding:
         self._data = np.random.uniform(low, high, self._shape).astype(np.float32)
 
 
+class MockOvPhysxView:
+    """Mock of :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` over a dict of
+    :class:`MockTensorBinding`.
+
+    Lets a unit test inject a working ``_root_view`` into an OVPhysX asset/data class
+    without standing up the real view, a real ``PhysX``, or a USD stage. It mirrors the
+    consumed surface of ``OvPhysxView`` -- ``binding_for`` / ``try_binding_for``,
+    ``get_attribute`` / ``read_into`` / ``set_attribute``, the discoverability helpers,
+    and the metadata passthrough -- delegating reads/writes to the mock bindings, which
+    already implement ``read``/``write`` against numpy buffers.
+
+    Names resolve like the real view: pass either a :class:`TensorType` member or its
+    lowercased name (e.g. ``"articulation_dof_stiffness"``). Unlike the real view this
+    keeps everything on CPU and applies no device/dtype/read-only guards -- it is a test
+    double for the binding-routing surface, not the device policy.
+    """
+
+    def __init__(self, bindings: dict[int, MockTensorBinding]):
+        self._bindings = bindings
+
+    def _resolve(self, name):
+        """Resolve a TensorType member or its lowercased name to the member."""
+        if isinstance(name, str):
+            enum_cls = type(next(iter(self._bindings)))
+            try:
+                return enum_cls[name.upper()]
+            except KeyError:
+                raise KeyError(f"Unknown attribute {name!r}") from None
+        return name
+
+    def _sample(self) -> MockTensorBinding:
+        """A representative binding to read shared metadata from."""
+        return next(iter(self._bindings.values()))
+
+    # -- core read / write -----------------------------------------------------
+
+    def get_attribute(self, name, *, out=None):
+        """Read the full attribute tensor; fill ``out`` if given, else allocate float32."""
+        binding = self._bindings[self._resolve(name)]
+        if out is not None:
+            binding.read(out)
+            return out
+        import warp as wp
+
+        buf = wp.zeros(tuple(binding.shape), dtype=wp.float32, device="cpu")
+        binding.read(buf)
+        return buf
+
+    def read_into(self, name, dst) -> None:
+        """Fill ``dst`` in place from the attribute binding."""
+        self._bindings[self._resolve(name)].read(dst)
+
+    def set_attribute(self, name, values, *, indices=None, mask=None) -> None:
+        """Write a full attribute tensor; ``indices``/``mask`` select which rows apply."""
+        self._bindings[self._resolve(name)].write(values, indices=indices, mask=mask)
+
+    # -- raw binding access ----------------------------------------------------
+
+    def binding_for(self, name) -> MockTensorBinding:
+        """Return the underlying binding, raising ``KeyError`` if absent for these prims."""
+        return self._bindings[self._resolve(name)]
+
+    def try_binding_for(self, name) -> MockTensorBinding | None:
+        """Like :meth:`binding_for`, but return ``None`` when the attribute is absent."""
+        return self._bindings.get(self._resolve(name))
+
+    # -- discoverability -------------------------------------------------------
+
+    def has_attribute(self, name) -> bool:
+        """Return whether a binding is instantiated for ``name`` on these prims."""
+        return self._resolve(name) in self._bindings
+
+    def __contains__(self, name) -> bool:
+        return self.has_attribute(name)
+
+    @property
+    def available_attributes(self) -> list[str]:
+        """Names with a live binding (lowercased ``TensorType`` members)."""
+        return sorted(tt.name.lower() for tt in self._bindings)
+
+    # -- metadata passthrough (from a sample binding) --------------------------
+
+    @property
+    def count(self) -> int:
+        return self._sample().count
+
+    @property
+    def dof_count(self) -> int:
+        return self._sample().dof_count
+
+    @property
+    def body_count(self) -> int:
+        return self._sample().body_count
+
+    @property
+    def joint_count(self) -> int:
+        return self._sample().joint_count
+
+    @property
+    def is_fixed_base(self) -> bool:
+        return self._sample().is_fixed_base
+
+    @property
+    def dof_names(self) -> list[str]:
+        return list(self._sample().dof_names)
+
+    @property
+    def body_names(self) -> list[str]:
+        return list(self._sample().body_names)
+
+    @property
+    def joint_names(self) -> list[str]:
+        return list(self._sample().joint_names)
+
+    @property
+    def fixed_tendon_count(self) -> int:
+        return self._sample().fixed_tendon_count
+
+    @property
+    def spatial_tendon_count(self) -> int:
+        return self._sample().spatial_tendon_count
+
+
 class MockOvPhysxBindingSet:
     """Factory that creates a full set of MockTensorBinding objects
     for a given articulation configuration.
@@ -306,6 +429,20 @@ class MockOvPhysxBindingSet:
                     TT.SPATIAL_TENDON_OFFSET: MockTensorBinding(TT.SPATIAL_TENDON_OFFSET, (N, T_spa), **common),
                 }
             )
+
+    @property
+    def view(self) -> MockOvPhysxView:
+        """A mock :class:`OvPhysxView` over this set's bindings.
+
+        Inject as an asset's ``_root_view`` to exercise the migrated binding-routing
+        code paths without a real view or ``PhysX``. Cached so repeated access returns
+        the same object, like the single view an asset holds.
+        """
+        v = getattr(self, "_view", None)
+        if v is None:
+            v = MockOvPhysxView(self.bindings)
+            self._view = v
+        return v
 
     def set_random_data(self) -> None:
         """Fill all bindings with random data."""

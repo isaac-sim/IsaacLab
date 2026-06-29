@@ -35,7 +35,7 @@ from env_test_utils import _check_random_actions  # isort: skip
 # the base-image CI jobs via CUROBO_TESTS / TESTS_TO_SKIP in test_settings.py and is only executed
 # by the dedicated ``test-curobo`` CI job which uses the cuRobo Docker image.
 SKILLGEN_ENVS = [
-    "Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
+    "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
 ]
 
 

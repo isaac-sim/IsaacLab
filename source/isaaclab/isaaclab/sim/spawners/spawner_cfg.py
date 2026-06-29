@@ -82,18 +82,40 @@ class RigidObjectSpawnerCfg(SpawnerCfg):
         to the prim outside of the properties available by default when spawning the prim.
     """
 
-    mass_props: schemas.MassPropertiesCfg | None = None
-    """Mass properties."""
+    mass_props: schemas.MassPropertiesCfg | schemas.MassFragment | list[schemas.MassFragment] | None = None
+    """Mass properties.
 
-    rigid_props: schemas.RigidBodyBaseCfg | None = None
-    """Rigid body properties.
-
-    For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
-    as True. This will make the object static and will not be affected by gravity or other forces.
+    Accepts either a single legacy :class:`~isaaclab.sim.schemas.MassPropertiesCfg` or a list of
+    :class:`~isaaclab.sim.schemas.MassFragment` fragments (e.g. ``[MassCfg(...)]``). When a fragment
+    list is given, ``UsdPhysics.MassAPI`` is applied as the implicit anchor and each fragment writes
+    its own namespace.
     """
 
-    collision_props: schemas.CollisionPropertiesCfg | None = None
-    """Properties to apply to all collision meshes."""
+    rigid_props: schemas.RigidBodyBaseCfg | schemas.RigidBodyFragment | list[schemas.RigidBodyFragment] | None = None
+    """Rigid body properties.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.RigidBodyBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.RigidBodyFragment` fragments
+    (e.g. ``[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]``). When a fragment list is given,
+    ``UsdPhysics.RigidBodyAPI`` is applied as the implicit anchor and each fragment writes its own
+    namespace.
+
+    For making a rigid object static, set the :attr:`schemas.RigidBodyBaseCfg.kinematic_enabled`
+    (or :attr:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg.kinematic_enabled`) as True. This will
+    make the object static and will not be affected by gravity or other forces.
+    """
+
+    collision_props: (
+        schemas.CollisionPropertiesCfg | schemas.CollisionFragment | list[schemas.CollisionFragment] | None
+    ) = None
+    """Properties to apply to all collision meshes.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.CollisionBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.CollisionFragment` fragments
+    (e.g. ``[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)]``). When a fragment list is given,
+    ``UsdPhysics.CollisionAPI`` is applied as the implicit anchor and each fragment writes its own
+    namespace.
+    """
 
     activate_contact_sensors: bool = False
     """Activate contact reporting on all rigid bodies. Defaults to False.
