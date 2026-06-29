@@ -713,6 +713,27 @@ def _seed_backend_joint_state(
     raise AssertionError(f"Unsupported backend for joint-state parity test: {backend}")
 
 
+def _mutate_backend_joint_state(
+    backend: str,
+    art,
+    raw_backend,
+    position: np.ndarray,
+    velocity: np.ndarray,
+) -> None:
+    """Mutate backend-order joint state without invalidating staging timestamps."""
+    if backend == "physx":
+        raw_backend._dof_positions.assign(wp.array(position, dtype=wp.float32, device=art.device))
+        raw_backend._dof_velocities.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
+        return
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        raw_backend.bindings[TT.DOF_POSITION]._data = position.copy()
+        raw_backend.bindings[TT.DOF_VELOCITY]._data = velocity.copy()
+        return
+    raise AssertionError(f"Unsupported backend for stale joint-state parity test: {backend}")
+
+
 def _read_backend_joint_state(backend: str, art, raw_backend) -> tuple[np.ndarray, np.ndarray]:
     """Return joint position and velocity from backend-order storage."""
     if backend == "physx":
@@ -910,17 +931,31 @@ def _exercise_stale_partial_joint_write(backend: str, operation: str) -> None:
     _seed_backend_joint_state(backend, art, raw_backend, initial_position, initial_velocity)
     user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
 
-    # Prime complete staging rows so the regression isolates stale lifecycle behavior from cold-cache behavior.
-    art.write_joint_position_to_sim_index(
-        position=torch.tensor(initial_position[:, user_to_backend], dtype=torch.float32, device=art.device)
-    )
-    art.write_joint_velocity_to_sim_index(
-        velocity=torch.tensor(initial_velocity[:, user_to_backend], dtype=torch.float32, device=art.device)
-    )
     expected_position = initial_position.copy()
     expected_velocity = initial_velocity.copy()
+    public_position_staging = art.data._joint_pos if backend == "physx" else art.data._joint_pos_buf
+    public_velocity_staging = art.data._joint_vel if backend == "physx" else art.data._joint_vel_buf
+    staging_buffers = []
+    if operation in ("position", "state"):
+        _ = art.data.joint_pos
+        staging_buffers.extend(
+            (("public position", public_position_staging), ("backend position", art.data._joint_pos_backend))
+        )
+    if operation in ("velocity", "state"):
+        _ = art.data.joint_vel
+        staging_buffers.extend(
+            (("public velocity", public_velocity_staging), ("backend velocity", art.data._joint_vel_backend))
+        )
+    for staging_name, staging_buffer in staging_buffers:
+        assert staging_buffer is not None
+        assert staging_buffer.timestamp == art.data._sim_timestamp, f"{backend} {staging_name} staging is not current"
 
     for write_index, (position_value, velocity_value) in enumerate(((901.0, 902.0), (903.0, 904.0))):
+        if write_index == 1:
+            for staging_name, staging_buffer in staging_buffers:
+                assert staging_buffer is not None
+                assert staging_buffer.timestamp >= 0.0, f"{backend} {staging_name} staging was invalidated"
+                assert staging_buffer.timestamp < art.data._sim_timestamp
         env_ids, joint_ids, position_payload, velocity_payload = _write_selected_joint_state(
             art,
             backend,
@@ -955,7 +990,7 @@ def _exercise_stale_partial_joint_write(backend: str, operation: str) -> None:
                     num_instances, num_joints
                 )
                 expected_velocity[~selected_mask] = newer_velocity[~selected_mask]
-            _seed_backend_joint_state(backend, art, raw_backend, expected_position, expected_velocity)
+            _mutate_backend_joint_state(backend, art, raw_backend, expected_position, expected_velocity)
 
 
 def _make_dynamics_ordering_backend_data(

@@ -361,6 +361,7 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
     backend_seed *= 0.001
     articulation.root_view.set_attribute(TT.DOF_POSITION, wp.from_torch(backend_seed))
     backend_before = wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)).clone()
+    torch.testing.assert_close(backend_before, backend_seed, rtol=0.0, atol=0.0)
     backend_joint_id = joint_ordering.user_to_backend_indices[0]
     selected_value = backend_before[0, backend_joint_id] + 0.001
 

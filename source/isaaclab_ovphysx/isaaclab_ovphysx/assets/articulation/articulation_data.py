@@ -1572,7 +1572,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     def _create_buffers(self) -> None:  # noqa: C901
-        """Eagerly allocate every TimestampedBuffer and pinned CPU staging buffer."""
+        """Allocate core buffers and defer optional nonidentity joint-ordering staging."""
         super()._create_buffers()
 
         N = self._num_instances
