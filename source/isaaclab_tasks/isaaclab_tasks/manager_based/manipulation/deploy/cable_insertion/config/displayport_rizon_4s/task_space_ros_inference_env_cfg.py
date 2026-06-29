@@ -41,14 +41,14 @@ _HUBBLE_PLUG_ROOT, _HUBBLE_PLUG_ROT = compute_plug_pose(
 
 @configclass
 class Rizon4sTaskSpaceDisplayportInsertionROSInferenceEnvCfg(Rizon4sTaskSpaceDisplayportInsertionEnvCfg):
-    """Task-space ROS / Isaac Manipulator inference config for NVIDIA Hubble Lab.
+    """Task-space ROS / Isaac Manipulator inference config.
 
     This configuration:
 
     - Exposes variables needed by Isaac Manipulator for on-robot inference
       with task-space (OSC) control and 6D rotation observations.
-    - Aligns robot mounting pose with the Flexiv Rizon 4s installation at
-      NVIDIA Hubble Lab (wall-mount with 90 deg rotation about negative X-axis).
+    - Aligns robot mounting pose with a vertical (table-top) Flexiv Rizon 4s
+      installation (matching the joint-space ROS inference config).
     - Overrides plug and socket initial poses for a fixed/deterministic setup.
     """
 
@@ -76,9 +76,10 @@ class Rizon4sTaskSpaceDisplayportInsertionROSInferenceEnvCfg(Rizon4sTaskSpaceDis
 
         self.action_scale = [_ACTION_SCALE] * self.action_space
 
-        # --- NVIDIA Hubble Lab: Flexiv Rizon 4s mount ---
-        # CALIBRATE: home joint pose / mount seeded from GB300; align with the
-        # physical DisplayPort station before on-robot inference.
+        # --- Flexiv Rizon 4s mount: vertical (table-top) ---
+        # Home joint pose seeds the grasp IK; set to the physical station's pose.
+        self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)
+        self.scene.robot.init_state.rot = (0.0, 0.0, 0.0, 1.0)
         self.scene.robot.init_state.joint_pos = {
             "joint1": math.radians(32.44),
             "joint2": math.radians(-16.71),
@@ -89,8 +90,17 @@ class Rizon4sTaskSpaceDisplayportInsertionROSInferenceEnvCfg(Rizon4sTaskSpaceDis
             "joint7": math.radians(111.54),
         }
 
-        self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)
-        self.scene.robot.init_state.rot = (0.5, 0.5, 0.5, 0.5)
+        # Wall-mount configuration (NVIDIA Hubble Lab, rot=(0.5,0.5,0.5,0.5)):
+        # self.scene.robot.init_state.joint_pos = {
+        #     "joint1": math.radians(-90.0),
+        #     "joint2": math.radians(90.0),
+        #     "joint3": 0.0,
+        #     "joint4": math.radians(90.0),
+        #     "joint5": 0.0,
+        #     "joint6": 0.0,
+        #     "joint7": 0.0,
+        # }
+        # self.scene.robot.init_state.rot = (0.5, 0.5, 0.5, 0.5)
 
         self.scene.dp_socket.init_state = RigidObjectCfg.InitialStateCfg(
             pos=_HUBBLE_SOCKET_ROOT,
@@ -114,7 +124,9 @@ class Rizon4sTaskSpaceDisplayportInsertionROSInferenceEnvCfg(Rizon4sTaskSpaceDis
             pose_range["z"][1],
         ]
         # CALIBRATE: euler equivalent of the DP socket orientation at the station.
-        self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
+        # Wall-mount was [0.0, 0.0, -90.0]; vertical mount seeds to [0.0, 0.0, 0.0].
+        # self.fixed_asset_init_orn_deg = [0.0, 0.0, -90.0]
+        self.fixed_asset_init_orn_deg = [0.0, 0.0, 0.0]
         self.fixed_asset_init_orn_deg_range = [
             math.degrees(pose_range["roll"][1]),
             math.degrees(pose_range["pitch"][1]),

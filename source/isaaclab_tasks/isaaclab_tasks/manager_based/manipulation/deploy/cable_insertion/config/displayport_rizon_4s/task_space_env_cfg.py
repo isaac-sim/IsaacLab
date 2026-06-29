@@ -201,25 +201,51 @@ class TaskSpaceEventCfg:
         },
     )
 
-    reset_plug_curriculum = EventTerm(
-        func=mdp.reset_plug_at_goal_curriculum,
+    # Plug start: matches the joint-space env (plug starts above the socket with
+    # uniform position randomization). Kept identical so the only difference
+    # between the joint-space and task-space envs is the controller space.
+    randomize_plug_pose = EventTerm(
+        func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "plug_cfg": SceneEntityCfg("dp_plug"),
-            "socket_cfg": SceneEntityCfg("dp_socket"),
-            "at_goal_prob": 0.8,
-            "insertion_axis": [1.0, 0.0, 0.0],
-            "insertion_length": _INSERTION_LENGTH,
-            "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
-            "plug_insertion_offset": PLUG_INSERTION_OFFSET,
-            "goal_rot": list(PLUG_GOAL_ROT),
-            "normal_pose_range": {
-                "x": [-0.01, 0.01],
-                "y": [-0.01, 0.01],
+            "pose_range": {
+                "x": [-0.02, 0.02],
+                "y": [-0.02, 0.02],
                 "z": [-0.01, 0.01],
+                # "x": [-0.0, 0.0],
+                # "y": [-0.0, 0.0],
+                # "z": [-0.0, 0.0],
+                "roll": [0.0, 0.0],
+                "pitch": [0.0, 0.0],
+                "yaw": [0.0, 0.0],
             },
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("dp_plug"),
         },
     )
+
+    # Old: 80% at-goal curriculum (task-space-specific plug-start strategy).
+    # Disabled so the plug-start setup matches the joint-space env exactly.
+    # Re-enable (and comment out randomize_plug_pose above) to restore it.
+    # reset_plug_curriculum = EventTerm(
+    #     func=mdp.reset_plug_at_goal_curriculum,
+    #     mode="reset",
+    #     params={
+    #         "plug_cfg": SceneEntityCfg("dp_plug"),
+    #         "socket_cfg": SceneEntityCfg("dp_socket"),
+    #         "at_goal_prob": 0.8,
+    #         "insertion_axis": [1.0, 0.0, 0.0],
+    #         "insertion_length": _INSERTION_LENGTH,
+    #         "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
+    #         "plug_insertion_offset": PLUG_INSERTION_OFFSET,
+    #         "goal_rot": list(PLUG_GOAL_ROT),
+    #         "normal_pose_range": {
+    #             "x": [-0.01, 0.01],
+    #             "y": [-0.01, 0.01],
+    #             "z": [-0.01, 0.01],
+    #         },
+    #     },
+    # )
 
     set_robot_to_grasp_pose = EventTerm(
         func=mdp.set_robot_to_object_grasp_pose,
