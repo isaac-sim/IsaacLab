@@ -57,6 +57,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.test.mock_interfaces.utils import MockWrenchComposer
+from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.wrench_composer import WrenchComposer
 
 # Mock SimulationManager.get_physics_sim_view() to return a mock object with gravity.
@@ -226,13 +227,19 @@ def create_physx_articulation(
         articulation, "_joint_effort_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
     )
     object.__setattr__(
-        articulation, "_joint_pos_target_backend", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+        articulation,
+        "_joint_pos_target_backend",
+        wp.zeros(joint_target_shape, dtype=wp.float32, device=device) if articulation._has_joint_ordering else None,
     )
     object.__setattr__(
-        articulation, "_joint_vel_target_backend", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+        articulation,
+        "_joint_vel_target_backend",
+        wp.zeros(joint_target_shape, dtype=wp.float32, device=device) if articulation._has_joint_ordering else None,
     )
     object.__setattr__(
-        articulation, "_joint_effort_target_backend", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
+        articulation,
+        "_joint_effort_target_backend",
+        wp.zeros(joint_target_shape, dtype=wp.float32, device=device) if articulation._has_joint_ordering else None,
     )
 
     # Cached .view(wp.float32) wrappers
@@ -673,6 +680,13 @@ def _body_ordering_for_mode(mode: str, num_bodies: int) -> tuple[str, ...] | Non
     if mode == "reversed":
         return tuple(reversed(backend_names))
     raise ValueError(f"Unsupported body ordering mode: {mode}")
+
+
+def _ordering_shadow_shape(buffer: wp.array | TimestampedBufferWarp) -> tuple[int, ...]:
+    """Return the allocation shape for a raw or timestamped ordering shadow."""
+    if isinstance(buffer, TimestampedBufferWarp):
+        buffer = buffer.data
+    return tuple(buffer.shape)
 
 
 def _make_backend_com_poses(num_instances: int, num_bodies: int) -> np.ndarray:
@@ -2273,6 +2287,108 @@ class TestArticulationDataBodyState:
             expected_dtype=wp.quatf,
             name="body_com_quat_b",
         )
+
+
+class TestArticulationOrderingAllocation:
+    """Test that ordering-only shadows exist only for nonidentity mappings."""
+
+    _DATA_SHADOWS = {
+        "physx": (
+            "_joint_pos_backend",
+            "_joint_vel_backend",
+            "_joint_stiffness_backend",
+            "_joint_damping_backend",
+            "_joint_armature_backend",
+            "_joint_pos_limits_backend",
+            "_joint_vel_limits_backend",
+            "_joint_effort_limits_backend",
+            "_joint_friction_props_backend",
+            "_body_com_pose_b_backend",
+            "_body_mass_backend",
+            "_body_inertia_backend",
+        ),
+        "ovphysx": (
+            "_body_link_pose_w_backend",
+            "_body_link_vel_w_backend",
+            "_body_com_pose_b_backend",
+            "_body_com_vel_w_backend",
+            "_body_com_acc_w_backend",
+            "_joint_pos_backend",
+            "_joint_vel_backend",
+            "_joint_stiffness_backend",
+            "_joint_damping_backend",
+            "_joint_armature_backend",
+            "_joint_pos_limits_backend",
+            "_joint_vel_limits_backend",
+            "_joint_effort_limits_backend",
+            "_joint_friction_props_backend",
+            "_body_mass_backend",
+            "_body_inertia_backend",
+        ),
+    }
+    _ARTICULATION_SHADOWS = {
+        "physx": (
+            "_joint_pos_target_backend",
+            "_joint_vel_target_backend",
+            "_joint_effort_target_backend",
+            "_body_wrench_force_backend",
+            "_body_wrench_torque_backend",
+        ),
+        "ovphysx": (
+            "_joint_pos_target_backend",
+            "_joint_vel_target_backend",
+            "_joint_effort_target_backend",
+        ),
+    }
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    def test_physx_and_ovphysx_allocate_shadows_only_for_nonidentity_ordering(
+        self, backend: str, ordering_mode: str
+    ) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_joints = 3
+        num_bodies = 4
+        art, _ = get_articulation(
+            backend,
+            num_instances,
+            num_joints,
+            num_bodies,
+            device="cpu",
+            joint_ordering=_joint_ordering_for_mode(ordering_mode, num_joints),
+            body_ordering=_body_ordering_for_mode(ordering_mode, num_bodies),
+        )
+
+        if ordering_mode == "none":
+            assert art.joint_ordering is None
+            assert art.body_ordering is None
+        else:
+            assert art.joint_ordering is not None
+            assert art.body_ordering is not None
+            expected_identity = ordering_mode == "identity"
+            assert art.joint_ordering.is_identity is expected_identity
+            assert art.body_ordering.is_identity is expected_identity
+
+        expected_ordering = ordering_mode == "reversed"
+        assert art._has_joint_ordering is expected_ordering
+        assert art._has_body_ordering is expected_ordering
+        assert art.data._has_joint_ordering is expected_ordering
+        assert art.data._has_body_ordering is expected_ordering
+
+        for owner, field_names in (
+            (art.data, self._DATA_SHADOWS[backend]),
+            (art, self._ARTICULATION_SHADOWS[backend]),
+        ):
+            for field_name in field_names:
+                shadow = getattr(owner, field_name)
+                if not expected_ordering:
+                    assert shadow is None, f"{backend} {ordering_mode} unexpectedly allocated {field_name}"
+                    continue
+                assert shadow is not None, f"{backend} reversed ordering did not allocate {field_name}"
+                item_count = num_bodies if "_body_" in field_name else num_joints
+                assert _ordering_shadow_shape(shadow)[:2] == (num_instances, item_count)
 
 
 class TestArticulationOrderingComWrites:

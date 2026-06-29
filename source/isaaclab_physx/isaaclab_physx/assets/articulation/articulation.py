@@ -26,6 +26,7 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.sim.utils.queries import find_first_matching_prim, resolve_matching_prims_from_source
+from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -274,50 +275,93 @@ class Articulation(BaseArticulation):
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
     def _cache_ordering_maps(self) -> None:
-        """Cache ordering maps and allocate ordered-wrench staging when required."""
+        """Cache ordering maps and configure ordering-only command staging."""
         super()._cache_ordering_maps()
+
+        joint_target_names = (
+            "_joint_pos_target_backend",
+            "_joint_vel_target_backend",
+            "_joint_effort_target_backend",
+        )
+        for backend_name in joint_target_names:
+            if not hasattr(self, backend_name):
+                continue
+            if self._has_joint_ordering:
+                if getattr(self, backend_name) is None:
+                    setattr(
+                        self,
+                        backend_name,
+                        wp.zeros(
+                            (self.num_instances, self.num_joints),
+                            dtype=wp.float32,
+                            device=self.device,
+                        ),
+                    )
+            else:
+                setattr(self, backend_name, None)
+
         if self._has_body_ordering:
             shape = (self.num_instances, self.num_bodies)
-            self._body_wrench_force_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
-            self._body_wrench_torque_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+            if getattr(self, "_body_wrench_force_backend", None) is None:
+                self._body_wrench_force_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+            if getattr(self, "_body_wrench_torque_backend", None) is None:
+                self._body_wrench_torque_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
         else:
             self._body_wrench_force_backend = None
             self._body_wrench_torque_backend = None
 
-    def _get_backend_ordered_joint_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
+    def _get_backend_ordered_joint_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+    ) -> wp.array:
         """Return a backend-order view/copy for a public user-order joint buffer."""
         if not self._has_joint_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("PhysX _has_joint_ordering requires joint backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self.num_instances, self.num_joints),
             inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self.device,
         )
-        return backend_buffer
+        return backend_data
 
     def _get_backend_ordered_joint_3d_buffer(
-        self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        component_count: int,
     ) -> wp.array:
         """Return a backend-order view/copy for a public user-order 3-D joint buffer."""
         if not self._has_joint_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("PhysX _has_joint_ordering requires 3-D joint backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_3d_user_to_backend,
             dim=(self.num_instances, self.num_joints, component_count),
             inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self.device,
         )
-        return backend_buffer
+        return backend_data
 
     def _get_user_ordered_joint_3d_buffer(
-        self, backend_buffer: wp.array, user_buffer: wp.array, component_count: int
+        self,
+        backend_buffer: wp.array,
+        user_buffer: wp.array | None,
+        component_count: int,
     ) -> wp.array:
         """Return a public user-order view/copy for a backend-order 3-D joint buffer."""
         if not self._has_joint_ordering:
             return backend_buffer
+        if user_buffer is None:
+            raise RuntimeError("PhysX _has_joint_ordering requires 3-D joint user staging.")
         wp.launch(
             ordering_kernels.reorder_3d_backend_to_user,
             dim=(self.num_instances, self.num_joints, component_count),
@@ -327,33 +371,46 @@ class Articulation(BaseArticulation):
         )
         return user_buffer
 
-    def _get_backend_ordered_body_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
+    def _get_backend_ordered_body_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+    ) -> wp.array:
         """Return a backend-order view/copy for a public user-order body buffer."""
         if not self._has_body_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("PhysX _has_body_ordering requires body backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self.num_instances, self.num_bodies),
             inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self.device,
         )
-        return backend_buffer
+        return backend_data
 
     def _get_backend_ordered_body_3d_buffer(
-        self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        component_count: int,
     ) -> wp.array:
         """Return a backend-order view/copy for a public user-order 3-D body buffer."""
         if not self._has_body_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("PhysX _has_body_ordering requires 3-D body backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_3d_user_to_backend,
             dim=(self.num_instances, self.num_bodies, component_count),
             inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self.device,
         )
-        return backend_buffer
+        return backend_data
 
     def write_data_to_sim(self):
         """Write external wrenches and joint commands to the simulation.
@@ -374,16 +431,22 @@ class Articulation(BaseArticulation):
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
             if self._has_body_ordering:
+                force_backend = self._body_wrench_force_backend
+                torque_backend = self._body_wrench_torque_backend
+                if force_backend is None or torque_backend is None:
+                    raise RuntimeError(
+                        "PhysX _has_body_ordering requires _body_wrench_force_backend and _body_wrench_torque_backend."
+                    )
                 wp.launch(
                     ordering_kernels.reorder_body_wrench_user_to_backend,
                     dim=(self.num_instances, self.num_bodies),
                     inputs=[composer.out_force_b.warp, composer.out_torque_b.warp, self._body_backend_to_user],
-                    outputs=[self._body_wrench_force_backend, self._body_wrench_torque_backend],
+                    outputs=[force_backend, torque_backend],
                     device=self.device,
                 )
                 self.root_view.apply_forces_and_torques_at_position(
-                    force_data=self._body_wrench_force_backend.flatten().view(wp.float32),
-                    torque_data=self._body_wrench_torque_backend.flatten().view(wp.float32),
+                    force_data=force_backend.flatten().view(wp.float32),
+                    torque_data=torque_backend.flatten().view(wp.float32),
                     position_data=None,
                     indices=self._ALL_INDICES,
                     is_global=False,
@@ -2557,7 +2620,7 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         backend_staging = self.data._body_com_pose_b_backend
         if self._has_body_ordering and backend_staging is None:
-            raise RuntimeError("PhysX body COM ordering staging was not initialized.")
+            raise RuntimeError("PhysX _has_body_ordering requires _body_com_pose_b_backend.")
         if not all_bodies_selected:
             self.data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
@@ -2582,9 +2645,7 @@ class Articulation(BaseArticulation):
         )
         self.data._reset_body_com_pose_b_dependents()
         if self._has_body_ordering:
-            body_com_backend = self._get_backend_ordered_body_buffer(
-                self.data._body_com_pose_b.data, backend_staging.data
-            )
+            body_com_backend = self._get_backend_ordered_body_buffer(self.data._body_com_pose_b.data, backend_staging)
         else:
             body_com_backend = self.data._body_com_pose_b.data
         validity = 0.0 if cache_is_valid else -1.0
@@ -4121,6 +4182,9 @@ class Articulation(BaseArticulation):
         self._permanent_wrench_composer = WrenchComposer(self)
 
         # asset named data
+        self._joint_pos_target_backend: wp.array | None = None
+        self._joint_vel_target_backend: wp.array | None = None
+        self._joint_effort_target_backend: wp.array | None = None
         self._resolve_and_install_ordering_maps()
         self._cache_ordering_maps()
         # tendon names are set in _process_tendons function
@@ -4129,9 +4193,6 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
         self._joint_vel_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
         self._joint_effort_target_sim = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_pos_target_backend = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_vel_target_backend = wp.zeros_like(self.data.joint_pos_target, device=self.device)
-        self._joint_effort_target_backend = wp.zeros_like(self.data.joint_pos_target, device=self.device)
 
         # soft joint position limits (recommended not to be too close to limits).
         wp.launch(

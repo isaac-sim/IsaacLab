@@ -25,6 +25,7 @@ from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils.buffers import TimestampedBufferWarp
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -239,61 +240,112 @@ class Articulation(BaseArticulation):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
-    def _get_backend_ordered_joint_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
+    def _cache_ordering_maps(self) -> None:
+        """Cache ordering maps and configure ordering-only command staging."""
+        super()._cache_ordering_maps()
+
+        for backend_name in (
+            "_joint_pos_target_backend",
+            "_joint_vel_target_backend",
+            "_joint_effort_target_backend",
+        ):
+            if not hasattr(self, backend_name):
+                continue
+            if self._has_joint_ordering:
+                if getattr(self, backend_name) is None:
+                    setattr(
+                        self,
+                        backend_name,
+                        wp.zeros(
+                            (self._num_instances, self._num_joints),
+                            dtype=wp.float32,
+                            device=self._device,
+                        ),
+                    )
+            else:
+                setattr(self, backend_name, None)
+
+    def _get_backend_ordered_joint_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+    ) -> wp.array:
         """Return a backend-order view/copy for a public user-order joint buffer."""
         if not self._has_joint_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("OVPhysX _has_joint_ordering requires joint backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self._num_instances, self._num_joints),
             inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self._device,
         )
-        return backend_buffer
+        return backend_data
 
     def _get_backend_ordered_joint_3d_buffer(
-        self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        component_count: int,
     ) -> wp.array:
         """Return a backend-order view/copy for a public user-order 3-D joint buffer."""
         if not self._has_joint_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("OVPhysX _has_joint_ordering requires 3-D joint backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_3d_user_to_backend,
             dim=(self._num_instances, self._num_joints, component_count),
             inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self._device,
         )
-        return backend_buffer
+        return backend_data
 
-    def _get_backend_ordered_body_buffer(self, user_buffer: wp.array, backend_buffer: wp.array) -> wp.array:
+    def _get_backend_ordered_body_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+    ) -> wp.array:
         """Return a backend-order view/copy for a public user-order body buffer."""
         if not self._has_body_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("OVPhysX _has_body_ordering requires body backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self._num_instances, self._num_bodies),
             inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self._device,
         )
-        return backend_buffer
+        return backend_data
 
     def _get_backend_ordered_body_3d_buffer(
-        self, user_buffer: wp.array, backend_buffer: wp.array, component_count: int
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        component_count: int,
     ) -> wp.array:
         """Return a backend-order view/copy for a public user-order 3-D body buffer."""
         if not self._has_body_ordering:
             return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError("OVPhysX _has_body_ordering requires 3-D body backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
         wp.launch(
             ordering_kernels.reorder_3d_user_to_backend,
             dim=(self._num_instances, self._num_bodies, component_count),
             inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_buffer],
+            outputs=[backend_data],
             device=self._device,
         )
-        return backend_buffer
+        return backend_data
 
     def write_data_to_sim(self) -> None:
         """Write external wrenches and joint commands to the simulation.
@@ -1218,7 +1270,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_stiffness.data, self._data._joint_stiffness_backend.data
+            self._data._joint_stiffness.data, self._data._joint_stiffness_backend
         )
         wp.copy(self.data._cpu_joint_stiffness, joint_stiffness_backend)
         self._root_view.set_attribute(TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, indices=cpu_env_ids)
@@ -1264,7 +1316,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_stiffness.data, self._data._joint_stiffness_backend.data
+            self._data._joint_stiffness.data, self._data._joint_stiffness_backend
         )
         wp.copy(self.data._cpu_joint_stiffness, joint_stiffness_backend)
         self._root_view.set_attribute(
@@ -1312,7 +1364,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_damping_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_damping.data, self._data._joint_damping_backend.data
+            self._data._joint_damping.data, self._data._joint_damping_backend
         )
         wp.copy(self.data._cpu_joint_damping, joint_damping_backend)
         self._root_view.set_attribute(TT.DOF_DAMPING, self.data._cpu_joint_damping, indices=cpu_env_ids)
@@ -1358,7 +1410,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         joint_damping_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_damping.data, self._data._joint_damping_backend.data
+            self._data._joint_damping.data, self._data._joint_damping_backend
         )
         wp.copy(self.data._cpu_joint_damping, joint_damping_backend)
         self._root_view.set_attribute(
@@ -1455,7 +1507,7 @@ class Articulation(BaseArticulation):
         # Stage to pinned-host CPU: flatten the vec2f buffer to float32 view.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_pos_limits.data, self._data._joint_pos_limits_backend.data
+            self._data._joint_pos_limits.data, self._data._joint_pos_limits_backend
         )
         flat_src = wp.array(
             ptr=joint_pos_limits_backend.ptr,
@@ -1554,7 +1606,7 @@ class Articulation(BaseArticulation):
             else:
                 logger.info(violation_message)
         joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_pos_limits.data, self._data._joint_pos_limits_backend.data
+            self._data._joint_pos_limits.data, self._data._joint_pos_limits_backend
         )
         flat_src = wp.array(
             ptr=joint_pos_limits_backend.ptr,
@@ -1609,7 +1661,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend.data
+            self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend
         )
         wp.copy(self.data._cpu_joint_velocity_limit, joint_vel_limits_backend)
         self._root_view.set_attribute(TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, indices=cpu_env_ids)
@@ -1655,7 +1707,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend.data
+            self._data._joint_vel_limits.data, self._data._joint_vel_limits_backend
         )
         wp.copy(self.data._cpu_joint_velocity_limit, joint_vel_limits_backend)
         self._root_view.set_attribute(
@@ -1703,7 +1755,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend.data
+            self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend
         )
         wp.copy(self.data._cpu_joint_effort_limit, joint_effort_limits_backend)
         self._root_view.set_attribute(TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, indices=cpu_env_ids)
@@ -1749,7 +1801,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend.data
+            self._data._joint_effort_limits.data, self._data._joint_effort_limits_backend
         )
         wp.copy(self.data._cpu_joint_effort_limit, joint_effort_limits_backend)
         self._root_view.set_attribute(
@@ -1797,7 +1849,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         joint_armature_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_armature.data, self._data._joint_armature_backend.data
+            self._data._joint_armature.data, self._data._joint_armature_backend
         )
         wp.copy(self.data._cpu_joint_armature, joint_armature_backend)
         self._root_view.set_attribute(TT.DOF_ARMATURE, self.data._cpu_joint_armature, indices=cpu_env_ids)
@@ -1843,7 +1895,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         joint_armature_backend = self._get_backend_ordered_joint_buffer(
-            self._data._joint_armature.data, self._data._joint_armature_backend.data
+            self._data._joint_armature.data, self._data._joint_armature_backend
         )
         wp.copy(self.data._cpu_joint_armature, joint_armature_backend)
         self._root_view.set_attribute(
@@ -1920,7 +1972,7 @@ class Articulation(BaseArticulation):
         # Stage the combined (N, J, 3) buffer to pinned-host CPU and write to the binding.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
@@ -1973,7 +2025,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(
@@ -2036,7 +2088,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
@@ -2081,7 +2133,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(
@@ -2145,7 +2197,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
@@ -2191,7 +2243,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend.data, 3
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(
@@ -2240,7 +2292,7 @@ class Articulation(BaseArticulation):
         )
         self._data._body_mass.timestamp = self._data._sim_timestamp
         body_mass_backend = self._get_backend_ordered_body_buffer(
-            self._data._body_mass.data, self._data._body_mass_backend.data
+            self._data._body_mass.data, self._data._body_mass_backend
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_mass, body_mass_backend)
@@ -2286,7 +2338,7 @@ class Articulation(BaseArticulation):
         )
         self._data._body_mass.timestamp = self._data._sim_timestamp
         body_mass_backend = self._get_backend_ordered_body_buffer(
-            self._data._body_mass.data, self._data._body_mass_backend.data
+            self._data._body_mass.data, self._data._body_mass_backend
         )
         wp.copy(self.data._cpu_body_mass, body_mass_backend)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, mask=self._get_cpu_env_mask(env_mask_wp))
@@ -2324,7 +2376,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         backend_staging = self._data._body_com_pose_b_backend
         if self._has_body_ordering and backend_staging is None:
-            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
+            raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_pose_b_backend.")
         if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
@@ -2341,9 +2393,7 @@ class Articulation(BaseArticulation):
         )
         self._data._reset_body_com_pose_b_dependents()
         if self._has_body_ordering:
-            body_com_backend = self._get_backend_ordered_body_buffer(
-                self._data._body_com_pose_b.data, backend_staging.data
-            )
+            body_com_backend = self._get_backend_ordered_body_buffer(self._data._body_com_pose_b.data, backend_staging)
         else:
             body_com_backend = self._data._body_com_pose_b.data
         validity = 0.0 if cache_is_valid else -1.0
@@ -2390,7 +2440,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         backend_staging = self._data._body_com_pose_b_backend
         if self._has_body_ordering and backend_staging is None:
-            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
+            raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_pose_b_backend.")
         if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
@@ -2407,9 +2457,7 @@ class Articulation(BaseArticulation):
         )
         self._data._reset_body_com_pose_b_dependents()
         if self._has_body_ordering:
-            body_com_backend = self._get_backend_ordered_body_buffer(
-                self._data._body_com_pose_b.data, backend_staging.data
-            )
+            body_com_backend = self._get_backend_ordered_body_buffer(self._data._body_com_pose_b.data, backend_staging)
         else:
             body_com_backend = self._data._body_com_pose_b.data
         validity = 0.0 if cache_is_valid else -1.0
@@ -2460,7 +2508,7 @@ class Articulation(BaseArticulation):
         )
         self._data._body_inertia.timestamp = self._data._sim_timestamp
         body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
-            self._data._body_inertia.data, self._data._body_inertia_backend.data, 9
+            self._data._body_inertia.data, self._data._body_inertia_backend, 9
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
@@ -2506,7 +2554,7 @@ class Articulation(BaseArticulation):
         )
         self._data._body_inertia.timestamp = self._data._sim_timestamp
         body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
-            self._data._body_inertia.data, self._data._body_inertia_backend.data, 9
+            self._data._body_inertia.data, self._data._body_inertia_backend, 9
         )
         wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
         self._root_view.set_attribute(
@@ -2545,6 +2593,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
         if self._has_joint_ordering:
             target_backend = self._joint_pos_target_backend
+            if target_backend is None:
+                raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_pos_target_backend.")
         else:
             target_backend = self._data._joint_pos_target
         wp.launch(
@@ -2585,6 +2635,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
         if self._has_joint_ordering:
             target_backend = self._joint_pos_target_backend
+            if target_backend is None:
+                raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_pos_target_backend.")
         else:
             target_backend = self._data._joint_pos_target
         wp.launch(
@@ -2628,6 +2680,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
         if self._has_joint_ordering:
             target_backend = self._joint_vel_target_backend
+            if target_backend is None:
+                raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_vel_target_backend.")
         else:
             target_backend = self._data._joint_vel_target
         wp.launch(
@@ -2668,6 +2722,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
         if self._has_joint_ordering:
             target_backend = self._joint_vel_target_backend
+            if target_backend is None:
+                raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_vel_target_backend.")
         else:
             target_backend = self._data._joint_vel_target
         wp.launch(
@@ -2711,6 +2767,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(target, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "target")
         if self._has_joint_ordering:
             target_backend = self._joint_effort_target_backend
+            if target_backend is None:
+                raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_effort_target_backend.")
         else:
             target_backend = self._data._joint_effort_target
         wp.launch(
@@ -2751,6 +2809,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(target, (self._num_instances, self._num_joints), wp.float32, "target")
         if self._has_joint_ordering:
             target_backend = self._joint_effort_target_backend
+            if target_backend is None:
+                raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_effort_target_backend.")
         else:
             target_backend = self._data._joint_effort_target
         wp.launch(
@@ -3938,6 +3998,11 @@ class Articulation(BaseArticulation):
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
 
+        self._joint_pos_target_backend: wp.array | None = None
+        self._joint_vel_target_backend: wp.array | None = None
+        self._joint_effort_target_backend: wp.array | None = None
+        self._cache_ordering_maps()
+
         # All-true masks.
         self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=device)
         self._ALL_TRUE_BODY_MASK = wp.array(np.ones(B, dtype=bool), dtype=wp.bool, device=device)
@@ -3949,9 +4014,6 @@ class Articulation(BaseArticulation):
         # ``_body_wrench_to_world_ordered`` kernel and consumed by the
         # ``LINK_WRENCH`` binding which expects the 3D ``(N, B, 9)`` shape.
         self._wrench_buf = wp.zeros((N, B, 9), dtype=wp.float32, device=device)
-        self._joint_pos_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
-        self._joint_vel_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
-        self._joint_effort_target_backend = wp.zeros((N, J), dtype=wp.float32, device=device)
 
         # Wrench composers.
         self._instantaneous_wrench_composer = WrenchComposer(self)
