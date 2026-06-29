@@ -7,21 +7,22 @@
 
 Intended use::
 
-    from isaaclab.test.utils import test_devices
+    from isaaclab.test.utils import DeviceScope, test_devices
 
     @pytest.mark.parametrize("device", test_devices())        # cpu + cuda:0 + a non-default GPU
+    @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
     def test_foo(device): ...
 
-Two masks, two roles
---------------------
+Two inputs, two roles
+---------------------
 A test runs on ``scope ∩ runtime``:
 
-* **scope** — the call-site mask: the devices the *test* is valid on. The
-  author owns this; defaults to ``"11X"`` (device-agnostic).
+* **scope** — a :class:`DeviceScope` or mask declaring the devices the *test*
+  is valid on. The author owns this; defaults to :attr:`DeviceScope.ALL`.
 * **runtime** — the ``ISAACLAB_TEST_DEVICES`` env var: the devices the *run*
   may use. The operator / CI owns this; defaults to ``"110"`` (cpu + cuda:0).
   The multi-GPU workflow sets it to one device per shard, matching
-  ``ISAACLAB_SIM_DEVICE`` (AppLauncher's boot device — not read here).
+  ``ISAACLAB_TEST_SIM_DEVICE`` (the explicit AppLauncher boot device — not read here).
 
 A test author never names the shard's GPU; the operator never inspects a
 test's device support. The helper intersects the two.
@@ -35,16 +36,20 @@ Positions left to right: ``0`` = cpu, ``1`` = cuda:0 (the default GPU),
 cpu, cuda:0, and a non-default GPU stay distinct by position — running on
 cuda:0 says nothing about cuda:1+, which is the whole reason this exists.
 
-Common masks
-------------
-======  ===================================================================
-Mask    Meaning
-======  ===================================================================
-``11X`` cpu + cuda:0 + every non-default GPU (default scope; device-agnostic)
-``110`` cpu + cuda:0 (pure-math / backend tests: cuda:0 == cuda:N)
-``00X`` non-default GPUs only (validates non-default-device behavior)
-``100`` cpu only (pure logic)
-======  ===================================================================
+Common scopes
+-------------
+====================================  =========  =============================================
+Named scope                           Mask       Meaning
+====================================  =========  =============================================
+``DeviceScope.ALL``                   ``11X``    cpu + every GPU
+``DeviceScope.CUDA``                  ``01X``    every GPU
+``DeviceScope.CPU_AND_DEFAULT_CUDA``  ``110``    cpu + cuda:0
+``DeviceScope.NON_DEFAULT_CUDA``      ``00X``    cuda:1 and above
+``DeviceScope.CPU``                   ``100``    cpu only
+====================================  =========  =============================================
+
+Named scopes cover the common cases; string masks remain supported for custom
+device combinations.
 
 Worked example — a ``scope="11X"`` (default) test:
 
@@ -65,15 +70,14 @@ Local runs
 ----------
 Set the runtime from the shell to opt a run into non-default GPUs::
 
-    ISAACLAB_TEST_DEVICES=0001 ISAACLAB_SIM_DEVICE=cuda:2 \\
+    ISAACLAB_TEST_DEVICES=0001 ISAACLAB_TEST_SIM_DEVICE=cuda:2 \\
         ./isaaclab.sh -p -m pytest path/to/test.py
 """
 
 from __future__ import annotations
 
 import os
-
-import torch
+from enum import StrEnum
 
 _RUNTIME_DEVICES_ENV_VAR = "ISAACLAB_TEST_DEVICES"
 """Env var naming the run's devices: the devices a run may use (see module docstring)."""
@@ -83,7 +87,21 @@ _DEFAULT_RUNTIME = "110"
 i.e. the historical single-GPU device set, so non-default GPUs are opt-in per run."""
 
 
-def test_devices(scope: str = "11X", *, skip: dict[str, str] | None = None) -> list:
+class DeviceScope(StrEnum):
+    """Named device scopes for common test parametrization cases.
+
+    String masks remain accepted by :func:`test_devices` for custom device
+    combinations that are not represented here.
+    """
+
+    ALL = "11X"
+    CUDA = "01X"
+    CPU_AND_DEFAULT_CUDA = "110"
+    NON_DEFAULT_CUDA = "00X"
+    CPU = "100"
+
+
+def test_devices(scope: str | DeviceScope = DeviceScope.ALL, *, skip: dict[str, str] | None = None) -> list:
     """Resolve the device list to parametrize a test over, as ``scope ∩ runtime``.
 
     ``scope`` is this argument; the runtime comes from the
@@ -91,10 +109,9 @@ def test_devices(scope: str = "11X", *, skip: dict[str, str] | None = None) -> l
     and the scope / runtime split).
 
     Args:
-        scope: Device mask (e.g. ``"11X"``) the test is valid on. Defaults to
-            ``"11X"`` (cpu + cuda:0 + every non-default GPU): the device-agnostic
-            common case, so most call sites can use ``test_devices()`` with no
-            argument.
+        scope: Named scope or device mask (e.g. ``"11X"``) the test is valid
+            on. Defaults to :attr:`DeviceScope.ALL`, so device-agnostic call
+            sites can use ``test_devices()`` with no argument.
         skip: Optional ``{device: reason}``; in-scope devices listed here are
             wrapped in :func:`pytest.mark.skip` so they collect as SKIPPED with
             the reason instead of being dropped. Use to gate a device variant
@@ -138,6 +155,10 @@ def test_devices(scope: str = "11X", *, skip: dict[str, str] | None = None) -> l
     ]
 
 
+# Prevent pytest from collecting this imported ``test_``-prefixed helper.
+test_devices.__test__ = False
+
+
 def _expand(mask: str, count: int) -> list[bool]:
     """Expand a mask to ``count`` include-flags; a trailing ``X`` fills the rest with ``True``.
 
@@ -158,12 +179,15 @@ def _list_available_devices() -> list[str]:
     Returns:
         Ordered list of device strings as torch addresses them.
     """
+    # Keep the import local so importing this test helper before AppLauncher
+    # does not import torch (and its transitive native libraries) before Kit.
+    import torch
+
     devices = ["cpu"]
-    # torch.cuda (not warp) is deliberate: this runs at pytest collection time,
-    # before AppLauncher boots Kit. torch.cuda.device_count() enumerates without
-    # creating a CUDA context, whereas warp.get_cuda_devices() initializes the
-    # warp runtime — doing that at collection, ahead of Kit's device setup,
-    # risks the non-default-GPU init-order fragility this suite targets (#5132).
+    # torch.cuda (not Warp) is deliberate: warp.get_cuda_devices() initializes
+    # the Warp runtime, but non-default-GPU runs must select cuda:N before
+    # wp.init(). Enumeration here must not perturb the initialization order that
+    # this suite validates (#5132).
     if torch.cuda.is_available():
         devices.extend(f"cuda:{i}" for i in range(torch.cuda.device_count()))
     return devices

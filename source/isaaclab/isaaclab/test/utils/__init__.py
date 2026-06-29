@@ -5,12 +5,12 @@
 
 """Test-time helpers for Isaac Lab.
 
-Exposes :func:`test_devices` for selecting the device list to parametrize tests
-over. The set is ``scope ∩ runtime``: ``scope`` is the call-site argument (the
-devices the test is valid on), the runtime is the ``ISAACLAB_TEST_DEVICES`` env
-var (the devices the run may use).
+Exposes :class:`DeviceScope` and :func:`test_devices` for selecting the device
+list to parametrize tests over. The set is ``scope ∩ runtime``: ``scope`` is the
+call-site argument (the devices the test is valid on), the runtime is the
+``ISAACLAB_TEST_DEVICES`` env var (the devices the run may use).
 """
 
-from .devices import test_devices
+from .devices import DeviceScope, test_devices
 
-__all__ = ["test_devices"]
+__all__ = ["DeviceScope", "test_devices"]

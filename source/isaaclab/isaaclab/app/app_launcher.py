@@ -1003,16 +1003,6 @@ class AppLauncher:
         device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
 
         device_explicitly_passed = launcher_args.pop("device_explicit", False)
-        # When the caller didn't pin a device, allow ISAACLAB_SIM_DEVICE to
-        # override the default. Used by the multi-GPU CI workflow to boot
-        # Kit with active_gpu=1 without editing every test's AppLauncher()
-        # call site; Kit's active_gpu is process-global and locked after
-        # SimulationApp init, so per-test selection cannot retarget it.
-        if not device_explicitly_passed:
-            env_device = os.environ.get("ISAACLAB_SIM_DEVICE")
-            if env_device:
-                device = env_device
-                launcher_args["device"] = env_device
 
         if self._xr and not device_explicitly_passed:
             # If no device is specified, default to the CPU device if we are running in XR

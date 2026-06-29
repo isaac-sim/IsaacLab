@@ -13,7 +13,7 @@ import torch
 import torch.utils.benchmark as benchmark
 
 import isaaclab.utils.math as math_utils
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 DECIMAL_PRECISION = 5
 """Precision of the test.
@@ -1041,7 +1041,7 @@ def test_quat_apply_benchmarks():
         return a - b + c
 
     # check that implementation produces the same result as the new implementation
-    for device in test_devices("110"):
+    for device in test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA):
         # prepare random quaternions and vectors
         q_rand = math_utils.random_orientation(num=1024, device=device)
         v_rand = math_utils.sample_uniform(-1000, 1000, (1024, 3), device=device)
@@ -1065,7 +1065,7 @@ def test_quat_apply_benchmarks():
         torch.testing.assert_close(einsum_result_inv, new_result_inv, atol=1e-3, rtol=1e-3)
 
     # check the performance of the new implementation
-    for device in test_devices("110"):
+    for device in test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA):
         # prepare random quaternions and vectors
         # new implementation supports batched inputs
         q_shape = (1024, 2, 5, 4)

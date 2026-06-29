@@ -107,11 +107,10 @@ jobs:
 
       - name: Discover opt-in test files
         # Auto-discovery: any test_*.py with a non-default-capable scope — an
-        # argless ``test_devices()`` (defaults to "11X") or any
-        # ``test_devices("..X")`` mask, whose trailing ``X`` spans the
-        # non-default GPUs — is in scope.  Adding a test to multi-GPU CI needs
-        # no workflow edit; opting a file out is just narrowing its scope (drop
-        # the ``X``, e.g. "110"), so the workflow stays opt-in/opt-out-free.
+        # argless ``test_devices()``, a named scope containing non-default GPUs,
+        # or a string mask with a trailing ``X`` — is in scope. Adding a test to
+        # multi-GPU CI needs no workflow edit; opting a file out is just narrowing
+        # its scope to ``DeviceScope.CPU_AND_DEFAULT_CUDA`` (or mask ``"110"``).
         #
         # Within a discovered file, tests that are NOT parametrized over the
         # ``device`` argument are deselected at collection time by the
@@ -125,7 +124,8 @@ jobs:
           # Used for files with known Kit/Isaac-Sim concurrency issues; the file
           # still runs in single-GPU CI. Excluded files are reported as a notice
           # below for visibility. No workflow edit needed to add/remove a file.
-          mapfile -t candidates < <(grep -rlE 'test_devices\(\)|test_devices\("[^"]*X"\)' source/ --include='test_*.py' | sort -u)
+          device_scope_pattern='test_devices\(\)|test_devices\(DeviceScope\.(ALL|CUDA|NON_DEFAULT_CUDA)|test_devices\("[^"]*X"\)'
+          mapfile -t candidates < <(grep -rlE "$device_scope_pattern" source/ --include='test_*.py' | sort -u)
           discovered=()
           skipped=()
           for f in "${candidates[@]}"; do
@@ -140,7 +140,7 @@ jobs:
             echo "::notice::multi-GPU skipped: $f — $reason"
           done
           if [ ${#discovered[@]} -eq 0 ]; then
-            echo "::error::No opt-in tests discovered (grep for test_devices with an X scope)"
+            echo "::error::No tests with a non-default-capable device scope were discovered"
             exit 1
           fi
           basenames=$(printf '%s\n' "${discovered[@]}" | xargs -n1 basename | sort -u | paste -sd,)

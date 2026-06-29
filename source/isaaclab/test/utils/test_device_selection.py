@@ -7,14 +7,15 @@
 
 These tests mock the host's device list, so they need no GPU and run on the
 single-GPU CI lane. The helper is imported under an alias (``resolve_devices``)
-for two reasons: pytest would otherwise collect the ``test_``-prefixed function
-as a test case, and the multi-GPU workflow's auto-discovery greps for
-``test_devices(...)`` call sites — neither should fire on this file.
+so the multi-GPU workflow's auto-discovery does not mistake this file for an
+opted-in device test. The helper itself sets ``__test__ = False`` to prevent
+pytest from collecting it when imported under its public name.
 """
 
 import pytest
 
 from isaaclab.test.utils import devices as devices_mod
+from isaaclab.test.utils.devices import DeviceScope
 from isaaclab.test.utils.devices import test_devices as resolve_devices
 
 # Representative hosts, in mask order (cpu first, then cuda:0, cuda:1, ...).
@@ -78,6 +79,25 @@ def test_argless_runs_once_on_one_non_default_gpu(host):
     result = resolve_devices()
     assert result == ["cuda:2"]
     assert all(d not in ("cpu", "cuda:0") for d in result)
+
+
+@pytest.mark.parametrize(
+    "scope, mask",
+    [
+        (DeviceScope.ALL, "11X"),
+        (DeviceScope.CUDA, "01X"),
+        (DeviceScope.CPU_AND_DEFAULT_CUDA, "110"),
+        (DeviceScope.NON_DEFAULT_CUDA, "00X"),
+        (DeviceScope.CPU, "100"),
+    ],
+)
+def test_named_scope_matches_mask(host, scope, mask):
+    host(MULTI_GPU, "1111")
+    assert resolve_devices(scope) == resolve_devices(mask)
+
+
+def test_helper_is_not_collected_by_pytest():
+    assert resolve_devices.__test__ is False
 
 
 # ---------------------------------------------------------------------------

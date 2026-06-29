@@ -9,11 +9,13 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import os
+
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import test_devices
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device=os.environ.get("ISAACLAB_TEST_SIM_DEVICE", "cuda:0")).app
 
 """Rest everything follows."""
 

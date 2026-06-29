@@ -26,7 +26,7 @@
 #   4. Cross-checks torch against the nvidia-smi count and caps shards to what torch
 #      can address (guards against CUDA_VISIBLE_DEVICES misconfig on a MIG host)
 #   5. Fans out 1 pytest subshell per non-default cuda:N with per-shard HOME +
-#      ISAACLAB_SIM_DEVICE + ISAACLAB_TEST_DEVICES; each shard tees its stdout to
+#      ISAACLAB_TEST_SIM_DEVICE + ISAACLAB_TEST_DEVICES; each shard tees its stdout to
 #      /shard-logs/cuda-N.log for the host's grouped re-print after the run
 #   6. Waits on every shard before aggregating exit codes — a fast failure doesn't
 #      tear down still-running siblings
@@ -78,7 +78,7 @@ fi
 
 # Fan out 1 pytest subshell per non-default cuda:N. Each gets its own HOME
 # (per-shard isolation for .cache, .local/share, etc.) and per-shard
-# ISAACLAB_SIM_DEVICE / ISAACLAB_TEST_DEVICES.
+# ISAACLAB_TEST_SIM_DEVICE / ISAACLAB_TEST_DEVICES.
 declare -A pids  # associative array: shard index -> background PID
 for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to skip cuda:0 (single-GPU CI covers it)
   zeros=""
@@ -98,7 +98,7 @@ for ((cuda = 1; cuda < DEV_COUNT; cuda++)); do  # C-style loop; start at 1 to sk
     export XDG_CACHE_HOME="${HOME}/.cache"
     export XDG_DATA_HOME="${HOME}/.local/share"
     export ISAACLAB_TEST_DEVICES="$runtime_devices"
-    export ISAACLAB_SIM_DEVICE="cuda:${cuda}"
+    export ISAACLAB_TEST_SIM_DEVICE="cuda:${cuda}"
 
     # Full pytest output captures to $shard_log; live stdout is filtered
     # down to high-signal lines (test boundaries, failures, summary stats,

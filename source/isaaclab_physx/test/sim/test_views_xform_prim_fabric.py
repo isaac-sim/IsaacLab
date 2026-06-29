@@ -10,6 +10,7 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -17,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test"
 
 from isaaclab.app import AppLauncher
 
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device=os.environ.get("ISAACLAB_TEST_SIM_DEVICE", "cuda:0")).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -29,7 +30,7 @@ from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.test.utils import test_devices  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)
@@ -252,7 +253,7 @@ def test_fabric_rebuild_after_topology_change(device, view_factory, monkeypatch)
 # ------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("device", test_devices("00X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.NON_DEFAULT_CUDA))
 def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     """set_world_poses -> get_world_poses roundtrip works on cuda:1.
 
@@ -272,7 +273,7 @@ def test_fabric_cuda1_world_pose_roundtrip(device, view_factory):
     assert torch.allclose(pos_torch, expected, atol=1e-7), f"Roundtrip failed on {device}: {pos_torch}"
 
 
-@pytest.mark.parametrize("device", test_devices("00X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.NON_DEFAULT_CUDA))
 def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     """set_world_poses on cuda:1 does not write back to USD.
 
@@ -300,7 +301,7 @@ def test_fabric_cuda1_no_usd_writeback(device, view_factory):
     )
 
 
-@pytest.mark.parametrize("device", test_devices("00X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.NON_DEFAULT_CUDA))
 def test_fabric_cuda1_scales_roundtrip(device, view_factory):
     """set_scales -> get_scales roundtrip works on cuda:1.
 

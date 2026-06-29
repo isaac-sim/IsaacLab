@@ -8,13 +8,15 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import os
+
 from isaaclab.app import AppLauncher
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 HEADLESS = True
 
 # launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+simulation_app = AppLauncher(headless=True, device=os.environ.get("ISAACLAB_TEST_SIM_DEVICE", "cuda:0")).app
 
 """Rest everything follows."""
 
@@ -2248,7 +2250,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
 
 
 @pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articulation_type):
@@ -2265,7 +2267,7 @@ def test_get_jacobians_shape_fixed_base(sim, num_articulations, device, articula
 
 
 @pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations, device, articulation_type):
@@ -2292,7 +2294,7 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 
 
 @pytest.mark.parametrize("num_articulations", [1, 4])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
@@ -2317,7 +2319,7 @@ def test_get_jacobians_shape_floating_base(sim, num_articulations, device, add_g
 
 
 @pytest.mark.parametrize("num_articulations", [4])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -2369,7 +2371,7 @@ def test_get_jacobians_link_origin_contract(sim, num_articulations, device, arti
 
 
 @pytest.mark.parametrize("num_articulations", [4])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -2405,7 +2407,7 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -2456,7 +2458,7 @@ def test_jacobian_refreshes_after_manual_joint_write(
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -2490,7 +2492,7 @@ def test_mass_matrix_refreshes_after_manual_joint_write(
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.isaacsim_ci
 def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device, articulation_type):
@@ -2579,7 +2581,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     )
 
 
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -2637,7 +2639,7 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
     assert rot_mean < 5e-2, f"IK rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
@@ -2801,7 +2803,7 @@ def _run_osc_stay_still_under_gravity(
     return _summarize_history(pos_history), _summarize_history(rot_history)
 
 
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.isaacsim_ci
@@ -2835,7 +2837,7 @@ def test_franka_osc_gravity_compensation_holds_under_gravity(sim, device, articu
     assert rot_mean < 5e-2, f"OSC + gravity_compensation rot_mean {rot_mean:.5f} > 0.05 rad — regression?"
 
 
-@pytest.mark.parametrize("device", test_devices("01X"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.isaacsim_ci
