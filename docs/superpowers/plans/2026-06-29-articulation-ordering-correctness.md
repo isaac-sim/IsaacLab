@@ -10,7 +10,7 @@
 
 ---
 
-### Task 1: Checkpoint Existing Review Fixes And Rebase
+## Task 1: Checkpoint Existing Review Fixes And Rebase
 
 **Files:**
 - Verify and commit the existing tracked modifications under `source/isaaclab`, `source/isaaclab_physx`, `source/isaaclab_ovphysx`, and `source/isaaclab_newton`.
@@ -74,7 +74,7 @@ git status --short --branch
 
 Expected: both suites pass; no tracked changes remain after the rebase.
 
-### Task 2: Preserve Base Compatibility And Validate Fixed Roots
+## Task 2: Preserve Base Compatibility And Validate Fixed Roots
 
 **Files:**
 - Modify: `source/isaaclab/isaaclab/assets/articulation/base_articulation.py:170-250`
@@ -273,7 +273,7 @@ git commit -m "Preserve legacy articulation ordering API"
 
 Expected: tests and hooks pass; the warning and fixed-root contract land in one commit.
 
-### Task 3: Cover Floating-Base And Root-Preserving Fixed-Base Dynamics
+## Task 3: Cover Floating-Base And Root-Preserving Fixed-Base Dynamics
 
 **Files:**
 - Modify: `source/isaaclab/test/assets/test_articulation_iface.py:100-700,1180-1320`
@@ -400,7 +400,7 @@ git add source/isaaclab/test/assets/test_articulation_iface.py source/isaaclab_p
 git commit -m "Test fixed-base articulation ordering"
 ```
 
-### Task 4: Convert External Wrenches At Each Backend Boundary
+## Task 4: Convert External Wrenches At Each Backend Boundary
 
 **Files:**
 - Modify: `source/isaaclab/isaaclab/assets/articulation/ordering_kernels.py`
@@ -561,7 +561,7 @@ git commit -m "Fix external wrench body ordering"
 
 Expected: all six ordered wrench cases pass and no extra PhysX reorder buffer exists on the `None` path.
 
-### Task 5: Fix OVPhysX Public-Order Differencing And Cache Invalidation
+## Task 5: Fix OVPhysX Public-Order Differencing And Cache Invalidation
 
 **Files:**
 - Modify: `source/isaaclab/test/assets/test_articulation_iface.py:1200-1260,1540-1580`
@@ -744,7 +744,7 @@ git add source/isaaclab/test/assets/test_articulation_iface.py source/isaaclab_o
 git commit -m "Fix OVPhysX ordered state caching"
 ```
 
-### Task 6: Normalize Newton Actuator Defaults Once
+## Task 6: Normalize Newton Actuator Defaults Once
 
 **Files:**
 - Modify: `source/isaaclab_newton/isaaclab_newton/actuators/adapter.py:235-305`
@@ -839,7 +839,7 @@ git add source/isaaclab_newton/isaaclab_newton/actuators/adapter.py source/isaac
 git commit -m "Order Newton actuator defaults by joint"
 ```
 
-### Task 7: Add Deterministic Resolver And Live Sim Coverage
+## Task 7: Add Deterministic Resolver And Live Sim Coverage
 
 **Files:**
 - Create: `source/isaaclab_physx/test/assets/data/articulation_ordering_branching.usda`
@@ -1059,7 +1059,7 @@ git add source/isaaclab_physx/test/assets/data/articulation_ordering_branching.u
 git commit -m "Add live articulation ordering coverage"
 ```
 
-### Task 8: Final Verification And Branch Review
+## Task 8: Final Verification And Branch Review
 
 **Files:**
 - Review all files changed since `origin/develop`.
