@@ -1,7 +1,7 @@
-Removed
+Changed
 ^^^^^^^
 
-* Removed the legacy benchmark entry-point scripts now superseded by the unified
+* **Breaking:** Removed the legacy benchmark entry-point scripts now superseded by the unified
   ``runtime.py``, ``startup.py``, and ``training.py`` scripts: ``benchmark_non_rl.py``,
   ``benchmark_startup.py``, ``benchmark_rsl_rl.py``, and ``benchmark_rlgames.py``. The
   ``run_non_rl_benchmarks.sh``, ``run_physx_benchmarks.sh``, and ``run_training_benchmarks.sh``

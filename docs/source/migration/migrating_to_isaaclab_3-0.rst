@@ -1978,7 +1978,7 @@ exactly as for ``train.py``. There is no ``--physics`` or ``--render`` flag; pas
 Output Format
 -------------
 
-The output format is controlled by ``--benchmark_backend``, which is independent of the
+The output format is controlled by ``--benchmark_formatter``, which is independent of the
 physics backend. It defaults to ``schema`` (the typed benchmark bundle) and accepts a
 comma-separated list to emit several formats at once. Supported values are ``schema``,
 ``omniperf``, ``osmo``, ``json``, and ``summary`` (legacy long-form aliases such as
@@ -1988,7 +1988,7 @@ comma-separated list to emit several formats at once. Supported values are ``sch
 
    # Emit the typed schema bundle and an OmniPerf KPI file in one run
    ./isaaclab.sh -p scripts/benchmarks/runtime.py --task Isaac-Cartpole-Direct \
-       --benchmark_backend schema,omniperf
+       --benchmark_formatter schema,omniperf
 
 Migration Steps
 ---------------
@@ -2008,7 +2008,7 @@ If you have custom benchmark scripts or CI based on Isaac Lab 2.x:
    ``presets=`` (and, if needed, rendering) token on a single unified script. Update custom
    benchmark configs to the ``PresetCfg`` pattern.
 
-4. **Pick the output format with** ``--benchmark_backend`` — default ``schema``; pass a
+4. **Pick the output format with** ``--benchmark_formatter`` — default ``schema``; pass a
    comma-separated list for multiple formats.
 
 5. **Test both backends** — verify your benchmarks pass with ``presets=physx`` (default) and

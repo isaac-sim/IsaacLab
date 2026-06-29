@@ -29,11 +29,11 @@ parser.add_argument(
     help="Choose which robot to load: anymal_d, h1, or g1.",
 )
 parser.add_argument(
-    "--benchmark_backend",
+    "--benchmark_formatter",
     type=str,
     default="omniperf",
     choices=["json", "osmo", "omniperf", "summary"],
-    help="Benchmarking backend options, defaults omniperf",
+    help="Benchmark output formatter, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 # append AppLauncher cli args
@@ -75,13 +75,13 @@ from isaaclab_assets import ANYMAL_D_CFG, G1_MINIMAL_CFG, H1_MINIMAL_CFG  # isor
 imports_time_end = time.perf_counter_ns()
 
 # Create the benchmark
-backend_type = args_cli.benchmark_backend
+formatter_type = args_cli.benchmark_formatter
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_load_robot",
-    backend_type=backend_type,
+    formatter_type=formatter_type,
     output_path=args_cli.output_path,
     use_recorders=True,
-    frametime_recorders=backend_type in ("summary", "omniperf"),
+    frametime_recorders=formatter_type in ("summary", "omniperf"),
     output_prefix="benchmark_load_robot",
     workflow_metadata={
         "metadata": [
