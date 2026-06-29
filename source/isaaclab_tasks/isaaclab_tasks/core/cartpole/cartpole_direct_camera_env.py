@@ -11,14 +11,13 @@ from typing import TYPE_CHECKING
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
-from isaaclab.renderers.renderer import Renderer
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
-from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
+from isaaclab_tasks.core.cartpole.mdp.observations import resolve_camera_frame_stack
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
@@ -44,21 +43,7 @@ class CartpoleCameraEnv(CartpoleEnv):
         :meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping` and
         :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`.
         """
-        # ``class_type`` may be a class or a ``"module:Class"`` ResolvableString.
-        class_type = getattr(physics_cfg, "class_type", None)
-        if class_type is None:
-            return 1
-        physics_manager_cls = string_to_callable(str(class_type)) if isinstance(class_type, str) else class_type
-        if physics_manager_cls.provides_implicit_damping():
-            return 1
-
-        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
-        if renderer_cfg is None:
-            return 2
-        data_types = getattr(camera_cfg, "data_types", None) or []
-        data_type = data_types[0] if data_types else ""
-        renderer_cls = Renderer.resolve_class(renderer_cfg)
-        return 1 if renderer_cls.provides_temporal_camera_data(data_type) else 2
+        return resolve_camera_frame_stack(camera_cfg, physics_cfg)
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         # Flatten preset wrappers so the frame-stack resolution below sees concrete types.
@@ -151,7 +136,8 @@ class CartpoleCameraEnv(CartpoleEnv):
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
-        return {"policy": obs}
+        critic_obs = super()._get_observations()["policy"]
+        return {"policy": obs, "critic": critic_obs}
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)

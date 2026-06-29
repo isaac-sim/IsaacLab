@@ -16,7 +16,7 @@ from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import sample_uniform
+from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
@@ -62,12 +62,14 @@ class CartpoleEnv(DirectRLEnv):
         self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
     def _get_observations(self) -> dict:
+        joint_pos_rel = self.joint_pos - self.cartpole.data.default_joint_pos.torch
+        joint_vel_rel = self.joint_vel - self.cartpole.data.default_joint_vel.torch
         obs = torch.cat(
             (
-                self.joint_pos[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                joint_pos_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                joint_pos_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                joint_vel_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                joint_vel_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
             ),
             dim=-1,
         )
@@ -85,6 +87,7 @@ class CartpoleEnv(DirectRLEnv):
             self.joint_vel[:, self._pole_dof_idx[0]],
             self.joint_vel[:, self._cart_dof_idx[0]],
             self.reset_terminated,
+            self.step_dt,
         )
         return total_reward
 
@@ -92,9 +95,8 @@ class CartpoleEnv(DirectRLEnv):
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
 
-        time_out = self.episode_length_buf >= self.max_episode_length - 1
+        time_out = self.episode_length_buf >= self.max_episode_length
         out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
-        out_of_bounds = out_of_bounds | torch.any(torch.abs(self.joint_pos[:, self._pole_dof_idx]) > math.pi / 2, dim=1)
         return out_of_bounds, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -108,13 +110,31 @@ class CartpoleEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
 
         joint_pos = self.cartpole.data.default_joint_pos.torch[env_ids].clone()
+        joint_pos[:, self._cart_dof_idx] += sample_uniform(
+            self.cfg.initial_cart_position_range[0],
+            self.cfg.initial_cart_position_range[1],
+            joint_pos[:, self._cart_dof_idx].shape,
+            joint_pos.device,
+        )
+        joint_vel = self.cartpole.data.default_joint_vel.torch[env_ids].clone()
+        joint_vel[:, self._cart_dof_idx] += sample_uniform(
+            self.cfg.initial_cart_velocity_range[0],
+            self.cfg.initial_cart_velocity_range[1],
+            joint_vel[:, self._cart_dof_idx].shape,
+            joint_vel.device,
+        )
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
             self.cfg.initial_pole_angle_range[0] * math.pi,
             self.cfg.initial_pole_angle_range[1] * math.pi,
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )
-        joint_vel = self.cartpole.data.default_joint_vel.torch[env_ids].clone()
+        joint_vel[:, self._pole_dof_idx] += sample_uniform(
+            self.cfg.initial_pole_velocity_range[0],
+            self.cfg.initial_pole_velocity_range[1],
+            joint_vel[:, self._pole_dof_idx].shape,
+            joint_vel.device,
+        )
 
         default_root_pose = self.cartpole.data.default_root_pose.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
@@ -140,11 +160,13 @@ def compute_rewards(
     pole_vel: torch.Tensor,
     cart_vel: torch.Tensor,
     reset_terminated: torch.Tensor,
+    step_dt: float,
 ):
+    pole_pos = wrap_to_pi(pole_pos)
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
     rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
     rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
     rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
-    total_reward = rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel
+    total_reward = (rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt
     return total_reward

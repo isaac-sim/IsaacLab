@@ -6,6 +6,7 @@
 import math
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -35,6 +36,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 class CartpolePhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
@@ -92,7 +94,7 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 
     # lights
     dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
+        prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
 

@@ -1,0 +1,14 @@
+Added
+^^^^^
+
+* Added the ``ovphysx`` physics preset to the manager-based Cartpole tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Aligned the direct and manager-based Cartpole MDPs, including state observations, reset distributions,
+  termination conditions, episode horizon, reward convention, camera frame stacking, and camera lighting. Retrain
+  policies previously trained on the Cartpole tasks.
+
+* Changed the Cartpole camera resolution to 64 by 64 pixels and tuned the RSL-RL camera PPO configuration for
+  reliable convergence.
