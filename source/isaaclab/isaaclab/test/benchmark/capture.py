@@ -39,21 +39,6 @@ from isaaclab.test.benchmark.schema import (
 ###
 
 
-def _metadata(metadata_list: Any) -> dict[str, Any]:
-    """Build a name-keyed dict from a list of metadata objects.
-
-    Args:
-        metadata_list: Sequence of metadata objects, each with ``.name`` and
-            ``.data`` attributes.
-
-    Returns:
-        Mapping from ``m.name`` to ``m.data`` for every entry in the list.
-    """
-    if not metadata_list:
-        return {}
-    return {m.name: m.data for m in metadata_list}
-
-
 def _find_value(measurements: Any, name: str, default: float = 0.0) -> float:
     """Scan a measurement list for a :class:`~.measurements.SingleMeasurement` by name.
 
@@ -170,21 +155,21 @@ def capture_versions(bm: Any) -> Versions:
             git_dirty=False,
         )
 
-    md = _metadata(data.metadata)
+    md = {m.name: m.data for m in data.metadata or []}
     dev: dict[str, Any] = md.get("dev") or {}
 
     return Versions(
         isaaclab=md.get("isaaclab_version", "unknown"),
-        isaacsim=md.get("isaacsim_version", None),
-        kit=md.get("kit_version", None),
-        newton=md.get("newton_version", None),
-        warp=md.get("warp_version", None),
-        mjwarp=md.get("mujoco_warp_version", None),
+        isaacsim=md.get("isaacsim_version"),
+        kit=md.get("kit_version"),
+        newton=md.get("newton_version"),
+        warp=md.get("warp_version"),
+        mjwarp=md.get("mujoco_warp_version"),
         torch=md.get("torch_version", "unknown"),
-        rsl_rl=md.get("rsl_rl_version", None),
-        rl_games=md.get("rl_games_version", None),
-        skrl=md.get("skrl_version", None),
-        sb3=md.get("stable_baselines3_version", None),
+        rsl_rl=md.get("rsl_rl_version"),
+        rl_games=md.get("rl_games_version"),
+        skrl=md.get("skrl_version"),
+        sb3=md.get("stable_baselines3_version"),
         git_commit=dev.get("commit_hash"),
         git_branch=dev.get("branch"),
         git_dirty=dev.get("dirty", False),
@@ -211,7 +196,7 @@ def capture_hardware(bm: Any) -> Hardware:
     # GPU devices
     gpu_devices: list[GpuDeviceInfo] = []
     if gpu_data is not None:
-        gpu_md = _metadata(gpu_data.metadata)
+        gpu_md = {m.name: m.data for m in gpu_data.metadata or []}
         raw_devices: dict[str, Any] = gpu_md.get("gpu_devices") or {}
         for idx_str in sorted(raw_devices.keys(), key=lambda k: int(k)):
             d = raw_devices[idx_str]
@@ -227,14 +212,14 @@ def capture_hardware(bm: Any) -> Hardware:
     cpu_name = "unknown"
     cpu_count = 0
     if cpu_data is not None:
-        cpu_md = _metadata(cpu_data.metadata)
+        cpu_md = {m.name: m.data for m in cpu_data.metadata or []}
         cpu_name = cpu_md.get("cpu_name", "unknown")
         cpu_count = int(cpu_md.get("physical_cores", 0))
 
     # RAM
     ram_gb = 0.0
     if mem_data is not None:
-        mem_md = _metadata(mem_data.metadata)
+        mem_md = {m.name: m.data for m in mem_data.metadata or []}
         ram_gb = float(mem_md.get("total_ram_gb", 0.0))
 
     return Hardware(
