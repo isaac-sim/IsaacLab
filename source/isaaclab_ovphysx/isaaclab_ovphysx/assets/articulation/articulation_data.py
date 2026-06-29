@@ -1962,6 +1962,9 @@ class ArticulationData(BaseArticulationData):
                 outputs=[self._body_inertia.data],
                 device=self.device,
             )
+            # The binding initializer populated this public buffer in backend order.
+            # Force its one-time getter to gather through the newly installed map.
+            self._body_com_pose_b.timestamp = -1.0
 
     def _pin_proxy_arrays(self) -> None:
         """Create pinned ProxyArray wrappers for all data buffers.

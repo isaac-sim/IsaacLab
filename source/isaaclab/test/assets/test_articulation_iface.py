@@ -664,6 +664,8 @@ def _set_body_ordering_backend_data(
         raw_backend.bindings[TT.LINK_VELOCITY]._data = body_com_vel.copy()
         raw_backend.bindings[TT.LINK_ACCELERATION]._data = body_acc.copy()
         raw_backend.bindings[TT.BODY_COM_POSE]._data = com_pose_b.copy()
+        art.data._body_com_pose_b.timestamp = -1.0
+        art.data._body_com_pose_b_backend.timestamp = -1.0
     elif backend == "newton":
         root_pose_wp = wp.array(root_pose[:, None, :], dtype=wp.transformf, device=art.device)
         root_vel_wp = wp.array(root_vel[:, None, :], dtype=wp.spatial_vectorf, device=art.device)
