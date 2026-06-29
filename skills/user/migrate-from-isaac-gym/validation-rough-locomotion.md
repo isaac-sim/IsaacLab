@@ -9,6 +9,7 @@
 - Terrain mapping
 - Sensors and observations
 - Randomization and backend checks
+- Training validation
 - Result
 
 ## Source Task
@@ -28,6 +29,7 @@ Use this file as an evaluation checklist for the migration skill, not as a ready
 - Produce an explicit mapping for terrain, sensors, observations, rewards, resets, randomization, and backend settings.
 - Identify behavior differences between the legacy task and maintained Isaac Lab examples.
 - Define small import, reset, step, and training smoke tests before scaling.
+- Validate flat walking before rough-terrain curriculum training.
 
 ## Why This Is the Representative Validation
 
@@ -98,8 +100,19 @@ In Isaac Lab, first migrate the direct task until it runs with the maintained ba
 - Check PhysX versus Newton behavior before adding `PresetCfg` support.
 - Validate CPU/GPU assumptions for each event implementation.
 
+## Training Validation
+
+Use IsaacGymEnvs `AnymalTerrain` as the source mapping, but validate training in stages:
+
+1. Start from the direct flat Anymal-C migration target and confirm it can learn a walking policy.
+2. Load the saved checkpoint in a bounded play rollout.
+3. Move to the direct rough Anymal-C target and treat immediate base-contact termination as a behavioral failure even if the runner completes.
+4. Convert the reusable command, observation, reward, terrain curriculum, and termination logic to the manager workflow after the direct parity pass is healthy.
+
+A validation run on the direct flat Anymal-C task trained RSL-RL for 100 iterations, then resumed from `model_99.pt` through `model_598.pt`. Mean reward improved from about `-0.12` at the resume point to `5.49`, and mean episode length improved from about `14` steps to about `893` steps, near the 1000-step timeout horizon. The final checkpoint loaded successfully in a bounded 200-step play rollout. A 20-iteration rough-terrain run constructed and trained, but most episodes terminated immediately on base contact, so it is not a successful rough-terrain policy.
+
 ## Result
 
-The migration skill is actionable for a non-toy rough-terrain locomotion task. The direct-first path remains valid because Isaac Lab has a direct rough Anymal-C task at `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`.
+The migration skill is actionable for a non-toy rough-terrain locomotion task. The direct-first path remains valid because Isaac Lab has direct flat and rough Anymal-C tasks at `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`.
 
-This validation also shows the limits of direct copying: terrain generation, sensor models, observation layout, randomization timing, and PhysX/Newton support must be mapped deliberately through Isaac Lab docs and maintained source. After the parity pass works, the agent should steer users toward manager-based task structure for reusable Isaac Lab development.
+This validation also shows the limits of direct copying: terrain generation, sensor models, observation layout, randomization timing, PhysX/Newton support, and staged training must be mapped deliberately through Isaac Lab docs and maintained source. After the parity pass works, the agent should steer users toward manager-based task structure for reusable Isaac Lab development.

@@ -31,6 +31,17 @@ When validating a migration outside the Isaac Lab tree, keep the package importa
 
 Do not treat successful config loading as training success. Import/register, config resolution, static compilation, reset/step, random-agent, and short training are separate gates.
 
+## Locomotion Training Gates
+
+For quadruped and rough-terrain migrations, start with the flat walking variant before training terrain curriculum. A rough-terrain run can execute while still failing behaviorally because the robot falls or terminates on base contact immediately.
+
+Treat these as separate gates:
+
+- Flat task reset/step succeeds with expected observation and action shapes.
+- Flat training improves reward and mean episode length toward the timeout horizon.
+- The saved checkpoint loads in `play` or an equivalent bounded rollout.
+- Rough-terrain training starts only after the flat policy is healthy, then tracks terrain-specific curriculum, height-scanner, and contact metrics.
+
 ## Legacy Force And Torque Sensors
 
 Isaac Gym locomotion tasks may use force sensor tensors or net contact force tensors as policy inputs. In Isaac Lab, map these deliberately:
@@ -93,4 +104,4 @@ Legacy Isaac Gym tasks often combine asset loading, reward computation, reset lo
 - Sensor paths resolve without missing rigid-body or contact-report warnings.
 - Rewards and terminations match the intended task behavior.
 - Training starts with the chosen RL framework.
-- A short training run only proves the runner can execute. Claim a successful policy only after a run of sufficient length shows stable success or reward improvement against the expected task behavior.
+- A short training run only proves the runner can execute. Claim a successful policy only after a run of sufficient length shows stable reward improvement, episode lengths approaching the task horizon, or the task's explicit success metric.

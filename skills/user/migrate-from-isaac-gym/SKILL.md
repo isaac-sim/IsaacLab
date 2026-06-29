@@ -18,7 +18,7 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 ## Workflow
 
 1. Identify the Isaac Gym task structure: assets, environment state tensors, observations, rewards, resets, and training runner.
-2. If the user expects execution or training, run a runtime preflight before a long port: verify `./isaaclab.sh -p` uses the intended checkout and local `_isaac_sim` runtime, reports the expected Python and `EXP_PATH`, imports `isaacsim` and `omni`, and provides the requested RL library.
+2. If the user needs a new full-feature Isaac Sim setup, point them to the pip/uv installation docs first. If the user expects execution or training, run a runtime preflight before a long port: verify `./isaaclab.sh -p` uses the intended Python environment and checkout, imports `isaacsim` and `omni`, and provides the requested RL library.
 3. Read the IsaacGymEnvs migration guide and direct workflow docs before proposing edits.
 4. Migrate to a direct workflow first by default. This preserves the single-class structure that most Isaac Gym tasks already use.
 5. Choose the initial backend target. Start with PhysX when matching Isaac Gym behavior; add Newton only after the direct PhysX migration is validated or if the user explicitly targets Newton.
@@ -27,9 +27,10 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 8. Move action application, observation assembly, reward computation, termination checks, and reset logic into a `DirectRLEnv` or `DirectMARLEnv` implementation.
 9. Port training configuration to the selected Isaac Lab reinforcement learning workflow.
 10. Run a small smoke test before scaling training.
-11. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
-12. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
-13. Iterate through the validation loop until the environment resets, steps, and trains without shape or device errors.
+11. For locomotion migrations, validate a flat walking policy before rough-terrain curriculum training; rough terrain can start and still be unhealthy if episodes terminate immediately.
+12. After the direct migration resets, steps, and trains, recommend a manager-based follow-up when the task has reusable observation, reward, command, curriculum, termination, or event logic.
+13. Use the `isaaclab-converting-direct-to-manager` skill for that follow-up instead of mixing manager conversion into the first parity pass.
+14. Iterate through the validation loop until the environment resets, steps, trains, and reaches a task-appropriate policy metric.
 
 ## Validation
 
@@ -44,7 +45,7 @@ For manual smoke testing, run the smallest random-action entry point available f
 Runtime preflight for execution/training requests:
 
 ```bash
-./isaaclab.sh -p -c "import importlib.util, os, sys; print(sys.version); print(os.environ.get('EXP_PATH')); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('omni'))"
+./isaaclab.sh -p -c "import importlib.util, sys; print(sys.executable); print(sys.version); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('omni'))"
 ```
 
 For skill changes, run:
@@ -55,7 +56,7 @@ For skill changes, run:
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/` and `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with `docs/source/migration/migrating_from_isaacgymenvs.rst`, `docs/source/setup/installation/pip_installation.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 
