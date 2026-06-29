@@ -162,7 +162,7 @@ class SuccessRateTracker:
         Assumes :meth:`record_step` is called exactly once per env step. This property is
         used only by the rsl_rl wrapper (whose patched ``env.step`` calls
         :meth:`record_step` once per env step); the rl_games observer ends iterations
-        directly via :meth:`after_steps` and does not use this property.
+        directly via ``after_steps`` and does not use this property.
         Integrations that call :meth:`record_step` more or fewer times per env step will
         break iteration accounting.
         """

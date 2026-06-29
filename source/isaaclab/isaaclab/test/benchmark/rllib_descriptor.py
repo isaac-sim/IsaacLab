@@ -20,7 +20,7 @@ from isaaclab.test.benchmark.schema import Framework
 class RLLibraryDescriptor:
     """Declarative metadata for one RL library benchmark integration.
 
-    Args:
+    Attributes:
         framework: Schema framework id.
         tfevents_pattern: Glob (relative to the run ``log_dir``) matching the
             TensorBoard events file — ``"events*"`` (root), ``"summaries/events*"``
@@ -35,7 +35,7 @@ class RLLibraryDescriptor:
     ep_length_tag: str
 
 
-BACKEND_DESCRIPTORS: dict[Framework, RLLibraryDescriptor] = {
+RL_LIBRARY_DESCRIPTORS: dict[Framework, RLLibraryDescriptor] = {
     "rsl_rl": RLLibraryDescriptor(
         framework="rsl_rl",
         tfevents_pattern="events*",

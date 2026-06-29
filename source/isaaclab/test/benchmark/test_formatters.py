@@ -12,7 +12,7 @@ import os
 import pytest
 
 from isaaclab.test.benchmark import formatters
-from isaaclab.test.benchmark.measurements import SingleMeasurement, TestPhase
+from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata, TestPhase
 from isaaclab.test.benchmark.schema import (
     GpuDeviceInfo,
     Hardware,
@@ -111,3 +111,18 @@ def test_schema_bundle_file_serializes_bundle_and_handles_missing_bundle(tmp_pat
         formatter.finalize(str(tmp_path), "missing", bundle=None)
     assert not os.path.exists(os.path.join(str(tmp_path), "missing.json"))
     assert any("no bundle" in record.message.lower() for record in caplog.records)
+
+
+@pytest.mark.parametrize("formatter_cls", [formatters.OsmoKPIFile, formatters.OmniPerfKPIFile])
+def test_kpi_formatters_clear_phases_after_finalize(tmp_path, formatter_cls):
+    formatter = formatter_cls()
+    phase = TestPhase(phase_name="runtime")
+    phase.metadata.append(StringMetadata(name="phase", data="runtime"))
+    phase.measurements.append(SingleMeasurement(name="FPS", value=60.0, unit="FPS"))
+
+    formatter.add_metrics(phase)
+    formatter.finalize(str(tmp_path), "first")
+    formatter.finalize(str(tmp_path), "second")
+
+    assert os.path.exists(os.path.join(str(tmp_path), "first.json"))
+    assert not os.path.exists(os.path.join(str(tmp_path), "second.json"))

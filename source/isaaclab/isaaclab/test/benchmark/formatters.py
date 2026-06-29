@@ -551,6 +551,7 @@ class OsmoKPIFile(MetricsFormatterInterface):
             with open(metrics_path, "w") as f:
                 f.write(json_data)
             print(f"Results written to: {metrics_path}")
+        self._test_phases.clear()
 
 
 class OmniPerfKPIFile(MetricsFormatterInterface):
@@ -627,12 +628,13 @@ class OmniPerfKPIFile(MetricsFormatterInterface):
         with open(metrics_path, "w") as f:
             f.write(json_data)
         print(f"Results written to: {metrics_path}")
+        self._test_phases.clear()
 
 
 class SchemaBundleFile(MetricsFormatterInterface):
     """Serialize a typed benchmark bundle to schema-v1 JSON.
 
-    Unlike the other formatter, this one does not consume the flat measurement
+    Unlike the other formatters, this one does not consume the flat measurement
     phases collected during a run. Instead it serializes the typed bundle
     attached via :meth:`~isaaclab.test.benchmark.benchmark_core.BaseIsaacLabBenchmark.attach_bundle`.
     """
@@ -669,7 +671,7 @@ class SchemaBundleFile(MetricsFormatterInterface):
             logger.warning("SchemaBundleFile selected but no bundle was attached; skipping schema file.")
             return
 
-        # Lazy import keeps formatter.py free of the schema layer at module import time.
+        # Lazy import keeps formatters.py free of the schema layer at module import time.
         from isaaclab.test.benchmark.serialize import write_bundle_file
 
         path = os.path.join(output_path, f"{output_filename}.json")

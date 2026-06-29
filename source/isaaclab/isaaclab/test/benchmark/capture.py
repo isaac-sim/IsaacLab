@@ -233,7 +233,7 @@ def capture_hardware(bm: Any) -> Hardware:
 
 def _preset_target_metadata() -> tuple[str, str, str, dict[str, str]]:
     """Return preset selector labels and physics aliases from the preset CLI layer."""
-    from isaaclab.utils.preset_target import PresetTarget
+    from isaaclab_tasks.utils.preset_target import PresetTarget
 
     return (
         PresetTarget.PHYSICS.value,
