@@ -64,6 +64,14 @@ _ACTION_SCALE = 0.025
 # ~11 mm of blade nests in the socket cavity at the verified seated pose.
 _INSERTION_LENGTH = 0.011
 
+# Gripper tool-center-point (TCP) offset from the flange body, in the flange's
+# local frame [m]. The policy observes the TCP pose (where the plug is actually
+# held), not the raw flange. Matches IsaacLab_UR's Flexiv + Grav
+# ``gripper_eef_pos_local = [0.0, 0.0, 0.2 - 0.0075]``. Direct cross-check: in
+# the live grasp the flange sits ~0.1875-0.1925 m above the held plug along the
+# tool axis.
+_TCP_OFFSET = [0.0, 0.0, 0.2 - 0.0075]
+
 ##
 # Pre-defined configs
 ##
@@ -83,10 +91,13 @@ class TaskSpaceObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Actor observations: EEF pose + socket keypoint frame (18 dims)."""
 
+        # Observe the gripper TCP pose (flange + _TCP_OFFSET), not the raw flange.
         eef_pos = ObsTerm(
             func=mdp.eef_pos_w,
-            params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange"},
+            params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange", "offset": _TCP_OFFSET},
         )
+        # TCP shares the flange orientation (pure-translation offset), so the 6D
+        # rotation is read directly from the flange body.
         eef_rot_6d = ObsTerm(
             func=mdp.eef_rot_6d_w,
             params={"asset_cfg": SceneEntityCfg("robot"), "body_name": "flange"},

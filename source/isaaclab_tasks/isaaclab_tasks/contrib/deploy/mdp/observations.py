@@ -478,11 +478,15 @@ class eef_pos_w(ManagerTermBase):
     """End-effector position in the environment frame.
 
     Gets the position of a specified body on a robot articulation and
-    returns it relative to the environment origin.
+    returns it relative to the environment origin. An optional 3D offset can be
+    applied in the body's local frame, e.g. to report the gripper tool-center
+    point (TCP) rather than the raw flange.
 
     Args:
         asset_cfg: The robot articulation configuration. Required.
         body_name: Name of the end-effector body link. Required.
+        offset: A 3D offset ``[x, y, z]`` [m] applied in the body's local frame.
+            Defaults to ``[0, 0, 0]``.
 
     Returns:
         EEF position tensor, shape ``[num_envs, 3]`` [m].
@@ -500,13 +504,28 @@ class eef_pos_w(ManagerTermBase):
         self.body_name: str = cfg.params["body_name"]
         self.body_idx = self.robot.find_bodies(self.body_name)[0][0]
 
+        offset = cfg.params.get("offset", [0.0, 0.0, 0.0])
+        self.offset_tensor = torch.tensor(offset, device=env.device, dtype=torch.float32)
+        self.identity_quat = (
+            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32)
+            .repeat(env.num_envs, 1)
+            .contiguous()
+        )
+
     def __call__(
         self,
         env: ManagerBasedRLEnv,
         asset_cfg: SceneEntityCfg | None = None,
         body_name: str | None = None,
+        offset: list | None = None,
     ) -> torch.Tensor:
         body_pos = wp.to_torch(self.robot.data.body_pos_w)[:, self.body_idx, :]
+
+        if torch.any(self.offset_tensor != 0):
+            body_quat = wp.to_torch(self.robot.data.body_quat_w)[:, self.body_idx, :]
+            offset_repeated = self.offset_tensor.unsqueeze(0).repeat(env.num_envs, 1)
+            body_pos, _ = combine_frame_transforms(body_pos, body_quat, offset_repeated, self.identity_quat)
+
         return body_pos - env.scene.env_origins
 
 
