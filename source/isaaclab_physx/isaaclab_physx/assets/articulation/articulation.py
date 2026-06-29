@@ -274,8 +274,113 @@ class Articulation(BaseArticulation):
         self._instantaneous_wrench_composer.reset(env_ids, env_mask)
         self._permanent_wrench_composer.reset(env_ids, env_mask)
 
+    def _ordering_snapshot_buffers(
+        self,
+        user_buffers: tuple[wp.array, ...],
+        item_count: int,
+        has_ordering: bool,
+        backend_to_user: wp.array,
+    ) -> tuple[wp.array, ...]:
+        """Snapshot public-order command buffers in canonical backend order."""
+        backend_snapshots = []
+        for user_buffer in user_buffers:
+            backend_snapshot = wp.zeros_like(user_buffer)
+            if has_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_user_to_backend,
+                    dim=(self.num_instances, item_count),
+                    inputs=[user_buffer, backend_to_user],
+                    outputs=[backend_snapshot],
+                    device=self.device,
+                )
+            else:
+                backend_snapshot.assign(user_buffer)
+            backend_snapshots.append(backend_snapshot)
+        return tuple(backend_snapshots)
+
+    def _ordering_restore_buffers(
+        self,
+        user_buffers: tuple[wp.array, ...],
+        backend_snapshots: tuple[wp.array, ...],
+        item_count: int,
+        has_ordering: bool,
+        user_to_backend: wp.array,
+    ) -> None:
+        """Restore canonical command snapshots into the current public order."""
+        for user_buffer, backend_snapshot in zip(user_buffers, backend_snapshots, strict=True):
+            if has_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, item_count),
+                    inputs=[backend_snapshot, user_to_backend],
+                    outputs=[user_buffer],
+                    device=self.device,
+                )
+            else:
+                user_buffer.assign(backend_snapshot)
+
+    def _ordering_joint_command_buffers(self) -> tuple[wp.array, ...]:
+        """Return persistent public-order joint command and telemetry buffers."""
+        buffers = [
+            self.data._joint_pos_target,
+            self.data._joint_vel_target,
+            self.data._joint_effort_target,
+            self.data._computed_torque,
+            self.data._applied_torque,
+        ]
+        for buffer_name in (
+            "_joint_pos_target_sim",
+            "_joint_vel_target_sim",
+            "_joint_effort_target_sim",
+        ):
+            buffer = getattr(self, buffer_name, None)
+            if buffer is not None:
+                buffers.append(buffer)
+        return tuple(buffers)
+
+    def _ordering_body_command_buffers(self) -> tuple[wp.array, ...]:
+        """Return persistent public-order wrench-composer buffers."""
+        buffers = []
+        for composer_name in ("_instantaneous_wrench_composer", "_permanent_wrench_composer"):
+            composer = getattr(self, composer_name, None)
+            if composer is None:
+                continue
+            for buffer_name in (
+                "_global_force_w",
+                "_global_torque_w",
+                "_global_force_at_com_w",
+                "_local_force_b",
+                "_local_torque_b",
+                "_out_force_b",
+                "_out_torque_b",
+            ):
+                buffers.append(getattr(composer, buffer_name))
+        return tuple(buffers)
+
     def _cache_ordering_maps(self) -> None:
-        """Cache ordering maps and configure ordering-only command staging."""
+        """Cache ordering maps while preserving persistent physical commands."""
+        cache_initialized = getattr(self, "_ordering_maps_cached", False)
+        if cache_initialized:
+            joint_command_buffers = self._ordering_joint_command_buffers()
+            joint_backend_snapshots = self._ordering_snapshot_buffers(
+                joint_command_buffers,
+                self.num_joints,
+                self._has_joint_ordering,
+                self._joint_backend_to_user,
+            )
+            body_command_buffers = self._ordering_body_command_buffers()
+            body_backend_snapshots = self._ordering_snapshot_buffers(
+                body_command_buffers,
+                self.num_bodies,
+                self._has_body_ordering,
+                self._body_backend_to_user,
+            )
+        else:
+            joint_command_buffers = ()
+            joint_backend_snapshots = ()
+            body_command_buffers = ()
+            body_backend_snapshots = ()
+
         super()._cache_ordering_maps()
 
         joint_target_names = (
@@ -309,6 +414,34 @@ class Articulation(BaseArticulation):
         else:
             self._body_wrench_force_backend = None
             self._body_wrench_torque_backend = None
+
+        if cache_initialized:
+            self._ordering_restore_buffers(
+                joint_command_buffers,
+                joint_backend_snapshots,
+                self.num_joints,
+                self._has_joint_ordering,
+                self._joint_user_to_backend,
+            )
+            self._ordering_restore_buffers(
+                body_command_buffers,
+                body_backend_snapshots,
+                self.num_bodies,
+                self._has_body_ordering,
+                self._body_user_to_backend,
+            )
+            if self._has_joint_ordering:
+                for backend_name, backend_snapshot in zip(
+                    joint_target_names,
+                    joint_backend_snapshots[:3],
+                    strict=True,
+                ):
+                    backend_buffer = getattr(self, backend_name)
+                    if backend_buffer is None:
+                        raise RuntimeError(f"PhysX _has_joint_ordering requires {backend_name}.")
+                    backend_buffer.assign(backend_snapshot)
+
+        self._ordering_maps_cached = True
 
     def _get_backend_ordered_joint_buffer(
         self,
@@ -4182,9 +4315,12 @@ class Articulation(BaseArticulation):
         self._permanent_wrench_composer = WrenchComposer(self)
 
         # asset named data
+        self._ordering_maps_cached = False
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
         self._joint_effort_target_backend: wp.array | None = None
+        self._body_wrench_force_backend: wp.array | None = None
+        self._body_wrench_torque_backend: wp.array | None = None
         self._resolve_and_install_ordering_maps()
         self._cache_ordering_maps()
         # tendon names are set in _process_tendons function

@@ -212,6 +212,12 @@ def create_physx_articulation(
         articulation, "_ALL_BODY_INDICES_WP", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
     )
 
+    object.__setattr__(articulation, "_joint_pos_target_backend", None)
+    object.__setattr__(articulation, "_joint_vel_target_backend", None)
+    object.__setattr__(articulation, "_joint_effort_target_backend", None)
+    object.__setattr__(articulation, "_body_wrench_force_backend", None)
+    object.__setattr__(articulation, "_body_wrench_torque_backend", None)
+
     articulation._resolve_and_install_ordering_maps()
     articulation._cache_ordering_maps()
 
@@ -225,21 +231,6 @@ def create_physx_articulation(
     )
     object.__setattr__(
         articulation, "_joint_effort_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_pos_target_backend",
-        wp.zeros(joint_target_shape, dtype=wp.float32, device=device) if articulation._has_joint_ordering else None,
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_vel_target_backend",
-        wp.zeros(joint_target_shape, dtype=wp.float32, device=device) if articulation._has_joint_ordering else None,
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_backend",
-        wp.zeros(joint_target_shape, dtype=wp.float32, device=device) if articulation._has_joint_ordering else None,
     )
 
     # Cached .view(wp.float32) wrappers
@@ -339,7 +330,6 @@ def create_ovphysx_articulation(
     # are immediately overwritten by the mocks below.
     articulation._resolve_and_install_ordering_maps()
     articulation._create_buffers()
-    articulation._cache_ordering_maps()
 
     # Wrench composers
     mock_inst_wrench = MockWrenchComposer(articulation)
@@ -687,6 +677,140 @@ def _ordering_shadow_shape(buffer: wp.array | TimestampedBufferWarp) -> tuple[in
     if isinstance(buffer, TimestampedBufferWarp):
         buffer = buffer.data
     return tuple(buffer.shape)
+
+
+_ORDERING_UNCHANGED = object()
+
+
+def _transition_articulation_ordering(
+    art,
+    *,
+    joint_ordering=_ORDERING_UNCHANGED,
+    body_ordering=_ORDERING_UNCHANGED,
+) -> None:
+    """Install selected ordering maps through the production rebind path."""
+    cfg_updates = {}
+    if joint_ordering is not _ORDERING_UNCHANGED:
+        cfg_updates["joint_ordering"] = joint_ordering
+    if body_ordering is not _ORDERING_UNCHANGED:
+        cfg_updates["body_ordering"] = body_ordering
+    art.cfg = art.cfg.replace(**cfg_updates)
+    art._resolve_and_install_ordering_maps()
+    art._cache_ordering_maps()
+
+
+def _ordering_user_to_backend(ordering, item_count: int) -> np.ndarray:
+    """Return public-to-backend indices for an optional ordering map."""
+    if ordering is None:
+        return np.arange(item_count, dtype=np.int64)
+    return np.asarray(ordering.user_to_backend_indices, dtype=np.int64)
+
+
+def _seed_public_joint_commands(backend: str, art, backend_targets: tuple[np.ndarray, ...]) -> None:
+    """Seed public and backend-writer joint command buffers in backend order."""
+    public_buffers = (
+        art.data._joint_pos_target,
+        art.data._joint_vel_target,
+        art.data._joint_effort_target,
+    )
+    for buffer, values in zip(public_buffers, backend_targets, strict=True):
+        buffer.assign(wp.array(values, dtype=wp.float32, device=art.device))
+
+    art._has_implicit_actuators = True
+    if backend == "physx":
+        for buffer, values in zip(
+            (
+                art._joint_pos_target_sim,
+                art._joint_vel_target_sim,
+                art._joint_effort_target_sim,
+            ),
+            backend_targets,
+            strict=True,
+        ):
+            buffer.assign(wp.array(values, dtype=wp.float32, device=art.device))
+    elif backend == "ovphysx":
+        art.data._applied_torque.assign(wp.array(backend_targets[2], dtype=wp.float32, device=art.device))
+        art._pos_target_write_view = object()
+        art._vel_target_write_view = object()
+        art._effort_write_view = object()
+    else:
+        raise AssertionError(f"Unsupported backend for command lifecycle test: {backend}")
+
+
+def _write_joint_commands_to_backend(backend: str, art, raw_backend) -> tuple[np.ndarray, ...]:
+    """Write commands and return backend-order position, velocity, and effort targets."""
+    if backend == "physx":
+        captured = {}
+
+        def capture_position(values, indices):
+            captured["position"] = values.numpy().copy()
+
+        def capture_velocity(values, indices):
+            captured["velocity"] = values.numpy().copy()
+
+        def capture_effort(values, indices):
+            captured["effort"] = values.numpy().copy()
+
+        raw_backend.set_dof_position_targets = capture_position
+        raw_backend.set_dof_velocity_targets = capture_velocity
+        raw_backend.set_dof_actuation_forces = capture_effort
+        art.write_data_to_sim()
+        return captured["position"], captured["velocity"], captured["effort"]
+
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        art.write_data_to_sim()
+        return (
+            raw_backend.bindings[TT.DOF_POSITION_TARGET]._data.copy(),
+            raw_backend.bindings[TT.DOF_VELOCITY_TARGET]._data.copy(),
+            raw_backend.bindings[TT.DOF_ACTUATION_FORCE]._data.copy(),
+        )
+
+    raise AssertionError(f"Unsupported backend for command lifecycle test: {backend}")
+
+
+def _assert_public_joint_commands(art, backend_targets: tuple[np.ndarray, ...]) -> None:
+    """Assert public targets and active backend shadows represent the same physical commands."""
+    user_to_backend = _ordering_user_to_backend(art.joint_ordering, art.num_joints)
+    public_buffers = (
+        art.data._joint_pos_target,
+        art.data._joint_vel_target,
+        art.data._joint_effort_target,
+    )
+    backend_fields = (
+        "_joint_pos_target_backend",
+        "_joint_vel_target_backend",
+        "_joint_effort_target_backend",
+    )
+    for public_buffer, backend_field, backend_values in zip(
+        public_buffers, backend_fields, backend_targets, strict=True
+    ):
+        np.testing.assert_array_equal(public_buffer.numpy(), backend_values[:, user_to_backend])
+        backend_buffer = getattr(art, backend_field)
+        if art._has_joint_ordering:
+            assert backend_buffer is not None
+            np.testing.assert_array_equal(backend_buffer.numpy(), backend_values)
+        else:
+            assert backend_buffer is None
+
+
+def _assert_public_ordered_properties(
+    art,
+    backend_joint_stiffness: np.ndarray,
+    backend_body_mass: np.ndarray,
+) -> None:
+    """Assert representative joint/body properties retain their backend physical identity."""
+    joint_user_to_backend = _ordering_user_to_backend(art.joint_ordering, art.num_joints)
+    body_user_to_backend = _ordering_user_to_backend(art.body_ordering, art.num_bodies)
+    np.testing.assert_array_equal(
+        art.data.joint_stiffness.warp.numpy(),
+        backend_joint_stiffness[:, joint_user_to_backend],
+    )
+    np.testing.assert_array_equal(
+        art.data.body_mass.warp.numpy(),
+        backend_body_mass[:, body_user_to_backend],
+    )
 
 
 def _make_backend_com_poses(num_instances: int, num_bodies: int) -> np.ndarray:
@@ -2303,6 +2427,7 @@ class TestArticulationOrderingAllocation:
             "_joint_vel_limits_backend",
             "_joint_effort_limits_backend",
             "_joint_friction_props_backend",
+            "_joint_friction_props_user",
             "_body_com_pose_b_backend",
             "_body_mass_backend",
             "_body_inertia_backend",
@@ -2389,6 +2514,181 @@ class TestArticulationOrderingAllocation:
                 assert shadow is not None, f"{backend} reversed ordering did not allocate {field_name}"
                 item_count = num_bodies if "_body_" in field_name else num_joints
                 assert _ordering_shadow_shape(shadow)[:2] == (num_instances, item_count)
+
+
+class TestArticulationOrderingLifecycle:
+    """Test persistent commands and shadows across articulation map transitions."""
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+    def test_joint_targets_preserve_backend_identity_across_map_transitions(self, backend: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_joints = 4
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=num_joints,
+            num_bodies=4,
+            device="cpu",
+        )
+        values = np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
+        backend_targets = (values + 10.0, values + 110.0, values + 1010.0)
+        backend_joint_stiffness = art.data.joint_stiffness.warp.numpy().copy()
+        backend_body_mass = art.data.body_mass.warp.numpy().copy()
+        _seed_public_joint_commands(backend, art, backend_targets)
+
+        for actual, expected in zip(
+            _write_joint_commands_to_backend(backend, art, raw_backend),
+            backend_targets,
+            strict=True,
+        ):
+            np.testing.assert_array_equal(actual, expected)
+        _assert_public_joint_commands(art, backend_targets)
+        _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+        backend_names = tuple(art.backend_joint_names)
+        ordering_a = tuple(backend_names[index] for index in (2, 0, 3, 1))
+        ordering_b = tuple(backend_names[index] for index in (1, 3, 0, 2))
+        for joint_ordering in (ordering_a, ordering_b, backend_names, None):
+            _transition_articulation_ordering(art, joint_ordering=joint_ordering)
+            for actual, expected in zip(
+                _write_joint_commands_to_backend(backend, art, raw_backend),
+                backend_targets,
+                strict=True,
+            ):
+                np.testing.assert_array_equal(actual, expected)
+            _assert_public_joint_commands(art, backend_targets)
+            _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+    def test_physx_body_wrenches_preserve_backend_identity_across_map_transitions(self) -> None:
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        art, raw_backend = get_articulation(
+            "physx",
+            num_instances=num_instances,
+            num_joints=3,
+            num_bodies=num_bodies,
+            device="cpu",
+        )
+        _set_identity_body_poses("physx", art, raw_backend)
+        object.__setattr__(art, "_instantaneous_wrench_composer", WrenchComposer(art))
+        object.__setattr__(art, "_permanent_wrench_composer", WrenchComposer(art))
+
+        backend_force = (
+            np.arange(num_instances * num_bodies * 3, dtype=np.float32).reshape(num_instances, num_bodies, 3) + 1.0
+        )
+        backend_torque = backend_force + 100.0
+        art.permanent_wrench_composer.set_forces_and_torques_index(
+            forces=wp.array(backend_force, dtype=wp.vec3f, device=art.device),
+            torques=wp.array(backend_torque, dtype=wp.vec3f, device=art.device),
+        )
+        backend_joint_stiffness = art.data.joint_stiffness.warp.numpy().copy()
+        backend_body_mass = art.data.body_mass.warp.numpy().copy()
+        captured = {}
+
+        def capture_wrench(*, force_data, torque_data, position_data, indices, is_global):
+            captured["force"] = force_data.numpy().reshape(num_instances, num_bodies, 3).copy()
+            captured["torque"] = torque_data.numpy().reshape(num_instances, num_bodies, 3).copy()
+
+        raw_backend.apply_forces_and_torques_at_position = capture_wrench
+
+        backend_names = tuple(art.backend_body_names)
+        ordering_a = tuple(backend_names[index] for index in (2, 0, 3, 1))
+        ordering_b = tuple(backend_names[index] for index in (1, 3, 0, 2))
+        for body_ordering in (_ORDERING_UNCHANGED, ordering_a, ordering_b, backend_names, None):
+            if body_ordering is not _ORDERING_UNCHANGED:
+                _transition_articulation_ordering(art, body_ordering=body_ordering)
+            art.write_data_to_sim()
+            np.testing.assert_array_equal(captured["force"], backend_force)
+            np.testing.assert_array_equal(captured["torque"], backend_torque)
+
+            user_to_backend = _ordering_user_to_backend(art.body_ordering, num_bodies)
+            np.testing.assert_array_equal(
+                art.permanent_wrench_composer.local_force_b.numpy(),
+                backend_force[:, user_to_backend],
+            )
+            np.testing.assert_array_equal(
+                art.permanent_wrench_composer.local_torque_b.numpy(),
+                backend_torque[:, user_to_backend],
+            )
+            if art._has_body_ordering:
+                assert art._body_wrench_force_backend is not None
+                assert art._body_wrench_torque_backend is not None
+                np.testing.assert_array_equal(art._body_wrench_force_backend.numpy(), backend_force)
+                np.testing.assert_array_equal(art._body_wrench_torque_backend.numpy(), backend_torque)
+            else:
+                assert art._body_wrench_force_backend is None
+                assert art._body_wrench_torque_backend is None
+            _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+    def test_joint_and_body_transitions_manage_only_their_domain_shadows(self, backend: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=4,
+            num_bodies=4,
+            device="cpu",
+        )
+        backend_joint_stiffness = art.data.joint_stiffness.warp.numpy().copy()
+        backend_body_mass = art.data.body_mass.warp.numpy().copy()
+        joint_ordering = tuple(art.backend_joint_names[index] for index in (2, 0, 3, 1))
+        body_ordering = tuple(art.backend_body_names[index] for index in (1, 3, 0, 2))
+        data_joint_fields = tuple(
+            name for name in TestArticulationOrderingAllocation._DATA_SHADOWS[backend] if "_joint_" in name
+        )
+        data_body_fields = tuple(
+            name for name in TestArticulationOrderingAllocation._DATA_SHADOWS[backend] if "_body_" in name
+        )
+        articulation_joint_fields = tuple(
+            name for name in TestArticulationOrderingAllocation._ARTICULATION_SHADOWS[backend] if "_joint_" in name
+        )
+        articulation_body_fields = tuple(
+            name for name in TestArticulationOrderingAllocation._ARTICULATION_SHADOWS[backend] if "_body_" in name
+        )
+
+        _transition_articulation_ordering(art, joint_ordering=joint_ordering)
+        for owner, fields in ((art.data, data_joint_fields), (art, articulation_joint_fields)):
+            assert all(getattr(owner, name) is not None for name in fields)
+        for owner, fields in ((art.data, data_body_fields), (art, articulation_body_fields)):
+            assert all(getattr(owner, name) is None for name in fields)
+        joint_shadow_objects = {
+            (id(owner), name): getattr(owner, name)
+            for owner, fields in ((art.data, data_joint_fields), (art, articulation_joint_fields))
+            for name in fields
+        }
+        _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+        _transition_articulation_ordering(art, body_ordering=body_ordering)
+        for owner, fields in ((art.data, data_joint_fields), (art, articulation_joint_fields)):
+            for name in fields:
+                assert getattr(owner, name) is joint_shadow_objects[(id(owner), name)]
+        for owner, fields in ((art.data, data_body_fields), (art, articulation_body_fields)):
+            assert all(getattr(owner, name) is not None for name in fields)
+        body_shadow_objects = {
+            (id(owner), name): getattr(owner, name)
+            for owner, fields in ((art.data, data_body_fields), (art, articulation_body_fields))
+            for name in fields
+        }
+        _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+        _transition_articulation_ordering(art, joint_ordering=None)
+        for owner, fields in ((art.data, data_joint_fields), (art, articulation_joint_fields)):
+            assert all(getattr(owner, name) is None for name in fields)
+        for owner, fields in ((art.data, data_body_fields), (art, articulation_body_fields)):
+            for name in fields:
+                assert getattr(owner, name) is body_shadow_objects[(id(owner), name)]
+        _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+        _transition_articulation_ordering(art, body_ordering=None)
+        for owner, fields in ((art.data, data_body_fields), (art, articulation_body_fields)):
+            assert all(getattr(owner, name) is None for name in fields)
+        _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
 
 
 class TestArticulationOrderingComWrites:
