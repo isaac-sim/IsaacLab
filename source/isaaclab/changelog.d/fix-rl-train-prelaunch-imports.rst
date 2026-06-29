@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed pre-launch imports that loaded Isaac Sim runtime or USD modules before simulation launch.
+* Fixed kitless stage setup importing Isaac Sim runtime modules during Newton training startup.

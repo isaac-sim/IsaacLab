@@ -22,9 +22,10 @@ import os
 import re
 import signal
 import sys
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal
 
-if TYPE_CHECKING:
+with contextlib.suppress(ModuleNotFoundError):
+    import isaacsim  # noqa: F401
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
@@ -1175,9 +1176,6 @@ class AppLauncher:
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
-        import isaacsim  # noqa: F401, PLC0415
-        from isaacsim import SimulationApp  # noqa: PLC0415
-
         # Initialize SimulationApp
         # hack sys module to make sure that the SimulationApp is initialized correctly
         # this is to avoid the warnings from the simulation app about not ok modules
@@ -1359,8 +1357,6 @@ class AppLauncher:
 
     def is_isaac_sim_version_5(self) -> bool:
         if not hasattr(self, "_is_sim_ver_5"):
-            import isaacsim  # noqa: PLC0415
-
             # 1) Try to read the VERSION file (for manual / binary installs)
             version_path = os.path.abspath(os.path.join(os.path.dirname(isaacsim.__file__), "../../VERSION"))
             if os.path.isfile(version_path):

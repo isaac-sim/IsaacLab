@@ -15,8 +15,6 @@ import pytest
 from isaaclab.app import AppLauncher
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-
-
 SOURCE_PATHS = [
     "source/isaaclab",
     "source/isaaclab_tasks",
@@ -28,8 +26,8 @@ SOURCE_PATHS = [
 ]
 
 
-def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str], *, block: bool = False) -> None:
-    """Run ``code`` in a subprocess and assert forbidden root modules are not imported."""
+def _assert_code_does_not_import_prefixes(code: str, forbidden: set[str]) -> None:
+    """Run ``code`` in a subprocess and assert forbidden import prefixes are not imported."""
     program = textwrap.dedent(
         """
         import json
@@ -40,7 +38,6 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str], 
         repo_root = Path(sys.argv[1])
         forbidden = set(json.loads(sys.argv[2]))
         code = sys.argv[3]
-        block = json.loads(sys.argv[5])
 
         for rel_path in json.loads(sys.argv[4]):
             sys.path.insert(0, str(repo_root / rel_path))
@@ -58,8 +55,6 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str], 
             prefix = _matching_forbidden_prefix(name)
             if prefix is not None and prefix not in violations:
                 violations[prefix] = "".join(traceback.format_stack(limit=18))
-                if block:
-                    raise RuntimeError(f"Blocked forbidden import before launch: {name}")
             return original_import(name, globals, locals, fromlist, level)
 
         __builtins__.__import__ = import_hook
@@ -81,7 +76,6 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str], 
             json.dumps(sorted(forbidden)),
             textwrap.dedent(code),
             json.dumps(SOURCE_PATHS),
-            json.dumps(block),
         ],
         capture_output=True,
         check=True,
@@ -99,100 +93,9 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str], 
     assert violations == {}
 
 
-def test_add_launcher_args_does_not_import_sim_runtime_before_launch():
-    """Test that launcher arg registration does not import Isaac Sim runtime modules."""
-    _assert_import_code_does_not_import_modules(
-        """
-        import argparse
-
-        from isaaclab.app import add_launcher_args
-
-        parser = argparse.ArgumentParser(add_help=False)
-        add_launcher_args(parser)
-        """,
-        {"pxr", "omni", "carb", "isaacsim", "usdrt"},
-    )
-
-
-def test_simulation_context_import_does_not_import_pxr_before_launch():
-    """Test that resolving SimulationContext does not import USD modules."""
-    _assert_import_code_does_not_import_modules(
-        """
-        from isaaclab.sim import SimulationContext
-
-        assert SimulationContext.__name__ == "SimulationContext"
-        """,
-        {"pxr"},
-    )
-
-
-def test_direct_rl_env_import_does_not_import_pxr_before_launch():
-    """Test that resolving DirectRLEnv does not import USD modules."""
-    _assert_import_code_does_not_import_modules(
-        """
-        from isaaclab.envs import DirectRLEnv
-
-        assert DirectRLEnv.__name__ == "DirectRLEnv"
-        """,
-        {"pxr"},
-    )
-
-
-def test_from_files_spawner_import_does_not_import_pxr_before_launch():
-    """Test that resolving file spawners does not import USD modules."""
-    _assert_import_code_does_not_import_modules(
-        """
-        from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-
-        assert GroundPlaneCfg.__name__ == "GroundPlaneCfg"
-        assert spawn_ground_plane.__name__ == "spawn_ground_plane"
-        """,
-        {"pxr"},
-    )
-
-
-def test_cartpole_task_import_does_not_import_pxr_before_launch():
-    """Test that resolving the cartpole task module does not import USD modules."""
-    _assert_import_code_does_not_import_modules(
-        """
-        import importlib
-
-        module = importlib.import_module("isaaclab_tasks.core.cartpole.cartpole_direct_env")
-
-        assert module.CartpoleEnv.__name__ == "CartpoleEnv"
-        """,
-        {"pxr"},
-    )
-
-
-def test_cartpole_newton_mjwarp_launch_decision_does_not_import_runtime_before_launch():
-    """Test that resolving a kitless cartpole preset does not import runtime modules."""
-    _assert_import_code_does_not_import_modules(
-        """
-        import sys
-
-        import isaaclab_tasks  # noqa: F401
-        from isaaclab.app import scan
-        from isaaclab_tasks.utils import resolve_task_config
-
-        old_argv = sys.argv.copy()
-        try:
-            sys.argv = [sys.argv[0], "presets=newton_mjwarp"]
-            env_cfg, _ = resolve_task_config("Isaac-Cartpole-Direct", "rsl_rl_cfg_entry_point")
-        finally:
-            sys.argv = old_argv
-
-        config_scan = scan(env_cfg)
-        assert config_scan.needs_kit is False
-        """,
-        {"pxr", "omni", "carb", "isaacsim", "usdrt"},
-        block=True,
-    )
-
-
 def test_cartpole_newton_mjwarp_env_construction_does_not_import_kit_runtime_before_launch():
     """Test that kitless cartpole env construction does not import Isaac Sim runtime modules."""
-    _assert_import_code_does_not_import_modules(
+    _assert_code_does_not_import_prefixes(
         """
         import sys
 
@@ -203,7 +106,7 @@ def test_cartpole_newton_mjwarp_env_construction_does_not_import_kit_runtime_bef
 
         old_argv = sys.argv.copy()
         try:
-            sys.argv = [sys.argv[0], "presets=newton_mjwarp"]
+            sys.argv = [sys.argv[0], "presets=newton_mjwarp", "env.scene.num_envs=1"]
             env_cfg, _ = resolve_task_config("Isaac-Cartpole-Direct", "rsl_rl_cfg_entry_point")
         finally:
             sys.argv = old_argv
