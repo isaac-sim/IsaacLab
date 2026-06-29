@@ -18,7 +18,7 @@ Do not use this skill for Isaac Lab 2.x to 3.x migration. Use the `isaaclab-migr
 ## Workflow
 
 1. Identify the Isaac Gym task structure: assets, environment state tensors, observations, rewards, resets, and training runner.
-2. If the user expects execution or training, run a runtime preflight before a long port: verify Python, `EXP_PATH`, `isaacsim`, `omni`, `isaacsim.simulation_app`, and the requested RL library are compatible with the Isaac Lab checkout.
+2. If the user expects execution or training, run a runtime preflight before a long port: verify `./isaaclab.sh -p` uses the intended checkout and local `_isaac_sim` runtime, reports the expected Python and `EXP_PATH`, imports `isaacsim` and `omni`, and provides the requested RL library.
 3. Read the IsaacGymEnvs migration guide and direct workflow docs before proposing edits.
 4. Migrate to a direct workflow first by default. This preserves the single-class structure that most Isaac Gym tasks already use.
 5. Choose the initial backend target. Start with PhysX when matching Isaac Gym behavior; add Newton only after the direct PhysX migration is validated or if the user explicitly targets Newton.
@@ -39,12 +39,12 @@ Use this feedback loop:
 ./isaaclab.sh -p -m pytest PATH_TO_MIGRATION_TEST
 ```
 
-For manual smoke testing, run the smallest random-action entry point available for the migrated task before training. For external scratch packages, ensure the task package is imported before Gym lookup; use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
+For manual smoke testing, run the smallest random-action entry point available for the migrated task before training. For external scratch packages, put the scratch package and every package under the Isaac Lab checkout's `source/` directory at the front of `PYTHONPATH`; this avoids accidentally importing `isaaclab_tasks` or extension packages from another checkout or installed wheel. Ensure the task package is imported before Gym lookup; use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
 
 Runtime preflight for execution/training requests:
 
 ```bash
-./isaaclab.sh -p -c "import importlib.util, os, sys; print(sys.version); print(os.environ.get('EXP_PATH')); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('isaacsim.simulation_app')); print(importlib.util.find_spec('omni'))"
+./isaaclab.sh -p -c "import importlib.util, os, sys; print(sys.version); print(os.environ.get('EXP_PATH')); print(importlib.util.find_spec('isaacsim')); print(importlib.util.find_spec('omni'))"
 ```
 
 For skill changes, run:

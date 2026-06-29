@@ -21,25 +21,34 @@ Passed gates:
 - Resolved environment and agent configs.
 - Statically compiled the migrated package.
 
-Blocked gates:
+Runtime rerun with the local `_isaac_sim` junction:
 
-- Environment construction, reset, random-agent execution, and training did not start on the validation machine because the local simulator runtime was incompatible with the Isaac Lab 3.0 checkout.
-- The active `./isaaclab.sh -p` Python did not provide `isaacsim`, `isaacsim.simulation_app`, or `omni`.
-- The available Isaac Sim runtime was 4.2 / Python 3.10 / Kit 106-era, while this checkout required a compatible Python 3.12 / Kit 110-era runtime.
-- The RSL-RL attempt also found an older local `rsl_rl` package missing `DistillationRunner`.
+- `./isaaclab.sh -p` used the PR checkout, Python 3.12.13, and a Kit 110-era Isaac Sim runtime.
+- `isaacsim` and `omni` resolved from the local runtime. The `isaacsim.simulation_app` submodule was not present as a standalone import, but Isaac Lab's `AppLauncher` worked.
+- A clean `PYTHONPATH` was required: the scratch package first, then every package directory under this checkout's `source/`. Without this, Python mixed packages from another Isaac Lab checkout and hit duplicate Gym registrations.
+- The migrated environment constructed with 4 environments on `cuda:0`, `reset()` returned observations with shape `(4, 60)`, and one random step returned observations with shape `(4, 60)`.
+- A 2-iteration RSL-RL smoke run with 64 environments completed and wrote metrics. Iteration 0 logged mean reward `4.10`, mean episode length `13.00`, and success rate `1.0000`; iteration 1 logged mean reward `-19.77`, mean episode length `43.29`, and success rate `0.0000`.
+
+Open gates:
+
+- The scratch migration used a broad `ContactSensorCfg` pattern for foot observations and emitted missing rigid-body/contact-report warnings. Future migrations should validate sensor body names and use `JointWrenchSensorCfg` when legacy force-torque observations need torque components.
+- Isaac Lab's random-agent entry point was not validated for this external scratch package because it needs a wrapper or callback that imports the task before Gym lookup.
+- The short training smoke proved that training starts and steps, but did not prove a successful Ant policy. Do not claim policy success until a longer run shows stable success or reward improvement.
 
 ## Skill Updates From This Validation
 
-- Run runtime preflight before promising reset, random-agent, or training success.
+- Run runtime preflight through the target checkout's `./isaaclab.sh -p` before promising reset, random-agent, or training success.
+- Put scratch packages and all target checkout `source/` packages first on `PYTHONPATH` during external validation.
 - Make external scratch package registration explicit for scripts that do not expose `--external_callback`.
-- Add legacy force/torque sensor mapping guidance so agents do not silently drop force sensor observations.
+- Add legacy force/torque sensor mapping guidance so agents do not silently drop force sensor observations or ignore unresolved sensor prim warnings.
 
 ## Pass Criteria For A Complete Runtime Validation
 
-On a compatible Isaac Sim runtime, repeat the same migration and require:
+For a complete validation, repeat the same migration and require:
 
 1. The migrated task constructs with a small environment count.
 2. `reset()` and several random `step()` calls succeed.
 3. Isaac Lab's random-agent entry point runs against the migrated task.
 4. A short training job starts and logs policy metrics.
-5. A longer training job reaches the task's success criterion or shows clear reward improvement against the direct baseline.
+5. Sensor prim paths and body names resolve without missing rigid-body or contact-report warnings.
+6. A longer training job reaches the task's success criterion or shows clear reward improvement against the direct baseline.

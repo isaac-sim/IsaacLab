@@ -27,7 +27,7 @@ Use this mapping as the default starting point:
 
 ## External Scratch Packages
 
-When validating a migration outside the Isaac Lab tree, keep the package importable through `PYTHONPATH` and register the Gym task by importing the package before `gym.make()` or registry lookups. For scripts that do not expose `--external_callback`, create a small wrapper that imports the migrated package before running the Isaac Lab entry point. For training scripts that support external callbacks, point the callback to a registration function such as `my_migrated_task.register.register`.
+When validating a migration outside the Isaac Lab tree, keep the package importable through `PYTHONPATH` and register the Gym task by importing the package before `gym.make()` or registry lookups. Put the scratch package first, then every package directory under the target Isaac Lab checkout's `source/` directory. This prevents Python from mixing the active checkout with another installed Isaac Lab checkout and causing duplicate Gym registration or stale task imports. For scripts that do not expose `--external_callback`, create a small wrapper that imports the migrated package before running the Isaac Lab entry point. For training scripts that support external callbacks, point the callback to a registration function such as `my_migrated_task.register.register`.
 
 Do not treat successful config loading as training success. Import/register, config resolution, static compilation, reset/step, random-agent, and short training are separate gates.
 
@@ -36,8 +36,9 @@ Do not treat successful config loading as training success. Import/register, con
 Isaac Gym locomotion tasks may use force sensor tensors or net contact force tensors as policy inputs. In Isaac Lab, map these deliberately:
 
 - Use `ContactSensorCfg` when the legacy observation only needs body net contact forces.
-- Use wrench or joint-wrench sensors when the legacy task depends on torque components.
+- Use `JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")` plus `SceneEntityCfg(..., body_names=[...])` when the legacy task depends on foot force and torque components. The maintained manager Ant task uses `mdp.body_incoming_wrench` this way for foot observations.
 - Preserve the original observation shape only when parity requires it, and document any zero-padded or intentionally dropped torque slots.
+- Validate sensor paths against the runtime asset's body names before training. Treat warnings such as "Failed to find rigid body" or "Failed to find contact report API" as validation failures, not harmless noise.
 
 ## Backend Mapping
 
@@ -89,5 +90,7 @@ Legacy Isaac Gym tasks often combine asset loading, reward computation, reset lo
 - The migrated environment can construct with a small number of environments.
 - `reset()` succeeds repeatedly.
 - `step()` returns observations with expected shapes.
+- Sensor paths resolve without missing rigid-body or contact-report warnings.
 - Rewards and terminations match the intended task behavior.
 - Training starts with the chosen RL framework.
+- A short training run only proves the runner can execute. Claim a successful policy only after a run of sufficient length shows stable success or reward improvement against the expected task behavior.
