@@ -238,6 +238,7 @@ def build_newton_actuator_defaults(
     num_joints: int,
     dof_offset: int,
     device: str,
+    joint_user_to_backend_indices: Sequence[int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | slice]:
     """Snapshot the initial kp/kd of every Newton actuator owned by one articulation.
 
@@ -256,6 +257,9 @@ def build_newton_actuator_defaults(
         dof_offset: Offset of this articulation's DOFs in the env-major
             global index space (``0`` on PhysX, view-dependent on Newton).
         device: Warp device string (e.g. ``"cuda:0"``).
+        joint_user_to_backend_indices: Optional complete map from public joint
+            indices to backend-local joint indices. When provided, returned
+            gains and managed joint indices use public joint order.
 
     Returns:
         Tuple of ``(stiffness, damping, joint_indices)``:
@@ -266,6 +270,15 @@ def build_newton_actuator_defaults(
           the adapter's actuators. ``slice(None)`` when every joint is
           covered, otherwise an int32 tensor of column indices.
     """
+    user_to_backend: tuple[int, ...] | None = None
+    if joint_user_to_backend_indices is not None:
+        user_to_backend = tuple(int(index) for index in joint_user_to_backend_indices)
+        if sorted(user_to_backend) != list(range(num_joints)):
+            raise ValueError(
+                "joint_user_to_backend_indices must contain each backend joint index exactly once; "
+                f"expected a permutation of 0..{num_joints - 1}, got {user_to_backend}."
+            )
+
     arti_actuators = [act for act in actuators if dof_offset <= int(act.indices.numpy()[0]) < dof_offset + num_joints]
 
     managed_local: set[int] = set()
@@ -302,6 +315,19 @@ def build_newton_actuator_defaults(
             )
     stiffness = wp.to_torch(flat_stiffness.reshape((num_envs, num_joints)))
     damping = wp.to_torch(flat_damping.reshape((num_envs, num_joints)))
+    if user_to_backend is not None:
+        user_to_backend_tensor = torch.tensor(user_to_backend, dtype=torch.long, device=device)
+        stiffness = stiffness.index_select(1, user_to_backend_tensor)
+        damping = damping.index_select(1, user_to_backend_tensor)
+        if not isinstance(joint_indices, slice):
+            backend_to_user = [0] * num_joints
+            for user_index, backend_index in enumerate(user_to_backend):
+                backend_to_user[backend_index] = user_index
+            joint_indices = torch.tensor(
+                sorted(backend_to_user[index] for index in managed_local),
+                dtype=torch.int32,
+                device=device,
+            )
     return stiffness, damping, joint_indices
 
 

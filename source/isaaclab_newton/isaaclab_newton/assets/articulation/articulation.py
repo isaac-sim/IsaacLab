@@ -3694,6 +3694,9 @@ class Articulation(BaseArticulation):
                     num_joints=self.num_joints,
                     dof_offset=arti_start,
                     device=self.device,
+                    joint_user_to_backend_indices=(
+                        self.joint_ordering.user_to_backend_indices if self._has_joint_ordering else None
+                    ),
                 )
             else:
                 self._data._sim_bind_joint_computed_effort = wp.zeros(

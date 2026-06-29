@@ -1325,3 +1325,51 @@ def test_write_joint_vel_user_to_backend_with_mask_updates_selected_entries() ->
     np.testing.assert_allclose(user_prev_vel.numpy(), expected_user)
     np.testing.assert_allclose(backend_vel.numpy(), expected_backend)
     np.testing.assert_allclose(user_acc.numpy()[0, 1:], np.zeros((2,), dtype=np.float32))
+
+
+def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
+    """Convert Newton actuator gain snapshots and managed IDs into public joint order."""
+    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+
+    controller = types.SimpleNamespace(
+        kp=wp.array((10.0, 30.0, 11.0, 31.0), dtype=wp.float32, device="cpu"),
+        kd=wp.array((1.0, 3.0, 1.1, 3.1), dtype=wp.float32, device="cpu"),
+    )
+    actuator = types.SimpleNamespace(
+        controller=controller,
+        indices=wp.array((0, 2, 3, 5), dtype=wp.uint32, device="cpu"),
+    )
+
+    stiffness, damping, managed = build_newton_actuator_defaults(
+        actuators=[actuator],
+        num_envs=2,
+        num_joints=3,
+        dof_offset=0,
+        device="cpu",
+        joint_user_to_backend_indices=(2, 0, 1),
+    )
+
+    torch.testing.assert_close(stiffness, torch.tensor([[30.0, 10.0, 0.0], [31.0, 11.0, 0.0]]))
+    torch.testing.assert_close(damping, torch.tensor([[3.0, 1.0, 0.0], [3.1, 1.1, 0.0]]))
+    torch.testing.assert_close(managed, torch.tensor([0, 1], dtype=torch.int32))
+
+
+def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
+    """Reject malformed actuator-default ordering maps with an actionable error."""
+    from isaaclab_newton.actuators.adapter import build_newton_actuator_defaults
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            r"joint_user_to_backend_indices must contain each backend joint index exactly once; "
+            r"expected a permutation of 0\.\.2, got \(0, 0, 2\)\."
+        ),
+    ):
+        build_newton_actuator_defaults(
+            actuators=[],
+            num_envs=1,
+            num_joints=3,
+            dof_offset=0,
+            device="cpu",
+            joint_user_to_backend_indices=(0, 0, 2),
+        )
