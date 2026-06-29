@@ -10,11 +10,11 @@ import torch
 from isaaclab.utils.math import quat_from_euler_xyz
 
 CARTPOLE_DISTANT_LIGHT_INTENSITY: float = 2000.0
-CARTPOLE_DISTANT_LIGHT_COLOR: tuple[float, float, float] = (0.75, 0.75, 0.75)
+CARTPOLE_DISTANT_LIGHT_COLOR: tuple[float, float, float] = (1.0, 1.0, 1.0)
 CARTPOLE_DISTANT_LIGHT_ORIENTATION: tuple[float, float, float, float] = tuple(
     quat_from_euler_xyz(
-        torch.tensor([math.radians(20.0)]),
-        torch.tensor([math.radians(20.0)]),
         torch.tensor([0.0]),
+        torch.tensor([math.radians(-45.0)]),
+        torch.tensor([math.radians(-45.0)]),
     )[0].tolist()
 )
