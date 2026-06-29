@@ -163,6 +163,24 @@ def test_articulation_name_map_direct_constructor_validates_maps() -> None:
         )
 
 
+def test_articulation_name_map_direct_constructor_validates_device_maps() -> None:
+    """Reject device maps that contradict the validated CPU permutations."""
+    identity_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
+    reversed_map = wp.array((2, 1, 0), dtype=wp.int32, device="cpu")
+
+    with pytest.raises(ValueError, match="device user_to_backend map must match user_to_backend_indices"):
+        ArticulationNameMap(
+            kind="joint",
+            backend_names=("joint_0", "joint_1", "joint_2"),
+            user_names=("joint_2", "joint_1", "joint_0"),
+            user_to_backend_indices=(2, 1, 0),
+            backend_to_user_indices=(2, 1, 0),
+            user_to_backend=identity_map,
+            backend_to_user=reversed_map,
+            is_identity=False,
+        )
+
+
 def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None:
     """Resolve explicit public ordering names from config."""
     user_names = resolve_articulation_ordering_names(

@@ -84,6 +84,21 @@ class ArticulationNameMap:
             if backend_to_user[backend_index] != user_index:
                 raise ValueError("ArticulationNameMap CPU index maps must be inverse permutations.")
 
+        for map_name, device_map, cpu_map in (
+            ("user_to_backend", self.user_to_backend, user_to_backend),
+            ("backend_to_user", self.backend_to_user, backend_to_user),
+        ):
+            if device_map.dtype != wp.int32 or device_map.ndim != 1 or device_map.shape != (num_names,):
+                raise ValueError(
+                    f"ArticulationNameMap device {map_name} map must be a one-dimensional int32 array "
+                    f"with shape ({num_names},)."
+                )
+            if tuple(int(index) for index in device_map.numpy()) != cpu_map:
+                raise ValueError(f"ArticulationNameMap device {map_name} map must match {map_name}_indices.")
+
+        if self.user_to_backend.device != self.backend_to_user.device:
+            raise ValueError("ArticulationNameMap device index maps must be allocated on the same device.")
+
         identity_indices = tuple(range(num_names))
         expected_identity = (
             self.user_names == self.backend_names
@@ -165,7 +180,7 @@ def build_articulation_name_map(
         device: Device where Warp map arrays are allocated.
 
     Returns:
-        Mapping metadata and optional Warp arrays for non-identity ordering.
+        Mapping metadata and device Warp arrays for index conversion.
 
     Raises:
         ValueError: If names are duplicated or :paramref:`user_names` is not a
