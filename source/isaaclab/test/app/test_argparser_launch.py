@@ -28,7 +28,7 @@ SOURCE_PATHS = [
 ]
 
 
-def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str]) -> None:
+def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str], *, block: bool = False) -> None:
     """Run ``code`` in a subprocess and assert forbidden root modules are not imported."""
     program = textwrap.dedent(
         """
@@ -40,6 +40,7 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str]) 
         repo_root = Path(sys.argv[1])
         forbidden = set(json.loads(sys.argv[2]))
         code = sys.argv[3]
+        block = json.loads(sys.argv[5])
 
         for rel_path in json.loads(sys.argv[4]):
             sys.path.insert(0, str(repo_root / rel_path))
@@ -47,10 +48,18 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str]) 
         violations = {}
         original_import = __builtins__.__import__
 
+        def _matching_forbidden_prefix(name):
+            for prefix in forbidden:
+                if name == prefix or name.startswith(prefix + "."):
+                    return prefix
+            return None
+
         def import_hook(name, globals=None, locals=None, fromlist=(), level=0):
-            root_name = name.split(".")[0]
-            if root_name in forbidden and root_name not in violations:
-                violations[root_name] = "".join(traceback.format_stack(limit=18))
+            prefix = _matching_forbidden_prefix(name)
+            if prefix is not None and prefix not in violations:
+                violations[prefix] = "".join(traceback.format_stack(limit=18))
+                if block:
+                    raise RuntimeError(f"Blocked forbidden import before launch: {name}")
             return original_import(name, globals, locals, fromlist, level)
 
         __builtins__.__import__ = import_hook
@@ -59,7 +68,7 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str]) 
         finally:
             __builtins__.__import__ = original_import
 
-        print(json.dumps(violations, sort_keys=True))
+        print("__VIOLATIONS__" + json.dumps(violations, sort_keys=True))
         """
     )
 
@@ -72,13 +81,21 @@ def _assert_import_code_does_not_import_modules(code: str, forbidden: set[str]) 
             json.dumps(sorted(forbidden)),
             textwrap.dedent(code),
             json.dumps(SOURCE_PATHS),
+            json.dumps(block),
         ],
         capture_output=True,
         check=True,
         text=True,
     )
 
-    violations = json.loads(result.stdout)
+    violations_line = None
+    for line in result.stdout.splitlines():
+        if line.startswith("__VIOLATIONS__"):
+            violations_line = line[len("__VIOLATIONS__") :]
+            break
+    assert violations_line is not None, result.stdout
+
+    violations = json.loads(violations_line)
     assert violations == {}
 
 
@@ -145,6 +162,65 @@ def test_cartpole_task_import_does_not_import_pxr_before_launch():
         assert module.CartpoleEnv.__name__ == "CartpoleEnv"
         """,
         {"pxr"},
+    )
+
+
+def test_cartpole_newton_mjwarp_launch_decision_does_not_import_runtime_before_launch():
+    """Test that resolving a kitless cartpole preset does not import runtime modules."""
+    _assert_import_code_does_not_import_modules(
+        """
+        import sys
+
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab.app import scan
+        from isaaclab_tasks.utils import resolve_task_config
+
+        old_argv = sys.argv.copy()
+        try:
+            sys.argv = [sys.argv[0], "presets=newton_mjwarp"]
+            env_cfg, _ = resolve_task_config("Isaac-Cartpole-Direct", "rsl_rl_cfg_entry_point")
+        finally:
+            sys.argv = old_argv
+
+        config_scan = scan(env_cfg)
+        assert config_scan.needs_kit is False
+        """,
+        {"pxr", "omni", "carb", "isaacsim", "usdrt"},
+        block=True,
+    )
+
+
+def test_cartpole_newton_mjwarp_env_construction_does_not_import_kit_runtime_before_launch():
+    """Test that kitless cartpole env construction does not import Isaac Sim runtime modules."""
+    _assert_import_code_does_not_import_modules(
+        """
+        import sys
+
+        import gymnasium as gym
+        import isaaclab_tasks  # noqa: F401
+        from isaaclab.app import scan
+        from isaaclab_tasks.utils import resolve_task_config
+
+        old_argv = sys.argv.copy()
+        try:
+            sys.argv = [sys.argv[0], "presets=newton_mjwarp"]
+            env_cfg, _ = resolve_task_config("Isaac-Cartpole-Direct", "rsl_rl_cfg_entry_point")
+        finally:
+            sys.argv = old_argv
+
+        config_scan = scan(env_cfg)
+        assert config_scan.needs_kit is False
+
+        env = None
+        try:
+            env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
+        except Exception:
+            pass
+        finally:
+            if env is not None:
+                env.close()
+        """,
+        {"omni.kit", "omni.usd", "carb", "isaacsim", "usdrt"},
     )
 
 
