@@ -8,7 +8,7 @@ Expected behavior:
 
 - Asks for OS, Python environment, Isaac Sim source, GPU/driver context, and desired backend.
 - Points to the official pip/uv Isaac Sim installation guide unless the user has a reason to use another supported path.
-- Uses documented wrapper commands for verification.
+- Uses documented uv commands for verification.
 
 Known failure modes:
 
@@ -21,7 +21,7 @@ Query: "Isaac Lab installed, but imports fail when I run my script."
 
 Expected behavior:
 
-- Checks whether the user is running through the Isaac Lab wrapper or correct environment.
+- Checks whether the user is running through the intended uv project or correct environment.
 - Points to troubleshooting docs for the observed error.
 - Requests the smallest relevant traceback if the failure is ambiguous.
 
@@ -52,7 +52,7 @@ Query: "Training fails with an import error after install. What should I run fir
 Expected behavior:
 
 - Asks for the exact command and traceback.
-- Verifies the active install path and Python wrapper.
+- Verifies the active install path and Python environment.
 - Uses the minimal import command from `reference.md`.
 - Escalates to random-agent or training checks only after imports work.
 

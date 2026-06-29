@@ -29,7 +29,7 @@ Do not copy migration tables into answers from memory. Read the official migrati
 Use this feedback loop:
 
 ```bash
-./isaaclab.sh -p -m pytest PATH_TO_DOWNSTREAM_TEST
+uv run --project PATH_TO_ISAACLAB --with pytest python -m pytest PATH_TO_DOWNSTREAM_TEST
 ```
 
 For quaternion migrations, use the repository quaternion tooling documented in the official migration guide.
@@ -37,12 +37,12 @@ For quaternion migrations, use the repository quaternion tooling documented in t
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`, and the unified `./isaaclab.sh train` and `./isaaclab.sh play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
+Keep this skill synchronized with `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/uv_run.rst`, `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`, and the uv-based `train` and `play` entry points. If code changes invalidate migration guidance, update the official migration document first and keep this skill as a router plus checklist.
 
 ## References
 

@@ -47,7 +47,7 @@ Use the plan-validate-execute loop:
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance

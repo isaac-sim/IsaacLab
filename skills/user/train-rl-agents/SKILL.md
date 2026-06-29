@@ -22,7 +22,7 @@ Do not use this skill to design environment observations, rewards, or resets fro
 3. Start from an existing agent config under `source/isaaclab_tasks/isaaclab_tasks/` that matches the framework and task family.
 4. Keep framework-specific config formats separate. Do not mix RSL-RL Python configs with RL-Games, SKRL, or SB3 YAML/config files.
 5. Use suffixless task names in commands, for example `Isaac-Cartpole`.
-6. Use `./isaaclab.sh train` and `./isaaclab.sh play` with `--rl_library` rather than the deprecated per-library scripts under `scripts/reinforcement_learning/`.
+6. Use `uv run --project PATH_TO_ISAACLAB train` and `uv run --project PATH_TO_ISAACLAB play` with `--rl_library` rather than the deprecated per-library scripts under `scripts/reinforcement_learning/`.
 7. Omit visualizer flags for fastest headless training. Use `--viz` only when an explicit visualizer is needed.
 8. Run a small smoke training job before scaling environment count, horizon, network size, or logging integrations.
 9. For visual observations, confirm the sensor pipeline and renderer requirements before enabling large environment counts.
@@ -42,12 +42,12 @@ Use this checklist:
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance
 
-Keep this skill synchronized with `docs/source/overview/reinforcement-learning/training_guide.rst`, RL training tutorials under `docs/source/tutorials/03_envs/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
+Keep this skill synchronized with `docs/source/overview/reinforcement-learning/training_guide.rst`, `docs/source/setup/installation/uv_run.rst`, RL training tutorials under `docs/source/tutorials/03_envs/`, and agent configs under `source/isaaclab_tasks/isaaclab_tasks/`. If framework commands or config formats change, update the official training docs or maintained examples first.
 
 ## References
 

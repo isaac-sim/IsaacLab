@@ -22,10 +22,11 @@ Do not use this skill for choosing a backend at the environment level. Use `isaa
 3. Audit authored physics metadata: rigid bodies, colliders, mass, inertia, center of mass, joint topology, and material properties.
 4. Fix authored USD physics data instead of hiding Newton warnings with task code.
 5. If runtime-resolved mass properties are needed, produce a local package or authored layer with explicit mass, diagonal inertia, and center of mass.
-6. Re-audit the converted asset under Newton.
-7. Validate the asset inside the target Isaac Lab task, not only in a standalone USD viewer.
-8. Check actuator joint patterns, controller body names, action dimensions, and zero-action rollout stability.
-9. Record source path, converted path, audit verdicts, smoke command, and residual warnings in project documentation.
+6. When fixing task-side schema overrides, import universal schema fragments from `isaaclab.sim.schemas` and Newton or MuJoCo-specific cfgs from `isaaclab_newton.sim.schemas` instead of relying on deprecated core forwarding imports.
+7. Re-audit the converted asset under Newton.
+8. Validate the asset inside the target Isaac Lab task, not only in a standalone USD viewer.
+9. Check actuator joint patterns, controller body names, action dimensions, and zero-action rollout stability.
+10. Record source path, converted path, audit verdicts, smoke command, and residual warnings in project documentation.
 
 ## Validation
 
@@ -42,7 +43,7 @@ An asset is Newton-clean only when:
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance

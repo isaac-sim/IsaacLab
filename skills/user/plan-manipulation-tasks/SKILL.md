@@ -42,7 +42,7 @@ Use these gates before calling a manipulation task ready:
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance

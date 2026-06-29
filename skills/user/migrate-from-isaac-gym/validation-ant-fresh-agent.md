@@ -23,7 +23,7 @@ Passed gates:
 
 Runtime rerun with a compatible Isaac Sim runtime:
 
-- `./isaaclab.sh -p` used the PR checkout, Python 3.12.13, and a Kit 110-era Isaac Sim runtime.
+- The runtime used the PR checkout, Python 3.12.13, and a Kit 110-era Isaac Sim runtime.
 - `isaacsim` and `omni` resolved from the active runtime. The `isaacsim.simulation_app` submodule was not present as a standalone import, but Isaac Lab's `AppLauncher` worked.
 - A clean `PYTHONPATH` was required: the generated project extension first, then every package directory under this checkout's `source/`. Without this, Python mixed packages from another Isaac Lab checkout and hit duplicate Gym registrations.
 - The migrated environment constructed with 4 environments on `cuda:0`, `reset()` returned observations with shape `(4, 60)`, and one random step returned observations with shape `(4, 60)`.

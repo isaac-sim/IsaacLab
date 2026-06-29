@@ -20,7 +20,7 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 1. Identify the install mode: pip, uv, source, cloud, kitless, backend-specific setup, or an existing binary setup. For a new full-feature Isaac Sim setup, prefer the pip/uv installation guide.
 2. Identify OS, Python environment, GPU/driver context, Isaac Sim source, and target backend.
 3. Read the matching installation guide and troubleshooting reference before prescribing commands.
-4. Use documented Isaac Lab wrapper commands such as `./isaaclab.sh -p` for Python and tests.
+4. Use documented uv commands such as `uv run --project PATH_TO_ISAACLAB python`, `uv run --project PATH_TO_ISAACLAB train`, and `uv run --project PATH_TO_ISAACLAB play` for Python, verification, and RL entry points.
 5. Use suffixless task names in verification and training commands.
 6. Ask for the smallest relevant error output when the failure mode is unclear.
 7. Prefer a minimal verification command before running examples, training, or rendering workflows.
@@ -32,7 +32,7 @@ Do not duplicate installation or troubleshooting docs in this skill. The officia
 Use this checklist:
 
 1. Confirm the user is following one supported install path.
-2. Confirm Python and package commands use the Isaac Lab wrapper when applicable.
+2. Confirm Python and package commands use the intended uv project and environment when applicable.
 3. Run a minimal import or verification command before larger tests.
 4. Check troubleshooting docs for the observed error class.
 5. Escalate to environment-specific debugging only after the documented checks are exhausted.
@@ -40,7 +40,7 @@ Use this checklist:
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance

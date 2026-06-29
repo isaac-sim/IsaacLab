@@ -41,12 +41,12 @@ Use this checklist:
 For skill changes, run:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```
 
 ## Maintenance
 
-Keep this skill synchronized with `skills/user/train-rl-agents/`, `docs/source/overview/reinforcement-learning/training_guide.rst`, the unified `./isaaclab.sh train` and `./isaaclab.sh play` entry points, and task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If recurring reward or checkpoint guidance belongs in user docs, update `docs/source/` first.
+Keep this skill synchronized with `skills/user/train-rl-agents/`, `docs/source/overview/reinforcement-learning/training_guide.rst`, the uv-based `train` and `play` entry points, and task examples under `source/isaaclab_tasks/isaaclab_tasks/`. If recurring reward or checkpoint guidance belongs in user docs, update `docs/source/` first.
 
 ## References
 

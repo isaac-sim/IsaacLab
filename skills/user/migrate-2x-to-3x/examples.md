@@ -35,7 +35,7 @@ Input: downstream training scripts fail after the RSL-RL upgrade.
 
 Expected workflow:
 
-1. Inspect current Isaac Lab RSL-RL scripts and `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`.
+1. Inspect the current Isaac Lab RSL-RL entry points, agent configs, and `source/isaaclab_rl/isaaclab_rl/rsl_rl/utils.py`.
 2. Use the compatibility helper when it applies.
 3. Avoid preserving copied training scripts if a maintained Isaac Lab script can be reused or imported.
 4. Run a short training or config-construction smoke test.

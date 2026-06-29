@@ -42,7 +42,7 @@ Isaac Lab preset-aware entry points recognize three selector forms:
 | `renderer=NAME` | Selects variants whose values are renderer config objects. |
 | `presets=NAME[,NAME,...]` | Applies domain-specific variants or broadcasts preset names across matching preset fields. |
 
-Use `scripts/environments/list_envs.py --show_presets` to inspect available names before guessing.
+Use `uv run --project PATH_TO_ISAACLAB python scripts/environments/list_envs.py --show_presets` to inspect available names before guessing.
 
 ## Definition Pattern
 
@@ -72,6 +72,8 @@ class MyEnvCfg:
 ```
 
 For multi-backend tasks, keep backend-specific solver values in the preset wrapper. Do not branch on backend names inside step, reward, or reset logic unless behavior truly cannot be represented as config.
+
+For schema presets, import universal fragments and base cfgs from `isaaclab.sim.schemas`, PhysX-specific cfgs from `isaaclab_physx.sim.schemas`, and Newton or MuJoCo cfgs from `isaaclab_newton.sim.schemas`.
 
 ## Validation Checklist
 
