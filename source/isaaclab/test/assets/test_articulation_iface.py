@@ -651,6 +651,241 @@ def _install_reversed_joint_ordering(art) -> np.ndarray:
     return np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
 
 
+def _joint_ordering_for_mode(mode: str, num_joints: int) -> tuple[str, ...] | None:
+    """Return the configured public joint ordering for a parity-test mode."""
+    backend_names = tuple(f"joint_{index}" for index in range(num_joints))
+    if mode == "none":
+        return None
+    if mode == "identity":
+        return backend_names
+    if mode == "reversed":
+        return tuple(reversed(backend_names))
+    raise ValueError(f"Unsupported joint ordering mode: {mode}")
+
+
+def _seed_backend_joint_state(
+    backend: str,
+    art,
+    raw_backend,
+    position: np.ndarray,
+    velocity: np.ndarray,
+) -> None:
+    """Seed deterministic joint state directly in backend-order storage."""
+    if backend == "physx":
+        raw_backend._noop_setters = False
+        raw_backend._dof_positions = wp.array(position, dtype=wp.float32, device=art.device)
+        raw_backend._dof_velocities = wp.array(velocity, dtype=wp.float32, device=art.device)
+
+        def set_backend_rows(storage: wp.array, values: wp.array, indices: wp.array | None) -> None:
+            if indices is None:
+                storage.assign(values)
+                return
+            env_ids = indices.numpy()
+            # PhysX writers pass global staging rows; the generic mock setter expects compact rows.
+            source_ids = env_ids if values.shape[0] == art.num_instances else np.arange(indices.shape[0])
+            storage.numpy()[env_ids] = values.numpy()[source_ids]
+
+        def set_dof_positions(values: wp.array, indices: wp.array | None = None) -> None:
+            set_backend_rows(raw_backend._dof_positions, values, indices)
+
+        def set_dof_velocities(values: wp.array, indices: wp.array | None = None) -> None:
+            set_backend_rows(raw_backend._dof_velocities, values, indices)
+
+        raw_backend.set_dof_positions = set_dof_positions
+        raw_backend.set_dof_velocities = set_dof_velocities
+        art.data._joint_pos.timestamp = -1.0
+        art.data._joint_vel.timestamp = -1.0
+        return
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        raw_backend.bindings[TT.DOF_POSITION]._data = position.copy()
+        raw_backend.bindings[TT.DOF_VELOCITY]._data = velocity.copy()
+        for buffer_name in ("_joint_pos_buf", "_joint_vel_buf", "_joint_pos_backend", "_joint_vel_backend"):
+            buffer = getattr(art.data, buffer_name, None)
+            if buffer is not None:
+                buffer.timestamp = -1.0
+        return
+    if backend == "newton":
+        art.data._sim_bind_joint_pos.assign(wp.array(position, dtype=wp.float32, device=art.device))
+        art.data._sim_bind_joint_vel.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
+        return
+    raise AssertionError(f"Unsupported backend for joint-state parity test: {backend}")
+
+
+def _read_backend_joint_state(backend: str, art, raw_backend) -> tuple[np.ndarray, np.ndarray]:
+    """Return joint position and velocity from backend-order storage."""
+    if backend == "physx":
+        return raw_backend._dof_positions.numpy().copy(), raw_backend._dof_velocities.numpy().copy()
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        position = np.asarray(raw_backend.bindings[TT.DOF_POSITION]._data).copy()
+        velocity = np.asarray(raw_backend.bindings[TT.DOF_VELOCITY]._data).copy()
+        return position, velocity
+    if backend == "newton":
+        return art.data._sim_bind_joint_pos.numpy().copy(), art.data._sim_bind_joint_vel.numpy().copy()
+    raise AssertionError(f"Unsupported backend for joint-state parity test: {backend}")
+
+
+def _coverage_ids(coverage: str, num_instances: int, num_items: int) -> tuple[list[int], list[int]]:
+    """Return environment and item IDs for a write-coverage mode."""
+    if coverage == "one_env_one_item":
+        return [1], [1]
+    if coverage == "all_envs_one_item":
+        return list(range(num_instances)), [1]
+    if coverage == "one_env_all_items":
+        return [1], list(range(num_items))
+    raise ValueError(f"Unsupported write coverage: {coverage}")
+
+
+def _write_selected_joint_state(
+    art,
+    backend: str,
+    selection: str,
+    operation: str,
+    coverage: str,
+    position_value: float,
+    velocity_value: float,
+) -> tuple[list[int], list[int]]:
+    """Write selected public joint state through an index or mask API."""
+    if operation not in ("position", "velocity", "state"):
+        raise ValueError(f"Unsupported joint-state operation: {operation}")
+
+    env_ids, joint_ids = _coverage_ids(coverage, art.num_instances, art.num_joints)
+    if selection == "index":
+        env_ids_wp = wp.array(env_ids, dtype=wp.int32, device=art.device)
+        joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=art.device)
+        shape = (len(env_ids), len(joint_ids))
+        position = torch.full(shape, position_value, dtype=torch.float32, device=art.device)
+        velocity = torch.full(shape, velocity_value, dtype=torch.float32, device=art.device)
+        if operation == "position":
+            art.write_joint_position_to_sim_index(
+                position=position,
+                env_ids=env_ids_wp,
+                joint_ids=joint_ids_wp,
+            )
+        elif operation == "velocity":
+            art.write_joint_velocity_to_sim_index(
+                velocity=velocity,
+                env_ids=env_ids_wp,
+                joint_ids=joint_ids_wp,
+            )
+        elif backend == "ovphysx":
+            with pytest.deprecated_call():
+                art.write_joint_state_to_sim(
+                    position=position,
+                    velocity=velocity,
+                    env_ids=env_ids_wp,
+                    joint_ids=joint_ids_wp,
+                )
+        else:
+            art.write_joint_state_to_sim_index(
+                position=position,
+                velocity=velocity,
+                env_ids=env_ids_wp,
+                joint_ids=joint_ids_wp,
+            )
+        return env_ids, joint_ids
+
+    if selection == "mask":
+        env_mask = wp.array(
+            [env_index in env_ids for env_index in range(art.num_instances)],
+            dtype=wp.bool,
+            device=art.device,
+        )
+        joint_mask = wp.array(
+            [joint_index in joint_ids for joint_index in range(art.num_joints)],
+            dtype=wp.bool,
+            device=art.device,
+        )
+        position = torch.zeros((art.num_instances, art.num_joints), dtype=torch.float32, device=art.device)
+        velocity = torch.zeros((art.num_instances, art.num_joints), dtype=torch.float32, device=art.device)
+        env_index = torch.tensor(env_ids, dtype=torch.long, device=art.device)
+        joint_index = torch.tensor(joint_ids, dtype=torch.long, device=art.device)
+        position[env_index[:, None], joint_index] = position_value
+        velocity[env_index[:, None], joint_index] = velocity_value
+        if operation == "position":
+            art.write_joint_position_to_sim_mask(
+                position=position,
+                env_mask=env_mask,
+                joint_mask=joint_mask,
+            )
+        elif operation == "velocity":
+            art.write_joint_velocity_to_sim_mask(
+                velocity=velocity,
+                env_mask=env_mask,
+                joint_mask=joint_mask,
+            )
+        else:
+            art.write_joint_state_to_sim_mask(
+                position=position,
+                velocity=velocity,
+                env_mask=env_mask,
+                joint_mask=joint_mask,
+            )
+        return env_ids, joint_ids
+
+    raise ValueError(f"Unsupported joint selection mode: {selection}")
+
+
+def _exercise_partial_joint_write(
+    backend: str,
+    ordering_mode: str,
+    selection: str,
+    operation: str,
+    coverage: str,
+) -> None:
+    """Assert partial public writes preserve complete backend joint rows."""
+    num_instances = 2
+    num_joints = 3
+    joint_ordering = _joint_ordering_for_mode(ordering_mode, num_joints)
+    art, raw_backend = get_articulation(
+        backend,
+        num_instances=num_instances,
+        num_joints=num_joints,
+        num_bodies=2,
+        device="cpu",
+        joint_ordering=joint_ordering,
+    )
+    initial_position = np.asarray([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], dtype=np.float32)
+    initial_velocity = np.asarray([[110.0, 120.0, 130.0], [140.0, 150.0, 160.0]], dtype=np.float32)
+    _seed_backend_joint_state(backend, art, raw_backend, initial_position, initial_velocity)
+
+    if art.joint_ordering is None:
+        user_to_backend = np.arange(num_joints, dtype=np.int64)
+    else:
+        user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
+    expected_position = initial_position.copy()
+    expected_velocity = initial_velocity.copy()
+
+    for position_value, velocity_value in ((901.0, 902.0), (903.0, 904.0)):
+        env_ids, joint_ids = _write_selected_joint_state(
+            art,
+            backend,
+            selection,
+            operation,
+            coverage,
+            position_value,
+            velocity_value,
+        )
+        backend_joint_ids = user_to_backend[joint_ids]
+        selected_cells = np.ix_(env_ids, backend_joint_ids)
+        if operation in ("position", "state"):
+            expected_position[selected_cells] = position_value
+        if operation in ("velocity", "state"):
+            expected_velocity[selected_cells] = velocity_value
+
+        backend_position, backend_velocity = _read_backend_joint_state(backend, art, raw_backend)
+        np.testing.assert_array_equal(backend_position, expected_position)
+        np.testing.assert_array_equal(backend_velocity, expected_velocity)
+
+    public_position = art.data.joint_pos.torch.detach().cpu().numpy()
+    public_velocity = art.data.joint_vel.torch.detach().cpu().numpy()
+    np.testing.assert_array_equal(public_position, expected_position[:, user_to_backend])
+    np.testing.assert_array_equal(public_velocity, expected_velocity[:, user_to_backend])
+
+
 def _make_dynamics_ordering_backend_data(
     num_instances: int, num_joints: int, num_jacobi_bodies: int, num_base_dofs: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -1871,6 +2106,28 @@ class TestArticulationDataBodyState:
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData joint state and properties
 # ---------------------------------------------------------------------------
+
+
+class TestArticulationOrderingWriteParity:
+    """Test that partial joint writes preserve unselected backend state."""
+
+    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    @pytest.mark.parametrize(
+        "coverage",
+        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
+    )
+    def test_physx_partial_joint_write_preserves_backend_rows(
+        self,
+        ordering_mode: str,
+        selection: str,
+        operation: str,
+        coverage: str,
+    ) -> None:
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        _exercise_partial_joint_write("physx", ordering_mode, selection, operation, coverage)
 
 
 class TestArticulationDataJointState:

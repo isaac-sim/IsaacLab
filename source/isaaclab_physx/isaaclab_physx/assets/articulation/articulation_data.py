@@ -1138,23 +1138,43 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
-        if self._joint_pos.timestamp < self._sim_timestamp:
-            # read data from simulation and set the buffer data and timestamp
-            backend_position = self._root_view.get_dof_positions()
-            if self._has_joint_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[backend_position, self._joint_user_to_backend],
-                    outputs=[self._joint_pos.data],
-                    device=self.device,
-                )
-            else:
-                self._joint_pos.data = backend_position
-            self._joint_pos.timestamp = self._sim_timestamp
+        self._refresh_joint_pos()
         if self._joint_pos_ta is None:
             self._joint_pos_ta = ProxyArray(self._joint_pos.data)
         return self._joint_pos_ta
+
+    def _refresh_joint_pos(self) -> None:
+        """Refresh public and backend-order joint-position buffers when stale."""
+        if not self._has_joint_ordering:
+            if self._joint_pos.timestamp < self._sim_timestamp:
+                self._joint_pos.data = self._root_view.get_dof_positions()
+                self._joint_pos.timestamp = self._sim_timestamp
+            return
+
+        if self._joint_pos_backend is None:
+            raise RuntimeError("PhysX joint position ordering staging was not initialized.")
+        if self._joint_pos_backend.timestamp < self._sim_timestamp:
+            self._joint_pos_backend.data.assign(self._root_view.get_dof_positions())
+            self._joint_pos_backend.timestamp = self._sim_timestamp
+        if self._joint_pos.timestamp < self._joint_pos_backend.timestamp:
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[self._joint_pos_backend.data, self._joint_user_to_backend],
+                outputs=[self._joint_pos.data],
+                device=self.device,
+            )
+            self._joint_pos.timestamp = self._joint_pos_backend.timestamp
+
+    def _get_joint_pos_write_buffer(self, require_current: bool) -> wp.array:
+        """Return the complete backend-order position rows used by PhysX setters."""
+        if require_current:
+            self._refresh_joint_pos()
+        if not self._has_joint_ordering:
+            return self._joint_pos.data
+        if self._joint_pos_backend is None:
+            raise RuntimeError("PhysX joint position ordering staging was not initialized.")
+        return self._joint_pos_backend.data
 
     @property
     def joint_vel(self) -> ProxyArray:
@@ -1162,23 +1182,43 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
         """
-        if self._joint_vel.timestamp < self._sim_timestamp:
-            # read data from simulation and set the buffer data and timestamp
-            backend_velocity = self._root_view.get_dof_velocities()
-            if self._has_joint_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[backend_velocity, self._joint_user_to_backend],
-                    outputs=[self._joint_vel.data],
-                    device=self.device,
-                )
-            else:
-                self._joint_vel.data = backend_velocity
-            self._joint_vel.timestamp = self._sim_timestamp
+        self._refresh_joint_vel()
         if self._joint_vel_ta is None:
             self._joint_vel_ta = ProxyArray(self._joint_vel.data)
         return self._joint_vel_ta
+
+    def _refresh_joint_vel(self) -> None:
+        """Refresh public and backend-order joint-velocity buffers when stale."""
+        if not self._has_joint_ordering:
+            if self._joint_vel.timestamp < self._sim_timestamp:
+                self._joint_vel.data = self._root_view.get_dof_velocities()
+                self._joint_vel.timestamp = self._sim_timestamp
+            return
+
+        if self._joint_vel_backend is None:
+            raise RuntimeError("PhysX joint velocity ordering staging was not initialized.")
+        if self._joint_vel_backend.timestamp < self._sim_timestamp:
+            self._joint_vel_backend.data.assign(self._root_view.get_dof_velocities())
+            self._joint_vel_backend.timestamp = self._sim_timestamp
+        if self._joint_vel.timestamp < self._joint_vel_backend.timestamp:
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[self._joint_vel_backend.data, self._joint_user_to_backend],
+                outputs=[self._joint_vel.data],
+                device=self.device,
+            )
+            self._joint_vel.timestamp = self._joint_vel_backend.timestamp
+
+    def _get_joint_vel_write_buffer(self, require_current: bool) -> wp.array:
+        """Return the complete backend-order velocity rows used by PhysX setters."""
+        if require_current:
+            self._refresh_joint_vel()
+        if not self._has_joint_ordering:
+            return self._joint_vel.data
+        if self._joint_vel_backend is None:
+            raise RuntimeError("PhysX joint velocity ordering staging was not initialized.")
+        return self._joint_vel_backend.data
 
     @property
     def joint_acc(self) -> ProxyArray:
@@ -1655,6 +1695,8 @@ class ArticulationData(BaseArticulationData):
         # -- joint state
         self._joint_pos = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
         self._joint_vel = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
+        self._joint_pos_backend: TimestampedBuffer | None = None
+        self._joint_vel_backend: TimestampedBuffer | None = None
         self._joint_acc = TimestampedBuffer((self._num_instances, self._num_joints), self.device, wp.float32)
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
@@ -1837,12 +1879,6 @@ class ArticulationData(BaseArticulationData):
         self._body_inertia_backend = wp.zeros(
             (self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self.device
         )
-        self._joint_pos_backend = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_vel_backend = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
         self._has_joint_ordering = False
         self._has_body_ordering = False
         self._identity_joint_user_to_backend = wp.array(
@@ -1883,6 +1919,15 @@ class ArticulationData(BaseArticulationData):
         )
         self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend(body_ordering)
         if self._has_joint_ordering:
+            if self._joint_pos_backend is None:
+                self._joint_pos_backend = TimestampedBuffer(
+                    (self._num_instances, self._num_joints), self.device, wp.float32
+                )
+            if self._joint_vel_backend is None:
+                self._joint_vel_backend = TimestampedBuffer(
+                    (self._num_instances, self._num_joints), self.device, wp.float32
+                )
+            reset_timestamps([self._joint_pos_backend, self._joint_vel_backend])
             self._joint_pos.data = wp.zeros(
                 (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
             )
@@ -1912,6 +1957,9 @@ class ArticulationData(BaseArticulationData):
                     outputs=[user_buffer],
                     device=self.device,
                 )
+        else:
+            self._joint_pos_backend = None
+            self._joint_vel_backend = None
         if self._has_body_ordering:
             self._body_link_pose_w.data = wp.zeros(
                 (self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device

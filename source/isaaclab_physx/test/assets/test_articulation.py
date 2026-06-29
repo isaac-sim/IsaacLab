@@ -542,6 +542,43 @@ def test_live_anymal_d_mjwarp_ordering_reorders_named_state(sim, device, gravity
     )
 
 
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_live_anymal_d_mjwarp_partial_joint_write_preserves_unselected_backend_state(sim, device, gravity_enabled):
+    """Preserve complete PhysX rows when writing one public joint before a cache read."""
+    cfg = apply_articulation_ordering_preset(
+        ANYMAL_D_CFG.replace(prim_path="/World/Robot"),
+        "mjwarp",
+    )
+    articulation = Articulation(cfg)
+    sim.reset()
+    assert articulation.is_initialized
+
+    joint_ordering = articulation.joint_ordering
+    assert joint_ordering is not None and not joint_ordering.is_identity
+    backend_joint_id = joint_ordering.user_to_backend_indices[0]
+    seeded_position = articulation.data.default_joint_pos.torch[:, list(joint_ordering.backend_to_user_indices)].clone()
+    articulation.root_view.set_dof_positions(
+        wp.from_torch(seeded_position),
+        indices=wp.array([0], dtype=wp.int32, device=device),
+    )
+    snapshot = _to_device_tensor(articulation.root_view.get_dof_positions(), device).clone()
+    unselected_backend_ids = [joint_id for joint_id in range(articulation.num_joints) if joint_id != backend_joint_id]
+    assert torch.count_nonzero(snapshot[:, unselected_backend_ids]).item() > 0
+    selected_position = snapshot[:, backend_joint_id : backend_joint_id + 1] + 0.001
+
+    articulation.write_joint_position_to_sim_index(
+        position=selected_position,
+        env_ids=[0],
+        joint_ids=[0],
+    )
+
+    expected = snapshot.clone()
+    expected[0, backend_joint_id] = selected_position[0, 0]
+    backend_position = _to_device_tensor(articulation.root_view.get_dof_positions(), device)
+    torch.testing.assert_close(backend_position, expected, rtol=0.0, atol=0.0)
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
