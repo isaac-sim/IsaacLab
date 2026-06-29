@@ -1349,6 +1349,69 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(art.data.body_link_pose_w, expected_link_pose)
         _assert_proxy_close(art.data.body_com_vel_w, expected_body_com_vel)
 
+    def test_ovphysx_reversed_body_ordering_rereads_all_velocity_shadows_after_reset(self):
+        """Refresh every OVPhysX velocity shadow after a same-step reset."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        art, raw_backend = get_articulation(
+            "ovphysx", 2, 1, 3, device="cpu", body_ordering=("body_2", "body_1", "body_0")
+        )
+        from isaaclab_ovphysx import tensor_types as TT
+
+        raw_data = list(_make_body_ordering_backend_data(2, 3))
+        raw_data[3][..., :3] = 0.0
+        _set_body_ordering_backend_data("ovphysx", art, raw_backend, *raw_data)
+        user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+        art.data.update(0.01)
+        art.data.body_com_vel_w.torch.clone()
+        art.data.body_link_vel_w.torch.clone()
+        art.data.root_link_vel_w.torch.clone()
+
+        next_velocity = raw_data[4].copy()
+        next_velocity[..., 0] += 500.0
+        raw_backend.bindings[TT.LINK_VELOCITY]._data = next_velocity
+        art.data._reset_velocity()
+
+        expected = torch.from_numpy(next_velocity[:, user_to_backend])
+        _assert_proxy_close(art.data.body_com_vel_w, expected)
+        _assert_proxy_close(art.data.body_link_vel_w, expected)
+        _assert_proxy_close(art.data.root_link_vel_w, torch.from_numpy(next_velocity[:, 0]))
+
+    def test_ovphysx_com_write_invalidates_all_dependent_caches_under_ordering(self):
+        """Invalidate every public and backend cache derived from OVPhysX COM poses."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        art, _ = get_articulation("ovphysx", 2, 1, 3, device="cpu", body_ordering=("body_2", "body_1", "body_0"))
+        cache_names = (
+            "_root_com_pose_w",
+            "_root_com_vel_w",
+            "_root_link_vel_w",
+            "_body_com_pose_w",
+            "_body_com_vel_w",
+            "_body_com_vel_w_backend",
+            "_body_link_vel_w",
+            "_body_link_vel_w_backend",
+            "_root_link_lin_vel_b",
+            "_root_link_ang_vel_b",
+            "_root_com_lin_vel_b",
+            "_root_com_ang_vel_b",
+            "_root_state_w_buf",
+            "_root_link_state_w_buf",
+            "_root_com_state_w_buf",
+            "_body_state_w_buf",
+            "_body_link_state_w_buf",
+            "_body_com_state_w_buf",
+        )
+        for cache_name in cache_names:
+            getattr(art.data, cache_name).timestamp = art.data._sim_timestamp
+
+        coms = np.zeros((art.num_instances, art.num_bodies, 7), dtype=np.float32)
+        coms[..., 6] = 1.0
+        art.set_coms_index(coms=wp.array(coms, dtype=wp.transformf, device=art.device))
+
+        for cache_name in cache_names:
+            assert getattr(art.data, cache_name).timestamp == -1.0, cache_name
+
     @_dynamics_ordering_backends
     @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 3, 4)])
     @pytest.mark.parametrize("device", ["cpu"])
@@ -1791,6 +1854,28 @@ class TestArticulationDataJointState:
         art.data.update(dt=0.01)
         _check_proxy_array(
             art.data.joint_acc, expected_shape=(num_instances, num_joints), expected_dtype=wp.float32, name="joint_acc"
+        )
+
+    def test_ovphysx_joint_acceleration_differences_public_order_velocities(self):
+        """Finite-difference OVPhysX joint velocity entirely in public joint order."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        art, raw_backend = get_articulation("ovphysx", 2, 3, 2, device="cpu")
+        user_to_backend = _install_reversed_joint_ordering(art)
+        from isaaclab_ovphysx import tensor_types as TT
+
+        first = np.asarray([[1.0, 2.0, 4.0], [10.0, 20.0, 40.0]], dtype=np.float32)
+        second = first + np.asarray([[3.0, 5.0, 7.0], [11.0, 13.0, 17.0]], dtype=np.float32)
+        raw_backend.bindings[TT.DOF_VELOCITY]._data = first
+        art.data.update(0.1)
+        art.data.joint_acc.torch.clone()
+        raw_backend.bindings[TT.DOF_VELOCITY]._data = second
+        art.data.update(0.1)
+
+        torch.testing.assert_close(art.data.joint_vel.torch, torch.from_numpy(second[:, user_to_backend]))
+        torch.testing.assert_close(
+            art.data.joint_acc.torch,
+            torch.from_numpy((second - first)[:, user_to_backend] / 0.1),
         )
 
     @_backends

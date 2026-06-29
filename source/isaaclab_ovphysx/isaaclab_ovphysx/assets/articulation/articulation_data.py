@@ -237,6 +237,7 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_vel_w,
                 self._body_com_vel_w_backend,
                 self._body_link_vel_w,
+                self._body_link_vel_w_backend,
                 self._root_state_w_buf,
                 self._root_link_state_w_buf,
                 self._root_com_state_w_buf,
@@ -257,7 +258,9 @@ class ArticulationData(BaseArticulationData):
                 self._root_link_vel_w,
                 self._body_com_pose_w,
                 self._body_com_vel_w,
+                self._body_com_vel_w_backend,
                 self._body_link_vel_w,
+                self._body_link_vel_w_backend,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
                 self._root_com_lin_vel_b,
@@ -1144,12 +1147,11 @@ class ArticulationData(BaseArticulationData):
             # Finite-difference the joint velocities. ``_fd_joint_acc`` also advances
             # ``_previous_joint_vel`` in place, so no separate copy is needed.
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
-            cur_vel_buf = self._joint_vel_buf
-            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
+            joint_vel = self.joint_vel.warp
             wp.launch(
                 _fd_joint_acc,
                 dim=(self._num_instances, self._num_joints),
-                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / time_elapsed],
+                inputs=[joint_vel, self._previous_joint_vel, 1.0 / time_elapsed],
                 outputs=[self._joint_acc.data],
                 device=self.device,
             )
