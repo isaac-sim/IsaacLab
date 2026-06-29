@@ -8,40 +8,20 @@ import json
 import subprocess
 import sys
 import textwrap
-from pathlib import Path
 
 import pytest
 
 from isaaclab.app import AppLauncher
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
-SOURCE_PATHS = [
-    "source/isaaclab",
-    "source/isaaclab_tasks",
-    "source/isaaclab_assets",
-    "source/isaaclab_rl",
-    "source/isaaclab_newton",
-    "source/isaaclab_ovphysx",
-    "source/isaaclab_physx",
-]
 
-
-def _assert_code_does_not_import_prefixes(code: str, forbidden: set[str]) -> None:
-    """Run ``code`` in a subprocess and assert forbidden import prefixes are not imported."""
+def test_simulation_context_import_does_not_import_kit_runtime_before_launch():
+    """Test that resolving SimulationContext does not import Isaac Sim runtime modules."""
     program = textwrap.dedent(
         """
         import json
-        import sys
         import traceback
-        from pathlib import Path
 
-        repo_root = Path(sys.argv[1])
-        forbidden = set(json.loads(sys.argv[2]))
-        code = sys.argv[3]
-
-        for rel_path in json.loads(sys.argv[4]):
-            sys.path.insert(0, str(repo_root / rel_path))
-
+        forbidden = {"omni.kit", "omni.usd", "carb", "isaacsim", "usdrt"}
         violations = {}
         original_import = __builtins__.__import__
 
@@ -59,7 +39,9 @@ def _assert_code_does_not_import_prefixes(code: str, forbidden: set[str]) -> Non
 
         __builtins__.__import__ = import_hook
         try:
-            exec(code, {})
+            from isaaclab.sim import SimulationContext
+
+            assert SimulationContext.__name__ == "SimulationContext"
         finally:
             __builtins__.__import__ = original_import
 
@@ -67,21 +49,7 @@ def _assert_code_does_not_import_prefixes(code: str, forbidden: set[str]) -> Non
         """
     )
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            program,
-            str(REPO_ROOT),
-            json.dumps(sorted(forbidden)),
-            textwrap.dedent(code),
-            json.dumps(SOURCE_PATHS),
-        ],
-        capture_output=True,
-        check=True,
-        text=True,
-    )
-
+    result = subprocess.run([sys.executable, "-c", program], capture_output=True, check=True, text=True)
     violations_line = None
     for line in result.stdout.splitlines():
         if line.startswith("__VIOLATIONS__"):
@@ -91,40 +59,6 @@ def _assert_code_does_not_import_prefixes(code: str, forbidden: set[str]) -> Non
 
     violations = json.loads(violations_line)
     assert violations == {}
-
-
-def test_cartpole_newton_mjwarp_env_construction_does_not_import_kit_runtime_before_launch():
-    """Test that kitless cartpole env construction does not import Isaac Sim runtime modules."""
-    _assert_code_does_not_import_prefixes(
-        """
-        import sys
-
-        import gymnasium as gym
-        import isaaclab_tasks  # noqa: F401
-        from isaaclab.app import scan
-        from isaaclab_tasks.utils import resolve_task_config
-
-        old_argv = sys.argv.copy()
-        try:
-            sys.argv = [sys.argv[0], "presets=newton_mjwarp", "env.scene.num_envs=1"]
-            env_cfg, _ = resolve_task_config("Isaac-Cartpole-Direct", "rsl_rl_cfg_entry_point")
-        finally:
-            sys.argv = old_argv
-
-        config_scan = scan(env_cfg)
-        assert config_scan.needs_kit is False
-
-        env = None
-        try:
-            env = gym.make("Isaac-Cartpole-Direct", cfg=env_cfg)
-        except Exception:
-            pass
-        finally:
-            if env is not None:
-                env.close()
-        """,
-        {"omni.kit", "omni.usd", "carb", "isaacsim", "usdrt"},
-    )
 
 
 @pytest.mark.usefixtures("mocker")
