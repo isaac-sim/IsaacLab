@@ -17,13 +17,15 @@ Expected behavior:
 - Recommends a direct environment as the first migration target.
 - Maps reward, termination, command, and reset logic into direct environment methods.
 - Recommends a manager-based follow-up after direct reset, step, and short training validation.
-- Gives a smoke-test plan before training at scale.
+- Gives import, reset/random-step, short-training, full-training, metric-parsing, and checkpoint-rollout gates before claiming policy success.
+- Stages flat locomotion before rough-terrain curriculum when the rough source command ranges or terrain curriculum prevent a healthy first policy.
 
 Known failure modes:
 
 - Starts by decomposing into manager terms before preserving behavior in direct form.
 - Treats the direct migration as the final structure even after behavior is stable and reusable manager terms would help.
 - Omits terrain or sensor behavior from the migration plan.
+- Treats a completed training command or checkpoint file as policy success without parsed metrics and rollout evidence.
 
 ## Scenario 2: Sensor and Terrain Migration
 

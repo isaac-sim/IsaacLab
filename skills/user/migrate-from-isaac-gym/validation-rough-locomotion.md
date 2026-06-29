@@ -115,8 +115,14 @@ The migrated task trained for 500 RSL-RL iterations with 4096 environments. Mean
 
 This failure mode points to command staging rather than simple execution failure. IsaacGymEnvs `AnymalTerrain.yaml` uses a yaw command range of `[-3.14, 3.14]`, which made the flat walking validation unstable. Future validation agents should narrow or curriculum-stage commands, or first migrate the simpler `Anymal.yaml` flat behavior, before returning to full AnymalTerrain parity and rough-terrain curriculum.
 
+After adding the policy-success validation loop, a fresh agent reran the migration against IsaacGymEnvs commit `aeed298638a1f7b5421b38f5f3cc2d1079b6d9c3` and followed that staged path. It migrated `isaacgymenvs/tasks/anymal.py`, `cfg/task/Anymal.yaml`, and `cfg/train/AnymalPPO.yaml` into an external direct Isaac Lab package registering `IsaacGym-Anymal-Flat-Migrated-Direct-v0`. The package implemented its own `DirectRLEnv` with a 48-dimensional Anymal-style observation, IsaacGymEnvs reward/reset/command mapping, contact-sensor termination checks, and RSL-RL config.
+
+That fresh validation defined policy-success criteria before training, then ran registration, reset/random-step smoke, short training, 500-iteration RSL-RL training with 4096 environments, TensorBoard scalar parsing, and a bounded checkpoint rollout. The final 50-iteration training window reached mean reward `72.23`, mean episode length `2493.94` of a `2499`-step horizon, XY velocity error `0.00865`, yaw velocity error `0.01475`, and success rate `1.0`. A 64-environment, 512-step rollout from `model_499.pt` had zero done events, zero base or knee contact terminations, mean XY error `0.00983`, mean yaw error `0.01006`, and tracking success rate `0.99997`.
+
+This confirms the skill can guide a fresh agent to a successful migrated Anymal walking policy when it first validates flat locomotion and uses parsed metrics plus checkpoint rollout evidence. Rough terrain remains a follow-up stage: add terrain generation, height observations, and command/curriculum staging only after the flat migration is healthy.
+
 ## Result
 
-The migration skill is actionable for a non-toy rough-terrain locomotion task. The direct-first path remains valid because Isaac Lab has direct flat and rough Anymal-C tasks at `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`.
+The migration skill is actionable for a non-toy quadruped locomotion task. The direct-first path remains valid because Isaac Lab has direct flat and rough Anymal-C tasks at `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`.
 
 This validation also shows the limits of direct copying: terrain generation, sensor models, observation layout, randomization timing, PhysX/Newton support, and staged training must be mapped deliberately through Isaac Lab docs and maintained source. After the parity pass works, the agent should steer users toward manager-based task structure for reusable Isaac Lab development.
