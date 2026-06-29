@@ -10,7 +10,7 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs import ManagerBasedEnvCfg, ViewerCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -451,7 +451,7 @@ class PhysicsCfg(PresetCfg):
 
 
 @configclass
-class DexsuiteReorientEnvCfg(ManagerBasedEnvCfg):
+class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
     """Dexsuite reorientation task definition, also the base definition for derivative Lift task and evaluation task"""
 
     # Scene settings

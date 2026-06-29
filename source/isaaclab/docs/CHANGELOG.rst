@@ -1,6 +1,53 @@
 Changelog
 ---------
 
+7.5.0 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the mesh-collision schema-fragment API: the
+  :class:`~isaaclab.sim.schemas.MeshCollisionFragment` marker and
+  :class:`~isaaclab.sim.schemas.UsdPhysicsMeshCollisionCfg` (carrying the standard
+  ``physics:approximation`` token via ``UsdPhysics.MeshCollisionAPI``).
+* Added :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`, which applies
+  ``UsdPhysics.MeshCollisionAPI`` as the implicit anchor, resolves the
+  ``physics:approximation`` token from whichever cooking fragment is present (validated against
+  :const:`~isaaclab.sim.schemas.MESH_APPROXIMATION_TOKENS`), and dispatches each fragment via its
+  ``func``.
+* Added the joint-drive schema-fragment API: the
+  :class:`~isaaclab.sim.schemas.JointDriveFragment` marker and
+  :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` (writing the typed multi-instance
+  ``UsdPhysics.DriveAPI`` attributes). The drive fragment overrides its ``func`` with
+  :func:`~isaaclab.sim.schemas.apply_drive`, which selects the angular/linear instance, performs
+  the radian-to-degree conversion for angular drives, and skips tendon child prims.
+* Added :func:`~isaaclab.sim.schemas.apply_joint_drive_properties` (applies a list of joint-drive
+  fragments to all joint prims under a path; ``UsdPhysics.DriveAPI`` is presence-gated and applied
+  only when a :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present).
+* Added an opt-in ``compute_final_obs`` flag (default ``False``) to
+  :class:`~isaaclab.envs.DirectRLEnvCfg`, :class:`~isaaclab.envs.DirectMARLEnvCfg`, and
+  :class:`~isaaclab.envs.ManagerBasedRLEnvCfg` that captures the terminal observation before a
+  Same-Step autoreset and exposes it through ``extras["final_obs"]``. The captured observation has
+  the same observation noise applied as the returned observation. When the flag is ``False`` the
+  previous behavior is preserved (no capture, no extra observation computation).
+* Declared the Same-Step autoreset mode in RL environment metadata.
+
+Changed
+^^^^^^^
+
+* Changed the mesh-converter ``mesh_collision_props`` slot
+  (:attr:`~isaaclab.sim.converters.MeshConverterCfg.mesh_collision_props`) to also accept a list of
+  :class:`~isaaclab.sim.schemas.MeshCollisionFragment` fragments. Legacy single cfgs continue to
+  work through a transition bridge in the converter.
+* Changed the spawner ``joint_drive_props`` slot
+  (:attr:`~isaaclab.sim.spawners.FileCfg.joint_drive_props`) to also accept a list of
+  :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments. Legacy single cfgs continue to work
+  through a transition bridge at the from-files spawn site. Added the spawner-level
+  ``ensure_drives_exist`` flag to reproduce the legacy minimal-stiffness behaviour for the fragment
+  path.
+
+
 7.4.0 (2026-06-27)
 ~~~~~~~~~~~~~~~~~~
 

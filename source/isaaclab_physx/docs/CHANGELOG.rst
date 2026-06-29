@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+2.5.0 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the PhysX mesh-collision cooking fragments:
+  :class:`~isaaclab_physx.sim.schemas.PhysxConvexHullCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxConvexDecompositionCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshCfg`,
+  :class:`~isaaclab_physx.sim.schemas.PhysxTriangleMeshSimplificationCfg`, and
+  :class:`~isaaclab_physx.sim.schemas.PhysxSDFMeshCfg`. Each is a single-namespace
+  :class:`~isaaclab.sim.schemas.MeshCollisionFragment` owning one ``physx*Collision:*`` namespace and
+  applied schema, dispatched via :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+* Added the :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` joint-drive fragment
+  (``physxJoint:*`` / ``PhysxJointAPI``), carrying ``max_joint_velocity`` (with the legacy
+  ``max_velocity`` deprecation alias). Applied alongside
+  :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` via
+  :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`.
+* Added :func:`~isaaclab_physx.sim.schemas.apply_physx_joint`, the dedicated applier for
+  :class:`~isaaclab_physx.sim.schemas.PhysxJointCfg` that converts ``max_joint_velocity`` from
+  rad/s to deg/s for angular (revolute) joints, matching the legacy joint-drive unit convention.
+
+
 2.4.0 (2026-06-27)
 ~~~~~~~~~~~~~~~~~~
 
