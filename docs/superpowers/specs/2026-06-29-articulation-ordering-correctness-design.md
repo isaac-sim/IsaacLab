@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft for review.
+Approved.
 
 This specification tightens the articulation ordering implementation after the
 first cross-backend integration review. It does not change the default:

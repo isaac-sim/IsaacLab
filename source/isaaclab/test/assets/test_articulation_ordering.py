@@ -819,11 +819,92 @@ def test_base_articulation_keeps_none_ordering_on_default_path() -> None:
     assert apply_calls == []
 
 
-def test_base_articulation_exposes_ordering_introspection_contract() -> None:
-    """Require concrete articulations to expose backend and public ordering state."""
-    for property_name in ("backend_joint_names", "backend_body_names", "joint_ordering", "body_ordering"):
-        property_value = getattr(BaseArticulation, property_name)
-        assert getattr(property_value.fget, "__isabstractmethod__", False)
+class _LegacyArticulation(BaseArticulation):
+    """Old-style backend that predates the ordering introspection properties."""
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def joint_names(self) -> list[str]:
+        return self._joint_names
+
+    @property
+    def body_names(self) -> list[str]:
+        return self._body_names
+
+
+def _make_ordering_resolution_articulation(
+    *,
+    body_ordering,
+    backend_body_names: tuple[str, ...] = ("base", "foot"),
+    is_fixed_base: bool,
+):
+    """Create a minimal articulation-shaped object for base ordering resolution."""
+    data = types.SimpleNamespace(
+        joint_ordering=None,
+        body_ordering=None,
+        joint_names=None,
+        body_names=None,
+        _apply_ordering_maps_after_resolve=lambda: None,
+    )
+    return types.SimpleNamespace(
+        __backend_name__="mock",
+        cfg=types.SimpleNamespace(
+            prim_path="/World/Robot",
+            joint_ordering=None,
+            body_ordering=body_ordering,
+        ),
+        data=data,
+        backend_joint_names=["joint"],
+        backend_body_names=list(backend_body_names),
+        _mjwarp_body_names=("foot", "base"),
+        is_fixed_base=is_fixed_base,
+        device="cpu",
+    )
+
+
+def test_base_articulation_ordering_contract_preserves_legacy_subclasses() -> None:
+    """Keep third-party backends instantiable while ordering properties are deprecated fallbacks."""
+    articulation = object.__new__(_LegacyArticulation)
+    articulation._joint_names = ["hip", "knee"]
+    articulation._body_names = ["base", "foot"]
+    articulation._data = types.SimpleNamespace(joint_ordering=None, body_ordering=None)
+
+    with pytest.warns(DeprecationWarning, match="override backend_joint_names"):
+        assert articulation.backend_joint_names == ["hip", "knee"]
+    with pytest.warns(DeprecationWarning, match="override backend_body_names"):
+        assert articulation.backend_body_names == ["base", "foot"]
+    assert articulation.joint_ordering is None
+    assert articulation.body_ordering is None
+
+
+@pytest.mark.parametrize("ordering", [("foot", "base"), ArticulationOrderingConvention.MJWARP])
+def test_fixed_base_body_ordering_rejects_root_relocation(ordering) -> None:
+    """Reject explicit and symbolic fixed-base orders that move the root from public index zero."""
+    articulation = _make_ordering_resolution_articulation(body_ordering=ordering, is_fixed_base=True)
+
+    with pytest.raises(ValueError) as exc_info:
+        BaseArticulation._resolve_and_install_ordering_maps(articulation)
+
+    assert str(exc_info.value) == (
+        "Invalid body_ordering for fixed-base articulation '/World/Robot': root body 'base' must remain at public "
+        "index 0, but was requested at index 1. Put 'base' first; all remaining bodies may be reordered freely."
+    )
+    assert articulation.data.body_ordering is None
+
+
+def test_floating_base_body_ordering_accepts_root_relocation() -> None:
+    """Allow a complete body permutation to move the root for floating-base articulations."""
+    articulation = _make_ordering_resolution_articulation(
+        body_ordering=("foot", "base"),
+        is_fixed_base=False,
+    )
+
+    BaseArticulation._resolve_and_install_ordering_maps(articulation)
+
+    assert articulation.data.body_names == ["foot", "base"]
 
 
 def test_base_articulation_data_defines_optional_ordering_maps() -> None:

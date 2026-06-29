@@ -170,28 +170,34 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def backend_joint_names(self) -> list[str]:
         """Ordered names of joints as exposed by the active backend."""
-        raise NotImplementedError()
+        warnings.warn(
+            f"{type(self).__name__} must override backend_joint_names before it becomes abstract in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.joint_names
 
     @property
-    @abstractmethod
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
-        raise NotImplementedError()
+        warnings.warn(
+            f"{type(self).__name__} must override backend_body_names before it becomes abstract in a future release.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.body_names
 
     @property
-    @abstractmethod
     def joint_ordering(self) -> ArticulationNameMap | None:
         """Mapping between backend and public joint order."""
-        raise NotImplementedError()
+        return getattr(self.data, "joint_ordering", None)
 
     @property
-    @abstractmethod
     def body_ordering(self) -> ArticulationNameMap | None:
         """Mapping between backend and public body order."""
-        raise NotImplementedError()
+        return getattr(self.data, "body_ordering", None)
 
     @property
     @abstractmethod
@@ -230,20 +236,32 @@ class BaseArticulation(AssetBase):
             self.data.body_ordering = None
             self.data.body_names = list(self.backend_body_names)
         else:
+            backend_body_names = self.backend_body_names
             body_user_names = resolve_articulation_ordering_names(
                 kind="body",
-                backend_names=self.backend_body_names,
+                backend_names=backend_body_names,
                 ordering=self.cfg.body_ordering,
                 active_backend_name=self.__backend_name__,
                 articulation=self,
             )
-            self.data.body_ordering = build_articulation_name_map(
+            body_ordering = build_articulation_name_map(
                 kind="body",
-                backend_names=self.backend_body_names,
+                backend_names=backend_body_names,
                 user_names=body_user_names,
                 device=self.device,
             )
-            self.data.body_names = list(self.data.body_ordering.user_names)
+            if self.is_fixed_base and backend_body_names:
+                root_body_name = backend_body_names[0]
+                requested_index = body_ordering.backend_to_user_indices[0]
+                if requested_index != 0:
+                    raise ValueError(
+                        f"Invalid body_ordering for fixed-base articulation '{self.cfg.prim_path}': root body "
+                        f"'{root_body_name}' must remain at public index 0, but was requested at index "
+                        f"{requested_index}. Put '{root_body_name}' first; all remaining bodies may be reordered "
+                        "freely."
+                    )
+            self.data.body_ordering = body_ordering
+            self.data.body_names = list(body_ordering.user_names)
 
         apply_ordering_maps = getattr(self.data, "_apply_ordering_maps_after_resolve", None)
         has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
