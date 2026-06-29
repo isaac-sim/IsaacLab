@@ -6,7 +6,7 @@
 """Unified play-benchmark dispatcher (mirrors scripts/reinforcement_learning/play.py).
 
 Selects the RL library via ``--rl_library`` and forwards remaining args to the matching
-benchmark adapter under ``scripts/benchmarks/<backend>/bench_play_<backend>.py``, which rolls
+benchmark adapter under ``scripts/benchmarks/<library>/bench_play_<library>.py``, which rolls
 out a checkpointed policy under a ``BenchmarkMonitor`` and emits a ``PlayBundle``.
 """
 

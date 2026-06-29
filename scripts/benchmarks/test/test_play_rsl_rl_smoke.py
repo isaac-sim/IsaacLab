@@ -27,7 +27,7 @@ _PLAY_BUNDLE_KEYS = {"run", "versions", "hardware", "runtime", "resources"}
 def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
     """Return the parsed JSON whose top-level keys cover ``expected_keys``.
 
-    The schema backend names its file from a timestamped prefix, so the smoke
+    The schema formatter names its file from a timestamped prefix, so the smoke
     tests glob the output directory rather than hardcode the filename.
     """
     candidates = sorted(out_dir.glob("*.json"))
@@ -43,7 +43,7 @@ def _newest_checkpoint(pattern: str, since: float) -> Path:
     """Return the newest file matching ``pattern`` under the repo created at or after ``since``.
 
     Args:
-        pattern: ``Path.rglob`` glob, relative to the repo root, for the backend's
+        pattern: ``Path.rglob`` glob, relative to the repo root, for the library.s
             checkpoint files.
         since: ``time.time()`` recorded before the training run; only files whose
             mtime is at or after this are considered, so a stale checkpoint from a
@@ -76,6 +76,8 @@ def test_play_rsl_rl_emits_play_bundle(tmp_path, require_isaacsim):
         "20",
         "presets=newton_mjwarp",
         "--headless",
+        "--benchmark_formatter",
+        "schema",
         "--output_path",
         str(train_out),
     ]
@@ -101,6 +103,8 @@ def test_play_rsl_rl_emits_play_bundle(tmp_path, require_isaacsim):
         str(ckpt),
         "presets=newton_mjwarp",
         "--headless",
+        "--benchmark_formatter",
+        "schema",
         "--output_path",
         str(play_out),
     ]

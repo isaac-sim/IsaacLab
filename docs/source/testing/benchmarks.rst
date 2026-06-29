@@ -155,7 +155,7 @@ RL Play Benchmarks
 ~~~~~~~~~~~~~~~~~~
 
 Load a trained checkpoint and benchmark policy inference (the *play* workflow).
-The same ``--rl_library`` dispatch selects the backend (``rsl_rl``, ``rl_games``,
+The same ``--rl_library`` dispatch selects the RL library (``rsl_rl``, ``rl_games``,
 ``skrl``, or ``sb3``).  In addition to the inference throughput, the emitted
 ``PlayBundle`` reports the rolled-out policy's reward, episode length, and success
 rate.  The checkpoints consumed here are produced by ``training.py``.
@@ -169,7 +169,7 @@ rate.  The checkpoints consumed here are produced by ``training.py``.
        --num_envs 4096 \
        --num_frames 1000 \
        --checkpoint /path/to/model.pt \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
 
 The checkpoint is resolved in the following order:
@@ -370,7 +370,7 @@ RL Play Arguments
      - Environment task name
    * - ``--rl_library``
      - required
-     - RL backend that produced the checkpoint: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
+     - RL library that produced the checkpoint: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
    * - ``--num_envs``
      - ``None`` (task config)
      - Number of parallel environments
@@ -380,9 +380,9 @@ RL Play Arguments
    * - ``--checkpoint``
      - ``None`` (published Nucleus checkpoint)
      - Local path or Nucleus URI of the checkpoint to roll out
-   * - ``--benchmark_backend``
+   * - ``--benchmark_formatter``
      - ``schema``
-     - Output backend(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
+     - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
 
 Measurement Types
 -----------------
