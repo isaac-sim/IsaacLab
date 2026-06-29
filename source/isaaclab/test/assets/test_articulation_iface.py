@@ -893,12 +893,12 @@ def _exercise_partial_joint_write(
     np.testing.assert_array_equal(public_velocity, expected_velocity[:, user_to_backend])
 
 
-def _exercise_stale_partial_joint_write(operation: str) -> None:
+def _exercise_stale_partial_joint_write(backend: str, operation: str) -> None:
     """Assert partial writes refresh complete rows after the simulation timestamp advances."""
     num_instances = 2
     num_joints = 3
     art, raw_backend = get_articulation(
-        "physx",
+        backend,
         num_instances=num_instances,
         num_joints=num_joints,
         num_bodies=2,
@@ -907,14 +907,15 @@ def _exercise_stale_partial_joint_write(operation: str) -> None:
     )
     initial_position = np.asarray([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], dtype=np.float32)
     initial_velocity = np.asarray([[110.0, 120.0, 130.0], [140.0, 150.0, 160.0]], dtype=np.float32)
-    _seed_backend_joint_state("physx", art, raw_backend, initial_position, initial_velocity)
+    _seed_backend_joint_state(backend, art, raw_backend, initial_position, initial_velocity)
     user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
 
     # Prime complete staging rows so the regression isolates stale lifecycle behavior from cold-cache behavior.
-    art.write_joint_state_to_sim_index(
-        position=torch.tensor(initial_position[:, user_to_backend], dtype=torch.float32, device=art.device),
-        velocity=torch.tensor(initial_velocity[:, user_to_backend], dtype=torch.float32, device=art.device),
-        full_data=True,
+    art.write_joint_position_to_sim_index(
+        position=torch.tensor(initial_position[:, user_to_backend], dtype=torch.float32, device=art.device)
+    )
+    art.write_joint_velocity_to_sim_index(
+        velocity=torch.tensor(initial_velocity[:, user_to_backend], dtype=torch.float32, device=art.device)
     )
     expected_position = initial_position.copy()
     expected_velocity = initial_velocity.copy()
@@ -922,7 +923,7 @@ def _exercise_stale_partial_joint_write(operation: str) -> None:
     for write_index, (position_value, velocity_value) in enumerate(((901.0, 902.0), (903.0, 904.0))):
         env_ids, joint_ids, position_payload, velocity_payload = _write_selected_joint_state(
             art,
-            "physx",
+            backend,
             "index",
             operation,
             "one_env_one_item",
@@ -936,7 +937,7 @@ def _exercise_stale_partial_joint_write(operation: str) -> None:
         if operation in ("velocity", "state"):
             expected_velocity[selected_cells] = velocity_payload
 
-        backend_position, backend_velocity = _read_backend_joint_state("physx", art, raw_backend)
+        backend_position, backend_velocity = _read_backend_joint_state(backend, art, raw_backend)
         np.testing.assert_array_equal(backend_position, expected_position)
         np.testing.assert_array_equal(backend_velocity, expected_velocity)
 
@@ -954,7 +955,7 @@ def _exercise_stale_partial_joint_write(operation: str) -> None:
                     num_instances, num_joints
                 )
                 expected_velocity[~selected_mask] = newer_velocity[~selected_mask]
-            _seed_backend_joint_state("physx", art, raw_backend, expected_position, expected_velocity)
+            _seed_backend_joint_state(backend, art, raw_backend, expected_position, expected_velocity)
 
 
 def _make_dynamics_ordering_backend_data(
@@ -2290,7 +2291,13 @@ class TestArticulationOrderingWriteParity:
     def test_physx_stale_partial_joint_write_preserves_newer_backend_rows(self, operation: str) -> None:
         if "physx" not in BACKENDS:
             pytest.skip("PhysX backend is not available")
-        _exercise_stale_partial_joint_write(operation)
+        _exercise_stale_partial_joint_write("physx", operation)
+
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    def test_ovphysx_stale_partial_joint_write_preserves_newer_backend_rows(self, operation: str) -> None:
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        _exercise_stale_partial_joint_write("ovphysx", operation)
 
 
 class TestArticulationDataJointState:
