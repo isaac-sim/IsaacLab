@@ -392,3 +392,34 @@ class Rizon4sGravDisplayportInsertionEnvCfg_PLAY(Rizon4sGravDisplayportInsertion
         self.scene.num_envs = 50
         self.scene.env_spacing = 2.5
         self.observations.policy.enable_corruption = False
+
+
+@configclass
+class Rizon4sGravDisplayportInsertionNoJointVelEnvCfg(Rizon4sGravDisplayportInsertionEnvCfg):
+    """Joint-space variant that hides joint velocity from the actor (policy).
+
+    Identical to :class:`Rizon4sGravDisplayportInsertionEnvCfg` except the actor
+    observation drops joint velocity (actor sees joint positions + socket pose
+    only). The critic keeps joint velocity as privileged information, so the
+    value function is unaffected. Useful for testing velocity-free deployment
+    (e.g. when reliable joint-velocity estimates are not available on the real
+    robot).
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        # Remove joint velocity from the actor group; setting a term to None
+        # disables it in the manager-based ObservationManager. The critic group
+        # still includes joint_vel.
+        self.observations.policy.joint_vel = None
+
+
+@configclass
+class Rizon4sGravDisplayportInsertionNoJointVelEnvCfg_PLAY(Rizon4sGravDisplayportInsertionNoJointVelEnvCfg):
+    """Play configuration for the no-joint-velocity joint-space variant."""
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.scene.num_envs = 50
+        self.scene.env_spacing = 2.5
+        self.observations.policy.enable_corruption = False

@@ -130,3 +130,31 @@ class Rizon4sGravDisplayportInsertionROSInferenceEnvCfg(Rizon4sGravDisplayportIn
             socket_pos_noise,
             socket_pos_noise,
         ]
+
+
+@configclass
+class Rizon4sGravDisplayportInsertionNoJointVelROSInferenceEnvCfg(
+    Rizon4sGravDisplayportInsertionROSInferenceEnvCfg
+):
+    """ROS inference config for the velocity-free joint-space policy.
+
+    Identical deployment setup to
+    :class:`Rizon4sGravDisplayportInsertionROSInferenceEnvCfg`, but the actor
+    observation drops joint velocity (the critic keeps it). The Isaac
+    Manipulator metadata is updated so the deployed observation vector and order
+    match the velocity-free actor.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+        # Drop joint velocity from the actor group (critic still includes it).
+        self.observations.policy.joint_vel = None
+
+        # Isaac Manipulator metadata for the velocity-free actor.
+        self.obs_order = ["arm_dof_pos", "socket_pos", "socket_quat"]
+        # Observation: 7 joint pos + 3 socket pos + 4 socket quat = 14
+        self.observation_space = 14
+        # State (critic) is unchanged: 7 jpos + 7 jvel + 3 socket pos + 4 socket
+        # quat + 3 plug pos + 4 plug quat = 28.
+        self.state_space = 28
