@@ -168,6 +168,18 @@ def _run_simulation(
 
         joint_names = tuple(articulation.joint_names)
         backend_joint_names = tuple(articulation.backend_joint_names)
+        installed_ordering = articulation.joint_ordering
+        joint_ordering_state = (
+            None
+            if installed_ordering is None
+            else {
+                "user_names": installed_ordering.user_names,
+                "backend_names": installed_ordering.backend_names,
+                "user_to_backend_indices": installed_ordering.user_to_backend_indices,
+                "backend_to_user_indices": installed_ordering.backend_to_user_indices,
+                "is_identity": installed_ordering.is_identity,
+            }
+        )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()
         if permutation_sensitive_commands:
             scale_by_name = {name: index + 1 for index, name in enumerate(backend_joint_names)}
@@ -208,6 +220,7 @@ def _run_simulation(
     return {
         "joint_names": joint_names,
         "backend_joint_names": backend_joint_names,
+        "joint_ordering": joint_ordering_state,
         "adapter_joint_names": joint_names,
         "joint_pos": recorded_pos,
         "joint_vel": recorded_vel,
@@ -275,12 +288,31 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
         use_newton_actuators=True,
         permutation_sensitive_commands=True,
     )
+    requested_joint_names = tuple(reversed(identity_result["joint_names"]))
     reversed_result = _run_simulation(
         IDEAL_PD_ACTUATORS,
         use_newton_actuators=True,
-        joint_ordering=tuple(reversed(identity_result["joint_names"])),
+        joint_ordering=requested_joint_names,
         permutation_sensitive_commands=True,
     )
+
+    assert identity_result["joint_names"] == identity_result["backend_joint_names"]
+    assert reversed_result["joint_names"] == requested_joint_names
+    assert reversed_result["backend_joint_names"] == identity_result["backend_joint_names"]
+
+    installed_ordering = reversed_result["joint_ordering"]
+    assert installed_ordering is not None
+    assert not installed_ordering["is_identity"]
+    assert installed_ordering["user_names"] == requested_joint_names
+    assert installed_ordering["backend_names"] == identity_result["backend_joint_names"]
+    expected_user_to_backend = tuple(
+        identity_result["backend_joint_names"].index(name) for name in requested_joint_names
+    )
+    expected_backend_to_user = tuple(
+        requested_joint_names.index(name) for name in identity_result["backend_joint_names"]
+    )
+    assert installed_ordering["user_to_backend_indices"] == expected_user_to_backend
+    assert installed_ordering["backend_to_user_indices"] == expected_backend_to_user
 
     canonical_joint_names = tuple(identity_result["backend_joint_names"])
     identity_result = _canonicalize_ordering_result(identity_result, canonical_joint_names)
