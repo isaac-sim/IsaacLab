@@ -6,13 +6,13 @@
 r"""Profile Isaac Lab startup phases.
 
 Each phase runs in an independent ``cProfile`` session. The schema formatter emits
-a :class:`~isaaclab.test.benchmark.schema.StartupBundle`; other selected
+a :class:`~isaaclab.test.benchmark.StartupBundle`; other selected
 formatters receive equivalent measurement phases.
 
 Profiled phases
 ---------------
-* **app_launch**: :func:`~isaaclab.app.launch_simulation` call (Isaac Sim
-  fabric startup).
+* **app_launch**: :func:`~isaaclab.app.launch_simulation` context entry
+  (simulation runtime initialization).
 * **python_imports**: launcher, task registration, and runtime-library imports.
 * **task_config**: :func:`~isaaclab_tasks.utils.resolve_task_config`.
 * **env_creation**: :func:`gym.make` + ``env.reset()``.
@@ -243,7 +243,7 @@ def _run_main(
                 ],
             )
 
-        cfg = capture.run_config_from_presets(_hydra_args)
+        cfg = capture.run_config_from_presets(_hydra_args, env_cfg=env_cfg)
 
         end_utc = capture.now_utc_iso()
         stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]

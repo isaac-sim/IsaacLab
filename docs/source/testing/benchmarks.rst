@@ -100,8 +100,9 @@ Isaac Lab provides unified ``runtime.py`` and ``startup.py`` entry points under
 ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
 emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
 ``--benchmark_formatter`` accepts a comma-separated list (e.g.
-``schema,omniperf``) to emit several formats in a single run; each formatter writes its
-own timestamped output file.
+``schema,omniperf``) to emit several formats in a single run. Each selected
+formatter writes timestamped output; the Osmo formatter writes one
+phase-suffixed JSON file per phase.
 
 Non-RL / Runtime Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -168,7 +169,7 @@ understanding where time is spent during initialization.
 
 The script profiles five phases independently:
 
-- **app_launch**: ``launch_simulation()`` context entry (Kit/USD/PhysX init)
+- **app_launch**: ``launch_simulation()`` context entry (simulation runtime initialization)
 - **python_imports**: importing gymnasium, torch, isaaclab_tasks, etc.
 - **task_config**: ``resolve_task_config()`` (Hydra config resolution)
 - **env_creation**: ``gym.make()`` + ``env.reset()`` (scene creation, sim start)

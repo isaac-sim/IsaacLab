@@ -6,7 +6,7 @@
 r"""Benchmark environment runtime (random actions, no policy).
 
 Standalone script that steps an Isaac Lab environment with random actions. The
-schema formatter emits a :class:`~isaaclab.test.benchmark.schema.RuntimeBundle`;
+schema formatter emits a :class:`~isaaclab.test.benchmark.RuntimeBundle`;
 other selected formatters receive equivalent measurement phases.
 Supports all physics backends (PhysX, Newton/MJWarp, Newton/Kamino, OVPhysX)
 via Hydra preset tokens — no ``--rl_library`` dispatch needed.
@@ -97,12 +97,14 @@ def run(argv: list[str]) -> None:
 
         if args.num_envs is not None:
             env_cfg.scene.num_envs = args.num_envs
+        if args.device is not None:
+            env_cfg.sim.device = args.device
         if args.seed is not None:
             env_cfg.seed = args.seed
 
         formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
         formatter_types = formatter_types or ["omniperf"]
-        cfg = capture.run_config_from_presets(remaining)
+        cfg = capture.run_config_from_presets(remaining, env_cfg=env_cfg)
 
         benchmark = BaseIsaacLabBenchmark(
             benchmark_name="benchmark_runtime",

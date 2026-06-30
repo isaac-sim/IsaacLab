@@ -31,6 +31,8 @@ def test_runtime_writes_all_requested_formats(tmp_path, require_isaacsim):
         "20",
         "--seed",
         "0",
+        "--device",
+        "cpu",
         "--output_path",
         str(tmp_path),
         "--benchmark_formatter",
@@ -41,6 +43,9 @@ def test_runtime_writes_all_requested_formats(tmp_path, require_isaacsim):
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:
         pytest.fail(f"runtime.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
+
+    device_lines = [line for line in res.stdout.splitlines() if "Environment device" in line]
+    assert device_lines and device_lines[-1].endswith(": cpu"), f"unexpected device output: {device_lines}"
 
     files = sorted(tmp_path.glob("*.json"))
     assert len(files) == 2, f"expected exactly 2 json files, found {[p.name for p in files]}"

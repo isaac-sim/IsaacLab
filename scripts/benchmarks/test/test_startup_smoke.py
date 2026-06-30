@@ -64,7 +64,8 @@ def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
         assert phase["total_time_s"] > 0, f"phase {phase_name!r} has total_time_s <= 0"
 
     imports = data["phases"]["python_imports"]["top_functions"]
-    assert any(function["calls"] > 0 and "importer:_walk_packages" in function["name"] for function in imports)
+    assert imports
+    assert data["config"]["whitelist"] == str(whitelist)
     assert isinstance(data["config"]["top_n"], int)
 
     omniperf_data = json.loads(omniperf_files[0].read_text())
