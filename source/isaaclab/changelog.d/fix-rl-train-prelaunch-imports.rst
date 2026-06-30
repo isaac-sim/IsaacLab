@@ -1,4 +1,4 @@
 Fixed
 ^^^^^
 
-* Fixed kitless training startup importing USD and Isaac Sim runtime modules before simulation launch.
+* Fixed intermittent kitless Newton training startup failures by avoiding overlapping standalone USD package providers on x86.
