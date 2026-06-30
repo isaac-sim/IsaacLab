@@ -203,63 +203,77 @@ class TaskSpaceEventCfg:
                 "x": [-0.01, 0.01],
                 "y": [-0.01, 0.01],
                 "z": [-0.02, 0.02],
-                # "roll": [-math.radians(2.0), math.radians(2.0)],
-                # "pitch": [-math.radians(2.0), math.radians(2.0)],
-                # "yaw": [-math.radians(2.0), math.radians(2.0)],
-                "roll": [0.0, 0.0],
-                "pitch": [0.0, 0.0],
-                "yaw": [0.0, 0.0],
+                # "x": [-0.00, 0.00],
+                # "y": [-0.00, 0.00],
+                # "z": [-0.00, 0.00],
+                "roll": [-math.radians(2.0), math.radians(2.0)],
+                "pitch": [-math.radians(2.0), math.radians(2.0)],
+                "yaw": [-math.radians(2.0), math.radians(2.0)],
+                # "roll": [0.0, 0.0],
+                # "pitch": [0.0, 0.0],
+                # "yaw": [0.0, 0.0],
             },
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("dp_socket"),
         },
     )
 
-    # Plug start: matches the joint-space env (plug starts above the socket with
-    # uniform position randomization). Kept identical so the only difference
-    # between the joint-space and task-space envs is the controller space.
-    randomize_plug_pose = EventTerm(
-        func=mdp.reset_root_state_uniform,
+    # Disabled: plain uniform plug randomization. Superseded by the at-goal
+    # curriculum below (re-enable this and comment out reset_plug_curriculum to
+    # match the joint-space env's plug-start setup exactly).
+    # randomize_plug_pose = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {
+    #             "x": [-0.02, 0.02],
+    #             "y": [-0.02, 0.02],
+    #             "z": [-0.01, 0.01],
+    #             "roll": [0.0, 0.0],
+    #             "pitch": [0.0, 0.0],
+    #             "yaw": [0.0, 0.0],
+    #         },
+    #         "velocity_range": {},
+    #         "asset_cfg": SceneEntityCfg("dp_plug"),
+    #     },
+    # )
+
+    # 80% at-goal curriculum (mirrors IsaacLab_UR gb300, osmo at_goal_prob=0.8).
+    # A fraction `at_goal_prob` of envs spawn the plug already inserted at a random
+    # depth (0 -> insertion_length) with goal orientation; the rest get uniform
+    # randomization around the approach pose via `normal_pose_range`.
+    #
+    # at_goal_prob is annealed linearly from `at_goal_prob` (start) down to
+    # `at_goal_prob_final` between iterations `anneal_start_iter` and
+    # `anneal_end_iter`, so the policy is weaned off goal-seeded starts and must
+    # learn the full approach by the end of training. Iterations are derived from
+    # the env step counter via `num_steps_per_env` (must match the agent cfg).
+    # To disable annealing, set `at_goal_prob_final=None` (constant at_goal_prob).
+    reset_plug_curriculum = EventTerm(
+        func=mdp.reset_plug_at_goal_curriculum,
         mode="reset",
         params={
-            "pose_range": {
+            "plug_cfg": SceneEntityCfg("dp_plug"),
+            "socket_cfg": SceneEntityCfg("dp_socket"),
+            "at_goal_prob": 0.8,
+            "at_goal_prob_final": 0.2,
+            "anneal_start_iter": 0.0,
+            "anneal_end_iter": 1000.0,
+            "num_steps_per_env": 512,
+            "insertion_axis": [1.0, 0.0, 0.0],
+            "insertion_length": _INSERTION_LENGTH,
+            "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
+            "plug_insertion_offset": PLUG_INSERTION_OFFSET,
+            "goal_rot": list(PLUG_GOAL_ROT),
+            # Non-at-goal approach randomization. Matches gb300's
+            # held_asset_init_pos_range = [0.02, 0.02, 0.01] (x, y, z) [m].
+            "normal_pose_range": {
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
                 "z": [-0.01, 0.01],
-                # "x": [-0.0, 0.0],
-                # "y": [-0.0, 0.0],
-                # "z": [-0.0, 0.0],
-                "roll": [0.0, 0.0],
-                "pitch": [0.0, 0.0],
-                "yaw": [0.0, 0.0],
             },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("dp_plug"),
         },
     )
-
-    # Old: 80% at-goal curriculum (task-space-specific plug-start strategy).
-    # Disabled so the plug-start setup matches the joint-space env exactly.
-    # Re-enable (and comment out randomize_plug_pose above) to restore it.
-    # reset_plug_curriculum = EventTerm(
-    #     func=mdp.reset_plug_at_goal_curriculum,
-    #     mode="reset",
-    #     params={
-    #         "plug_cfg": SceneEntityCfg("dp_plug"),
-    #         "socket_cfg": SceneEntityCfg("dp_socket"),
-    #         "at_goal_prob": 0.8,
-    #         "insertion_axis": [1.0, 0.0, 0.0],
-    #         "insertion_length": _INSERTION_LENGTH,
-    #         "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
-    #         "plug_insertion_offset": PLUG_INSERTION_OFFSET,
-    #         "goal_rot": list(PLUG_GOAL_ROT),
-    #         "normal_pose_range": {
-    #             "x": [-0.01, 0.01],
-    #             "y": [-0.01, 0.01],
-    #             "z": [-0.01, 0.01],
-    #         },
-    #     },
-    # )
 
     set_robot_to_grasp_pose = EventTerm(
         func=mdp.set_robot_to_object_grasp_pose,
