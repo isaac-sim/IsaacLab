@@ -907,7 +907,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate derived buffers that depend on body_com_pose_b.
         self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -954,7 +954,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate derived buffers that depend on body_com_pose_b.
         self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
