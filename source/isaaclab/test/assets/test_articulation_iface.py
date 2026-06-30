@@ -3253,6 +3253,7 @@ class TestArticulationOrderingRootWriteParity:
         "backend, selection",
         [
             pytest.param("physx", "index", id="physx-index"),
+            pytest.param("physx", "mask", id="physx-mask"),
             pytest.param("ovphysx", "index", id="ovphysx-index"),
             pytest.param("ovphysx", "mask", id="ovphysx-mask"),
             pytest.param("newton", "index", id="newton-index"),
