@@ -75,15 +75,69 @@ Here, ``physx`` likewise names the source checkpoint semantics, while
 Why Articulation Orders Differ
 ------------------------------
 
-The same named articulation can have different native tensor-axis orders in
-different physics backends.
+Three facts explain why a checkpoint can need an ordering convention even when
+both backends load the same USD asset:
+
+1. USD names identify physical joints and bodies, but they do not impose one
+   universal tensor-axis order across solvers.
+2. PhysX and MJWarp construct native articulation views with different topology
+   traversal and internal representation choices.
+3. Isaac Lab resolves the requested names once during articulation
+   initialization, then exposes the selected public order through its
+   high-level API.
+
+The backend selection described in :doc:`Multi-Backend Architecture
+<../multi_backend_architecture>` controls which native view is created. The
+ordering selection controls how the high-level API presents that view.
 
 
 Public and Backend Order
 ------------------------
 
-Isaac Lab distinguishes the order exposed by the high-level articulation API
-from the native order used by the active backend.
+Set ``joint_ordering`` and ``body_ordering`` on
+:class:`~isaaclab.assets.ArticulationCfg`. Once initialized, the articulation
+and its :class:`~isaaclab.assets.ArticulationNameMap` objects establish this
+contract:
+
+.. list-table::
+    :header-rows: 1
+    :widths: 42 58
+
+    * - Surface
+      - Ordering contract
+    * - ``joint_names`` and ``body_names``
+      - Public order
+    * - :class:`~isaaclab.assets.ArticulationData` joint and body properties
+      - Public order
+    * - Articulation command and property writers
+      - Public input order
+    * - ``backend_joint_names`` and ``backend_body_names``
+      - Backend order
+    * - ``root_view`` metadata and arrays
+      - Backend order
+    * - ``joint_ordering`` and ``body_ordering`` maps
+      - Bridge between public and backend order
+
+``None`` is the zero-conversion default. Public names follow the active
+backend, no ordering map is installed, no reorder staging is allocated, and no
+reorder kernel is launched. An explicit convention or name sequence that
+matches backend order still incurs one-time name resolution and identity-map
+construction. Its ``is_identity`` guard prevents the nonidentity
+gather/scatter paths from running.
+
+High-Level MDP Terms
+^^^^^^^^^^^^^^^^^^^^
+
+Standard MDP terms that consume high-level articulation data use public
+indices. This includes terms that resolve joint or body selections by name and
+then index public-order :class:`~isaaclab.assets.ArticulationData` properties
+or call high-level articulation writers.
+
+Material randomization crosses the backend boundary explicitly: it converts
+selected public body IDs to backend body IDs before deriving the corresponding
+backend shape ranges. Custom or backend-specific MDP code that accesses
+``root_view`` bypasses these high-level conversions and must convert its own
+indices and tensors.
 
 
 Conversion Cost
@@ -96,8 +150,92 @@ backend reads and writes.
 Direct Backend-View Access
 --------------------------
 
-Code that accesses ``root_view`` directly is responsible for respecting its
-backend-native ordering.
+Prefer the high-level articulation API when possible; its data and writer
+contracts already use public order. Direct ``root_view`` access uses backend
+order even when ``joint_names`` or ``body_names`` uses another convention.
+
+Torch Conversion
+^^^^^^^^^^^^^^^^
+
+To gather a backend-order joint tensor into public order, enumerate public
+output columns and use ``user_to_backend_indices`` to select the matching
+backend source columns:
+
+.. code-block:: python
+
+    ordering = robot.joint_ordering
+    if ordering is None or ordering.is_identity:
+        joint_pos_public = joint_pos_backend
+    else:
+        joint_pos_public = joint_pos_backend[:, list(ordering.user_to_backend_indices)]
+
+For the opposite direction, enumerate backend output columns and use
+``backend_to_user_indices`` to select the matching public source columns:
+
+.. code-block:: python
+
+    ordering = robot.joint_ordering
+    if ordering is None or ordering.is_identity:
+        joint_target_backend = joint_target_public
+    else:
+        joint_target_backend = joint_target_public[:, list(ordering.backend_to_user_indices)]
+
+Use ``robot.body_ordering`` in the same way for body-indexed axes. Keep the
+``None`` and identity guards: both avoid an unnecessary gather, while
+``None`` also means no map object exists.
+
+Warp Conversion
+^^^^^^^^^^^^^^^
+
+The device maps on :class:`~isaaclab.assets.ArticulationNameMap` are the
+supported escape hatch for custom Warp code. For example, this kernel gathers
+one ``(environment, joint)`` array from backend order into public order:
+
+.. code-block:: python
+
+    import warp as wp
+
+
+    @wp.kernel
+    def gather_joint_axis_backend_to_public(
+        source: wp.array2d(dtype=wp.float32),
+        user_to_backend: wp.array(dtype=wp.int32),
+        destination: wp.array2d(dtype=wp.float32),
+    ):
+        env_id, user_joint_id = wp.tid()
+        backend_joint_id = user_to_backend[user_joint_id]
+        destination[env_id, user_joint_id] = source[env_id, backend_joint_id]
+
+
+    ordering = robot.joint_ordering
+    if ordering is None or ordering.is_identity:
+        joint_pos_public = joint_pos_backend
+    else:
+        joint_pos_public = wp.empty(
+            (robot.num_instances, robot.num_joints),
+            dtype=wp.float32,
+            device=robot.device,
+        )
+        wp.launch(
+            gather_joint_axis_backend_to_public,
+            dim=(robot.num_instances, robot.num_joints),
+            inputs=[joint_pos_backend, ordering.user_to_backend],
+            outputs=[joint_pos_public],
+            device=robot.device,
+        )
+
+The caller owns output allocation, launch dimensions, data type, and every
+non-articulation axis. A public-to-backend gather uses
+``ordering.backend_to_user``. Treat both device maps as read-only, and do not
+deep-import internal ordering kernels.
+
+Joint maps cover named joints, not floating-base generalized coordinates.
+When converting raw Jacobians or mass matrices, preserve the leading
+``robot.num_base_dofs`` coordinates and offset mapped joint indices by that
+count. Apply the joint permutation to both generalized-coordinate axes of a
+mass matrix, use the body map separately for a Jacobian body axis, and leave
+all other axes unchanged. High-level articulation data performs these
+conversions automatically.
 
 
 What Ordering Does Not Solve
