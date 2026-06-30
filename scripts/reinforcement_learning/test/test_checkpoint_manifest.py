@@ -49,15 +49,9 @@ def test_latest_selects_naturally_last_checkpoint_from_newest_compatible_run(tmp
     for run_dir in (old_run, new_run, incompatible_run):
         (run_dir / "checkpoints").mkdir(parents=True)
 
-    write_run_manifest(
-        str(old_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"}
-    )
-    write_run_manifest(
-        str(new_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"}
-    )
-    write_run_manifest(
-        str(incompatible_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "mappo"}
-    )
+    write_run_manifest(str(old_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"})
+    write_run_manifest(str(new_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "ppo"})
+    write_run_manifest(str(incompatible_run), library="skrl", task="Isaac-Cartpole", metadata={"algorithm": "mappo"})
     _set_created_at(old_run, "2026-01-01T00:00:00+00:00")
     _set_created_at(new_run, "2026-01-02T00:00:00+00:00")
     _set_created_at(incompatible_run, "2026-01-03T00:00:00+00:00")
