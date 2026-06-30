@@ -202,7 +202,7 @@ class TaskSpaceEventCfg:
             "pose_range": {
                 "x": [-0.01, 0.01],
                 "y": [-0.01, 0.01],
-                "z": [-0.01, 0.01],
+                "z": [-0.02, 0.02],
                 "roll": [-math.radians(2.0), math.radians(2.0)],
                 "pitch": [-math.radians(2.0), math.radians(2.0)],
                 "yaw": [-math.radians(2.0), math.radians(2.0)],
