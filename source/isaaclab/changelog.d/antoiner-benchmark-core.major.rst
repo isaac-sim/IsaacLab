@@ -32,3 +32,5 @@ Fixed
   overwriting earlier phases by writing one phase-suffixed JSON file per phase.
 * Fixed benchmark run metadata to use resolved task defaults for physics and
   rendering backends.
+* Fixed simulation launch failures being reported with a zero process exit
+  status during Kit fast shutdown.
