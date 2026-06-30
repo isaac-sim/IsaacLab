@@ -5,6 +5,7 @@
 
 """Shared mocked articulation backend factories for interface tests."""
 
+import importlib.util
 import os
 import sys
 from unittest.mock import MagicMock
@@ -63,32 +64,26 @@ Check which backends are available.
 
 BACKENDS = ["mock"]  # Mock backend is always available.
 
-try:
+if importlib.util.find_spec("isaaclab_physx") is not None:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.test.mock_interfaces.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
 
     BACKENDS.append("physx")
-except ImportError:
-    pass
 
-try:
+if importlib.util.find_spec("isaaclab_newton") is not None:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
     from isaaclab_newton.test.mock_interfaces.views import MockNewtonArticulationView as NewtonMockArticulationView
 
     BACKENDS.append("newton")
-except ImportError:
-    pass
 
-try:
+if importlib.util.find_spec("isaaclab_ovphysx") is not None:
     from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
 
     BACKENDS.append("ovphysx")
-except ImportError:
-    pass
 
 
 def create_physx_articulation(
