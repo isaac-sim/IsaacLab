@@ -81,9 +81,9 @@ test = [
     # numba compatibility (numba subclasses Tracer at import time)
     "coverage>=7.6.1",
 ]
-isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
+isaacsim = ["isaacsim[all,extscache]>=6.0.0"]
 all = [
-    "isaacsim[all,extscache]==6.0.0.1",
+    "isaacsim[all,extscache]>=6.0.0",
     "isaaclab_assets",
     "isaaclab_contrib",
     "isaaclab_experimental",
