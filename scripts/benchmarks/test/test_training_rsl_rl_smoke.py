@@ -51,7 +51,7 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
         "--seed",
         "0",
         "--benchmark_formatter",
-        "schema",
+        "schema,omniperf",
         "--output_path",
         str(tmp_path),
         "presets=newton_mjwarp",
@@ -61,6 +61,9 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
     if res.returncode != 0:
         pytest.fail(f"training.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
     data = _find_bundle(tmp_path, _TRAINING_BUNDLE_KEYS)
+    omniperf_files = list(tmp_path.glob("*_omniperf.json"))
+    assert len(omniperf_files) == 1
+    omniperf_data = json.loads(omniperf_files[0].read_text())
     assert data["schema_version"] == "1.0"
     assert data["run"]["framework"] == "rsl_rl"
     assert data["run"]["config"]["physics_backend"] == "newton_mjwarp"
@@ -69,3 +72,5 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
     assert data["learning"]["reward"]["series_per_iter"] is not None
     assert len(data["learning"]["reward"]["series_per_iter"]) >= 1
     assert data["learning"]["reward"]["final_ema"] is not None
+    assert omniperf_data["runtime"]["Mean Total FPS"] == pytest.approx(data["runtime"]["total_fps"]["mean"])
+    assert omniperf_data["train"]["Last Reward"] == pytest.approx(data["learning"]["reward"]["final_raw"])
