@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import sys
 from copy import copy, deepcopy
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -565,6 +566,25 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articula
     assert articulation.is_initialized
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
+
+
+def test_num_shapes_per_body_follows_public_body_order() -> None:
+    """Align Newton shape counts with the public body-name axis."""
+
+    class _ShapeCountSurface:
+        _backend_num_shapes_per_body = Articulation._backend_num_shapes_per_body
+        num_shapes_per_body = Articulation.num_shapes_per_body
+
+    articulation = _ShapeCountSurface()
+    articulation._root_view = SimpleNamespace(
+        body_shapes=((), (object(), object()), (object(), object(), object())),
+    )
+    articulation.body_ordering = SimpleNamespace(
+        is_identity=False,
+        user_to_backend_indices=(2, 0, 1),
+    )
+
+    assert articulation.num_shapes_per_body == [3, 0, 2]
 
 
 @pytest.mark.parametrize("num_articulations", [2])

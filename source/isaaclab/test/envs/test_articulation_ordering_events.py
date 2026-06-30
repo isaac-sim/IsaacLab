@@ -17,7 +17,11 @@ from isaaclab.envs.mdp import events as events_module
 _NUM_SHAPES_PER_BACKEND_BODY = (1, 2, 3)
 _NUM_ENVS = 2
 _NUM_SHAPES = sum(_NUM_SHAPES_PER_BACKEND_BODY)
-_NONIDENTITY_BODY_ORDERING = SimpleNamespace(user_to_backend_indices=(0, 2, 1))
+_NONIDENTITY_BODY_ORDERING = SimpleNamespace(
+    user_to_backend_indices=(0, 2, 1),
+    backend_to_user_indices=(0, 2, 1),
+    is_identity=False,
+)
 
 
 def _sample_lower_bound(low, high, shape, device):
@@ -82,7 +86,12 @@ class _FakeNewtonArticulation:
 
     def __init__(self, body_ordering):
         self.body_ordering = body_ordering
-        self.num_shapes_per_body = _NUM_SHAPES_PER_BACKEND_BODY
+        if body_ordering is None:
+            self.num_shapes_per_body = _NUM_SHAPES_PER_BACKEND_BODY
+        else:
+            self.num_shapes_per_body = tuple(
+                _NUM_SHAPES_PER_BACKEND_BODY[index] for index in body_ordering.user_to_backend_indices
+            )
         self._root_view = _FakeNewtonRootView()
 
 
@@ -164,7 +173,7 @@ def test_physx_material_randomization_maps_public_body_ids_to_backend(
 def test_newton_material_randomization_maps_public_body_ids_to_backend(
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
-    """Newton body selections index backend-ordered per-body shape counts."""
+    """Newton body selections convert public shape counts to backend shape ranges."""
     import isaaclab_newton.assets as newton_assets_module
     import isaaclab_newton.physics.newton_manager as newton_manager_module
 

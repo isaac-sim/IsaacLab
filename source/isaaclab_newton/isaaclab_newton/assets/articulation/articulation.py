@@ -170,21 +170,27 @@ class Articulation(BaseArticulation):
         return self.root_view.link_count
 
     @property
-    def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in the articulation.
+    def _backend_num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes for each backend-order body."""
+        if not hasattr(self, "_num_shapes_per_body_backend"):
+            self._num_shapes_per_body_backend = [len(shapes) for shapes in self._root_view.body_shapes]
+        return self._num_shapes_per_body_backend
 
-        This property returns a list where each element represents the number of collision
-        shapes for the corresponding body in the articulation. This is cached for efficient
-        access during material property randomization and other operations.
+    @property
+    def num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes per body in public body-name order.
+
+        Each element corresponds to the body at the same index in
+        :attr:`body_names`. Backend-order counts are cached; a nonidentity body
+        ordering returns those counts gathered into public order.
 
         Returns:
             List of integers representing the number of shapes per body.
         """
-        if not hasattr(self, "_num_shapes_per_body"):
-            self._num_shapes_per_body = []
-            for shapes in self._root_view.body_shapes:
-                self._num_shapes_per_body.append(len(shapes))
-        return self._num_shapes_per_body
+        backend_num_shapes_per_body = self._backend_num_shapes_per_body
+        if self.body_ordering is None or self.body_ordering.is_identity:
+            return backend_num_shapes_per_body
+        return [backend_num_shapes_per_body[backend_id] for backend_id in self.body_ordering.user_to_backend_indices]
 
     @property
     def joint_names(self) -> list[str]:

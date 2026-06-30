@@ -298,7 +298,13 @@ class _RandomizeRigidBodyMaterialNewton:
 
         # compute shape indices for body-specific randomization
         if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
+            # Shape bindings are backend-ordered while the public count list
+            # follows the configured body order.
             num_shapes_per_body = asset.num_shapes_per_body
+            if asset.body_ordering is not None and not asset.body_ordering.is_identity:
+                num_shapes_per_body = [
+                    num_shapes_per_body[user_id] for user_id in asset.body_ordering.backend_to_user_indices
+                ]
             shape_indices_list = []
             backend_body_ids = _map_articulation_body_ids_to_backend(asset, asset_cfg.body_ids)
             for body_id in backend_body_ids:

@@ -41,6 +41,13 @@ def _coerce_name_sequence(names: object) -> tuple[str, ...] | None:
     return name_tuple
 
 
+def _validate_ordering_kind(kind: object) -> Literal["joint", "body"]:
+    """Return a supported articulation element kind."""
+    if kind == "joint" or kind == "body":
+        return kind
+    raise ValueError(f"kind must be 'joint' or 'body'; got {kind!r}.")
+
+
 def _get_attr_or_none(obj: object, name: str) -> object | None:
     """Read an optional attribute without requiring every backend to expose it."""
     try:
@@ -563,11 +570,12 @@ def resolve_articulation_convention_name_ordering(
             builder raises this error outside an optional metadata probe.
         TypeError: If :paramref:`convention` has an unsupported type, or a
             provider or builder raises an unhandled type error.
-        ValueError: If :paramref:`convention` is an unsupported alias, or a
-            provider or builder rejects the source metadata.
+        ValueError: If :paramref:`kind` is invalid, :paramref:`convention` is an
+            unsupported alias, or a provider or builder rejects the source metadata.
         NotImplementedError: If all optional sources are absent or incomplete
             for the requested cross-backend convention.
     """
+    kind = _validate_ordering_kind(kind)
     parsed_convention = parse_articulation_ordering_convention(convention)
     if parsed_convention is None:
         return _get_backend_names(articulation, kind)
@@ -673,7 +681,8 @@ def get_physx_articulation_name_ordering(
         AttributeError: If same-backend names are unavailable, or a provider or
             builder raises this error outside optional attribute probes.
         TypeError: If a provider or builder raises an unhandled type error.
-        ValueError: If a provider or builder rejects the source asset.
+        ValueError: If :paramref:`kind` is invalid, or a provider or builder
+            rejects the source asset.
         NotImplementedError: If optional PhysX name metadata is absent or
             incomplete after all fallbacks.
     """
@@ -716,7 +725,8 @@ def get_mjwarp_articulation_name_ordering(
         AttributeError: If same-backend names are unavailable, or a provider or
             builder raises this error outside optional attribute probes.
         TypeError: If a provider or builder raises an unhandled type error.
-        ValueError: If a provider or builder rejects the source asset.
+        ValueError: If :paramref:`kind` is invalid, or a provider or builder
+            rejects the source asset.
         NotImplementedError: If optional Newton or MJWarp name metadata is absent
             or incomplete after all fallbacks.
     """
@@ -762,8 +772,8 @@ def get_robot_schema_articulation_name_ordering(
             attribute probes.
         TypeError: If a USD provider raises this error outside handled target
             lookups or name-sequence coercion.
-        ValueError: If source-asset resolution or another USD provider rejects
-            the metadata.
+        ValueError: If :paramref:`kind` is invalid, or source-asset resolution
+            or another USD provider rejects the metadata.
         NotImplementedError: If robot-schema relationship metadata is absent or
             incomplete after all fallbacks.
     """
@@ -825,11 +835,12 @@ def resolve_articulation_ordering_names(
             error outside an optional metadata probe.
         TypeError: If :paramref:`ordering` has an unsupported type, an explicit
             sequence contains a non-string, or an unhandled resolver error occurs.
-        ValueError: If :paramref:`ordering` is an unsupported alias, or a custom
-            resolver, provider, or builder rejects the source metadata.
+        ValueError: If :paramref:`kind` is invalid, :paramref:`ordering` is an unsupported
+            alias, or a custom resolver, provider, or builder rejects the source metadata.
         NotImplementedError: If cross-backend ordering lacks an articulation or
             resolver, or all optional convention metadata is absent or incomplete.
     """
+    kind = _validate_ordering_kind(kind)
     backend_names = _coerce_articulation_names(backend_names, parameter_name="backend_names")
     if ordering is None:
         return backend_names

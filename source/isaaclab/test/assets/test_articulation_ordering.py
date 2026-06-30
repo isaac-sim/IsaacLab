@@ -116,6 +116,41 @@ def test_parse_articulation_ordering_convention_rejects_unknown_string() -> None
         parse_articulation_ordering_convention("backend")
 
 
+@pytest.mark.parametrize(
+    "entrypoint",
+    ["resolve_names", "resolve_convention", "physx", "mjwarp", "robot_schema"],
+)
+def test_public_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
+    """Reject misspelled element kinds at every public resolver entry point."""
+
+    class _Articulation:
+        __backend_name__ = "physx"
+        backend_joint_names = ("joint",)
+        backend_body_names = ("body",)
+
+    articulation = _Articulation()
+    with pytest.raises(ValueError, match="kind must be 'joint' or 'body'; got 'dof'"):
+        if entrypoint == "resolve_names":
+            resolve_articulation_ordering_names(
+                kind="dof",  # type: ignore[arg-type]
+                backend_names=("joint",),
+                ordering=None,
+                active_backend_name="physx",
+            )
+        elif entrypoint == "resolve_convention":
+            resolve_articulation_convention_name_ordering(
+                articulation=articulation,
+                convention="physx",
+                kind="dof",  # type: ignore[arg-type]
+            )
+        elif entrypoint == "physx":
+            get_physx_articulation_name_ordering(articulation, kind="dof")  # type: ignore[arg-type]
+        elif entrypoint == "mjwarp":
+            get_mjwarp_articulation_name_ordering(articulation, kind="dof")  # type: ignore[arg-type]
+        else:
+            get_robot_schema_articulation_name_ordering(articulation, kind="dof")  # type: ignore[arg-type]
+
+
 def test_assets_package_reexports_public_ordering_symbols() -> None:
     """Expose every documented ordering symbol from the public assets package."""
     from isaaclab import assets
