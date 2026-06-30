@@ -50,17 +50,21 @@ class ArticulationData(BaseArticulationData):
     .. note::
         **Pull-to-refresh model.** PhysX state properties are *not* automatically updated each
         simulation step. Each property getter pulls fresh data from the PhysX tensor API on first
-        access per timestamp, then caches the result until the next step. This differs from the
-        Newton backend, where buffers are refreshed automatically by the simulation.
+        access per timestamp, then caches the result until the next step. Newton's solver-owned,
+        backend-order buffers are refreshed automatically by the simulation; when Newton uses a
+        nonidentity public ordering, its public-order shadows are also refreshed lazily on first
+        access.
 
     .. note::
         **ProxyArray pointer stability.** Each :class:`ProxyArray` wrapper is created once on the
-        first property access and reused thereafter. This is safe because the PhysX tensor API
-        returns views into stable, pre-allocated GPU buffers whose device pointer does not change
-        across simulation steps. The ``wp.array`` Python objects returned by getters like
-        ``get_root_transforms()`` are new wrappers each call, but they alias the same underlying
-        GPU memory. Sub-view properties (``root_pos_w``, ``root_quat_w``, etc.) similarly wrap
-        pointer offsets into these stable buffers and are therefore also safe to cache.
+        first property access and reused thereafter. With default or identity ordering, direct
+        properties alias stable, pre-allocated PhysX GPU buffers whose device pointer does not
+        change across simulation steps. The ``wp.array`` Python objects returned by getters such
+        as ``get_root_transforms()`` are new wrappers each call, but they alias the same underlying
+        GPU memory. With nonidentity ordering, ordering-sensitive properties instead use stable,
+        owned public-order shadows populated lazily from backend data. Sub-view properties
+        (``root_pos_w``, ``root_quat_w``, etc.) wrap pointer offsets into their stable parent
+        buffers and are therefore also safe to cache.
     """
 
     __backend_name__: str = "physx"
@@ -1021,10 +1025,12 @@ class ArticulationData(BaseArticulationData):
     def body_com_jacobian_w(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`.
 
-        PhysX implementation: passthrough of ``_root_view.get_jacobians()``, which is
-        natively Center-Of-Mass-referenced. Refresh is gated by ``_sim_timestamp`` and
-        invalidated by ``write_*_to_sim_index``; the ``ProxyArray`` wrapper is lazy-init
-        once and reused thereafter.
+        PhysX provides a natively center-of-mass-referenced Jacobian. With default or
+        identity ordering, this property aliases the buffer returned by
+        ``_root_view.get_jacobians()``. With nonidentity body or joint ordering, it gathers
+        the corresponding axes into an owned public-order buffer. Refresh is gated by
+        ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``; the ``ProxyArray``
+        wrapper is initialized lazily and then reused.
 
         Unlike the world-frame pose buffers, this does not need an explicit
         :meth:`_ensure_fk_fresh`: PhysX recomputes the Jacobian from the current joint
@@ -1080,9 +1086,11 @@ class ArticulationData(BaseArticulationData):
     def mass_matrix(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
 
-        PhysX implementation: passthrough of ``_root_view.get_generalized_mass_matrices()``.
-        Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
-        the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
+        With default or identity ordering, this property aliases the buffer returned by
+        ``_root_view.get_generalized_mass_matrices()``. With nonidentity joint ordering,
+        it gathers both joint axes into an owned public-order buffer. Refresh is gated by
+        ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``; the ``ProxyArray``
+        wrapper is initialized lazily and then reused.
 
         Unlike the world-frame pose buffers, this does not need an explicit
         :meth:`_ensure_fk_fresh`: PhysX recomputes the mass matrix from the current joint
@@ -1115,9 +1123,11 @@ class ArticulationData(BaseArticulationData):
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`.
 
-        PhysX implementation: passthrough of ``_root_view.get_gravity_compensation_forces()``.
-        Refresh is gated by ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``;
-        the ``ProxyArray`` wrapper is lazy-init once and reused thereafter.
+        With default or identity ordering, this property aliases the buffer returned by
+        ``_root_view.get_gravity_compensation_forces()``. With nonidentity joint ordering,
+        it gathers the joint axis into an owned public-order buffer. Refresh is gated by
+        ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index``; the ``ProxyArray``
+        wrapper is initialized lazily and then reused.
 
         Unlike the world-frame pose buffers, this does not need an explicit
         :meth:`_ensure_fk_fresh`: PhysX recomputes these forces from the current joint
@@ -1729,10 +1739,11 @@ class ArticulationData(BaseArticulationData):
         # base (the engine's natural form), matching the industry-standard convention used by
         # Pinocchio, Drake, MuJoCo, RBDL, OCS2, and iDynTree. We pass through the full DoF
         # axis: shape ``(N, num_jacobi_bodies, 6, num_joints + num_base_dofs)``. Newton wraps
-        # ``eval_jacobian`` to match the same column layout. ``body_com_jacobian_w`` /
-        # ``mass_matrix`` / ``gravity_compensation_forces`` pass through the engine buffer on
-        # every read; we only own a buffer for the link-origin Jacobian (output of the shift
-        # kernel).
+        # ``eval_jacobian`` to match the same column layout. With default or identity ordering,
+        # ``body_com_jacobian_w`` / ``mass_matrix`` / ``gravity_compensation_forces`` alias the
+        # engine buffers. With nonidentity ordering, their timestamped buffers remain owned and
+        # receive backend-to-public gathers. The link-origin Jacobian always uses an owned buffer
+        # because it is the output of the COM-to-origin shift kernel.
         is_fixed_base = self._root_view.shared_metatype.fixed_base
         self._jacobian_link_offset = 1 if is_fixed_base else 0
         num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
@@ -1745,10 +1756,10 @@ class ArticulationData(BaseArticulationData):
             dtype=wp.float32,
             device=self.device,
         )
-        # ``TimestampedBuffer``s for the three engine-passthrough properties. The placeholder
-        # ``wp.zeros`` allocation is replaced on first read by the engine view returned from
-        # ``_root_view.get_*()``; timestamps are advanced on each refresh and invalidated by
-        # write-paths.
+        # Under default or identity ordering, these placeholder allocations are replaced on the
+        # first read by views returned from ``_root_view.get_*()``. Under nonidentity ordering,
+        # they remain owned gather destinations. Timestamps advance on each refresh and are
+        # invalidated by write paths.
         self._body_com_jacobian_w = TimestampedBuffer(
             (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
             self.device,
@@ -2186,11 +2197,13 @@ class ArticulationData(BaseArticulationData):
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
         # Dynamics quantities (task-space controllers). ``_body_link_jacobian_w`` wraps our
-        # own pre-allocated buffer (pointer-stable, eager wrap). The three engine-passthrough
-        # wrappers are lazy-init inside their property bodies on first read, matching the
-        # ``TimestampedBuffer`` + ``ProxyArray`` cache pattern used by ``body_link_pose_w``,
-        # ``joint_pos``, and the rest of this file. Refresh is gated by ``_sim_timestamp`` and
-        # invalidated by ``write_*_to_sim_index`` setting ``timestamp = -1.0``.
+        # own pre-allocated buffer (pointer-stable, eager wrap). The other three wrappers are
+        # initialized lazily inside their property bodies. They wrap direct engine aliases for
+        # default or identity ordering and owned public-order buffers for nonidentity ordering,
+        # matching the ``TimestampedBuffer`` + ``ProxyArray`` cache pattern used by
+        # ``body_link_pose_w``, ``joint_pos``, and the rest of this file. Refresh is gated by
+        # ``_sim_timestamp`` and invalidated by ``write_*_to_sim_index`` setting
+        # ``timestamp = -1.0``.
         self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
         self._body_com_jacobian_w_ta: ProxyArray | None = None
         self._mass_matrix_ta: ProxyArray | None = None

@@ -51,7 +51,7 @@ class ArticulationOrderingConvention(str, Enum):
 
 @dataclass(frozen=True)
 class ArticulationNameMap:
-    """Immutable bidirectional map between backend and public articulation order.
+    """Frozen bidirectional descriptor of backend and public articulation order.
 
     ``user`` in the field names means the order exposed by the public API.
     ``user_to_backend`` maps a public index to its backend index, while
@@ -62,7 +62,9 @@ class ArticulationNameMap:
     unique, both device maps are one-dimensional arrays with shape
     ``(num_names,)`` and dtype ``wp.int32``, and the device maps share a Warp
     device. Construction copies each device map to host and compares it with the
-    corresponding CPU tuple as part of validation.
+    corresponding CPU tuple as part of validation. The frozen dataclass prevents
+    field reassignment, but the Warp arrays remain mutable objects and callers
+    must treat both device maps as read-only.
 
     When an articulation constructs its maps, this validation occurs during
     initialization. Hot read and write paths reuse the validated device maps and
@@ -78,11 +80,13 @@ class ArticulationNameMap:
         user_names: The same number of names in public API order.
         user_to_backend_indices: CPU permutation from public to backend indices.
         backend_to_user_indices: CPU inverse permutation from backend to public indices.
-        user_to_backend: Device permutation from public to backend indices.
-        backend_to_user: Device inverse permutation from backend to public indices.
+        user_to_backend: Read-only device permutation from public to backend indices.
+        backend_to_user: Read-only device inverse permutation from backend to public indices.
         is_identity: Whether names and both permutations are in identical order.
 
     Raises:
+        TypeError: If :paramref:`backend_names` or :paramref:`user_names` is not
+            a sequence of strings.
         ValueError: If a field violates the length, uniqueness, permutation,
             device, or identity invariants.
     """
@@ -103,10 +107,10 @@ class ArticulationNameMap:
     """One-dimensional CPU map from backend index to public index."""
 
     user_to_backend: wp.array(dtype=wp.int32)
-    """Public-to-backend device map, shape ``(num_names,)``, dtype ``wp.int32``."""
+    """Read-only public-to-backend device map, shape ``(num_names,)``, dtype ``wp.int32``."""
 
     backend_to_user: wp.array(dtype=wp.int32)
-    """Backend-to-public device map, shape ``(num_names,)``, dtype ``wp.int32``."""
+    """Read-only backend-to-public device map, shape ``(num_names,)``, dtype ``wp.int32``."""
 
     is_identity: bool
     """Whether names and both index maps are identity permutations."""

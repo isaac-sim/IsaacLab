@@ -4072,8 +4072,10 @@ class Articulation(BaseArticulation):
         # build actuator instances and write drive properties to PhysX
         self._process_actuators_cfg()
 
-        # cache write views for write_data_to_sim(). The effort view aliases applied_torque
-        # so the binding gets the actuator output without an extra copy.
+        # Cache binding-shaped aliases as write-availability sentinels for
+        # ``write_data_to_sim()``. They share the public command buffers. Default or identity
+        # ordering writes those buffers directly; nonidentity ordering gathers into backend-order
+        # staging instead, so these aliases are not the source of ordered writes.
         effort_binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
         if effort_binding is not None:
             torque = self._data._applied_torque

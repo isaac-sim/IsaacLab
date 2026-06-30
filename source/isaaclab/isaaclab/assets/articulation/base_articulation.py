@@ -73,6 +73,12 @@ class BaseArticulation(AssetBase):
         # update the articulation state, where dt is the simulation time step
         my_articulation.update(dt)
 
+    .. note::
+        Index-based writer selectors must contain unique environment, joint, and
+        body indices. Repeated selector entries issue concurrent writes to the
+        same simulation cell, so the winning value is undefined. Use a mask when
+        a selection may contain duplicates.
+
     .. _`USD ArticulationRootAPI`: https://openusd.org/dev/api/class_usd_physics_articulation_root_a_p_i.html
 
     """

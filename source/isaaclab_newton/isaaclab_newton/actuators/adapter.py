@@ -252,10 +252,12 @@ def build_newton_actuator_defaults(
     """Snapshot initial Newton actuator gains for one articulation.
 
     Actuators are filtered to those whose environment-zero DOF lies in
-    ``[dof_offset, dof_offset + num_joints)``. Their gains are scattered into
-    contiguous tensors. Without :paramref:`joint_user_to_backend_indices`, the
-    output joint axis uses backend order. With the map, gains and managed indices
-    use public order.
+    ``[dof_offset, dof_offset + num_joints)``. Their gains are scattered in the
+    actuator adapter's local joint order. Without :paramref:`joint_user_to_backend_indices`,
+    the output preserves that local order. PhysX builds its per-articulation adapter from
+    public joint names, so its adapter-local order is public order. Newton's global adapter
+    uses backend-local order; the optional map converts its gains and managed indices to
+    public order.
 
     Args:
         actuators: Newton actuators visible to this articulation.
@@ -265,7 +267,8 @@ def build_newton_actuator_defaults(
             global index space; this is zero on PhysX and view-dependent on Newton.
         device: Requested Warp and torch device, for example ``"cuda:0"``.
         joint_user_to_backend_indices: Complete permutation from public joint
-            indices to backend-local joint indices. ``None`` keeps backend order.
+            indices to adapter-local joint indices. For Newton's global adapter,
+            adapter-local order is backend order. ``None`` preserves adapter-local order.
 
     Returns:
         Tuple containing the following values:
@@ -278,11 +281,11 @@ def build_newton_actuator_defaults(
           :paramref:`device`.
         * ``joint_indices``: ``slice(None)`` when every joint is managed;
           otherwise, a ``torch.int32`` tensor on :paramref:`device` containing
-          managed columns in the same backend or public order as the gain tensors.
+          managed columns in the same adapter-local or public order as the gain tensors.
 
     Raises:
         ValueError: If :paramref:`joint_user_to_backend_indices` is not a
-            complete permutation of all backend-local joint indices.
+            complete permutation of all adapter-local joint indices.
     """
     user_to_backend: tuple[int, ...] | None = None
     if joint_user_to_backend_indices is not None:
