@@ -30,6 +30,7 @@ from isaaclab.assets.articulation.ordering_resolvers import (
     get_mjwarp_articulation_name_ordering,
     get_physx_articulation_name_ordering,
     get_robot_schema_articulation_name_ordering,
+    resolve_articulation_convention_name_ordering,
     resolve_articulation_ordering_names,
 )
 
@@ -114,13 +115,23 @@ def test_parse_articulation_ordering_convention_rejects_unknown_string() -> None
 
 
 def test_assets_package_reexports_public_ordering_symbols() -> None:
-    """Expose ordering helpers from the public assets package."""
+    """Expose every documented ordering symbol from the public assets package."""
     from isaaclab import assets
 
-    assert assets.ArticulationNameMap is ArticulationNameMap
-    assert assets.ArticulationOrderingConvention is ArticulationOrderingConvention
-    assert assets.build_articulation_name_map is build_articulation_name_map
-    assert assets.resolve_articulation_ordering_names is resolve_articulation_ordering_names
+    expected_exports = {
+        "ArticulationOrderingConvention": ArticulationOrderingConvention,
+        "ArticulationNameMap": ArticulationNameMap,
+        "apply_articulation_ordering_preset": apply_articulation_ordering_preset,
+        "build_articulation_name_map": build_articulation_name_map,
+        "parse_articulation_ordering_convention": parse_articulation_ordering_convention,
+        "get_mjwarp_articulation_name_ordering": get_mjwarp_articulation_name_ordering,
+        "get_physx_articulation_name_ordering": get_physx_articulation_name_ordering,
+        "get_robot_schema_articulation_name_ordering": get_robot_schema_articulation_name_ordering,
+        "resolve_articulation_convention_name_ordering": resolve_articulation_convention_name_ordering,
+        "resolve_articulation_ordering_names": resolve_articulation_ordering_names,
+    }
+    for name, expected_export in expected_exports.items():
+        assert getattr(assets, name, None) is expected_export, name
 
 
 def test_assets_api_page_defines_ordering_symbols() -> None:
