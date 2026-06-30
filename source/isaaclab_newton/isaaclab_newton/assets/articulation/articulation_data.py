@@ -1791,19 +1791,11 @@ class ArticulationData(BaseArticulationData):
         self._body_link_vel_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
-        self._body_link_pose_w_user = TimestampedBuffer(
-            shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
-        )
-        self._body_com_vel_w_user = TimestampedBuffer(
-            shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
-        )
-        self._body_mass_user = wp.zeros((self._num_instances, self._num_bodies), dtype=wp.float32, device=self.device)
-        self._body_inertia_user = wp.zeros(
-            (self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self.device
-        )
-        self._body_com_pos_b_user = wp.zeros(
-            (self._num_instances, self._num_bodies), dtype=wp.vec3f, device=self.device
-        )
+        self._body_link_pose_w_user: TimestampedBuffer | None = None
+        self._body_com_vel_w_user: TimestampedBuffer | None = None
+        self._body_mass_user: wp.array | None = None
+        self._body_inertia_user: wp.array | None = None
+        self._body_com_pos_b_user: wp.array | None = None
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
@@ -1822,9 +1814,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_acc_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
-        self._body_com_acc_w_backend = TimestampedBuffer(
-            shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
-        )
+        self._body_com_acc_w_backend: TimestampedBuffer | None = None
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
         self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
@@ -1832,46 +1822,20 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._joint_pos_user = TimestampedBuffer(
-            shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_vel_user = TimestampedBuffer(
-            shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_stiffness_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_damping_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_armature_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_friction_coeff_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_pos_limits_lower_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_pos_limits_upper_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_vel_limits_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._joint_effort_limits_user = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
+        self._joint_pos_user: TimestampedBuffer | None = None
+        self._joint_vel_user: TimestampedBuffer | None = None
+        self._joint_stiffness_user: wp.array | None = None
+        self._joint_damping_user: wp.array | None = None
+        self._joint_armature_user: wp.array | None = None
+        self._joint_friction_coeff_user: wp.array | None = None
+        self._joint_pos_limits_lower_user: wp.array | None = None
+        self._joint_pos_limits_upper_user: wp.array | None = None
+        self._joint_vel_limits_user: wp.array | None = None
+        self._joint_effort_limits_user: wp.array | None = None
         self._has_joint_ordering = False
         self._has_body_ordering = False
-        self._identity_joint_user_to_backend = wp.array(
-            tuple(range(self._num_joints)), dtype=wp.int32, device=self.device
-        )
-        self._identity_body_user_to_backend = wp.array(
-            tuple(range(self._num_bodies)), dtype=wp.int32, device=self.device
-        )
-        self._joint_user_to_backend = self._identity_joint_user_to_backend
-        self._body_user_to_backend = self._identity_body_user_to_backend
+        self._joint_user_to_backend: wp.array | None = None
+        self._body_user_to_backend: wp.array | None = None
         # -- dynamics quantities for task-space controllers
         self._create_jacobian_buffers(SimulationManager.get_model())
         # Empty memory pre-allocations
@@ -1947,9 +1911,7 @@ class ArticulationData(BaseArticulationData):
         # included in the DoF axis to match the cross-library industry convention.
         num_base_dofs = 0 if self._root_view.is_fixed_base else 6
         self._num_base_dofs = num_base_dofs
-        self._jacobian_body_user_to_backend = wp.array(
-            tuple(range(num_jacobi_bodies)), dtype=wp.int32, device=self.device
-        )
+        self._jacobian_body_user_to_backend: wp.array | None = None
         # Flattened (num_worlds*num_per_view,) view-to-model index map for the gather kernels.
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
 
@@ -1993,36 +1955,160 @@ class ArticulationData(BaseArticulationData):
             backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
         return wp.array(backend_rows, dtype=wp.int32, device=self.device)
 
-    def _apply_ordering_maps_after_resolve(self) -> None:
-        """Re-pin public buffers after articulation ordering maps are installed."""
-        joint_ordering = self.joint_ordering
-        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
-        self._joint_user_to_backend = (
-            joint_ordering.user_to_backend if joint_ordering is not None else self._identity_joint_user_to_backend
+    def _validate_joint_ordering_buffers(self) -> None:
+        """Validate buffers required while nonidentity joint ordering is active."""
+        required_fields = (
+            "_joint_user_to_backend",
+            "_joint_pos_user",
+            "_joint_vel_user",
+            "_joint_stiffness_user",
+            "_joint_damping_user",
+            "_joint_armature_user",
+            "_joint_friction_coeff_user",
+            "_joint_pos_limits_lower_user",
+            "_joint_pos_limits_upper_user",
+            "_joint_vel_limits_user",
+            "_joint_effort_limits_user",
         )
-        body_ordering = self.body_ordering
-        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
-        self._body_user_to_backend = (
-            body_ordering.user_to_backend if body_ordering is not None else self._identity_body_user_to_backend
+        missing_fields = [name for name in required_fields if getattr(self, name) is None]
+        if missing_fields:
+            raise RuntimeError(
+                "Newton nonidentity joint ordering requires initialized public-order buffers; "
+                f"missing {', '.join(missing_fields)}."
+            )
+
+    def _validate_body_ordering_buffers(self) -> None:
+        """Validate buffers required while nonidentity body ordering is active."""
+        required_fields = (
+            "_body_user_to_backend",
+            "_jacobian_body_user_to_backend",
+            "_body_link_pose_w_user",
+            "_body_com_vel_w_user",
+            "_body_com_acc_w_backend",
+            "_body_mass_user",
+            "_body_inertia_user",
+            "_body_com_pos_b_user",
         )
-        self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend(body_ordering)
+        missing_fields = [name for name in required_fields if getattr(self, name) is None]
+        if missing_fields:
+            raise RuntimeError(
+                "Newton nonidentity body ordering requires initialized public-order buffers; "
+                f"missing {', '.join(missing_fields)}."
+            )
+
+    def _configure_joint_ordering_buffers(self) -> None:
+        """Allocate or release buffers owned only by nonidentity joint ordering."""
         if self._has_joint_ordering:
-            previous_joint_vel_backend = wp.clone(self._previous_joint_vel, device=self.device)
+            shape = (self._num_instances, self._num_joints)
+            if self._joint_pos_user is None:
+                self._joint_pos_user = TimestampedBuffer(shape=shape, dtype=wp.float32, device=self.device)
+            if self._joint_vel_user is None:
+                self._joint_vel_user = TimestampedBuffer(shape=shape, dtype=wp.float32, device=self.device)
+            for field_name in (
+                "_joint_stiffness_user",
+                "_joint_damping_user",
+                "_joint_armature_user",
+                "_joint_friction_coeff_user",
+                "_joint_pos_limits_lower_user",
+                "_joint_pos_limits_upper_user",
+                "_joint_vel_limits_user",
+                "_joint_effort_limits_user",
+            ):
+                if getattr(self, field_name) is None:
+                    setattr(self, field_name, wp.zeros(shape, dtype=wp.float32, device=self.device))
+            self._validate_joint_ordering_buffers()
+            reset_timestamps([self._joint_pos_user, self._joint_vel_user])
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[previous_joint_vel_backend, self._joint_user_to_backend],
+                dim=shape,
+                inputs=[self._sim_bind_joint_vel, self._joint_user_to_backend],
                 outputs=[self._previous_joint_vel],
                 device=self.device,
             )
+        else:
+            self._joint_pos_user = None
+            self._joint_vel_user = None
+            self._joint_stiffness_user = None
+            self._joint_damping_user = None
+            self._joint_armature_user = None
+            self._joint_friction_coeff_user = None
+            self._joint_pos_limits_lower_user = None
+            self._joint_pos_limits_upper_user = None
+            self._joint_vel_limits_user = None
+            self._joint_effort_limits_user = None
+            self._previous_joint_vel.assign(self._sim_bind_joint_vel)
+            self._actuator_stiffness.assign(self._sim_bind_joint_stiffness_sim)
+            self._actuator_damping.assign(self._sim_bind_joint_damping_sim)
+        self._joint_pos_limits_timestamp = -1.0
+        reset_timestamps([self._joint_acc])
+
+    def _configure_body_ordering_buffers(self) -> None:
+        """Allocate or release buffers owned only by nonidentity body ordering."""
+        if self._has_body_ordering:
+            shape = (self._num_instances, self._num_bodies)
+            if self._body_link_pose_w_user is None:
+                self._body_link_pose_w_user = TimestampedBuffer(shape=shape, dtype=wp.transformf, device=self.device)
+            if self._body_com_vel_w_user is None:
+                self._body_com_vel_w_user = TimestampedBuffer(shape=shape, dtype=wp.spatial_vectorf, device=self.device)
+            if self._body_com_acc_w_backend is None:
+                self._body_com_acc_w_backend = TimestampedBuffer(
+                    shape=shape, dtype=wp.spatial_vectorf, device=self.device
+                )
+            if self._body_mass_user is None:
+                self._body_mass_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
+            if self._body_inertia_user is None:
+                self._body_inertia_user = wp.zeros(
+                    (self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self.device
+                )
+            if self._body_com_pos_b_user is None:
+                self._body_com_pos_b_user = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+            self._validate_body_ordering_buffers()
+        else:
+            self._body_link_pose_w_user = None
+            self._body_com_vel_w_user = None
+            self._body_com_acc_w_backend = None
+            self._body_mass_user = None
+            self._body_inertia_user = None
+            self._body_com_pos_b_user = None
+
+        reset_timestamps(
+            [
+                self._body_link_pose_w_user,
+                self._body_com_vel_w_user,
+                self._body_com_acc_w_backend,
+                self._body_link_vel_w,
+                self._body_com_pose_b,
+                self._body_com_pose_w,
+                self._body_com_acc_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Configure and re-pin public buffers after ordering maps are installed."""
+        joint_ordering = self.joint_ordering
+        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
+        self._joint_user_to_backend = joint_ordering.user_to_backend if self._has_joint_ordering else None
+        body_ordering = self.body_ordering
+        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
+        self._body_user_to_backend = body_ordering.user_to_backend if self._has_body_ordering else None
+        self._jacobian_body_user_to_backend = (
+            self._make_jacobian_body_user_to_backend(body_ordering) if self._has_body_ordering else None
+        )
+
+        self._configure_joint_ordering_buffers()
+        if self._has_joint_ordering:
             self._sync_user_ordered_joint_property_buffers()
-            self._joint_pos_limits_timestamp = -1.0
+        self._configure_body_ordering_buffers()
         if self._has_body_ordering:
             self._sync_user_ordered_body_property_buffers()
         self._pin_proxy_arrays()
 
     def _sync_user_ordered_joint_property_buffers(self) -> None:
         """Refresh user-order joint property buffers from sim-bound backend-order arrays."""
+        self._validate_joint_ordering_buffers()
         for backend_data, user_data in (
             (self._sim_bind_joint_stiffness_sim, self._joint_stiffness_user),
             (self._sim_bind_joint_damping_sim, self._joint_damping_user),
@@ -2045,6 +2131,7 @@ class ArticulationData(BaseArticulationData):
 
     def _sync_user_ordered_body_property_buffers(self) -> None:
         """Refresh user-order body property buffers from sim-bound backend-order arrays."""
+        self._validate_body_ordering_buffers()
         wp.launch(
             ordering_kernels.reorder_2d_backend_to_user,
             dim=(self._num_instances, self._num_bodies),
@@ -2074,13 +2161,17 @@ class ArticulationData(BaseArticulationData):
         :meth:`_create_simulation_bindings` after a full simulation reset when
         the solver recreates its internal arrays.
         """
+        if self._has_joint_ordering:
+            self._validate_joint_ordering_buffers()
+        if self._has_body_ordering:
+            self._validate_body_ordering_buffers()
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
         if is_rebind and self._has_joint_ordering:
             self._sync_user_ordered_joint_property_buffers()
-            self._joint_pos_limits_timestamp = -1.0
         if is_rebind and self._has_body_ordering:
             self._sync_user_ordered_body_property_buffers()
         if is_rebind:
+            self._joint_pos_limits_timestamp = -1.0
             reset_timestamps(
                 [
                     self._joint_pos_user if self._has_joint_ordering else None,
