@@ -17,8 +17,10 @@ import torch
 import warp as wp
 
 from ...sim import SimulationContext
+from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
+from . import ordering_kernels
 from .ordering import ArticulationNameMap, build_articulation_name_map
 from .ordering_resolvers import _resolve_articulation_ordering_names
 
@@ -314,28 +316,6 @@ class BaseArticulation(AssetBase):
         has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
         if apply_ordering_maps is not None and (had_ordering or has_ordering):
             apply_ordering_maps()
-
-    def _cache_ordering_maps(self) -> None:
-        """Cache ordering maps used by hot write paths."""
-        joint_ordering = self.data.joint_ordering
-        if joint_ordering is None:
-            self._joint_user_to_backend = self._ALL_JOINT_INDICES
-            self._joint_backend_to_user = self._ALL_JOINT_INDICES
-            self._has_joint_ordering = False
-        else:
-            self._joint_user_to_backend = joint_ordering.user_to_backend
-            self._joint_backend_to_user = joint_ordering.backend_to_user
-            self._has_joint_ordering = not joint_ordering.is_identity
-
-        body_ordering = self.data.body_ordering
-        if body_ordering is None:
-            self._body_user_to_backend = self._ALL_BODY_INDICES
-            self._body_backend_to_user = self._ALL_BODY_INDICES
-            self._has_body_ordering = False
-        else:
-            self._body_user_to_backend = body_ordering.user_to_backend
-            self._body_backend_to_user = body_ordering.backend_to_user
-            self._has_body_ordering = not body_ordering.is_identity
 
     @property
     def num_base_dofs(self) -> int:
@@ -2351,6 +2331,246 @@ class BaseArticulation(AssetBase):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidates the scene elements."""
         super()._invalidate_initialize_callback(event)
+
+    """
+    Internal helpers -- Ordering.
+    """
+
+    def _cache_ordering_maps(self) -> None:
+        """Cache ordering maps while preserving persistent physical commands."""
+        cache_initialized = getattr(self, "_ordering_maps_cached", False)
+        if cache_initialized:
+            joint_command_buffers = self._ordering_joint_command_buffers()
+            joint_backend_snapshots = self._ordering_snapshot_buffers(
+                joint_command_buffers,
+                self.num_joints,
+                self._has_joint_ordering,
+                self._joint_backend_to_user,
+            )
+            body_command_buffers = self._ordering_body_command_buffers()
+            body_backend_snapshots = self._ordering_snapshot_buffers(
+                body_command_buffers,
+                self.num_bodies,
+                self._has_body_ordering,
+                self._body_backend_to_user,
+            )
+        else:
+            joint_command_buffers = ()
+            joint_backend_snapshots = ()
+            body_command_buffers = ()
+            body_backend_snapshots = ()
+
+        joint_ordering = self.data.joint_ordering
+        if joint_ordering is None:
+            self._joint_user_to_backend = self._ALL_JOINT_INDICES
+            self._joint_backend_to_user = self._ALL_JOINT_INDICES
+            self._has_joint_ordering = False
+        else:
+            self._joint_user_to_backend = joint_ordering.user_to_backend
+            self._joint_backend_to_user = joint_ordering.backend_to_user
+            self._has_joint_ordering = not joint_ordering.is_identity
+
+        body_ordering = self.data.body_ordering
+        if body_ordering is None:
+            self._body_user_to_backend = self._ALL_BODY_INDICES
+            self._body_backend_to_user = self._ALL_BODY_INDICES
+            self._has_body_ordering = False
+        else:
+            self._body_user_to_backend = body_ordering.user_to_backend
+            self._body_backend_to_user = body_ordering.backend_to_user
+            self._has_body_ordering = not body_ordering.is_identity
+
+        self._ordering_configure_backend_staging()
+
+        if cache_initialized:
+            self._ordering_restore_buffers(
+                joint_command_buffers,
+                joint_backend_snapshots,
+                self.num_joints,
+                self._has_joint_ordering,
+                self._joint_user_to_backend,
+            )
+            self._ordering_restore_buffers(
+                body_command_buffers,
+                body_backend_snapshots,
+                self.num_bodies,
+                self._has_body_ordering,
+                self._body_user_to_backend,
+            )
+            self._ordering_restore_backend_staging(joint_backend_snapshots)
+
+        self._ordering_maps_cached = True
+
+    def _ordering_configure_backend_staging(self) -> None:
+        """Configure backend-owned staging after ordering maps change."""
+
+    def _ordering_restore_backend_staging(self, joint_backend_snapshots: tuple[wp.array, ...]) -> None:
+        """Restore backend-owned staging from canonical joint snapshots."""
+
+    def _ordering_snapshot_buffers(
+        self,
+        user_buffers: tuple[wp.array, ...],
+        item_count: int,
+        has_ordering: bool,
+        backend_to_user: wp.array,
+    ) -> tuple[wp.array, ...]:
+        """Snapshot public-order command buffers in canonical backend order."""
+        backend_snapshots: list[wp.array] = []
+        for user_buffer in user_buffers:
+            backend_snapshot = wp.zeros_like(user_buffer)
+            if has_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_user_to_backend,
+                    dim=(self.num_instances, item_count),
+                    inputs=[user_buffer, backend_to_user],
+                    outputs=[backend_snapshot],
+                    device=self.device,
+                )
+            else:
+                backend_snapshot.assign(user_buffer)
+            backend_snapshots.append(backend_snapshot)
+        return tuple(backend_snapshots)
+
+    def _ordering_restore_buffers(
+        self,
+        user_buffers: tuple[wp.array, ...],
+        backend_snapshots: tuple[wp.array, ...],
+        item_count: int,
+        has_ordering: bool,
+        user_to_backend: wp.array,
+    ) -> None:
+        """Restore canonical command snapshots into the current public order."""
+        for user_buffer, backend_snapshot in zip(user_buffers, backend_snapshots, strict=True):
+            if has_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self.num_instances, item_count),
+                    inputs=[backend_snapshot, user_to_backend],
+                    outputs=[user_buffer],
+                    device=self.device,
+                )
+            else:
+                user_buffer.assign(backend_snapshot)
+
+    def _ordering_joint_command_buffers(self) -> tuple[wp.array, ...]:
+        """Return persistent public-order joint command and telemetry buffers."""
+        buffers = [
+            self.data._joint_pos_target,
+            self.data._joint_vel_target,
+            self.data._joint_effort_target,
+            self.data._computed_torque,
+            self.data._applied_torque,
+        ]
+        for buffer_name in (
+            "_joint_pos_target_sim",
+            "_joint_vel_target_sim",
+            "_joint_effort_target_sim",
+        ):
+            buffer = getattr(self, buffer_name, None)
+            if buffer is not None:
+                buffers.append(buffer)
+        return tuple(buffers)
+
+    def _ordering_body_command_buffers(self) -> tuple[wp.array, ...]:
+        """Return persistent public-order wrench-composer buffers."""
+        buffers = []
+        for composer_name in ("_instantaneous_wrench_composer", "_permanent_wrench_composer"):
+            composer = getattr(self, composer_name, None)
+            if composer is None:
+                continue
+            for buffer_name in (
+                "_global_force_w",
+                "_global_torque_w",
+                "_global_force_at_com_w",
+                "_local_force_b",
+                "_local_torque_b",
+                "_out_force_b",
+                "_out_torque_b",
+            ):
+                buffers.append(getattr(composer, buffer_name))
+        return tuple(buffers)
+
+    def _get_backend_ordered_joint_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order joint buffer."""
+        if not self._has_joint_ordering:
+            return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError(f"{self.__backend_name__} joint ordering requires backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        wp.launch(
+            ordering_kernels.reorder_2d_user_to_backend,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[user_buffer, self._joint_backend_to_user],
+            outputs=[backend_data],
+            device=self.device,
+        )
+        return backend_data
+
+    def _get_backend_ordered_joint_3d_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        component_count: int,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order 3-D joint buffer."""
+        if not self._has_joint_ordering:
+            return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError(f"{self.__backend_name__} joint ordering requires 3-D backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        wp.launch(
+            ordering_kernels.reorder_3d_user_to_backend,
+            dim=(self.num_instances, self.num_joints, component_count),
+            inputs=[user_buffer, self._joint_backend_to_user],
+            outputs=[backend_data],
+            device=self.device,
+        )
+        return backend_data
+
+    def _get_backend_ordered_body_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order body buffer."""
+        if not self._has_body_ordering:
+            return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError(f"{self.__backend_name__} body ordering requires backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        wp.launch(
+            ordering_kernels.reorder_2d_user_to_backend,
+            dim=(self.num_instances, self.num_bodies),
+            inputs=[user_buffer, self._body_backend_to_user],
+            outputs=[backend_data],
+            device=self.device,
+        )
+        return backend_data
+
+    def _get_backend_ordered_body_3d_buffer(
+        self,
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        component_count: int,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order 3-D body buffer."""
+        if not self._has_body_ordering:
+            return user_buffer
+        if backend_buffer is None:
+            raise RuntimeError(f"{self.__backend_name__} body ordering requires 3-D backend staging.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        wp.launch(
+            ordering_kernels.reorder_3d_user_to_backend,
+            dim=(self.num_instances, self.num_bodies, component_count),
+            inputs=[user_buffer, self._body_backend_to_user],
+            outputs=[backend_data],
+            device=self.device,
+        )
+        return backend_data
 
     """
     Internal helpers -- Actuators.
