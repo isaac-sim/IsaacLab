@@ -17,15 +17,24 @@ from isaaclab.test.benchmark.measurements import (
     DictMetadata,
     FloatMetadata,
     IntMetadata,
+    ListMeasurement,
     Measurement,
     MetadataBase,
+    SingleMeasurement,
     StringMetadata,
     TestPhase,
 )
 from isaaclab.test.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
 
 if TYPE_CHECKING:
-    from isaaclab.test.benchmark.schema import RuntimeBundle, StartupBundle, TrainingBundle
+    from isaaclab.test.benchmark.schema import (
+        LearningCurve,
+        MeanStd,
+        Runtime,
+        RuntimeBundle,
+        StartupBundle,
+        TrainingBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +58,99 @@ def _is_measurement_type(obj: object) -> bool:
 def _is_metadata_type(obj: object) -> bool:
     """Check if object is a metadata type by class name (supports isaacsim types)."""
     return type(obj).__name__ in _METADATA_CLASS_NAMES
+
+
+def _stat_measurements(name: str, stats: "MeanStd", unit: str, scale: float = 1.0) -> list[Measurement]:
+    """Convert a schema aggregate to flat scalar measurements."""
+    measurements: list[Measurement] = [
+        SingleMeasurement(name=f"Mean {name}", value=stats.mean * scale, unit=unit),
+        SingleMeasurement(name=f"Std {name}", value=stats.std * scale, unit=unit),
+    ]
+    if stats.peak is not None:
+        measurements.append(SingleMeasurement(name=f"Max {name}", value=stats.peak * scale, unit=unit))
+    return measurements
+
+
+def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
+    """Convert schema runtime metrics to startup and runtime phases."""
+    startup_fields = (
+        ("app_launch", "App Launch Time"),
+        ("python_imports", "Python Imports Time"),
+        ("task_config", "Task Creation and Start Time"),
+        ("env_creation", "Scene Creation Time"),
+        ("first_step", "Simulation Start Time"),
+    )
+    startup = [
+        SingleMeasurement(name=label, value=value * 1000.0, unit="ms")
+        for field, label in startup_fields
+        if (value := getattr(runtime.startup_time_s, field)) is not None
+    ]
+    if startup:
+        startup.append(
+            SingleMeasurement(
+                name="Total Start Time (Launch to Train)",
+                value=sum(float(measurement.value) for measurement in startup),
+                unit="ms",
+            )
+        )
+
+    runtime_metrics: list[Measurement] = [
+        SingleMeasurement(name="Iterations Completed", value=runtime.iterations_completed, unit="count"),
+        SingleMeasurement(name="Total Wall Time", value=runtime.total_wall_time_s, unit="s"),
+        SingleMeasurement(name="Steps per Iteration", value=runtime.steps_per_iteration, unit="frames"),
+    ]
+    runtime_metrics.extend(_stat_measurements("Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
+    runtime_metrics.extend(_stat_measurements("Collection FPS", runtime.collection_fps, "FPS"))
+    runtime_metrics.extend(_stat_measurements("Total FPS", runtime.total_fps, "FPS"))
+    runtime_metrics.extend(_stat_measurements("Iterations per Second", runtime.iterations_per_s, "iterations/s"))
+    return {"startup": startup, "runtime": runtime_metrics}
+
+
+def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) -> list[Measurement]:
+    """Convert one training curve to scalar and optional series measurements."""
+    measurements: list[Measurement] = [
+        SingleMeasurement(name=f"Last {label}", value=curve.final_raw, unit="float"),
+        SingleMeasurement(name=f"EMA {ema_alpha:g} {label}", value=curve.final_ema, unit="float"),
+    ]
+    if curve.series_per_iter is not None:
+        plural = "Rewards" if label == "Reward" else "Episode Lengths"
+        measurements.append(ListMeasurement(name=plural, value=curve.series_per_iter))
+        if curve.series_per_iter:
+            measurements.append(SingleMeasurement(name=f"Max {plural}", value=max(curve.series_per_iter), unit="float"))
+    return measurements
+
+
+def _measurements_from_bundle(
+    bundle: "RuntimeBundle | TrainingBundle | StartupBundle",
+) -> dict[str, list[Measurement]]:
+    """Project a typed bundle into flat phases for non-schema formatters."""
+    from isaaclab.test.benchmark.schema import StartupBundle, TrainingBundle
+
+    if isinstance(bundle, StartupBundle):
+        projected: dict[str, list[Measurement]] = {}
+        for phase_name, phase in bundle.phases.items():
+            measurements: list[Measurement] = [
+                SingleMeasurement(name="Wall Clock Time", value=phase.total_time_s, unit="s")
+            ]
+            for function in phase.top_functions:
+                measurements.extend(
+                    [
+                        SingleMeasurement(name=f"{function.name} Own Time", value=function.own_time_s, unit="s"),
+                        SingleMeasurement(name=f"{function.name} Cumulative Time", value=function.cum_time_s, unit="s"),
+                        SingleMeasurement(name=f"{function.name} Calls", value=function.calls, unit="count"),
+                    ]
+                )
+            projected[phase_name] = measurements
+        return projected
+
+    projected = _runtime_measurements(bundle.runtime)
+    if isinstance(bundle, TrainingBundle):
+        train = _curve_measurements("Reward", bundle.learning.reward, bundle.learning.ema_alpha)
+        train.extend(_curve_measurements("Episode Length", bundle.learning.ep_length, bundle.learning.ema_alpha))
+        if bundle.success_rate is not None:
+            train.append(SingleMeasurement(name="success_rate", value=bundle.success_rate, unit="float"))
+        projected["train"] = train
+    return projected
 
 
 class BaseIsaacLabBenchmark:
@@ -240,13 +342,15 @@ class BaseIsaacLabBenchmark:
         return metadata
 
     def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None") -> None:
-        """Attach a typed benchmark bundle for the ``"schema"`` formatter to serialize on finalize.
+        """Attach a typed bundle for schema serialization and flat-formatter projection.
 
         Args:
-            bundle: A :class:`~isaaclab.test.benchmark.RuntimeBundle`, ``TrainingBundle`` or
-                ``StartupBundle``. Ignored by every formatter except ``schema``.
+            bundle: Runtime, training, or startup benchmark bundle.
         """
         self._bundle = bundle
+        if bundle is not None:
+            for phase_name, measurements in _measurements_from_bundle(bundle).items():
+                self.add_measurement(phase_name, measurement=measurements)
 
     def update_manual_recorders(self) -> None:
         """Update manual recorders that don't depend on the kit timeline."""

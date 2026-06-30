@@ -398,7 +398,7 @@ class SummaryMetrics(MetricsFormatterInterface):
         return None
 
     def _summarize_runtime_metrics(self, measurements: list) -> list[str]:
-        """Build min/mean/max summary rows from SingleMeasurement runtime metrics.
+        """Build summary rows from scalar runtime statistics.
 
         Args:
             measurements: List of measurements (typically from the runtime phase).
@@ -428,6 +428,10 @@ class SummaryMetrics(MetricsFormatterInterface):
                 base = name[len("Mean ") :]
                 series.setdefault(base, {})["mean"] = float(value)
                 units.setdefault(base, unit)
+            elif name.startswith("Std "):
+                base = name[len("Std ") :]
+                series.setdefault(base, {})["std"] = float(value)
+                units.setdefault(base, unit)
 
         category_order = ["Collection", "Learning", "Step Times", "Throughput", "Other"]
         categorized: dict[str, list[str]] = {key: [] for key in category_order}
@@ -435,10 +439,11 @@ class SummaryMetrics(MetricsFormatterInterface):
             raw_unit = units.get(base)
             unit = (raw_unit or "").strip() if isinstance(raw_unit, str) else ""
             unit_suffix = f" {unit}" if unit else ""
-            min_val = self._format_scalar(stats.get("min", 0.0))
-            mean_val = self._format_scalar(stats.get("mean", 0.0))
-            max_val = self._format_scalar(stats.get("max", 0.0))
-            row = f"{base} (min/mean/max): {min_val} / {mean_val} / {max_val}{unit_suffix}"
+            statistic_order = ("min", "mean", "std", "max")
+            available = [statistic for statistic in statistic_order if statistic in stats]
+            values = " / ".join(self._format_scalar(stats[statistic]) for statistic in available)
+            labels = "/".join(available)
+            row = f"{base} ({labels}): {values}{unit_suffix}"
 
             if "Collection" in base:
                 categorized["Collection"].append(row)

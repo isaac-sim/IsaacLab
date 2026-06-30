@@ -7,6 +7,7 @@
 
 import json
 import os
+from dataclasses import replace
 
 import pytest
 
@@ -88,6 +89,47 @@ def _minimal_runtime_bundle():
             cpu_util_pct=MeanStd(mean=30.0, std=4.0),
             ram_gb=MeanStd(mean=20.0, std=1.0, peak=24.0),
         ),
+    )
+
+
+def _minimal_training_bundle():
+    from isaaclab.test.benchmark.schema import Learning, LearningCurve, TrainingBundle
+
+    bundle = _minimal_runtime_bundle()
+    return TrainingBundle(
+        run=replace(bundle.run, framework="rsl_rl", max_iterations=1),
+        versions=bundle.versions,
+        hardware=bundle.hardware,
+        runtime=bundle.runtime,
+        resources=bundle.resources,
+        learning=Learning(
+            ema_alpha=0.95,
+            reward=LearningCurve(final_raw=3.0, final_ema=2.5, series_per_iter=[1.0, 3.0]),
+            ep_length=LearningCurve(final_raw=20.0, final_ema=18.0, series_per_iter=[10.0, 20.0]),
+        ),
+        success_rate=0.75,
+    )
+
+
+def _minimal_startup_bundle():
+    from isaaclab.test.benchmark.schema import CProfileFunction, StartupBundle, StartupConfig, StartupPhase
+
+    bundle = _minimal_runtime_bundle()
+    return StartupBundle(
+        run=replace(bundle.run, num_envs=None),
+        versions=bundle.versions,
+        hardware=bundle.hardware,
+        phases={
+            "python_imports": StartupPhase(
+                total_time_s=0.25,
+                top_functions=[
+                    CProfileFunction(
+                        name="isaaclab_tasks.utils:import_packages", own_time_s=0.1, cum_time_s=0.2, calls=2
+                    )
+                ],
+            )
+        },
+        config=StartupConfig(top_n=1, whitelist=None),
     )
 
 
@@ -184,6 +226,29 @@ def test_formatter_selection_and_output_filenames(tmp_path):
         json_data = json.load(f)
     assert schema_data != json_data
     assert schema_data["run"]["task"] == "Isaac-Ant-Direct-v0"
+
+
+def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
+    cases = [
+        (_minimal_runtime_bundle(), "runtime", "Mean Total FPS", 100.0),
+        (_minimal_training_bundle(), "train", "Last Reward", 3.0),
+        (_minimal_startup_bundle(), "python_imports", "Wall Clock Time", 0.25),
+    ]
+
+    for index, (bundle, phase, metric, expected) in enumerate(cases):
+        benchmark = BaseIsaacLabBenchmark(
+            f"bundle_{index}",
+            formatter_type="omniperf",
+            output_path=str(tmp_path),
+            use_recorders=False,
+            output_prefix=f"bundle_{index}",
+        )
+        benchmark.attach_bundle(bundle)
+        benchmark._finalize_impl()
+
+        with open(benchmark.output_file_path) as f:
+            data = json.load(f)
+        assert data[phase][metric] == expected
 
 
 def test_metrics_formatter_factory_registration_cache_and_errors():
