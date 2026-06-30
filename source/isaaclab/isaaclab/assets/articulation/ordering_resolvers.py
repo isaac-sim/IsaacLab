@@ -6,9 +6,12 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from .ordering import ArticulationOrderingConvention, parse_articulation_ordering_convention
+
+if TYPE_CHECKING:
+    from .base_articulation import BaseArticulation
 
 
 def _backend_matches_ordering_convention(
@@ -473,7 +476,7 @@ def _get_root_view_convention_names(
 
 def resolve_articulation_convention_name_ordering(
     *,
-    articulation: object,
+    articulation: BaseArticulation,
     convention: str | ArticulationOrderingConvention,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
@@ -538,7 +541,7 @@ def resolve_articulation_convention_name_ordering(
 
 
 def get_physx_articulation_name_ordering(
-    articulation: object,
+    articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
     """Return articulation names in the PhysX backend convention order.
@@ -558,7 +561,7 @@ def get_physx_articulation_name_ordering(
 
 
 def get_mjwarp_articulation_name_ordering(
-    articulation: object,
+    articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
     """Return articulation names in the MJWarp/Newton backend convention order.
@@ -578,7 +581,7 @@ def get_mjwarp_articulation_name_ordering(
 
 
 def get_robot_schema_articulation_name_ordering(
-    articulation: object,
+    articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
     """Return articulation names in Isaac Sim robot schema order.
@@ -603,7 +606,7 @@ def resolve_articulation_ordering_names(
     backend_names: Sequence[str],
     ordering: Sequence[str] | str | ArticulationOrderingConvention | None,
     active_backend_name: str,
-    articulation: object | None = None,
+    articulation: BaseArticulation | None = None,
     convention_name_resolver: Callable[[ArticulationOrderingConvention, Literal["joint", "body"]], Sequence[str]]
     | None = None,
 ) -> tuple[str, ...]:
@@ -625,16 +628,30 @@ def resolve_articulation_ordering_names(
         Concrete public names requested by :paramref:`ordering`.
 
     Raises:
+        ValueError: If :paramref:`ordering` is an unsupported convention string.
+        TypeError: If :paramref:`ordering` has an unsupported type or an explicit
+            name sequence contains a non-string element.
         NotImplementedError: If a cross-backend symbolic convention is requested
             without a convention resolver.
     """
     backend_names = tuple(backend_names)
     if ordering is None:
         return backend_names
-    if isinstance(ordering, list | tuple):
-        return tuple(ordering)
+    if isinstance(ordering, ArticulationOrderingConvention):
+        convention = ordering
+    elif isinstance(ordering, str):
+        convention = parse_articulation_ordering_convention(ordering)
+    elif isinstance(ordering, Sequence) and not isinstance(ordering, bytes | bytearray):
+        explicit_names = tuple(ordering)
+        for index, value in enumerate(explicit_names):
+            if not isinstance(value, str):
+                raise TypeError(f"{kind}_ordering element {index} must be str; got {value!r} ({type(value).__name__}).")
+        return explicit_names
+    else:
+        raise TypeError(
+            f"{kind}_ordering must be a name sequence, convention string/enum, or None; got {type(ordering).__name__}."
+        )
 
-    convention = parse_articulation_ordering_convention(ordering)
     if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
         return backend_names
     if convention_name_resolver is not None:

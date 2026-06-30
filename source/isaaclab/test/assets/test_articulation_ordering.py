@@ -5,6 +5,7 @@
 
 import sys
 import types
+from collections import UserList
 
 import numpy as np
 import pytest
@@ -193,6 +194,56 @@ def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None
     )
 
     assert user_names == ("joint_2", "joint_0", "joint_1")
+
+
+def test_resolve_articulation_ordering_names_accepts_generic_sequence() -> None:
+    """Resolve explicit public ordering names from a generic sequence."""
+    user_names = resolve_articulation_ordering_names(
+        kind="joint",
+        backend_names=("joint_0", "joint_1", "joint_2"),
+        ordering=UserList(["joint_2", "joint_0", "joint_1"]),
+        active_backend_name="physx",
+    )
+
+    assert user_names == ("joint_2", "joint_0", "joint_1")
+
+
+def test_resolve_articulation_ordering_names_reports_non_string_element() -> None:
+    """Report the location and type of invalid explicit ordering elements."""
+    with pytest.raises(TypeError) as exc_info:
+        resolve_articulation_ordering_names(
+            kind="joint",
+            backend_names=("joint_0", "joint_1", "joint_2"),
+            ordering=UserList(["joint_1", 7]),
+            active_backend_name="physx",
+        )
+
+    assert str(exc_info.value) == "joint_ordering element 1 must be str; got 7 (int)."
+
+
+@pytest.mark.parametrize(
+    ("ordering", "type_name"),
+    [
+        (7, "int"),
+        (b"", "bytes"),
+        (b"joint_0", "bytes"),
+        (bytearray(), "bytearray"),
+        (bytearray(b"joint_0"), "bytearray"),
+    ],
+)
+def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, type_name: str) -> None:
+    """Report accepted resolver inputs for unsupported scalar orderings."""
+    with pytest.raises(TypeError) as exc_info:
+        resolve_articulation_ordering_names(
+            kind="joint",
+            backend_names=("joint_0", "joint_1", "joint_2"),
+            ordering=ordering,
+            active_backend_name="physx",
+        )
+
+    assert str(exc_info.value) == (
+        f"joint_ordering must be a name sequence, convention string/enum, or None; got {type_name}."
+    )
 
 
 def test_resolve_articulation_ordering_names_keeps_matching_backend_preset_identity() -> None:
