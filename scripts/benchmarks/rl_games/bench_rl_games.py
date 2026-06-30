@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 _BENCH_DIR = Path(__file__).resolve().parents[1]
@@ -92,11 +93,12 @@ def run(argv: list[str]) -> None:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
+    imports_t0 = time.perf_counter_ns()
+
     import contextlib
     import math
     import os
     import random
-    import time
     from datetime import datetime
 
     import torch
@@ -127,6 +129,8 @@ def run(argv: list[str]) -> None:
         success_measurements,
     )
 
+    imports_t1 = time.perf_counter_ns()
+
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
     torch.backends.cudnn.deterministic = False
@@ -134,7 +138,9 @@ def run(argv: list[str]) -> None:
 
     args_cli, remaining_args = _parse_args(argv)
 
+    config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -250,6 +256,8 @@ def run(argv: list[str]) -> None:
             app_launch=(app_t1 - app_t0) / 1e9,
             env_creation=(env_t1 - env_t0) / 1e9,
             first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+            python_imports=(imports_t1 - imports_t0) / 1e9,
+            task_config=(config_t1 - config_t0) / 1e9,
         )
 
         runtime = builders.build_runtime(

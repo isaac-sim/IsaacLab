@@ -45,8 +45,11 @@ def test_training_skrl_writes_training_bundle(tmp_path, load_training_bundle):
     assert data["schema_version"] == "1.0"
     assert data["run"]["framework"] == "skrl"
     assert data["run"]["config"]["physics_backend"] == "newton_mjwarp"
+    assert data["runtime"]["startup_time_s"]["python_imports"] > 0
+    assert data["runtime"]["startup_time_s"]["task_config"] > 0
     assert 1 <= data["runtime"]["iterations_completed"] <= 5
     assert data["runtime"]["total_fps"]["mean"] > 0
     assert data["learning"]["reward"]["series_per_iter"] is not None
     assert len(data["learning"]["reward"]["series_per_iter"]) >= 1
     assert data["learning"]["reward"]["final_ema"] is not None
+    assert data["success_rate"] is not None

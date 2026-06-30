@@ -100,6 +100,47 @@ class RslRlEarlyStopWrapper:
         return self.runner.current_learning_iteration + 1
 
 
+class SuccessRateTrackerWrapper:
+    """Track success metrics from a raw Gymnasium environment.
+
+    Args:
+        env: Environment whose ``step`` method returns Gymnasium's five-tuple.
+        threshold: Minimum metric value to pass.
+        window: Consecutive iterations above the threshold to converge.
+        num_steps_per_env: Environment steps per training iteration.
+    """
+
+    def __init__(
+        self,
+        env,
+        threshold: float,
+        window: int,
+        num_steps_per_env: int,
+    ) -> None:
+        self.env = env
+        self.tracker = SuccessRateTracker(threshold, window, num_steps_per_env)
+        self._orig_step = env.step
+
+    def __enter__(self) -> SuccessRateTrackerWrapper:
+        self.env.step = self._step
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.env.step = self._orig_step
+
+    def _step(self, actions) -> tuple:
+        result = self._orig_step(actions)
+        self.tracker.record_step(result[4])
+        if self.tracker.at_iteration_boundary:
+            self.tracker.end_iteration()
+        return result
+
+
 class RlGamesEarlyStopObserver:
     """Track RL-Games success metrics and optionally stop on convergence.
 

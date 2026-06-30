@@ -6,3 +6,10 @@ Added
   ``skrl``, or ``sb3``) and emits :class:`~isaaclab.test.benchmark.TrainingBundle` output through
   ``--benchmark_formatter``. The RSL-RL and RL-Games adapters support optional success-metric
   early stopping; physics and rendering backends are selected with ``presets=`` Hydra tokens.
+
+Fixed
+^^^^^
+
+* Fixed SKRL and Stable-Baselines3 training bundles omitting task success rates
+  reported by the environment.
+* Fixed training bundles omitting Python-import and task-configuration startup timings.

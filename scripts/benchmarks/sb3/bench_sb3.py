@@ -165,6 +165,8 @@ def run(argv: list[str]) -> None:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
+    imports_t0 = time.perf_counter_ns()
+
     import contextlib
     import os
     from datetime import datetime
@@ -191,11 +193,20 @@ def run(argv: list[str]) -> None:
 
     apply_env_overrides = _common.apply_env_overrides
 
-    from scripts.benchmarks.early_stop import get_success_tracker, success_measurements
+    from scripts.benchmarks.early_stop import (
+        SuccessRateTrackerWrapper,
+        build_success_kwargs,
+        get_success_tracker,
+        success_measurements,
+    )
+
+    imports_t1 = time.perf_counter_ns()
 
     args_cli, remaining_args = _parse_args(argv)
 
+    config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -250,6 +261,13 @@ def run(argv: list[str]) -> None:
         env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
         env = _common.wrap_record_video(env, log_dir, args_cli)
         env_t1 = time.perf_counter_ns()
+        success_kwargs = build_success_kwargs(args_cli)
+        success_context = SuccessRateTrackerWrapper(
+            env,
+            success_kwargs["threshold"],
+            success_kwargs["window"],
+            num_steps_per_env=n_steps_cfg,
+        )
 
         env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
@@ -279,7 +297,7 @@ def run(argv: list[str]) -> None:
         cb = BenchmarkCallback()
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
 
-        with contextlib.suppress(KeyboardInterrupt), BenchmarkMonitor(benchmark, interval=1.0):
+        with contextlib.suppress(KeyboardInterrupt), success_context, BenchmarkMonitor(benchmark, interval=1.0):
             agent.learn(
                 total_timesteps=n_timesteps,
                 callback=[checkpoint_callback, cb],
@@ -309,6 +327,8 @@ def run(argv: list[str]) -> None:
             app_launch=(app_t1 - app_t0) / 1e9,
             env_creation=(env_t1 - env_t0) / 1e9,
             first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+            python_imports=(imports_t1 - imports_t0) / 1e9,
+            task_config=(config_t1 - config_t0) / 1e9,
         )
 
         runtime = builders.build_runtime(
@@ -328,7 +348,7 @@ def run(argv: list[str]) -> None:
 
         desc = RL_LIBRARY_DESCRIPTORS["sb3"]
         log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
-        success_tracker = get_success_tracker(args_cli, None, log_data)
+        success_tracker = get_success_tracker(args_cli, success_context.tracker, log_data)
         success_rate = round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
 
         versions = capture.capture_versions(benchmark)

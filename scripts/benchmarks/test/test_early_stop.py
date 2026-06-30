@@ -59,6 +59,17 @@ class _FakeEnv:
         return (None, None, None, extras)
 
 
+class _FakeGymEnv:
+    def __init__(self, extras_sequence):
+        self._seq = list(extras_sequence)
+        self.step_calls = 0
+
+    def step(self, actions):
+        extras = self._seq[self.step_calls] if self.step_calls < len(self._seq) else self._seq[-1]
+        self.step_calls += 1
+        return (None, None, None, None, extras)
+
+
 class _FakeBaseObserver:
     def __init__(self):
         self.calls: list[str] = []
@@ -170,6 +181,25 @@ class TestGetSuccessTracker:
             "Success Converged At Iter": -1,
             "Success Passed": 0,
         }
+
+
+class TestSuccessRateTrackerWrapper:
+    def test_tracks_raw_env_success_by_iteration(self):
+        env = _FakeGymEnv(
+            [
+                {"log": {DEFAULT_SUCCESS_TAG: 0.2}},
+                {"log": {DEFAULT_SUCCESS_TAG: 0.6}},
+                {"log": {DEFAULT_SUCCESS_TAG: 0.8}},
+                {"log": {DEFAULT_SUCCESS_TAG: 1.0}},
+            ]
+        )
+        wrapper = early_stop.SuccessRateTrackerWrapper(env, 0.5, 2, num_steps_per_env=2)
+
+        with wrapper:
+            for _ in range(4):
+                env.step(None)
+
+        assert wrapper.tracker.history == [pytest.approx(0.4), pytest.approx(0.9)]
 
 
 class TestRslRlEarlyStopWrapper:

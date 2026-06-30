@@ -205,6 +205,8 @@ def run(argv: list[str]) -> None:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
             after the dispatcher has stripped ``--rl_library``).
     """
+    imports_t0 = time.perf_counter_ns()
+
     import contextlib
     import os
 
@@ -226,7 +228,14 @@ def run(argv: list[str]) -> None:
     from isaaclab_tasks.utils import resolve_task_config
 
     apply_env_overrides = _common.apply_env_overrides
-    from scripts.benchmarks.early_stop import get_success_tracker, success_measurements
+    from scripts.benchmarks.early_stop import (
+        SuccessRateTrackerWrapper,
+        build_success_kwargs,
+        get_success_tracker,
+        success_measurements,
+    )
+
+    imports_t1 = time.perf_counter_ns()
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -243,7 +252,9 @@ def run(argv: list[str]) -> None:
         agent_cfg_entry_point = args_cli.agent
         algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
 
+    config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -303,6 +314,13 @@ def run(argv: list[str]) -> None:
         )
         env = _common.wrap_record_video(env, log_dir, args_cli)
         env_t1 = time.perf_counter_ns()
+        success_kwargs = build_success_kwargs(args_cli)
+        success_context = SuccessRateTrackerWrapper(
+            env,
+            success_kwargs["threshold"],
+            success_kwargs["window"],
+            num_steps_per_env=rollouts,
+        )
 
         env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
 
@@ -322,7 +340,7 @@ def run(argv: list[str]) -> None:
         runner = _BenchmarkRunner(env, agent_cfg)
         bt = runner._trainer
 
-        with BenchmarkMonitor(benchmark, interval=1.0):
+        with success_context, BenchmarkMonitor(benchmark, interval=1.0):
             runner.run()
 
         benchmark.update_manual_recorders()
@@ -341,6 +359,8 @@ def run(argv: list[str]) -> None:
             app_launch=(app_t1 - app_t0) / 1e9,
             env_creation=(env_t1 - env_t0) / 1e9,
             first_step=(iter_times_s[0] if iter_times_s else 0.0),
+            python_imports=(imports_t1 - imports_t0) / 1e9,
+            task_config=(config_t1 - config_t0) / 1e9,
         )
 
         runtime = builders.build_runtime(
@@ -360,7 +380,7 @@ def run(argv: list[str]) -> None:
 
         desc = RL_LIBRARY_DESCRIPTORS["skrl"]
         log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
-        success_tracker = get_success_tracker(args_cli, None, log_data)
+        success_tracker = get_success_tracker(args_cli, success_context.tracker, log_data)
         success_rate = round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
 
         versions = capture.capture_versions(benchmark)
