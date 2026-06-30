@@ -18,8 +18,9 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import sys
-from copy import deepcopy
+from copy import copy, deepcopy
 
+import numpy as np
 import pytest
 import torch
 import warp as wp
@@ -532,35 +533,150 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articula
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
 def test_newton_ordered_state_caches_invalidate_on_rebind(
-    sim, num_articulations, device, gravity_enabled, articulation_type
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
 ):
-    """Invalidate user-order state caches when Newton simulation bindings are re-created."""
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
-        joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
-        body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
-    )
+    """Rebind public state to recreated Newton arrays and invalidate ordered caches."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(
+            joint_ordering=tuple(reversed(_PANDA_JOINT_NAMES)),
+            body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+        )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
     sim.reset()
     assert articulation.is_initialized
-    assert articulation.data._has_joint_ordering
-    assert articulation.data._has_body_ordering
+    has_ordering = ordering_mode == "reversed"
+    assert articulation.data._has_joint_ordering is has_ordering
+    assert articulation.data._has_body_ordering is has_ordering
 
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    articulation.data.joint_pos.torch.clone()
-    articulation.data.joint_vel.torch.clone()
-    articulation.data.body_link_pose_w.torch.clone()
-    articulation.data.body_com_vel_w.torch.clone()
-    for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
-        assert getattr(articulation.data, cache_name).timestamp == articulation.data._sim_timestamp
+    data = articulation.data
+    public_to_binding = {
+        "joint_pos": "_sim_bind_joint_pos",
+        "joint_vel": "_sim_bind_joint_vel",
+        "body_link_pose_w": "_sim_bind_body_link_pose_w",
+        "body_com_vel_w": "_sim_bind_body_com_vel_w",
+    }
+    public_to_shadow = {
+        "joint_pos": "_joint_pos_user",
+        "joint_vel": "_joint_vel_user",
+        "body_link_pose_w": "_body_link_pose_w_user",
+        "body_com_vel_w": "_body_com_vel_w_user",
+    }
+    old_bindings = {name: getattr(data, name) for name in public_to_binding.values()}
+    old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
+    old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
+    data.joint_pos_limits.torch.clone()
+    assert data._joint_pos_limits_timestamp == data._sim_timestamp
+    if has_ordering:
+        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+            assert getattr(data, cache_name).timestamp == data._sim_timestamp
+    else:
+        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+            assert getattr(data, cache_name) is None
 
-    articulation.data._create_simulation_bindings()
+    old_state = SimulationManager.get_state_0()
+    old_model = SimulationManager.get_model()
+    new_state = copy(old_state)
+    new_model = copy(old_model)
 
-    for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
-        assert getattr(articulation.data, cache_name).timestamp == -1.0
+    joint_q_values = np.arange(len(old_state.joint_q), dtype=np.float32) + 1000.0
+    joint_qd_values = np.arange(len(old_state.joint_qd), dtype=np.float32) + 2000.0
+    body_indices = np.arange(len(old_state.body_q), dtype=np.float32)[:, None]
+    body_q_values = np.zeros((len(old_state.body_q), 7), dtype=np.float32)
+    body_q_values[:, :3] = 3000.0 + 10.0 * body_indices + np.arange(3, dtype=np.float32)
+    body_q_values[:, 6] = 1.0
+    body_qd_values = 4000.0 + 10.0 * body_indices + np.arange(6, dtype=np.float32)
+    limit_indices = np.arange(len(old_model.joint_limit_lower), dtype=np.float32)
+    limit_lower_values = -5000.0 - limit_indices
+    limit_upper_values = 5000.0 + limit_indices
+
+    new_state.joint_q = wp.array(joint_q_values, dtype=wp.float32, device=old_state.joint_q.device)
+    new_state.joint_qd = wp.array(joint_qd_values, dtype=wp.float32, device=old_state.joint_qd.device)
+    new_state.body_q = wp.array(body_q_values, dtype=wp.transformf, device=old_state.body_q.device)
+    new_state.body_qd = wp.array(body_qd_values, dtype=wp.spatial_vectorf, device=old_state.body_qd.device)
+    new_model.joint_limit_lower = wp.array(
+        limit_lower_values, dtype=wp.float32, device=old_model.joint_limit_lower.device
+    )
+    new_model.joint_limit_upper = wp.array(
+        limit_upper_values, dtype=wp.float32, device=old_model.joint_limit_upper.device
+    )
+    SimulationManager._state_0 = new_state
+    SimulationManager._model = new_model
+
+    body_velocities = articulation.root_view.get_link_velocities(new_state)
+    assert body_velocities is not None
+    new_source_bindings = {
+        "_sim_bind_joint_pos": articulation.root_view.get_dof_positions(new_state)[:, 0],
+        "_sim_bind_joint_vel": articulation.root_view.get_dof_velocities(new_state)[:, 0],
+        "_sim_bind_body_link_pose_w": articulation.root_view.get_link_transforms(new_state)[:, 0],
+        "_sim_bind_body_com_vel_w": body_velocities[:, 0],
+        "_sim_bind_joint_pos_limits_lower": articulation.root_view.get_attribute("joint_limit_lower", new_model)[:, 0],
+        "_sim_bind_joint_pos_limits_upper": articulation.root_view.get_attribute("joint_limit_upper", new_model)[:, 0],
+    }
+    for binding_name, new_source in new_source_bindings.items():
+        if binding_name in old_binding_ptrs:
+            assert int(new_source.ptr) != old_binding_ptrs[binding_name]
+
+    data._create_simulation_bindings()
+
+    for binding_name, old_binding in old_bindings.items():
+        rebound = getattr(data, binding_name)
+        assert rebound is not old_binding
+        assert int(rebound.ptr) != old_binding_ptrs[binding_name]
+        assert int(rebound.ptr) == int(new_source_bindings[binding_name].ptr)
+
+    assert data._joint_pos_limits_timestamp == -1.0
+    if has_ordering:
+        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+            assert getattr(data, cache_name).timestamp == -1.0
+
+    joint_user_to_backend = (
+        np.asarray(articulation.joint_ordering.user_to_backend_indices)
+        if articulation.joint_ordering is not None
+        else np.arange(articulation.num_joints)
+    )
+    body_user_to_backend = (
+        np.asarray(articulation.body_ordering.user_to_backend_indices)
+        if articulation.body_ordering is not None
+        else np.arange(articulation.num_bodies)
+    )
+    expected_public = {
+        "joint_pos": new_source_bindings["_sim_bind_joint_pos"].numpy()[:, joint_user_to_backend],
+        "joint_vel": new_source_bindings["_sim_bind_joint_vel"].numpy()[:, joint_user_to_backend],
+        "body_link_pose_w": new_source_bindings["_sim_bind_body_link_pose_w"].numpy()[:, body_user_to_backend],
+        "body_com_vel_w": new_source_bindings["_sim_bind_body_com_vel_w"].numpy()[:, body_user_to_backend],
+    }
+    for property_name, expected in expected_public.items():
+        proxy = getattr(data, property_name)
+        assert proxy is not old_public_proxies[property_name]
+        binding_name = public_to_binding[property_name]
+        assert int(proxy.warp.ptr) != old_binding_ptrs[binding_name]
+        if has_ordering:
+            shadow = getattr(data, public_to_shadow[property_name])
+            assert int(proxy.warp.ptr) == int(shadow.data.ptr)
+        else:
+            assert int(proxy.warp.ptr) == int(getattr(data, binding_name).ptr)
+        np.testing.assert_array_equal(proxy.warp.numpy(), expected)
+
+    expected_limits = np.stack(
+        (
+            new_source_bindings["_sim_bind_joint_pos_limits_lower"].numpy()[:, joint_user_to_backend],
+            new_source_bindings["_sim_bind_joint_pos_limits_upper"].numpy()[:, joint_user_to_backend],
+        ),
+        axis=-1,
+    )
+    np.testing.assert_array_equal(data.joint_pos_limits.warp.numpy(), expected_limits)
+    assert data._joint_pos_limits_timestamp == data._sim_timestamp
+
+    if has_ordering:
+        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
+            assert getattr(data, cache_name).timestamp == data._sim_timestamp
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
