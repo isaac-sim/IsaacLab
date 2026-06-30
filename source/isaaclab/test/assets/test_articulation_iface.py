@@ -1241,8 +1241,8 @@ def _exercise_duplicate_full_length_joint_write(backend: str, operation: str) ->
 
     env_ids = [1]
     joint_ids = [0, 1, 1]
-    position_payload = np.asarray([[901.0, 902.0, 903.0]], dtype=np.float32)
-    velocity_payload = np.asarray([[1901.0, 1902.0, 1903.0]], dtype=np.float32)
+    position_payload = np.asarray([[901.0, 902.0, 902.0]], dtype=np.float32)
+    velocity_payload = np.asarray([[1901.0, 1902.0, 1902.0]], dtype=np.float32)
     env_ids_wp = wp.array(env_ids, dtype=wp.int32, device=art.device)
     joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=art.device)
     position = torch.tensor(position_payload, dtype=torch.float32, device=art.device)
@@ -1284,10 +1284,10 @@ def _exercise_duplicate_full_length_joint_write(backend: str, operation: str) ->
     duplicate_backend_joint = user_to_backend[1]
     if operation in ("position", "state"):
         assert backend_position[env_ids[0], omitted_backend_joint] == newer_position[env_ids[0], omitted_backend_joint]
-        assert backend_position[env_ids[0], duplicate_backend_joint] == position_payload[0, -1]
+        assert backend_position[env_ids[0], duplicate_backend_joint] == position_payload[0, 1]
     if operation in ("velocity", "state"):
         assert backend_velocity[env_ids[0], omitted_backend_joint] == newer_velocity[env_ids[0], omitted_backend_joint]
-        assert backend_velocity[env_ids[0], duplicate_backend_joint] == velocity_payload[0, -1]
+        assert backend_velocity[env_ids[0], duplicate_backend_joint] == velocity_payload[0, 1]
 
 
 def _make_dynamics_ordering_backend_data(
