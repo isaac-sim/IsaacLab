@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unified training-benchmark dispatcher (mirrors scripts/reinforcement_learning/train.py).
-
-Selects the RL library via ``--rl_library`` and forwards remaining args to the matching
-benchmark adapter under ``scripts/benchmarks/<library>/bench_<library>.py``, which runs real
-training under a ``BenchmarkMonitor`` and emits a ``TrainingBundle``.
-"""
+"""Dispatch training benchmarks to the selected RL library adapter."""
 
 from __future__ import annotations
 

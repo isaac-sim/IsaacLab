@@ -15,26 +15,8 @@ ROOT = Path(__file__).resolve().parents[3]
 
 _TASK = "Isaac-Cartpole-Direct"
 
-# Top-level keys that identify a schema TrainingBundle (runtime bundle plus ``learning``).
-_TRAINING_BUNDLE_KEYS = {"run", "versions", "hardware", "runtime", "resources", "learning"}
 
-
-def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
-    """Return the parsed JSON whose top-level keys cover ``expected_keys``.
-
-    The schema formatter names its file from a timestamped prefix, so the smoke
-    tests glob the output directory rather than hardcode the filename.
-    """
-    candidates = sorted(out_dir.glob("*.json"))
-    assert candidates, f"no *.json written to {out_dir}"
-    for path in candidates:
-        data = json.loads(path.read_text())
-        if expected_keys <= set(data):
-            return data
-    pytest.fail(f"no bundle in {out_dir} contained keys {expected_keys}; found {[p.name for p in candidates]}")
-
-
-def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
+def test_training_rsl_rl_writes_training_bundle(tmp_path, load_training_bundle):
     sh = ROOT / "isaaclab.sh"
     cmd = [
         str(sh),
@@ -50,6 +32,11 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
         "5",
         "--seed",
         "0",
+        "--video",
+        "--video_length",
+        "2",
+        "--video_interval",
+        "100000",
         "--benchmark_formatter",
         "schema,omniperf",
         "--output_path",
@@ -60,7 +47,7 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:
         pytest.fail(f"training.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
-    data = _find_bundle(tmp_path, _TRAINING_BUNDLE_KEYS)
+    data = load_training_bundle(tmp_path)
     omniperf_files = list(tmp_path.glob("*_omniperf.json"))
     assert len(omniperf_files) == 1
     omniperf_data = json.loads(omniperf_files[0].read_text())
@@ -74,3 +61,5 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, require_isaacsim):
     assert data["learning"]["reward"]["final_ema"] is not None
     assert omniperf_data["runtime"]["Mean Total FPS"] == pytest.approx(data["runtime"]["total_fps"]["mean"])
     assert omniperf_data["train"]["Last Reward"] == pytest.approx(data["learning"]["reward"]["final_raw"])
+    video_path = Path(data["video_path"])
+    assert any(video_path.rglob("*.mp4"))

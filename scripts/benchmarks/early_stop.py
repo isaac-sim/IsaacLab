@@ -3,14 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Early stopping for benchmark training based on a success metric.
-
-Framework-specific implementations that monitor a metric from ``extras["log"]``
-and stop training when it stabilizes above a threshold:
-
-- **rsl_rl**: ``env.step`` wrapper + exception (no callback API in rsl_rl).
-- **rl_games**: ``AlgoObserver`` subclass, sets ``max_epochs`` for clean exit.
-"""
+"""Success-metric tracking and early stopping for training benchmarks."""
 
 from __future__ import annotations
 
@@ -18,13 +11,14 @@ import argparse
 import os
 from typing import TYPE_CHECKING
 
+from isaaclab.test.benchmark import SingleMeasurement
 from isaaclab.test.benchmark.metrics import SuccessRateTracker, get_success_rate_log
 
 if TYPE_CHECKING:
     from types import TracebackType
 
     from rl_games.common.algo_observer import AlgoObserver
-    from rsl_rl.runners import OnPolicyRunner
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper
 
@@ -37,17 +31,11 @@ class EarlyStopConverged(Exception):
 
 
 class RslRlEarlyStopWrapper:
-    """Context manager that wraps ``env.step`` to track a success metric during rsl_rl training.
-
-    Always records the metric into :attr:`tracker` so the caller can log the tail mean / converged-at
-    iteration regardless of whether early stopping is enabled. When ``stop_on_convergence=True``, the
-    wrapper also raises :class:`EarlyStopConverged` on the first iteration where the trailing window
-    is above threshold, performs runner cleanup (checkpoint save + logger flush), and suppresses the
-    exception so the caller sees a normal return from :meth:`rsl_rl.runners.OnPolicyRunner.learn`.
+    """Track RSL-RL success metrics and optionally stop on convergence.
 
     Args:
         env: ``RslRlVecEnvWrapper`` instance.
-        runner: ``OnPolicyRunner`` instance.
+        runner: RSL-RL runner instance.
         threshold: Minimum metric value to pass.
         window: Consecutive iterations above threshold to trigger stop.
         num_steps_per_env: Steps per RL iteration.
@@ -58,7 +46,7 @@ class RslRlEarlyStopWrapper:
     def __init__(
         self,
         env: RslRlVecEnvWrapper,
-        runner: OnPolicyRunner,
+        runner: OnPolicyRunner | DistillationRunner,
         threshold: float,
         window: int,
         num_steps_per_env: int,
@@ -96,8 +84,6 @@ class RslRlEarlyStopWrapper:
         if self.tracker.at_iteration_boundary:
             self.tracker.end_iteration()
             if self.stop_on_convergence and self.tracker.converged:
-                # relies on rsl_rl's rollout loop not catching arbitrary exceptions; if upstream
-                # ever wraps env.step in a broad except, this exception will be swallowed
                 raise EarlyStopConverged()
         return result
 
@@ -110,23 +96,12 @@ class RslRlEarlyStopWrapper:
 
     @property
     def framework_iteration_count(self) -> int:
-        """Number of training iterations the rsl_rl runner has recorded as completed.
-
-        Note: ``current_learning_iteration`` is set AFTER rollout + policy update, so mid-rollout
-        (including the instant our early-stop exception fires) this counter lags :attr:`tracker`
-        by 1 iteration.
-        """
+        """Return completed runner iterations, including an active rollout."""
         return self.runner.current_learning_iteration + 1
 
 
 class RlGamesEarlyStopObserver:
-    """``AlgoObserver`` that tracks a success metric during rl_games training.
-
-    Always records the metric into :attr:`tracker` so the caller can log the tail mean / converged-at
-    iteration regardless of whether early stopping is enabled. When ``stop_on_convergence=True``, the
-    observer also sets ``algo.max_epochs`` on the first iteration where the trailing window is above
-    threshold, which forces a clean exit from :meth:`rl_games.torch_runner.Runner.run`. All other
-    observer calls are delegated to *base_observer*.
+    """Track RL-Games success metrics and optionally stop on convergence.
 
     Args:
         base_observer: Original ``AlgoObserver`` to delegate to.
@@ -162,7 +137,7 @@ class RlGamesEarlyStopObserver:
     def process_infos(self, infos, done_indices) -> None:
         self._base.process_infos(infos, done_indices)
         if self.tracker is not None and isinstance(infos, dict) and "episode" in infos:
-            # rl_games remaps extras["log"] → extras["episode"]
+            # rl_games remaps extras["log"] to extras["episode"]
             self.tracker.record_step({"log": infos["episode"]})
 
     def after_steps(self) -> None:
@@ -186,25 +161,25 @@ class RlGamesEarlyStopObserver:
 
     @property
     def framework_iteration_count(self) -> int | None:
-        """Number of training iterations the rl_games algo has recorded.
-
-        rl_games increments ``algo.epoch_num`` at the start of each iteration, so after iter N
-        completes this value equals N (matching :attr:`tracker`'s count exactly). Returns
-        ``None`` before :meth:`after_init` has attached to an algo.
-        """
+        """Return the RL-Games epoch count, or ``None`` before initialization."""
         return None if self.algo is None else self.algo.epoch_num
 
 
-def add_success_cli_args(parser: argparse.ArgumentParser) -> None:
+def add_success_cli_args(parser: argparse.ArgumentParser, *, include_check_success: bool = True) -> None:
     """Register the success-metric CLI args on *parser*.
 
-    Adds ``--check_success``, ``--success_threshold``, and ``--success_window``. Use
-    :func:`build_success_kwargs` to resolve the parsed values into a kwargs dict for
-    the wrapper constructors.
+    Args:
+        parser: Parser receiving the success-metric arguments.
+        include_check_success: Whether to register the early-stop flag. Integrations
+            without live success tracking still accept threshold and window overrides
+            for post-hoc diagnostics.
     """
-    parser.add_argument(
-        "--check_success", action="store_true", help="Early-stop when the normalized success metric converges."
-    )
+    if include_check_success:
+        parser.add_argument(
+            "--check_success", action="store_true", help="Early-stop when the normalized success metric converges."
+        )
+    else:
+        parser.set_defaults(check_success=False)
     parser.add_argument(
         "--success_threshold",
         type=float,
@@ -220,10 +195,7 @@ def add_success_cli_args(parser: argparse.ArgumentParser) -> None:
 
 
 def build_success_kwargs(args_cli: argparse.Namespace) -> dict[str, float | int | bool]:
-    """Resolve success-metric CLI args into kwargs for the wrapper constructors.
-
-    Returns a dict with ``threshold``, ``window``, and ``stop_on_convergence``, suitable
-    to splat into :class:`RslRlEarlyStopWrapper` or :class:`RlGamesEarlyStopObserver`.
+    """Resolve success-metric CLI args for the live tracker integrations.
 
     Returns:
         A dict with ``threshold``, ``window``, and ``stop_on_convergence`` keys.
@@ -233,7 +205,7 @@ def build_success_kwargs(args_cli: argparse.Namespace) -> dict[str, float | int 
             args_cli.success_threshold if args_cli.success_threshold is not None else DEFAULT_SUCCESS_THRESHOLD
         ),
         "window": args_cli.success_window if args_cli.success_window is not None else DEFAULT_SUCCESS_WINDOW,
-        "stop_on_convergence": args_cli.check_success,
+        "stop_on_convergence": getattr(args_cli, "check_success", False),
     }
 
 
@@ -265,3 +237,28 @@ def get_success_tracker(
     tracker = SuccessRateTracker(kwargs["threshold"], kwargs["window"], num_steps_per_env=0)
     tracker.history = list(history)
     return tracker
+
+
+def success_measurements(tracker: SuccessRateTracker | None) -> list[SingleMeasurement]:
+    """Build the established flat-output success diagnostics.
+
+    Args:
+        tracker: Success-rate tracker populated during or after training.
+
+    Returns:
+        Success tail mean, convergence iteration, and pass status, or an empty
+        list when no success metric was recorded.
+    """
+    if tracker is None or not tracker.history:
+        return []
+
+    converged = tracker.converged
+    return [
+        SingleMeasurement(name="Success Rate (tail mean)", value=round(tracker.tail_mean, 4), unit="float"),
+        SingleMeasurement(
+            name="Success Converged At Iter",
+            value=tracker.current_iteration if converged else -1,
+            unit="int",
+        ),
+        SingleMeasurement(name="Success Passed", value=int(converged), unit="bool"),
+    ]

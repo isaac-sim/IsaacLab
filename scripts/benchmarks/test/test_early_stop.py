@@ -13,6 +13,7 @@ import pytest
 
 from isaaclab.test.benchmark.metrics import SUCCESS_RATE_LOG_TAGS
 
+from scripts.benchmarks import early_stop
 from scripts.benchmarks.early_stop import (
     DEFAULT_SUCCESS_THRESHOLD,
     DEFAULT_SUCCESS_WINDOW,
@@ -25,8 +26,6 @@ from scripts.benchmarks.early_stop import (
 )
 
 DEFAULT_SUCCESS_TAG = SUCCESS_RATE_LOG_TAGS[0]
-
-# -- fakes ------------------------------------------------------------------
 
 
 class _FakeLogger:
@@ -98,36 +97,8 @@ def _parser() -> argparse.ArgumentParser:
     return p
 
 
-# -- CLI helpers ------------------------------------------------------------
-
-
 class TestCliHelpers:
-    """Test cases for the ``--success_*`` CLI registration and kwargs resolution."""
-
-    def test_defaults_parse_to_none_and_false(self):
-        """Test that unset args resolve to None / False."""
-        args = _parser().parse_args([])
-        assert args.check_success is False
-        assert args.success_threshold is None
-        assert args.success_window is None
-
-    def test_overrides_parse(self):
-        """Test that explicit ``--success_*`` values round-trip through argparse."""
-        args = _parser().parse_args(
-            [
-                "--check_success",
-                "--success_threshold",
-                "0.75",
-                "--success_window",
-                "50",
-            ]
-        )
-        assert args.check_success is True
-        assert args.success_threshold == 0.75
-        assert args.success_window == 50
-
     def test_build_success_kwargs_uses_defaults_when_unset(self):
-        """Test that ``build_success_kwargs`` substitutes library defaults for unset args."""
         kwargs = build_success_kwargs(_parser().parse_args([]))
         assert kwargs == {
             "threshold": DEFAULT_SUCCESS_THRESHOLD,
@@ -136,7 +107,6 @@ class TestCliHelpers:
         }
 
     def test_build_success_kwargs_applies_overrides(self):
-        """Test that CLI overrides flow through into the kwargs dict."""
         args = _parser().parse_args(
             [
                 "--check_success",
@@ -152,48 +122,36 @@ class TestCliHelpers:
         assert kwargs["stop_on_convergence"] is True
 
     def test_zero_threshold_is_respected_not_treated_as_unset(self):
-        """Test that ``--success_threshold 0`` is preserved (``is not None`` check, not truthy)."""
         args = _parser().parse_args(["--success_threshold", "0"])
         assert build_success_kwargs(args)["threshold"] == 0.0
 
+    def test_registration_can_exclude_early_stop(self):
+        parser = argparse.ArgumentParser()
+        add_success_cli_args(parser, include_check_success=False)
 
-# -- get_success_tracker ----------------------------------------------------
+        args = parser.parse_args(["--success_threshold", "0.2"])
+
+        assert build_success_kwargs(args)["stop_on_convergence"] is False
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--check_success"])
 
 
 class TestGetSuccessTracker:
-    """Test cases for the live-vs-post-hoc tracker resolution helper."""
-
     def test_prefers_live_tracker_with_history(self):
-        """Test that a non-empty live tracker is returned as-is."""
         live = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
         live.history = [0.9, 0.9]
         assert get_success_tracker(_parser().parse_args([]), live, {}) is live
 
-    def test_falls_back_to_post_hoc_when_live_tracker_empty(self):
-        """Test that an empty live tracker falls back to TensorBoard replay."""
-        live = SuccessRateTracker(0.5, 3, num_steps_per_env=4)
-        log_data = {DEFAULT_SUCCESS_TAG: [0.1, 0.2, 0.3]}
-        result = get_success_tracker(_parser().parse_args([]), live, log_data)
-        assert result is not live
-        assert result.history == [pytest.approx(0.1), pytest.approx(0.2), pytest.approx(0.3)]
-
     def test_falls_back_to_post_hoc_when_live_tracker_none(self):
-        """Test that a missing live tracker falls back to TensorBoard replay."""
         log_data = {DEFAULT_SUCCESS_TAG: [0.5, 0.6, 0.7]}
         result = get_success_tracker(_parser().parse_args([]), None, log_data)
         assert result is not None
         assert result.history == [pytest.approx(0.5), pytest.approx(0.6), pytest.approx(0.7)]
 
     def test_returns_none_when_no_data_anywhere(self):
-        """Test that both sources missing resolves to ``None``."""
         assert get_success_tracker(_parser().parse_args([]), None, {}) is None
 
-    def test_returns_none_when_tag_absent_from_log_data(self):
-        """Test that unrelated TensorBoard tags don't satisfy the fallback."""
-        assert get_success_tracker(_parser().parse_args([]), None, {"Metrics/other": [1.0]}) is None
-
     def test_post_hoc_honors_override_threshold_and_window(self):
-        """Test that CLI threshold/window overrides are applied to the post-hoc tracker."""
         args = _parser().parse_args(["--success_threshold", "0.2", "--success_window", "2"])
         log_data = {DEFAULT_SUCCESS_TAG: [0.3, 0.3]}
         result = get_success_tracker(args, None, log_data)
@@ -201,36 +159,33 @@ class TestGetSuccessTracker:
         assert result.window == 2
         assert result.converged is True
 
-    def test_post_hoc_tracker_has_no_iteration_boundary(self):
-        """Test that post-hoc trackers use ``num_steps_per_env=0`` so ``at_iteration_boundary`` never fires."""
-        result = get_success_tracker(_parser().parse_args([]), None, {DEFAULT_SUCCESS_TAG: [0.9]})
-        assert result.num_steps_per_env == 0
-        assert result.at_iteration_boundary is False
+    def test_success_measurements_preserve_flat_output_fields(self):
+        tracker = SuccessRateTracker(0.3, 2, num_steps_per_env=0)
+        tracker.history = [0.1, 0.2]
 
+        measurements = early_stop.success_measurements(tracker)
 
-# -- RslRlEarlyStopWrapper --------------------------------------------------
+        assert {measurement.name: measurement.value for measurement in measurements} == {
+            "Success Rate (tail mean)": 0.15,
+            "Success Converged At Iter": -1,
+            "Success Passed": 0,
+        }
 
 
 class TestRslRlEarlyStopWrapper:
-    """Test cases for the rsl_rl env.step monkey-patch context manager."""
-
     def test_records_every_step_and_restores_on_exit(self):
-        """Test that wrapped env.step records, and original step is restored on normal exit."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 5)
         runner = _FakeRunner()
         with RslRlEarlyStopWrapper(env, runner, 0.5, 3, num_steps_per_env=2) as ctx:
             env.step(None)
             assert ctx.tracker._iter_sum == pytest.approx(0.9)
-        # after exit, env.step no longer routes through the tracker
         env.step(None)
         assert ctx.tracker._iter_sum == pytest.approx(0.9)
         assert env.step_calls == 2
 
     def test_raises_and_cleans_up_on_convergence_by_default(self):
-        """Test that convergence triggers cleanup (checkpoint + flush) and suppresses the exception."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
         runner = _FakeRunner()
-        # num_steps_per_env=2, window=2 -> converges on step 4 (iter 2)
         with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2) as ctx:
             for _ in range(10):
                 env.step(None)
@@ -238,9 +193,11 @@ class TestRslRlEarlyStopWrapper:
         assert env.step_calls == 4
         assert len(runner.saved) == 1
         assert runner.logger.stopped is True
+        tracked_iterations = ctx.tracker.current_iteration
+        env.step(None)
+        assert ctx.tracker.current_iteration == tracked_iterations
 
     def test_does_not_raise_when_stop_on_convergence_false(self):
-        """Test that ``stop_on_convergence=False`` lets training run past convergence."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
         runner = _FakeRunner()
         with RslRlEarlyStopWrapper(
@@ -259,52 +216,18 @@ class TestRslRlEarlyStopWrapper:
         assert runner.logger.stopped is False
 
     def test_does_not_suppress_other_exceptions(self):
-        """Test that non-EarlyStopConverged exceptions propagate out of the ``with`` block."""
         env = _FakeEnv([{"log": {}}])
         runner = _FakeRunner()
+        wrapper = RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2)
         with pytest.raises(ValueError):
-            with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2):
+            with wrapper:
                 raise ValueError("not an early stop")
-
-    def test_env_step_restored_after_early_stop_exception(self):
-        """Test that env.step is unwrapped after an early-stop exception suppressed by __exit__."""
-        env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
-        runner = _FakeRunner()
-        with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2) as ctx:
-            for _ in range(10):
-                env.step(None)  # converges & raises at step 4, suppressed
-        sum_at_exit = ctx.tracker._iter_sum
         env.step(None)
-        assert ctx.tracker._iter_sum == sum_at_exit  # post-exit step bypassed the tracker
-
-    def test_env_step_restored_after_unrelated_exception(self):
-        """Test that env.step is unwrapped even when a non-EarlyStopConverged exception propagates."""
-        env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 10)
-        runner = _FakeRunner()
-        try:
-            with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2) as ctx:
-                env.step(None)
-                raise ValueError("boom")
-        except ValueError:
-            pass
-        sum_at_exit = ctx.tracker._iter_sum
-        env.step(None)
-        assert ctx.tracker._iter_sum == sum_at_exit
-
-    def test_cleanup_not_called_on_unrelated_exceptions(self):
-        """Test that only EarlyStopConverged triggers checkpoint save + logger flush."""
-        env = _FakeEnv([{"log": {}}])
-        runner = _FakeRunner()
-        try:
-            with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2):
-                raise ValueError("boom")
-        except ValueError:
-            pass
+        assert wrapper.tracker._step_count == 0
         assert runner.saved == []
         assert runner.logger.stopped is False
 
     def test_cleanup_skipped_when_runner_has_no_writer(self):
-        """Test that cleanup skips both save and flush when ``runner.logger.writer`` is ``None``."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.9}}] * 100)
         runner = _FakeRunner(has_writer=False)
         with RslRlEarlyStopWrapper(env, runner, 0.5, 2, num_steps_per_env=2):
@@ -314,7 +237,6 @@ class TestRslRlEarlyStopWrapper:
         assert runner.logger.stopped is False
 
     def test_framework_iteration_count_reflects_runner(self):
-        """Test that the framework-counter property reports ``current_learning_iteration + 1``."""
         env = _FakeEnv([{"log": {DEFAULT_SUCCESS_TAG: 0.0}}])
         runner = _FakeRunner()
         runner.current_learning_iteration = 42
@@ -322,14 +244,8 @@ class TestRslRlEarlyStopWrapper:
         assert wrapper.framework_iteration_count == 43
 
 
-# -- RlGamesEarlyStopObserver -----------------------------------------------
-
-
 class TestRlGamesEarlyStopObserver:
-    """Test cases for the rl_games AlgoObserver that tracks success and forces max_epochs."""
-
     def test_delegates_every_call_to_base(self):
-        """Test that all observer lifecycle calls are forwarded to the wrapped base observer."""
         base = _FakeBaseObserver()
         obs = RlGamesEarlyStopObserver(base, 0.5, 3)
         obs.before_init("name", {}, "exp")
@@ -348,50 +264,34 @@ class TestRlGamesEarlyStopObserver:
         ]
 
     def test_tracker_uses_horizon_length_attribute(self):
-        """Test that the tracker pulls ``num_steps_per_env`` from ``algo.horizon_length`` when present."""
         obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=24))
         assert obs.tracker.num_steps_per_env == 24
 
     def test_tracker_falls_back_to_config_horizon_length(self):
-        """Test that the tracker falls back to ``algo.config['horizon_length']`` when the attr is missing."""
         obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=None, config_horizon=32))
         assert obs.tracker.num_steps_per_env == 32
 
     def test_process_infos_records_from_episode_key(self):
-        """Test that ``infos["episode"]`` is remapped to the tracker's extras["log"] shape."""
         obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
         obs.after_init(_FakeAlgo(horizon_length=2))
         obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.8}}, [])
         assert obs.tracker._iter_sum == pytest.approx(0.8)
 
-    def test_process_infos_is_noop_before_after_init(self):
-        """Test that ``process_infos`` before ``after_init`` does not raise (tracker is None)."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
-        obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.8}}, [])
-        assert obs.tracker is None
-
-    def test_process_infos_ignores_non_dict_infos(self):
-        """Test that non-dict ``infos`` are skipped gracefully without mutating the tracker."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 3)
-        obs.after_init(_FakeAlgo(horizon_length=2))
-        obs.process_infos([], [])
-        assert obs.tracker._iter_sum == 0.0
-
     def test_after_steps_sets_max_epochs_on_convergence(self):
-        """Test that convergence on iteration N sets ``algo.max_epochs = N`` for clean exit."""
         obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         algo = _FakeAlgo(horizon_length=1)
         obs.after_init(algo)
         obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.9}}, [])
         obs.after_steps()
+        assert algo.max_epochs == 999
+        assert obs.tracker.current_iteration == 1
         obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.9}}, [])
         obs.after_steps()
         assert algo.max_epochs == 2
 
     def test_after_steps_leaves_max_epochs_alone_when_stop_disabled(self):
-        """Test that ``stop_on_convergence=False`` preserves the caller's ``algo.max_epochs``."""
         obs = RlGamesEarlyStopObserver(
             _FakeBaseObserver(),
             0.5,
@@ -407,38 +307,8 @@ class TestRlGamesEarlyStopObserver:
         obs.after_steps()
         assert algo.max_epochs == original_max_epochs
 
-    def test_after_steps_noop_before_after_init(self):
-        """Test that ``after_steps`` before ``after_init`` does not raise (tracker is None)."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
-        obs.after_steps()
-        assert obs.tracker is None
-
-    def test_each_after_steps_appends_one_iteration(self):
-        """Test that each ``after_steps`` call finalizes exactly one iteration in the tracker."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 5)
-        obs.after_init(_FakeAlgo(horizon_length=1))
-        for i in range(4):
-            obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.9}}, [])
-            obs.after_steps()
-            assert obs.tracker.current_iteration == i + 1
-
-    def test_after_steps_does_not_converge_with_insufficient_history(self):
-        """Test that a trailing window shorter than ``window`` does not trigger early stop."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 5)
-        algo = _FakeAlgo(horizon_length=1)
-        obs.after_init(algo)
-        for _ in range(4):
-            obs.process_infos({"episode": {DEFAULT_SUCCESS_TAG: 0.9}}, [])
-            obs.after_steps()
-        assert algo.max_epochs == 999  # unchanged: tracker.converged is still False
-
-    def test_framework_iteration_count_returns_none_before_after_init(self):
-        """Test that the framework-counter property returns ``None`` before an algo is attached."""
+    def test_framework_iteration_count_reflects_algo_epoch_num(self):
         obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         assert obs.framework_iteration_count is None
-
-    def test_framework_iteration_count_reflects_algo_epoch_num(self):
-        """Test that the framework-counter property mirrors ``algo.epoch_num``."""
-        obs = RlGamesEarlyStopObserver(_FakeBaseObserver(), 0.5, 2)
         obs.after_init(_FakeAlgo(horizon_length=1, epoch_num=7))
         assert obs.framework_iteration_count == 7

@@ -5,7 +5,6 @@
 
 """Smoke test for scripts/benchmarks/training.py with --rl_library sb3."""
 
-import json
 import subprocess
 from pathlib import Path
 
@@ -15,26 +14,8 @@ ROOT = Path(__file__).resolve().parents[3]
 
 _TASK = "Isaac-Cartpole-Direct"
 
-# Top-level keys that identify a schema TrainingBundle (runtime bundle plus ``learning``).
-_TRAINING_BUNDLE_KEYS = {"run", "versions", "hardware", "runtime", "resources", "learning"}
 
-
-def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
-    """Return the parsed JSON whose top-level keys cover ``expected_keys``.
-
-    The schema formatter names its file from a timestamped prefix, so the smoke
-    tests glob the output directory rather than hardcode the filename.
-    """
-    candidates = sorted(out_dir.glob("*.json"))
-    assert candidates, f"no *.json written to {out_dir}"
-    for path in candidates:
-        data = json.loads(path.read_text())
-        if expected_keys <= set(data):
-            return data
-    pytest.fail(f"no bundle in {out_dir} contained keys {expected_keys}; found {[p.name for p in candidates]}")
-
-
-def test_training_sb3_writes_training_bundle(tmp_path, require_isaacsim):
+def test_training_sb3_writes_training_bundle(tmp_path, load_training_bundle):
     sh = ROOT / "isaaclab.sh"
     cmd = [
         str(sh),
@@ -60,7 +41,7 @@ def test_training_sb3_writes_training_bundle(tmp_path, require_isaacsim):
     res = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=900)
     if res.returncode != 0:
         pytest.fail(f"training.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
-    data = _find_bundle(tmp_path, _TRAINING_BUNDLE_KEYS)
+    data = load_training_bundle(tmp_path)
     assert data["schema_version"] == "1.0"
     assert data["run"]["framework"] == "sb3"
     assert data["run"]["config"]["physics_backend"] == "newton_mjwarp"
@@ -70,3 +51,5 @@ def test_training_sb3_writes_training_bundle(tmp_path, require_isaacsim):
     # empty for very short runs. The always-populated runtime fields above are the hard assertions.
     assert data["learning"]["reward"]["series_per_iter"] is not None
     assert data["learning"]["reward"]["final_ema"] is not None
+    assert data["checkpoint_path"] is not None
+    assert Path(data["checkpoint_path"]).is_file()

@@ -3,16 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Stable-Baselines3 training-benchmark adapter.
-
-Runs real training under a :class:`~isaaclab.test.benchmark.BenchmarkMonitor` and emits a
-:class:`~isaaclab.test.benchmark.schema.TrainingBundle` JSON file. Dispatched from
-``scripts/benchmarks/training.py`` via ``--rl_library sb3``.
-
-Per-iteration metrics (timing, reward, episode length) are captured by a
-:class:`_BenchmarkCallback` subclass of ``BaseCallback`` that fires on each rollout
-end, bypassing the sb3 ``log_interval`` gating entirely.
-"""
+"""Stable-Baselines3 adapter for the unified training benchmark."""
 
 from __future__ import annotations
 
@@ -30,10 +21,7 @@ import common as _common  # noqa: E402
 
 
 def _build_benchmark_callback_class():
-    """Build and return the ``_BenchmarkCallback`` class.
-
-    Deferred to a factory so the stable-baselines3 import only happens after the
-    simulation has been launched (avoids premature CUDA-context initialisation).
+    """Create the callback class after simulator startup to defer SB3 imports.
 
     Returns:
         The ``_BenchmarkCallback`` class.
@@ -44,33 +32,41 @@ def _build_benchmark_callback_class():
     class _BenchmarkCallback(BaseCallback):
         """``BaseCallback`` that records per-iteration timing, reward, and episode length.
 
-        Fires on each ``on_rollout_end`` call (once per PPO iteration, before
-        ``train()``).  The callback reads directly from ``self.model.ep_info_buffer``
-        — the same buffer ``dump_logs`` uses — so metrics are available regardless
+        The callback reads directly from ``self.model.ep_info_buffer``, the same
+        buffer ``dump_logs`` uses, so metrics are available regardless
         of the ``log_interval`` setting passed to ``agent.learn``.
 
         Attributes:
-            iter_times_s: Wall-clock seconds between consecutive rollout ends.
+            collection_times_s: Wall-clock seconds spent collecting each rollout.
+            iter_times_s: Wall-clock seconds for each rollout and policy update.
             ep_rew_mean: Mean episode reward observed at the end of each rollout.
             ep_len_mean: Mean episode length observed at the end of each rollout.
         """
 
         def __init__(self) -> None:
             super().__init__(verbose=0)
+            self.collection_times_s: list[float] = []
             self.iter_times_s: list[float] = []
             self.ep_rew_mean: list[float] = []
             self.ep_len_mean: list[float] = []
             self._rollout_start_ns: int = 0
+            self._iteration_start_ns: int = 0
+            self._rollout_started = False
 
         def _on_training_start(self) -> None:
-            self._rollout_start_ns = time.perf_counter_ns()
+            self._iteration_start_ns = time.perf_counter_ns()
 
         def _on_rollout_start(self) -> None:
-            self._rollout_start_ns = time.perf_counter_ns()
+            now = time.perf_counter_ns()
+            if self._rollout_started:
+                self.iter_times_s.append((now - self._iteration_start_ns) / 1e9)
+            self._iteration_start_ns = now
+            self._rollout_start_ns = now
+            self._rollout_started = True
 
         def _on_rollout_end(self) -> None:
             elapsed_s = (time.perf_counter_ns() - self._rollout_start_ns) / 1e9
-            self.iter_times_s.append(elapsed_s)
+            self.collection_times_s.append(elapsed_s)
 
             buf = self.model.ep_info_buffer
             if buf and len(buf) > 0 and len(buf[0]) > 0:
@@ -79,6 +75,10 @@ def _build_benchmark_callback_class():
             else:
                 self.ep_rew_mean.append(float("nan"))
                 self.ep_len_mean.append(float("nan"))
+
+        def _on_training_end(self) -> None:
+            if self._rollout_started:
+                self.iter_times_s.append((time.perf_counter_ns() - self._iteration_start_ns) / 1e9)
 
         def _on_step(self) -> bool:
             return True
@@ -113,7 +113,6 @@ def _parse_args(argv: list[str]):
         include_distributed=False,
     )
 
-    # sb3-specific args (mirroring train_sb3.py)
     parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
     parser.add_argument("--checkpoint", type=str, default=None, help="Continue training from checkpoint.")
     parser.add_argument(
@@ -149,7 +148,7 @@ def _parse_args(argv: list[str]):
 
     from scripts.benchmarks.early_stop import add_success_cli_args
 
-    add_success_cli_args(parser)
+    add_success_cli_args(parser, include_check_success=False)
     add_isaaclab_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
@@ -160,7 +159,7 @@ def _parse_args(argv: list[str]):
 
 
 def run(argv: list[str]) -> None:
-    """Run the sb3 training benchmark and write a :class:`~isaaclab.test.benchmark.schema.TrainingBundle`.
+    """Run the sb3 training benchmark and write a :class:`~isaaclab.test.benchmark.TrainingBundle`.
 
     Args:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
@@ -177,6 +176,7 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
+    from isaaclab.test.benchmark.metrics import parse_tf_logs
     from isaaclab.test.benchmark.rllib_descriptor import RL_LIBRARY_DESCRIPTORS
     from isaaclab.test.benchmark.schema import StartupTime
 
@@ -190,9 +190,8 @@ def run(argv: list[str]) -> None:
     from isaaclab_tasks.utils import resolve_task_config
 
     apply_env_overrides = _common.apply_env_overrides
-    import gymnasium as gym
 
-    from scripts.benchmarks.early_stop import get_success_tracker
+    from scripts.benchmarks.early_stop import get_success_tracker, success_measurements
 
     args_cli, remaining_args = _parse_args(argv)
 
@@ -209,12 +208,14 @@ def run(argv: list[str]) -> None:
         agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
         env_cfg.seed = agent_cfg["seed"]
 
-        # Compute total timesteps from max_iterations, mirroring train_sb3.py.
+        # Convert the iteration override to SB3 total timesteps.
         n_steps_cfg = agent_cfg.get("n_steps", 2048)
         if args_cli.max_iterations is not None:
             agent_cfg["n_timesteps"] = args_cli.max_iterations * n_steps_cfg * env_cfg.scene.num_envs
+        steps_per_iteration = env_cfg.scene.num_envs * n_steps_cfg
+        resolved_max_iterations = (int(agent_cfg["n_timesteps"]) + steps_per_iteration - 1) // steps_per_iteration
 
-        cfg = capture.run_config_from_presets(remaining_args)
+        cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
         formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
         formatter_types = formatter_types or ["omniperf"]
 
@@ -229,31 +230,25 @@ def run(argv: list[str]) -> None:
                 "metadata": [
                     {"name": "task", "data": args_cli.task},
                     {"name": "seed", "data": agent_cfg["seed"]},
-                    {"name": "num_envs", "data": args_cli.num_envs},
-                    {"name": "max_iterations", "data": args_cli.max_iterations},
+                    {"name": "num_envs", "data": env_cfg.scene.num_envs},
+                    {"name": "max_iterations", "data": resolved_max_iterations},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
         )
 
-        # Build log_dir mirroring train_sb3.py.
         run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
         log_dir = os.path.join(log_root_path, run_info)
+        env_cfg.log_dir = log_dir
 
         agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
         policy_arch = agent_cfg.pop("policy")
         n_timesteps = agent_cfg.pop("n_timesteps")
 
-        # Extract n_steps before further pops (needed for FPS computation).
-        steps_per_iteration = env_cfg.scene.num_envs * n_steps_cfg
-
         env_t0 = time.perf_counter_ns()
-        env = gym.make(
-            args_cli.task,
-            cfg=env_cfg,
-            render_mode="rgb_array" if getattr(args_cli, "video", False) else None,
-        )
+        env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+        env = _common.wrap_record_video(env, log_dir, args_cli)
         env_t1 = time.perf_counter_ns()
 
         env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
@@ -291,14 +286,14 @@ def run(argv: list[str]) -> None:
                 progress_bar=False,
                 log_interval=None,
             )
+        agent.save(os.path.join(log_dir, "model"))
 
         benchmark.update_manual_recorders()
 
-        # Derive FPS from per-iteration wall-clock times recorded by the callback.
-        # sb3 does not expose collection vs. total separately at this granularity,
-        # so we use the same series for both (the whole rollout-collect wall time).
+        collection_times_s = cb.collection_times_s
         iteration_times_s = cb.iter_times_s
-        fps = [steps_per_iteration / t for t in iteration_times_s if t > 0]
+        collection_fps = [steps_per_iteration / t for t in collection_times_s if t > 0]
+        total_fps = [steps_per_iteration / t for t in iteration_times_s if t > 0]
 
         # Filter out NaN entries from rollouts where no episode finished.
         reward_series = [v for v in cb.ep_rew_mean if v == v]  # NaN != NaN
@@ -319,8 +314,8 @@ def run(argv: list[str]) -> None:
         runtime = builders.build_runtime(
             startup_time_s=startup,
             iteration_times_s=iteration_times_s,
-            collection_fps=fps,
-            total_fps=fps,
+            collection_fps=collection_fps,
+            total_fps=total_fps,
             steps_per_iteration=steps_per_iteration,
         )
 
@@ -331,10 +326,7 @@ def run(argv: list[str]) -> None:
             keep_series=not args_cli.no_series,
         )
 
-        # Success rate: attempt to parse from TensorBoard logs (best-effort).
         desc = RL_LIBRARY_DESCRIPTORS["sb3"]
-        from isaaclab.test.benchmark.metrics import parse_tf_logs
-
         log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
         success_tracker = get_success_tracker(args_cli, None, log_data)
         success_rate = round(success_tracker.tail_mean, 4) if (success_tracker and success_tracker.history) else None
@@ -356,12 +348,10 @@ def run(argv: list[str]) -> None:
             start_utc=start_utc,
             end_utc=end_utc,
             num_envs=env.unwrapped.num_envs,
-            max_iterations=args_cli.max_iterations,
+            max_iterations=resolved_max_iterations,
         )
 
-        checkpoint_path = (
-            os.path.join(log_dir, "model.zip") if os.path.exists(os.path.join(log_dir, "model.zip")) else None
-        )
+        checkpoint_path = os.path.join(log_dir, "model.zip")
         video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
 
         bundle = builders.build_training_bundle(
@@ -377,6 +367,7 @@ def run(argv: list[str]) -> None:
         )
 
         benchmark.attach_bundle(bundle)
+        benchmark.add_measurement("train", success_measurements(success_tracker))
 
         benchmark._finalize_impl()
 
