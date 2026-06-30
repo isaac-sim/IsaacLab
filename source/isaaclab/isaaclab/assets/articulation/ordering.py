@@ -18,7 +18,17 @@ if TYPE_CHECKING:
 
 
 class ArticulationOrderingConvention(str, Enum):
-    """Built-in non-default articulation name ordering conventions."""
+    """Built-in non-default public articulation name-ordering conventions.
+
+    Attributes:
+        PHYSX: Active PhysX or OVPhysX tensor-view order.
+        MJWARP: Newton or MJWarp articulation-view order.
+        ROBOT_SCHEMA: Authored target order of the ``isaac:physics:robotJoints``
+            and ``isaac:physics:robotLinks`` relationships.
+
+    ``None`` selects the active backend order by default and is not a member of
+    this enum.
+    """
 
     PHYSX = "physx"
     MJWARP = "mjwarp"
@@ -27,31 +37,62 @@ class ArticulationOrderingConvention(str, Enum):
 
 @dataclass(frozen=True)
 class ArticulationNameMap:
-    """Mapping between backend and user articulation name order."""
+    """Immutable bidirectional map between backend and public articulation order.
+
+    ``user`` in the field names means the order exposed by the public API.
+    ``user_to_backend`` maps a public index to its backend index, while
+    ``backend_to_user`` maps a backend index to its public index. The CPU tuples
+    and device arrays are complete inverse permutations.
+
+    All name and index sequences have the same length. Each name sequence is
+    unique, both device maps are one-dimensional arrays with shape
+    ``(num_names,)`` and dtype ``wp.int32``, and the device maps share a Warp
+    device. Direct construction validates these invariants and incurs a one-time
+    device-to-host synchronization step to compare the device and CPU maps. This
+    is initialization cost only.
+
+    An explicit ordering equal to backend order still produces a map with
+    :attr:`is_identity` set. The default ``None`` ordering is represented by no
+    map on the articulation instead.
+
+    Args:
+        kind: Mapped articulation element kind.
+        backend_names: Names in active backend solver-view order.
+        user_names: The same number of names in public API order.
+        user_to_backend_indices: CPU permutation from public to backend indices.
+        backend_to_user_indices: CPU inverse permutation from backend to public indices.
+        user_to_backend: Device permutation from public to backend indices.
+        backend_to_user: Device inverse permutation from backend to public indices.
+        is_identity: Whether names and both permutations are in identical order.
+
+    Raises:
+        ValueError: If a field violates the length, uniqueness, permutation,
+            device, or identity invariants.
+    """
 
     kind: Literal["joint", "body"]
     """Mapped articulation element kind."""
 
     backend_names: tuple[str, ...]
-    """Names in the order exposed by the active backend."""
+    """Names in active backend solver-view order."""
 
     user_names: tuple[str, ...]
-    """Names in the order exposed by the public articulation API."""
+    """Names in public articulation API order."""
 
     user_to_backend_indices: tuple[int, ...]
-    """CPU map from public user index to backend index."""
+    """One-dimensional CPU map from public index to backend index."""
 
     backend_to_user_indices: tuple[int, ...]
-    """CPU map from backend index to public user index."""
+    """One-dimensional CPU map from backend index to public index."""
 
     user_to_backend: wp.array(dtype=wp.int32)
-    """Device map from public user index to backend index."""
+    """Public-to-backend device map, shape ``(num_names,)``, dtype ``wp.int32``."""
 
     backend_to_user: wp.array(dtype=wp.int32)
-    """Device map from backend index to public user index."""
+    """Backend-to-public device map, shape ``(num_names,)``, dtype ``wp.int32``."""
 
     is_identity: bool
-    """Whether user and backend name order are identical."""
+    """Whether names and both index maps are identity permutations."""
 
     def __post_init__(self) -> None:
         """Validate CPU-side name-map invariants."""
@@ -112,17 +153,23 @@ class ArticulationNameMap:
 def parse_articulation_ordering_convention(
     ordering: str | ArticulationOrderingConvention | None,
 ) -> ArticulationOrderingConvention | None:
-    """Parse a symbolic articulation ordering convention.
+    """Parse a symbolic public articulation ordering convention.
+
+    Accepted aliases are ``"physx"``, ``"mjwarp"``, and
+    ``"robot_schema"``. String aliases are matched case-insensitively.
+    ``None`` keeps the active backend's default order and is not an enum member.
 
     Args:
-        ordering: Ordering convention alias, enum value, or ``None``.
+        ordering: Convention alias, :class:`ArticulationOrderingConvention`
+            member, or ``None``.
 
     Returns:
-        Parsed ordering convention, or ``None`` when no convention is requested.
+        The matching :class:`ArticulationOrderingConvention` member, or
+        ``None`` when no non-default convention is requested.
 
     Raises:
-        ValueError: If :paramref:`ordering` is an unsupported string alias.
         TypeError: If :paramref:`ordering` is not a supported type.
+        ValueError: If :paramref:`ordering` is an unsupported string alias.
     """
     if ordering is None:
         return None
@@ -146,16 +193,23 @@ def apply_articulation_ordering_preset(
     cfg: ArticulationCfg,
     ordering: str | ArticulationOrderingConvention | None,
 ) -> ArticulationCfg:
-    """Return ``cfg`` with one ordering preset applied to joints and bodies.
+    """Apply one public ordering preset to both joints and bodies.
 
     Args:
-        cfg: Articulation configuration to copy.
-        ordering: Ordering convention alias, enum value, or ``None``.
+        cfg: Articulation configuration to copy when a preset is requested.
+        ordering: Convention alias, :class:`ArticulationOrderingConvention`
+            member, or ``None``.
 
     Returns:
-        A copy of :paramref:`cfg` with :attr:`joint_ordering` and
-        :attr:`body_ordering` set to the parsed convention. If
-        :paramref:`ordering` is ``None``, returns :paramref:`cfg` unchanged.
+        A copy of :paramref:`cfg` whose
+        :attr:`ArticulationCfg.joint_ordering` and
+        :attr:`ArticulationCfg.body_ordering` use the parsed convention.
+        When :paramref:`ordering` is ``None``, returns the original
+        :paramref:`cfg` object unchanged.
+
+    Raises:
+        TypeError: If :paramref:`ordering` is not a supported type.
+        ValueError: If :paramref:`ordering` is an unsupported string alias.
     """
     parsed_ordering = parse_articulation_ordering_convention(ordering)
     if parsed_ordering is None:
@@ -170,21 +224,23 @@ def build_articulation_name_map(
     user_names: Sequence[str] | None,
     device: str,
 ) -> ArticulationNameMap:
-    """Build maps between backend and public articulation name order.
+    """Build a validated map between backend and public articulation order.
 
     Args:
-        kind: Articulation element kind.
-        backend_names: Names in the order exposed by the active backend.
-        user_names: Optional complete public ordering permutation. If ``None``,
-            the backend order is used.
-        device: Device where Warp map arrays are allocated.
+        kind: Mapped element kind, either ``"joint"`` or ``"body"``.
+        backend_names: Names in active backend solver-view order.
+        user_names: Complete permutation in public API order. ``None`` uses
+            :paramref:`backend_names` and builds an explicit identity map.
+        device: Warp device on which both device index maps are allocated.
 
     Returns:
-        Mapping metadata and device Warp arrays for index conversion.
+        An :class:`ArticulationNameMap` containing CPU index tuples and
+        one-dimensional ``wp.int32`` device maps on :paramref:`device`.
 
     Raises:
-        ValueError: If names are duplicated or :paramref:`user_names` is not a
-            complete permutation of :paramref:`backend_names`.
+        ValueError: If :paramref:`kind` is invalid, either name sequence has
+            duplicates, :paramref:`user_names` is not a complete permutation
+            of :paramref:`backend_names`, or a name-map invariant is violated.
     """
     backend_names = tuple(backend_names)
     user_names = backend_names if user_names is None else tuple(user_names)

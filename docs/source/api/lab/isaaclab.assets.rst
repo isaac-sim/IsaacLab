@@ -23,6 +23,21 @@
     Articulation
     ArticulationData
     ArticulationCfg
+    ArticulationOrderingConvention
+    ArticulationNameMap
+
+  .. rubric:: Functions
+
+  .. autosummary::
+
+    apply_articulation_ordering_preset
+    build_articulation_name_map
+    parse_articulation_ordering_convention
+    get_mjwarp_articulation_name_ordering
+    get_physx_articulation_name_ordering
+    get_robot_schema_articulation_name_ordering
+    resolve_articulation_convention_name_ordering
+    resolve_articulation_ordering_names
 
 .. currentmodule:: isaaclab.assets
 
@@ -126,3 +141,28 @@ Articulation
     :inherited-members:
     :show-inheritance:
     :exclude-members: __init__, class_type
+
+Articulation Ordering
+---------------------
+
+.. autoclass:: ArticulationOrderingConvention
+    :members:
+
+.. autoclass:: ArticulationNameMap
+    :members:
+
+.. autofunction:: apply_articulation_ordering_preset
+
+.. autofunction:: build_articulation_name_map
+
+.. autofunction:: parse_articulation_ordering_convention
+
+.. autofunction:: get_mjwarp_articulation_name_ordering
+
+.. autofunction:: get_physx_articulation_name_ordering
+
+.. autofunction:: get_robot_schema_articulation_name_ordering
+
+.. autofunction:: resolve_articulation_convention_name_ordering
+
+.. autofunction:: resolve_articulation_ordering_names

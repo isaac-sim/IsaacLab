@@ -480,19 +480,43 @@ def resolve_articulation_convention_name_ordering(
     convention: str | ArticulationOrderingConvention,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Resolve a symbolic backend convention to concrete articulation names.
+    """Resolve a symbolic convention to names for the public articulation axis.
+
+    A convention matching the active backend takes an identity fast path and
+    returns backend names without metadata discovery. Cross-backend resolution
+    checks cached and precomputed names before inspecting backend metadata.
+    Names discovered by robot-schema traversal or a Newton USD build are cached
+    on mutable articulation instances; precomputed and ``root_view`` metadata are
+    read directly.
+
+    PhysX and MJWarp discovery may parse the source USD with a Newton
+    ``ModelBuilder`` and finalize a temporary model on CPU. Robot-schema
+    discovery requires ``isaac:physics:robotJoints`` or
+    ``isaac:physics:robotLinks`` targets that resolve to a complete, unique
+    ordering of the active backend names.
+
+    The returned tuple defines public order only. Any ``root_view`` metadata read
+    here, and all solver-view arrays, remain in backend order. Errors raised by
+    concrete metadata providers and builders are propagated without translation.
 
     Args:
-        articulation: Articulation instance whose configured asset is being resolved.
-        convention: Symbolic backend convention to resolve.
-        kind: Articulation element kind.
+        articulation: Articulation whose configured source asset is resolved.
+        convention: Convention alias or
+            :class:`ArticulationOrderingConvention` member.
+        kind: Element kind, either ``"joint"`` or ``"body"``.
 
     Returns:
-        Concrete articulation names in the requested convention order.
+        Names to expose on the requested public joint or body axis.
 
     Raises:
-        NotImplementedError: If the active articulation does not expose metadata for
-            the requested convention.
+        AttributeError: If required active-backend names are unavailable or a
+            concrete metadata provider raises this error.
+        TypeError: If :paramref:`convention` has an unsupported type or a
+            concrete metadata provider raises this error.
+        ValueError: If :paramref:`convention` is an unsupported alias or
+            cross-backend discovery rejects the source metadata.
+        NotImplementedError: If no complete name metadata is available for the
+            requested cross-backend convention.
     """
     parsed_convention = parse_articulation_ordering_convention(convention)
     if parsed_convention is None:
@@ -544,14 +568,31 @@ def get_physx_articulation_name_ordering(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return articulation names in the PhysX backend convention order.
+    """Return names to expose publicly in PhysX or OVPhysX order.
+
+    PhysX and OVPhysX articulations use their backend names through the
+    same-backend identity fast path. On another backend, resolution checks
+    cached or precomputed PhysX names and ``root_view.shared_metatype``. If
+    needed, it may construct a temporary CPU Newton ``ModelBuilder`` view with
+    breadth-first joint order. A successful USD build caches both joint and body
+    names, so that cross-backend discovery is one-time per articulation.
+
+    ``root_view`` metadata and solver-view arrays remain in backend order; this
+    function only returns the name order for the public axis.
 
     Args:
-        articulation: Articulation instance whose names should be resolved.
-        kind: Articulation element kind.
+        articulation: Articulation whose PhysX names should be resolved.
+        kind: Element kind, either ``"joint"`` or ``"body"``.
 
     Returns:
-        Concrete articulation names in PhysX order.
+        Names in public PhysX or OVPhysX tensor-view order.
+
+    Raises:
+        AttributeError: If required backend names are unavailable or metadata
+            discovery raises this error.
+        TypeError: If metadata discovery raises this error.
+        ValueError: If metadata discovery rejects the source asset.
+        NotImplementedError: If PhysX name metadata cannot be resolved.
     """
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -564,14 +605,32 @@ def get_mjwarp_articulation_name_ordering(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return articulation names in the MJWarp/Newton backend convention order.
+    """Return names to expose publicly in Newton or MJWarp order.
+
+    Newton, MJWarp, and ``newton_mjwarp`` articulations use their backend names
+    through the same-backend identity fast path. On another backend, resolution
+    checks cached or precomputed names and ``root_view.joint_dof_names`` or
+    ``root_view.link_names``. If needed, it may construct a temporary CPU Newton
+    ``ModelBuilder`` view with depth-first joint order. A successful USD build
+    caches both joint and body names, so that cross-backend discovery is one-time
+    per articulation.
+
+    ``root_view`` metadata and solver-view arrays remain in backend order; this
+    function only returns the name order for the public axis.
 
     Args:
-        articulation: Articulation instance whose names should be resolved.
-        kind: Articulation element kind.
+        articulation: Articulation whose Newton or MJWarp names are resolved.
+        kind: Element kind, either ``"joint"`` or ``"body"``.
 
     Returns:
-        Concrete articulation names in MJWarp/Newton order.
+        Names in public Newton or MJWarp articulation-view order.
+
+    Raises:
+        AttributeError: If required backend names are unavailable or metadata
+            discovery raises this error.
+        TypeError: If metadata discovery raises this error.
+        ValueError: If metadata discovery rejects the source asset.
+        NotImplementedError: If Newton or MJWarp name metadata cannot be resolved.
     """
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -584,14 +643,33 @@ def get_robot_schema_articulation_name_ordering(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return articulation names in Isaac Sim robot schema order.
+    """Return names to expose publicly in authored robot-schema order.
+
+    The source asset prim or configured articulation-root prim must author
+    ``isaac:physics:robotJoints`` for joints or
+    ``isaac:physics:robotLinks`` for bodies. Nested robot targets are expanded,
+    name overrides are honored, unrelated targets are ignored, and the remaining
+    names must form a complete unique ordering of active backend names.
+
+    No simulation backend is treated as a robot-schema same-backend identity
+    case. The first successful relationship discovery is cached for the requested
+    element kind, making traversal one-time per articulation. This path does not
+    construct a Newton model. ``root_view`` metadata and solver-view arrays remain
+    in backend order.
 
     Args:
-        articulation: Articulation instance whose names should be resolved.
-        kind: Articulation element kind.
+        articulation: Articulation whose source USD relationships are resolved.
+        kind: Element kind, either ``"joint"`` or ``"body"``.
 
     Returns:
-        Concrete articulation names in robot schema order.
+        Names in public authored robot-schema relationship order.
+
+    Raises:
+        AttributeError: If concrete USD metadata access raises this error.
+        TypeError: If concrete USD metadata access raises this error.
+        ValueError: If source-asset resolution raises this error.
+        NotImplementedError: If no complete robot-schema relationship order is
+            available.
     """
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -610,29 +688,48 @@ def resolve_articulation_ordering_names(
     convention_name_resolver: Callable[[ArticulationOrderingConvention, Literal["joint", "body"]], Sequence[str]]
     | None = None,
 ) -> tuple[str, ...]:
-    """Resolve a configured public articulation ordering to concrete names.
+    """Resolve configured public articulation ordering to concrete names.
+
+    ``None`` and conventions matching :paramref:`active_backend_name` take an
+    identity fast path and return :paramref:`backend_names`. Explicit sequences
+    are type-checked here; complete-permutation validation is performed later by
+    :func:`build_articulation_name_map`.
+
+    A cross-backend convention first uses :paramref:`convention_name_resolver`
+    when supplied, otherwise it delegates to
+    :func:`resolve_articulation_convention_name_ordering`. The articulation path
+    reuses that resolver's per-articulation discovery cache. Joint names are
+    normalized to active-backend spelling when Newton multi-DoF separators
+    differ.
+
+    The returned tuple defines public order. :paramref:`backend_names`,
+    ``root_view`` metadata, and solver-view arrays remain in backend order.
+    Exceptions from custom or backend convention resolvers are propagated.
 
     Args:
-        kind: Articulation element kind.
-        backend_names: Names in the order exposed by the active backend.
-        ordering: Explicit name permutation, symbolic convention alias, or ``None``.
-        active_backend_name: Name of the backend currently exposing
+        kind: Element kind, either ``"joint"`` or ``"body"``.
+        backend_names: Names in active backend solver-view order.
+        ordering: Explicit public name sequence, symbolic convention alias or
+            enum member, or ``None``.
+        active_backend_name: Name of the backend exposing
             :paramref:`backend_names`.
-        articulation: Optional articulation instance used to resolve cross-backend
-            symbolic conventions.
-        convention_name_resolver: Optional resolver for cross-backend symbolic
-            conventions. It receives the parsed convention and :paramref:`kind`
-            and returns the requested concrete name order.
+        articulation: Articulation used for cached cross-backend discovery when
+            no explicit resolver is supplied.
+        convention_name_resolver: Optional resolver called with the parsed
+            convention and :paramref:`kind`; its returned sequence defines the
+            requested public order.
 
     Returns:
-        Concrete public names requested by :paramref:`ordering`.
+        Concrete names for the public joint or body axis.
 
     Raises:
-        ValueError: If :paramref:`ordering` is an unsupported convention string.
-        TypeError: If :paramref:`ordering` has an unsupported type or an explicit
-            name sequence contains a non-string element.
-        NotImplementedError: If a cross-backend symbolic convention is requested
-            without a convention resolver.
+        AttributeError: If a custom or backend resolver raises this error.
+        TypeError: If :paramref:`ordering` has an unsupported type, an explicit
+            sequence contains a non-string, or a resolver raises this error.
+        ValueError: If :paramref:`ordering` is an unsupported alias or a resolver
+            rejects the source metadata.
+        NotImplementedError: If cross-backend ordering lacks an articulation or
+            resolver, or convention metadata cannot be discovered.
     """
     backend_names = tuple(backend_names)
     if ordering is None:

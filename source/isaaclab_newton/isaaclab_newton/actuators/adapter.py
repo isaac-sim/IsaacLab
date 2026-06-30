@@ -198,22 +198,31 @@ class NewtonActuatorAdapter:
     ) -> NewtonActuatorAdapter:
         """Build an adapter from ``NewtonActuator`` prims authored on *stage*.
 
-        PhysX-side counterpart of Newton's ``ModelBuilder.add_usd``: reads
-        the same prims and constructs matching
+        This is the PhysX-side counterpart of Newton's
+        ``ModelBuilder.add_usd``. It reads the same prims and constructs matching
         :class:`~newton.actuators.Actuator` objects. Joints with the same
-        controller, gains, clamping, and delay are merged into one
-        Actuator with combined indices. Used on the PhysX backend only —
-        Newton populates ``model.actuators`` itself.
+        controller, gains, clamping, and delay are merged into one actuator with
+        combined indices. Newton backends use ``model.actuators`` instead.
+
+        On PhysX, :paramref:`joint_names` is in this adapter's local public order
+        and defines the local indices assigned to parsed actuator targets.
 
         Args:
-            stage: The USD stage containing ``NewtonActuator`` prims.
-            joint_names: All joint names in the articulation.
+            stage: USD stage containing ``NewtonActuator`` prims.
+            joint_names: All articulation joint names in adapter-local public order.
             num_envs: Number of environments.
-            num_joints: Joints per environment.
-            device: Warp device string (e.g. ``"cuda:0"``).
-            articulation_prim_path: Root prim path of env 0's
+            num_joints: Number of joints per environment.
+            device: Warp device string, for example ``"cuda:0"``.
+            articulation_prim_path: Root prim path of environment zero's
                 articulation. When set, only prims under this subtree are
                 considered; otherwise the whole stage is scanned.
+
+        Returns:
+            Adapter whose actuator indices use :paramref:`joint_names` order.
+
+        Raises:
+            ValueError: If no authored actuator targets a name in
+                :paramref:`joint_names`.
         """
         actuators = _create_actuators_from_usd(
             stage,
@@ -240,35 +249,40 @@ def build_newton_actuator_defaults(
     device: str,
     joint_user_to_backend_indices: Sequence[int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | slice]:
-    """Snapshot the initial kp/kd of every Newton actuator owned by one articulation.
+    """Snapshot initial Newton actuator gains for one articulation.
 
-    Filters *actuators* to those whose env-0 DOF lives in
-    ``[dof_offset, dof_offset + num_joints)`` (a no-op on PhysX where the
-    adapter is already per-articulation; meaningful on Newton where the
-    global adapter holds actuators from every articulation), then
-    scatter-gathers their ``controller.kp`` / ``controller.kd`` into
-    contiguous ``(num_envs, num_joints)`` torch tensors and records which
-    articulation-local joints they cover.
+    Actuators are filtered to those whose environment-zero DOF lies in
+    ``[dof_offset, dof_offset + num_joints)``. Their gains are scattered into
+    contiguous tensors. Without :paramref:`joint_user_to_backend_indices`, the
+    output joint axis uses backend order. With the map, gains and managed indices
+    use public order.
 
     Args:
-        actuators: All Newton actuators visible to this articulation.
+        actuators: Newton actuators visible to this articulation.
         num_envs: Number of environments.
-        num_joints: Articulation-local joint count.
-        dof_offset: Offset of this articulation's DOFs in the env-major
-            global index space (``0`` on PhysX, view-dependent on Newton).
-        device: Warp device string (e.g. ``"cuda:0"``).
-        joint_user_to_backend_indices: Optional complete map from public joint
-            indices to backend-local joint indices. When provided, returned
-            gains and managed joint indices use public joint order.
+        num_joints: Number of articulation-local joints.
+        dof_offset: Offset of this articulation's DOFs in the environment-major
+            global index space; this is zero on PhysX and view-dependent on Newton.
+        device: Requested Warp and torch device, for example ``"cuda:0"``.
+        joint_user_to_backend_indices: Complete permutation from public joint
+            indices to backend-local joint indices. ``None`` keeps backend order.
 
     Returns:
-        Tuple of ``(stiffness, damping, joint_indices)``:
+        Tuple containing the following values:
 
-        * ``stiffness``: Initial kp values, ``(num_envs, num_joints)``, articulation-local.
-        * ``damping``: Initial kd values, ``(num_envs, num_joints)``, articulation-local.
-        * ``joint_indices``: Articulation-local joint positions covered by
-          the adapter's actuators. ``slice(None)`` when every joint is
-          covered, otherwise an int32 tensor of column indices.
+        * ``stiffness``: Initial gains [N/m or N m/rad, depending on joint
+          type], shape ``(num_envs, num_joints)``, dtype ``torch.float32``, on
+          :paramref:`device`.
+        * ``damping``: Initial gains [N s/m or N m s/rad, depending on joint
+          type], shape ``(num_envs, num_joints)``, dtype ``torch.float32``, on
+          :paramref:`device`.
+        * ``joint_indices``: ``slice(None)`` when every joint is managed;
+          otherwise, a ``torch.int32`` tensor on :paramref:`device` containing
+          managed columns in the same backend or public order as the gain tensors.
+
+    Raises:
+        ValueError: If :paramref:`joint_user_to_backend_indices` is not a
+            complete permutation of all backend-local joint indices.
     """
     user_to_backend: tuple[int, ...] | None = None
     if joint_user_to_backend_indices is not None:

@@ -6,6 +6,7 @@
 import sys
 import types
 from collections import UserList
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -120,6 +121,27 @@ def test_assets_package_reexports_public_ordering_symbols() -> None:
     assert assets.ArticulationOrderingConvention is ArticulationOrderingConvention
     assert assets.build_articulation_name_map is build_articulation_name_map
     assert assets.resolve_articulation_ordering_names is resolve_articulation_ordering_names
+
+
+def test_assets_api_page_defines_ordering_symbols() -> None:
+    """Publish every articulation ordering symbol on the assets API page."""
+    repo_root = Path(__file__).resolve().parents[4]
+    api_page = (repo_root / "docs/source/api/lab/isaaclab.assets.rst").read_text(encoding="utf-8")
+
+    expected_directives = (
+        ".. autoclass:: ArticulationOrderingConvention",
+        ".. autoclass:: ArticulationNameMap",
+        ".. autofunction:: apply_articulation_ordering_preset",
+        ".. autofunction:: build_articulation_name_map",
+        ".. autofunction:: parse_articulation_ordering_convention",
+        ".. autofunction:: get_mjwarp_articulation_name_ordering",
+        ".. autofunction:: get_physx_articulation_name_ordering",
+        ".. autofunction:: get_robot_schema_articulation_name_ordering",
+        ".. autofunction:: resolve_articulation_convention_name_ordering",
+        ".. autofunction:: resolve_articulation_ordering_names",
+    )
+    for directive in expected_directives:
+        assert directive in api_page
 
 
 def test_articulation_cfg_accepts_optional_ordering_fields() -> None:

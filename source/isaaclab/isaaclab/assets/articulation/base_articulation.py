@@ -148,7 +148,11 @@ class BaseArticulation(AssetBase):
     @property
     @abstractmethod
     def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
+        """Joint names in public API order.
+
+        The order follows :attr:`ArticulationCfg.joint_ordering` when configured
+        and otherwise matches :attr:`backend_joint_names`.
+        """
         raise NotImplementedError()
 
     @property
@@ -166,12 +170,20 @@ class BaseArticulation(AssetBase):
     @property
     @abstractmethod
     def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
+        """Body names in public API order.
+
+        The order follows :attr:`ArticulationCfg.body_ordering` when configured
+        and otherwise matches :attr:`backend_body_names`.
+        """
         raise NotImplementedError()
 
     @property
     def backend_joint_names(self) -> list[str]:
-        """Ordered names of joints as exposed by the active backend."""
+        """Joint names in active backend solver-view order.
+
+        This order matches backend ``root_view`` metadata and joint-indexed
+        solver arrays even when :attr:`joint_names` uses another public order.
+        """
         warnings.warn(
             f"{type(self).__name__} must override backend_joint_names before it becomes abstract in a future release.",
             DeprecationWarning,
@@ -181,7 +193,11 @@ class BaseArticulation(AssetBase):
 
     @property
     def backend_body_names(self) -> list[str]:
-        """Ordered names of bodies as exposed by the active backend."""
+        """Body names in active backend solver-view order.
+
+        This order matches backend ``root_view`` metadata and body-indexed solver
+        arrays even when :attr:`body_names` uses another public order.
+        """
         warnings.warn(
             f"{type(self).__name__} must override backend_body_names before it becomes abstract in a future release.",
             DeprecationWarning,
@@ -191,21 +207,36 @@ class BaseArticulation(AssetBase):
 
     @property
     def joint_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public joint order."""
+        """Bidirectional map between backend and public joint order.
+
+        The map is ``None`` for the default ``None`` configuration, a non-``None``
+        identity map when an explicit order resolves to backend order, and a
+        nonidentity map for any actual permutation.
+        """
         return getattr(self.data, "joint_ordering", None)
 
     @property
     def body_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public body order."""
+        """Bidirectional map between backend and public body order.
+
+        The map is ``None`` for the default ``None`` configuration, a non-``None``
+        identity map when an explicit order resolves to backend order, and a
+        nonidentity map for any actual permutation.
+        """
         return getattr(self.data, "body_ordering", None)
 
     @property
     @abstractmethod
     def root_view(self):
-        """Root view for the asset.
+        """Root articulation view in active backend order.
+
+        Name metadata and joint- or body-indexed arrays exposed by this view always
+        use backend solver-view order, regardless of the configured public order.
+        Use :attr:`joint_ordering` or :attr:`body_ordering` when converting axes.
 
         .. note::
-            Use this view with caution. It requires handling of tensors in a specific way.
+            Use this view with caution. It requires handling backend tensors in
+            the backend-specific way.
         """
         raise NotImplementedError()
 

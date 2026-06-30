@@ -70,19 +70,33 @@ class ArticulationCfg(AssetBaseCfg):
     """
 
     joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
-    """Optional public joint ordering convention or complete joint-name permutation.
+    """Public joint-name ordering convention or complete explicit permutation.
 
-    If ``None``, the public joint order follows the active backend order and preserves
-    the direct identity path. String aliases currently accept ``"physx"``, ``"mjwarp"``, and
-    ``"robot_schema"``.
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    corresponding :class:`ArticulationOrderingConvention` members, or a list or
+    tuple containing every backend joint name exactly once.
+
+    ``None`` is the default: public joint order follows active backend solver-view
+    order and no ordering map is installed. An explicit order that matches backend
+    order installs a non-``None`` identity map. Symbolic resolution and map
+    construction occur during articulation initialization only, not each step.
     """
 
     body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
-    """Optional public body ordering convention or complete body-name permutation.
+    """Public body-name ordering convention or complete explicit permutation.
 
-    If ``None``, the public body order follows the active backend order and preserves
-    the direct identity path. String aliases currently accept ``"physx"``, ``"mjwarp"``, and
-    ``"robot_schema"``.
+    Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
+    corresponding :class:`ArticulationOrderingConvention` members, or a list or
+    tuple containing every backend body name exactly once.
+
+    ``None`` is the default: public body order follows active backend solver-view
+    order and no ordering map is installed. An explicit order that matches backend
+    order installs a non-``None`` identity map. Symbolic resolution and map
+    construction occur during articulation initialization only, not each step.
+
+    For fixed-base articulations, the backend root body must remain at public index
+    zero; all remaining bodies may be permuted. Floating-base orders may relocate
+    the root body.
     """
 
     actuators: dict[str, ActuatorBaseCfg] = MISSING

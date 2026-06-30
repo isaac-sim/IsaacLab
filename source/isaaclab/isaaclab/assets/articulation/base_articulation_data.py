@@ -95,22 +95,38 @@ class BaseArticulationData(ABC):
     ##
 
     body_names: list[str] | None = None
-    """Body names in public order (configured ordering when set, otherwise backend order)."""
+    """Body names in public API order.
+
+    Configured order is used when present; otherwise this is active backend
+    solver-view order.
+    """
 
     joint_names: list[str] | None = None
-    """Joint names in public order (configured ordering when set, otherwise backend order)."""
+    """Joint names in public API order.
+
+    Configured order is used when present; otherwise this is active backend
+    solver-view order.
+    """
 
     joint_ordering: ArticulationNameMap | None = None
-    """Mapping between backend and public joint order, if ordering has been resolved."""
+    """Bidirectional map between backend and public joint order.
+
+    This is ``None`` for default ordering, a non-``None`` identity map for an
+    explicit identity order, and a nonidentity map for an actual permutation.
+    """
 
     body_ordering: ArticulationNameMap | None = None
-    """Mapping between backend and public body order, if ordering has been resolved."""
+    """Bidirectional map between backend and public body order.
+
+    This is ``None`` for default ordering, a non-``None`` identity map for an
+    explicit identity order, and a nonidentity map for an actual permutation.
+    """
 
     fixed_tendon_names: list[str] | None = None
-    """Fixed tendon names in the order parsed by the simulation view."""
+    """Fixed tendon names in active backend solver-view order."""
 
     spatial_tendon_names: list[str] | None = None
-    """Spatial tendon names in the order parsed by the simulation view."""
+    """Spatial tendon names in active backend solver-view order."""
 
     ##
     # Defaults - Initial state.
