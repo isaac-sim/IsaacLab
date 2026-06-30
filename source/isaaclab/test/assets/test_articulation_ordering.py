@@ -271,6 +271,54 @@ def test_articulation_name_map_direct_constructor_validates_device_maps() -> Non
         )
 
 
+def _make_identity_articulation_name_map(**overrides) -> ArticulationNameMap:
+    """Construct an identity name map with selected direct-constructor overrides."""
+    identity_device_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
+    fields = {
+        "kind": "joint",
+        "backend_names": ("joint_0", "joint_1", "joint_2"),
+        "user_names": ("joint_0", "joint_1", "joint_2"),
+        "user_to_backend_indices": (0, 1, 2),
+        "backend_to_user_indices": (0, 1, 2),
+        "user_to_backend": identity_device_map,
+        "backend_to_user": identity_device_map,
+        "is_identity": True,
+    }
+    fields.update(overrides)
+    return ArticulationNameMap(**fields)
+
+
+@pytest.mark.parametrize("field_name", ["user_to_backend_indices", "backend_to_user_indices"])
+@pytest.mark.parametrize("invalid_value", [0.5, "0", True])
+def test_articulation_name_map_direct_constructor_rejects_non_integer_indices(field_name: str, invalid_value) -> None:
+    """Reject lossy or boolean values in either CPU index permutation."""
+    with pytest.raises(TypeError, match=rf"{field_name} element 0"):
+        _make_identity_articulation_name_map(**{field_name: (invalid_value, 1, 2)})
+
+
+@pytest.mark.parametrize("index_type", [int, np.int64])
+def test_articulation_name_map_direct_constructor_accepts_integral_indices(index_type) -> None:
+    """Accept Python and NumPy integral indices and normalize them to int."""
+    indices = tuple(index_type(index) for index in range(3))
+
+    name_map = _make_identity_articulation_name_map(
+        user_to_backend_indices=indices,
+        backend_to_user_indices=indices,
+    )
+
+    assert name_map.user_to_backend_indices == (0, 1, 2)
+    assert name_map.backend_to_user_indices == (0, 1, 2)
+    assert all(type(index) is int for index in name_map.user_to_backend_indices)
+    assert all(type(index) is int for index in name_map.backend_to_user_indices)
+
+
+@pytest.mark.parametrize("invalid_identity", [1, np.bool_(True)])
+def test_articulation_name_map_direct_constructor_rejects_non_bool_identity(invalid_identity) -> None:
+    """Require is_identity to be a built-in bool."""
+    with pytest.raises(TypeError, match="is_identity must be bool"):
+        _make_identity_articulation_name_map(is_identity=invalid_identity)
+
+
 @pytest.mark.parametrize(
     ("field_name", "backend_names", "user_names", "invalid_type"),
     [

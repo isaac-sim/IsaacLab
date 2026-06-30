@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import operator
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
@@ -29,6 +30,28 @@ def _coerce_articulation_names(names: object, *, parameter_name: str) -> tuple[s
         if not isinstance(name, str):
             raise TypeError(f"{parameter_name} element {index} must be str; got {name!r} ({type(name).__name__}).")
     return name_tuple
+
+
+def _coerce_articulation_indices(indices: object, *, parameter_name: str) -> tuple[int, ...]:
+    """Return a validated integer index sequence."""
+    if isinstance(indices, str | bytes | bytearray):
+        raise TypeError(f"{parameter_name} must be a sequence of integers; got {type(indices).__name__}.")
+    try:
+        index_tuple = tuple(indices)
+    except TypeError as exc:
+        raise TypeError(f"{parameter_name} must be a sequence of integers; got {type(indices).__name__}.") from exc
+
+    normalized_indices = []
+    for element_index, value in enumerate(index_tuple):
+        if isinstance(value, bool):
+            raise TypeError(f"{parameter_name} element {element_index} must be an integer; got {value!r} (bool).")
+        try:
+            normalized_indices.append(operator.index(value))
+        except TypeError as exc:
+            raise TypeError(
+                f"{parameter_name} element {element_index} must be an integer; got {value!r} ({type(value).__name__})."
+            ) from exc
+    return tuple(normalized_indices)
 
 
 class ArticulationOrderingConvention(str, Enum):
@@ -85,8 +108,8 @@ class ArticulationNameMap:
         is_identity: Whether names and both permutations are in identical order.
 
     Raises:
-        TypeError: If :paramref:`backend_names` or :paramref:`user_names` is not
-            a sequence of strings.
+        TypeError: If either name field is not a sequence of strings, a CPU map
+            contains a non-integer value, or is_identity is not a built-in bool.
         ValueError: If a field violates the length, uniqueness, permutation,
             device, or identity invariants.
     """
@@ -119,13 +142,23 @@ class ArticulationNameMap:
         """Validate CPU-side name-map invariants."""
         if self.kind not in {"joint", "body"}:
             raise ValueError(f"ArticulationNameMap kind must be 'joint' or 'body'. Got {self.kind!r}.")
+        if type(self.is_identity) is not bool:
+            raise TypeError(f"ArticulationNameMap is_identity must be bool; got {type(self.is_identity).__name__}.")
 
         object.__setattr__(
             self, "backend_names", _coerce_articulation_names(self.backend_names, parameter_name="backend_names")
         )
         object.__setattr__(self, "user_names", _coerce_articulation_names(self.user_names, parameter_name="user_names"))
-        object.__setattr__(self, "user_to_backend_indices", tuple(int(index) for index in self.user_to_backend_indices))
-        object.__setattr__(self, "backend_to_user_indices", tuple(int(index) for index in self.backend_to_user_indices))
+        object.__setattr__(
+            self,
+            "user_to_backend_indices",
+            _coerce_articulation_indices(self.user_to_backend_indices, parameter_name="user_to_backend_indices"),
+        )
+        object.__setattr__(
+            self,
+            "backend_to_user_indices",
+            _coerce_articulation_indices(self.backend_to_user_indices, parameter_name="backend_to_user_indices"),
+        )
 
         num_names = len(self.backend_names)
         if len(self.user_names) != num_names:
