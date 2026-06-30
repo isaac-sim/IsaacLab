@@ -805,6 +805,85 @@ def _assert_public_joint_commands(backend: str, art, backend_targets: tuple[np.n
             assert backend_buffer is None
 
 
+def _get_ordering_joint_command_buffers(backend: str, art) -> tuple[tuple[str, wp.array], ...]:
+    """Return and validate every persistent joint buffer covered by ordering transitions."""
+    expected = [
+        ("joint_pos_target", art.data._joint_pos_target),
+        ("joint_vel_target", art.data._joint_vel_target),
+        ("joint_effort_target", art.data._joint_effort_target),
+        ("computed_torque", art.data._computed_torque),
+        ("applied_torque", art.data._applied_torque),
+    ]
+    if backend in ("physx", "newton"):
+        expected.extend(
+            [
+                ("sim_joint_pos_target", art._joint_pos_target_sim),
+                ("sim_joint_vel_target", art._joint_vel_target_sim),
+                ("sim_joint_effort_target", art._joint_effort_target_sim),
+            ]
+        )
+
+    actual = art._ordering_joint_command_buffers()
+    assert len(actual) == len(expected)
+    for actual_buffer, (name, expected_buffer) in zip(actual, expected, strict=True):
+        assert actual_buffer is expected_buffer, f"ordering transition omitted or reordered {name}"
+    return tuple(expected)
+
+
+_ORDERING_WRENCH_BUFFER_NAMES = (
+    "_global_force_w",
+    "_global_torque_w",
+    "_global_force_at_com_w",
+    "_local_force_b",
+    "_local_torque_b",
+    "_out_force_b",
+    "_out_torque_b",
+)
+
+
+def _get_ordering_body_command_buffers(art) -> tuple[tuple[str, wp.array], ...]:
+    """Return and validate every persistent wrench buffer covered by ordering transitions."""
+    expected = []
+    for composer_name in ("_instantaneous_wrench_composer", "_permanent_wrench_composer"):
+        composer = getattr(art, composer_name)
+        expected.extend(
+            (f"{composer_name}.{buffer_name}", getattr(composer, buffer_name))
+            for buffer_name in _ORDERING_WRENCH_BUFFER_NAMES
+        )
+
+    actual = art._ordering_body_command_buffers()
+    assert len(actual) == len(expected)
+    for actual_buffer, (name, expected_buffer) in zip(actual, expected, strict=True):
+        assert actual_buffer is expected_buffer, f"ordering transition omitted or reordered {name}"
+    return tuple(expected)
+
+
+def _seed_ordering_buffers(
+    named_buffers: tuple[tuple[str, wp.array], ...],
+    *,
+    dtype,
+    device: str,
+) -> dict[str, np.ndarray]:
+    """Seed each buffer with distinct values expressed in backend identity order."""
+    canonical = {}
+    for buffer_index, (name, buffer) in enumerate(named_buffers):
+        values = np.arange(buffer.numpy().size, dtype=np.float32).reshape(buffer.numpy().shape)
+        values += np.float32(1000 * (buffer_index + 1))
+        buffer.assign(wp.array(values, dtype=dtype, device=device))
+        canonical[name] = values
+    return canonical
+
+
+def _assert_ordering_buffers_preserve_backend_identity(
+    named_buffers: tuple[tuple[str, wp.array], ...],
+    canonical: dict[str, np.ndarray],
+    user_to_backend: np.ndarray,
+) -> None:
+    """Assert buffers expose canonical backend values through the active public order."""
+    for name, buffer in named_buffers:
+        np.testing.assert_array_equal(buffer.numpy(), canonical[name][:, user_to_backend])
+
+
 def _assert_public_ordered_properties(
     art,
     backend_joint_stiffness: np.ndarray,
@@ -1535,6 +1614,7 @@ def _clone_backend_tensor(array) -> torch.Tensor:
 def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[str, torch.Tensor]:
     """Return backend-order joint property values for ordering parity checks."""
     if backend == "physx":
+        friction_properties = _clone_backend_tensor(raw_backend.get_dof_friction_properties())
         return {
             "stiffness": _clone_backend_tensor(raw_backend.get_dof_stiffnesses()),
             "damping": _clone_backend_tensor(raw_backend.get_dof_dampings()),
@@ -1542,11 +1622,14 @@ def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[
             "position_limits": _clone_backend_tensor(raw_backend.get_dof_limits()),
             "velocity_limits": _clone_backend_tensor(raw_backend.get_dof_max_velocities()),
             "effort_limits": _clone_backend_tensor(raw_backend.get_dof_max_forces()),
-            "friction": _clone_backend_tensor(raw_backend.get_dof_friction_properties())[..., 0],
+            "friction": friction_properties[..., 0],
+            "dynamic_friction": friction_properties[..., 1],
+            "viscous_friction": friction_properties[..., 2],
         }
     if backend == "ovphysx":
         from isaaclab_ovphysx import tensor_types as TT
 
+        friction_properties = _clone_backend_tensor(raw_backend.bindings[TT.DOF_FRICTION_PROPERTIES]._data)
         return {
             "stiffness": _clone_backend_tensor(raw_backend.bindings[TT.DOF_STIFFNESS]._data),
             "damping": _clone_backend_tensor(raw_backend.bindings[TT.DOF_DAMPING]._data),
@@ -1554,7 +1637,9 @@ def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[
             "position_limits": _clone_backend_tensor(raw_backend.bindings[TT.DOF_LIMIT]._data),
             "velocity_limits": _clone_backend_tensor(raw_backend.bindings[TT.DOF_MAX_VELOCITY]._data),
             "effort_limits": _clone_backend_tensor(raw_backend.bindings[TT.DOF_MAX_FORCE]._data),
-            "friction": _clone_backend_tensor(raw_backend.bindings[TT.DOF_FRICTION_PROPERTIES]._data)[..., 0],
+            "friction": friction_properties[..., 0],
+            "dynamic_friction": friction_properties[..., 1],
+            "viscous_friction": friction_properties[..., 2],
         }
     if backend == "newton":
         return {
@@ -1573,6 +1658,28 @@ def _get_backend_joint_property_tensors(backend: str, art, raw_backend) -> dict[
             "friction": _clone_backend_tensor(art.data._sim_bind_joint_friction_coeff),
         }
     raise AssertionError(f"Unsupported backend for joint-property ordering test: {backend}")
+
+
+def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[str, torch.Tensor]:
+    """Return backend-order body property values for ordering parity checks."""
+    if backend == "physx":
+        return {
+            "mass": _clone_backend_tensor(raw_backend.get_masses()),
+            "inertia": _clone_backend_tensor(raw_backend.get_inertias()),
+        }
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        return {
+            "mass": _clone_backend_tensor(raw_backend.bindings[TT.BODY_MASS]._data),
+            "inertia": _clone_backend_tensor(raw_backend.bindings[TT.BODY_INERTIA]._data),
+        }
+    if backend == "newton":
+        return {
+            "mass": _clone_backend_tensor(art.data._sim_bind_body_mass),
+            "inertia": _clone_backend_tensor(art.data._sim_bind_body_inertia),
+        }
+    raise AssertionError(f"Unsupported backend for body-property ordering test: {backend}")
 
 
 # Common parametrize decorator for all interface tests
@@ -2095,6 +2202,59 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(ordered_art.data.root_com_pose_w, identity_root_com_pose_w)
         _assert_proxy_close(ordered_art.data.root_link_vel_w, identity_root_link_vel_w)
 
+    @_non_mock_backends
+    @pytest.mark.parametrize("num_instances, num_joints, num_bodies", [(2, 1, 3)])
+    @pytest.mark.parametrize("device", ["cpu"])
+    def test_reversed_body_ordering_reorders_public_body_properties(
+        self, backend, num_instances, num_joints, num_bodies, device
+    ):
+        """Expose mass and every inertia component under the matching public body name."""
+        body_ordering = tuple(f"body_{index}" for index in reversed(range(num_bodies)))
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances,
+            num_joints,
+            num_bodies,
+            device=device,
+            body_ordering=body_ordering,
+        )
+        user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+        backend_properties = _get_backend_body_property_tensors(backend, art, raw_backend)
+
+        _assert_proxy_close(art.data.body_mass, backend_properties["mass"][:, user_to_backend])
+        _assert_proxy_close(
+            art.data.body_inertia,
+            backend_properties["inertia"][:, user_to_backend],
+        )
+
+    @pytest.mark.parametrize(
+        ("backend", "redundant_field", "retained_field"),
+        [
+            ("newton", "_body_com_acc_w_backend", "_body_com_vel_w_user"),
+            ("ovphysx", "_body_link_vel_w_backend", "_body_com_vel_w_backend"),
+        ],
+    )
+    def test_nonidentity_body_ordering_avoids_redundant_backend_staging(
+        self,
+        backend: str,
+        redundant_field: str,
+        retained_field: str,
+    ) -> None:
+        """Allocate one staging destination for each ordered body read path."""
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=1,
+            num_bodies=3,
+            device="cpu",
+            body_ordering=("body_2", "body_1", "body_0"),
+        )
+
+        assert getattr(art.data, redundant_field, None) is None
+        assert getattr(art.data, retained_field) is not None
+
     def test_ovphysx_reversed_body_ordering_rereads_backend_shadows_after_reset(self):
         """Refresh OVPhysX backend shadow buffers after same-step pose/velocity invalidation."""
         if "ovphysx" not in BACKENDS:
@@ -2156,6 +2316,32 @@ class TestArticulationDataBodyState:
         _assert_proxy_close(art.data.body_link_vel_w, expected)
         _assert_proxy_close(art.data.root_link_vel_w, torch.from_numpy(next_velocity[:, 0]))
 
+    def test_ovphysx_ordered_root_and_body_velocity_share_one_backend_read(self) -> None:
+        """Read the shared backend link-velocity binding once per timestamp."""
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        art, raw_backend = get_articulation(
+            "ovphysx",
+            2,
+            1,
+            3,
+            device="cpu",
+            body_ordering=("body_2", "body_1", "body_0"),
+        )
+        raw_data = _make_body_ordering_backend_data(2, 3)
+        _set_body_ordering_backend_data("ovphysx", art, raw_backend, *raw_data)
+        art.data.update(0.01)
+        binding_read = MagicMock(wraps=art.data._binding_read)
+        art.data._binding_read = binding_read
+
+        _ = art.data.body_com_vel_w
+        _ = art.data.root_link_vel_w
+
+        from isaaclab_ovphysx import tensor_types as TT
+
+        link_velocity_reads = [call for call in binding_read.call_args_list if call.args[0] == TT.LINK_VELOCITY]
+        assert len(link_velocity_reads) == 1
+
     def test_ovphysx_com_write_invalidates_all_dependent_caches_under_ordering(self):
         """Invalidate every public and backend cache derived from OVPhysX COM poses."""
         if "ovphysx" not in BACKENDS:
@@ -2169,7 +2355,6 @@ class TestArticulationDataBodyState:
             "_body_com_vel_w",
             "_body_com_vel_w_backend",
             "_body_link_vel_w",
-            "_body_link_vel_w_backend",
             "_root_link_lin_vel_b",
             "_root_link_ang_vel_b",
             "_root_com_lin_vel_b",
@@ -2618,7 +2803,6 @@ class TestArticulationOrderingAllocation:
         ),
         "ovphysx": (
             "_body_link_pose_w_backend",
-            "_body_link_vel_w_backend",
             "_body_com_pose_b_backend",
             "_body_com_vel_w_backend",
             "_body_com_acc_w_backend",
@@ -2647,7 +2831,6 @@ class TestArticulationOrderingAllocation:
             "_joint_effort_limits_user",
             "_body_link_pose_w_user",
             "_body_com_vel_w_user",
-            "_body_com_acc_w_backend",
             "_body_mass_user",
             "_body_inertia_user",
             "_body_com_pos_b_user",
@@ -2808,6 +2991,79 @@ class TestArticulationOrderingLifecycle:
                 np.testing.assert_array_equal(actual, expected)
             _assert_public_joint_commands(backend, art, backend_targets)
             _assert_public_ordered_properties(art, backend_joint_stiffness, backend_body_mass)
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx", "newton"])
+    def test_all_joint_command_buffers_preserve_backend_identity_across_map_transitions(self, backend: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_joints = 4
+        art, _ = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=num_joints,
+            num_bodies=4,
+            device="cpu",
+        )
+        named_buffers = _get_ordering_joint_command_buffers(backend, art)
+        canonical = _seed_ordering_buffers(
+            named_buffers,
+            dtype=wp.float32,
+            device=art.device,
+        )
+        _assert_ordering_buffers_preserve_backend_identity(
+            named_buffers,
+            canonical,
+            np.arange(num_joints, dtype=np.int64),
+        )
+
+        backend_names = tuple(art.backend_joint_names)
+        ordering_a = tuple(backend_names[index] for index in (2, 0, 3, 1))
+        ordering_b = tuple(backend_names[index] for index in (1, 3, 0, 2))
+        for joint_ordering in (ordering_a, ordering_b, backend_names, None):
+            _transition_articulation_ordering(art, joint_ordering=joint_ordering)
+            current_buffers = _get_ordering_joint_command_buffers(backend, art)
+            _assert_ordering_buffers_preserve_backend_identity(
+                current_buffers,
+                canonical,
+                _ordering_user_to_backend(art.joint_ordering, num_joints),
+            )
+
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx", "newton"])
+    def test_all_body_command_buffers_preserve_backend_identity_across_map_transitions(self, backend: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_bodies = 4
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=4,
+            num_bodies=num_bodies,
+            device="cpu",
+        )
+        named_buffers = _get_ordering_body_command_buffers(art)
+        canonical = _seed_ordering_buffers(
+            named_buffers,
+            dtype=wp.vec3f,
+            device=art.device,
+        )
+        _assert_ordering_buffers_preserve_backend_identity(
+            named_buffers,
+            canonical,
+            np.arange(num_bodies, dtype=np.int64),
+        )
+
+        backend_names = tuple(art.backend_body_names)
+        ordering_a = tuple(backend_names[index] for index in (2, 0, 3, 1))
+        ordering_b = tuple(backend_names[index] for index in (1, 3, 0, 2))
+        for body_ordering in (ordering_a, ordering_b, backend_names, None):
+            _transition_articulation_ordering(art, body_ordering=body_ordering)
+            current_buffers = _get_ordering_body_command_buffers(art)
+            _assert_ordering_buffers_preserve_backend_identity(
+                current_buffers,
+                canonical,
+                _ordering_user_to_backend(art.body_ordering, num_bodies),
+            )
 
     def test_physx_body_wrenches_preserve_backend_identity_across_map_transitions(self) -> None:
         if "physx" not in BACKENDS:
@@ -3598,6 +3854,13 @@ class TestArticulationDataJointState:
             "effort_limits": art.data.joint_effort_limits,
             "friction": art.data.joint_friction_coeff,
         }
+        if backend in ("physx", "ovphysx"):
+            public_properties.update(
+                {
+                    "dynamic_friction": art.data.joint_dynamic_friction_coeff,
+                    "viscous_friction": art.data.joint_viscous_friction_coeff,
+                }
+            )
 
         for property_name, public_property in public_properties.items():
             _assert_proxy_close(public_property, backend_properties[property_name][:, user_to_backend])
@@ -4249,6 +4512,110 @@ _JOINT_METHODS = [
 class TestArticulationWritersJoint:
     """Test joint writers/setters with all input combinations."""
 
+    @_non_mock_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_reversed_joint_ordering_routes_property_writes_to_backend(self, backend: str, selection: str):
+        """Route partial public property writes to matching backend joints."""
+        num_instances, num_joints, num_bodies = 2, 4, 2
+        joint_ordering = tuple(f"joint_{index}" for index in reversed(range(num_joints)))
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances,
+            num_joints,
+            num_bodies,
+            device="cpu",
+            joint_ordering=joint_ordering,
+        )
+        if backend == "physx":
+            raw_backend._noop_setters = False
+
+        user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
+        selected_envs = np.arange(num_instances, dtype=np.int32)
+        selected_joints = np.asarray([0, 2], dtype=np.int32)
+        property_cases = [
+            ("write_joint_damping_to_sim", "damping", "damping"),
+            ("write_joint_armature_to_sim", "armature", "armature"),
+            ("write_joint_position_limit_to_sim", "limits", "position_limits"),
+            ("write_joint_velocity_limit_to_sim", "limits", "velocity_limits"),
+            ("write_joint_effort_limit_to_sim", "limits", "effort_limits"),
+            ("write_joint_friction_coefficient_to_sim", "joint_friction_coeff", "friction"),
+        ]
+        if backend in ("physx", "ovphysx"):
+            property_cases.extend(
+                [
+                    (
+                        "write_joint_dynamic_friction_coefficient_to_sim",
+                        "joint_dynamic_friction_coeff",
+                        "dynamic_friction",
+                    ),
+                    (
+                        "write_joint_viscous_friction_coefficient_to_sim",
+                        "joint_viscous_friction_coeff",
+                        "viscous_friction",
+                    ),
+                ]
+            )
+
+        for case_index, (method_name, value_name, property_name) in enumerate(property_cases):
+            before = _get_backend_joint_property_tensors(backend, art, raw_backend)[property_name]
+            leading_shape = (
+                (num_instances, selected_joints.size) if selection == "index" else (num_instances, num_joints)
+            )
+            values = torch.arange(int(np.prod(leading_shape)), dtype=torch.float32).reshape(leading_shape)
+            values = values + 100.0 * (case_index + 1)
+            if property_name == "position_limits":
+                values = torch.stack((-values, values), dim=-1)
+                soft_limits_before = art.data.soft_joint_pos_limits.torch.clone()
+
+            kwargs = {value_name: values}
+            if selection == "index":
+                kwargs.update(
+                    {
+                        "env_ids": wp.array(selected_envs, dtype=wp.int32, device=art.device),
+                        "joint_ids": wp.array(selected_joints, dtype=wp.int32, device=art.device),
+                    }
+                )
+            else:
+                kwargs.update(
+                    {
+                        "env_mask": wp.ones(num_instances, dtype=wp.bool, device=art.device),
+                        "joint_mask": _make_item_mask(num_joints, selected_joints.tolist(), art.device),
+                    }
+                )
+
+            getattr(art, f"{method_name}_{selection}")(**kwargs)
+
+            after = _get_backend_joint_property_tensors(backend, art, raw_backend)[property_name]
+            expected = before.clone()
+            backend_joint_ids = torch.as_tensor(user_to_backend[selected_joints], dtype=torch.long)
+            if selection == "index":
+                expected[:, backend_joint_ids] = values
+            else:
+                public_joint_ids = torch.as_tensor(selected_joints, dtype=torch.long)
+                expected[:, backend_joint_ids] = values[:, public_joint_ids]
+            torch.testing.assert_close(after, expected, rtol=0.0, atol=0.0)
+
+            if property_name == "position_limits":
+                soft_limits_after = art.data.soft_joint_pos_limits.torch
+                public_joint_ids = torch.as_tensor(selected_joints, dtype=torch.long)
+                selected_limits = expected[:, backend_joint_ids]
+                center = selected_limits.mean(dim=-1)
+                half_range = 0.5 * (selected_limits[..., 1] - selected_limits[..., 0])
+                factor = art.cfg.soft_joint_pos_limit_factor
+                expected_soft_limits = torch.stack(
+                    (center - factor * half_range, center + factor * half_range),
+                    dim=-1,
+                )
+                torch.testing.assert_close(
+                    soft_limits_after[:, public_joint_ids],
+                    expected_soft_limits,
+                )
+                unselected_joint_ids = torch.tensor([1, 3], dtype=torch.long)
+                torch.testing.assert_close(
+                    soft_limits_after[:, unselected_joint_ids],
+                    soft_limits_before[:, unselected_joint_ids],
+                )
+
     @_backends
     @_default_dims
     @_default_devices
@@ -4381,6 +4748,70 @@ _BODY_METHODS = [
 
 class TestArticulationWritersBody:
     """Test body property writers/setters with all input combinations."""
+
+    @_non_mock_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_reversed_body_ordering_routes_property_writes_to_backend(self, backend: str, selection: str):
+        """Route partial public property writes to matching backend bodies."""
+        num_instances, num_joints, num_bodies = 2, 1, 4
+        body_ordering = tuple(f"body_{index}" for index in reversed(range(num_bodies)))
+        art, raw_backend = get_articulation(
+            backend,
+            num_instances,
+            num_joints,
+            num_bodies,
+            device="cpu",
+            body_ordering=body_ordering,
+        )
+        if backend == "physx":
+            raw_backend._noop_setters = False
+
+        user_to_backend = np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
+        selected_envs = np.arange(num_instances, dtype=np.int32)
+        selected_bodies = np.asarray([0, 2], dtype=np.int32)
+        property_cases = [
+            ("set_masses", "masses", "mass"),
+            ("set_inertias", "inertias", "inertia"),
+        ]
+
+        for case_index, (method_name, value_name, property_name) in enumerate(property_cases):
+            before = _get_backend_body_property_tensors(backend, art, raw_backend)[property_name]
+            leading_shape = (
+                (num_instances, selected_bodies.size) if selection == "index" else (num_instances, num_bodies)
+            )
+            values = torch.arange(int(np.prod(leading_shape)), dtype=torch.float32).reshape(leading_shape)
+            values = values + 100.0 * (case_index + 1)
+            if property_name == "inertia":
+                component_offsets = torch.arange(9, dtype=torch.float32) / 10.0
+                values = values.unsqueeze(-1) + component_offsets
+
+            kwargs = {value_name: values}
+            if selection == "index":
+                kwargs.update(
+                    {
+                        "env_ids": wp.array(selected_envs, dtype=wp.int32, device=art.device),
+                        "body_ids": wp.array(selected_bodies, dtype=wp.int32, device=art.device),
+                    }
+                )
+            else:
+                kwargs.update(
+                    {
+                        "env_mask": wp.ones(num_instances, dtype=wp.bool, device=art.device),
+                        "body_mask": _make_item_mask(num_bodies, selected_bodies.tolist(), art.device),
+                    }
+                )
+
+            getattr(art, f"{method_name}_{selection}")(**kwargs)
+
+            after = _get_backend_body_property_tensors(backend, art, raw_backend)[property_name]
+            expected = before.clone()
+            backend_body_ids = torch.as_tensor(user_to_backend[selected_bodies], dtype=torch.long)
+            if selection == "index":
+                expected[:, backend_body_ids] = values
+            else:
+                public_body_ids = torch.as_tensor(selected_bodies, dtype=torch.long)
+                expected[:, backend_body_ids] = values[:, public_body_ids]
+            torch.testing.assert_close(after, expected, rtol=0.0, atol=0.0)
 
     @_backends
     @_default_dims

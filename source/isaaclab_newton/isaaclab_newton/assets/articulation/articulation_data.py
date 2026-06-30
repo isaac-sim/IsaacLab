@@ -864,28 +864,19 @@ class ArticulationData(BaseArticulationData):
         All values are relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
-            body_com_acc_w = self._body_com_acc_w_backend.data if self._has_body_ordering else self._body_com_acc_w.data
             wp.launch(
-                shared_kernels.derive_body_acceleration_from_body_com_velocities,
+                articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
                 dim=(self._num_instances, self._num_bodies),
                 device=self.device,
                 inputs=[
                     self._sim_bind_body_com_vel_w,
-                    SimulationManager.get_dt(),
                     self._previous_body_com_vel,
+                    self._body_user_to_backend,
+                    self._has_body_ordering,
+                    SimulationManager.get_dt(),
                 ],
-                outputs=[
-                    body_com_acc_w,
-                ],
+                outputs=[self._body_com_acc_w.data],
             )
-            if self._has_body_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[self._body_com_acc_w_backend.data, self._body_user_to_backend],
-                    outputs=[self._body_com_acc_w.data],
-                    device=self.device,
-                )
             self._body_com_acc_w.timestamp = self._sim_timestamp
         return self._body_com_acc_w_ta
 
@@ -1716,13 +1707,7 @@ class ArticulationData(BaseArticulationData):
             else:
                 self._previous_joint_vel.assign(self._sim_bind_joint_vel)
             self._previous_body_com_vel.assign(self._sim_bind_body_com_vel_w)
-            reset_timestamps(
-                [
-                    self._joint_acc,
-                    self._body_com_acc_w_backend,
-                    self._body_com_acc_w,
-                ]
-            )
+            reset_timestamps([self._joint_acc, self._body_com_acc_w])
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -1834,7 +1819,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_acc_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
-        self._body_com_acc_w_backend: TimestampedBuffer | None = None
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
         self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
@@ -2004,7 +1988,6 @@ class ArticulationData(BaseArticulationData):
             "_jacobian_body_user_to_backend",
             "_body_link_pose_w_user",
             "_body_com_vel_w_user",
-            "_body_com_acc_w_backend",
             "_body_mass_user",
             "_body_inertia_user",
             "_body_com_pos_b_user",
@@ -2070,10 +2053,6 @@ class ArticulationData(BaseArticulationData):
                 self._body_link_pose_w_user = TimestampedBuffer(shape=shape, dtype=wp.transformf, device=self.device)
             if self._body_com_vel_w_user is None:
                 self._body_com_vel_w_user = TimestampedBuffer(shape=shape, dtype=wp.spatial_vectorf, device=self.device)
-            if self._body_com_acc_w_backend is None:
-                self._body_com_acc_w_backend = TimestampedBuffer(
-                    shape=shape, dtype=wp.spatial_vectorf, device=self.device
-                )
             if self._body_mass_user is None:
                 self._body_mass_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
             if self._body_inertia_user is None:
@@ -2086,7 +2065,6 @@ class ArticulationData(BaseArticulationData):
         else:
             self._body_link_pose_w_user = None
             self._body_com_vel_w_user = None
-            self._body_com_acc_w_backend = None
             self._body_mass_user = None
             self._body_inertia_user = None
             self._body_com_pos_b_user = None
@@ -2095,7 +2073,6 @@ class ArticulationData(BaseArticulationData):
             [
                 self._body_link_pose_w_user,
                 self._body_com_vel_w_user,
-                self._body_com_acc_w_backend,
                 self._body_link_vel_w,
                 self._body_com_pose_b,
                 self._body_com_pose_w,

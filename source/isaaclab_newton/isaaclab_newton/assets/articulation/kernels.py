@@ -84,6 +84,39 @@ def get_joint_acc_from_joint_vel(
 
 
 @wp.kernel
+def get_body_com_acc_from_body_com_vel_ordered(
+    body_com_vel_backend: wp.array2d(dtype=wp.spatial_vectorf),
+    prev_body_com_vel_backend: wp.array2d(dtype=wp.spatial_vectorf),
+    user_to_backend: wp.array(dtype=wp.int32),
+    has_ordering: bool,
+    dt: wp.float32,
+    body_com_acc_user: wp.array2d(dtype=wp.spatial_vectorf),
+) -> None:
+    """Derive public-order body COM acceleration from backend-order velocity.
+
+    Args:
+        body_com_vel_backend: Current body center-of-mass velocity in backend
+            order [m/s, rad/s], shape (num_envs, num_bodies).
+        prev_body_com_vel_backend: Previous body center-of-mass velocity in
+            backend order [m/s, rad/s], shape (num_envs, num_bodies).
+            Updated in place with the current velocity.
+        user_to_backend: Public-to-backend body permutation, shape
+            (num_bodies,).
+        has_ordering: Whether the public-to-backend map is nonidentity.
+        dt: Finite-difference time step [s].
+        body_com_acc_user: Body center-of-mass acceleration in public order
+            [m/s^2, rad/s^2], shape (num_envs, num_bodies).
+    """
+    env_id, user_body_id = wp.tid()
+    backend_body_id = user_body_id
+    if has_ordering:
+        backend_body_id = user_to_backend[user_body_id]
+    body_com_vel = body_com_vel_backend[env_id, backend_body_id]
+    body_com_acc_user[env_id, user_body_id] = (body_com_vel - prev_body_com_vel_backend[env_id, backend_body_id]) / dt
+    prev_body_com_vel_backend[env_id, backend_body_id] = body_com_vel
+
+
+@wp.kernel
 def write_joint_limit_data_to_buffer_index(
     in_data: wp.array2d(dtype=wp.vec2f),
     soft_limit_factor: wp.float32,

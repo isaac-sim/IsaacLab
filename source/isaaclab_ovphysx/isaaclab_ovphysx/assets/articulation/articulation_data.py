@@ -60,9 +60,12 @@ class ArticulationData(BaseArticulationData):
 
     .. note::
         **Pull-to-refresh model.** OVPhysX state properties are *not* automatically updated each
-        simulation step. Each property getter pulls fresh data from the OVPhysX ``TensorBinding``
-        on first access per timestamp, then caches the result until the next step. This differs
-        from the Newton backend, where buffers are refreshed automatically by the simulation.
+        simulation step. With default or identity ordering, first access per timestamp refreshes
+        the public buffer directly from the OVPhysX ``TensorBinding`` and caches it until the next
+        step. With nonidentity ordering, the getter refreshes a backend-order staging buffer and
+        then gathers into an owned public-order shadow. Newton's solver-owned backend-order
+        buffers are refreshed automatically by the simulation; its nonidentity public-order
+        shadows are likewise refreshed lazily on first access.
 
     .. note::
         **CPU-only bindings.** OVPhysX exposes a subset of bindings (``BODY_MASS``, ``BODY_COM_POSE``,
@@ -237,7 +240,6 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_vel_w,
                 self._body_com_vel_w_backend,
                 self._body_link_vel_w,
-                self._body_link_vel_w_backend,
                 self._root_state_w_buf,
                 self._root_link_state_w_buf,
                 self._root_com_state_w_buf,
@@ -260,7 +262,6 @@ class ArticulationData(BaseArticulationData):
                 self._body_com_vel_w,
                 self._body_com_vel_w_backend,
                 self._body_link_vel_w,
-                self._body_link_vel_w_backend,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
                 self._root_com_lin_vel_b,
@@ -808,9 +809,9 @@ class ArticulationData(BaseArticulationData):
         # ovphysx ROOT_VELOCITY is COM velocity; link velocity comes from the first
         # element of the backend-order per-link velocity tensor.
         if self._has_body_ordering:
-            backend_buffer = self._body_link_vel_w_backend
+            backend_buffer = self._body_com_vel_w_backend
             if backend_buffer is None:
-                raise RuntimeError("OVPhysX _has_body_ordering requires _body_link_vel_w_backend.")
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_vel_w_backend.")
             self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
         else:
             backend_buffer = self._body_com_vel_w
@@ -1611,7 +1612,7 @@ class ArticulationData(BaseArticulationData):
     """
 
     def _create_buffers(self) -> None:  # noqa: C901
-        """Allocate core buffers and defer optional nonidentity joint-ordering staging."""
+        """Allocate core buffers and defer optional nonidentity joint/body-ordering staging."""
         super()._create_buffers()
 
         N = self._num_instances
@@ -1629,7 +1630,6 @@ class ArticulationData(BaseArticulationData):
         self._body_link_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_link_pose_w_backend: TimestampedBuffer | None = None
         self._body_link_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-        self._body_link_vel_w_backend: TimestampedBuffer | None = None
         self._body_com_pose_b = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_pose_b_backend: TimestampedBuffer | None = None
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
@@ -2093,7 +2093,6 @@ class ArticulationData(BaseArticulationData):
                 raise RuntimeError("OVPhysX _has_body_ordering requires _body_user_to_backend.")
             for backend_name, dtype in (
                 ("_body_link_pose_w_backend", wp.transformf),
-                ("_body_link_vel_w_backend", wp.spatial_vectorf),
                 ("_body_com_pose_b_backend", wp.transformf),
                 ("_body_com_vel_w_backend", wp.spatial_vectorf),
                 ("_body_com_acc_w_backend", wp.spatial_vectorf),
@@ -2148,7 +2147,6 @@ class ArticulationData(BaseArticulationData):
                     self._body_inertia.data.assign(self._body_inertia_backend.data)
                     self._body_inertia.timestamp = self._body_inertia_backend.timestamp
             self._body_link_pose_w_backend = None
-            self._body_link_vel_w_backend = None
             self._body_com_pose_b_backend = None
             self._body_com_vel_w_backend = None
             self._body_com_acc_w_backend = None

@@ -368,6 +368,21 @@ _ANYMAL_C_BODY_NAMES = (
 )
 _ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_ANYMAL_C_BODY_NAMES[0], *reversed(_ANYMAL_C_BODY_NAMES[1:]))
 
+_ANYMAL_C_PHYSX_JOINT_NAMES = (
+    "LF_HAA",
+    "LH_HAA",
+    "RF_HAA",
+    "RH_HAA",
+    "LF_HFE",
+    "LH_HFE",
+    "RF_HFE",
+    "RH_HFE",
+    "LF_KFE",
+    "LH_KFE",
+    "RF_KFE",
+    "RH_KFE",
+)
+
 _NEWTON_USER_ORDER_STATE_CACHES = (
     "_joint_pos_user",
     "_joint_vel_user",
@@ -519,6 +534,8 @@ def sim(request):
     articulation_type = request.getfixturevalue("articulation_type")
     sim_cfg = deepcopy(SIM_CFGs[articulation_type])
     sim_cfg.device = device
+    if "use_newton_actuators" in request.fixturenames:
+        sim_cfg.use_newton_actuators = request.getfixturevalue("use_newton_actuators")
     # ``gravity_enabled`` is silently ignored by ``build_simulation_context``
     # when an explicit ``sim_cfg`` is also passed; apply it here so the
     # fixture honors what its parameter advertises.
@@ -548,6 +565,69 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articula
     assert articulation.is_initialized
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("use_newton_actuators", [True])
+def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
+    sim, num_articulations, device, gravity_enabled, articulation_type, use_newton_actuators
+):
+    """Map partial public-order gain writes to Newton controller backend columns."""
+    articulation_cfg = generate_articulation_cfg(articulation_type).replace(
+        actuators={
+            "legs": IdealPDActuatorCfg(
+                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+                stiffness=40.0,
+                damping=5.0,
+                effort_limit=80.0,
+            )
+        },
+        joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)),
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+
+    assert use_newton_actuators
+    assert articulation.joint_ordering is not None
+    assert not articulation.joint_ordering.is_identity
+    assert articulation.newton_actuator_adapter is not None
+
+    def gather_controller_parameter(name: str) -> torch.Tensor:
+        parameter = torch.zeros(
+            (articulation.num_instances, articulation.num_joints),
+            device=articulation.device,
+        )
+        for actuator in articulation.newton_actuator_adapter.actuators:
+            if hasattr(actuator.controller, name):
+                parameter += wp.to_torch(
+                    articulation.root_view.get_actuator_parameter(actuator, actuator.controller, name)
+                )
+        return parameter
+
+    stiffness_before = gather_controller_parameter("kp").clone()
+    damping_before = gather_controller_parameter("kd").clone()
+    env_ids = torch.tensor([1], device=articulation.device, dtype=torch.long)
+    joint_ids = torch.tensor([1, 6, 10], device=articulation.device, dtype=torch.long)
+    stiffness = torch.tensor([[101.0, 106.0, 110.0]], device=articulation.device)
+    damping = torch.tensor([[11.0, 16.0, 20.0]], device=articulation.device)
+
+    articulation.write_actuator_stiffness_to_sim(stiffness=stiffness, env_ids=env_ids, joint_ids=joint_ids)
+    articulation.write_actuator_damping_to_sim(damping=damping, env_ids=env_ids, joint_ids=joint_ids)
+
+    backend_joint_ids = torch.tensor(
+        articulation.joint_ordering.user_to_backend_indices,
+        device=articulation.device,
+        dtype=torch.long,
+    )[joint_ids]
+    expected_stiffness = stiffness_before.clone()
+    expected_damping = damping_before.clone()
+    expected_stiffness[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = stiffness
+    expected_damping[env_ids.unsqueeze(1), backend_joint_ids.unsqueeze(0)] = damping
+    torch.testing.assert_close(gather_controller_parameter("kp"), expected_stiffness)
+    torch.testing.assert_close(gather_controller_parameter("kd"), expected_damping)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -730,8 +810,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     assert data._joint_pos_limits_timestamp == -1.0
     assert data._joint_acc.timestamp == -1.0
     assert data._body_com_acc_w.timestamp == -1.0
-    if data._body_com_acc_w_backend is not None:
-        assert data._body_com_acc_w_backend.timestamp == -1.0
     if has_ordering:
         for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
             assert getattr(data, cache_name).timestamp == -1.0
