@@ -795,6 +795,18 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
 
         self.at_goal_prob: float = cfg.params.get("at_goal_prob", 0.8)
 
+        # Optional linear annealing of at_goal_prob over training iterations.
+        # `at_goal_prob` is the starting value; it decays linearly to
+        # `at_goal_prob_final` between `anneal_start_iter` and `anneal_end_iter`.
+        # Annealing is active only when both `at_goal_prob_final` and
+        # `anneal_end_iter` are provided (otherwise the probability is constant).
+        # Iterations are derived from the env step counter via `num_steps_per_env`
+        # (one RL iteration == `num_steps_per_env` env steps).
+        self.at_goal_prob_final = cfg.params.get("at_goal_prob_final", None)
+        self.anneal_start_iter: float = cfg.params.get("anneal_start_iter", 0.0)
+        self.anneal_end_iter = cfg.params.get("anneal_end_iter", None)
+        self.num_steps_per_env = cfg.params.get("num_steps_per_env", None)
+
         insertion_axis = cfg.params.get("insertion_axis", [0.0, 0.0, 1.0])
         self.insertion_axis = torch.tensor(insertion_axis, device=env.device, dtype=torch.float32)
         self.insertion_axis = self.insertion_axis / self.insertion_axis.norm()
@@ -816,6 +828,26 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
             [0.0, 0.0, 0.0, 1.0], device=env.device, dtype=torch.float32
         )
 
+    def _current_at_goal_prob(self, env: ManagerBasedEnv) -> float:
+        """Return the at-goal probability for the current training progress.
+
+        Linearly interpolates from ``at_goal_prob`` to ``at_goal_prob_final``
+        between ``anneal_start_iter`` and ``anneal_end_iter``. Returns the
+        constant ``at_goal_prob`` when annealing is not fully configured.
+        """
+        if (
+            self.at_goal_prob_final is None
+            or self.anneal_end_iter is None
+            or not self.num_steps_per_env
+        ):
+            return self.at_goal_prob
+
+        current_iter = env.common_step_counter / float(self.num_steps_per_env)
+        span = max(float(self.anneal_end_iter) - float(self.anneal_start_iter), 1e-9)
+        frac = (current_iter - float(self.anneal_start_iter)) / span
+        frac = min(max(frac, 0.0), 1.0)
+        return self.at_goal_prob + frac * (float(self.at_goal_prob_final) - self.at_goal_prob)
+
     def __call__(
         self,
         env: ManagerBasedEnv,
@@ -829,6 +861,10 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
         plug_insertion_offset: list | None = None,
         goal_rot: list | None = None,
         normal_pose_range: dict | None = None,
+        at_goal_prob_final: float | None = None,
+        anneal_start_iter: float = 0.0,
+        anneal_end_iter: float | None = None,
+        num_steps_per_env: int | None = None,
     ):
         num_envs = len(env_ids)
 
@@ -866,13 +902,20 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
         plug_pos = normal_plug_pos.clone()
         plug_quat = normal_plug_quat.clone()
 
-        # At-goal curriculum: place fraction of envs along insertion axis
-        if self.at_goal_prob > 0.0 and num_envs > 0:
-            num_at_goal = int(num_envs * self.at_goal_prob)
+        # At-goal curriculum: place fraction of envs along insertion axis.
+        # The probability may be annealed over training iterations.
+        current_at_goal_prob = self._current_at_goal_prob(env)
+        if current_at_goal_prob > 0.0 and num_envs > 0:
+            # Per-env Bernoulli draw: each resetting env independently has
+            # probability `current_at_goal_prob` of being seeded at goal. This is
+            # robust to the reset batch size, including single-env resets
+            # (manager-based envs reset per-termination, so batches are often
+            # size 1 -- a fixed `int(num_envs * prob)` count would round down to
+            # 0 there).
+            at_goal_mask = torch.rand(num_envs, device=env.device) < current_at_goal_prob
+            at_goal_local = at_goal_mask.nonzero(as_tuple=False).squeeze(-1)
+            num_at_goal = int(at_goal_local.numel())
             if num_at_goal > 0:
-                perm = torch.randperm(num_envs, device=env.device)
-                at_goal_local = perm[:num_at_goal]
-
                 depth_rand = torch.rand(num_at_goal, 1, device=env.device)
                 goal_kp_pos = kp_origin_w[at_goal_local] + depth_rand * insertion_axis_w[at_goal_local] * self.insertion_length
 
