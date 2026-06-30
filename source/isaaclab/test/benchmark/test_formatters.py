@@ -126,3 +126,18 @@ def test_kpi_formatters_clear_phases_after_finalize(tmp_path, formatter_cls):
 
     assert os.path.exists(os.path.join(str(tmp_path), "first.json"))
     assert not os.path.exists(os.path.join(str(tmp_path), "second.json"))
+
+
+def test_osmo_writes_one_file_per_phase(tmp_path):
+    formatter = formatters.OsmoKPIFile()
+    for phase_name, value in (("startup", 1.0), ("runtime", 60.0)):
+        phase = TestPhase(phase_name=phase_name)
+        phase.metadata.append(StringMetadata(name="phase", data=phase_name))
+        phase.measurements.append(SingleMeasurement(name="FPS", value=value, unit="FPS"))
+        formatter.add_metrics(phase)
+
+    formatter.finalize(str(tmp_path), "metrics")
+
+    assert sorted(path.name for path in tmp_path.glob("*.json")) == ["metrics_runtime.json", "metrics_startup.json"]
+    with open(tmp_path / "metrics_runtime.json") as f:
+        assert json.load(f)["FPS"] == 60.0

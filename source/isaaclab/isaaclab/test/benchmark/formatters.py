@@ -520,8 +520,8 @@ class OsmoKPIFile(MetricsFormatterInterface):
     def finalize(self, output_path: str, output_filename: str, **kwargs) -> None:
         """Write metrics to output file(s).
 
-        Each test phase's SingleMeasurement metrics and metadata are written to an output JSON file, at path
-        `[output_path]/[output_filename].json`.
+        A single phase is written to ``[output_path]/[output_filename].json``. Multiple phases
+        are written separately with the phase name appended to each filename.
 
         Args:
             output_path: Output path in which metrics files will be stored.
@@ -534,6 +534,7 @@ class OsmoKPIFile(MetricsFormatterInterface):
 
             formatter.finalize("/tmp/metrics", "kpis")
         """
+        multi_phase = len(self._test_phases) > 1
         for test_phase in self._test_phases:
             # Retrieve useful metadata from test_phase
             phase_name = test_phase.get_metadata_field("phase")
@@ -549,8 +550,8 @@ class OsmoKPIFile(MetricsFormatterInterface):
                 if isinstance(measurement, SingleMeasurement):
                     osmo_kpis[measurement.name] = measurement.value
                     log_statements.append(f"{measurement.name}: {measurement.value} {measurement.unit}")
-            # Generate the output filename with timestamp
-            metrics_path = os.path.join(output_path, f"{output_filename}.json")
+            filename = f"{output_filename}_{phase_name}" if multi_phase else output_filename
+            metrics_path = os.path.join(output_path, f"{filename}.json")
             # Dump key-value pairs (fields) to the JSON document
             json_data = json.dumps(osmo_kpis, indent=4)
             with open(metrics_path, "w") as f:
