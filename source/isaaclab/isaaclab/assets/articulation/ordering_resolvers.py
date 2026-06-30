@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Literal
 
-from .ordering import ArticulationOrderingConvention, parse_articulation_ordering_convention
+from .ordering import ArticulationOrderingConvention, _coerce_articulation_names, parse_articulation_ordering_convention
 
 if TYPE_CHECKING:
     from .base_articulation import BaseArticulation
@@ -29,7 +30,7 @@ def _backend_matches_ordering_convention(
 
 def _coerce_name_sequence(names: object) -> tuple[str, ...] | None:
     """Return names as a tuple when they look like an articulation name sequence."""
-    if names is None or isinstance(names, str):
+    if names is None or isinstance(names, str | bytes | bytearray):
         return None
     try:
         name_tuple = tuple(names)
@@ -45,7 +46,11 @@ def _get_attr_or_none(obj: object, name: str) -> object | None:
     try:
         return getattr(obj, name)
     except AttributeError:
-        return None
+        try:
+            inspect.getattr_static(obj, name)
+        except AttributeError:
+            return None
+        raise
 
 
 def _get_backend_names(articulation: object, kind: Literal["joint", "body"]) -> tuple[str, ...]:
@@ -86,8 +91,7 @@ def _get_cached_convention_names(
     cache = _get_attr_or_none(articulation, "_ordering_convention_name_cache")
     if isinstance(cache, dict):
         names = cache.get((convention, kind))
-        if names is not None:
-            return tuple(names)
+        return _coerce_name_sequence(names)
     return None
 
 
@@ -305,6 +309,48 @@ def _match_backend_name_spellings(
     if kind == "joint":
         return _match_backend_joint_name_spellings(names, backend_names)
     return tuple(names)
+
+
+def _get_complete_convention_names(
+    *,
+    kind: Literal["joint", "body"],
+    names: object,
+    backend_names: Sequence[str],
+) -> tuple[str, ...] | None:
+    """Return a convention candidate when it is a complete backend-name permutation."""
+    candidate_names = _coerce_name_sequence(names)
+    if candidate_names is None:
+        return None
+    candidate_names = _match_backend_name_spellings(
+        kind=kind,
+        names=candidate_names,
+        backend_names=backend_names,
+    )
+    backend_names = tuple(backend_names)
+    if len(candidate_names) != len(backend_names) or set(candidate_names) != set(backend_names):
+        return None
+    return candidate_names
+
+
+def _get_complete_convention_names_by_kind(
+    articulation: object,
+    names_by_kind: dict[Literal["joint", "body"], tuple[str, ...]],
+) -> dict[Literal["joint", "body"], tuple[str, ...]]:
+    """Return only complete convention-name candidates from a multi-kind provider."""
+    complete_names: dict[Literal["joint", "body"], tuple[str, ...]] = {}
+    for candidate_kind in ("joint", "body"):
+        attr_name = "backend_joint_names" if candidate_kind == "joint" else "backend_body_names"
+        backend_names = _coerce_name_sequence(_get_attr_or_none(articulation, attr_name))
+        if backend_names is None:
+            continue
+        names = _get_complete_convention_names(
+            kind=candidate_kind,
+            names=names_by_kind.get(candidate_kind),
+            backend_names=backend_names,
+        )
+        if names is not None:
+            complete_names[candidate_kind] = names
+    return complete_names
 
 
 def _get_source_asset_prim(articulation: object) -> object | None:
@@ -530,16 +576,33 @@ def resolve_articulation_convention_name_ordering(
     if _backend_matches_ordering_convention(active_backend_name, parsed_convention):
         return _get_backend_names(articulation, kind)
 
+    backend_names = _get_backend_names(articulation, kind)
+
     cached_names = _get_cached_convention_names(articulation, parsed_convention, kind)
+    cached_names = _get_complete_convention_names(
+        kind=kind,
+        names=cached_names,
+        backend_names=backend_names,
+    )
     if cached_names is not None:
         return cached_names
 
     precomputed_names = _get_precomputed_convention_names(articulation, parsed_convention, kind)
+    precomputed_names = _get_complete_convention_names(
+        kind=kind,
+        names=precomputed_names,
+        backend_names=backend_names,
+    )
     if precomputed_names is not None:
         return precomputed_names
 
     if parsed_convention is ArticulationOrderingConvention.ROBOT_SCHEMA:
         robot_schema_names = _get_robot_schema_names(articulation, kind)
+        robot_schema_names = _get_complete_convention_names(
+            kind=kind,
+            names=robot_schema_names,
+            backend_names=backend_names,
+        )
         if robot_schema_names is not None:
             _cache_convention_names(articulation, parsed_convention, {kind: robot_schema_names})
             return robot_schema_names
@@ -547,20 +610,31 @@ def resolve_articulation_convention_name_ordering(
     root_view = _get_attr_or_none(articulation, "root_view")
     if root_view is not None:
         root_view_names = _get_root_view_convention_names(root_view, parsed_convention, kind)
+        root_view_names = _get_complete_convention_names(
+            kind=kind,
+            names=root_view_names,
+            backend_names=backend_names,
+        )
         if root_view_names is not None:
             return root_view_names
 
     if parsed_convention is ArticulationOrderingConvention.PHYSX:
         physx_names = _get_physx_names_from_newton_usd_builder(articulation)
         if physx_names is not None:
-            _cache_convention_names(articulation, parsed_convention, physx_names)
-            return physx_names[kind]
+            complete_physx_names = _get_complete_convention_names_by_kind(articulation, physx_names)
+            if complete_physx_names:
+                _cache_convention_names(articulation, parsed_convention, complete_physx_names)
+            if kind in complete_physx_names:
+                return complete_physx_names[kind]
 
     if parsed_convention is ArticulationOrderingConvention.MJWARP:
         mjwarp_names = _get_mjwarp_names_from_newton_usd_builder(articulation)
         if mjwarp_names is not None:
-            _cache_convention_names(articulation, parsed_convention, mjwarp_names)
-            return mjwarp_names[kind]
+            complete_mjwarp_names = _get_complete_convention_names_by_kind(articulation, mjwarp_names)
+            if complete_mjwarp_names:
+                _cache_convention_names(articulation, parsed_convention, complete_mjwarp_names)
+            if kind in complete_mjwarp_names:
+                return complete_mjwarp_names[kind]
 
     raise NotImplementedError(
         f"Resolving {parsed_convention.value} {kind} ordering from backend '{active_backend_name}' requires "
@@ -756,7 +830,7 @@ def resolve_articulation_ordering_names(
         NotImplementedError: If cross-backend ordering lacks an articulation or
             resolver, or all optional convention metadata is absent or incomplete.
     """
-    backend_names = tuple(backend_names)
+    backend_names = _coerce_articulation_names(backend_names, parameter_name="backend_names")
     if ordering is None:
         return backend_names
     if isinstance(ordering, ArticulationOrderingConvention):
@@ -764,11 +838,7 @@ def resolve_articulation_ordering_names(
     elif isinstance(ordering, str):
         convention = parse_articulation_ordering_convention(ordering)
     elif isinstance(ordering, Sequence) and not isinstance(ordering, bytes | bytearray):
-        explicit_names = tuple(ordering)
-        for index, value in enumerate(explicit_names):
-            if not isinstance(value, str):
-                raise TypeError(f"{kind}_ordering element {index} must be str; got {value!r} ({type(value).__name__}).")
-        return explicit_names
+        return _coerce_articulation_names(ordering, parameter_name=f"{kind}_ordering")
     else:
         raise TypeError(
             f"{kind}_ordering must be a name sequence, convention string/enum, or None; got {type(ordering).__name__}."
@@ -777,7 +847,10 @@ def resolve_articulation_ordering_names(
     if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
         return backend_names
     if convention_name_resolver is not None:
-        convention_names = tuple(convention_name_resolver(convention, kind))
+        convention_names = _coerce_articulation_names(
+            convention_name_resolver(convention, kind),
+            parameter_name="convention_name_resolver result",
+        )
         return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
     if articulation is not None:
         convention_names = resolve_articulation_convention_name_ordering(

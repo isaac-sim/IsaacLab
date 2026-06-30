@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from isaaclab.utils.wrench_composer import WrenchComposer
 
     from .articulation_cfg import ArticulationCfg
-    from .articulation_data import ArticulationData
+    from .base_articulation_data import BaseArticulationData
 
 
 class BaseArticulation(AssetBase):
@@ -107,7 +107,7 @@ class BaseArticulation(AssetBase):
 
     @property
     @abstractmethod
-    def data(self) -> ArticulationData:
+    def data(self) -> BaseArticulationData:
         raise NotImplementedError()
 
     @property

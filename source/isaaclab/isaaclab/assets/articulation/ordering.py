@@ -17,6 +17,20 @@ if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
 
+def _coerce_articulation_names(names: object, *, parameter_name: str) -> tuple[str, ...]:
+    """Return a validated articulation name sequence."""
+    if isinstance(names, str | bytes | bytearray):
+        raise TypeError(f"{parameter_name} must be a sequence of strings; got {type(names).__name__}.")
+    try:
+        name_tuple = tuple(names)
+    except TypeError as exc:
+        raise TypeError(f"{parameter_name} must be a sequence of strings; got {type(names).__name__}.") from exc
+    for index, name in enumerate(name_tuple):
+        if not isinstance(name, str):
+            raise TypeError(f"{parameter_name} element {index} must be str; got {name!r} ({type(name).__name__}).")
+    return name_tuple
+
+
 class ArticulationOrderingConvention(str, Enum):
     """Built-in non-default public articulation name-ordering conventions.
 
@@ -102,8 +116,10 @@ class ArticulationNameMap:
         if self.kind not in {"joint", "body"}:
             raise ValueError(f"ArticulationNameMap kind must be 'joint' or 'body'. Got {self.kind!r}.")
 
-        object.__setattr__(self, "backend_names", tuple(self.backend_names))
-        object.__setattr__(self, "user_names", tuple(self.user_names))
+        object.__setattr__(
+            self, "backend_names", _coerce_articulation_names(self.backend_names, parameter_name="backend_names")
+        )
+        object.__setattr__(self, "user_names", _coerce_articulation_names(self.user_names, parameter_name="user_names"))
         object.__setattr__(self, "user_to_backend_indices", tuple(int(index) for index in self.user_to_backend_indices))
         object.__setattr__(self, "backend_to_user_indices", tuple(int(index) for index in self.backend_to_user_indices))
 
@@ -127,6 +143,8 @@ class ArticulationNameMap:
         for user_index, backend_index in enumerate(user_to_backend):
             if backend_to_user[backend_index] != user_index:
                 raise ValueError("ArticulationNameMap CPU index maps must be inverse permutations.")
+            if self.user_names[user_index] != self.backend_names[backend_index]:
+                raise ValueError("ArticulationNameMap name and index mappings must agree.")
 
         for map_name, device_map, cpu_map in (
             ("user_to_backend", self.user_to_backend, user_to_backend),
@@ -244,9 +262,12 @@ def build_articulation_name_map(
         ValueError: If :paramref:`kind` is invalid, either name sequence has
             duplicates, :paramref:`user_names` is not a complete permutation
             of :paramref:`backend_names`, or a name-map invariant is violated.
+        TypeError: If either name input is not a sequence of strings.
     """
-    backend_names = tuple(backend_names)
-    user_names = backend_names if user_names is None else tuple(user_names)
+    backend_names = _coerce_articulation_names(backend_names, parameter_name="backend_names")
+    user_names = (
+        backend_names if user_names is None else _coerce_articulation_names(user_names, parameter_name="user_names")
+    )
 
     if len(set(backend_names)) != len(backend_names):
         raise ValueError(f"Duplicate backend {kind} names are not supported: {backend_names}.")
