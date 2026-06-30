@@ -181,8 +181,13 @@ class BaseArticulation(AssetBase):
     def backend_joint_names(self) -> list[str]:
         """Joint names in active backend solver-view order.
 
-        This order matches backend ``root_view`` metadata and joint-indexed
-        solver arrays even when :attr:`joint_names` uses another public order.
+        Concrete backends must override this property so its order matches
+        ``root_view`` metadata and joint-indexed solver arrays even when
+        :attr:`joint_names` uses another public order.
+
+        The inherited compatibility fallback emits :class:`DeprecationWarning`
+        and returns :attr:`joint_names`. A subclass relying on that fallback
+        therefore receives public order and cannot expose a distinct solver order.
         """
         warnings.warn(
             f"{type(self).__name__} must override backend_joint_names before it becomes abstract in a future release.",
@@ -195,8 +200,13 @@ class BaseArticulation(AssetBase):
     def backend_body_names(self) -> list[str]:
         """Body names in active backend solver-view order.
 
-        This order matches backend ``root_view`` metadata and body-indexed solver
-        arrays even when :attr:`body_names` uses another public order.
+        Concrete backends must override this property so its order matches
+        ``root_view`` metadata and body-indexed solver arrays even when
+        :attr:`body_names` uses another public order.
+
+        The inherited compatibility fallback emits :class:`DeprecationWarning`
+        and returns :attr:`body_names`. A subclass relying on that fallback
+        therefore receives public order and cannot expose a distinct solver order.
         """
         warnings.warn(
             f"{type(self).__name__} must override backend_body_names before it becomes abstract in a future release.",

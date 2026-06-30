@@ -47,9 +47,12 @@ class ArticulationNameMap:
     All name and index sequences have the same length. Each name sequence is
     unique, both device maps are one-dimensional arrays with shape
     ``(num_names,)`` and dtype ``wp.int32``, and the device maps share a Warp
-    device. Direct construction validates these invariants and incurs a one-time
-    device-to-host synchronization step to compare the device and CPU maps. This
-    is initialization cost only.
+    device. Construction copies each device map to host and compares it with the
+    corresponding CPU tuple as part of validation.
+
+    When an articulation constructs its maps, this validation occurs during
+    initialization. Hot read and write paths reuse the validated device maps and
+    do not synchronize them to the host.
 
     An explicit ordering equal to backend order still produces a map with
     :attr:`is_identity` set. The default ``None`` ordering is represented by no

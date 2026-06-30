@@ -496,8 +496,12 @@ def resolve_articulation_convention_name_ordering(
     ordering of the active backend names.
 
     The returned tuple defines public order only. Any ``root_view`` metadata read
-    here, and all solver-view arrays, remain in backend order. Errors raised by
-    concrete metadata providers and builders are propagated without translation.
+    here, and all solver-view arrays, remain in backend order. Optional probes
+    treat missing attributes, values that are not name sequences, unavailable
+    imports or stages, and selected lookup failures as absent metadata. Resolution
+    continues through the remaining sources and may end in
+    :class:`NotImplementedError`. Unsupported convention inputs and provider or
+    builder exceptions not explicitly handled as absence propagate to the caller.
 
     Args:
         articulation: Articulation whose configured source asset is resolved.
@@ -509,14 +513,14 @@ def resolve_articulation_convention_name_ordering(
         Names to expose on the requested public joint or body axis.
 
     Raises:
-        AttributeError: If required active-backend names are unavailable or a
-            concrete metadata provider raises this error.
-        TypeError: If :paramref:`convention` has an unsupported type or a
-            concrete metadata provider raises this error.
-        ValueError: If :paramref:`convention` is an unsupported alias or
-            cross-backend discovery rejects the source metadata.
-        NotImplementedError: If no complete name metadata is available for the
-            requested cross-backend convention.
+        AttributeError: If same-backend names are unavailable, or a provider or
+            builder raises this error outside an optional metadata probe.
+        TypeError: If :paramref:`convention` has an unsupported type, or a
+            provider or builder raises an unhandled type error.
+        ValueError: If :paramref:`convention` is an unsupported alias, or a
+            provider or builder rejects the source metadata.
+        NotImplementedError: If all optional sources are absent or incomplete
+            for the requested cross-backend convention.
     """
     parsed_convention = parse_articulation_ordering_convention(convention)
     if parsed_convention is None:
@@ -578,7 +582,11 @@ def get_physx_articulation_name_ordering(
     names, so that cross-backend discovery is one-time per articulation.
 
     ``root_view`` metadata and solver-view arrays remain in backend order; this
-    function only returns the name order for the public axis.
+    function only returns the name order for the public axis. Missing or malformed
+    optional name attributes and unavailable builder dependencies, stages, or
+    source prims are treated as absent metadata. Resolution may then fall through
+    to :class:`NotImplementedError`. Provider or builder exceptions outside those
+    absence checks propagate.
 
     Args:
         articulation: Articulation whose PhysX names should be resolved.
@@ -588,11 +596,12 @@ def get_physx_articulation_name_ordering(
         Names in public PhysX or OVPhysX tensor-view order.
 
     Raises:
-        AttributeError: If required backend names are unavailable or metadata
-            discovery raises this error.
-        TypeError: If metadata discovery raises this error.
-        ValueError: If metadata discovery rejects the source asset.
-        NotImplementedError: If PhysX name metadata cannot be resolved.
+        AttributeError: If same-backend names are unavailable, or a provider or
+            builder raises this error outside optional attribute probes.
+        TypeError: If a provider or builder raises an unhandled type error.
+        ValueError: If a provider or builder rejects the source asset.
+        NotImplementedError: If optional PhysX name metadata is absent or
+            incomplete after all fallbacks.
     """
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -616,7 +625,11 @@ def get_mjwarp_articulation_name_ordering(
     per articulation.
 
     ``root_view`` metadata and solver-view arrays remain in backend order; this
-    function only returns the name order for the public axis.
+    function only returns the name order for the public axis. Missing or malformed
+    optional name attributes and unavailable builder dependencies, stages, or
+    source prims are treated as absent metadata. Resolution may then fall through
+    to :class:`NotImplementedError`. Provider or builder exceptions outside those
+    absence checks propagate.
 
     Args:
         articulation: Articulation whose Newton or MJWarp names are resolved.
@@ -626,11 +639,12 @@ def get_mjwarp_articulation_name_ordering(
         Names in public Newton or MJWarp articulation-view order.
 
     Raises:
-        AttributeError: If required backend names are unavailable or metadata
-            discovery raises this error.
-        TypeError: If metadata discovery raises this error.
-        ValueError: If metadata discovery rejects the source asset.
-        NotImplementedError: If Newton or MJWarp name metadata cannot be resolved.
+        AttributeError: If same-backend names are unavailable, or a provider or
+            builder raises this error outside optional attribute probes.
+        TypeError: If a provider or builder raises an unhandled type error.
+        ValueError: If a provider or builder rejects the source asset.
+        NotImplementedError: If optional Newton or MJWarp name metadata is absent
+            or incomplete after all fallbacks.
     """
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -657,6 +671,11 @@ def get_robot_schema_articulation_name_ordering(
     construct a Newton model. ``root_view`` metadata and solver-view arrays remain
     in backend order.
 
+    Missing relationship APIs or targets, unresolved target prims, and incomplete
+    relationship orders are treated as absent metadata and may fall through to
+    :class:`NotImplementedError`. USD provider exceptions outside those absence
+    checks propagate.
+
     Args:
         articulation: Articulation whose source USD relationships are resolved.
         kind: Element kind, either ``"joint"`` or ``"body"``.
@@ -665,11 +684,14 @@ def get_robot_schema_articulation_name_ordering(
         Names in public authored robot-schema relationship order.
 
     Raises:
-        AttributeError: If concrete USD metadata access raises this error.
-        TypeError: If concrete USD metadata access raises this error.
-        ValueError: If source-asset resolution raises this error.
-        NotImplementedError: If no complete robot-schema relationship order is
-            available.
+        AttributeError: If a USD provider raises this error outside optional
+            attribute probes.
+        TypeError: If a USD provider raises this error outside handled target
+            lookups or name-sequence coercion.
+        ValueError: If source-asset resolution or another USD provider rejects
+            the metadata.
+        NotImplementedError: If robot-schema relationship metadata is absent or
+            incomplete after all fallbacks.
     """
     return resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -704,7 +726,9 @@ def resolve_articulation_ordering_names(
 
     The returned tuple defines public order. :paramref:`backend_names`,
     ``root_view`` metadata, and solver-view arrays remain in backend order.
-    Exceptions from custom or backend convention resolvers are propagated.
+    Optional metadata failures handled as absence by the delegated resolver may
+    end in :class:`NotImplementedError`. Unsupported ordering inputs and custom
+    resolver, provider, or builder exceptions not handled as absence propagate.
 
     Args:
         kind: Element kind, either ``"joint"`` or ``"body"``.
@@ -723,13 +747,14 @@ def resolve_articulation_ordering_names(
         Concrete names for the public joint or body axis.
 
     Raises:
-        AttributeError: If a custom or backend resolver raises this error.
+        AttributeError: If a custom resolver, provider, or builder raises this
+            error outside an optional metadata probe.
         TypeError: If :paramref:`ordering` has an unsupported type, an explicit
-            sequence contains a non-string, or a resolver raises this error.
-        ValueError: If :paramref:`ordering` is an unsupported alias or a resolver
-            rejects the source metadata.
+            sequence contains a non-string, or an unhandled resolver error occurs.
+        ValueError: If :paramref:`ordering` is an unsupported alias, or a custom
+            resolver, provider, or builder rejects the source metadata.
         NotImplementedError: If cross-backend ordering lacks an articulation or
-            resolver, or convention metadata cannot be discovered.
+            resolver, or all optional convention metadata is absent or incomplete.
     """
     backend_names = tuple(backend_names)
     if ordering is None:

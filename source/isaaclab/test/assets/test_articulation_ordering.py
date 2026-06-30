@@ -124,11 +124,13 @@ def test_assets_package_reexports_public_ordering_symbols() -> None:
 
 
 def test_assets_api_page_defines_ordering_symbols() -> None:
-    """Publish every articulation ordering symbol on the assets API page."""
+    """Publish exact ordering directives; the preceding test covers re-exports."""
     repo_root = Path(__file__).resolve().parents[4]
     api_page = (repo_root / "docs/source/api/lab/isaaclab.assets.rst").read_text(encoding="utf-8")
+    actual_directives = {line.strip() for line in api_page.splitlines() if line.strip().startswith(".. ")}
 
-    expected_directives = (
+    expected_directives = {
+        ".. currentmodule:: isaaclab.assets",
         ".. autoclass:: ArticulationOrderingConvention",
         ".. autoclass:: ArticulationNameMap",
         ".. autofunction:: apply_articulation_ordering_preset",
@@ -139,9 +141,9 @@ def test_assets_api_page_defines_ordering_symbols() -> None:
         ".. autofunction:: get_robot_schema_articulation_name_ordering",
         ".. autofunction:: resolve_articulation_convention_name_ordering",
         ".. autofunction:: resolve_articulation_ordering_names",
-    )
-    for directive in expected_directives:
-        assert directive in api_page
+    }
+    missing_directives = expected_directives - actual_directives
+    assert not missing_directives, f"Missing exact RST directives: {sorted(missing_directives)}"
 
 
 def test_articulation_cfg_accepts_optional_ordering_fields() -> None:

@@ -270,10 +270,10 @@ def build_newton_actuator_defaults(
     Returns:
         Tuple containing the following values:
 
-        * ``stiffness``: Initial gains [N/m or N m/rad, depending on joint
+        * ``stiffness``: Initial gains [N/m or N·m/rad, depending on joint
           type], shape ``(num_envs, num_joints)``, dtype ``torch.float32``, on
           :paramref:`device`.
-        * ``damping``: Initial gains [N s/m or N m s/rad, depending on joint
+        * ``damping``: Initial gains [N·s/m or N·m·s/rad, depending on joint
           type], shape ``(num_envs, num_joints)``, dtype ``torch.float32``, on
           :paramref:`device`.
         * ``joint_indices``: ``slice(None)`` when every joint is managed;
