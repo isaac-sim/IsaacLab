@@ -256,6 +256,11 @@ def install_deformable_builder_hooks() -> None:
         SimulationManager._per_world_builder_hooks = []
     if add_registered_deformables_to_builder not in SimulationManager._per_world_builder_hooks:
         SimulationManager._per_world_builder_hooks.append(add_registered_deformables_to_builder)
+    # Run VBD graph coloring after replication (covers deformables and cables).
+    if not hasattr(SimulationManager, "_post_replicate_hooks"):
+        SimulationManager._post_replicate_hooks = []
+    if color_registered_deformables not in SimulationManager._post_replicate_hooks:
+        SimulationManager._post_replicate_hooks.append(color_registered_deformables)
 
 
 class DeformableObject(BaseDeformableObject):
