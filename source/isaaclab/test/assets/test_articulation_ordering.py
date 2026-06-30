@@ -82,6 +82,8 @@ if _inserted_sim_context_stub:
     sys.modules.pop("isaaclab.sim.simulation_context", None)
 if _inserted_asset_base_stub:
     sys.modules.pop("isaaclab.assets.asset_base", None)
+if _inserted_sim_stub or _inserted_asset_base_stub:
+    sys.modules.pop("isaaclab.assets.articulation.base_articulation", None)
 
 
 def test_parse_articulation_ordering_convention_accepts_none_strings_and_enum() -> None:
