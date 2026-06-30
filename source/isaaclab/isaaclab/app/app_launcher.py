@@ -1077,15 +1077,22 @@ class AppLauncher:
             sys.argv.append("--/renderer/multiGpu/enabled=False")
             sys.argv.append("--/renderer/multiGpu/autoEnable=False")
             sys.argv.append("--/renderer/multiGpu/maxGpuCount=1")
-            # Also disable the fabric GPU-interop path. The renderer multiGpu
-            # flags above mitigate the startup-time enumeration race; this
-            # mitigates the runtime GPU-interop race on top. Safe for the
-            # multi-GPU CI lane: it covers physics / scene / utility tests,
-            # not rendering.
-            sys.argv.append("--/physics/fabricUseGPUInterop=false")
-            logger.info(
-                "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + disabling fabric GPU-interop"
-            )
+            # Also disable the fabric GPU-interop path. The diagnostic override
+            # is temporary and lets the multi-GPU CI lane omit this argument for
+            # the negative arm while holding all other settings constant.
+            omit_fabric_gpu_interop = os.environ.get(
+                "ISAACLAB_DIAGNOSTIC_OMIT_FABRIC_GPU_INTEROP", "0"
+            ).lower() not in {"", "0", "false", "no", "off"}
+            if omit_fabric_gpu_interop:
+                logger.info(
+                    "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + omitting the fabric"
+                    " GPU-interop argument"
+                )
+            else:
+                sys.argv.append("--/physics/fabricUseGPUInterop=false")
+                logger.info(
+                    "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + disabling fabric GPU-interop"
+                )
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
@@ -1288,6 +1295,18 @@ class AppLauncher:
             # handlers remain at WARNING.
             logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
+
+        omit_fabric_gpu_interop = os.environ.get("ISAACLAB_DIAGNOSTIC_OMIT_FABRIC_GPU_INTEROP")
+        if omit_fabric_gpu_interop is not None:
+            diagnostic_mode = (
+                "omitted" if omit_fabric_gpu_interop.lower() not in {"", "0", "false", "no", "off"} else "false"
+            )
+            resolved_fabric_gpu_interop = str(settings.get("/physics/fabricUseGPUInterop")).lower()
+            logger.info(
+                "FABRIC_INTEROP_DIAGNOSTIC mode=%s resolved=%s",
+                diagnostic_mode,
+                resolved_fabric_gpu_interop,
+            )
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)

@@ -105,6 +105,7 @@ docker run --rm --gpus all --network=host \
   -e ISAACLAB_TEST_QUEUE=/mgpu \
   -e TEST_INCLUDE_FILES="$INCLUDE_FILES" \
   -e ISAACLAB_PIN_KIT_GPU=1 \
+  -e ISAACLAB_DIAGNOSTIC_OMIT_FABRIC_GPU_INTEROP="${ISAACLAB_DIAGNOSTIC_OMIT_FABRIC_GPU_INTEROP:-0}" \
   -e HOME=/tmp/mgpu-base-home \
   -e PYTHONUSERBASE=/tmp/mgpu-pyuserbase \
   "${cvd_args[@]}" \

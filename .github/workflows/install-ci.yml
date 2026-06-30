@@ -36,7 +36,8 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
+      # Diagnostic PR: reserve test capacity for the Fabric interop A/B only.
+      run_install_tests: 'false'
     steps:
       - id: detect
         env:

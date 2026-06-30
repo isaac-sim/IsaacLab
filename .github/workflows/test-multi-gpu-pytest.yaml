@@ -97,7 +97,7 @@ jobs:
     # job onto a 1-GPU box and the shard runner aborts with "Need at least 2
     # visible devices; found 1".
     runs-on: [self-hosted, linux, x64, multi-gpu]
-    timeout-minutes: 60
+    timeout-minutes: 300
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -119,26 +119,10 @@ jobs:
         # non-default shard adds wall-time without surfacing any new failure mode.
         id: discover
         run: |
-          # File-level opt-out: a test file can exclude itself from multi-GPU CI
-          # by declaring a module-level ``MULTI_GPU_SKIP_REASON = "..."`` line.
-          # Used for files with known Kit/Isaac-Sim concurrency issues; the file
-          # still runs in single-GPU CI. Excluded files are reported as a notice
-          # below for visibility. No workflow edit needed to add/remove a file.
+          # Diagnostic run: intentionally ignore MULTI_GPU_SKIP_REASON so every
+          # current multi-GPU candidate participates in every A/B trial.
           device_scope_pattern='test_devices\(\)|test_devices\([^)]*DeviceScope\.(ALL|CUDA|NON_DEFAULT_CUDA)|test_devices\("[^"]*X"\)'
-          mapfile -t candidates < <(grep -rlE "$device_scope_pattern" source/ --include='test_*.py' | sort -u)
-          discovered=()
-          skipped=()
-          for f in "${candidates[@]}"; do
-            if grep -q '^MULTI_GPU_SKIP_REASON' "$f"; then
-              skipped+=("$f")
-            else
-              discovered+=("$f")
-            fi
-          done
-          for f in "${skipped[@]}"; do
-            reason=$(grep -m1 '^MULTI_GPU_SKIP_REASON' "$f" | sed -E 's/^MULTI_GPU_SKIP_REASON[[:space:]]*=[[:space:]]*//; s/^"//; s/"$//')
-            echo "::notice::multi-GPU skipped: $f — $reason"
-          done
+          mapfile -t discovered < <(grep -rlE "$device_scope_pattern" source/ --include='test_*.py' | sort -u)
           if [ ${#discovered[@]} -eq 0 ]; then
             echo "::error::No tests with a non-default-capable device scope were discovered"
             exit 1
@@ -167,22 +151,22 @@ jobs:
           dockerfile-path: docker/Dockerfile.base
           cache-tag: cache-base
 
-      - name: Run shards in parallel on local GPUs (1-docker N-shard)
-        # ONE container hosts all N pytest shards as parallel subshells, each
-        # pinned to its own non-default cuda:N and pulling from a shared work
-        # queue; the host reconciles the queue afterward and exports
-        # MGPU_RUNTIME_DIR for the summary step. Full rationale + the
-        # 1-docker-N-shard tradeoffs live in the script header.
+      - name: Run negative-first Fabric interop A/B
+        # Diagnostic only: invoke the real 1-docker N-shard launcher five times
+        # with the Fabric interop argument omitted, then five times with it
+        # explicitly disabled. Every trial gets the complete discovered file
+        # set and continues after failures.
         env:
           IMAGE_TAG: ${{ env.CI_IMAGE_TAG }}
           INCLUDE_FILES: ${{ steps.discover.outputs.include }}
           PATHS: ${{ steps.discover.outputs.paths }}
-        run: bash .github/actions/multi-gpu/multi_gpu_host_launcher.sh
+          TRIALS_PER_ARM: 5
+        run: bash .github/actions/multi-gpu/fabric_interop_ab.sh
 
-      - name: Aggregated test summary
-        # Per-shard + per-file pass/total/walltime, plus a combined table, also
-        # written to $GITHUB_STEP_SUMMARY. Runs on success or failure.
+      - name: Upload Fabric interop diagnostic
         if: always()
-        env:
-          RUNTIME_DIR: ${{ env.MGPU_RUNTIME_DIR }}
-        run: python3 .github/actions/multi-gpu/aggregate_test_summary.py
+        uses: actions/upload-artifact@v7
+        with:
+          name: fabric-interop-ab
+          path: ${{ runner.temp }}/fabric-interop-ab
+          if-no-files-found: error
