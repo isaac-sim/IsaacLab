@@ -1,6 +1,118 @@
 Changelog
 ---------
 
+1.0.3 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_visualizers.kit.KitVisualizer` to skip authoring the
+  ``omni:scenePartition`` attribute on the viewport camera by default. Set
+  ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` to re-enable per-environment
+  scene partitioning for the Kit viewport camera.
+
+
+1.0.2 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the visualizer extras' ``newton[sim]`` dependency pin to use Newton
+  commit ``79e95bf5571d70a0a46c8eaedc80644531d27368``, including the
+  RenderContext triangle-mesh construction fix from `newton-physics/newton#3199
+  <https://github.com/newton-physics/newton/pull/3199>`_.
+
+
+1.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an explicit ``pyglet>=2.1.6,<3`` dependency for the Newton visualizer
+  extra so the OpenGL viewer does not rely on ambient transitive installs.
+
+
+1.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the visualizer extras' ``newton[sim]`` dependency pin to use Newton commit
+  ``811968bfb7cc7ff4e37b9260a2ba56930a3e605e``.
+
+
+0.1.6 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_visualizers.newton.NewtonVisualizer` now skips Newton's
+  per-frame active-particle compaction (two device-to-host reads per render)
+  when an MPM model's static particle flags are all active, and re-uploads the
+  particle color buffer only when the point count grows or the configured color
+  changes.
+
+
+0.1.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton visualizer configuration options for showing particles and
+  setting their color.
+
+Fixed
+^^^^^
+
+* Fixed ``set_camera_view`` updates for the Newton visualizer.
+
+
+0.1.4 (2026-06-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.newton.NewtonVisualizer.set_camera_view` so
+  the Newton visualizer follows :meth:`~isaaclab.sim.SimulationContext.set_camera_view`
+  camera updates.
+
+
+0.1.3 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated the visualizer tiled camera tutorial support to keep generated Kit
+  tiled camera views synchronized with their target robots.
+
+Fixed
+^^^^^
+
+* Fixed Newton visualizer contact rendering by logging Newton contact buffers
+  when available and falling back to scene contact sensors for PhysX-backed
+  scenes.
+* Fixed Newton visualizer HUD dependency checks by requiring
+  ``typing-extensions>=4.15.0`` for the Newton visualizer extra and failing
+  integration tests when Newton reports that ``imgui_bundle`` could not be
+  imported. Removed the legacy ``setup.py`` for ``isaaclab_visualizers`` now that
+  ``pyproject.toml`` carries the package metadata.
+
+* Fixed Rerun and Viser visualizers rendering Newton infinite ground planes too
+  small by expanding non-positive plane extents to the same large finite size
+  used by Newton GL.
+
+* Fixed Viser visualizer ground-grid flickering by reusing unchanged plane grid
+  line segments instead of removing and re-adding them every frame.
+
+
 0.1.2 (2026-06-05)
 ~~~~~~~~~~~~~~~~~~
 

@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-import re
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -60,6 +59,7 @@ class SensorBase(ABC):
         # check that the config is valid
         cfg.validate()
         # store inputs
+        self._source_cfg = cfg
         self.cfg = cfg.copy()
         # flag for whether the sensor is initialized
         self._is_initialized = False
@@ -225,7 +225,8 @@ class SensorBase(ABC):
         self._device = sim.device
         self._backend = sim.backend
         self._sim_physics_dt = sim.get_physics_dt()
-        # Count number of environments.
+        # Count number of environments. Prefer the active simulation's clone plan when USD
+        # only carries the env_0 prototype (e.g. Newton clones solver-side).
         self._clone_plan = sim.get_clone_plan()
         clone_plan = self._clone_plan
         clone_plan_matches = ()
@@ -234,6 +235,10 @@ class SensorBase(ABC):
         if clone_plan_matches:
             self._parent_prims = []
             self._num_envs = int(clone_plan.clone_mask.shape[1])
+        elif clone_plan is not None:
+            env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
+            self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
+            self._num_envs = int(clone_plan.env_ids.numel())
         else:
             env_prim_path_expr = self.cfg.prim_path.rsplit("/", 1)[0]
             self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
@@ -360,10 +365,7 @@ class SensorBase(ABC):
         if prim_path == "/":
             self._clear_callbacks()
             return
-        result = re.match(
-            pattern="^" + "/".join(self.cfg.prim_path.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
-        )
-        if result:
+        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
@@ -466,6 +468,12 @@ class SensorBase(ABC):
             return target_expr, None, None
 
         relative_path = prim.GetPath().MakeRelativePath(ancestor_prim.GetPath()).pathString
-        rigid_parent_expr = target_expr.replace("/" + relative_path, "")
+        suffix = "/" + relative_path
+        if not target_expr.endswith(suffix):
+            raise RuntimeError(
+                f"Failed to build rigid body ancestor expression: target expression {target_expr!r} does not end "
+                f"with relative path {relative_path!r}."
+            )
+        rigid_parent_expr = target_expr[: -len(suffix)]
         fixed_pos_b, fixed_quat_b = resolve_prim_pose(prim, ancestor_prim)
         return rigid_parent_expr, fixed_pos_b, fixed_quat_b

@@ -13,6 +13,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 from newton.viewer import ViewerGL
 from pyglet.math import Vec3 as PygletVec3
@@ -36,6 +37,15 @@ from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, res
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
+
+CONTACT_ARROW_PATH = "/contacts"
+"""Viewer path used for native and synthesized contact arrows."""
+
+CONTACT_ARROW_COLOR = (0.0, 1.0, 0.0)
+"""Color used by Newton's native contact visualization."""
+
+CONTACT_ARROW_LENGTH = 0.1
+"""Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
@@ -66,6 +76,12 @@ class NewtonViewerGL(ViewerGL):
         self._fallback_draw_controls = False
         self._update_frequency = update_frequency
         self._color_edit3_prefers_sequence: bool | None = None
+        self.particle_color: tuple[float, float, float] | None = None
+        self._particle_color_buffer: wp.array | None = None
+        self._particle_color_buffer_count = 0
+        self._particle_color_buffer_value: tuple[float, float, float] | None = None
+        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
+        self._mpm_particles_all_active = False
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -137,6 +153,90 @@ class NewtonViewerGL(ViewerGL):
         if hasattr(color, "x") and hasattr(color, "y") and hasattr(color, "z"):
             return (float(color.x), float(color.y), float(color.z))
         return (float(color[0]), float(color[1]), float(color[2]))
+
+    def _particle_color_array(self, count: int) -> wp.array:
+        """Return a cached Warp color array for Newton's particle point batch."""
+        color = self._coerce_color3(self.particle_color)
+        if (
+            self._particle_color_buffer is None
+            or self._particle_color_buffer_count != count
+            or self._particle_color_buffer_value != color
+        ):
+            self._particle_color_buffer = wp.full(
+                shape=count,
+                value=wp.vec3(*color),
+                dtype=wp.vec3,
+                device=self.device,
+            )
+            self._particle_color_buffer_count = count
+            self._particle_color_buffer_value = color
+        return self._particle_color_buffer
+
+    def _particle_color_update_array(self, name: str, count: int) -> wp.array | None:
+        """Return particle colors only when Newton needs the GL color buffer refreshed."""
+        obj = self.objects.get(name)
+        capacity = obj.num_instances if obj is not None else 0
+        if (
+            obj is None
+            or count > capacity
+            or self._particle_color_buffer_value != self._coerce_color3(self.particle_color)
+        ):
+            return self._particle_color_array(max(count, capacity))
+        return None
+
+    def log_points(self, name, points, radii=None, colors=None, hidden=False):
+        """Apply configured model-particle appearance while preserving Newton's point logging.
+
+        The configured particle color only applies to Newton's canonical
+        ``/model/particles`` point batch. User-defined point clouds retain the
+        colors provided by their own ``log_points`` calls.
+        """
+        if name != "/model/particles" or points is None or self.particle_color is None:
+            return super().log_points(name, points, radii, colors, hidden)
+
+        colors = self._particle_color_update_array(name, len(points))
+        return super().log_points(name, points, radii, colors, hidden)
+
+    def _all_mpm_particles_active(self) -> bool:
+        """Return whether an MPM model's static particle flags are all active."""
+        model = self.model
+        if model is None or getattr(model, "mpm", None) is None or not model.particle_count:
+            return False
+        if model.particle_flags is None:
+            return False
+
+        cache_key = (id(model), id(model.particle_flags), int(model.particle_count))
+        if self._mpm_particle_flags_cache_key != cache_key:
+            import newton as nt
+
+            flags = model.particle_flags.numpy()[: model.particle_count]
+            self._mpm_particles_all_active = bool(((flags & int(nt.ParticleFlags.ACTIVE)) != 0).all())
+            self._mpm_particle_flags_cache_key = cache_key
+        return self._mpm_particles_all_active
+
+    def _log_particles(self, state):
+        """Log MPM particles without per-frame active-flag compaction when all particles are active.
+
+        Newton's base implementation stream-compacts active particles every
+        frame, which costs two device-to-host reads per render. MPM particle
+        flags are static, so when they are all active the compaction is skipped
+        and ``state.particle_q`` is logged directly.
+        """
+        if not self._all_mpm_particles_active():
+            super()._log_particles(state)
+            return
+
+        colors = None
+        if self.model_changed and self.particle_color is None:
+            colors = wp.full(shape=len(state.particle_q), value=wp.vec3(0.7, 0.6, 0.4), device=self.device)
+
+        self.log_points(
+            name="/model/particles",
+            points=state.particle_q,
+            radii=self.model.particle_radius,
+            colors=colors,
+            hidden=not self.show_particles,
+        )
 
     def _color_edit3_compat(self, imgui, label: str, color):
         """
@@ -218,6 +318,9 @@ class NewtonViewerGL(ViewerGL):
 
                     show_com = self.show_com
                     changed, self.show_com = imgui.checkbox("Show Center of Mass", show_com)
+
+                    show_particles = self.show_particles
+                    changed, self.show_particles = imgui.checkbox("Show Particles", show_particles)
 
             imgui.set_next_item_open(True, imgui.Cond_.appearing)
             if imgui.collapsing_header("Rendering Options"):
@@ -420,6 +523,8 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_springs = self.cfg.show_springs
             self._viewer.show_inertia_boxes = self.cfg.show_inertia_boxes
             self._viewer.show_com = self.cfg.show_com
+            self._viewer.show_particles = self.cfg.show_particles
+            self._viewer.particle_color = self.cfg.particle_color
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
@@ -449,6 +554,8 @@ class NewtonVisualizer(BaseVisualizer):
                 ("tiled_cam_num", self.cfg.tiled_cam_num),
                 ("num_visualized_envs", num_visualized_envs),
                 ("headless", self.cfg.headless),
+                ("show_particles", self.cfg.show_particles),
+                ("particle_color", self.cfg.particle_color),
             ],
         )
         self._is_initialized = True
@@ -471,8 +578,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
             return
@@ -481,6 +586,7 @@ class NewtonVisualizer(BaseVisualizer):
 
         try:
             if not self._viewer.is_paused():
+                self._state = NewtonManager.get_state(self._scene_data_provider)
                 self._viewer.begin_frame(self._sim_time)
                 try:
                     if self._state is not None:
@@ -488,6 +594,11 @@ class NewtonVisualizer(BaseVisualizer):
                         if hasattr(body_q, "shape") and body_q.shape[0] == 0:
                             return
                         self._viewer.log_state(self._state)
+                        contacts = NewtonManager.get_contacts()
+                        if contacts is not None:
+                            self._viewer.log_contacts(contacts, self._state)
+                        else:
+                            self._log_scene_contact_sensor_arrows(num_envs)
                         if self.cfg.enable_markers:
                             render_newton_visualization_markers(
                                 self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
@@ -510,6 +621,115 @@ class NewtonVisualizer(BaseVisualizer):
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
         self._is_closed = True
+
+    def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
+        """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
+        if self._viewer is None:
+            return
+        if not self._viewer.show_contacts:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+        contact_sensors = (
+            self._scene_data_provider.get_contact_sensors() if self._scene_data_provider is not None else {}
+        )
+        if not contact_sensors:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+
+        starts: list[torch.Tensor] = []
+        ends: list[torch.Tensor] = []
+        for sensor in contact_sensors.values():
+            sensor_starts, sensor_ends = self._contact_sensor_arrow_tensors(sensor, num_envs)
+            if sensor_starts is not None and sensor_ends is not None:
+                starts.append(sensor_starts)
+                ends.append(sensor_ends)
+
+        if not starts:
+            self._viewer.log_arrows(CONTACT_ARROW_PATH, None, None, None)
+            return
+
+        starts_t = torch.cat(starts, dim=0).detach().to(dtype=torch.float32, device="cpu").contiguous()
+        ends_t = torch.cat(ends, dim=0).detach().to(dtype=torch.float32, device="cpu").contiguous()
+        self._viewer.log_arrows(
+            CONTACT_ARROW_PATH,
+            wp.array(starts_t.numpy(), dtype=wp.vec3, device=self._viewer.device),
+            wp.array(ends_t.numpy(), dtype=wp.vec3, device=self._viewer.device),
+            CONTACT_ARROW_COLOR,
+        )
+
+    def _contact_sensor_arrow_tensors(self, sensor, num_envs: int) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        """Build Newton-style arrow starts/ends from an Isaac Lab contact sensor."""
+        try:
+            data = sensor.data
+            net_forces_proxy = data.net_forces_w
+            net_forces = net_forces_proxy.torch if net_forces_proxy is not None else None
+        except (AttributeError, NotImplementedError, RuntimeError):
+            return None, None
+
+        if net_forces is None or net_forces.numel() == 0:
+            return None, None
+        net_forces = self._filter_visible_env_tensor(net_forces, num_envs)
+
+        force_threshold = getattr(getattr(sensor, "cfg", None), "force_threshold", None)
+        if force_threshold is None:
+            force_threshold = 0.0
+
+        try:
+            contact_pos = getattr(data, "contact_pos_w", None)
+            force_matrix = getattr(data, "force_matrix_w", None)
+        except NotImplementedError:
+            contact_pos = None
+            force_matrix = None
+        if contact_pos is not None and force_matrix is not None:
+            contact_pos_t = self._filter_visible_env_tensor(contact_pos.torch, num_envs)
+            force_matrix_t = self._filter_visible_env_tensor(force_matrix.torch, num_envs)
+            if contact_pos_t.numel() != 0 and force_matrix_t.numel() != 0:
+                force_norm = torch.linalg.norm(force_matrix_t, dim=-1)
+                finite_pos = torch.isfinite(contact_pos_t).all(dim=-1)
+                active = (force_norm > force_threshold) & finite_pos
+                if torch.any(active):
+                    starts = contact_pos_t[active]
+                    directions = torch.nn.functional.normalize(force_matrix_t[active], dim=-1)
+                    return starts, starts + directions * CONTACT_ARROW_LENGTH
+
+        origins = self._contact_sensor_origin_positions(sensor, data, net_forces)
+        if origins is None:
+            return None, None
+        origins = self._filter_visible_env_tensor(origins, num_envs)
+
+        force_norm = torch.linalg.norm(net_forces, dim=-1)
+        active = force_norm > force_threshold
+        if not torch.any(active):
+            return None, None
+
+        starts = origins[active]
+        directions = torch.nn.functional.normalize(net_forces[active], dim=-1)
+        return starts, starts + directions * CONTACT_ARROW_LENGTH
+
+    def _contact_sensor_origin_positions(self, sensor, data, net_forces: torch.Tensor) -> torch.Tensor | None:
+        """Return per-sensor origins for contact arrow starts."""
+        try:
+            pos_w = getattr(data, "pos_w", None)
+        except NotImplementedError:
+            pos_w = None
+        if pos_w is not None:
+            return pos_w.torch
+
+        body_physx_view = getattr(sensor, "body_physx_view", None)
+        if body_physx_view is None:
+            return None
+        try:
+            pose = body_physx_view.get_transforms()
+        except RuntimeError:
+            return None
+        return wp.to_torch(pose).view(*net_forces.shape[:-1], 7)[..., :3]
+
+    def _filter_visible_env_tensor(self, tensor: torch.Tensor, num_envs: int) -> torch.Tensor:
+        """Apply Newton visualizer visible-world filtering to a sensor tensor."""
+        if self._resolved_visible_env_ids is None or tensor.ndim == 0 or tensor.shape[0] != num_envs:
+            return tensor
+        ids = torch.as_tensor(self._resolved_visible_env_ids, dtype=torch.long, device=tensor.device)
+        return tensor.index_select(0, ids)
 
     def is_running(self) -> bool:
         """Return whether the visualizer should continue stepping.
@@ -617,6 +837,21 @@ class NewtonVisualizer(BaseVisualizer):
         if self._viewer is None:
             return
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
+
+    def set_camera_view(
+        self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
+    ) -> None:
+        """Set active viewer camera eye/target.
+
+        Args:
+            eye: Camera eye position.
+            target: Camera look-at target.
+        """
+        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
+        target_t = (float(target[0]), float(target[1]), float(target[2]))
+        self.cfg.eye = eye_t
+        self.cfg.lookat = target_t
+        self._apply_camera_pose((eye_t, target_t))
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""

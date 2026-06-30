@@ -20,7 +20,7 @@ from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -90,6 +90,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._ik_controller = DifferentialIKController(
             cfg=self.cfg.controller, num_envs=self.num_envs, device=self.device
         )
+        # joint limits are injected lazily on the first apply (asset data is populated by then) so
+        # the controller can do null-space joint-limit avoidance; only needed when joint_limit_avoidance_gain > 0.
+        self._limits_injected = False
 
         # create tensors for raw and processed actions
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
@@ -201,6 +204,12 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # obtain quantities from simulation
         ee_pos_curr, ee_quat_curr = self._compute_frame_pose()
         joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        # lazily provide joint limits to the controller for null-space joint-limit avoidance
+        # (limits are uniform across envs for these articulations; env 0 is representative)
+        if not self._limits_injected and getattr(self.cfg.controller, "joint_limit_avoidance_gain", 0.0) > 0.0:
+            limits = self._asset.data.soft_joint_pos_limits.torch[0, self._joint_ids, :]
+            self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
+            self._limits_injected = True
         # compute the delta in joint-space
         if ee_quat_curr.norm() != 0:
             jacobian = self._compute_frame_jacobian()
@@ -340,17 +349,12 @@ class OperationalSpaceControllerAction(ActionTerm):
             def has_rigid_body_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
-            matches = resolve_matching_prims_from_source(self._asset.cfg.prim_path, raise_if_no_matches=False)
-            if not matches:
-                raise ValueError(f"No prim found at '{self._asset.cfg.prim_path}'.")
-            asset_prim, root_expr = matches[0]
-            walk_root = asset_prim.GetPath().pathString
-            rigid_prims = get_all_matching_child_prims(
-                walk_root, predicate=has_rigid_body_api, traverse_instance_prims=False
-            )
-            if not rigid_prims:
+            prim_path = self._asset.cfg.prim_path
+            resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+            rigid_matches = resolve_matching_prims_from_source(prim_path, has_rigid_body_api, **resolve_kwargs)
+            if not rigid_matches:
                 raise ValueError(f"No descendant rigid body found under the expression: '{self._asset.cfg.prim_path}'.")
-            root_rigidbody_path = root_expr + rigid_prims[0].GetPath().pathString[len(walk_root) :]
+            _, root_rigidbody_path = rigid_matches[0]
             task_frame_transformer_path = "/World/envs/env_.*/" + self.cfg.task_frame_rel_path
             task_frame_transformer_cfg = FrameTransformerCfg(
                 prim_path=root_rigidbody_path,

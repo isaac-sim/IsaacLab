@@ -15,7 +15,7 @@ from isaaclab_tasks.core.lift.config.franka import agents
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-IK-Abs-v0",
+    id="IsaacContrib-Lift-Cube-Franka-IK-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaCubeLiftEnvCfg",
@@ -28,7 +28,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Lift-Cube-Franka-IK-Rel-v0",
+    id="IsaacContrib-Lift-Cube-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCubeLiftEnvCfg",

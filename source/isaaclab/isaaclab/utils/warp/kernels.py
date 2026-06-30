@@ -680,6 +680,81 @@ def reset_wrench_composer_index(
     out_torque_b[ei, tid_body] = z
 
 
+##
+# Image normalization
+##
+
+
+@wp.kernel(enable_backward=False)
+def normalize_image_uint8(
+    src: wp.array4d(dtype=wp.uint8),
+    mean: wp.array2d(dtype=wp.float32),
+    out: wp.array4d(dtype=wp.float32),
+    channel_dim: wp.int32,
+):
+    """Compute ``out = src / 255.0 - mean`` per element, with ``mean`` broadcast over the spatial dims.
+
+    ``mean`` must be precomputed by the caller as the per-(batch, channel) mean of
+    ``src / 255.0`` along the two non-batch, non-channel axes.
+
+    Dispatch with ``dim=src.shape``. The spatial axes are symmetric; only the channel index
+    lookup differs between BHWC and BCHW layouts.
+
+    Args:
+        src: Input uint8 image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+        mean: Per-(batch, channel) mean of ``src / 255.0``. Shape is ``(B, C)``.
+        out: Output float32 tensor. Same shape as ``src``.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Constant across all threads; the wrapper validates the value
+            and resolves negatives before launch.
+    """
+    b, d1, d2, d3 = wp.tid()
+    if channel_dim == 1:
+        c = d1
+    else:
+        c = d3
+    out[b, d1, d2, d3] = wp.float32(src[b, d1, d2, d3]) / 255.0 - mean[b, c]
+
+
+@wp.kernel(enable_backward=False)
+def spatial_sum_uint8_tiled(
+    src: wp.array4d(dtype=wp.uint8),
+    partials: wp.array3d(dtype=wp.int32),
+    tile_size: wp.int32,
+    channel_dim: wp.int32,
+):
+    """Tiled int32 partial sums of a uint8 image along its spatial axes.
+
+    Caller collapses the result with ``partials.sum(dim=1)`` to recover the per-``(b, c)``
+    total. Dispatch with ``dim=(B, NUM_TILES, C)`` where ``NUM_TILES = ceil(H / tile_size)``;
+    C innermost gives stride-1 reads on src's contiguous trailing dim for BHWC inputs.
+
+    Args:
+        src: Input image. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
+        partials: Output partial sums. Shape is ``(B, NUM_TILES, C)``.
+        tile_size: Number of H rows reduced per thread.
+        channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
+            ``3`` (BHWC). Constant across all threads; selects which spatial axes to
+            iterate and where to read the channel index.
+    """
+    b, tile, c = wp.tid()
+    h_start = tile * tile_size
+    s = wp.int32(0)
+    if channel_dim == 1:
+        # BCHW: spatial axes are (2, 3); first spatial axis (H) is at position 2.
+        h_end = wp.min(h_start + tile_size, src.shape[2])
+        for i in range(h_start, h_end):
+            for j in range(src.shape[3]):
+                s += wp.int32(src[b, c, i, j])
+    else:
+        # BHWC: spatial axes are (1, 2); first spatial axis (H) is at position 1.
+        h_end = wp.min(h_start + tile_size, src.shape[1])
+        for i in range(h_start, h_end):
+            for j in range(src.shape[2]):
+                s += wp.int32(src[b, i, j, c])
+    partials[b, tile, c] = s
+
+
 @wp.kernel
 def reset_wrench_composer_mask(
     env_mask: wp.array(dtype=wp.bool),

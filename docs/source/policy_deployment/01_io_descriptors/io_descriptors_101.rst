@@ -4,7 +4,7 @@ IO Descriptors 101
 .. currentmodule:: isaaclab
 
 In this tutorial, we will learn about IO descriptors, what they are, how to export them, and how to add them to
-your environments. We will use the Anymal-D robot as an example to demonstrate how to export IO descriptors from
+your environments. We will use the AnymalD robot as an example to demonstrate how to export IO descriptors from
 an environment, and use our own terms to demonstrate how to attach IO descriptors to custom action and observation terms.
 
 
@@ -24,13 +24,13 @@ In addition to this the IO Descriptors provide the following information:
 - For some action and observation terms, it provides the joint names or body names in the same order as they appear in the action/observation terms.
 - For both the observation and action terms, it provides the terms in the exact same order as they appear in the managers. Making it easy to reconstruct them from the YAML file.
 
-Here is an example of what the action part of the YAML generated from the IO descriptors looks like for the Anymal-D robot:
+Here is an example of what the action part of the YAML generated from the IO descriptors looks like for the AnymalD robot:
 
 .. literalinclude:: ../../_static/policy_deployment/01_io_descriptors/isaac_velocity_flat_anymal_d_v0_IO_descriptors.yaml
    :language: yaml
    :lines: 1-39
 
-Here is an example of what a portion of the observation part of the YAML generated from the IO descriptors looks like for the Anymal-D robot:
+Here is an example of what a portion of the observation part of the YAML generated from the IO descriptors looks like for the AnymalD robot:
 
 .. literalinclude:: ../../_static/policy_deployment/01_io_descriptors/isaac_velocity_flat_anymal_d_v0_IO_descriptors.yaml
    :language: yaml
@@ -67,21 +67,21 @@ If a policy has already been trained using a given configuration, then the IO de
 
    ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task <task_name> --output_dir <output_dir>
 
-For example, if we want to export the IO descriptors for the Anymal-D robot, we can run:
+For example, if we want to export the IO descriptors for the AnymalD robot, we can run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task Isaac-Velocity-Flat-Anymal-D-v0 --output_dir ./io_descriptors
+   ./isaaclab.sh -p scripts/environments/export_io_descriptors.py --task Isaac-Velocity-Flat-AnymalD --output_dir ./io_descriptors
 
 When training a policy, it is also possible to request the IO descriptors to be exported at the beginning of the training.
 This can be done by setting the ``export_io_descriptors`` flag in the command line.
 
 .. code-block:: bash
 
-   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
-   ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
-   ./isaaclab.sh train --rl_library rl_games --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
-   ./isaaclab.sh train --rl_library skrl --task Isaac-Velocity-Flat-Anymal-D-v0 --export_io_descriptors
+   ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+   ./isaaclab.sh train --rl_library sb3 --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+   ./isaaclab.sh train --rl_library rl_games --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
+   ./isaaclab.sh train --rl_library skrl --task Isaac-Velocity-Flat-AnymalD --export_io_descriptors
 
 
 Attaching IO Descriptors to Custom Observation Terms

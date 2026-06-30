@@ -11,7 +11,7 @@ import json
 import logging
 import math
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import numpy as np
 import warp as wp
@@ -22,11 +22,16 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
+from .isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+    ensure_isaac_rtx_render_update,
+    ensure_rtx_hydra_engine_attached,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +42,21 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+_PPISP_IMPORT_ERROR_MESSAGE = (
+    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
+    "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
+    "isaaclab-ppisp extension from the Isaac Lab source checkout."
+)
+
+
+def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
+    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
+    # unrelated missing modules should surface unchanged for easier debugging.
+    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
+        raise exc
+    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
+
 
 # RTX simple-shading constants.
 #
@@ -92,10 +112,17 @@ class IsaacRtxRenderer(BaseRenderer):
     Requires Isaac Sim.
     """
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        # Only the rgb/rgba beauty buffer is temporally accumulated by DLSS; other AOVs bypass it.
+        return data_type in ("rgb", "rgba")
+
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        settings = get_settings_manager()
+        apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         # RTX rendering requires the app to be launched with ``--enable_cameras``.
-        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+        if not settings.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."
@@ -106,19 +133,23 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg and apply RTX-specific USD overrides.
 
-        First resolves ``spec.cfg.isp_cfg`` (sentinel discovery + normalization)
-        via :func:`isaaclab_ppisp.resolve_and_normalize` so :mod:`isaaclab` does
-        not need to know about PPISP. Then, when an ISP is configured, pins
+        When ``spec.cfg.isp_cfg`` is set, resolves it (sentinel discovery +
+        normalization) via :func:`isaaclab_ppisp.resolve_and_normalize` so
+        :mod:`isaaclab` does not need to know about PPISP. Then pins
         ``exposure:*`` to neutral and applies ``OmniRtxCameraExposureAPI_1`` so
         RTX's physical-camera exposure model does not compound on top of the
         ISP. Without an ISP, the camera prim's authored exposure is left alone.
         """
-        if not spec.camera_prim_paths:
-            return
-        from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
-
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, spec.camera_prim_paths[0])
         if spec.cfg.isp_cfg is None:
+            return
+        try:
+            from isaaclab_ppisp import apply_rtx_exposure_overrides, resolve_and_normalize
+        except ModuleNotFoundError as exc:
+            _raise_missing_ppisp_error(exc)
+
+        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
+        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
+        if spec.cfg.isp_cfg is None or not spec.camera_prim_paths:
             return
         apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
@@ -163,12 +194,28 @@ class IsaacRtxRenderer(BaseRenderer):
     def prepare_stage(self, stage: Usd.Stage, num_envs: int) -> None:
         """Author per-env ``omni:scenePartition`` attributes for RTX cull-by-env rendering.
 
-        For each ``/World/envs/env_{i}`` root, writes the inheriting primvar
+        Authoring is only performed when
+        ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` is set.
+        When the variable is absent the method is a no-op and no ``primvars:omni:scenePartition``
+        or ``omni:scenePartition`` attributes are written to the stage.
+
+        When enabled, for each ``/World/envs/env_{i}`` root, writes the inheriting primvar
         ``primvars:omni:scenePartition`` (token ``env_{i}``) on the root and the matching
         non-primvar ``omni:scenePartition`` token on every :class:`UsdGeom.Camera` descendant.
         RTX honors primvar inheritance, so the env-root primvar propagates to all descendant
         geometry and isolates each env's render tile.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.prepare_stage`."""
+
+        if not isaac_rtx_per_env_scene_partition_enabled():
+            return
+
+        logger.debug(
+            "Per-environment RTX scene partitioning is enabled"
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
+            " Authoring primvars:omni:scenePartition on %d env(s).",
+            num_envs,
+        )
+
         root_layer = stage.GetRootLayer()
         token_type = Sdf.ValueTypeNames.Token
         with Sdf.ChangeBlock():
@@ -340,9 +387,12 @@ class IsaacRtxRenderer(BaseRenderer):
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
-            from isaaclab_ppisp import PpispPipeline
+            try:
+                from isaaclab_ppisp import PpispPipeline
+            except ModuleNotFoundError as exc:
+                _raise_missing_ppisp_error(exc)
 
-            ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg, stage=stage)
+            ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
 
         return IsaacRtxRenderData(
             annotators=annotators,

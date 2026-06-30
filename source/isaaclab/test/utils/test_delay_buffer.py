@@ -89,3 +89,17 @@ def test_random_time_lags(delay_buffer):
         for i in range(delay_buffer.batch_size):
             error = delayed_data[i] - all_data[true_delayed_index[i]][i]
             assert torch.all(error == 0)
+
+
+def test_compute_result_independent_of_internal_buffer(delay_buffer):
+    """``compute()``'s returned tensor must not alias the internal circular buffer storage.
+
+    Regression: ``DelayBuffer.compute`` previously called ``.clone()`` defensively. After
+    dropping the clone (advanced indexing returns a copy), this asserts the contract is
+    preserved — mutating the result in place must not affect the next ``compute()`` output.
+    """
+    delay_buffer.set_time_lag(0)
+    first = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 1, dtype=torch.int))
+    first.fill_(999)  # mutate the returned tensor
+    second = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 2, dtype=torch.int))
+    assert torch.all(second == 2), "Mutation of a prior compute() result leaked into the next call"

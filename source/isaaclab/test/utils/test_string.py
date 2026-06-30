@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
 import random
 
 import pytest
@@ -59,6 +60,32 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case", to="CC") == "SnakeCase"
     assert string_utils.to_camel_case("snake_case_string", to="CC") == "SnakeCaseString"
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
+
+
+def test_string_to_callable_allows_safe_lambdas():
+    """Test that simple lambda expressions and module references resolve to callables."""
+    assert string_utils.string_to_callable("lambda x: x + 1")(5) == 6
+    assert string_utils.string_to_callable("lambda x: x**2")(3) == 9
+    assert string_utils.string_to_callable("lambda x: x[0] if x else 0")([7, 8]) == 7
+    assert string_utils.string_to_callable("lambda x: x > 0 and x < 10")(5) is True
+    assert string_utils.string_to_callable("math:sqrt") is math.sqrt
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        'lambda x: __import__("os").system("id")',
+        'lambda x: eval("1")',
+        "lambda x: (lambda: 1)()",
+        "lambda x: x.__class__",
+        "lambda x: __builtins__",
+        "lambda x: (y := 1)",
+    ],
+)
+def test_string_to_callable_blocks_unsafe_lambdas(payload):
+    """Test that lambda strings cannot execute code or traverse Python internals."""
+    with pytest.raises(ValueError, match="Unsafe lambda expression"):
+        string_utils.string_to_callable(payload)
 
 
 def test_resolve_matching_names_with_basic_strings():

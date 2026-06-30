@@ -27,6 +27,8 @@ from pxr import UsdPhysics
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 
+from isaaclab_ovphysx._runtime import import_ovphysx
+
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
@@ -96,6 +98,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             device: Warp device string used to allocate the staging and merged buffers.
         """
         from isaaclab_ovphysx import tensor_types as TT  # local: keep heavy ovphysx out of module load
+        from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
         self._physx = physx
         self._rigid_bindings = []
@@ -117,7 +120,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         total_count = 0
         for pattern in sorted(patterns):
             try:
-                pose_binding = physx.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
+                view = OvPhysxView(physx, pattern=pattern, device=device)
+                pose_binding = view.binding_for(TT.RIGID_BODY_POSE)
             except Exception as exc:
                 logger.warning("Failed to create RIGID_BODY_POSE binding for %s: %s", pattern, exc)
                 continue
@@ -139,6 +143,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             self._rigid_bindings.append(
                 {
                     "pattern": pattern,
+                    "view": view,
                     "pose": pose_binding,
                     "pose_buf": pose_buf,
                     "pose_buf_transformf": pose_buf_transformf,
@@ -173,7 +178,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         for entry in self._rigid_bindings:
             try:
-                entry["pose"].read(entry["pose_buf"])
+                entry["view"].read_into("rigid_body_pose", entry["pose_buf"])
             except Exception as exc:
                 logger.warning("RIGID_BODY_POSE read failed for %s: %s", entry["pattern"], exc)
                 continue
@@ -211,8 +216,8 @@ class OvPhysxManager(PhysicsManager):
     # :meth:`_release_physx`); we mirror it here so a clear Python error is raised
     # if a later :class:`~isaaclab.sim.SimulationContext` requests a different device.
     _locked_device: ClassVar[str | None] = None
-    # Pending (source, targets, parent_positions) triples registered by
-    # ovphysx_replicate() before the PhysX instance exists.  Replayed via
+    # Pending (source, targets, parent_positions) triples queued by
+    # queue_ovphysx_replication() before the PhysX instance exists.  Replayed via
     # physx.clone() in _warmup_and_load().
     # parent_positions is a list of (x, y, z) tuples — one per target.
     _pending_clones: ClassVar[list[tuple[str, list[str], list[tuple[float, float, float]]]]] = []
@@ -387,6 +392,20 @@ class OvPhysxManager(PhysicsManager):
     def get_physx_instance(cls) -> Any:
         """Return the underlying ovphysx.PhysX instance (or None if not yet created)."""
         return cls._physx
+
+    @classmethod
+    def get_gravity(cls) -> tuple[float, float, float]:
+        """Return the world-frame gravity vector [m/s^2] from the active simulation cfg.
+
+        Mirrors PhysX's ``SimulationView.get_gravity()`` so backend-agnostic sensor code
+        can read gravity through one classmethod.
+
+        Raises:
+            RuntimeError: If no simulation is active. Call :meth:`initialize` first.
+        """
+        if cls._sim is None or not hasattr(cls._sim, "cfg"):
+            raise RuntimeError("OvPhysxManager has not been initialized yet.")
+        return cls._sim.cfg.gravity
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
@@ -572,10 +591,9 @@ class OvPhysxManager(PhysicsManager):
         # Xform containers.  physx.clone() creates the remaining environments
         # in the physics runtime without modifying the USD file.
         if cls._pending_clones:
-            # ovphysx_replicate() only registers pending clones when clone_usd=False,
-            # meaning the USD contains only env_0 physics and physx.clone() is required
-            # to populate env_1..N in the physics runtime.  Execute unconditionally —
-            # no USD content heuristic is needed.
+            # The cfg-level OvPhysX replicator registers pending clones for physics
+            # regardless of whether USD copies were also queued for rendering. Execute
+            # unconditionally — no USD content heuristic is needed.
             for source, targets, parent_positions in cls._pending_clones:
                 logger.info(
                     "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
@@ -627,13 +645,12 @@ class OvPhysxManager(PhysicsManager):
 
         _hidden_pxr = {k: _sys.modules.pop(k) for k in list(_sys.modules) if k == "pxr" or k.startswith("pxr.")}
         try:
-            import ovphysx as _ovphysx_bootstrap
-
+            _ovphysx_bootstrap = import_ovphysx()
             _ovphysx_bootstrap.bootstrap()
         finally:
             _sys.modules.update(_hidden_pxr)
 
-        import ovphysx
+        ovphysx = import_ovphysx()
 
         physx_kwargs = {"device": ovphysx_device}
         physx_signature = inspect.signature(ovphysx.PhysX)

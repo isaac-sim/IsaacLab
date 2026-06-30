@@ -8,46 +8,57 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
+from isaaclab.renderers.renderer import Renderer
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.configclass import resolve_cfg_presets
+from isaaclab.utils.images import is_rgb_like, normalize_camera_image
+from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
-SIMPLE_SHADING_TYPES = {
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
-}
-
 
 class CartpoleCameraEnv(CartpoleEnv):
     """Cartpole environment driven by camera observations.
 
-    Uses temporal observations for the Newton + Warp combo as it does not have the same implicit benefit
-    as the RTX renderer (implicit temporal anti-aliasing).
+    Stacks frames to supply the temporal cue Newton needs when the render lacks one; see
+    :meth:`_resolve_frame_stack_default`.
     """
 
     cfg: CartpoleCameraEnvCfg
 
     @staticmethod
     def _resolve_frame_stack_default(camera_cfg, physics_cfg) -> int:
-        """Return ``2`` for the Newton + Warp combo (no implicit damping, no temporal AA),
-        ``1`` otherwise."""
-        from isaaclab_newton.physics import NewtonCfg
-        from isaaclab_newton.renderers import NewtonWarpRendererCfg
+        """Default frame-stack size from the backend capability classmethods.
 
-        is_newton_warp = isinstance(physics_cfg, NewtonCfg) and isinstance(
-            getattr(camera_cfg, "renderer_cfg", None), NewtonWarpRendererCfg
-        )
-        return 2 if is_newton_warp else 1
+        Stack ``2`` frames when the policy needs a temporal cue to infer velocity but the
+        observation carries none -- the physics backend has no implicit damping AND the renderer
+        provides no temporal data for this data type. Otherwise ``1``. The capability lives on the
+        runtime backend classes (resolved from the cfg without building the sim):
+        :meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping` and
+        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`.
+        """
+        # ``class_type`` may be a class or a ``"module:Class"`` ResolvableString.
+        class_type = getattr(physics_cfg, "class_type", None)
+        if class_type is None:
+            return 1
+        physics_manager_cls = string_to_callable(str(class_type)) if isinstance(class_type, str) else class_type
+        if physics_manager_cls.provides_implicit_damping():
+            return 1
+
+        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
+        if renderer_cfg is None:
+            return 2
+        data_types = getattr(camera_cfg, "data_types", None) or []
+        data_type = data_types[0] if data_types else ""
+        renderer_cls = Renderer.resolve_class(renderer_cfg)
+        return 1 if renderer_cls.provides_temporal_camera_data(data_type) else 2
 
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
         # Flatten preset wrappers so the frame-stack resolution below sees concrete types.
@@ -75,15 +86,19 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         self._stack: CircularBuffer | None = None
         if frame_stack > 1:
-            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device)
+            # Channel-stack mode: buffer storage is laid out so that .stacked is a free
+            # contiguous reshape into (B, K*C, H, W) -- no per-step permute/reshape alloc.
+            self._stack = CircularBuffer(max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1)
 
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
         self.cartpole = Articulation(self.cfg.robot_cfg)
         self._tiled_camera = Camera(self.cfg.tiled_camera)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
 
-        # clone and replicate
-        self.scene.clone_environments(copy_from_source=False)
         if self.device == "cpu":
             # we need to explicitly filter collisions for CPU simulation
             self.scene.filter_collisions(global_prim_paths=[])
@@ -99,13 +114,17 @@ class CartpoleCameraEnv(CartpoleEnv):
         data_type = self.cfg.tiled_camera.data_types[0]
         camera_data = self._tiled_camera.data.output[data_type]
 
-        if data_type == "albedo" or data_type == "rgb" or data_type in SIMPLE_SHADING_TYPES:
+        rgb_like = is_rgb_like(data_type)
+        # Defer normalize past the ring buffer when stacking RGB-like data so the ring holds
+        # uint8 (4x cheaper per-step copies). Math is identical -- K frames live in disjoint
+        # channel slices of (B, K*C, H, W).
+        defer_normalize = self._stack is not None and rgb_like
+
+        if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
-            if data_type == "albedo":
-                camera_data = camera_data[..., :3]
-            # scale to [0, 1] and mean-center per image for better training results
-            camera_data = camera_data / 255.0
-            camera_data -= torch.mean(camera_data, dim=(1, 2), keepdim=True)
+            camera_data = camera_data[..., :3]
+        if rgb_like and not defer_normalize:
+            camera_data = normalize_camera_image(camera_data, data_type)
         elif data_type == "depth":
             camera_data[camera_data == float("inf")] = 0
 
@@ -114,12 +133,20 @@ class CartpoleCameraEnv(CartpoleEnv):
 
         if self._stack is not None:
             self._stack.append(obs)
-            # CircularBuffer.buffer is (B, K, C, H, W) oldest->newest along dim 1.
-            # Channel-stack: flatten the adjacent (K, C) dims so the channel axis
-            # reads oldest_C, ..., newest_C.
-            stacked = self._stack.buffer
-            b, k, c, h, w = stacked.shape
-            obs = stacked.reshape(b, k * c, h, w).clone()
+            obs = self._stack.stacked
+
+        if defer_normalize:
+            # No ``out=`` -- a fresh float32 tensor is allocated per call. The caching
+            # allocator returns a different block than the previous step's (still
+            # referenced by the trainer), so the previous-iteration ``observations``
+            # is not overwritten before ``record_transition`` reads it. See
+            # :func:`isaaclab.utils.warp.ops.normalize_image_uint8` for the aliasing
+            # hazard documentation.
+            obs = normalize_camera_image(obs, data_type, channel_dim=1)
+        elif self._stack is not None:
+            # ``stacked`` is a view of the ring buffer storage which is overwritten on
+            # the next ``env.step``; clone so the returned tensor outlives the next step.
+            obs = obs.clone()
 
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")

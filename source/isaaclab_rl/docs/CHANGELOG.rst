@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+0.6.2 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated ``Sb3VecEnvWrapper`` to use Isaac Lab Same-Step ``extras["final_obs"]``
+  as SB3 ``terminal_observation`` when it is available.
+
+
+0.6.1 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_rl.skrl.SkrlVecEnvWrapper` failing to import the JAX wrapper on recent JAX
+  versions by preloading the ``jax.experimental.multihost_utils`` submodule that skrl's distributed
+  models reference without importing.
+* Fixed LEAPP export of RSL-RL recurrent policies to preserve actor hidden
+  state across supported RSL-RL policy APIs.
+
+
 0.6.0 (2026-06-04)
 ~~~~~~~~~~~~~~~~~~
 

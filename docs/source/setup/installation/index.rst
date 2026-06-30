@@ -103,6 +103,8 @@ Other notable limitations with respect to Isaac Lab include...
    ``pytetwild`` wheel is available for ARM (aarch64). ``pytetwild`` is required for
    automatic tetrahedral mesh generation of volume deformables.
 
+#. RLinf support has not been verified on DGX Spark.
+
 .. note::
 
    **Build prerequisites on aarch64:** Some Python packages (notably ``imgui-bundle`` and ``quadprog``) do not ship
@@ -152,6 +154,8 @@ Use this table to decide:
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Binary + Source     | |:inbox_tray:| binary        | |:floppy_disk:| source (git) | Users preferring binary       | Easy       |
 |                     | download                     |                              | install of Isaac Sim          |            |
+|                     |                              |                              | *(conda/uv/venv unsupported;  |            |
+|                     |                              |                              | use bundled Python or pip)*   |            |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+
 | Full Source Build   | |:floppy_disk:| source (git) | |:floppy_disk:| source (git) | Developers modifying both     | Advanced   |
 +---------------------+------------------------------+------------------------------+-------------------------------+------------+

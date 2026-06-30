@@ -1273,25 +1273,23 @@ def test_warmup_attach_stage_not_called_for_cpu():
     complexity (multiple dynamic actors on a mesh collider), making it unreliable as a
     unit test assertion.
     """
-    from unittest.mock import MagicMock
+    from unittest.mock import MagicMock, patch
 
-    from isaaclab_physx.physics import PhysxManager
+    import omni.physx
 
     with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
 
+        # PhysxManager no longer caches the simulation interface; it resolves it on each use
+        # via ``omni.physx.get_physx_simulation_interface()`` (the accessor memoizes it).
         # IPhysxSimulation is a C++ binding whose attributes are read-only, so we cannot
-        # assign to _physx_sim.attach_stage directly.  Instead, replace the class-level
-        # reference with a MagicMock that wraps the real object so all other calls still
-        # work, then restore it in the finally block.
-        original_physx_sim = PhysxManager._physx_sim
-        spy = MagicMock(wraps=original_physx_sim)
-        PhysxManager._physx_sim = spy
-        try:
+        # assign to ``attach_stage`` directly.  Instead, patch the accessor to return a
+        # MagicMock that wraps the real interface so all other calls still work, and spy on
+        # ``attach_stage``.
+        spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
+        with patch("omni.physx.get_physx_simulation_interface", return_value=spy):
             sim.reset()
-        finally:
-            PhysxManager._physx_sim = original_physx_sim
 
         assert spy.attach_stage.call_count == 0, (
             f"attach_stage() was called {spy.attach_stage.call_count} time(s) during CPU warmup. "

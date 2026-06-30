@@ -16,7 +16,7 @@ from isaaclab_tasks.core.velocity.config.anymal_d import agents
 # The package exists on upstream/develop (commit 308400f1d35) but has not been merged.
 # Re-enable once dev/newton picks up isaaclab_physx.
 # gym.register(
-#     id="Isaac-Velocity-Rough-Anymal-D-Warp-v0",
+#     id="Isaac-Velocity-Rough-AnymalD-Warp-v0",
 #     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
 #     disable_env_checker=True,
 #     kwargs={
@@ -27,7 +27,7 @@ from isaaclab_tasks.core.velocity.config.anymal_d import agents
 # )
 
 # gym.register(
-#     id="Isaac-Velocity-Rough-Anymal-D-Warp-Play-v0",
+#     id="Isaac-Velocity-Rough-AnymalD-Warp-Play-v0",
 #     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
 #     disable_env_checker=True,
 #     kwargs={
@@ -38,7 +38,7 @@ from isaaclab_tasks.core.velocity.config.anymal_d import agents
 # )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Anymal-D-Warp-v0",
+    id="Isaac-Velocity-Flat-AnymalD-Warp-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={
@@ -49,7 +49,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Anymal-D-Warp-Play-v0",
+    id="Isaac-Velocity-Flat-AnymalD-Warp-Play-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={

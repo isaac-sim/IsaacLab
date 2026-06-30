@@ -90,6 +90,7 @@ extensions = [
     "sphinxcontrib.icon",
     "sphinx_copybutton",
     "sphinx_design",
+    "sphinx_paramlinks",
     "sphinx_tabs.tabs",  # backwards compatibility for building docs on v1.0.0
     "sphinx_multiversion",
     "isaaclab_docs",
@@ -233,7 +234,6 @@ autodoc_mock_imports = [
     "pink",
     "pinocchio",
     "qpsolvers",
-    "nvidia.srl",
     "flatdict",
     "filelock",
     "IPython",

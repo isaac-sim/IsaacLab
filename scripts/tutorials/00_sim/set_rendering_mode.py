@@ -25,6 +25,8 @@ parser = argparse.ArgumentParser(
 )
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+# tutorials should open Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
 # parse the arguments
 args_cli = parser.parse_args()
 # launch omniverse app
@@ -33,8 +35,22 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+)
+
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+
+def add_remote_usd_reference(prim_path: str, usd_path: str) -> None:
+    """Add a remote USD reference without localizing it through the temp asset cache."""
+    stage = sim_utils.get_current_stage()
+    prim = stage.DefinePrim(prim_path, "Xform")
+    if not prim.GetReferences().AddReference(usd_path):
+        raise RuntimeError(f"Unable to add USD reference to '{prim_path}' from '{usd_path}'.")
 
 
 def main():
@@ -43,19 +59,21 @@ def main():
     # rendering modes include performance, balanced, and quality
     # note, the rendering_mode specified in the CLI argument (--rendering_mode) takes precedence over
     # this Render Config setting
-    rendering_mode = "performance"
+    rendering_mode = "balanced"
 
     # carb setting dictionary can include any rtx carb setting which will overwrite the native preset setting
     carb_settings = {"rtx.reflections.enabled": True}
 
-    # Initialize render config
-    render_cfg = sim_utils.RenderCfg(
-        rendering_mode=rendering_mode,
+    settings = get_settings_manager()
+    # Initialize and apply Isaac RTX global settings.
+    render_cfg = IsaacRtxRendererGlobalSettingsCfg(
+        rendering_mode=settings.get("/isaaclab/rendering/rendering_mode") or rendering_mode,
         carb_settings=carb_settings,
     )
+    apply_isaac_rtx_global_settings(render_cfg, settings)
 
-    # Initialize the simulation context with render coofig
-    sim_cfg = sim_utils.SimulationCfg(render=render_cfg)
+    # Initialize the simulation context.
+    sim_cfg = sim_utils.SimulationCfg()
     sim = sim_utils.SimulationContext(sim_cfg)
 
     # Pose camera in the hospital lobby area
@@ -63,8 +81,7 @@ def main():
 
     # Load hospital scene
     hospital_usd_path = f"{ISAAC_NUCLEUS_DIR}/Environments/Hospital/hospital.usd"
-    cfg = sim_utils.UsdFileCfg(usd_path=hospital_usd_path)
-    cfg.func("/Scene", cfg)
+    add_remote_usd_reference("/Scene", hospital_usd_path)
 
     # Play the simulator
     sim.reset()

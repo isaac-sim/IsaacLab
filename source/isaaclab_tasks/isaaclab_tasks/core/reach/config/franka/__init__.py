@@ -16,7 +16,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-v0",
+    id="Isaac-Reach-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -28,7 +28,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-Play-v0",
+    id="Isaac-Reach-Franka-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -41,11 +41,35 @@ gym.register(
 
 
 ##
+# Newton Inverse Kinematics - Relative Pose Control
+##
+
+gym.register(
+    id="Isaac-Reach-Franka-Newton-IK-Rel-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.ik_newton_env_cfg:FrankaReachEnvCfg",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachNewtonIKPPORunnerCfg",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Isaac-Reach-Franka-Newton-IK-Rel-Play-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.ik_newton_env_cfg:FrankaReachEnvCfg_PLAY",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaReachNewtonIKPPORunnerCfg",
+    },
+    disable_env_checker=True,
+)
+
+##
 # Operational Space Control
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-OSC-v0",
+    id="Isaac-Reach-Franka-OSC",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -55,7 +79,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Reach-Franka-OSC-Play-v0",
+    id="Isaac-Reach-Franka-OSC-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

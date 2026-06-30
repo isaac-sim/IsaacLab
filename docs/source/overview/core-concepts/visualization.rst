@@ -41,7 +41,7 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Warp-based rendering, browser-based, share URL, visualization markers
 
 
-*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+*The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
 
 .. figure:: ../../_static/visualizers/ov_viz.jpg
    :width: 100%
@@ -200,6 +200,9 @@ Camera Modes
 To configure camera modes, including launching a tiled camera view, edit the fields described below in the
 ``VisualizerCfg`` config class.
 
+For runnable Kit and Newton examples that use generated and existing tiled cameras,
+see :doc:`/source/how-to/visualizer_tiled_camera`.
+
 The default visualizer camera mode is interactive, with ``eye`` and ``lookat`` specifying the initial pose.
 Kit and Newton visualizers can also run additional tiled camera image panels.
 
@@ -219,11 +222,16 @@ Note, Kit tiled camera views require launching with ``--enable_cameras``.
      - ``tiled_cam_view=False``, ``eye=(4, -4, 3)``, ``lookat=(0, 0, 0)``
      - Interactive visualizer camera starts at ``eye`` and looks at the fixed ``lookat`` coordinate.
    * - Generated tiled camera
-     - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot/base"``
+     - ``tiled_cam_view=True``, ``tiled_cam_prim_path=None``, ``tiled_cam_target_prim_path="/World/envs/*/Robot"``
      - The visualizer creates per-env cameras. Each camera looks at the matched target prim, with ``tiled_cam_eye`` as an offset from that target.
+       Note that the ``tiled_cam_target_prim_path`` has a default value, but different environments may require different paths.
    * - Existing tiled camera sensors
      - ``tiled_cam_view=True``, ``tiled_cam_prim_path="/World/envs/*/Camera"``
-     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` are ignored.
+     - The visualizer displays existing Isaac Lab ``Camera`` sensor output. Generated-camera fields such as ``tiled_cam_eye`` and
+       ``tiled_cam_target_prim_path`` are ignored. Note that the ``tiled_cam_prim_path`` has a default value, but different
+       environments may require different paths. This mode requires an environment that registers Isaac Lab ``Camera`` sensors
+       in ``scene.sensors``. For Cartpole, use a camera task such as ``Isaac-Cartpole-Camera``. The plain ``Isaac-Cartpole``
+       task has no ``/World/envs/*/Camera`` sensor, so leave ``tiled_cam_prim_path=None`` to use generated visualizer cameras.
 
 **How to Access the Tiled Camera View in the UI**
 
@@ -280,7 +288,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -296,7 +304,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -312,7 +320,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer kit \
      --video \
@@ -416,8 +424,8 @@ Newton Visualizer
         tiled_cam_prim_path=None,                 # Existing Camera sensor prim path, e.g. "/World/envs/*/Camera"
         tiled_cam_eye=(4.0, -4.0, 3.0),           # Eye offset for generated tiled cameras
         tiled_cam_target_prim_path=(              # Prim that generated cameras follow/look at
-            "/World/envs/*/Robot/base"
-        ),
+            "/World/envs/*/Robot"                 # This is the default value, but different environments
+        ),                                        # may require a different paths.
 
         # Performance tuning
         update_frequency=1,                       # Update every N frames (1=every frame)
@@ -497,6 +505,11 @@ Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no exte
 management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
 starting a new server, initialization fails with a clear port-conflict error.
 
+To save a replay, set ``record_to_rrd`` to the output ``.rrd`` path. Enable
+``keep_historical_data`` and ``keep_scalar_history`` when you want transform and scalar history to be available
+for timeline scrubbing. After the run, open the Rerun web viewer and press ``Ctrl+O`` to load the saved ``.rrd`` file.
+
+Note, the timeline UI elements are for .rrd recording playback timeline scrubbing.
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
@@ -603,6 +616,13 @@ The FPS control in the Rerun visualizer UI may not affect the visualization fram
 Currently, live plots are only available in the Kit Visualizer.
 
 
+**Newton Contact Visualization**
+
+Newton's native ``Show Contacts`` view can show all contacts from the Newton physics contact buffer. When running
+with PhysX, the Newton visualizer can only show contacts reported by configured Isaac Lab contact sensors, so
+currently the set of displayed contacts may differ across backends.
+
+
 **Viser Visualizer Renderer Requirement**
 
 The Viser visualizer requires a Newton model, which is provided automatically by
@@ -624,6 +644,18 @@ On some system configurations, the Newton visualizer may display warnings about 
 
 The visualizer will still function correctly but may experience reduced performance due to falling back to
 CPU copy operations instead of direct GPU memory sharing.
+
+
+**Newton Visualizer OpenGL Context Failures**
+
+The Newton visualizer is an OpenGL window. If pyglet reports that
+``glCreateShader`` is not exported or that OpenGL 2.0 is required, the Python
+process did not receive a usable OpenGL 2.0+ context from the active Windows or
+Linux display session. This usually means the process is running in a
+non-interactive/service session, through a remote desktop path without GPU
+OpenGL acceleration, or with a software/basic OpenGL provider instead of the
+NVIDIA driver. Run from a GPU-backed interactive display session, or omit
+``--visualizer newton`` for headless inference.
 
 
 **Newton Visualizer on Spark with Conda**

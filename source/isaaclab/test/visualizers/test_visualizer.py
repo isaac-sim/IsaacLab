@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins
+from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -124,6 +124,29 @@ def test_apply_camera_view_from_origins_forwards_env_ids():
     assert targets.tolist() == [[1.0, 2.0, 3.0]]
     assert env_ids == [2]
     assert camera.update_poses_calls == [None]
+
+
+def test_prim_world_positions_prefers_scene_articulation_state():
+    body_pos_w = torch.tensor(
+        [
+            [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]],
+            [[4.0, 5.0, 6.0], [40.0, 50.0, 60.0]],
+        ]
+    )
+    articulation = SimpleNamespace(
+        cfg=SimpleNamespace(prim_path="/World/envs/env_.*/Robot"),
+        body_names=["base", "foot"],
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
+            body_pos_w=SimpleNamespace(torch=body_pos_w),
+        ),
+        find_bodies=lambda name: ([0], [name]),
+    )
+    scene = SimpleNamespace(articulations={"robot": articulation})
+
+    positions = prim_world_positions(None, "/World/envs/*/Robot/base", [1, 0], scene=scene)
+
+    assert torch.equal(positions, torch.tensor([[4.0, 5.0, 6.0], [1.0, 2.0, 3.0]]))
 
 
 def test_compute_visualized_env_ids_cap_only_returns_none():

@@ -18,6 +18,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 from isaaclab.managers.manager_term_cfg import RewardTermCfg
+from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -336,3 +337,55 @@ def track_ang_vel_z_exp(
         env.command_manager.get_command(command_name)[:, 2] - asset.data.root_ang_vel_b.torch[:, 2]
     )
     return torch.exp(-ang_vel_error / std**2)
+
+
+"""
+Pose-tracking rewards.
+"""
+
+
+def position_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize tracking of the position error using the L2 norm.
+
+    The error [m] is the L2 norm between the commanded position (resolved into the world frame from the
+    asset's root pose) and the current position of the asset's body in the world frame. The command is
+    expected to be a pose command whose first three entries are the desired position in the root frame.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    # obtain the desired and current positions in the world frame
+    des_pos_b = command[:, :3]
+    des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w.torch, asset.data.root_quat_w.torch, des_pos_b)
+    curr_pos_w = asset.data.body_pos_w.torch[:, asset_cfg.body_ids[0]]  # type: ignore
+    return torch.linalg.norm(curr_pos_w - des_pos_w, dim=1)
+
+
+def position_command_error_tanh(
+    env: ManagerBasedRLEnv, std: float, command_name: str, asset_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Reward tracking of the position error using the tanh kernel.
+
+    The position error [m] is computed as in :func:`position_command_error` and mapped through a tanh
+    kernel with standard deviation ``std`` [m], yielding a bounded reward in ``[0, 1)``.
+    """
+    distance = position_command_error(env, command_name, asset_cfg)
+    return 1 - torch.tanh(distance / std)
+
+
+def orientation_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize tracking of the orientation error using the shortest-path quaternion distance.
+
+    The error [rad] is the shortest-path angle between the commanded orientation (resolved into the
+    world frame from the asset's root pose) and the current orientation of the asset's body in the world
+    frame. The command is expected to be a pose command whose entries ``[3:7]`` are the desired
+    orientation quaternion in the root frame.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    # obtain the desired and current orientations in the world frame
+    des_quat_b = command[:, 3:7]
+    des_quat_w = quat_mul(asset.data.root_quat_w.torch, des_quat_b)
+    curr_quat_w = asset.data.body_quat_w.torch[:, asset_cfg.body_ids[0]]  # type: ignore
+    return quat_error_magnitude(curr_quat_w, des_quat_w)

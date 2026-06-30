@@ -1,6 +1,536 @@
 Changelog
 ---------
 
+8.1.1 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed :class:`~isaaclab_tasks.core.dexsuite.dexsuite_env_cfg.DexsuiteReorientEnvCfg` to derive
+  from :class:`~isaaclab.envs.ManagerBasedRLEnvCfg` instead of
+  :class:`~isaaclab.envs.ManagerBasedEnvCfg`, so the RL-specific configuration fields are inherited
+  rather than set ad hoc in ``__post_init__``.
+
+
+8.1.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-SO101-v0`` and ``Isaac-Stack-Cube-SO101-IK-Abs-v0`` cube-stacking
+  environments for the SO-101 5-DOF arm. The IK-Abs variant uses absolute task-space
+  differential inverse kinematics and is seated on the table.
+* Generalized the cube-stack MDP gripper observations and terminations to support single-jaw
+  grippers in addition to two-finger parallel grippers.
+* Added XR teleoperation for ``Isaac-Stack-Cube-SO101-IK-Abs-v0`` via an IsaacTeleop retargeting
+  pipeline built from the SO-101 retargeters in ``isaacteleop.retargeters``. Controller poses are
+  rebased into the robot base frame upstream via
+  :attr:`~isaaclab_teleop.IsaacTeleopCfg.target_frame_prim_path` (set to the seated, +90 deg-yawed
+  base prim), so the retargeters work directly in the IK command frame. End-effector motion is
+  clutch-rebased around the pose captured on engage: the clutch latches on the first running frame
+  (the headset "Play") and seeds its home from a static reset-origin (the gripper's pose in the
+  base frame at the seated init pose) so engaging with a steady controller does not move the arm,
+  then keeps a running home so a mid-task re-clutch resumes from the last commanded pose. The
+  gripper jaw tracks the controller trigger continuously (analog).
+
+Changed
+^^^^^^^
+
+* **Breaking:** Reworked the ``Isaac-Stack-Cube-SO101-IK-Abs-v0`` teleop control to command the
+  full end-effector SE3 pose. The arm action is now an 8-D
+  ``[pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w, gripper]`` (orientation xyzw),
+  replacing the previous 6-D ``[pos_x, pos_y, pos_z, pitch, roll, gripper]``. A single
+  full-pose differential IK (``SO101PoseIKController``, ``command_type="pose"``) now solves all
+  **5** arm joints (``shoulder_pan``, ``shoulder_lift``, ``elbow_flex``, ``wrist_flex``,
+  ``wrist_roll``) over a 6-row task: 3 linear rows track position exactly (weight 1) and 3
+  orientation rows are soft-weighted by the core controller's ``orientation_weight`` (default
+  ``0.5``). This replaces the reduced 4-row ``[x, y, z, pitch]`` IK over 4 joints plus a separate
+  ``wrist_roll`` action. The manipulability-aware damped least squares
+  (``ik_method="adaptive_dls"``) and null-space joint-limit avoidance are now provided by the core
+  :class:`~isaaclab.controllers.DifferentialIKController`; ``SO101PoseIKController`` only adds the
+  wrist-only orientation joint mask (restricting orientation to ``wrist_flex`` / ``wrist_roll`` so
+  ``shoulder_pan`` stays position-only) on top.
+
+  Migration: the controller / action classes were renamed
+  ``SO101PositionPitchIK{Controller,ControllerCfg,Action,ActionCfg}`` ->
+  ``SO101PoseIK{...}`` (modules ``position_pitch_ik_{controller,action}.py`` ->
+  ``pose_ik_{controller,action}.py``), the cfg field ``pitch_task_weight`` ->
+  ``orientation_weight``, and the ``wrist_roll_action`` term was removed (``wrist_roll`` is
+  now solved by the IK). The SO-101 ``SO101WristRetargeter`` (and its ``SO101RollRetargeter``
+  alias) was removed from ``isaacteleop.retargeters``; the clutch retargeter now drives the full
+  pose with a fixed orientation calibration offset.
+* Refactored the cube-stack scaffolding so the SO-101 config no longer depends on Franka. The
+  cube setup, table/ground/robot semantics, end-effector frame builder, and reset events were
+  promoted to the robot-neutral :class:`~isaaclab_tasks.contrib.stack.stack_env_cfg.StackEnvCfg`
+  base, and the Franka and SO-101 joint-position configs are now override-only. The generic stack
+  event functions moved to ``isaaclab_tasks.contrib.stack.mdp.stack_events`` (``franka_stack_events``
+  re-exports them for backward compatibility), and ``randomize_joint_by_gaussian_offset`` now holds
+  the gripper joints fixed by resolving them from the env's ``gripper_joint_names`` rather than
+  assuming the last two joints are the gripper.
+
+
+8.0.7 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"normals"`` to the rendering correctness validation suite. The ``normals`` data type
+  (float32 surface normal vectors in ``[-1, 1]``) is now included in
+  :data:`~rendering_test_utils._DEFAULT_SENSOR_DATA_TYPES` for all RTX-based renderer
+  combinations and as an explicit parameter for the Newton Warp renderer.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg` to
+  expose automatic ``rtx`` selection through ``renderer=rtx``.
+
+
+8.0.6 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added golden-image rendering tests for ``distance_to_camera`` and ``distance_to_image_plane``
+  AOV types across the Cartpole, DexSuite Kuka, and Shadow Hand camera environments.
+  Test-local subclasses of the relevant env and camera configs are used so the production
+  task API remains unchanged.
+* Added ``enable_scene_partition`` pytest fixture and enabled Isaac RTX per-environment scene
+  partitioning in rendering correctness tests for cartpole and registered camera tasks as a
+  temporary workaround.
+
+
+8.0.5 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the camera-based Cartpole task failing to converge under Newton physics with the RTX
+  ``depth``, ``albedo``, and ``simple_shading`` AOV observations. These AOVs bypass DLSS temporal
+  accumulation, so the observation carried no temporal cue for the policy to infer velocity from
+  (Newton's symplectic integrator has no implicit damping). The ``frame_stack`` default resolver
+  now enables 2-frame stacking for these Newton + RTX AOVs, matching the existing Newton + Warp
+  behavior; Newton + RTX ``rgb`` keeps single-frame observations as DLSS already supplies the cue.
+  The resolver reads backend capability classmethods
+  (:meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping`,
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`) resolved
+  from the configs, instead of hard-coding backend types in the task.
+
+
+8.0.4 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX physics preset support to
+  ``Isaac-Franka-Cabinet-Direct-v0``.
+
+Changed
+^^^^^^^
+
+* Updated golden images for the ``dexsuite_kuka_hetero`` tests combining Newton
+  physics with the IsaacSim RTX renderer, reflecting corrected USD prim
+  population.
+
+
+8.0.3 (2026-06-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ovphysx`` preset to
+  :class:`~isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg.LocomotionVelocityRoughEnvCfg.RoughPhysicsCfg`
+  for use under the OVPhysX backend. ``RoughPhysicsCfg`` now exposes an
+  ``ovphysx`` member so ``Isaac-Velocity-Rough-Anymal-D-v0`` selects the
+  right physics + contact-sensor configuration when run with
+  ``presets=ovphysx``.
+
+
+8.0.2 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated golden images for the ``dexsuite_kuka_hetero`` Newton renderer tests (RGB and RGBA) to
+  reflect corrected shape colors now that USD material colors are propagated before clone
+  replication.
+
+
+8.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated GR1T2 and G1-Inspire Pink IK task frame names to match URDFs generated by Isaac Sim's exporter.
+
+
+8.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Reach-Franka-Newton-IK-Rel-v0`` for Newton-backed Franka reach IK.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed all contributed environment IDs (under ``isaaclab_tasks.contrib``) to use the
+  ``IsaacContrib-`` prefix instead of ``Isaac-`` and dropped the trailing ``-v0`` version suffix, so
+  they follow the same naming convention as the refactored core tasks. The Python API
+  (config classes, ``mdp`` modules, agent configs) is unchanged. Update ``gym.make`` / ``--task``
+  calls accordingly, for example ``Isaac-Velocity-Rough-AnymalC-v0`` →
+  ``IsaacContrib-Velocity-Rough-AnymalC`` and ``Isaac-Cartpole-Showcase-Direct`` →
+  ``IsaacContrib-Cartpole-Showcase-Direct``.
+
+
+7.0.0 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-Reorient-KukaAllegro-Camera`` and ``Isaac-Lift-KukaAllegro-Camera`` vision
+  environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Split the KukaAllegro dexsuite camera (vision) configuration out of the state task
+  into dedicated ``-Camera`` environments, matching the cartpole layout. The base state tasks
+  (``Isaac-Reorient-KukaAllegro``, ``Isaac-Lift-KukaAllegro``) no longer accept the
+  ``presets=single_camera`` / ``presets=duo_camera`` selectors; use the new camera tasks instead:
+
+  * ``Isaac-Lift-KukaAllegro`` + ``presets=single_camera`` → ``Isaac-Lift-KukaAllegro-Camera``.
+  * ``Isaac-Reorient-KukaAllegro`` + ``presets=single_camera`` → ``Isaac-Reorient-KukaAllegro-Camera``.
+
+  The ``single_camera`` / ``duo_camera`` (and the camera data-type / renderer-backend) selectors now
+  live on the ``-Camera`` tasks. The camera configs were moved to a dedicated
+  ``dexsuite_kuka_allegro_camera_env_cfg`` module whose env configs inherit from the state base.
+* **Breaking:** Renamed the Dexsuite Kuka-Allegro environment IDs to drop the ``Dexsuite`` prefix and
+  the ``-v0`` version suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Dexsuite-Kuka-Allegro-Reorient-v0`` → ``Isaac-Reorient-KukaAllegro``.
+  * ``Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0`` → ``Isaac-Reorient-KukaAllegro-Play``.
+  * ``Isaac-Dexsuite-Kuka-Allegro-Lift-v0`` → ``Isaac-Lift-KukaAllegro``.
+  * ``Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0`` → ``Isaac-Lift-KukaAllegro-Play``.
+* **Breaking:** Dropped the ``-v0`` version suffix from the core locomotion-velocity environment IDs
+  (AnymalD, Cassie, Digit, G1, H1, Spot, UnitreeGo2; ``Flat`` and ``Rough``, plus their ``-Play``
+  variants). Multi-word robot names also drop the internal ``-`` (``-`` now separates task aspects
+  only): ``Isaac-Velocity-Flat-Anymal-D-v0`` → ``Isaac-Velocity-Flat-AnymalD`` and
+  ``Isaac-Velocity-Flat-Unitree-Go2-v0`` → ``Isaac-Velocity-Flat-UnitreeGo2``. Update ``gym.make`` /
+  ``--task`` calls accordingly. The ``isaaclab_tasks.core.velocity`` Python API
+  (:class:`~isaaclab_tasks.core.velocity.velocity_env_cfg.LocomotionVelocityRoughEnvCfg`, the
+  shared ``mdp`` module, per-robot configs, and agent configs) is unchanged, so the contributed and
+  experimental locomotion tasks that build on it continue to work. (Those tasks keep their ``-v0`` /
+  ``-Warp-v0`` suffixes; the robot-name spelling change is covered separately.)
+* **Breaking:** Multi-word robot names in Gym environment IDs are now written in CamelCase, since
+  ``-`` is reserved for separating task-name aspects (task / object / robot / workflow / variant).
+  This applies across the core, contributed, and experimental (Warp) tasks. Update ``gym.make`` /
+  ``--task`` calls; the surrounding ID structure and any ``-v0`` / ``-Warp-v0`` suffix are otherwise
+  unchanged:
+
+  * ``Anymal-B`` → ``AnymalB``, ``Anymal-C`` → ``AnymalC``, ``Anymal-D`` → ``AnymalD``.
+  * ``Unitree-A1`` → ``UnitreeA1``, ``Unitree-Go1`` → ``UnitreeGo1``, ``Unitree-Go2`` → ``UnitreeGo2``.
+  * ``Kuka-Allegro`` → ``KukaAllegro``.
+  * ``OpenArm-Bi`` → ``OpenArmBi``.
+
+  For example ``Isaac-Velocity-Rough-Anymal-C-v0`` → ``Isaac-Velocity-Rough-AnymalC-v0`` and
+  ``Isaac-Reach-OpenArm-Bi-v0`` → ``Isaac-Reach-OpenArmBi-v0``.
+
+
+6.0.0 (2026-06-11)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a config-time check that raises a clear error when a surface-gripper (suction)
+  stacking task is run with the Newton physics backend, which has no surface-gripper
+  implementation, instead of failing later during scene creation.
+* Added a config-time check that raises a clear error when an Agibot place task is run
+  with the Newton physics backend, whose USD parser rejects the robot's reversed
+  gripper joints, instead of failing later during scene creation.
+* Added a ``preferred_checkpoint`` regex argument to :func:`~isaaclab_tasks.utils.parse_cfg.get_checkpoint_path`
+  that is matched before ``checkpoint`` and wins when it matches, otherwise resolution falls back to ``checkpoint``.
+
+Changed
+^^^^^^^
+
+* Migrated the Stack-Cube (UR10, Galbot) and Place (Agibot) manipulation tasks to
+  Lab 3.0 multi-backend physics by exposing a ``PhysicsCfg`` preset
+  (``physics=physx`` / ``physics=newton_mjwarp``) instead of a hard-coded
+  :class:`~isaaclab_physx.physics.PhysxCfg`.
+* **Breaking:** Consolidated the in-hand reorientation tasks into a single
+  :mod:`isaaclab_tasks.core.reorient` package. The former ``isaaclab_tasks.core.allegro_hand``
+  (direct) and ``isaaclab_tasks.core.inhand.config.allegro_hand`` (manager-based) tasks moved
+  under :mod:`isaaclab_tasks.core.reorient.config.allegro_hand`, and ``isaaclab_tasks.core.shadow_hand``
+  moved under :mod:`isaaclab_tasks.core.reorient.config.shadow_hand`. The shared direct base environment
+  ``isaaclab_tasks.core.inhand_manipulation.inhand_manipulation_env.InHandManipulationEnv`` was
+  renamed to :class:`isaaclab_tasks.core.reorient.reorient_direct_env.ReorientDirectEnv`, and the
+  shared manager-based base configuration to
+  :class:`isaaclab_tasks.core.reorient.reorient_manager_env_cfg.ReorientObjectEnvCfg`. Update imports
+  such as ``from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg`` to
+  ``from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg``.
+* **Breaking:** Within :mod:`isaaclab_tasks.core.reorient.config.allegro_hand`, the workflow-specific
+  config modules carry a ``_direct_`` / ``_manager_`` infix
+  (:mod:`~isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_direct_env_cfg` and
+  :mod:`~isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_manager_env_cfg`), and the colliding
+  ``rl_games`` / ``skrl`` agent configs were renamed accordingly (e.g. ``rl_games_ppo_cfg.yaml`` →
+  ``rl_games_direct_ppo_cfg.yaml`` / ``rl_games_manager_ppo_cfg.yaml``). The direct and
+  manager-based ``rsl_rl`` runner configs (``AllegroHandPPORunnerCfg`` and ``AllegroCubePPORunnerCfg``)
+  now live together in ``reorient.config.allegro_hand.agents.rsl_rl_ppo_cfg``.
+* **Breaking:** Renamed the camera-based shadow hand task from ``Vision`` to ``Camera``. The env
+  modules ``shadow_hand_vision_env`` / ``shadow_hand_vision_env_cfg`` became
+  :mod:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env` /
+  :mod:`~isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg`, and the
+  ``ShadowHandVision*`` classes (env, env cfg, runner cfg) became ``ShadowHandCamera*``.
+* Promoted the task-local ``reset_joints_within_limits_range`` event term to the core
+  :class:`~isaaclab.envs.mdp.events.reset_joints_within_limits_range`; it is still accessible via
+  ``isaaclab_tasks.core.reorient.mdp`` through the core re-export.
+* **Breaking:** Moved the multi-agent Shadow Hand Over task to the top-level
+  :mod:`isaaclab_tasks.core.handover` package and renamed ``ShadowHandOverEnv`` /
+  ``ShadowHandOverEnvCfg`` to :class:`~isaaclab_tasks.core.handover.handover_env.HandoverEnv` /
+  :class:`~isaaclab_tasks.core.handover.handover_env_cfg.HandoverEnvCfg`.
+* **Breaking:** Renamed the Gym environment IDs: dropped the ``-v0`` version suffix, renamed
+  ``Repose-Cube`` to ``Reorient-Cube`` and the camera variants from ``Vision`` to ``Camera``. The
+  manager-based workflow carries no workflow suffix while the direct workflow keeps ``-Direct``.
+  Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Repose-Cube-Allegro-v0`` → ``Isaac-Reorient-Cube-Allegro``.
+  * ``Isaac-Repose-Cube-Allegro-Play-v0`` → ``Isaac-Reorient-Cube-Allegro-Play``.
+  * ``Isaac-Repose-Cube-Allegro-Direct-v0`` → ``Isaac-Reorient-Cube-Allegro-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-OpenAI-FF-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-OpenAI-FF-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-OpenAI-LSTM-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-OpenAI-LSTM-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-Vision-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-Camera-Direct``.
+  * ``Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0`` → ``Isaac-Reorient-Cube-Shadow-Camera-Direct-Play``.
+  * ``Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0`` → ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct``.
+  * ``Isaac-Shadow-Hand-Over-Direct-v0`` → ``Isaac-Shadow-Handover-Direct``.
+* **Breaking:** Consolidated the Franka cabinet (open-drawer) tasks into the single
+  :mod:`isaaclab_tasks.core.cabinet` package. The former ``isaaclab_tasks.core.franka_cabinet``
+  direct task moved in: the env ``FrankaCabinetEnv`` became the robot-agnostic
+  :class:`~isaaclab_tasks.core.cabinet.cabinet_direct_env.CabinetDirectEnv` (at the package root,
+  alongside the manager-based :class:`~isaaclab_tasks.core.cabinet.cabinet_env_cfg.CabinetEnvCfg`).
+  Its config ``FrankaCabinetEnvCfg`` (a ``DirectRLEnvCfg``) was split into a robot-agnostic base
+  :class:`~isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg.CabinetDirectEnvCfg` (at the package
+  root, with the robot left unset) and the Franka subclass
+  :class:`~isaaclab_tasks.core.cabinet.config.franka.cabinet_direct_env_cfg.FrankaCabinetDirectEnvCfg`
+  (which supplies the arm). The split also avoids clashing with the manager-based
+  ``FrankaCabinetEnvCfg`` in :mod:`~isaaclab_tasks.core.cabinet.config.franka.joint_pos_env_cfg`.
+* **Breaking:** Renamed the Gym environment IDs: dropped the ``-v0`` version suffix and unified the
+  direct task under the manager's ``Open-Drawer-Franka`` name with a ``-Direct`` suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Open-Drawer-Franka-v0`` → ``Isaac-Open-Drawer-Franka``.
+  * ``Isaac-Open-Drawer-Franka-Play-v0`` → ``Isaac-Open-Drawer-Franka-Play``.
+  * ``Isaac-Franka-Cabinet-Direct-v0`` → ``Isaac-Open-Drawer-Franka-Direct``.
+* **Breaking:** Merged the direct and manager agent configs into
+  ``isaaclab_tasks.core.cabinet.config.franka.agents``. The colliding ``rl_games`` / ``skrl`` configs
+  carry a ``_direct_`` / ``_manager_`` infix (e.g. ``rl_games_manager_ppo_cfg.yaml`` /
+  ``rl_games_direct_ppo_cfg.yaml``), and the ``rsl_rl`` runner configs ``CabinetPPORunnerCfg``
+  (manager) and ``FrankaCabinetPPORunnerCfg`` (direct) now live together in
+  ``cabinet.config.franka.agents.rsl_rl_ppo_cfg``.
+* **Breaking:** Renamed the cart double pendulum task to ``pendulum``. The package moved from
+  ``isaaclab_tasks.core.cart_double_pendulum`` to :mod:`isaaclab_tasks.core.pendulum`, the env
+  ``CartDoublePendulumEnv`` / ``CartDoublePendulumEnvCfg`` became
+  :class:`~isaaclab_tasks.core.pendulum.pendulum_env.PendulumEnv` /
+  :class:`~isaaclab_tasks.core.pendulum.pendulum_env_cfg.PendulumEnvCfg`, and the Gym environment ID
+  ``Isaac-Cart-Double-Pendulum-Direct`` became ``Isaac-Pendulum-Direct``. The
+  ``CART_DOUBLE_PENDULUM_CFG`` robot asset in :mod:`isaaclab_assets` is unchanged.
+* Removed the per-environment ``try/except ImportError`` guards around the
+  ``isaacteleop`` / ``isaaclab_teleop`` imports in the Galbot, Franka, GR1T2
+  nut-pour, and GR1T2 exhaust-pipe task configs. The imports are now
+  unconditional, matching the other teleop task configs, now that
+  :class:`~isaaclab_teleop.IsaacTeleopCfg` no longer requires the optional
+  ``isaacteleop`` package at import time. No migration is needed:
+  ``isaaclab_teleop`` ships with Isaac Lab and teleoperation behavior is
+  unchanged.
+
+Fixed
+^^^^^
+
+* Fixed the Galbot cube-stack tasks (``Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0``
+  and ``Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0``) failing to parse with
+  ``No module named 'isaacteleop'`` when the optional ``isaacteleop`` dependency is not
+  installed (e.g. on DGX Spark). The ``isaaclab_teleop`` import and XR pipeline setup are
+  now guarded behind an availability check, matching the Franka stack configs, so
+  keyboard/spacemouse teleoperation works without ``isaacteleop``.
+* Removed an unused ``joint_positions`` parameter from the cabinet direct environment's reward
+  computation.
+* Fixed ``rl_games`` and ``sb3`` play failing to load a checkpoint on short runs where the preferred
+  best/final checkpoint has not been written yet. They now prefer the best (``rl_games``) or final
+  (``sb3``) checkpoint and fall back to the latest available checkpoint when it is missing. Numbered
+  checkpoint filenames are now sorted naturally so epoch 10 is selected after epoch 9.
+
+
+5.0.1 (2026-06-10)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed ``rendering_test_utils`` to use a shared :func:`_make_sensor_data_type_params` helper
+  for building the physics backend, renderer, and camera sensor data type test matrix, making it
+  easier to extend with additional data types.
+
+Fixed
+^^^^^
+
+* Fixed native keyboard, gamepad, and SpaceMouse teleoperation for the Franka reach tasks. These
+  devices emit a 6D SE(3) delta command, which only matches the relative-IK action space, so they
+  are now configured on ``Isaac-Reach-Franka-IK-Rel-v0`` instead of the shared ``ReachEnvCfg`` base.
+  Previously the absolute-IK variant (``Isaac-Reach-Franka-IK-Abs-v0``, 7D pose action) and the
+  joint-position variant inherited these devices and raised an invalid action shape error when
+  teleoperated.
+* Fixed the tiled camera visualizer tutorial to use the current launcher imports
+  and select task-appropriate camera sources for Kit and Newton visualizers.
+
+
+5.0.0 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Consolidated the rigid and soft Franka lifting tasks into a single
+  :mod:`isaaclab_tasks.core.lift` package. The former ``isaaclab_tasks.core.lift_franka_soft``
+  package moved under :mod:`isaaclab_tasks.core.lift.config.franka_soft`, alongside the existing
+  rigid ``franka`` config, to keep the rigid and soft variants separated. Update imports such as
+  ``from isaaclab_tasks.core.lift_franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg`` to
+  ``from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg``.
+  The deformable MDP terms were merged into the shared :mod:`isaaclab_tasks.core.lift.mdp` package
+  (rather than a separate per-variant ``mdp``); import them from there, e.g.
+  ``from isaaclab_tasks.core.lift.mdp import deformable_lifted``.
+* **Breaking:** Renamed the lift Gym environment IDs to drop the ``-v0`` version suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Lift-Cube-Franka-v0`` → ``Isaac-Lift-Cube-Franka``.
+  * ``Isaac-Lift-Cube-Franka-Play-v0`` → ``Isaac-Lift-Cube-Franka-Play``.
+  * ``Isaac-Lift-Soft-Franka-v0`` → ``Isaac-Lift-Soft-Franka``.
+  * ``Isaac-Lift-Cloth-Franka-v0`` → ``Isaac-Lift-Cloth-Franka``.
+
+Fixed
+^^^^^
+
+* Increased the AutoMate assembly and disassembly PhysX GPU collision stack to avoid dropped contacts at the default 128 environments.
+* Updated AutoMate run helpers and docs to reject placeholder assembly IDs before launching simulation.
+* Renamed the ``Isaac-Lift-Cloth-Franka`` physics preset from the misspelled ``newton_mjwarp_vdb``
+  to ``newton_mjwarp_vbd``, matching the soft-body task and the underlying VBD solver. The cloth
+  ``RewardsCfg``, which duplicated the soft task's rewards verbatim, is now inherited instead of
+  redefined.
+* Removed AutoMate's Numba dependency by replacing the SoftDTW helper with a
+  Torch implementation.
+
+
+4.0.0 (2026-06-07)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the reach Gym environment IDs to drop the ``-v0`` version suffix. The
+  robot name is kept in the ID and the manager-based workflow carries no workflow suffix. Update
+  ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Reach-Franka-v0`` → ``Isaac-Reach-Franka``.
+  * ``Isaac-Reach-Franka-Play-v0`` → ``Isaac-Reach-Franka-Play``.
+  * ``Isaac-Reach-Franka-OSC-v0`` → ``Isaac-Reach-Franka-OSC``.
+  * ``Isaac-Reach-Franka-OSC-Play-v0`` → ``Isaac-Reach-Franka-OSC-Play``.
+  * ``Isaac-Reach-UR10-v0`` → ``Isaac-Reach-UR10``.
+  * ``Isaac-Reach-UR10-Play-v0`` → ``Isaac-Reach-UR10-Play``.
+* Renamed the RSL-RL experiment name for the Franka reach task from ``franka_reach`` to
+  ``reach_franka`` so it matches the other Franka reach agent configs and the UR10 reach task.
+* **Breaking:** Moved the reach pose-tracking reward terms ``position_command_error``,
+  ``position_command_error_tanh`` and ``orientation_command_error`` to the shared
+  :mod:`isaaclab.envs.mdp` terms and removed the ``isaaclab_tasks.core.reach.mdp`` package. Import
+  these terms from :mod:`isaaclab.envs.mdp` instead, e.g. replace
+  ``import isaaclab_tasks.core.reach.mdp as mdp`` with ``import isaaclab.envs.mdp as mdp``.
+
+
+3.0.0 (2026-06-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added validation for the typed preset selectors ``physics=NAME`` and
+  ``renderer=NAME`` during Hydra resolution. A typed selector is now enforced
+  to resolve against a config of that type (a
+  :class:`~isaaclab.physics.PhysicsCfg` / renderer config) at least once;
+  selecting one on a task that only exposes the name as an unrelated preset
+  (e.g. a scalar or sensor variant) raises a descriptive :class:`ValueError`
+  instead of silently leaving the backend unchanged. The free-form
+  ``presets=NAME`` broadcast is trusted and not enforced.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Grouped the ant and humanoid locomotion tasks under a new
+  :mod:`isaaclab_tasks.core.locomotion` package, each as a subpackage
+  (:mod:`isaaclab_tasks.core.locomotion.ant` and :mod:`isaaclab_tasks.core.locomotion.humanoid`).
+  The two subpackages share the direct-workflow base environment
+  (:mod:`isaaclab_tasks.core.locomotion.locomotion_direct_env`, previously
+  ``isaaclab_tasks.core.direct_locomotion.locomotion_env``) and the manager-workflow MDP terms
+  (:mod:`isaaclab_tasks.core.locomotion.mdp`, previously
+  ``isaaclab_tasks.core.manager_humanoid.mdp``).
+* **Breaking:** Merged the direct-workflow and manager-based-workflow ant and humanoid task
+  packages into the per-task subpackages above; the former ``isaaclab_tasks.core.direct_ant``,
+  ``isaaclab_tasks.core.manager_ant``, ``isaaclab_tasks.core.direct_humanoid`` and
+  ``isaaclab_tasks.core.manager_humanoid`` packages were removed. Module files now carry a
+  ``_direct_`` or ``_manager_`` infix to disambiguate the two workflows. Update imports, e.g.:
+
+  * ``from isaaclab_tasks.core.direct_ant.ant_env import AntEnv`` →
+    ``from isaaclab_tasks.core.locomotion.ant.ant_direct_env import AntEnv``.
+  * ``from isaaclab_tasks.core.manager_humanoid.humanoid_env_cfg import HumanoidEnvCfg`` →
+    ``from isaaclab_tasks.core.locomotion.humanoid.humanoid_manager_env_cfg import HumanoidEnvCfg``.
+
+  The near-identical per-workflow ``rsl_rl_ppo_cfg`` modules were consolidated; each subpackage's
+  ``agents.rsl_rl_ppo_cfg`` now exposes a manager-based runner cfg (:class:`AntPPORunnerCfg` /
+  :class:`HumanoidPPORunnerCfg`) and a direct-workflow subclass (:class:`AntDirectPPORunnerCfg` /
+  :class:`HumanoidDirectPPORunnerCfg`).
+* **Breaking:** Renamed the ant and humanoid Gym environment IDs to drop the ``-v0`` version suffix
+  and mark the direct-workflow tasks with an explicit ``-Direct`` suffix. The manager-based workflow
+  is the default and carries no workflow suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Ant-Direct-v0`` → ``Isaac-Ant-Direct``.
+  * ``Isaac-Ant-v0`` → ``Isaac-Ant``.
+  * ``Isaac-Humanoid-Direct-v0`` → ``Isaac-Humanoid-Direct``.
+  * ``Isaac-Humanoid-v0`` → ``Isaac-Humanoid``.
+* **Breaking:** Renamed the cart double pendulum Gym environment ID to drop the ``-v0`` version
+  suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Cart-Double-Pendulum-Direct-v0`` → ``Isaac-Cart-Double-Pendulum-Direct``.
+* Changed :class:`~isaaclab_tasks.core.cartpole.cartpole_direct_camera_env.CartpoleCameraEnv`
+  to route image normalization through
+  :func:`isaaclab.utils.images.normalize_camera_image` and defer the normalize past the
+  frame-stack buffer for RGB-like data types, improving cartpole-camera frame-stacking
+  throughput.
+* **Breaking:** Removed ``isaaclab_tasks.utils.fold_preset_tokens``.
+  :func:`~isaaclab_tasks.utils.preset_cli.setup_preset_cli` now returns the
+  ``physics=`` / ``renderer=`` / ``presets=`` tokens verbatim, and
+  :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly.
+  Scripts assign the remainder to ``sys.argv`` unchanged (drop the
+  ``fold_preset_tokens(...)`` wrapper).
+
+Removed
+^^^^^^^
+
+* Removed the unused ``rew_scale_cart_pos`` field from
+  :class:`~isaaclab_tasks.core.cart_double_pendulum.cart_double_pendulum_env_cfg.CartDoublePendulumEnvCfg`.
+  It defaulted to ``0`` and was never applied to any reward term, so removing it does not change
+  training behavior.
+
+
 2.0.3 (2026-06-05)
 ~~~~~~~~~~~~~~~~~~
 

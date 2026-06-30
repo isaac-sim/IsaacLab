@@ -38,7 +38,6 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    fold_preset_tokens,
     get_checkpoint_path,
     resolve_task_config,
     setup_preset_cli,
@@ -67,11 +66,6 @@ parser.add_argument(
     action="store_true",
     help="Use the pre-trained checkpoint from Nucleus.",
 )
-parser.add_argument(
-    "--use_last_checkpoint",
-    action="store_true",
-    help="When no checkpoint provided, use the last saved model. Otherwise use the best saved model.",
-)
 parser.add_argument("--real-time", action="store_true", default=False, help="Run in real-time, if possible.")
 parser.add_argument(
     "--keep_all_info",
@@ -81,7 +75,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -114,11 +108,11 @@ def main():
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
         elif args_cli.checkpoint is None:
-            if args_cli.use_last_checkpoint:
-                checkpoint = "model_.*.zip"
-            else:
-                checkpoint = "model.zip"
-            checkpoint_path = get_checkpoint_path(log_root_path, ".*", checkpoint, sort_alpha=False)
+            # prefer the final model (``model.zip``); fall back to the latest periodic checkpoint when it has
+            # not been written yet (e.g. short or interrupted runs)
+            checkpoint_path = get_checkpoint_path(
+                log_root_path, ".*", r"model_.*\.zip", sort_alpha=False, preferred_checkpoint=r"model\.zip"
+            )
         else:
             checkpoint_path = args_cli.checkpoint
         log_dir = os.path.dirname(checkpoint_path)

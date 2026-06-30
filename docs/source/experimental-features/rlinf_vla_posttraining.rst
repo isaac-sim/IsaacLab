@@ -117,21 +117,6 @@ The training and evaluation commands below work unchanged.
 
 .. _rlinf-decord-aarch64:
 
-Building decord on DGX Spark / aarch64
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The ``decord`` package only publishes pre-built wheels for ``manylinux2010_x86_64``
-and ``win_amd64``, so installation fails on aarch64 hosts (e.g. DGX Spark / Grace).
-Build decord from source **before** Step 1:
-
-.. code-block:: bash
-
-   git clone --recursive https://github.com/jasontitus/decord
-   cd decord && mkdir -p build && cd build
-   cmake .. -DUSE_CUDA=0 -DCMAKE_BUILD_TYPE=Release
-   make -j$(nproc)
-   cd ../python && pip install -e .
-
 Then preload the OpenMP library so it can be loaded into the Python process
 (see the IsaacLab `pip installation guide
 <https://isaac-sim.github.io/IsaacLab/develop/source/setup/installation/pip_installation.html#installing-dependencies>`_):
@@ -140,8 +125,6 @@ Then preload the OpenMP library so it can be loaded into the Python process
 
    unset LD_PRELOAD
    export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
-
-Now re-run Step 1; the resolver will see the locally-installed decord and stop trying to fetch a wheel.
 
 
 Quick Start
@@ -185,12 +168,17 @@ architecture from the base model and overlays the RL-finetuned weights
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+.. note::
+
+   **Windows support is still being optimized.** For now, Linux is recommended for
+   RLinf training and evaluation.
+
 Checkpoints
 -----------
 
 Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
 
-   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-Isaac-Assemble-Trocar-G129-Dex3-v0/<experiment_name>/checkpoints/global_step_<N>/
+   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
 
 The placeholders are configurable in the task YAML
 (``source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):

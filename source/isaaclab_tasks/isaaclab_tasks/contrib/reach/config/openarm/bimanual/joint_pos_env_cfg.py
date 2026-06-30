@@ -7,9 +7,9 @@
 # Pre-defined configs
 ##
 
+import isaaclab.envs.mdp as mdp
 from isaaclab.utils.configclass import configclass
 
-import isaaclab_tasks.core.reach.mdp as mdp
 from isaaclab_tasks.contrib.reach.config.openarm.bimanual.reach_openarm_bi_env_cfg import ReachEnvCfg
 
 from isaaclab_assets.robots.openarm import OPENARM_BI_HIGH_PD_CFG

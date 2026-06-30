@@ -15,6 +15,7 @@ from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 from isaaclab.sim.converters.asset_converter_base import AssetConverterBase
 from isaaclab.sim.converters.mesh_converter_cfg import MeshConverterCfg
 from isaaclab.sim.schemas import schemas
+from isaaclab.sim.schemas.schemas_cfg import SchemaFragment
 from isaaclab.sim.utils import delete_prim, export_prim_to_file
 
 # import logger
@@ -126,14 +127,34 @@ class MeshConverter(AssetConverterBase):
                 # Apply collider properties to mesh
                 if cfg.collision_props is not None:
                     # -- Collider properties such as offset, scale, etc.
-                    schemas.define_collision_properties(
-                        prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
+                    # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
+                    coll_frags = (
+                        cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
                     )
+                    if coll_frags and all(isinstance(f, SchemaFragment) for f in coll_frags):
+                        schemas.apply_collision_properties(str(child_mesh_prim.GetPath()), coll_frags, stage=stage)
+                    else:
+                        schemas.define_collision_properties(
+                            prim_path=child_mesh_prim.GetPath(), cfg=cfg.collision_props, stage=stage
+                        )
                 # Add collision mesh
                 if cfg.mesh_collision_props is not None:
-                    schemas.define_mesh_collision_properties(
-                        prim_path=child_mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
+                    # Transition bridge: route a fragment (or list of fragments) through the new
+                    # ``apply_mesh_collision_properties`` family writer; otherwise fall back to the
+                    # legacy single-cfg ``define_mesh_collision_properties`` path.
+                    mesh_collision_frags = (
+                        cfg.mesh_collision_props
+                        if isinstance(cfg.mesh_collision_props, (list, tuple))
+                        else [cfg.mesh_collision_props]
                     )
+                    if all(isinstance(f, SchemaFragment) for f in mesh_collision_frags):
+                        schemas.apply_mesh_collision_properties(
+                            prim_path=child_mesh_prim.GetPath(), fragments=mesh_collision_frags, stage=stage
+                        )
+                    else:
+                        schemas.define_mesh_collision_properties(
+                            prim_path=child_mesh_prim.GetPath(), cfg=cfg.mesh_collision_props, stage=stage
+                        )
         # Delete the old Xform and make the new Xform the default prim
         stage.SetDefaultPrim(xform_prim)
         # Apply default Xform rotation to mesh -> enable to set rotation and scale
@@ -182,12 +203,21 @@ class MeshConverter(AssetConverterBase):
         # Apply mass and rigid body properties after everything else
         # Properties are applied to the top level prim to avoid the case where all instances of this
         #   asset unintentionally share the same rigid body properties
-        # apply mass properties
+        # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         if cfg.mass_props is not None:
-            schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
-        # apply rigid body properties
+            # normalize a single fragment to a list so the convenience form routes like a list
+            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, SchemaFragment) else cfg.mass_props
+            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, SchemaFragment) for f in mass_frags):
+                schemas.apply_mass_properties(str(xform_prim.GetPath()), mass_frags, stage=stage)
+            else:
+                schemas.define_mass_properties(prim_path=xform_prim.GetPath(), cfg=cfg.mass_props, stage=stage)
+        # apply rigid body properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         if cfg.rigid_props is not None:
-            schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
+            rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+            if rigid_frags and all(isinstance(f, SchemaFragment) for f in rigid_frags):
+                schemas.apply_rigid_body_properties(str(xform_prim.GetPath()), rigid_frags, stage=stage)
+            else:
+                schemas.define_rigid_body_properties(prim_path=xform_prim.GetPath(), cfg=cfg.rigid_props, stage=stage)
 
         # Save changes to USD stage
         stage.Save()

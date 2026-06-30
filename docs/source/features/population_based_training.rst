@@ -106,7 +106,7 @@ Training Example
 ----------------
 
 We provide a reference PPO config here for task:
-`Isaac-Repose-Cube-Shadow-Direct-v0 <../../../source/isaaclab_tasks/isaaclab_tasks/core/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
+`Isaac-Reorient-Cube-Shadow-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
 For the best logging experience, we recommend using wandb for the logging in the script.
 
 Launch *N* workers, where *n* indicates each worker index:
@@ -116,9 +116,8 @@ Launch *N* workers, where *n* indicates each worker index:
    # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
    ./isaaclab.sh train --rl_library rl_games \
      --seed=<n> \
-     --task=Isaac-Repose-Cube-Shadow-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Direct \
      --num_envs=8192 \
-     --headless \
      --track \
      --wandb-name=idx<n> \
      --wandb-entity=<**entity**> \

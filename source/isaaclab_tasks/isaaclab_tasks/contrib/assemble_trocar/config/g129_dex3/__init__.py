@@ -12,7 +12,7 @@ import gymnasium as gym
 ##
 
 gym.register(
-    id="Isaac-Assemble-Trocar-G129-Dex3-v0",
+    id="IsaacContrib-Assemble-Trocar-G129-Dex3",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -21,7 +21,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Assemble-Trocar-G129-Dex3-Eval-v0",
+    id="IsaacContrib-Assemble-Trocar-G129-Dex3-Eval",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

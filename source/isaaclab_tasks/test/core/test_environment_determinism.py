@@ -36,8 +36,8 @@ def setup_environment():
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Open-Drawer-Franka-v0",
-        "Isaac-Lift-Cube-Franka-v0",
+        "Isaac-Open-Drawer-Franka",
+        "Isaac-Lift-Cube-Franka",
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
@@ -49,8 +49,8 @@ def test_manipulation_env_determinism(task_name, device):
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Velocity-Flat-Anymal-D-v0",
-        "Isaac-Velocity-Rough-Anymal-D-v0",
+        "Isaac-Velocity-Flat-AnymalD",
+        "Isaac-Velocity-Rough-AnymalD",
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])
@@ -62,8 +62,8 @@ def test_locomotion_env_determinism(task_name, device):
 @pytest.mark.parametrize(
     "task_name",
     [
-        "Isaac-Repose-Cube-Allegro-v0",
-        # "Isaac-Repose-Cube-Allegro-Direct-v0",  # FIXME: @kellyg, any idea why it is not deterministic?
+        "Isaac-Reorient-Cube-Allegro",
+        # "Isaac-Reorient-Cube-Allegro-Direct",  # FIXME: @kellyg, any idea why it is not deterministic?
     ],
 )
 @pytest.mark.parametrize("device", ["cuda", "cpu"])

@@ -74,7 +74,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
     pytest.param(
-        "Isaac-Repose-Cube-Shadow-Vision-Direct-v0",
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
         None,
         "shadow_hand",
         # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
@@ -86,7 +86,7 @@ _RENDER_CORRECTNESS_TASK_IDS = [
 
 
 @pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
-def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str):
+def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str, enable_scene_partition):
     """Test registered tasks rendering correctness."""
     env = None
 

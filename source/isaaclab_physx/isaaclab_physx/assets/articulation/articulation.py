@@ -23,11 +23,8 @@ from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.sim.utils.queries import (
-    find_first_matching_prim,
-    get_all_matching_child_prims,
-    resolve_matching_prims_from_source,
-)
+from isaaclab.cloner import queue_usd_replication
+from isaaclab.sim.utils.queries import find_first_matching_prim, resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -38,6 +35,7 @@ _HAS_NEWTON_ACTUATORS = importlib.util.find_spec("isaaclab_newton.actuators") is
 
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
+from isaaclab_physx.cloner import queue_physx_replication
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 from .articulation_data import ArticulationData
@@ -124,6 +122,8 @@ class Articulation(BaseArticulation):
         from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
         super().__init__(cfg)
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
 
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
@@ -399,6 +399,7 @@ class Articulation(BaseArticulation):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
@@ -415,14 +416,17 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
 
     def write_root_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
@@ -439,8 +443,10 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
 
     def write_root_link_pose_to_sim_index(
         self,
@@ -448,6 +454,7 @@ class Articulation(BaseArticulation):
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
@@ -455,6 +462,9 @@ class Articulation(BaseArticulation):
 
         .. note::
             This method expects partial data or full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -465,6 +475,8 @@ class Articulation(BaseArticulation):
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -486,19 +498,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        # Task-space accessors: body-frame Jacobian + gravity comp depend on root orientation;
-        # mass_matrix does not (configuration-space).
-        self.data._body_com_jacobian_w.timestamp = -1.0
-        self.data._gravity_compensation_forces.timestamp = -1.0
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -507,6 +509,7 @@ class Articulation(BaseArticulation):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -523,11 +526,15 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, full_data=True)
+        self.write_root_link_pose_to_sim_index(
+            root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -535,6 +542,7 @@ class Articulation(BaseArticulation):
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
@@ -543,6 +551,9 @@ class Articulation(BaseArticulation):
 
         .. note::
             This method expects partial data or full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -553,6 +564,8 @@ class Articulation(BaseArticulation):
                 or (len(env_ids),) / (num_instances,) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -578,20 +591,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_com_state_w.timestamp = -1.0
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        # Need to invalidate the buffer to trigger the update with the new state.
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        # Task-space accessors: body-frame Jacobian + gravity comp depend on root orientation;
-        # mass_matrix does not (configuration-space).
-        self.data._body_com_jacobian_w.timestamp = -1.0
-        self.data._gravity_compensation_forces.timestamp = -1.0
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
@@ -600,6 +602,7 @@ class Articulation(BaseArticulation):
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -609,6 +612,9 @@ class Articulation(BaseArticulation):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -617,17 +623,22 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_com_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, full_data=True)
+        self.write_root_com_pose_to_sim_index(
+            root_pose=root_pose, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
 
     def write_root_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -635,6 +646,9 @@ class Articulation(BaseArticulation):
 
         .. note::
             This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. note::
             This method expects partial data.
@@ -647,14 +661,19 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame.
                 Shape is (len(env_ids), 6) or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, skip_forward=skip_forward
+        )
 
     def write_root_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -662,6 +681,9 @@ class Articulation(BaseArticulation):
 
         .. note::
             This sets the velocity of the root's center of mass rather than the root's frame.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. note::
             This method expects full data.
@@ -674,8 +696,12 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame.
                 Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
+        self.write_root_com_velocity_to_sim_mask(
+            root_velocity=root_velocity, env_mask=env_mask, skip_forward=skip_forward
+        )
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -683,6 +709,7 @@ class Articulation(BaseArticulation):
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -703,6 +730,8 @@ class Articulation(BaseArticulation):
                 (num_instances, 6), or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -726,9 +755,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_root_velocities(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -737,6 +766,7 @@ class Articulation(BaseArticulation):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -748,6 +778,9 @@ class Articulation(BaseArticulation):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -756,11 +789,15 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame.
                 Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
+        self.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
 
     def write_root_link_velocity_to_sim_index(
         self,
@@ -768,6 +805,7 @@ class Articulation(BaseArticulation):
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
@@ -779,6 +817,9 @@ class Articulation(BaseArticulation):
         .. note::
             This method expects partial data or full data.
 
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -788,6 +829,8 @@ class Articulation(BaseArticulation):
                 (num_instances, 6), or (len(env_ids),) / (num_instances,) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -815,10 +858,9 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Update the timestamps
-        self.data._root_link_state_w.timestamp = -1.0
-        self.data._root_state_w.timestamp = -1.0
-        self.data._root_com_state_w.timestamp = -1.0
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
         # set into simulation
         self.root_view.set_root_velocities(self.data._root_link_vel_w.data.view(wp.float32), indices=env_ids)
 
@@ -827,6 +869,7 @@ class Articulation(BaseArticulation):
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
@@ -838,6 +881,9 @@ class Articulation(BaseArticulation):
         .. note::
             This method expects full data.
 
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
+
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
             is only supporting indexing, hence masks need to be converted to indices.
@@ -846,11 +892,15 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame.
                 Shape is (num_instances, 6) or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids, full_data=True)
+        self.write_root_link_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
 
     def write_joint_state_to_sim_index(
         self,
@@ -860,11 +910,15 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ):
         """Write joint positions and velocities in a single fused kernel launch.
 
         .. note::
             This method expects partial data or full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -876,6 +930,8 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -905,18 +961,9 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         # Invalidate buffers
-        self.data._body_com_vel_w.timestamp = -1.0
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_com_pose_b.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        # Task-space accessors all depend on joint state.
-        self.data._body_com_jacobian_w.timestamp = -1.0
-        self.data._mass_matrix.timestamp = -1.0
-        self.data._gravity_compensation_forces.timestamp = -1.0
+        if not skip_forward:
+            self.data._reset_pose()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
@@ -928,6 +975,7 @@ class Articulation(BaseArticulation):
         velocity: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ):
         """Write joint positions and velocities over selected environment mask into the simulation.
 
@@ -943,10 +991,20 @@ class Articulation(BaseArticulation):
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # set into simulation
-        self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity=velocity, env_mask=env_mask, joint_mask=joint_mask)
+        env_ids = self._resolve_env_mask(env_mask)
+        joint_ids = self._resolve_joint_mask(joint_mask)
+        self.write_joint_state_to_sim_index(
+            position=position,
+            velocity=velocity,
+            env_ids=env_ids,
+            joint_ids=joint_ids,
+            full_data=True,
+            skip_forward=skip_forward,
+        )
 
     def write_joint_position_to_sim_index(
         self,
@@ -955,11 +1013,15 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ):
         """Write joint positions over selected environment indices into the simulation.
 
         .. note::
             This method expects partial data or full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -970,6 +1032,8 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -993,20 +1057,10 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Need to invalidate the buffer to trigger the update with the new root pose.
-        self.data._body_com_vel_w.timestamp = -1.0
-        self.data._body_link_vel_w.timestamp = -1.0
-        self.data._body_com_pose_b.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        self.data._body_link_pose_w.timestamp = -1.0
-
-        self.data._body_state_w.timestamp = -1.0
-        self.data._body_link_state_w.timestamp = -1.0
-        self.data._body_com_state_w.timestamp = -1.0
-        # Task-space accessors all depend on joint state.
-        self.data._body_com_jacobian_w.timestamp = -1.0
-        self.data._mass_matrix.timestamp = -1.0
-        self.data._gravity_compensation_forces.timestamp = -1.0
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose()
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
 
@@ -1016,11 +1070,15 @@ class Articulation(BaseArticulation):
         position: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ):
         """Write joint positions over selected environment mask into the simulation.
 
         .. note::
             This method expects full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1030,12 +1088,16 @@ class Articulation(BaseArticulation):
             position: Joint positions. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = self._resolve_joint_mask(joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_position_to_sim_index(
+            position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -1044,11 +1106,15 @@ class Articulation(BaseArticulation):
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
+        skip_forward: bool = False,
     ):
         """Write joint velocities to the simulation.
 
         .. note::
             This method expects partial data or full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1059,6 +1125,8 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
@@ -1084,6 +1152,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        if not skip_forward:
+            self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
 
@@ -1093,11 +1163,15 @@ class Articulation(BaseArticulation):
         velocity: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ):
         """Write joint velocities over selected environment mask into the simulation.
 
         .. note::
             This method expects full data.
+
+        .. note::
+            May trigger a forward-kinematics recomputation on the next read of body-derived properties.
 
         .. tip::
             For maximum performance we recommend using the index method. This is because in PhysX, the tensor API
@@ -1107,12 +1181,16 @@ class Articulation(BaseArticulation):
             velocity: Joint velocities. Shape is (num_instances, num_joints).
             joint_mask: Joint mask. If None, then all joints are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
         joint_ids = self._resolve_joint_mask(joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
-        self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True)
+        self.write_joint_velocity_to_sim_index(
+            velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
+        )
 
     """
     Operations - Simulation Parameters Writers.
@@ -2279,6 +2357,11 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        if self.data._body_com_pose_b.timestamp < 0.0 and (
+            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
+        ):
+            # Partial writes need the current model-property cache as a base for untouched entries.
+            self.data.body_com_pose_b
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
             shared_kernels.write_body_com_pose_to_buffer,
@@ -2294,6 +2377,8 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
+        self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
+        self.data._reset_body_com_pose_b_dependents()
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
@@ -3779,10 +3864,8 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            asset_prim, root_expr = resolve_matching_prims_from_source(self.cfg.prim_path)[0]
-            walk_root = asset_prim.GetPath().pathString
-            root_prims = get_all_matching_child_prims(walk_root, has_articulation_root_api, expected_num_matches=1)
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+            resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
+            _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- articulation
         self._root_view = self._physics_sim_view.create_articulation_view(root_prim_path_expr.replace(".*", "*"))
 

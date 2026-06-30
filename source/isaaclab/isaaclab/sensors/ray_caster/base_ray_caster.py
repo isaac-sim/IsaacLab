@@ -17,6 +17,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
@@ -69,6 +70,7 @@ class BaseRayCaster(SensorBase):
         """
         BaseRayCaster._instance_count += 1
         super().__init__(cfg)
+        queue_usd_replication(self._source_cfg)
         self._data = RayCasterData()
 
     def __str__(self) -> str:

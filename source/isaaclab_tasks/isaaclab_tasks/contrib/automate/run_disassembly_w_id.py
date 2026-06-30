@@ -53,6 +53,9 @@ def main():
     parser.add_argument("--seed", type=int, default=-1, help="Random seed.")
     args = parser.parse_args()
 
+    if args.assembly_id == "ASSEMBLY_ID":
+        parser.error("replace ASSEMBLY_ID with an AutoMate assembly ID, for example 00032")
+
     os.makedirs(args.disassembly_dir, exist_ok=True)
 
     update_task_param(
@@ -70,7 +73,7 @@ def main():
         [
             "-p",
             "scripts/reinforcement_learning/rl_games/train.py",
-            "--task=Isaac-AutoMate-Disassembly-Direct-v0",
+            "--task=IsaacContrib-AutoMate-Disassembly-Direct",
             f"--num_envs={args.num_envs}",
             f"--seed={args.seed}",
         ]
