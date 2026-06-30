@@ -1644,8 +1644,6 @@ class ArticulationData(BaseArticulationData):
         self._joint_vel_backend: TimestampedBuffer | None = None
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
-        # Read-only zeros source used to clear the joint-acceleration cache on velocity writes.
-        self._joint_acc_zeros = wp.zeros((N, D), dtype=wp.float32, device=dev)
         self._has_joint_ordering = False
         self._has_body_ordering = False
         self._joint_user_to_backend = None

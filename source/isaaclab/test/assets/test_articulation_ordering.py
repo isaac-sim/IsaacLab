@@ -78,6 +78,8 @@ from isaaclab.assets.articulation.ordering_kernels import (
     write_2d_float_user_to_backend_with_indices,
     write_2d_float_user_to_backend_with_mask,
     write_joint_state_user_to_backend_with_indices,
+    write_joint_state_user_to_backend_with_mask,
+    write_joint_vel_user_to_backend_with_indices,
     write_joint_vel_user_to_backend_with_mask,
     write_scalar_user_to_backend_with_indices,
     write_scalar_user_to_backend_with_mask,
@@ -1168,6 +1170,136 @@ def test_reorder_3d_backend_to_user_gathers_user_axis() -> None:
     )
 
     np.testing.assert_allclose(user_data.numpy(), backend_data_np[:, [1, 2, 0], :])
+
+
+@pytest.mark.parametrize("selection", ["indices", "mask"])
+@pytest.mark.parametrize("writer", ["scalar", "float", "velocity", "state"])
+def test_fused_identity_writer_supports_aliased_outputs(selection: str, writer: str) -> None:
+    """Preserve identity-order writes when public and backend outputs alias."""
+    user_to_backend = wp.array(np.asarray([0, 1, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
+    env_ids = wp.array(np.asarray([0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_ids = wp.array(np.asarray([1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
+    user_mask = wp.array(np.asarray([False, True, False]), dtype=wp.bool, device="cpu")
+    initial = np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32)
+    input_data = wp.array(
+        np.asarray([[101.0, 102.0, 103.0], [104.0, 105.0, 106.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+
+    def expected_with_selected_value(source: np.ndarray, value: float) -> np.ndarray:
+        expected = source.copy()
+        expected[0, 1] = value
+        return expected
+
+    if writer == "scalar":
+        data = wp.array(initial, dtype=wp.float32, device="cpu")
+        if selection == "indices":
+            wp.launch(
+                write_scalar_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], user_ids.shape[0]),
+                inputs=[42.0, env_ids, user_ids, user_to_backend, False],
+                outputs=[data, data],
+                device="cpu",
+            )
+        else:
+            wp.launch(
+                write_scalar_user_to_backend_with_mask,
+                dim=data.shape,
+                inputs=[42.0, env_mask, user_mask, user_to_backend, False],
+                outputs=[data, data],
+                device="cpu",
+            )
+        np.testing.assert_allclose(data.numpy(), expected_with_selected_value(initial, 42.0))
+        return
+
+    if writer == "float":
+        data = wp.array(initial, dtype=wp.float32, device="cpu")
+        if selection == "indices":
+            wp.launch(
+                write_2d_float_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], user_ids.shape[0]),
+                inputs=[input_data, env_ids, user_ids, user_to_backend, False, True],
+                outputs=[data, data],
+                device="cpu",
+            )
+        else:
+            wp.launch(
+                write_2d_float_user_to_backend_with_mask,
+                dim=data.shape,
+                inputs=[input_data, env_mask, user_mask, user_to_backend, False],
+                outputs=[data, data],
+                device="cpu",
+            )
+        np.testing.assert_allclose(data.numpy(), expected_with_selected_value(initial, 102.0))
+        return
+
+    initial_velocity = initial + 10.0
+    initial_previous_velocity = initial + 20.0
+    initial_acceleration = initial + 30.0
+    velocity = wp.array(initial_velocity, dtype=wp.float32, device="cpu")
+    previous_velocity = wp.array(initial_previous_velocity, dtype=wp.float32, device="cpu")
+    acceleration = wp.array(initial_acceleration, dtype=wp.float32, device="cpu")
+
+    if writer == "velocity":
+        if selection == "indices":
+            wp.launch(
+                write_joint_vel_user_to_backend_with_indices,
+                dim=(env_ids.shape[0], user_ids.shape[0]),
+                inputs=[input_data, env_ids, user_ids, user_to_backend, False, True],
+                outputs=[velocity, previous_velocity, acceleration, velocity],
+                device="cpu",
+            )
+        else:
+            wp.launch(
+                write_joint_vel_user_to_backend_with_mask,
+                dim=velocity.shape,
+                inputs=[input_data, env_mask, user_mask, user_to_backend, False],
+                outputs=[velocity, previous_velocity, acceleration, velocity],
+                device="cpu",
+            )
+        np.testing.assert_allclose(velocity.numpy(), expected_with_selected_value(initial_velocity, 102.0))
+        np.testing.assert_allclose(
+            previous_velocity.numpy(), expected_with_selected_value(initial_previous_velocity, 102.0)
+        )
+        np.testing.assert_allclose(acceleration.numpy(), expected_with_selected_value(initial_acceleration, 0.0))
+        return
+
+    position_data = wp.array(
+        np.asarray([[201.0, 202.0, 203.0], [204.0, 205.0, 206.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    velocity_data = wp.array(
+        np.asarray([[301.0, 302.0, 303.0], [304.0, 305.0, 306.0]], dtype=np.float32),
+        dtype=wp.float32,
+        device="cpu",
+    )
+    initial_position = initial + 40.0
+    position = wp.array(initial_position, dtype=wp.float32, device="cpu")
+    if selection == "indices":
+        wp.launch(
+            write_joint_state_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], user_ids.shape[0]),
+            inputs=[position_data, velocity_data, env_ids, user_ids, user_to_backend, False, True],
+            outputs=[position, velocity, previous_velocity, acceleration, position, velocity],
+            device="cpu",
+        )
+    else:
+        wp.launch(
+            write_joint_state_user_to_backend_with_mask,
+            dim=position.shape,
+            inputs=[position_data, velocity_data, env_mask, user_mask, user_to_backend, False],
+            outputs=[position, velocity, previous_velocity, acceleration, position, velocity],
+            device="cpu",
+        )
+    np.testing.assert_allclose(position.numpy(), expected_with_selected_value(initial_position, 202.0))
+    np.testing.assert_allclose(velocity.numpy(), expected_with_selected_value(initial_velocity, 302.0))
+    np.testing.assert_allclose(
+        previous_velocity.numpy(), expected_with_selected_value(initial_previous_velocity, 302.0)
+    )
+    np.testing.assert_allclose(acceleration.numpy(), expected_with_selected_value(initial_acceleration, 0.0))
 
 
 def test_write_scalar_user_to_backend_with_indices_updates_user_and_backend_buffers() -> None:

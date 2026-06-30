@@ -36,9 +36,10 @@ def write_scalar_user_to_backend_with_indices(
     i, j = wp.tid()
     env_id = env_ids[i]
     user_id = user_ids[j]
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
     user_data[env_id, user_id] = value
-    backend_data[env_id, backend_id] = value
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_data[env_id, backend_id] = value
 
 
 @wp.kernel
@@ -56,9 +57,10 @@ def write_scalar_user_to_backend_with_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
     user_data[env_id, user_id] = value
-    backend_data[env_id, backend_id] = value
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_data[env_id, backend_id] = value
 
 
 @wp.kernel
@@ -192,7 +194,6 @@ def write_joint_vel_user_to_backend_with_indices(
     i, j = wp.tid()
     env_id = env_ids[i]
     user_id = user_ids[j]
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
 
     if full_data:
         value = in_data[env_id, user_id]
@@ -202,7 +203,9 @@ def write_joint_vel_user_to_backend_with_indices(
     user_vel[env_id, user_id] = value
     user_prev_vel[env_id, user_id] = value
     user_acc[env_id, user_id] = 0.0
-    backend_vel[env_id, backend_id] = value
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_vel[env_id, backend_id] = value
 
 
 @wp.kernel
@@ -225,7 +228,6 @@ def write_joint_state_user_to_backend_with_indices(
     i, j = wp.tid()
     env_id = env_ids[i]
     user_id = user_ids[j]
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
 
     if full_data:
         position = pos_data[env_id, user_id]
@@ -238,8 +240,10 @@ def write_joint_state_user_to_backend_with_indices(
     user_vel[env_id, user_id] = velocity
     user_prev_vel[env_id, user_id] = velocity
     user_acc[env_id, user_id] = 0.0
-    backend_pos[env_id, backend_id] = position
-    backend_vel[env_id, backend_id] = velocity
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_pos[env_id, backend_id] = position
+        backend_vel[env_id, backend_id] = velocity
 
 
 @wp.kernel
@@ -259,12 +263,13 @@ def write_joint_vel_user_to_backend_with_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
     value = in_data[env_id, user_id]
     user_vel[env_id, user_id] = value
     user_prev_vel[env_id, user_id] = value
     user_acc[env_id, user_id] = 0.0
-    backend_vel[env_id, backend_id] = value
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_vel[env_id, backend_id] = value
 
 
 @wp.kernel
@@ -287,15 +292,16 @@ def write_joint_state_user_to_backend_with_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
     position = pos_data[env_id, user_id]
     velocity = vel_data[env_id, user_id]
     user_pos[env_id, user_id] = position
     user_vel[env_id, user_id] = velocity
     user_prev_vel[env_id, user_id] = velocity
     user_acc[env_id, user_id] = 0.0
-    backend_pos[env_id, backend_id] = position
-    backend_vel[env_id, backend_id] = velocity
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_pos[env_id, backend_id] = position
+        backend_vel[env_id, backend_id] = velocity
 
 
 @wp.kernel
@@ -313,7 +319,6 @@ def write_2d_float_user_to_backend_with_indices(
     i, j = wp.tid()
     env_id = env_ids[i]
     user_id = user_ids[j]
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
 
     if full_data:
         value = in_data[env_id, user_id]
@@ -321,7 +326,9 @@ def write_2d_float_user_to_backend_with_indices(
         value = in_data[i, j]
 
     user_data[env_id, user_id] = value
-    backend_data[env_id, backend_id] = value
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_data[env_id, backend_id] = value
 
 
 @wp.kernel
@@ -339,7 +346,8 @@ def write_2d_float_user_to_backend_with_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    backend_id = user_to_backend[user_id] if has_ordering else user_id
     value = in_data[env_id, user_id]
     user_data[env_id, user_id] = value
-    backend_data[env_id, backend_id] = value
+    if has_ordering:
+        backend_id = user_to_backend[user_id]
+        backend_data[env_id, backend_id] = value
