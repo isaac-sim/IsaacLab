@@ -94,7 +94,6 @@ from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
     apply_isaac_rtx_global_settings,
 )
 
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
@@ -175,7 +174,6 @@ def main() -> None:
         env_cfg = remove_camera_configs(env_cfg)
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
-            get_settings_manager(),
         )
 
     try:

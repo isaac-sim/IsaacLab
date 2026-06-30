@@ -384,7 +384,6 @@ from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
 )
 from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_control_events
 
-from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
@@ -1045,7 +1044,6 @@ def _prepare_env_cfg(task: str, num_envs: int, device: str) -> tuple[ManagerBase
     env_cfg = remove_camera_configs(env_cfg)
     apply_isaac_rtx_global_settings(
         IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
-        get_settings_manager(),
     )
     return env_cfg, success_term
 

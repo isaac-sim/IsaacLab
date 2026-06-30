@@ -17,6 +17,9 @@ import tomllib
 import omni.usd
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+
+from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
 logger = logging.getLogger(__name__)
 
@@ -65,34 +68,17 @@ def _setting_path_from_key(key: str) -> str:
     return key
 
 
-def _set_setting(settings: Any, path: str, value: Any) -> None:
-    """Set a carb setting through SettingsManager-like objects."""
-    if hasattr(settings, "set"):
-        settings.set(path, value)
-        return
-    if isinstance(value, bool):
-        settings.set_bool(path, value)
-    elif isinstance(value, int):
-        settings.set_int(path, value)
-    elif isinstance(value, float):
-        settings.set_float(path, value)
-    elif isinstance(value, str):
-        settings.set_string(path, value)
-    else:
-        settings.set(path, value)
-
-
-def _apply_nested_preset(settings: Any, data: dict[str, Any], path: str = "") -> None:
+def _apply_nested_preset(settings: SettingsManager, data: dict[str, Any], path: str = "") -> None:
     """Apply nested preset dictionaries loaded from a .kit file."""
     for key, value in data.items():
         key_path = f"{path}/{key}" if path else f"/{key}"
         if isinstance(value, dict):
             _apply_nested_preset(settings, value, key_path)
         else:
-            _set_setting(settings, key_path.replace(".", "/"), value)
+            settings.set(key_path.replace(".", "/"), value)
 
 
-def _apply_rendering_mode_preset(settings: Any, rendering_mode: str) -> None:
+def _apply_rendering_mode_preset(settings: SettingsManager, rendering_mode: str) -> None:
     """Apply an Isaac Lab rendering-mode preset."""
     supported_rendering_modes = {"performance", "balanced", "quality"}
     if rendering_mode not in supported_rendering_modes:
@@ -116,13 +102,27 @@ def _apply_rendering_mode_preset(settings: Any, rendering_mode: str) -> None:
         logger.warning("[isaac_rtx] Render preset file not found: %s", preset_filename)
 
 
-def apply_isaac_rtx_global_settings(global_settings: Any, settings: Any) -> None:
+def apply_isaac_rtx_global_settings(
+    global_settings: IsaacRtxRendererGlobalSettingsCfg,
+    settings: SettingsManager | None = None,
+) -> None:
     """Apply global Isaac RTX settings before renderer initialization.
 
     Args:
-        global_settings: :class:`IsaacRtxRendererGlobalSettingsCfg`-like object.
-        settings: Settings manager or carb settings interface.
+        global_settings: Global Isaac RTX settings to apply.
+        settings: Settings manager to apply settings through. If None, the global settings manager is used.
     """
+    if settings is None:
+        settings = get_settings_manager()
+    _apply_isaac_rtx_global_settings(global_settings, settings)
+
+
+def _apply_isaac_rtx_global_settings(
+    global_settings: IsaacRtxRendererGlobalSettingsCfg,
+    settings: SettingsManager,
+) -> None:
+    """Apply global Isaac RTX settings to the provided settings manager."""
+
     rendering_mode = getattr(global_settings, "rendering_mode", None)
     if rendering_mode:
         _apply_rendering_mode_preset(settings, rendering_mode)
@@ -130,12 +130,12 @@ def apply_isaac_rtx_global_settings(global_settings: Any, settings: Any) -> None
     for field_name, setting_path in _RTX_FIELD_TO_SETTING.items():
         value = getattr(global_settings, field_name, None)
         if value is not None:
-            _set_setting(settings, setting_path, value)
+            settings.set(setting_path, value)
 
     extra_settings = getattr(global_settings, "carb_settings", None)
     if extra_settings:
         for key, value in extra_settings.items():
-            _set_setting(settings, _setting_path_from_key(key), value)
+            settings.set(_setting_path_from_key(key), value)
 
     antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
     if antialiasing_mode is not None:

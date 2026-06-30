@@ -86,6 +86,7 @@ def test_isaac_rtx_global_settings(monkeypatch):
     rep_settings = _install_omni_stubs(monkeypatch)
     utils = importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
     settings = _FakeSettings()
+    monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
     global_settings = IsaacRtxRendererGlobalSettingsCfg(
         enable_translucency=True,
         enable_reflections=True,
@@ -110,7 +111,7 @@ def test_isaac_rtx_global_settings(monkeypatch):
         view_tile_limit=500000,
     )
 
-    utils.apply_isaac_rtx_global_settings(global_settings, settings)
+    utils.apply_isaac_rtx_global_settings(global_settings)
 
     assert settings.get("/rtx/translucency/enabled") is True
     assert settings.get("/rtx/reflections/enabled") is True
@@ -152,6 +153,7 @@ def test_isaac_rtx_global_settings_presets(monkeypatch):
 
     for rendering_mode in rendering_modes:
         settings = _FakeSettings()
+        monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
         with open(preset_filename, "rb") as file:
@@ -163,7 +165,7 @@ def test_isaac_rtx_global_settings_presets(monkeypatch):
             dlss_mode=dlss_mode[1],
             carb_settings=carb_settings,
         )
-        utils.apply_isaac_rtx_global_settings(global_settings, settings)
+        utils.apply_isaac_rtx_global_settings(global_settings)
 
         for key, val in preset_dict.items():
             setting_name = "/" + key.replace(".", "/")
