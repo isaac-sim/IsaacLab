@@ -1205,6 +1205,91 @@ def _exercise_stale_partial_joint_write(backend: str, operation: str) -> None:
             _mutate_backend_joint_state(backend, art, raw_backend, expected_position, expected_velocity)
 
 
+def _exercise_duplicate_full_length_joint_write(backend: str, operation: str) -> None:
+    """Assert duplicate full-length selectors preserve omitted backend joints."""
+    num_instances = 2
+    num_joints = 3
+    art, raw_backend = get_articulation(
+        backend,
+        num_instances=num_instances,
+        num_joints=num_joints,
+        num_bodies=2,
+        device="cpu",
+        joint_ordering=_joint_ordering_for_mode("reversed", num_joints),
+    )
+    initial_position = np.asarray([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], dtype=np.float32)
+    initial_velocity = np.asarray([[110.0, 120.0, 130.0], [140.0, 150.0, 160.0]], dtype=np.float32)
+    _seed_backend_joint_state(backend, art, raw_backend, initial_position, initial_velocity)
+
+    staging_buffers = []
+    if operation in ("position", "state"):
+        _ = art.data.joint_pos
+        staging_buffers.append(art.data._joint_pos if backend == "physx" else art.data._joint_pos_buf)
+        staging_buffers.append(art.data._joint_pos_backend)
+    if operation in ("velocity", "state"):
+        _ = art.data.joint_vel
+        staging_buffers.append(art.data._joint_vel if backend == "physx" else art.data._joint_vel_buf)
+        staging_buffers.append(art.data._joint_vel_backend)
+    for staging_buffer in staging_buffers:
+        assert staging_buffer is not None
+        assert staging_buffer.timestamp == art.data._sim_timestamp
+
+    art.data._sim_timestamp += 0.01
+    newer_position = 1000.0 + np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
+    newer_velocity = 2000.0 + np.arange(num_instances * num_joints, dtype=np.float32).reshape(num_instances, num_joints)
+    _mutate_backend_joint_state(backend, art, raw_backend, newer_position, newer_velocity)
+
+    env_ids = [1]
+    joint_ids = [0, 1, 1]
+    position_payload = np.asarray([[901.0, 902.0, 903.0]], dtype=np.float32)
+    velocity_payload = np.asarray([[1901.0, 1902.0, 1903.0]], dtype=np.float32)
+    env_ids_wp = wp.array(env_ids, dtype=wp.int32, device=art.device)
+    joint_ids_wp = wp.array(joint_ids, dtype=wp.int32, device=art.device)
+    position = torch.tensor(position_payload, dtype=torch.float32, device=art.device)
+    velocity = torch.tensor(velocity_payload, dtype=torch.float32, device=art.device)
+    if operation == "position":
+        art.write_joint_position_to_sim_index(position=position, env_ids=env_ids_wp, joint_ids=joint_ids_wp)
+    elif operation == "velocity":
+        art.write_joint_velocity_to_sim_index(velocity=velocity, env_ids=env_ids_wp, joint_ids=joint_ids_wp)
+    elif backend == "ovphysx":
+        with pytest.deprecated_call():
+            art.write_joint_state_to_sim(
+                position=position,
+                velocity=velocity,
+                env_ids=env_ids_wp,
+                joint_ids=joint_ids_wp,
+            )
+    else:
+        art.write_joint_state_to_sim_index(
+            position=position,
+            velocity=velocity,
+            env_ids=env_ids_wp,
+            joint_ids=joint_ids_wp,
+        )
+
+    user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
+    expected_position = newer_position.copy()
+    expected_velocity = newer_velocity.copy()
+    for payload_index, joint_id in enumerate(joint_ids):
+        backend_joint_id = user_to_backend[joint_id]
+        if operation in ("position", "state"):
+            expected_position[env_ids[0], backend_joint_id] = position_payload[0, payload_index]
+        if operation in ("velocity", "state"):
+            expected_velocity[env_ids[0], backend_joint_id] = velocity_payload[0, payload_index]
+
+    backend_position, backend_velocity = _read_backend_joint_state(backend, art, raw_backend)
+    np.testing.assert_array_equal(backend_position, expected_position)
+    np.testing.assert_array_equal(backend_velocity, expected_velocity)
+    omitted_backend_joint = user_to_backend[2]
+    duplicate_backend_joint = user_to_backend[1]
+    if operation in ("position", "state"):
+        assert backend_position[env_ids[0], omitted_backend_joint] == newer_position[env_ids[0], omitted_backend_joint]
+        assert backend_position[env_ids[0], duplicate_backend_joint] == position_payload[0, -1]
+    if operation in ("velocity", "state"):
+        assert backend_velocity[env_ids[0], omitted_backend_joint] == newer_velocity[env_ids[0], omitted_backend_joint]
+        assert backend_velocity[env_ids[0], duplicate_backend_joint] == velocity_payload[0, -1]
+
+
 def _make_dynamics_ordering_backend_data(
     num_instances: int, num_joints: int, num_jacobi_bodies: int, num_base_dofs: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -3341,6 +3426,61 @@ class TestArticulationOrderingWriteParity:
         backend_position, backend_velocity = _read_backend_joint_state("physx", art, raw_backend)
         np.testing.assert_array_equal(backend_position, initial_position)
         np.testing.assert_array_equal(backend_velocity, initial_velocity)
+
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    def test_physx_duplicate_full_length_joint_selector_preserves_newer_backend_rows(self, operation: str) -> None:
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        _exercise_duplicate_full_length_joint_write("physx", operation)
+
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    def test_ovphysx_duplicate_full_length_joint_selector_preserves_newer_backend_rows(self, operation: str) -> None:
+        if "ovphysx" not in BACKENDS:
+            pytest.skip("OVPhysX backend is not available")
+        _exercise_duplicate_full_length_joint_write("ovphysx", operation)
+
+    @pytest.mark.parametrize("selector", ["default_mask", "explicit_full_index"])
+    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    def test_physx_joint_selector_provenance_controls_staging_refresh(self, operation: str, selector: str) -> None:
+        if "physx" not in BACKENDS:
+            pytest.skip("PhysX backend is not available")
+        art, raw_backend = get_articulation(
+            "physx",
+            num_instances=2,
+            num_joints=3,
+            num_bodies=2,
+            device="cpu",
+            joint_ordering=_joint_ordering_for_mode("reversed", 3),
+        )
+        initial_position = np.asarray([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], dtype=np.float32)
+        initial_velocity = np.asarray([[110.0, 120.0, 130.0], [140.0, 150.0, 160.0]], dtype=np.float32)
+        _seed_backend_joint_state("physx", art, raw_backend, initial_position, initial_velocity)
+        position_refresh = MagicMock(wraps=art.data._refresh_joint_pos)
+        velocity_refresh = MagicMock(wraps=art.data._refresh_joint_vel)
+        art.data._refresh_joint_pos = position_refresh
+        art.data._refresh_joint_vel = velocity_refresh
+
+        position = torch.tensor(initial_position[:, ::-1].copy(), dtype=torch.float32, device=art.device)
+        velocity = torch.tensor(initial_velocity[:, ::-1].copy(), dtype=torch.float32, device=art.device)
+        if selector == "default_mask":
+            if operation == "position":
+                art.write_joint_position_to_sim_mask(position=position)
+            elif operation == "velocity":
+                art.write_joint_velocity_to_sim_mask(velocity=velocity)
+            else:
+                art.write_joint_state_to_sim_mask(position=position, velocity=velocity)
+        else:
+            joint_ids = wp.array([0, 1, 2], dtype=wp.int32, device=art.device)
+            if operation == "position":
+                art.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids)
+            elif operation == "velocity":
+                art.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids)
+            else:
+                art.write_joint_state_to_sim_index(position=position, velocity=velocity, joint_ids=joint_ids)
+
+        should_refresh = selector == "explicit_full_index"
+        assert position_refresh.call_count == int(should_refresh and operation in ("position", "state"))
+        assert velocity_refresh.call_count == int(should_refresh and operation in ("velocity", "state"))
 
     @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
     def test_physx_stale_partial_joint_write_preserves_newer_backend_rows(self, operation: str) -> None:

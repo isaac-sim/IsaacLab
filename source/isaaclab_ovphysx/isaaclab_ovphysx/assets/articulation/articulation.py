@@ -1120,10 +1120,10 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
             ordering_kernels.write_2d_float_user_to_backend_with_indices,
@@ -1212,10 +1212,10 @@ class Articulation(BaseArticulation):
             skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
@@ -4738,11 +4738,11 @@ class Articulation(BaseArticulation):
             DeprecationWarning,
             stacklevel=2,
         )
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self._data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(

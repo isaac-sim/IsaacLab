@@ -1271,9 +1271,9 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
         if full_data:
             self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
             self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
@@ -1340,7 +1340,7 @@ class Articulation(BaseArticulation):
         """
         # set into simulation
         env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
         self.write_joint_state_to_sim_index(
             position=position,
             velocity=velocity,
@@ -1380,9 +1380,9 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
         if full_data:
             self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
         else:
@@ -1442,7 +1442,7 @@ class Articulation(BaseArticulation):
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_position_to_sim_index(
             position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1478,9 +1478,9 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        joint_selection_is_partial = joint_ids.shape[0] < self.num_joints
         if full_data:
             self.assert_shape_and_dtype(velocity, (self.num_instances, self.num_joints), wp.float32, "velocity")
         else:
@@ -1540,7 +1540,7 @@ class Articulation(BaseArticulation):
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_velocity_to_sim_index(
             velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
