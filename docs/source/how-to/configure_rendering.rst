@@ -30,6 +30,15 @@ Rendering modes can be selected in 2 ways.
 
      global_settings = IsaacRtxRendererGlobalSettingsCfg(rendering_mode="performance")
 
+   .. note::
+
+      Existing users of ``sim.RenderCfg`` and ``SimulationCfg.render`` should
+      move Isaac RTX quality settings to
+      :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.global_settings`.
+      These settings are process-global and apply only when cameras use
+      :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`; Newton Warp and
+      OVRTX use their own renderer-specific configuration instead.
+
 2. using the ``--rendering_mode`` CLI argument.
 
    .. code-block:: bash
