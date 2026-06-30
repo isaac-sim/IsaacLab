@@ -109,7 +109,8 @@ class ArticulationNameMap:
 
     Raises:
         TypeError: If either name field is not a sequence of strings, a CPU map
-            contains a non-integer value, or is_identity is not a built-in bool.
+            contains a non-integer value, either device map is not a Warp array,
+            or is_identity is not a built-in bool.
         ValueError: If a field violates the length, uniqueness, permutation,
             device, or identity invariants.
     """
@@ -187,6 +188,10 @@ class ArticulationNameMap:
             ("user_to_backend", self.user_to_backend, user_to_backend),
             ("backend_to_user", self.backend_to_user, backend_to_user),
         ):
+            if not isinstance(device_map, wp.array):
+                raise TypeError(
+                    f"ArticulationNameMap {map_name} must be a Warp array; got {type(device_map).__name__}."
+                )
             if device_map.dtype != wp.int32 or device_map.ndim != 1 or device_map.shape != (num_names,):
                 raise ValueError(
                     f"ArticulationNameMap device {map_name} map must be a one-dimensional int32 array "

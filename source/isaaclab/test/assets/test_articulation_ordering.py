@@ -276,6 +276,26 @@ def _make_identity_articulation_name_map(**overrides) -> ArticulationNameMap:
     return ArticulationNameMap(**fields)
 
 
+@pytest.mark.parametrize("field_name", ["user_to_backend", "backend_to_user"])
+@pytest.mark.parametrize(
+    ("invalid_value", "invalid_type"),
+    [
+        (None, "NoneType"),
+        ([0, 1, 2], "list"),
+        ("0,1,2", "str"),
+    ],
+)
+def test_articulation_name_map_direct_constructor_rejects_non_warp_device_maps(
+    field_name: str, invalid_value, invalid_type: str
+) -> None:
+    """Reject malformed device maps before accessing Warp array metadata."""
+    with pytest.raises(
+        TypeError,
+        match=rf"ArticulationNameMap {field_name} must be a Warp array; got {invalid_type}\.",
+    ):
+        _make_identity_articulation_name_map(**{field_name: invalid_value})
+
+
 @pytest.mark.parametrize("field_name", ["user_to_backend_indices", "backend_to_user_indices"])
 @pytest.mark.parametrize("invalid_value", [0.5, "0", True])
 def test_articulation_name_map_direct_constructor_rejects_non_integer_indices(field_name: str, invalid_value) -> None:
