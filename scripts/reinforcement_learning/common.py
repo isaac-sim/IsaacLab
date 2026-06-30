@@ -208,7 +208,7 @@ def resolve_play_checkpoint(checkpoint: str | None, framework: str, task: str) -
     Args:
         checkpoint: Local or Nucleus checkpoint path.
         framework: RL library name.
-        task: Gym task id.
+        task: Gym task id; namespaces and a trailing ``-Play`` are ignored for published lookups.
 
     Returns:
         Local checkpoint path.

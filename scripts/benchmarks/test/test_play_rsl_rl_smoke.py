@@ -104,7 +104,7 @@ def test_play_rsl_rl_emits_play_bundle(tmp_path, require_isaacsim):
         "presets=newton_mjwarp",
         "--headless",
         "--benchmark_formatter",
-        "schema",
+        "schema,omniperf",
         "--output_path",
         str(play_out),
     ]
@@ -113,8 +113,13 @@ def test_play_rsl_rl_emits_play_bundle(tmp_path, require_isaacsim):
         pytest.fail(f"play.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
 
     data = _find_bundle(play_out, _PLAY_BUNDLE_KEYS)
+    omniperf_files = list(play_out.glob("*_omniperf.json"))
+    assert len(omniperf_files) == 1
+    omniperf_data = json.loads(omniperf_files[0].read_text())
     assert data["run"]["framework"] == "rsl_rl"
     assert data["runtime"]["total_fps"]["mean"] > 0
     assert data["checkpoint_path"]
     assert data["reward"] is not None
     assert "mean" in data["reward"]
+    assert omniperf_data["runtime"]["Mean Total FPS"] == pytest.approx(data["runtime"]["total_fps"]["mean"])
+    assert omniperf_data["play"]["Mean Reward"] == pytest.approx(data["reward"]["mean"])

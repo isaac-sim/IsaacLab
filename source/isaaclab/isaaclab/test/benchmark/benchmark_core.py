@@ -125,7 +125,7 @@ def _measurements_from_bundle(
     bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
     """Project a typed bundle into flat phases for non-schema formatters."""
-    from isaaclab.test.benchmark.schema import StartupBundle, TrainingBundle
+    from isaaclab.test.benchmark.schema import PlayBundle, StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
         projected: dict[str, list[Measurement]] = {}
@@ -151,6 +151,16 @@ def _measurements_from_bundle(
         if bundle.success_rate is not None:
             train.append(SingleMeasurement(name="success_rate", value=bundle.success_rate, unit="float"))
         projected["train"] = train
+    elif isinstance(bundle, PlayBundle):
+        play: list[Measurement] = []
+        if bundle.reward is not None:
+            play.extend(_stat_measurements("Reward", bundle.reward, "float"))
+        if bundle.ep_length is not None:
+            play.extend(_stat_measurements("Episode Length", bundle.ep_length, "steps"))
+        if bundle.success_rate is not None:
+            play.append(SingleMeasurement(name="success_rate", value=bundle.success_rate, unit="float"))
+        if play:
+            projected["play"] = play
     return projected
 
 
