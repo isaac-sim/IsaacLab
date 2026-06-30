@@ -242,9 +242,17 @@ Joint maps cover named joints, not floating-base generalized coordinates.
 When converting raw Jacobians or mass matrices, preserve the leading
 ``robot.num_base_dofs`` coordinates and offset mapped joint indices by that
 count. Apply the joint permutation to both generalized-coordinate axes of a
-mass matrix, use the body map separately for a Jacobian body axis, and leave
-all other axes unchanged. High-level articulation data performs these
-conversions automatically.
+mass matrix and leave all other axes unchanged.
+
+The public floating-base Jacobian body rows use the full public body order; to
+convert a raw backend Jacobian, gather with the full body map. Fixed-base raw
+backend Jacobians omit the fixed root, so do not apply the full body map
+directly. Omit public/root body index 0 and convert each remaining mapped
+backend body ID to a Jacobian row by subtracting 1. The fixed-root-first
+invariant makes this well-defined. See
+:attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` for the
+authoritative body-axis convention. High-level articulation data performs
+these conversions automatically.
 
 
 What Ordering Does Not Solve
