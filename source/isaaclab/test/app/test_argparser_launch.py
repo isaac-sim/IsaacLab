@@ -54,6 +54,27 @@ def test_headless_deprecated_arg_parsing():
     assert args.headless_explicit is True
 
 
+def test_multi_gpu_arg_parsing():
+    """Test that renderer multi-GPU is disabled by default and can be enabled explicitly."""
+    parser = argparse.ArgumentParser()
+    AppLauncher.add_app_launcher_args(parser)
+
+    assert parser.parse_args([]).multi_gpu is False
+    assert parser.parse_args(["--multi_gpu"]).multi_gpu is True
+
+
+def test_multi_gpu_defaults_to_disabled_without_argparser():
+    """Test that direct AppLauncher construction resolves the same default as the argument parser."""
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._xr = False
+    launcher._deferred_cuda_device_id = None
+    launcher_args = {}
+
+    launcher._resolve_device_settings(launcher_args)
+
+    assert launcher_args["multi_gpu"] is False
+
+
 @pytest.mark.parametrize("value", ["none", "None"])
 def test_visualizer_none_parsing(value: str):
     parser = argparse.ArgumentParser()
