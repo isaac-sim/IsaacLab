@@ -11,10 +11,12 @@ conda activate env_isaaclab
 ```
 
 ```
-./isaaclab.sh -p scripts/tools/record_demos_openarm.py \
-    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
-    --dataset_file logs/demos/pickup_test.hdf5 \
-    --enable_cameras --num_demos 1 --teleop_device keyboard
+cd IsaacLab/
+./isaaclab.sh --install
+```
+
+```
+./isaaclab.sh -p scripts/tools/record_demos_openarm.py     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0     --dataset_file logs/demos/pickup.hdf5     --enable_cameras --num_demos 1 --teleop_device keyboard
 ```
 
 ```
