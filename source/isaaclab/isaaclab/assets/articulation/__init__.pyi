@@ -17,8 +17,6 @@ __all__ = [
     "get_mjwarp_articulation_name_ordering",
     "get_physx_articulation_name_ordering",
     "get_robot_schema_articulation_name_ordering",
-    "resolve_articulation_convention_name_ordering",
-    "resolve_articulation_ordering_names",
 ]
 
 from .base_articulation import BaseArticulation
@@ -37,6 +35,4 @@ from .ordering_resolvers import (
     get_mjwarp_articulation_name_ordering,
     get_physx_articulation_name_ordering,
     get_robot_schema_articulation_name_ordering,
-    resolve_articulation_convention_name_ordering,
-    resolve_articulation_ordering_names,
 )

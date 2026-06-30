@@ -527,7 +527,7 @@ def _get_root_view_convention_names(
     return None
 
 
-def resolve_articulation_convention_name_ordering(
+def _resolve_articulation_convention_name_ordering(
     *,
     articulation: BaseArticulation,
     convention: str | ArticulationOrderingConvention,
@@ -686,7 +686,7 @@ def get_physx_articulation_name_ordering(
         NotImplementedError: If optional PhysX name metadata is absent or
             incomplete after all fallbacks.
     """
-    return resolve_articulation_convention_name_ordering(
+    return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
         convention=ArticulationOrderingConvention.PHYSX,
         kind=kind,
@@ -730,7 +730,7 @@ def get_mjwarp_articulation_name_ordering(
         NotImplementedError: If optional Newton or MJWarp name metadata is absent
             or incomplete after all fallbacks.
     """
-    return resolve_articulation_convention_name_ordering(
+    return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
         convention=ArticulationOrderingConvention.MJWARP,
         kind=kind,
@@ -777,14 +777,14 @@ def get_robot_schema_articulation_name_ordering(
         NotImplementedError: If robot-schema relationship metadata is absent or
             incomplete after all fallbacks.
     """
-    return resolve_articulation_convention_name_ordering(
+    return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
         convention=ArticulationOrderingConvention.ROBOT_SCHEMA,
         kind=kind,
     )
 
 
-def resolve_articulation_ordering_names(
+def _resolve_articulation_ordering_names(
     *,
     kind: Literal["joint", "body"],
     backend_names: Sequence[str],
@@ -803,7 +803,7 @@ def resolve_articulation_ordering_names(
 
     A cross-backend convention first uses :paramref:`convention_name_resolver`
     when supplied, otherwise it delegates to
-    :func:`resolve_articulation_convention_name_ordering`. The articulation path
+    :func:`_resolve_articulation_convention_name_ordering`. The articulation path
     reuses that resolver's per-articulation discovery cache. Joint names are
     normalized to active-backend spelling when Newton multi-DoF separators
     differ.
@@ -864,7 +864,7 @@ def resolve_articulation_ordering_names(
         )
         return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
     if articulation is not None:
-        convention_names = resolve_articulation_convention_name_ordering(
+        convention_names = _resolve_articulation_convention_name_ordering(
             articulation=articulation,
             convention=convention,
             kind=kind,

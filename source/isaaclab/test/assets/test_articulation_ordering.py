@@ -29,11 +29,11 @@ from isaaclab.assets.articulation.ordering import (
     parse_articulation_ordering_convention,
 )
 from isaaclab.assets.articulation.ordering_resolvers import (
+    _resolve_articulation_convention_name_ordering,
+    _resolve_articulation_ordering_names,
     get_mjwarp_articulation_name_ordering,
     get_physx_articulation_name_ordering,
     get_robot_schema_articulation_name_ordering,
-    resolve_articulation_convention_name_ordering,
-    resolve_articulation_ordering_names,
 )
 
 sim_stub = types.ModuleType("isaaclab.sim")
@@ -120,8 +120,8 @@ def test_parse_articulation_ordering_convention_rejects_unknown_string() -> None
     "entrypoint",
     ["resolve_names", "resolve_convention", "physx", "mjwarp", "robot_schema"],
 )
-def test_public_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
-    """Reject misspelled element kinds at every public resolver entry point."""
+def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
+    """Reject misspelled element kinds at every resolver entry point."""
 
     class _Articulation:
         __backend_name__ = "physx"
@@ -131,14 +131,14 @@ def test_public_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
     articulation = _Articulation()
     with pytest.raises(ValueError, match="kind must be 'joint' or 'body'; got 'dof'"):
         if entrypoint == "resolve_names":
-            resolve_articulation_ordering_names(
+            _resolve_articulation_ordering_names(
                 kind="dof",  # type: ignore[arg-type]
                 backend_names=("joint",),
                 ordering=None,
                 active_backend_name="physx",
             )
         elif entrypoint == "resolve_convention":
-            resolve_articulation_convention_name_ordering(
+            _resolve_articulation_convention_name_ordering(
                 articulation=articulation,
                 convention="physx",
                 kind="dof",  # type: ignore[arg-type]
@@ -164,11 +164,11 @@ def test_assets_package_reexports_public_ordering_symbols() -> None:
         "get_mjwarp_articulation_name_ordering": get_mjwarp_articulation_name_ordering,
         "get_physx_articulation_name_ordering": get_physx_articulation_name_ordering,
         "get_robot_schema_articulation_name_ordering": get_robot_schema_articulation_name_ordering,
-        "resolve_articulation_convention_name_ordering": resolve_articulation_convention_name_ordering,
-        "resolve_articulation_ordering_names": resolve_articulation_ordering_names,
     }
     for name, expected_export in expected_exports.items():
         assert getattr(assets, name, None) is expected_export, name
+    assert not hasattr(assets, "resolve_articulation_ordering_names")
+    assert not hasattr(assets, "resolve_articulation_convention_name_ordering")
 
 
 def test_assets_api_page_defines_ordering_symbols() -> None:
@@ -187,8 +187,6 @@ def test_assets_api_page_defines_ordering_symbols() -> None:
         ".. autofunction:: get_mjwarp_articulation_name_ordering",
         ".. autofunction:: get_physx_articulation_name_ordering",
         ".. autofunction:: get_robot_schema_articulation_name_ordering",
-        ".. autofunction:: resolve_articulation_convention_name_ordering",
-        ".. autofunction:: resolve_articulation_ordering_names",
     }
     missing_directives = expected_directives - actual_directives
     assert not missing_directives, f"Missing exact RST directives: {sorted(missing_directives)}"
@@ -308,7 +306,7 @@ def test_build_articulation_name_map_reports_non_string_name_element() -> None:
 
 def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None:
     """Resolve explicit public ordering names from config."""
-    user_names = resolve_articulation_ordering_names(
+    user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=("joint_0", "joint_1", "joint_2"),
         ordering=("joint_2", "joint_0", "joint_1"),
@@ -320,7 +318,7 @@ def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None
 
 def test_resolve_articulation_ordering_names_accepts_generic_sequence() -> None:
     """Resolve explicit public ordering names from a generic sequence."""
-    user_names = resolve_articulation_ordering_names(
+    user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=("joint_0", "joint_1", "joint_2"),
         ordering=UserList(["joint_2", "joint_0", "joint_1"]),
@@ -333,7 +331,7 @@ def test_resolve_articulation_ordering_names_accepts_generic_sequence() -> None:
 def test_resolve_articulation_ordering_names_reports_non_string_element() -> None:
     """Report the location and type of invalid explicit ordering elements."""
     with pytest.raises(TypeError) as exc_info:
-        resolve_articulation_ordering_names(
+        _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0", "joint_1", "joint_2"),
             ordering=UserList(["joint_1", 7]),
@@ -356,7 +354,7 @@ def test_resolve_articulation_ordering_names_reports_non_string_element() -> Non
 def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, type_name: str) -> None:
     """Report accepted resolver inputs for unsupported scalar orderings."""
     with pytest.raises(TypeError) as exc_info:
-        resolve_articulation_ordering_names(
+        _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0", "joint_1", "joint_2"),
             ordering=ordering,
@@ -370,7 +368,7 @@ def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, 
 
 def test_resolve_articulation_ordering_names_keeps_matching_backend_preset_identity() -> None:
     """Resolve same-backend symbolic presets without requiring traversal helpers."""
-    user_names = resolve_articulation_ordering_names(
+    user_names = _resolve_articulation_ordering_names(
         kind="body",
         backend_names=("base", "left_foot", "right_foot"),
         ordering=ArticulationOrderingConvention.PHYSX,
@@ -564,7 +562,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
         "joint_c",
     )
     assert get_robot_schema_articulation_name_ordering(articulation, kind="body") == ("base", "thigh", "foot")
-    assert resolve_articulation_ordering_names(
+    assert _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=articulation.backend_joint_names,
         ordering="robot_schema",
@@ -924,7 +922,7 @@ def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -
             return ["foot", "base", "thigh"]
 
     articulation = _Articulation()
-    user_names = resolve_articulation_ordering_names(
+    user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=articulation.backend_joint_names,
         ordering=ArticulationOrderingConvention.MJWARP,
@@ -946,7 +944,7 @@ def test_symbolic_cross_backend_resolver_prefers_explicit_name_resolver() -> Non
         __backend_name__ = "mock"
         root_view = _RootView()
 
-    user_names = resolve_articulation_ordering_names(
+    user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=("resolver_order",),
         ordering=ArticulationOrderingConvention.MJWARP,
@@ -975,7 +973,7 @@ def test_symbolic_cross_backend_resolver_rejects_malformed_resolver_names(
 ) -> None:
     """Reject malformed custom resolver results without scalar string expansion."""
     with pytest.raises(TypeError) as exc_info:
-        resolve_articulation_ordering_names(
+        _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0",),
             ordering=ArticulationOrderingConvention.MJWARP,
@@ -1104,7 +1102,7 @@ def test_symbolic_cross_backend_resolver_normalizes_newton_multi_dof_joint_names
             return ["hinge", "ball_rot_z", "ball_rot_x", "ball_rot_y"]
 
     articulation = _Articulation()
-    user_names = resolve_articulation_ordering_names(
+    user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=articulation.backend_joint_names,
         ordering=ArticulationOrderingConvention.MJWARP,

@@ -20,7 +20,7 @@ from ...sim import SimulationContext
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
 from .ordering import ArticulationNameMap, build_articulation_name_map
-from .ordering_resolvers import resolve_articulation_ordering_names
+from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
     from isaaclab.utils.wrench_composer import WrenchComposer
@@ -264,7 +264,7 @@ class BaseArticulation(AssetBase):
             self.data.joint_ordering = None
             self.data.joint_names = list(self.backend_joint_names)
         else:
-            joint_user_names = resolve_articulation_ordering_names(
+            joint_user_names = _resolve_articulation_ordering_names(
                 kind="joint",
                 backend_names=self.backend_joint_names,
                 ordering=self.cfg.joint_ordering,
@@ -284,7 +284,7 @@ class BaseArticulation(AssetBase):
             self.data.body_names = list(self.backend_body_names)
         else:
             backend_body_names = self.backend_body_names
-            body_user_names = resolve_articulation_ordering_names(
+            body_user_names = _resolve_articulation_ordering_names(
                 kind="body",
                 backend_names=backend_body_names,
                 ordering=self.cfg.body_ordering,
