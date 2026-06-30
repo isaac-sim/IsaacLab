@@ -113,9 +113,9 @@ class EpisodeData:
                 # Add value to the final dict layer
                 # Use lists to prevent slow tensor copy during concatenation
                 if sub_keys[sub_key_index] not in current_dataset_pointer:
-                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone()]
+                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.detach().cpu()]
                 else:
-                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone())
+                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.detach().cpu())
                 break
             # key index
             if sub_keys[sub_key_index] not in current_dataset_pointer:
