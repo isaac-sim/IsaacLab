@@ -261,6 +261,53 @@ def _rendering_backend_by_preset() -> dict[str, str]:
     }
 
 
+def _backend_defaults_from_env_cfg(env_cfg: object) -> tuple[str | None, str | None]:
+    """Return active backend names from a resolved environment configuration."""
+    physics_cfg = getattr(getattr(env_cfg, "sim", None), "physics", None)
+    physics_descriptor = (
+        f"{type(physics_cfg).__module__}.{type(physics_cfg).__name__} {getattr(physics_cfg, 'class_type', '')}"
+    ).lower()
+    physics = next(
+        (
+            name
+            for marker, name in (
+                ("ovphysx", "ovphysx"),
+                ("kamino", "newton_kamino"),
+                ("mjwarp", "newton_mjwarp"),
+                ("physx", "physx"),
+            )
+            if marker in physics_descriptor
+        ),
+        None,
+    )
+
+    renderer_names = {"isaac_rtx": "isaacsim_rtx", "ovrtx": "ovrtx", "newton_warp": "newton"}
+    rendering = None
+    stack = [env_cfg]
+    visited: set[int] = set()
+    while stack and rendering is None:
+        node = stack.pop()
+        if id(node) in visited:
+            continue
+        visited.add(id(node))
+        rendering = renderer_names.get(getattr(node, "renderer_type", None))
+        if isinstance(node, dict):
+            children = node.values()
+        elif isinstance(node, (list, tuple)):
+            children = node
+        else:
+            try:
+                children = vars(node).values()
+            except TypeError:
+                continue
+        stack.extend(
+            child
+            for child in children
+            if child is not None and not isinstance(child, (str, bytes, int, float, bool, type))
+        )
+    return physics, rendering
+
+
 def _expand_preset_tokens(tokens: Sequence[str]) -> list[tuple[str | None, str]]:
     """Expand Hydra-style preset tokens into ``(selector, value)`` pairs."""
     physics_label, renderer_label, domain_label, _ = _preset_target_metadata()
@@ -287,21 +334,23 @@ def _expand_preset_tokens(tokens: Sequence[str]) -> list[tuple[str | None, str]]
     return expanded
 
 
-def run_config_from_presets(tokens: Sequence[str]) -> RunConfig:
-    """Best-effort :class:`~isaaclab.test.benchmark.schema.RunConfig` from active Hydra preset tokens.
+def run_config_from_presets(tokens: Sequence[str], *, env_cfg: object | None = None) -> RunConfig:
+    """Build a :class:`~isaaclab.test.benchmark.RunConfig` from presets and resolved task config.
 
-    Picks the physics/rendering backend from recognised preset tokens (physics
-    defaults to ``"physx"``, rendering to ``"none"``). Accepts bare preset names
-    as well as Hydra-style ``physics=...``, ``renderer=...``, and
-    ``presets=...`` tokens.
+    Picks backend defaults from ``env_cfg`` when provided, then applies recognised
+    preset tokens. Without a resolved config, physics defaults to ``"physx"`` and
+    rendering to ``"none"``. Accepts bare preset names as well as Hydra-style
+    ``physics=...``, ``renderer=...``, and ``presets=...`` tokens.
 
     Args:
         tokens: Active preset tokens (e.g. ``["newton_mjwarp", "rgb"]``).
+        env_cfg: Optional resolved task environment configuration. Its active physics
+            and renderer configurations take precedence over token inference.
 
     Returns:
-        Populated :class:`~isaaclab.test.benchmark.schema.RunConfig`.
+        Populated :class:`~isaaclab.test.benchmark.RunConfig`.
     """
-    if not tokens:
+    if not tokens and env_cfg is None:
         return RunConfig(physics_backend="physx", rendering_backend="none", presets=[])
 
     physics = "physx"
@@ -334,6 +383,11 @@ def run_config_from_presets(tokens: Sequence[str]) -> RunConfig:
                 renderer = rendering_backend_for(token)
                 if renderer is not None:
                     rendering = renderer
+
+    if env_cfg is not None:
+        active_physics, active_rendering = _backend_defaults_from_env_cfg(env_cfg)
+        physics = active_physics or physics
+        rendering = active_rendering or rendering
 
     return RunConfig(
         physics_backend=physics,

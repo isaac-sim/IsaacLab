@@ -5,6 +5,7 @@
 
 """Tests for benchmark capture helpers (Isaac-Sim-free, fake recorders)."""
 
+from types import SimpleNamespace
 from typing import Literal
 
 import pytest
@@ -152,7 +153,7 @@ def test_synth_run_id():
     assert "rsl_rl" in rid and "physx" in rid and "42" in rid
 
 
-def test_run_config_from_presets_resolves_backend_tokens(monkeypatch):
+def test_run_config_from_presets_resolves_backend_configuration(monkeypatch):
     cases = [
         ([], "physx", "none", []),
         (
@@ -177,6 +178,14 @@ def test_run_config_from_presets_resolves_backend_tokens(monkeypatch):
 
     monkeypatch.setattr(capture, "PhysicsBackend", Literal["physx", "newton_mjwarp_vbd"], raising=False)
     assert run_config_from_presets(["newton_mjwarp_vbd"]).physics_backend == "newton_mjwarp_vbd"
+
+    env_cfg = SimpleNamespace(
+        sim=SimpleNamespace(physics=SimpleNamespace(class_type="isaaclab_newton.physics:NewtonMJWarpManager")),
+        camera=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="isaac_rtx")),
+    )
+    cfg = run_config_from_presets([], env_cfg=env_cfg)
+    assert cfg.physics_backend == "newton_mjwarp"
+    assert cfg.rendering_backend == "isaacsim_rtx"
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
