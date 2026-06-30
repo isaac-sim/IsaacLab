@@ -39,6 +39,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _map_articulation_body_ids_to_backend(asset: Articulation, body_ids: list[int]) -> tuple[int, ...]:
+    """Map public articulation body indices to active-backend indices.
+
+    Args:
+        asset: Articulation whose body ordering defines the index conversion.
+        body_ids: Body indices in public API order.
+
+    Returns:
+        Body indices in active-backend order.
+    """
+    if asset.body_ordering is None:
+        return tuple(body_ids)
+    return tuple(asset.body_ordering.user_to_backend_indices[body_id] for body_id in body_ids)
+
+
 def randomize_rigid_body_scale(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -192,6 +207,7 @@ class _RandomizeRigidBodyMaterialPhysx:
             for link_path in asset.root_view.link_paths[0]:
                 link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
+            self._backend_body_ids = _map_articulation_body_ids_to_backend(asset, asset_cfg.body_ids)
             # ensure the parsing is correct
             num_shapes = sum(self.num_shapes_per_body)
             expected_shapes = asset.root_view.max_shapes
@@ -203,6 +219,7 @@ class _RandomizeRigidBodyMaterialPhysx:
         else:
             # in this case, we don't need to do special indexing
             self.num_shapes_per_body = None
+            self._backend_body_ids = None
 
     def __call__(
         self,
@@ -232,7 +249,7 @@ class _RandomizeRigidBodyMaterialPhysx:
         # update material buffer with new samples
         if self.num_shapes_per_body is not None:
             # sample material properties from the given ranges
-            for body_id in self.asset_cfg.body_ids:
+            for body_id in self._backend_body_ids:
                 # obtain indices of shapes for the body
                 start_idx = sum(self.num_shapes_per_body[:body_id])
                 end_idx = start_idx + self.num_shapes_per_body[body_id]
@@ -283,7 +300,8 @@ class _RandomizeRigidBodyMaterialNewton:
         if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
             num_shapes_per_body = asset.num_shapes_per_body
             shape_indices_list = []
-            for body_id in asset_cfg.body_ids:
+            backend_body_ids = _map_articulation_body_ids_to_backend(asset, asset_cfg.body_ids)
+            for body_id in backend_body_ids:
                 start_idx = sum(num_shapes_per_body[:body_id])
                 end_idx = start_idx + num_shapes_per_body[body_id]
                 shape_indices_list.extend(range(start_idx, end_idx))
