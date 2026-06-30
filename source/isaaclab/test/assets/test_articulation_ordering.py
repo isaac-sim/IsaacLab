@@ -3,7 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import subprocess
 import sys
+import textwrap
 import types
 from collections import UserList
 from pathlib import Path
@@ -14,12 +16,15 @@ import warp as wp
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 
+_inserted_torch_stub = False
 try:
     import torch  # noqa: F401
 except ModuleNotFoundError:
     torch_stub = types.ModuleType("torch")
     torch_stub.Tensor = type("Tensor", (), {})
-    sys.modules["torch"] = torch_stub
+    if "torch" not in sys.modules:
+        sys.modules["torch"] = torch_stub
+        _inserted_torch_stub = True
 
 from isaaclab.assets.articulation.ordering import (
     ArticulationNameMap,
@@ -76,6 +81,9 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 
+if _inserted_torch_stub and sys.modules.get("torch") is torch_stub:
+    sys.modules.pop("torch")
+
 if _inserted_sim_stub:
     sys.modules.pop("isaaclab.sim", None)
 if _inserted_sim_context_stub:
@@ -84,6 +92,58 @@ if _inserted_asset_base_stub:
     sys.modules.pop("isaaclab.assets.asset_base", None)
 if _inserted_sim_stub or _inserted_asset_base_stub:
     sys.modules.pop("isaaclab.assets.articulation.base_articulation", None)
+
+
+def test_ordering_module_torch_stub_is_scoped_to_imports() -> None:
+    """Remove only the temporary torch stub installed while importing base classes."""
+    script = textwrap.dedent(
+        """
+        import builtins
+        import runpy
+        import sys
+        import types
+
+        import numpy  # noqa: F401
+        import pytest  # noqa: F401
+        import warp  # noqa: F401
+        import isaaclab.assets.articulation.ordering_resolvers  # noqa: F401
+
+        mode = sys.argv[1]
+        module_path = sys.argv[2]
+        sentinel = None
+        if mode == "missing":
+            sys.modules.pop("torch", None)
+            real_import = builtins.__import__
+            block_torch_import = [True]
+
+            def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+                if name == "torch" and block_torch_import[0]:
+                    block_torch_import[0] = False
+                    raise ModuleNotFoundError("No module named torch", name="torch")
+                return real_import(name, globals, locals, fromlist, level)
+
+            builtins.__import__ = guarded_import
+        else:
+            sentinel = types.ModuleType("torch")
+            sentinel.Tensor = type("Tensor", (), {})
+            sys.modules["torch"] = sentinel
+
+        runpy.run_path(module_path)
+
+        if mode == "missing" and "torch" in sys.modules:
+            raise SystemExit("temporary torch stub leaked from the ordering test module")
+        if mode == "preexisting" and sys.modules.get("torch") is not sentinel:
+            raise SystemExit("pre-existing torch module was replaced or removed")
+        """
+    )
+
+    for mode in ("preexisting", "missing"):
+        result = subprocess.run(
+            [sys.executable, "-c", script, mode, str(Path(__file__))],
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_parse_articulation_ordering_convention_accepts_none_strings_and_enum() -> None:
