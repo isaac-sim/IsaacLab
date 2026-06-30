@@ -13,50 +13,22 @@ from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
-from isaaclab_tasks.core.cartpole.mdp.observations import resolve_camera_frame_stack
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
 
 class CartpoleCameraEnv(CartpoleEnv):
-    """Cartpole environment driven by camera observations.
-
-    Stacks frames to supply the temporal cue Newton needs when the render lacks one; see
-    :meth:`_resolve_frame_stack_default`.
-    """
+    """Cartpole environment driven by stacked camera observations."""
 
     cfg: CartpoleCameraEnvCfg
 
-    @staticmethod
-    def _resolve_frame_stack_default(camera_cfg, physics_cfg) -> int:
-        """Default frame-stack size from the backend capability classmethods.
-
-        Stack ``2`` frames when the policy needs a temporal cue to infer velocity but the
-        observation carries none -- the physics backend has no implicit damping AND the renderer
-        provides no temporal data for this data type. Otherwise ``1``. The capability lives on the
-        runtime backend classes (resolved from the cfg without building the sim):
-        :meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping` and
-        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`.
-        """
-        return resolve_camera_frame_stack(camera_cfg, physics_cfg)
-
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        # Flatten preset wrappers so the frame-stack resolution below sees concrete types.
-        # Idempotent — base ``DirectRLEnv.__init__`` calls this again with no effect.
-        resolve_cfg_presets(cfg)
-
-        frame_stack = getattr(cfg, "frame_stack", 1)
-        if frame_stack < 0:
-            frame_stack = self._resolve_frame_stack_default(cfg.tiled_camera, cfg.sim.physics)
-        elif frame_stack == 0:
-            frame_stack = 1
-        if hasattr(cfg, "frame_stack"):
-            cfg.frame_stack = frame_stack
+        frame_stack = max(1, cfg.frame_stack)
+        cfg.frame_stack = frame_stack
         if frame_stack > 1:
             single_channels = int(cfg.observation_space[0])
             cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]

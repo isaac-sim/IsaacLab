@@ -11,44 +11,12 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.physics import PhysicsCfg
-from isaaclab.renderers.renderer import Renderer
 from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
-from isaaclab.utils.string import string_to_callable
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-    from isaaclab.sensors import Camera, CameraCfg
-
-
-def resolve_camera_frame_stack(camera_cfg: CameraCfg, physics_cfg: PhysicsCfg) -> int:
-    """Resolve the camera frame-stack size from backend capabilities.
-
-    Two frames are required when the physics backend has no implicit damping and the
-    renderer output contains no temporal information. Otherwise a single frame is used.
-
-    Args:
-        camera_cfg: Camera configuration containing the renderer and requested data type.
-        physics_cfg: Physics backend configuration.
-
-    Returns:
-        The default number of camera frames to stack.
-    """
-    class_type = getattr(physics_cfg, "class_type", None)
-    if class_type is None:
-        return 1
-    physics_manager_cls = string_to_callable(str(class_type)) if isinstance(class_type, str) else class_type
-    if physics_manager_cls.provides_implicit_damping():
-        return 1
-
-    renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
-    if renderer_cfg is None:
-        return 2
-    data_types = getattr(camera_cfg, "data_types", None) or []
-    data_type = data_types[0] if data_types else ""
-    renderer_cls = Renderer.resolve_class(renderer_cfg)
-    return 1 if renderer_cls.provides_temporal_camera_data(data_type) else 2
+    from isaaclab.sensors import Camera
 
 
 class CameraImageStack(ManagerTermBase):
@@ -57,13 +25,7 @@ class CameraImageStack(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
-        sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
-        camera: Camera = env.scene.sensors[sensor_cfg.name]
-        frame_stack = getattr(env.cfg, "frame_stack", 1)
-        if frame_stack < 0:
-            frame_stack = resolve_camera_frame_stack(camera.cfg, env.cfg.sim.physics)
-        elif frame_stack == 0:
-            frame_stack = 1
+        frame_stack = max(1, env.cfg.frame_stack)
         env.cfg.frame_stack = frame_stack
 
         self._stack = None

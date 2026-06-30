@@ -10,5 +10,5 @@ Changed
   termination conditions, episode horizon, reward convention, camera frame stacking, and camera lighting. Retrain
   policies previously trained on the Cartpole tasks.
 
-* Changed the Cartpole camera resolution to 64 by 64 pixels and tuned the RSL-RL camera PPO configuration for
-  reliable convergence.
+* Changed all Cartpole camera renderer variants to stack two frames by default, reduced the camera resolution to
+  64 by 64 pixels, and reduced the RSL-RL camera CNN size while retaining reliable convergence.

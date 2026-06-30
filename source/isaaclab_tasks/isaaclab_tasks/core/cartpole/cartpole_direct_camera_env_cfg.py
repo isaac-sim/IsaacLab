@@ -52,13 +52,10 @@ class CartpoleCameraEnvCfg(PresetCfg):
         tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
         write_image_to_file = False
 
-        frame_stack: int = -1
-        """Number of frames to stack along the channel dim.
+        frame_stack: int = 2
+        """Number of frames to stack along the channel dimension.
 
-        ``-1`` (default) auto-resolves to ``2`` when the physics lacks damping and the render
-        carries no temporal cue, else ``1``; see
-        :meth:`~isaaclab_tasks.core.cartpole.cartpole_direct_camera_env.CartpoleCameraEnv._resolve_frame_stack_default`.
-        Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
+        Values less than two disable stacking.
         """
 
         # spaces: an image instead of the 4-dim joint-state vector

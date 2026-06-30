@@ -157,11 +157,10 @@ class CartpoleCameraEnvCfg(PresetCfg):
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg` -- only the fields that differ are overridden."""
 
-        frame_stack: int = -1
+        frame_stack: int = 2
         """Number of frames to stack along the channel dimension.
 
-        ``-1`` selects the backend-dependent default, ``0`` and ``1`` disable stacking,
-        and values greater than one select an explicit stack size.
+        Values less than two disable stacking.
         """
 
         # scene: fewer, more-spaced envs so each camera renders cleanly

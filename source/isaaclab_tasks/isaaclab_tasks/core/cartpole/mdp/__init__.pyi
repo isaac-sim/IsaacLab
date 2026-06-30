@@ -6,10 +6,9 @@
 __all__ = [
     "CameraImageStack",
     "joint_pos_target_l2",
-    "resolve_camera_frame_stack",
     "survival_success_rate",
 ]
 
-from isaaclab_tasks.core.cartpole.mdp.observations import CameraImageStack, resolve_camera_frame_stack
+from isaaclab_tasks.core.cartpole.mdp.observations import CameraImageStack
 from isaaclab_tasks.core.cartpole.mdp.rewards import joint_pos_target_l2, survival_success_rate
 from isaaclab.envs.mdp import *

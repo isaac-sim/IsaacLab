@@ -90,12 +90,12 @@ class CartpoleCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     clip_actions = 1.0
     actor = RslRlCNNModelCfg(
         cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-            output_channels=[32, 64, 64],
+            output_channels=[8, 16, 16],
             kernel_size=[5, 3, 3],
             stride=[2, 2, 2],
             activation="relu",
         ),
-        hidden_dims=[512],
+        hidden_dims=[64],
         activation="elu",
         obs_normalization=False,
         distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
