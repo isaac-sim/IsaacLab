@@ -28,8 +28,9 @@ dependencies = [
     # basic logger
     "tensorboard",
     # video recording
-    "moviepy",
-    "packaging<24",
+    # MoviePy 2.2.1 caps Pillow below the version pinned by isaacsim-kernel.
+    "moviepy==1.0.3",
+    "packaging==26.0",
     "tqdm>=4.67.1",
 ]
 

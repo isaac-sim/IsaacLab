@@ -25,7 +25,7 @@ pyproject.dependencies.all = [
     "warp-lang==1.14.0",
     "matplotlib>=3.10.3",
     # make sure this is consistent with isaac sim version
-    "pillow==12.1.1",
+    "pillow==12.2.0",
     "botocore",
     # livestream
     # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
@@ -37,7 +37,8 @@ pyproject.dependencies.all = [
     "junitparser",
     "flatdict==4.0.0",
     "flaky",
-    "packaging",
+    "coverage==7.4.4",
+    "packaging==26.0",
     # visualizers
     "imgui-bundle==1.92.601",
     "rerun-sdk>=0.29.0",
@@ -65,8 +66,9 @@ pyproject.dependencies.all = [
     # basic logger
     "tensorboard",
     # video recording
-    "moviepy",
-    "packaging<24",
+    # MoviePy 2.2.1 caps Pillow below the version pinned by isaacsim-kernel.
+    "moviepy==1.0.3",
+    "packaging==26.0",
     "tqdm==4.67.1",
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/setup.py
@@ -82,7 +84,7 @@ pyproject.dependencies.all = [
 ]
 pyproject.optional-dependencies.all = [
     # Isaac Sim
-    { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.1"] },
+    { "isaacsim" = ["isaacsim[all,extscache]==6.0.1.0"] },
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
     # ================================================================================
