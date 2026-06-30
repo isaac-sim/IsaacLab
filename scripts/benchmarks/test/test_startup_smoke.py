@@ -19,6 +19,10 @@ _EXPECTED_PHASES = {"app_launch", "python_imports", "task_config", "env_creation
 
 
 def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
+    """The startup entry point profiles imports and writes both requested formats."""
+    whitelist = tmp_path / "whitelist.yaml"
+    whitelist.write_text('python_imports:\n  - "*isaaclab_tasks*importer:_walk_packages"\n')
+
     sh = ROOT / "isaaclab.sh"
     cmd = [
         str(sh),
@@ -32,6 +36,10 @@ def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
         "0",
         "--output_path",
         str(tmp_path),
+        "--benchmark_formatter",
+        "schema,omniperf",
+        "--whitelist_config",
+        str(whitelist),
         "presets=newton_mjwarp",
         "--headless",
     ]
@@ -40,23 +48,25 @@ def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
         pytest.fail(f"startup.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
 
     files = list(tmp_path.glob("*.json"))
-    assert len(files) == 1, f"expected one JSON file, found {[path.name for path in files]}"
-    data = json.loads(files[0].read_text())
+    assert len(files) == 2, f"expected two JSON files, found {[path.name for path in files]}"
+    schema_files = [path for path in files if path.name.endswith("_schema.json")]
+    omniperf_files = [path for path in files if path.name.endswith("_omniperf.json")]
+    assert len(schema_files) == 1
+    assert len(omniperf_files) == 1
 
+    data = json.loads(schema_files[0].read_text())
     assert data["schema_version"] == "1.0", f"unexpected schema_version: {data['schema_version']}"
     assert data["run"]["framework"] is None, "startup bundle should have framework=null"
     assert data["run"]["duration_s"] >= sum(phase["total_time_s"] for phase in data["phases"].values())
-
-    assert set(data["phases"].keys()) == _EXPECTED_PHASES, f"unexpected phases: {set(data['phases'].keys())}"
+    assert set(data["phases"]) == _EXPECTED_PHASES, f"unexpected phases: {set(data['phases'])}"
 
     for phase_name, phase in data["phases"].items():
-        assert phase["total_time_s"] > 0, f"phase '{phase_name}' has total_time_s <= 0"
+        assert phase["total_time_s"] > 0, f"phase {phase_name!r} has total_time_s <= 0"
 
-    assert any(
-        isinstance(function.get("calls"), int)
-        for phase in data["phases"].values()
-        for function in phase.get("top_functions", [])
-    )
+    imports = data["phases"]["python_imports"]["top_functions"]
+    assert any(function["calls"] > 0 and "importer:_walk_packages" in function["name"] for function in imports)
+    assert isinstance(data["config"]["top_n"], int)
 
-    assert "config" in data, "StartupBundle missing 'config' field"
-    assert isinstance(data["config"]["top_n"], int), "config.top_n should be an integer"
+    omniperf_data = json.loads(omniperf_files[0].read_text())
+    for phase_name in _EXPECTED_PHASES:
+        assert omniperf_data[phase_name]["Wall Clock Time"] > 0

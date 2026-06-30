@@ -96,10 +96,11 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides unified entry points under ``scripts/benchmarks/``.  They default to
-``--benchmark_backend schema``, which emits a schema-v1 JSON bundle via
-:mod:`isaaclab.test.benchmark`.  ``--benchmark_backend`` accepts a comma-separated list
-(e.g. ``schema,omniperf``) to emit several formats in a single run; each backend writes its
+Isaac Lab provides unified ``runtime.py`` and ``startup.py`` entry points under
+``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
+emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
+``--benchmark_formatter`` accepts a comma-separated list (e.g.
+``schema,omniperf``) to emit several formats in a single run; each formatter writes its
 own timestamped output file.
 
 Non-RL / Runtime Benchmarks
@@ -131,7 +132,7 @@ Measure training performance with RSL-RL:
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
-       --benchmark_formatter json \
+       --benchmark_backend json \
        --output_path ./results
 
 PhysX Micro-Benchmarks
@@ -173,10 +174,10 @@ The script profiles five phases independently:
 - **env_creation**: ``gym.make()`` + ``env.reset()`` (scene creation, sim start)
 - **first_step**: a single ``env.step()`` call
 
-Each phase records a wall-clock time plus per-function own-time and cumulative
-time as ``SingleMeasurement`` entries. Only IsaacLab functions and first-level
-calls into external libraries are included (deep internals of torch, USD, etc.
-are filtered out).
+Schema output records each phase wall-clock time and per-function own-time,
+cumulative time, and call count. Flat formatters project the same data into
+measurements. Only Isaac Lab functions and first-level calls into external
+libraries are included (deep internals of torch, USD, etc. are filtered out).
 
 **Whitelist mode** — For dashboard time-series comparisons across runs, use a
 YAML whitelist config to report a fixed set of functions instead of top-N.

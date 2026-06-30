@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Benchmark environment runtime (random actions, no policy).
+r"""Benchmark environment runtime (random actions, no policy).
 
-Standalone script that steps an Isaac Lab environment with random actions and
-emits a :class:`~isaaclab.test.benchmark.schema.RuntimeBundle` JSON file.
+Standalone script that steps an Isaac Lab environment with random actions. The
+schema formatter emits a :class:`~isaaclab.test.benchmark.schema.RuntimeBundle`;
+other selected formatters receive equivalent measurement phases.
 Supports all physics backends (PhysX, Newton/MJWarp, Newton/Kamino, OVPhysX)
 via Hydra preset tokens — no ``--rl_library`` dispatch needed.
 
@@ -61,7 +62,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
 
 
 def run(argv: list[str]) -> None:
-    """Run the runtime benchmark and write a :class:`~isaaclab.test.benchmark.schema.RuntimeBundle`.
+    """Run the runtime benchmark and write the selected formatter outputs.
 
     Args:
         argv: Command-line arguments excluding the script path.

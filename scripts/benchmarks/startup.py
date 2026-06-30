@@ -3,16 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Profile IsaacLab startup phases and emit a :class:`~isaaclab.test.benchmark.schema.StartupBundle`.
+r"""Profile Isaac Lab startup phases.
 
-Each phase runs in an independent ``cProfile`` session and the results are
-written as a schema-v1 JSON bundle.
+Each phase runs in an independent ``cProfile`` session. The schema formatter emits
+a :class:`~isaaclab.test.benchmark.schema.StartupBundle`; other selected
+formatters receive equivalent measurement phases.
 
 Profiled phases
 ---------------
 * **app_launch**: :func:`~isaaclab.app.launch_simulation` call (Isaac Sim
   fabric startup).
-* **python_imports**: top-level Python imports (gymnasium, torch, isaaclab envs).
+* **python_imports**: launcher, task registration, and runtime-library imports.
 * **task_config**: :func:`~isaaclab_tasks.utils.resolve_task_config`.
 * **env_creation**: :func:`gym.make` + ``env.reset()``.
 * **first_step**: first ``env.step()`` call.
@@ -34,15 +35,16 @@ import sys
 import time
 from datetime import datetime, timezone
 
+_start_utc = datetime.now(timezone.utc).isoformat()
+_imports_profile = cProfile.Profile()
+_imports_time_begin = time.perf_counter_ns()
+_imports_profile.enable()
+
 from isaaclab.app import AppLauncher
 
 from isaaclab_tasks.utils import setup_preset_cli
 
-_start_utc = datetime.now(timezone.utc).isoformat()
-
-# Parse Hydra overrides before starting module-level import profiling.
-
-_parser = argparse.ArgumentParser(description="Profile IsaacLab startup phases and emit a StartupBundle.")
+_parser = argparse.ArgumentParser(description="Profile Isaac Lab startup phases.")
 _parser.add_argument("--task", type=str, required=True, help="Gym task id to profile.")
 _parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
 _parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
@@ -75,12 +77,7 @@ args_cli, _hydra_args = setup_preset_cli(_parser)
 sys.argv = [sys.argv[0]] + _hydra_args
 
 
-_imports_profile = cProfile.Profile()
-_imports_time_begin = time.perf_counter_ns()
-_imports_profile.enable()
-
 import gymnasium as gym  # noqa: E402
-import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
 from isaaclab.app import launch_simulation  # noqa: E402
@@ -89,6 +86,7 @@ from isaaclab.test.benchmark import (  # noqa: E402
     BaseIsaacLabBenchmark,  # noqa: E402
     builders,
     capture,
+    stepping,
 )
 from isaaclab.test.benchmark.profiling import parse_cprofile_stats  # noqa: E402
 from isaaclab.test.benchmark.schema import CProfileFunction, StartupPhase  # noqa: E402
@@ -200,8 +198,7 @@ def _run_main(
             torch.cuda.synchronize()
         env_creation_time_end = time.perf_counter_ns()
 
-        np_actions = np.stack([env.unwrapped.single_action_space.sample() for _ in range(env.unwrapped.num_envs)])
-        actions = torch.as_tensor(np_actions, dtype=torch.float32, device=env.unwrapped.device)
+        actions = stepping.sample_random_actions(env)
 
         first_step_profile = cProfile.Profile()
         first_step_time_begin = time.perf_counter_ns()

@@ -62,4 +62,5 @@ def test_runtime_writes_all_requested_formats(tmp_path, require_isaacsim):
     omniperf_data = json.loads(omniperf_files[0].read_text())
     assert "benchmark_info" in omniperf_data
     assert "runtime" in omniperf_data
+    assert omniperf_data["runtime"]["Mean Total FPS"] > 0
     assert "run" not in omniperf_data, "omniperf output should not carry the schema-bundle shape"
