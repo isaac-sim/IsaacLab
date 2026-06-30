@@ -40,7 +40,7 @@ dependencies = [
     "warp-lang==1.14.0",
     "matplotlib>=3.10.3",
     # keep consistent with isaac sim version
-    "pillow==12.2.0",
+    "pillow==12.1.1",
     # required by omni.replicator.core S3 backend
     "botocore",
     # livestream (range chosen to coexist with isaacsim 6.0)
@@ -77,12 +77,13 @@ test = [
     "junitparser",
     "flatdict>=4.1.0",
     "flaky",
-    # keep consistent with isaacsim-kernel
-    "coverage==7.4.4",
+    # coverage>=7.6.1 restored coverage.types.Tracer as a shim; required for
+    # numba compatibility (numba subclasses Tracer at import time)
+    "coverage>=7.6.1",
 ]
-isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
+isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
 all = [
-    "isaacsim[all,extscache]==6.0.1.0",
+    "isaacsim[all,extscache]==6.0.0.1",
     "isaaclab_assets",
     "isaaclab_contrib",
     "isaaclab_experimental",
