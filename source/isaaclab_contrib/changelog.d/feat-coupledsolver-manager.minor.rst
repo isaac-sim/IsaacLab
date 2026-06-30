@@ -9,7 +9,7 @@ Added
   :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledProxySolverCfg`
   (wrapping :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`) and
   :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledAdmmSolverCfg`
-  (wrapping :class:`newton.solvers.experimental.coupled.SolverCoupledAdmm`).
+  (wrapping :class:`newton.solvers.experimental.coupled.SolverCoupledADMM`).
   The manager partitions the Newton model into source/destination entries,
   instantiates the sub-solvers from their cfg types, and dispatches on the
   config subclass to build the matching coupled solver.

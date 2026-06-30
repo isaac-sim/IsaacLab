@@ -38,7 +38,6 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import CoupledProxySolverCfg
 from isaaclab_contrib.deformable.newton_manager_cfg import (
-    ProxyCoupledMJWarpVBDSolverCfg,
     CoupledMJWarpVBDSolverCfg,
     CoupledNewtonCfg,
     NewtonModelCfg,
@@ -119,7 +118,6 @@ class PhysicsCfg(PresetCfg):
                 ls_iterations=20,
                 cone="pyramidal",
                 impratio=1,
-                ls_parallel=False,
                 integrator="implicitfast",
                 ccd_iterations=100,
             ),
@@ -146,7 +144,6 @@ class PhysicsCfg(PresetCfg):
         solver_cfg=CoupledProxySolverCfg(
             src_solver_cfg=MJWarpSolverCfg(
                 cone="elliptic",
-                ls_parallel=True,
                 ls_iterations=20,
                 integrator="implicitfast",
             ),

@@ -42,7 +42,7 @@ class CoupledSolverCfg(NewtonSolverCfg):
 
     The concrete coupling algorithm is selected by subclassing — use
     :class:`CoupledProxySolverCfg` for :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`
-    and :class:`CoupledAdmmSolverCfg` for :class:`newton.solvers.experimental.coupled.SolverCoupledAdmm`.
+    and :class:`CoupledAdmmSolverCfg` for :class:`newton.solvers.experimental.coupled.SolverCoupledADMM`.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.coupled_manager:NewtonCoupledSolverManager"
@@ -109,7 +109,7 @@ class CoupledProxySolverCfg(CoupledSolverCfg):
 class CoupledAdmmSolverCfg(CoupledSolverCfg):
     """Configuration for the linearized ADMM coupled solver.
 
-    Wraps Newton's :class:`newton.solvers.experimental.coupled.SolverCoupledAdmm`,
+    Wraps Newton's :class:`newton.solvers.experimental.coupled.SolverCoupledADMM`,
     which enforces inter-solver constraints via a penalty method with explicit
     contact pairs between the source and destination entries.
     """
@@ -141,7 +141,7 @@ class CoupledAdmmSolverCfg(CoupledSolverCfg):
     enable_contacts: bool = True
     """Whether to register a contact pair between the source and destination entries.
 
-    When ``True``, a single :class:`newton.solvers.experimental.coupled.SolverCoupledAdmm.ContactPair`
+    When ``True``, a single :class:`newton.solvers.experimental.coupled.SolverCoupledADMM.ContactPair`
     is added with the configured :attr:`contact_distance` / :attr:`detection_margin`.
     """
 
