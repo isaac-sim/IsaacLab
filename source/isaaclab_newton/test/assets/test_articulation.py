@@ -347,6 +347,27 @@ _PANDA_BODY_NAMES = (
 )
 _PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_PANDA_BODY_NAMES[0], *reversed(_PANDA_BODY_NAMES[1:]))
 
+_ANYMAL_C_BODY_NAMES = (
+    "base",
+    "LF_HIP",
+    "LF_THIGH",
+    "LF_SHANK",
+    "LF_FOOT",
+    "LH_HIP",
+    "LH_THIGH",
+    "LH_SHANK",
+    "LH_FOOT",
+    "RF_HIP",
+    "RF_THIGH",
+    "RF_SHANK",
+    "RF_FOOT",
+    "RH_HIP",
+    "RH_THIGH",
+    "RH_SHANK",
+    "RH_FOOT",
+)
+_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES = (_ANYMAL_C_BODY_NAMES[0], *reversed(_ANYMAL_C_BODY_NAMES[1:]))
+
 _NEWTON_USER_ORDER_STATE_CACHES = (
     "_joint_pos_user",
     "_joint_vel_user",
@@ -527,6 +548,55 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articula
     assert articulation.is_initialized
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("state_kind", ["pose", "velocity"])
+def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_write(
+    sim, num_articulations, device, gravity_enabled, articulation_type, state_kind
+):
+    """Refresh ordered body state after a root write at the current simulation timestamp."""
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    data = articulation.data
+    assert data._has_body_ordering
+    root_body_idx = articulation.find_bodies("base")[0][0]
+    sim_timestamp = data._sim_timestamp
+
+    if state_kind == "pose":
+        cached_body_state = data.body_link_pose_w.torch[:, root_body_idx].clone()
+        written_root_state = data.root_link_pose_w.torch.clone()
+        written_root_state[:, 0] += 0.25
+        articulation.write_root_link_pose_to_sim_index(root_pose=written_root_state)
+
+        assert data._sim_timestamp == sim_timestamp
+        torch.testing.assert_close(data.root_link_pose_w.torch, written_root_state)
+        refreshed_body_state = data.body_link_pose_w.torch[:, root_body_idx]
+        assert data._body_link_pose_w_user.timestamp == sim_timestamp
+    else:
+        cached_body_state = data.body_com_vel_w.torch[:, root_body_idx].clone()
+        written_root_state = torch.tensor(
+            [[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]], device=device, dtype=cached_body_state.dtype
+        )
+        articulation.write_root_com_velocity_to_sim_index(root_velocity=written_root_state)
+
+        assert data._sim_timestamp == sim_timestamp
+        torch.testing.assert_close(data.root_com_vel_w.torch, written_root_state)
+        refreshed_body_state = data.body_com_vel_w.torch[:, root_body_idx]
+        assert data._body_com_vel_w_user.timestamp == sim_timestamp
+
+    torch.testing.assert_close(refreshed_body_state, written_root_state)
+    assert not torch.equal(refreshed_body_state, cached_body_state)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
