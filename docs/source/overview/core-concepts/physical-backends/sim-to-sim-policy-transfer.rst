@@ -6,6 +6,8 @@ between physics backends, but it does not make the backends' solver dynamics
 identical. This guide uses ANYmal-D to replay one RSL-RL checkpoint on
 Newton/MJWarp and PhysX without changing which physical joint or body each
 vector element represents.
+For backend capabilities, selection, and maturity, start with the
+:doc:`Physics Backends overview <index>`.
 
 
 Quick Transfer
@@ -143,8 +145,15 @@ indices and tensors.
 Conversion Cost
 ---------------
 
-Selecting a nondefault public order can require conversion work around
-backend reads and writes.
+Convention resolution and map construction are one-time initialization
+work. For a nonidentity map, affected reads and writes can require persistent
+staging memory plus gather/scatter kernel launches. Identity maps avoid those
+ongoing conversion paths.
+
+The runtime and memory cost scales with environment count, joint or body count,
+and how often affected properties and writers are accessed. Measure the
+specific task and access pattern; there is no hardware-independent
+steps-per-second number or fixed percentage overhead.
 
 
 Direct Backend-View Access
@@ -241,12 +250,35 @@ conversions automatically.
 What Ordering Does Not Solve
 ----------------------------
 
-Stable vector semantics do not remove the physical differences between
-solvers.
+Ordering compatibility keeps names attached to the same vector elements;
+it does not make simulated trajectories match. Policy behavior can still
+diverge because of:
+
+* contact generation and resolution
+* friction
+* restitution
+* actuator models and configuration
+* integration method
+* timestep and substeps
+* solver convergence
+
+Use :doc:`Solver Comparison <solver-comparison>` to diagnose and tune these
+differences rather than treating them as ordering failures.
 
 
 Verification and Troubleshooting
 --------------------------------
 
-When a transferred policy behaves unexpectedly, first separate ordering
-mistakes from genuine solver-dynamics differences.
+When a transferred policy behaves unexpectedly, check these items in
+order:
+
+1. Compare public ``joint_names`` and ``body_names`` with
+   ``backend_joint_names`` and ``backend_body_names``.
+2. Confirm both joint and body source conventions when the policy or task uses
+   both kinds of vector.
+3. Verify observation and action dimensions against the training run.
+4. Audit custom code for direct ``root_view`` access.
+5. Compare source and target values by physical name rather than by raw column.
+6. When name-to-vector semantics are stable but motion still diverges, classify
+   the problem as a solver-dynamics issue and continue with
+   :doc:`Solver Comparison <solver-comparison>`.
