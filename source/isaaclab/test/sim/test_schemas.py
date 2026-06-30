@@ -752,6 +752,7 @@ def test_modify_properties_on_articulation_usd(setup_simulation):
     _validate_articulation_properties_on_prim("/World/asset", arti_cfg, True)
 
 
+@pytest.mark.isaacsim_ci
 def test_activate_contact_sensors_nested_rigid_bodies(setup_simulation):
     """Test contact-report schemas are applied to nested rigid-body trees."""
     stage = sim_utils.get_current_stage()
