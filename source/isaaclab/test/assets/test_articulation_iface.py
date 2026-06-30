@@ -1341,6 +1341,95 @@ def _read_backend_wrench(backend: str, art, raw_backend, captured: dict) -> tupl
     return wrench[..., :3], wrench[..., 3:6]
 
 
+def _seed_root_writer_backend_com(backend: str, art, raw_backend, backend_coms: np.ndarray) -> None:
+    """Seed root-writer COM inputs in backend order and verify the public view."""
+    if backend in ("physx", "ovphysx"):
+        _seed_backend_com_poses(backend, art, raw_backend, backend_coms)
+        backend_actual = art.data._backend_body_com_pose_b.numpy()
+        public_actual = art.data.body_com_pose_b.warp.numpy()
+        expected_public = backend_coms[:, _ordering_user_to_backend(art.body_ordering, art.num_bodies)]
+    elif backend == "newton":
+        backend_positions = backend_coms[..., :3]
+        art.data._sim_bind_body_com_pos_b.assign(wp.array(backend_positions, dtype=wp.vec3f, device=art.device))
+        if art._has_body_ordering:
+            art.data._sync_user_ordered_body_property_buffers()
+        backend_actual = art.data._sim_bind_body_com_pos_b.numpy()
+        public_actual = art.data.body_com_pos_b.warp.numpy()
+        expected_public = backend_positions[:, _ordering_user_to_backend(art.body_ordering, art.num_bodies)]
+        backend_coms = backend_positions
+    else:
+        raise AssertionError(f"Unsupported backend for root-writer parity test: {backend}")
+
+    np.testing.assert_array_equal(backend_actual, backend_coms)
+    np.testing.assert_array_equal(public_actual, expected_public)
+
+
+def _write_root_writer_command(
+    art,
+    selection: str,
+    operation: str,
+    root_com_pose: np.ndarray,
+    root_link_velocity: np.ndarray,
+) -> None:
+    """Write one root command through an index or mask API."""
+    if selection == "index":
+        env_ids = wp.array([0], dtype=wp.int32, device=art.device)
+        if operation == "com_pose":
+            art.write_root_com_pose_to_sim_index(
+                root_pose=wp.array(root_com_pose[:1], dtype=wp.transformf, device=art.device),
+                env_ids=env_ids,
+            )
+        else:
+            art.write_root_link_pose_to_sim_index(
+                root_pose=wp.array(root_com_pose[:1], dtype=wp.transformf, device=art.device),
+                env_ids=env_ids,
+            )
+            art.write_root_link_velocity_to_sim_index(
+                root_velocity=wp.array(root_link_velocity[:1], dtype=wp.spatial_vectorf, device=art.device),
+                env_ids=env_ids,
+            )
+    elif selection == "mask":
+        env_mask = wp.array([True, False], dtype=wp.bool, device=art.device)
+        if operation == "com_pose":
+            art.write_root_com_pose_to_sim_mask(
+                root_pose=wp.array(root_com_pose, dtype=wp.transformf, device=art.device),
+                env_mask=env_mask,
+            )
+        else:
+            art.write_root_link_pose_to_sim_mask(
+                root_pose=wp.array(root_com_pose, dtype=wp.transformf, device=art.device),
+                env_mask=env_mask,
+            )
+            art.write_root_link_velocity_to_sim_mask(
+                root_velocity=wp.array(root_link_velocity, dtype=wp.spatial_vectorf, device=art.device),
+                env_mask=env_mask,
+            )
+    else:
+        raise AssertionError(f"Unsupported root-writer selection: {selection}")
+
+
+def _read_backend_root_state(backend: str, art, raw_backend) -> tuple[np.ndarray, np.ndarray]:
+    """Read backend root link pose and COM velocity after a writer call."""
+    if backend == "physx":
+        return (
+            raw_backend._root_transforms.numpy().copy(),
+            art.data.root_com_vel_w.warp.numpy().copy(),
+        )
+    if backend == "ovphysx":
+        from isaaclab_ovphysx import tensor_types as TT
+
+        return (
+            raw_backend.bindings[TT.ROOT_POSE]._data.copy(),
+            raw_backend.bindings[TT.ROOT_VELOCITY]._data.copy(),
+        )
+    if backend == "newton":
+        return (
+            art.data._sim_bind_root_link_pose_w.numpy().copy(),
+            art.data._sim_bind_root_com_vel_w.numpy().copy(),
+        )
+    raise AssertionError(f"Unsupported backend for root-writer parity test: {backend}")
+
+
 def _clone_proxy_tensor(arr) -> torch.Tensor:
     """Return a CPU clone of a proxy array's torch view."""
     return arr.torch.detach().cpu().clone()
@@ -3069,6 +3158,81 @@ class TestArticulationOrderingComWrites:
 # ---------------------------------------------------------------------------
 # Tests: ArticulationData joint state and properties
 # ---------------------------------------------------------------------------
+
+
+class TestArticulationOrderingRootWriteParity:
+    """Test root writers against backend-order COM offsets."""
+
+    @pytest.mark.parametrize("operation", ["com_pose", "link_velocity"])
+    @pytest.mark.parametrize(
+        "backend, selection",
+        [
+            pytest.param("physx", "index", id="physx-index"),
+            pytest.param("ovphysx", "index", id="ovphysx-index"),
+            pytest.param("ovphysx", "mask", id="ovphysx-mask"),
+            pytest.param("newton", "index", id="newton-index"),
+            pytest.param("newton", "mask", id="newton-mask"),
+        ],
+    )
+    def test_floating_root_writers_match_identity_after_body_reordering(
+        self,
+        backend: str,
+        selection: str,
+        operation: str,
+    ) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        backend_body_names = tuple(f"body_{index}" for index in range(num_bodies))
+        identity_art, identity_raw = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            is_fixed_base=False,
+            body_ordering=backend_body_names,
+        )
+        ordered_art, ordered_raw = get_articulation(
+            backend,
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            is_fixed_base=False,
+            body_ordering=tuple(reversed(backend_body_names)),
+        )
+        assert identity_art.body_ordering is not None and identity_art.body_ordering.is_identity
+        assert ordered_art.body_ordering is not None and not ordered_art.body_ordering.is_identity
+        assert ordered_art.body_ordering.backend_to_user_indices[0] != 0
+        if backend == "physx":
+            identity_raw._noop_setters = False
+            ordered_raw._noop_setters = False
+
+        backend_coms = _make_backend_com_poses(num_instances, num_bodies)
+        _seed_root_writer_backend_com(backend, identity_art, identity_raw, backend_coms)
+        _seed_root_writer_backend_com(backend, ordered_art, ordered_raw, backend_coms)
+
+        root_com_pose = np.asarray(
+            [[4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0], [14.0, 15.0, 16.0, 0.0, 0.0, 0.0, 1.0]],
+            dtype=np.float32,
+        )
+        root_link_velocity = np.asarray(
+            [[1.0, 2.0, 3.0, 0.4, 0.5, 0.6], [11.0, 12.0, 13.0, 1.4, 1.5, 1.6]],
+            dtype=np.float32,
+        )
+        _write_root_writer_command(identity_art, selection, operation, root_com_pose, root_link_velocity)
+        _write_root_writer_command(ordered_art, selection, operation, root_com_pose, root_link_velocity)
+
+        identity_root_link_pose, identity_root_com_velocity = _read_backend_root_state(
+            backend, identity_art, identity_raw
+        )
+        ordered_root_link_pose, ordered_root_com_velocity = _read_backend_root_state(backend, ordered_art, ordered_raw)
+        if operation == "com_pose":
+            np.testing.assert_allclose(ordered_root_link_pose[0], identity_root_link_pose[0], atol=1e-6)
+        else:
+            np.testing.assert_allclose(ordered_root_com_velocity[0], identity_root_com_velocity[0], atol=1e-6)
 
 
 class TestArticulationOrderingWriteParity:

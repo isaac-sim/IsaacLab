@@ -918,7 +918,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data._backend_body_com_pose_b,
                 env_ids,
                 full_data,
             ],
@@ -1182,7 +1182,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data._backend_body_com_pose_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,

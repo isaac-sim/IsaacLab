@@ -798,7 +798,7 @@ class Articulation(BaseArticulation):
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_index,
             dim=env_ids.shape[0],
-            inputs=[root_pose, self.data.body_com_pose_b, env_ids],
+            inputs=[root_pose, self.data._backend_body_com_pose_b, env_ids],
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
@@ -838,7 +838,7 @@ class Articulation(BaseArticulation):
         wp.launch(
             shared_kernels.set_root_com_pose_to_sim_mask,
             dim=self._num_instances,
-            inputs=[root_pose, self.data.body_com_pose_b, env_mask_wp],
+            inputs=[root_pose, self.data._backend_body_com_pose_b, env_mask_wp],
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
@@ -1029,7 +1029,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data._backend_body_com_pose_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 self._num_bodies,
@@ -1079,7 +1079,7 @@ class Articulation(BaseArticulation):
             dim=self._num_instances,
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data._backend_body_com_pose_b,
                 self.data.root_link_pose_w,
                 env_mask_wp,
                 self._num_bodies,

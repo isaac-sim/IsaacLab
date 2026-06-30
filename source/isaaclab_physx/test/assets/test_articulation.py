@@ -445,6 +445,73 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
 
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
+def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
+    """Keep floating-base root writes invariant when public body order moves the root."""
+    floating_spawn = FRANKA_PANDA_CFG.spawn.replace(
+        articulation_props=FRANKA_PANDA_CFG.spawn.articulation_props.replace(fix_root_link=False)
+    )
+    identity = Articulation(
+        FRANKA_PANDA_CFG.replace(
+            prim_path="/World/IdentityRobot",
+            spawn=floating_spawn,
+            body_ordering=None,
+        )
+    )
+    ordered = Articulation(
+        FRANKA_PANDA_CFG.replace(
+            prim_path="/World/OrderedRobot",
+            spawn=floating_spawn,
+            body_ordering=tuple(reversed(_PANDA_BODY_NAMES)),
+        )
+    )
+
+    sim.reset()
+    assert identity.is_initialized and ordered.is_initialized
+    assert not identity.is_fixed_base and not ordered.is_fixed_base
+    assert identity.body_ordering is None
+    assert ordered.body_ordering is not None and not ordered.body_ordering.is_identity
+    assert ordered.body_ordering.backend_to_user_indices[0] != 0
+
+    backend_coms = torch.zeros((1, len(_PANDA_BODY_NAMES), 7), device=device)
+    body_index = torch.arange(len(_PANDA_BODY_NAMES), device=device, dtype=torch.float32)
+    backend_coms[0, :, 0] = 0.05 + 0.01 * body_index
+    backend_coms[0, :, 1] = -0.03 - 0.02 * body_index
+    backend_coms[0, :, 2] = 0.02 + 0.03 * body_index
+    backend_coms[..., 6] = 1.0
+    identity.set_coms_index(
+        coms=wp.from_torch(backend_coms.contiguous(), dtype=wp.transformf),
+        full_data=True,
+    )
+    ordered_user_to_backend = list(ordered.body_ordering.user_to_backend_indices)
+    ordered.set_coms_index(
+        coms=wp.from_torch(backend_coms[:, ordered_user_to_backend].contiguous(), dtype=wp.transformf),
+        full_data=True,
+    )
+    torch.testing.assert_close(_to_device_tensor(identity.root_view.get_coms(), device), backend_coms)
+    torch.testing.assert_close(_to_device_tensor(ordered.root_view.get_coms(), device), backend_coms)
+
+    root_com_pose = torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], device=device)
+    root_link_velocity = torch.tensor([[0.4, -0.3, 0.2, 1.1, -0.7, 0.9]], device=device)
+    for articulation in (identity, ordered):
+        articulation.write_root_com_pose_to_sim_index(root_pose=root_com_pose)
+        articulation.write_root_link_velocity_to_sim_index(root_velocity=root_link_velocity)
+
+    torch.testing.assert_close(
+        _to_device_tensor(ordered.root_view.get_root_transforms(), device),
+        _to_device_tensor(identity.root_view.get_root_transforms(), device),
+    )
+    torch.testing.assert_close(
+        _to_device_tensor(ordered.root_view.get_root_velocities(), device),
+        _to_device_tensor(identity.root_view.get_root_velocities(), device),
+    )
+    torch.testing.assert_close(ordered.data.root_com_vel_w.torch, identity.data.root_com_vel_w.torch)
+    for articulation in (identity, ordered):
+        torch.testing.assert_close(articulation.data.root_com_pose_w.torch, root_com_pose)
+        torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
 def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_enabled):
     """Resolve concrete breadth-first PhysX and depth-first MJWarp name orders."""
     fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
