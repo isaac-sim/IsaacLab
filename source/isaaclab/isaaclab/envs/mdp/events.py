@@ -207,6 +207,7 @@ class _RandomizeRigidBodyMaterialPhysx:
             for link_path in asset.root_view.link_paths[0]:
                 link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
+            # ``body_ids`` are public IDs; convert once before deriving backend-ordered shape ranges.
             self._backend_body_ids = _map_articulation_body_ids_to_backend(asset, asset_cfg.body_ids)
             # ensure the parsing is correct
             num_shapes = sum(self.num_shapes_per_body)
@@ -298,8 +299,8 @@ class _RandomizeRigidBodyMaterialNewton:
 
         # compute shape indices for body-specific randomization
         if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
-            # Shape bindings are backend-ordered while the public count list
-            # follows the configured body order.
+            # ``body_ids`` and the count list use public order, while shape bindings use backend order.
+            # Restore backend counts first, then convert the selected IDs exactly once.
             num_shapes_per_body = asset.num_shapes_per_body
             if asset.body_ordering is not None and not asset.body_ordering.is_identity:
                 num_shapes_per_body = [
@@ -361,6 +362,9 @@ class randomize_rigid_body_material(ManagerTermBase):
 
     This function creates a set of physics materials with random static friction, dynamic friction, and restitution
     values and assigns them to the geometries of the asset.
+
+    For articulations, :attr:`SceneEntityCfg.body_ids` selects bodies in public articulation order. The backend
+    implementations convert those IDs to backend shape ranges; callers must not pre-swizzle body IDs.
 
     Automatically detects the active physics backend (PhysX or Newton) and delegates to
     the appropriate backend-specific implementation:

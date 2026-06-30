@@ -127,10 +127,10 @@ def deterministic_material_sampling(monkeypatch):
         pytest.param(None, slice(1, 3), id="default-ordering"),
     ],
 )
-def test_physx_material_randomization_maps_public_body_ids_to_backend(
+def test_physx_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
-    """PhysX body selections index backend-ordered per-body shape counts."""
+    """PhysX automatically converts public body selections to backend shape ranges."""
     import isaaclab.assets as assets_module
 
     monkeypatch.setattr(assets_module, "BaseArticulation", _FakePhysxArticulation)
@@ -170,10 +170,10 @@ def test_physx_material_randomization_maps_public_body_ids_to_backend(
         pytest.param(None, slice(1, 3), id="default-ordering"),
     ],
 )
-def test_newton_material_randomization_maps_public_body_ids_to_backend(
+def test_newton_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
-    """Newton body selections convert public shape counts to backend shape ranges."""
+    """Newton automatically converts public body selections to backend shape ranges."""
     import isaaclab_newton.assets as newton_assets_module
     import isaaclab_newton.physics.newton_manager as newton_manager_module
 
