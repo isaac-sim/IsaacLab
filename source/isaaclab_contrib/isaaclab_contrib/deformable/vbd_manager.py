@@ -107,11 +107,14 @@ class NewtonVBDManager(NewtonManager):
     def reset(cls, soft: bool = False) -> None:
         """Reset the VBD physics simulation.
 
-        ``soft=True`` snaps bodies back to their rest pose without rebuilding.
-        :attr:`SolverVBD.body_q_prev` must also be restored, since AVBD derives
-        velocity as ``(body_q - body_q_prev) / dt``.
+        For ``soft=True`` snaps every body back to its rest pose without
+        rebuilding, by restoring :attr:`State.body_q` and ``SolverVBD.body_q_prev``
+        from :attr:`Model.body_q` and zeroing :attr:`State.body_qd` and
+        ``SolverVBD.body_inertia_q``. ``body_q_prev`` is load-bearing: AVBD derives
+        velocity as ``(body_q - body_q_prev) / dt``, so without restoring it the
+        snap-back produces large spurious velocities.
 
-        NOTE: This is a temporary workaround, can be patched once Newton supports maximal coordinates in VBD with FK.
+        NOTE: Temporary workaround until Newton supports maximal coordinates in VBD with FK.
 
         Args:
             soft: If True, snap state in place; otherwise reinitialize fully.

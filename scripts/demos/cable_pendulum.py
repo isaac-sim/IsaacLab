@@ -33,15 +33,15 @@ simulation_app = app_launcher.app
 import math
 import random
 
-import tqdm
 import torch
-from isaaclab.utils.math import quat_from_angle_axis
+import tqdm
 from isaaclab_newton.sim.spawners.materials import NewtonCableMaterialCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.utils.math import quat_from_angle_axis
 
 from isaaclab_contrib.cable import CableAttachmentCfg, CableObject, CableObjectCfg
 
@@ -98,7 +98,7 @@ def design_scene(num_cables: int) -> dict[str, "CableObject | RigidObject"]:
             ),
             init_state=RigidObjectCfg.InitialStateCfg(
                 pos=(cx, cy, cz),
-                rot=quat_from_angle_axis(torch.tensor(torch.pi/2), torch.tensor([0.0, 1.0, 0.0])),
+                rot=quat_from_angle_axis(torch.tensor(torch.pi / 2), torch.tensor([0.0, 1.0, 0.0])),
             ),
         )
         entities[f"Plug{idx:03d}"] = RigidObject(cfg=plug_cfg)

@@ -654,8 +654,8 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
         )
     )
 
-    # 0.48 m cable across 0.30 m plug separation, so the joint pulls into a catenary.
-    num_points = 25
+    # 0.36 m cable across 0.30 m plug separation: modest slack drapes into a shallow catenary.
+    num_points = 18
     seg_len = 0.02
     cable = CableObject(
         cfg=CableObjectCfg(
@@ -703,9 +703,15 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
     pa = body_q[pa_body_idx, 0:3]
     pb = body_q[pb_body_idx, 0:3]
 
-    num_edges = num_points - 1
-    mid_edge_body_idx = head_body_idx + num_edges // 2
-    mid = body_q[mid_edge_body_idx, 0:3]
+    # With 0.06 m of slack the cable drapes into a symmetric shallow catenary whose
+    # lowest body is the geometric (index) midpoint. Measure sag there, honestly.
+    seg_indices = cable._registry_entry.segment_body_indices[0]
+    cable_z = body_q[seg_indices, 2]
+    mid_local = len(seg_indices) // 2
+    mid_body_idx = seg_indices[mid_local]
+    mid = body_q[mid_body_idx, 0:3]
+    deepest_local = int(cable_z.argmin())
+    deepest = body_q[seg_indices[deepest_local], 0:3]
 
     head_err = ((head_pos[0] - pa[0]) ** 2 + (head_pos[1] - pa[1]) ** 2 + (head_pos[2] - pa[2]) ** 2) ** 0.5
     tail_err = ((tail_pos[0] - pb[0]) ** 2 + (tail_pos[1] - pb[1]) ** 2 + (tail_pos[2] - pb[2]) ** 2) ** 0.5
@@ -713,12 +719,21 @@ def test_cable_with_head_and_tail_attachments_forms_catenary():
     # 1.5 cm endpoint tolerance: the soft 1e3 N/m stretch stiffness allows visible stretching.
     assert head_err < 1.5e-2, f"head not at plug A: head_pos {head_pos}, plug_a {pa}, err {head_err}"
     assert tail_err < 1.5e-2, f"tail not at plug B: tail_pos {tail_pos}, plug_b {pb}, err {tail_err}"
-    # Soft stretch (1e3 N/m) gives ~2-3 cm sag (vs analytical catenary depth); band catches "no sag" regression.
+    # Sag measured at the index midpoint, where a true catenary bottoms out (~5 cm here).
     sag = min(pa[2], pb[2]) - mid[2]
-    assert 0.015 < sag < 0.20, f"middle did not sag in expected range: mid {mid}, plugA {pa}, plugB {pb}, sag {sag}"
-    midpoint_x = 0.5 * (pa[0] + pb[0])
-    assert abs(mid[0] - midpoint_x) < 0.15, (
-        f"catenary middle not roughly centered: mid_x {mid[0]}, expected ~{midpoint_x}"
+    assert 0.015 < sag < 0.20, f"cable did not sag in expected range: mid {mid}, plugA {pa}, plugB {pb}, sag {sag}"
+    # No body may rise above the line between the pinned endpoints (rules out buckling/piling).
+    z_line = min(pa[2], pb[2])
+    assert cable_z.max() <= z_line + 1e-3, (
+        f"a cable body rose above the endpoint line: max_z {cable_z.max()}, line {z_line}"
+    )
+    # The lowest body must sit strictly inside the plug span, centered (rules out a fold past a plug).
+    lo_x, hi_x = sorted((pa[0], pb[0]))
+    assert lo_x < deepest[0] < hi_x, (
+        f"cable deepest point not within plug span: deepest_x {deepest[0]}, span [{lo_x}, {hi_x}]"
+    )
+    assert abs(deepest[0] - 0.5 * (lo_x + hi_x)) < 0.1, (
+        f"cable deepest point not centered: deepest_x {deepest[0]}, center {0.5 * (lo_x + hi_x)}"
     )
 
     type(sim).clear_instance()

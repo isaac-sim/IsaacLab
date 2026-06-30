@@ -109,8 +109,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, CableObj
     while simulation_app.is_running():
         if count % reset_steps == 0:
             count = 0
-            for cable in entities.values():
-                cable.reset()
+            sim.reset(soft=True)
             print("[INFO]: Resetting cable state...")
         sim.step()
         count += 1

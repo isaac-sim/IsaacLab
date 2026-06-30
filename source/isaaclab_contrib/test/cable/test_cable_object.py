@@ -88,7 +88,12 @@ class _FakeBuilder:
 
     def add_rod_graph(self, **kwargs):
         self.calls.append(kwargs)
-        self.body_count += len(kwargs.get("edges", []))
+        num_edges = len(kwargs.get("edges", []))
+        # Mirror Newton's add_rod_graph: one capsule body per edge, in order,
+        # returning ``(body_indices, joint_indices)``.
+        body_indices = list(range(self.body_count, self.body_count + num_edges))
+        self.body_count += num_edges
+        return body_indices, list(body_indices)
 
 
 @pytest.mark.parametrize(
@@ -164,7 +169,9 @@ def test_add_cable_entry_populates_body_offsets_and_last_edge_length():
             self.body_count = 0
 
         def add_rod_graph(self, *, edges, **_kwargs):
+            body_indices = list(range(self.body_count, self.body_count + len(edges)))
             self.body_count += len(edges)
+            return body_indices, list(body_indices)
 
     entry = CableRegistryEntry(
         prim_path="/World/Cable",
@@ -273,17 +280,18 @@ def test_cable_replicate_body_count():
 
 
 def test_forward_preserves_cable_body_q():
-    """Regression test for the eval_fk cable patch (commit fd115a500f6).
+    """Regression test for the eval_fk cable patch.
 
     Newton's ``eval_fk`` has no case for :attr:`newton.JointType.CABLE`, so
     without the patch any FK pass would collapse cable rod segments onto their
-    parent anchors. :meth:`NewtonVBDManager.forward` builds an articulation
-    mask in :meth:`start_simulation` that excludes cable articulations.
+    parent anchors. :meth:`NewtonVBDManager.forward` builds :attr:`NewtonVBDManager._fk_mask`
+    (via :meth:`NewtonVBDManager._build_fk_mask`) that excludes articulations
+    with CABLE or FREE joints, so ``eval_fk`` skips them and ``body_q`` is left
+    untouched for cable bodies.
 
-    To verify the test fails without the fix, force the mask to ``None`` after
-    ``start_simulation`` and observe that the new defensive check in
-    :meth:`forward` raises ``RuntimeError``; previously, the unmasked
-    ``eval_fk`` call would silently mutate ``body_q``.
+    Without the mask, ``JointType.CABLE`` relative transforms fall through to
+    identity, snapping each rod segment onto its parent anchor and mutating
+    ``body_q``.
     """
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (0.2, 0.0, 0.0)],
@@ -303,21 +311,21 @@ def test_forward_preserves_cable_body_q():
     with build_simulation_context(device="cuda:0", sim_cfg=newton_sim_cfg, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         InteractiveScene(_SceneCfg())
-        sim.reset()  # triggers replicate + start_simulation + _build_non_cable_articulation_mask
-
-        # The mask must have been built since cables are registered.
-        assert NewtonVBDManager._non_cable_articulation_mask is not None, (
-            "Expected _non_cable_articulation_mask to be built when cables are registered."
-        )
+        sim.reset()  # triggers replicate + start_simulation
 
         body_q_before = NewtonVBDManager._state_0.body_q.numpy().copy()
 
-        # forward() is what Kit-style visualizers invoke each render. With the
-        # patch, cable articulations are excluded from the FK pass and body_q
-        # is bit-identical. Without the patch, JointType.CABLE relative
-        # transforms fall through to identity, snapping each rod segment onto
-        # its parent anchor.
+        # forward() is what Kit-style visualizers invoke each render. It lazily
+        # builds _fk_mask, then runs eval_fk with cable/free articulations
+        # excluded so body_q is bit-identical for cable bodies. Without the
+        # mask, JointType.CABLE relative transforms fall through to identity,
+        # snapping each rod segment onto its parent anchor.
         NewtonVBDManager.forward()
+
+        # The mask must have been built since cables are registered.
+        assert NewtonVBDManager._fk_mask is not None, (
+            "Expected _fk_mask to be built when cable articulations are registered."
+        )
 
         body_q_after = NewtonVBDManager._state_0.body_q.numpy()
         np.testing.assert_array_equal(
@@ -392,10 +400,10 @@ def test_start_simulation_preserves_curved_cable_body_q():
 
 
 def test_cable_object_reset_restores_body_state():
-    """``CableObject.reset()`` snaps the cable's body slice back to the rest pose.
+    """``NewtonVBDManager.reset(soft=True)`` snaps the cable bodies back to the rest pose.
 
-    Steps the sim to drift the cable away from its spawn pose, calls
-    :meth:`CableObject.reset`, and verifies that:
+    Steps the sim to drift the cable away from its spawn pose, calls the manager
+    soft reset, and verifies that:
 
     1. ``state.body_q`` matches ``model.body_q`` for the cable's bodies.
     2. ``state.body_qd`` is zero for the cable's bodies.
@@ -444,7 +452,7 @@ def test_cable_object_reset_restores_body_state():
             "Sim did not advance: cable body_q matches model.body_q without stepping."
         )
 
-        cable.reset()
+        NewtonVBDManager.reset(soft=True)
 
         body_q_after = NewtonVBDManager._state_0.body_q.numpy()[body_indices]
         body_qd_after = NewtonVBDManager._state_0.body_qd.numpy()[body_indices]
@@ -454,22 +462,22 @@ def test_cable_object_reset_restores_body_state():
         np.testing.assert_allclose(
             body_q_after,
             body_q_model,
-            err_msg="state.body_q was not restored to model.body_q after CableObject.reset().",
+            err_msg="state.body_q was not restored to model.body_q after NewtonVBDManager.reset(soft=True).",
         )
         np.testing.assert_array_equal(
             body_qd_after,
             np.zeros_like(body_qd_after),
-            err_msg="state.body_qd was not zeroed after CableObject.reset().",
+            err_msg="state.body_qd was not zeroed after NewtonVBDManager.reset(soft=True).",
         )
         np.testing.assert_allclose(
             body_q_prev_after,
             body_q_model,
-            err_msg="solver.body_q_prev was not refreshed to model.body_q after CableObject.reset().",
+            err_msg="solver.body_q_prev was not refreshed to model.body_q after NewtonVBDManager.reset(soft=True).",
         )
         np.testing.assert_array_equal(
             body_inertia_q_after,
             np.zeros_like(body_inertia_q_after),
-            err_msg="solver.body_inertia_q was not zeroed after CableObject.reset().",
+            err_msg="solver.body_inertia_q was not zeroed after NewtonVBDManager.reset(soft=True).",
         )
 
         # One step of free-fall should add at most ~g*dt = ~0.1 m/s. A failure
@@ -479,28 +487,23 @@ def test_cable_object_reset_restores_body_state():
         assert max_speed < 1.0, f"body_qd exploded after first post-reset step: |body_qd|_max={max_speed}"
 
 
-def test_cable_object_reset_partial_envs_and_body_q_prev():
-    """``CableObject.reset(env_ids=...)`` restores only the requested envs and
+def test_soft_reset_restores_all_envs_body_q_prev():
+    """``NewtonVBDManager.reset(soft=True)`` restores every env's cable bodies and
     refreshes ``solver.body_q_prev`` (not just ``state.body_q``).
 
     Sets up 4 envs, then writes a known non-rest perturbation into
     ``state.body_q`` *and* ``solver.body_q_prev`` for every cable body across
-    all envs. Calls ``reset(env_ids=[0, 2])`` and asserts:
+    all envs, soft-resets, and asserts both buffers are restored bit-for-bit to
+    ``model.body_q`` for all envs.
 
-    - Envs 0 and 2: both buffers restored bit-for-bit to ``model.body_q``.
-    - Envs 1 and 3: both buffers retain the perturbed values.
-
-    This catches three regressions the existing
+    Catches two regressions the single-env
     :func:`test_cable_object_reset_restores_body_state` would miss:
 
-    1. Off-by-one indexing into ``body_offsets`` when ``env_ids`` selects a
-       subset of envs — exercising only ``num_envs=1`` cannot detect this.
-    2. A reset that ignores ``env_ids`` and snaps all envs — exposed by the
-       envs 1/3 retention assertions.
-    3. Dropping the ``wp.copy(dest=solver.body_q_prev, ...)`` line — exposed
-       by tight equality against a known perturbation, with no dependency on
-       sim drift dynamics. Verified by commenting out that line and observing
-       the envs 0/2 ``body_q_prev`` assertion fail.
+    1. Mis-indexing across the multi-env body layout — exercising only
+       ``num_envs=1`` cannot detect this.
+    2. Dropping the ``wp.copy(solver.body_q_prev, ...)`` line — exposed by tight
+       equality against a known perturbation, with no dependency on sim drift
+       dynamics.
     """
     cable_spawn = sim_utils.CableCfg(
         positions=[(0.0, 0.0, 0.0), (0.05, 0.0, 0.0), (0.1, 0.0, 0.0)],
@@ -544,37 +547,24 @@ def test_cable_object_reset_partial_envs_and_body_q_prev():
         wp.copy(dest=state.body_q, src=perturbed_src)
         wp.copy(dest=solver.body_q_prev, src=perturbed_src)
 
-        cable.reset(env_ids=[0, 2])
+        NewtonVBDManager.reset(soft=True)
 
         body_q_after = state.body_q.numpy()
         body_q_prev_after = solver.body_q_prev.numpy()
         body_q_model = NewtonVBDManager._model.body_q.numpy()
 
-        for env_idx in (0, 2):
+        for env_idx in range(4):
             slc = list(range(body_offsets[env_idx], body_offsets[env_idx] + n))
             np.testing.assert_array_equal(
                 body_q_after[slc],
                 body_q_model[slc],
-                err_msg=f"env {env_idx}: state.body_q not restored to model.body_q after reset.",
+                err_msg=f"env {env_idx}: state.body_q not restored to model.body_q after soft reset.",
             )
             np.testing.assert_array_equal(
                 body_q_prev_after[slc],
                 body_q_model[slc],
                 err_msg=(
-                    f"env {env_idx}: solver.body_q_prev not restored after reset."
+                    f"env {env_idx}: solver.body_q_prev not restored after soft reset."
                     " AVBD implicit velocity (body_q - body_q_prev)/dt blows up on the next step."
                 ),
-            )
-
-        for env_idx in (1, 3):
-            slc = list(range(body_offsets[env_idx], body_offsets[env_idx] + n))
-            np.testing.assert_array_equal(
-                body_q_after[slc],
-                perturbed_q[slc],
-                err_msg=f"env {env_idx}: state.body_q reset despite env not being in env_ids.",
-            )
-            np.testing.assert_array_equal(
-                body_q_prev_after[slc],
-                perturbed_q[slc],
-                err_msg=f"env {env_idx}: solver.body_q_prev reset despite env not being in env_ids.",
             )
