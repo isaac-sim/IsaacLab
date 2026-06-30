@@ -24,8 +24,6 @@ from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab_contrib.cable.cable_object import install_cable_builder_hooks
 
 from .deformable_object import (
-    add_deformable_entry_to_builder,
-    clear_deformable_builder_hooks,
     install_deformable_builder_hooks,
     setup_registered_deformable_fabric_sync,
 )
