@@ -13,9 +13,8 @@ scripts rather than as a repo-root ``conftest.py`` so it only affects the lane.
 Signal: ``ISAACLAB_TEST_DEVICES`` -- the runtime device mask. This is the SAME
 env var ``isaaclab.test.utils.devices.test_devices()`` reads to decide a test's
 device parametrization, so this plugin's keep/drop decision agrees with what was
-parametrized. (``ISAACLAB_TEST_SIM_DEVICE`` is passed explicitly to AppLauncher
-by Kit-backed tests, a different concern, and is deliberately NOT used here.) The
-plugin reads the mask string directly -- no isaaclab import -- matching the
+parametrized. Kit-backed tests derive their AppLauncher device from the same mask.
+The plugin reads the mask string directly -- no isaaclab import -- matching the
 lib-free convention of every other conftest in the repo. The only shared knowledge
 is the mask grammar below, mirrored from ``devices.py`` (position 0 = cpu,
 position k = cuda:(k-1), trailing ``X`` = include all remaining); keep the two in sync.

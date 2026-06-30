@@ -124,7 +124,7 @@ jobs:
           # Used for files with known Kit/Isaac-Sim concurrency issues; the file
           # still runs in single-GPU CI. Excluded files are reported as a notice
           # below for visibility. No workflow edit needed to add/remove a file.
-          device_scope_pattern='test_devices\(\)|test_devices\(DeviceScope\.(ALL|CUDA|NON_DEFAULT_CUDA)|test_devices\("[^"]*X"\)'
+          device_scope_pattern='test_devices\(\)|test_devices\([^)]*DeviceScope\.(ALL|CUDA|NON_DEFAULT_CUDA)|test_devices\("[^"]*X"\)'
           mapfile -t candidates < <(grep -rlE "$device_scope_pattern" source/ --include='test_*.py' | sort -u)
           discovered=()
           skipped=()

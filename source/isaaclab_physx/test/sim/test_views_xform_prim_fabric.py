@@ -10,15 +10,15 @@ Imports the shared contract tests and provides the Fabric-specific
 Camera prim type for Fabric SelectPrims compatibility).
 """
 
-import os
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 
-simulation_app = AppLauncher(headless=True, device=os.environ.get("ISAACLAB_TEST_SIM_DEVICE", "cuda:0")).app
+simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -30,7 +30,6 @@ from isaaclab_physx.sim.views import FabricFrameView as FrameView  # noqa: E402
 from pxr import Gf, UsdGeom  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 
 pytestmark = pytest.mark.isaacsim_ci
 PARENT_POS = (0.0, 0.0, 1.0)

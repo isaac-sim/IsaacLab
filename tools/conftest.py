@@ -18,6 +18,8 @@ import tomllib
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
+from isaaclab.test.utils import resolve_test_sim_device
+
 # Local imports
 import test_settings as test_settings  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
@@ -354,7 +356,7 @@ def _claim_queued_file(queue_dir):
         The decoded test path for the claimed file, or ``None`` when the
         queue is empty.
     """
-    shard = os.environ.get("ISAACLAB_TEST_SIM_DEVICE", "cuda").replace(":", "-")
+    shard = resolve_test_sim_device().replace(":", "-")
     pending_dir = os.path.join(queue_dir, "queue")
     inflight_dir = os.path.join(queue_dir, "inflight", shard)
     os.makedirs(inflight_dir, exist_ok=True)
@@ -391,7 +393,7 @@ def _mark_queued_file_done(queue_dir, test_path):
     The inflight residual is what the post-run reconciler uses to detect
     crashed shards: anything still in ``inflight/`` at job-end is an orphan.
     """
-    shard = os.environ.get("ISAACLAB_TEST_SIM_DEVICE", "cuda").replace(":", "-")
+    shard = resolve_test_sim_device().replace(":", "-")
     entry = _slugify_test_path(test_path)
     src = os.path.join(queue_dir, "inflight", shard, entry)
     dst_dir = os.path.join(queue_dir, "done", shard)
@@ -1251,8 +1253,9 @@ def pytest_sessionstart(session):
     summary_str += f"Total Wall Time: {total_wall // 3600:.0f}h{total_wall // 60 % 60:.0f}m{total_wall % 60:.2f}s\n"
     summary_str += f"Total Test Time: {total_test // 3600:.0f}h{total_test // 60 % 60:.0f}m{total_test % 60:.2f}s"
 
-    # GPU this run used (the shard's boot device); ``cuda:0`` when unset.
-    run_device = os.environ.get("ISAACLAB_TEST_SIM_DEVICE") or "cuda:0"
+    # GPU this run used (the shard's boot device); ``cuda:0`` when the runtime
+    # device mask is unset.
+    run_device = resolve_test_sim_device()
 
     summary_str += "\n\n=======================\n"
     summary_str += "Per File Result Summary\n"

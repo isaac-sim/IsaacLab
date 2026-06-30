@@ -7,9 +7,12 @@
 
 Intended use::
 
-    from isaaclab.test.utils import DeviceScope, test_devices
+    from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 
-    @pytest.mark.parametrize("device", test_devices())        # cpu + cuda:0 + a non-default GPU
+    simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+
+
+    @pytest.mark.parametrize("device", test_devices())  # cpu + cuda:0 + a non-default GPU
     @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
     def test_foo(device): ...
 
@@ -21,8 +24,9 @@ A test runs on ``scope ∩ runtime``:
   is valid on. The author owns this; defaults to :attr:`DeviceScope.ALL`.
 * **runtime** — the ``ISAACLAB_TEST_DEVICES`` env var: the devices the *run*
   may use. The operator / CI owns this; defaults to ``"110"`` (cpu + cuda:0).
-  The multi-GPU workflow sets it to one device per shard, matching
-  ``ISAACLAB_TEST_SIM_DEVICE`` (the explicit AppLauncher boot device — not read here).
+  The multi-GPU workflow sets it to one device per shard. Kit-backed tests use
+  :func:`resolve_test_sim_device` to derive their AppLauncher boot device from
+  the same mask.
 
 A test author never names the shard's GPU; the operator never inspects a
 test's device support. The helper intersects the two.
@@ -44,6 +48,7 @@ Named scope                           Mask       Meaning
 ``DeviceScope.ALL``                   ``11X``    cpu + every GPU
 ``DeviceScope.CUDA``                  ``01X``    every GPU
 ``DeviceScope.CPU_AND_DEFAULT_CUDA``  ``110``    cpu + cuda:0
+``DeviceScope.DEFAULT_CUDA``          ``010``    cuda:0 only
 ``DeviceScope.NON_DEFAULT_CUDA``      ``00X``    cuda:1 and above
 ``DeviceScope.CPU``                   ``100``    cpu only
 ====================================  =========  =============================================
@@ -70,14 +75,13 @@ Local runs
 ----------
 Set the runtime from the shell to opt a run into non-default GPUs::
 
-    ISAACLAB_TEST_DEVICES=0001 ISAACLAB_TEST_SIM_DEVICE=cuda:2 \\
-        ./isaaclab.sh -p -m pytest path/to/test.py
+    ISAACLAB_TEST_DEVICES=0001 ./isaaclab.sh -p -m pytest path/to/test.py
 """
 
 from __future__ import annotations
 
 import os
-from enum import StrEnum
+from enum import Flag, auto
 
 _RUNTIME_DEVICES_ENV_VAR = "ISAACLAB_TEST_DEVICES"
 """Env var naming the run's devices: the devices a run may use (see module docstring)."""
@@ -87,18 +91,71 @@ _DEFAULT_RUNTIME = "110"
 i.e. the historical single-GPU device set, so non-default GPUs are opt-in per run."""
 
 
-class DeviceScope(StrEnum):
-    """Named device scopes for common test parametrization cases.
+class DeviceScope(Flag):
+    """Composable device scopes for test parametrization.
 
     String masks remain accepted by :func:`test_devices` for custom device
     combinations that are not represented here.
     """
 
-    ALL = "11X"
-    CUDA = "01X"
-    CPU_AND_DEFAULT_CUDA = "110"
-    NON_DEFAULT_CUDA = "00X"
-    CPU = "100"
+    CPU = auto()
+    DEFAULT_CUDA = auto()
+    NON_DEFAULT_CUDA = auto()
+
+    CPU_AND_DEFAULT_CUDA = CPU | DEFAULT_CUDA
+    CUDA = DEFAULT_CUDA | NON_DEFAULT_CUDA
+    ALL = CPU | CUDA
+
+    @property
+    def mask(self) -> str:
+        """Return this scope in the device-mask representation."""
+        return "".join(
+            [
+                "1" if self & DeviceScope.CPU else "0",
+                "1" if self & DeviceScope.DEFAULT_CUDA else "0",
+                "X" if self & DeviceScope.NON_DEFAULT_CUDA else "0",
+            ]
+        )
+
+
+def resolve_test_sim_device() -> str:
+    """Resolve the AppLauncher device from the test runtime device mask.
+
+    This function intentionally parses the mask without enumerating devices so
+    it can run before AppLauncher without importing torch or initializing Warp.
+    A Kit-backed test process can boot on only one GPU, so an explicitly set
+    runtime must select at most one CUDA device. The CPU bit may accompany that
+    GPU because the default single-GPU runtime covers both CPU and CUDA tests.
+
+    Returns:
+        The selected ``"cuda:N"`` device, ``"cpu"`` for a CPU-only runtime,
+        or ``"cuda:0"`` when :data:`_RUNTIME_DEVICES_ENV_VAR` is unset.
+
+    Raises:
+        ValueError: When the runtime mask is invalid, selects no device, uses a
+            wildcard, or selects multiple CUDA devices.
+    """
+    runtime = os.environ.get(_RUNTIME_DEVICES_ENV_VAR)
+    if runtime is None:
+        return "cuda:0"
+    if not runtime or any(char not in "01X" for char in runtime) or "X" in runtime[:-1]:
+        raise ValueError(f"Invalid {_RUNTIME_DEVICES_ENV_VAR} mask: {runtime!r}")
+    if runtime.endswith("X"):
+        raise ValueError(
+            f"{_RUNTIME_DEVICES_ENV_VAR}={runtime!r} is ambiguous for AppLauncher; use a concrete runtime mask"
+        )
+
+    cuda_positions = [position for position, included in enumerate(runtime[1:], start=1) if included == "1"]
+    if len(cuda_positions) > 1:
+        raise ValueError(
+            f"{_RUNTIME_DEVICES_ENV_VAR}={runtime!r} selects multiple CUDA devices; "
+            "Kit-backed tests require one GPU per process"
+        )
+    if cuda_positions:
+        return f"cuda:{cuda_positions[0] - 1}"
+    if runtime[0] == "1":
+        return "cpu"
+    raise ValueError(f"{_RUNTIME_DEVICES_ENV_VAR}={runtime!r} selects no device")
 
 
 def test_devices(scope: str | DeviceScope = DeviceScope.ALL, *, skip: dict[str, str] | None = None) -> list:
@@ -141,7 +198,7 @@ def test_devices(scope: str | DeviceScope = DeviceScope.ALL, *, skip: dict[str, 
         raise ValueError(
             f"{_RUNTIME_DEVICES_ENV_VAR}={requested!r} names no device available on this host (available: {available})"
         )
-    scope_keep = _expand(scope, len(available))
+    scope_keep = _expand(_scope_mask(scope), len(available))
     devices = [
         device for device, in_scope, in_runtime in zip(available, scope_keep, runtime_keep) if in_scope and in_runtime
     ]
@@ -171,6 +228,11 @@ def _expand(mask: str, count: int) -> list[bool]:
     """
     body, fill = (mask[:-1], True) if mask.endswith("X") else (mask, False)
     return ([char == "1" for char in body] + [fill] * count)[:count]
+
+
+def _scope_mask(scope: str | DeviceScope) -> str:
+    """Convert a named device scope to its mask representation."""
+    return scope if isinstance(scope, str) else scope.mask
 
 
 def _list_available_devices() -> list[str]:

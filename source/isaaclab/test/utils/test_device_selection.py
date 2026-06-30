@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for :func:`isaaclab.test.utils.test_devices` (the device-selection helper).
+"""Unit tests for the test-device selection helpers.
 
 These tests mock the host's device list, so they need no GPU and run on the
 single-GPU CI lane. The helper is imported under an alias (``resolve_devices``)
@@ -15,7 +15,7 @@ pytest from collecting it when imported under its public name.
 import pytest
 
 from isaaclab.test.utils import devices as devices_mod
-from isaaclab.test.utils.devices import DeviceScope
+from isaaclab.test.utils.devices import DeviceScope, resolve_test_sim_device
 from isaaclab.test.utils.devices import test_devices as resolve_devices
 
 # Representative hosts, in mask order (cpu first, then cuda:0, cuda:1, ...).
@@ -89,15 +89,52 @@ def test_argless_runs_once_on_one_non_default_gpu(host):
         (DeviceScope.CPU_AND_DEFAULT_CUDA, "110"),
         (DeviceScope.NON_DEFAULT_CUDA, "00X"),
         (DeviceScope.CPU, "100"),
+        (DeviceScope.DEFAULT_CUDA, "010"),
+        (DeviceScope.CPU | DeviceScope.NON_DEFAULT_CUDA, "10X"),
     ],
 )
 def test_named_scope_matches_mask(host, scope, mask):
     host(MULTI_GPU, "1111")
+    assert scope.mask == mask
     assert resolve_devices(scope) == resolve_devices(mask)
+
+
+def test_named_combination_matches_runtime_composition():
+    assert DeviceScope.CPU_AND_DEFAULT_CUDA == DeviceScope.CPU | DeviceScope.DEFAULT_CUDA
+    assert DeviceScope.CUDA == DeviceScope.DEFAULT_CUDA | DeviceScope.NON_DEFAULT_CUDA
+    assert DeviceScope.ALL == DeviceScope.CPU | DeviceScope.DEFAULT_CUDA | DeviceScope.NON_DEFAULT_CUDA
 
 
 def test_helper_is_not_collected_by_pytest():
     assert resolve_devices.__test__ is False
+
+
+# ---------------------------------------------------------------------------
+# AppLauncher device resolution from the runtime mask
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "runtime, expected",
+    [
+        (None, "cuda:0"),
+        ("110", "cuda:0"),
+        ("100", "cpu"),
+        ("001", "cuda:1"),
+        ("0001", "cuda:2"),
+        ("101", "cuda:1"),
+    ],
+)
+def test_resolve_test_sim_device(host, runtime, expected):
+    host(MULTI_GPU, runtime)
+    assert resolve_test_sim_device() == expected
+
+
+@pytest.mark.parametrize("runtime", ["", "000", "011", "01X", "0X1", "0A1"])
+def test_resolve_test_sim_device_rejects_invalid_or_ambiguous_runtime(host, runtime):
+    host(MULTI_GPU, runtime)
+    with pytest.raises(ValueError, match="ISAACLAB_TEST_DEVICES"):
+        resolve_test_sim_device()
 
 
 # ---------------------------------------------------------------------------

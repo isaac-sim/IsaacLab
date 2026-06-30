@@ -12,8 +12,8 @@
 # and GITHUB_ENV (exports MGPU_RUNTIME_DIR for the downstream summary step).
 #
 # 1-docker N-shard rationale: ONE container hosts all shards (each pinned to its
-# own non-default cuda:N via ISAACLAB_TEST_SIM_DEVICE / ISAACLAB_TEST_DEVICES,
-# pulling from the shared queue). Collapsing the previous N-container layout into one
+# own non-default cuda:N via ISAACLAB_TEST_DEVICES, pulling from the shared
+# queue). Collapsing the previous N-container layout into one
 # removes cross-container races on the workspace mount (``_isaac_sim`` symlink,
 # ``/mgpu`` queue, ``/dev/dri`` cap-add) and ~30s of docker init per shard, at
 # the cost of sharing /isaac-sim writable subtrees; per-shard HOME (under /tmp,
