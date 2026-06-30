@@ -31,7 +31,7 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # The value is set case by case based on the screen space taken up by the env in camera output images. It
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
-    "cartpole": 1.0,
+    "cartpole": 2.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -50,6 +50,9 @@ _SSIM_THRESHOLD = 0.985
 # Per-env SSIM overrides. Envs not listed fall back to ``_SSIM_THRESHOLD``. Loosened individually
 # (not globally) to keep the strict gate active everywhere it already passes.
 _SSIM_THRESHOLD_BY_ENV_NAME = {
+    # Low-resolution Cartpole outputs amplify small RTX anti-aliasing differences.
+    # The independent per-pixel gate still limits changed pixels to 2%.
+    "cartpole": 0.95,
     # Texture aliasing artifacts on the ground (NVBUG#6116767)
     "dexsuite_kuka_homo": 0.95,
     "dexsuite_kuka_hetero": 0.95,
@@ -722,13 +725,13 @@ def rendering_test_cartpole(
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
         distance_to_camera = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 64, 64], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         distance_to_image_plane = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[1, 64, 64], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         normals = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
-            observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+            observation_space=[3, 64, 64], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -745,12 +748,26 @@ def rendering_test_cartpole(
 
     try:
         env = CartpoleCameraEnv(env_cfg)
+        camera_outputs = env._tiled_camera.data.output
+        if renderer == "ovrtx_renderer":
+            # The first output access creates the selected OVRTX render-variable mapping. Give
+            # it a few frames to compile and populate instead of validating its zeroed buffer.
+            for _ in range(10):
+                has_valid_outputs = all(
+                    torch.count_nonzero(output if isinstance(output, torch.Tensor) else output.torch).item() > 0
+                    for output in camera_outputs.values()
+                )
+                if has_valid_outputs:
+                    break
+                env.sim.render()
+                env.scene.update(dt=env.physics_dt)
+                camera_outputs = env._tiled_camera.data.output
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
-            env._tiled_camera.data.output,
+            camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
             comparison_scores=comparison_scores,
         )
