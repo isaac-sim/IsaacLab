@@ -5,8 +5,7 @@
 
 from __future__ import annotations
 
-import inspect
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
 from .ordering import ArticulationOrderingConvention, _coerce_articulation_names, parse_articulation_ordering_convention
@@ -24,7 +23,7 @@ def _backend_matches_ordering_convention(
     if convention is ArticulationOrderingConvention.PHYSX:
         return backend_name in {"physx", "ovphysx"}
     if convention is ArticulationOrderingConvention.MJWARP:
-        return backend_name in {"newton", "mjwarp", "newton_mjwarp"}
+        return backend_name == "newton"
     return False
 
 
@@ -48,54 +47,22 @@ def _validate_ordering_kind(kind: object) -> Literal["joint", "body"]:
     raise ValueError(f"kind must be 'joint' or 'body'; got {kind!r}.")
 
 
-def _get_attr_or_none(obj: object, name: str) -> object | None:
-    """Read an optional attribute without requiring every backend to expose it."""
-    try:
-        return getattr(obj, name)
-    except AttributeError:
-        try:
-            inspect.getattr_static(obj, name)
-        except AttributeError:
-            return None
-        raise
-
-
-def _get_backend_names(articulation: object, kind: Literal["joint", "body"]) -> tuple[str, ...]:
+def _get_backend_names(articulation: BaseArticulation, kind: Literal["joint", "body"]) -> tuple[str, ...]:
     """Return active backend names from an articulation."""
     attr_name = "backend_joint_names" if kind == "joint" else "backend_body_names"
-    names = _coerce_name_sequence(_get_attr_or_none(articulation, attr_name))
+    names = _coerce_name_sequence(getattr(articulation, attr_name))
     if names is None:
-        raise AttributeError(f"Articulation does not expose {attr_name}.")
+        raise TypeError(f"Articulation {attr_name} must be a sequence of strings.")
     return names
 
 
-def _get_precomputed_convention_names(
-    articulation: object,
-    convention: ArticulationOrderingConvention,
-    kind: Literal["joint", "body"],
-) -> tuple[str, ...] | None:
-    """Return cached convention names supplied by a backend, if present."""
-    prefix = convention.value
-    candidate_attrs = (
-        f"_{prefix}_{kind}_names",
-        f"_{prefix}_{kind}_ordering_names",
-        f"{prefix}_{kind}_names",
-        f"{prefix}_{kind}_ordering_names",
-    )
-    for attr_name in candidate_attrs:
-        names = _coerce_name_sequence(_get_attr_or_none(articulation, attr_name))
-        if names is not None:
-            return names
-    return None
-
-
 def _get_cached_convention_names(
-    articulation: object,
+    articulation: BaseArticulation,
     convention: ArticulationOrderingConvention,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...] | None:
     """Return cached convention names for an articulation, if present."""
-    cache = _get_attr_or_none(articulation, "_ordering_convention_name_cache")
+    cache = getattr(articulation, "_ordering_convention_name_cache", None)
     if isinstance(cache, dict):
         names = cache.get((convention, kind))
         return _coerce_name_sequence(names)
@@ -103,12 +70,12 @@ def _get_cached_convention_names(
 
 
 def _cache_convention_names(
-    articulation: object,
+    articulation: BaseArticulation,
     convention: ArticulationOrderingConvention,
     names_by_kind: dict[Literal["joint", "body"], tuple[str, ...]],
 ) -> None:
     """Cache convention names on mutable articulation instances."""
-    cache = _get_attr_or_none(articulation, "_ordering_convention_name_cache")
+    cache = getattr(articulation, "_ordering_convention_name_cache", None)
     if not isinstance(cache, dict):
         cache = {}
     for kind, names in names_by_kind.items():
@@ -140,7 +107,7 @@ def _is_valid_prim(prim: object | None) -> bool:
     """Return whether a prim-like object is present and valid."""
     if prim is None:
         return False
-    is_valid = _get_attr_or_none(prim, "IsValid")
+    is_valid = getattr(prim, "IsValid", None)
     if callable(is_valid):
         return bool(is_valid())
     return True
@@ -150,7 +117,7 @@ def _get_stage_prim_at_path(stage: object | None, path: object) -> object | None
     """Return a stage prim at a path when the stage can resolve it."""
     if stage is None:
         return None
-    get_prim_at_path = _get_attr_or_none(stage, "GetPrimAtPath")
+    get_prim_at_path = getattr(stage, "GetPrimAtPath", None)
     if not callable(get_prim_at_path):
         return None
     try:
@@ -164,14 +131,14 @@ def _get_stage_prim_at_path(stage: object | None, path: object) -> object | None
 
 def _get_prim_authored_string(prim: object, attr_names: Sequence[str]) -> str | None:
     """Return the first non-empty authored string among candidate attributes."""
-    get_attribute = _get_attr_or_none(prim, "GetAttribute")
+    get_attribute = getattr(prim, "GetAttribute", None)
     if not callable(get_attribute):
         return None
     for attr_name in attr_names:
         attr = get_attribute(attr_name)
         if attr is None:
             continue
-        get_value = _get_attr_or_none(attr, "Get")
+        get_value = getattr(attr, "Get", None)
         if not callable(get_value):
             continue
         value = get_value()
@@ -185,7 +152,7 @@ def _get_prim_authored_string(prim: object, attr_names: Sequence[str]) -> str | 
 
 def _get_prim_name(prim: object) -> str:
     """Return a prim-like object's name."""
-    get_name = _get_attr_or_none(prim, "GetName")
+    get_name = getattr(prim, "GetName", None)
     if callable(get_name):
         name = get_name()
         if isinstance(name, str) and name:
@@ -203,13 +170,13 @@ def _get_robot_schema_target_name(prim: object, kind: Literal["joint", "body"]) 
 
 def _get_relationship_targets(prim: object, relationship_name: str) -> tuple[object, ...]:
     """Return relationship targets from a prim-like object."""
-    get_relationship = _get_attr_or_none(prim, "GetRelationship")
+    get_relationship = getattr(prim, "GetRelationship", None)
     if not callable(get_relationship):
         return ()
     relationship = get_relationship(relationship_name)
     if relationship is None:
         return ()
-    get_targets = _get_attr_or_none(relationship, "GetTargets")
+    get_targets = getattr(relationship, "GetTargets", None)
     if not callable(get_targets):
         return ()
     targets = get_targets()
@@ -230,7 +197,7 @@ def _collect_robot_schema_relationship_names(
         return ()
 
     stage = None
-    get_stage = _get_attr_or_none(robot_prim, "GetStage")
+    get_stage = getattr(robot_prim, "GetStage", None)
     if callable(get_stage):
         stage = get_stage()
 
@@ -340,16 +307,13 @@ def _get_complete_convention_names(
 
 
 def _get_complete_convention_names_by_kind(
-    articulation: object,
+    articulation: BaseArticulation,
     names_by_kind: dict[Literal["joint", "body"], tuple[str, ...]],
 ) -> dict[Literal["joint", "body"], tuple[str, ...]]:
     """Return only complete convention-name candidates from a multi-kind provider."""
     complete_names: dict[Literal["joint", "body"], tuple[str, ...]] = {}
     for candidate_kind in ("joint", "body"):
-        attr_name = "backend_joint_names" if candidate_kind == "joint" else "backend_body_names"
-        backend_names = _coerce_name_sequence(_get_attr_or_none(articulation, attr_name))
-        if backend_names is None:
-            continue
+        backend_names = _get_backend_names(articulation, candidate_kind)
         names = _get_complete_convention_names(
             kind=candidate_kind,
             names=names_by_kind.get(candidate_kind),
@@ -360,12 +324,9 @@ def _get_complete_convention_names_by_kind(
     return complete_names
 
 
-def _get_source_asset_prim(articulation: object) -> object | None:
+def _get_source_asset_prim(articulation: BaseArticulation) -> object | None:
     """Return the source asset prim for an articulation config when available."""
-    cfg = _get_attr_or_none(articulation, "cfg")
-    prim_path = _get_attr_or_none(cfg, "prim_path")
-    if prim_path is None:
-        return None
+    prim_path = articulation.cfg.prim_path
     try:
         from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
     except ImportError:
@@ -377,17 +338,16 @@ def _get_source_asset_prim(articulation: object) -> object | None:
     return source_asset_matches[0][0]
 
 
-def _get_robot_schema_candidate_prims(articulation: object) -> tuple[object, ...]:
+def _get_robot_schema_candidate_prims(articulation: BaseArticulation) -> tuple[object, ...]:
     """Return candidate prims that may author robot schema ordering relationships."""
     source_asset_prim = _get_source_asset_prim(articulation)
     if source_asset_prim is None:
         return ()
 
     candidate_prims = [source_asset_prim]
-    cfg = _get_attr_or_none(articulation, "cfg")
-    articulation_root_prim_path = _get_attr_or_none(cfg, "articulation_root_prim_path")
+    articulation_root_prim_path = articulation.cfg.articulation_root_prim_path
     if articulation_root_prim_path is not None:
-        get_stage = _get_attr_or_none(source_asset_prim, "GetStage")
+        get_stage = getattr(source_asset_prim, "GetStage", None)
         stage = get_stage() if callable(get_stage) else None
         root_path = _get_prim_path_string(source_asset_prim) + articulation_root_prim_path
         articulation_root_prim = _get_stage_prim_at_path(stage, root_path)
@@ -397,14 +357,11 @@ def _get_robot_schema_candidate_prims(articulation: object) -> tuple[object, ...
 
 
 def _get_robot_schema_names(
-    articulation: object,
+    articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...] | None:
     """Return complete articulation names from Isaac Sim robot schema relationships."""
-    try:
-        backend_names = _get_backend_names(articulation, kind)
-    except AttributeError:
-        return None
+    backend_names = _get_backend_names(articulation, kind)
 
     for candidate_prim in _get_robot_schema_candidate_prims(articulation):
         relationship_names = _collect_robot_schema_relationship_names(candidate_prim, kind, set())
@@ -415,16 +372,14 @@ def _get_robot_schema_names(
 
 
 def _get_names_from_newton_usd_builder(
-    articulation: object,
+    articulation: BaseArticulation,
     *,
     joint_ordering: Literal["bfs", "dfs"],
     bodies_follow_joint_ordering: bool,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view and return its articulation names."""
-    cfg = _get_attr_or_none(articulation, "cfg")
-    prim_path = _get_attr_or_none(cfg, "prim_path")
-    if prim_path is None:
-        return None
+    cfg = articulation.cfg
+    prim_path = cfg.prim_path
 
     try:
         from newton import JointType, ModelBuilder, solvers  # noqa: PLC0415
@@ -447,7 +402,7 @@ def _get_names_from_newton_usd_builder(
         return None
     source_asset_path = _get_prim_path_string(source_asset_matches[0][0])
 
-    articulation_root_prim_path = _get_attr_or_none(cfg, "articulation_root_prim_path")
+    articulation_root_prim_path = cfg.articulation_root_prim_path
     if articulation_root_prim_path is not None:
         source_articulation_path = source_asset_path + articulation_root_prim_path
     else:
@@ -486,7 +441,7 @@ def _get_names_from_newton_usd_builder(
 
 
 def _get_physx_names_from_newton_usd_builder(
-    articulation: object,
+    articulation: BaseArticulation,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with PhysX-style articulation names."""
     return _get_names_from_newton_usd_builder(
@@ -497,7 +452,7 @@ def _get_physx_names_from_newton_usd_builder(
 
 
 def _get_mjwarp_names_from_newton_usd_builder(
-    articulation: object,
+    articulation: BaseArticulation,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with MJWarp-style articulation names."""
     return _get_names_from_newton_usd_builder(
@@ -505,26 +460,6 @@ def _get_mjwarp_names_from_newton_usd_builder(
         joint_ordering="dfs",
         bodies_follow_joint_ordering=True,
     )
-
-
-def _get_root_view_convention_names(
-    root_view: object,
-    convention: ArticulationOrderingConvention,
-    kind: Literal["joint", "body"],
-) -> tuple[str, ...] | None:
-    """Return convention names from backend-specific root-view metadata."""
-    if convention is ArticulationOrderingConvention.PHYSX:
-        shared_metatype = _get_attr_or_none(root_view, "shared_metatype")
-        if shared_metatype is None:
-            return None
-        attr_name = "dof_names" if kind == "joint" else "link_names"
-        return _coerce_name_sequence(_get_attr_or_none(shared_metatype, attr_name))
-
-    if convention is ArticulationOrderingConvention.MJWARP:
-        attr_name = "joint_dof_names" if kind == "joint" else "link_names"
-        return _coerce_name_sequence(_get_attr_or_none(root_view, attr_name))
-
-    return None
 
 
 def _resolve_articulation_convention_name_ordering(
@@ -535,52 +470,36 @@ def _resolve_articulation_convention_name_ordering(
 ) -> tuple[str, ...]:
     """Resolve a symbolic convention to names for the public articulation axis.
 
-    A convention matching the active backend takes an identity fast path and
-    returns backend names without metadata discovery. Cross-backend resolution
-    checks cached and precomputed names before inspecting backend metadata.
-    Names discovered by robot-schema traversal or a Newton USD build are cached
-    on mutable articulation instances; precomputed and ``root_view`` metadata are
-    read directly.
-
-    PhysX and MJWarp discovery may parse the source USD with a Newton
-    ``ModelBuilder`` and finalize a temporary model on CPU. Robot-schema
-    discovery requires ``isaac:physics:robotJoints`` or
-    ``isaac:physics:robotLinks`` targets that resolve to a complete, unique
-    ordering of the active backend names.
-
-    The returned tuple defines public order only. Any ``root_view`` metadata read
-    here, and all solver-view arrays, remain in backend order. Optional probes
-    treat missing attributes, values that are not name sequences, unavailable
-    imports or stages, and selected lookup failures as absent metadata. Resolution
-    continues through the remaining sources and may end in
-    :class:`NotImplementedError`. Unsupported convention inputs and provider or
-    builder exceptions not explicitly handled as absence propagate to the caller.
+    A convention matching the active backend returns backend names without
+    discovery. Cross-backend resolution uses a validated per-articulation cache,
+    authored robot-schema relationships for robot_schema, or a temporary Newton
+    USD view. PhysX discovery uses breadth-first joint ordering and MJWarp
+    discovery uses depth-first ordering. Builder results are cached only when
+    both joint and body names are complete permutations.
 
     Args:
         articulation: Articulation whose configured source asset is resolved.
-        convention: Convention alias or
-            :class:`ArticulationOrderingConvention` member.
-        kind: Element kind, either ``"joint"`` or ``"body"``.
+        convention: Convention alias or ArticulationOrderingConvention member.
+        kind: Element kind, either joint or body.
 
     Returns:
         Names to expose on the requested public joint or body axis.
 
     Raises:
-        AttributeError: If same-backend names are unavailable, or a provider or
-            builder raises this error outside an optional metadata probe.
-        TypeError: If :paramref:`convention` has an unsupported type, or a
-            provider or builder raises an unhandled type error.
-        ValueError: If :paramref:`kind` is invalid, :paramref:`convention` is an
-            unsupported alias, or a provider or builder rejects the source metadata.
-        NotImplementedError: If all optional sources are absent or incomplete
-            for the requested cross-backend convention.
+        AttributeError: If required articulation contract properties are absent.
+        TypeError: If convention or discovered names are malformed.
+        ValueError: If kind or convention is invalid, or a provider rejects source
+            metadata.
+        NotImplementedError: If no supported source provides a complete ordering.
+            The message identifies the corresponding configuration field and
+            explicit-name fallback.
     """
     kind = _validate_ordering_kind(kind)
     parsed_convention = parse_articulation_ordering_convention(convention)
     if parsed_convention is None:
         return _get_backend_names(articulation, kind)
 
-    active_backend_name = getattr(articulation, "__backend_name__", "unknown")
+    active_backend_name = articulation.__backend_name__
     if _backend_matches_ordering_convention(active_backend_name, parsed_convention):
         return _get_backend_names(articulation, kind)
 
@@ -595,15 +514,6 @@ def _resolve_articulation_convention_name_ordering(
     if cached_names is not None:
         return cached_names
 
-    precomputed_names = _get_precomputed_convention_names(articulation, parsed_convention, kind)
-    precomputed_names = _get_complete_convention_names(
-        kind=kind,
-        names=precomputed_names,
-        backend_names=backend_names,
-    )
-    if precomputed_names is not None:
-        return precomputed_names
-
     if parsed_convention is ArticulationOrderingConvention.ROBOT_SCHEMA:
         robot_schema_names = _get_robot_schema_names(articulation, kind)
         robot_schema_names = _get_complete_convention_names(
@@ -615,22 +525,11 @@ def _resolve_articulation_convention_name_ordering(
             _cache_convention_names(articulation, parsed_convention, {kind: robot_schema_names})
             return robot_schema_names
 
-    root_view = _get_attr_or_none(articulation, "root_view")
-    if root_view is not None:
-        root_view_names = _get_root_view_convention_names(root_view, parsed_convention, kind)
-        root_view_names = _get_complete_convention_names(
-            kind=kind,
-            names=root_view_names,
-            backend_names=backend_names,
-        )
-        if root_view_names is not None:
-            return root_view_names
-
     if parsed_convention is ArticulationOrderingConvention.PHYSX:
         physx_names = _get_physx_names_from_newton_usd_builder(articulation)
         if physx_names is not None:
             complete_physx_names = _get_complete_convention_names_by_kind(articulation, physx_names)
-            if complete_physx_names:
+            if len(complete_physx_names) == 2:
                 _cache_convention_names(articulation, parsed_convention, complete_physx_names)
             if kind in complete_physx_names:
                 return complete_physx_names[kind]
@@ -639,14 +538,17 @@ def _resolve_articulation_convention_name_ordering(
         mjwarp_names = _get_mjwarp_names_from_newton_usd_builder(articulation)
         if mjwarp_names is not None:
             complete_mjwarp_names = _get_complete_convention_names_by_kind(articulation, mjwarp_names)
-            if complete_mjwarp_names:
+            if len(complete_mjwarp_names) == 2:
                 _cache_convention_names(articulation, parsed_convention, complete_mjwarp_names)
             if kind in complete_mjwarp_names:
                 return complete_mjwarp_names[kind]
 
+    config_field = "joint_ordering" if kind == "joint" else "body_ordering"
     raise NotImplementedError(
-        f"Resolving {parsed_convention.value} {kind} ordering from backend '{active_backend_name}' requires "
-        f"{parsed_convention.value} name metadata for this articulation."
+        f"Unable to resolve '{parsed_convention.value}' {kind} ordering for active backend "
+        f"'{active_backend_name}'. Ensure the source USD and required ordering dependencies are available, "
+        f"set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or use None to keep "
+        "active-backend order."
     )
 
 
@@ -654,37 +556,28 @@ def get_physx_articulation_name_ordering(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return names to expose publicly in PhysX or OVPhysX order.
+    """Return names in PhysX or OVPhysX articulation-view order.
 
-    PhysX and OVPhysX articulations use their backend names through the
-    same-backend identity fast path. On another backend, resolution checks
-    cached or precomputed PhysX names and ``root_view.shared_metatype``. If
-    needed, it may construct a temporary CPU Newton ``ModelBuilder`` view with
-    breadth-first joint order. A successful USD build caches both joint and body
-    names, so that cross-backend discovery is one-time per articulation.
+    PhysX and OVPhysX articulations return active-backend names without discovery.
+    Other backends require a source USD readable by the optional Newton and PXR
+    dependencies. The temporary Newton view uses breadth-first joint ordering; a
+    complete joint-and-body result is cached per articulation.
 
-    ``root_view`` metadata and solver-view arrays remain in backend order; this
-    function only returns the name order for the public axis. Missing or malformed
-    optional name attributes and unavailable builder dependencies, stages, or
-    source prims are treated as absent metadata. Resolution may then fall through
-    to :class:`NotImplementedError`. Provider or builder exceptions outside those
-    absence checks propagate.
+    The result defines the public axis only; backend views remain in native order.
 
     Args:
-        articulation: Articulation whose PhysX names should be resolved.
-        kind: Element kind, either ``"joint"`` or ``"body"``.
+        articulation: Articulation whose PhysX names are resolved.
+        kind: Element kind, either joint or body.
 
     Returns:
-        Names in public PhysX or OVPhysX tensor-view order.
+        Names in PhysX or OVPhysX articulation-view order.
 
     Raises:
-        AttributeError: If same-backend names are unavailable, or a provider or
-            builder raises this error outside optional attribute probes.
-        TypeError: If a provider or builder raises an unhandled type error.
-        ValueError: If :paramref:`kind` is invalid, or a provider or builder
-            rejects the source asset.
-        NotImplementedError: If optional PhysX name metadata is absent or
-            incomplete after all fallbacks.
+        TypeError: If backend or discovered names are malformed.
+        ValueError: If kind is invalid or the builder rejects the source asset.
+        NotImplementedError: If the source USD, builder dependencies, or complete
+            name permutation is unavailable. The message identifies the
+            corresponding configuration field and explicit-name fallback.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -697,38 +590,28 @@ def get_mjwarp_articulation_name_ordering(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return names to expose publicly in Newton or MJWarp order.
+    """Return names in Newton or MJWarp articulation-view order.
 
-    Newton, MJWarp, and ``newton_mjwarp`` articulations use their backend names
-    through the same-backend identity fast path. On another backend, resolution
-    checks cached or precomputed names and ``root_view.joint_dof_names`` or
-    ``root_view.link_names``. If needed, it may construct a temporary CPU Newton
-    ``ModelBuilder`` view with depth-first joint order. A successful USD build
-    caches both joint and body names, so that cross-backend discovery is one-time
-    per articulation.
+    Newton articulations return active-backend names without discovery. Other
+    backends require a source USD readable by the optional Newton and PXR
+    dependencies. The temporary Newton view uses depth-first joint ordering; a
+    complete joint-and-body result is cached per articulation.
 
-    ``root_view`` metadata and solver-view arrays remain in backend order; this
-    function only returns the name order for the public axis. Missing or malformed
-    optional name attributes and unavailable builder dependencies, stages, or
-    source prims are treated as absent metadata. Resolution may then fall through
-    to :class:`NotImplementedError`. Provider or builder exceptions outside those
-    absence checks propagate.
+    The result defines the public axis only; backend views remain in native order.
 
     Args:
         articulation: Articulation whose Newton or MJWarp names are resolved.
-        kind: Element kind, either ``"joint"`` or ``"body"``.
+        kind: Element kind, either joint or body.
 
     Returns:
-        Names in public Newton or MJWarp articulation-view order.
+        Names in Newton or MJWarp articulation-view order.
 
     Raises:
-        AttributeError: If same-backend names are unavailable, or a provider or
-            builder raises this error outside optional attribute probes.
-        TypeError: If a provider or builder raises an unhandled type error.
-        ValueError: If :paramref:`kind` is invalid, or a provider or builder
-            rejects the source asset.
-        NotImplementedError: If optional Newton or MJWarp name metadata is absent
-            or incomplete after all fallbacks.
+        TypeError: If backend or discovered names are malformed.
+        ValueError: If kind is invalid or the builder rejects the source asset.
+        NotImplementedError: If the source USD, builder dependencies, or complete
+            name permutation is unavailable. The message identifies the
+            corresponding configuration field and explicit-name fallback.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -741,41 +624,30 @@ def get_robot_schema_articulation_name_ordering(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return names to expose publicly in authored robot-schema order.
+    """Return names in authored robot-schema order.
 
     The source asset prim or configured articulation-root prim must author
-    ``isaac:physics:robotJoints`` for joints or
-    ``isaac:physics:robotLinks`` for bodies. Nested robot targets are expanded,
-    name overrides are honored, unrelated targets are ignored, and the remaining
-    names must form a complete unique ordering of active backend names.
+    robotJoints for joints or robotLinks for bodies. Nested robot targets are
+    expanded, name overrides are honored, unrelated targets are ignored, and the
+    remaining names must be a complete unique permutation of active-backend
+    names. A successful result is cached for the requested element kind.
 
-    No simulation backend is treated as a robot-schema same-backend identity
-    case. The first successful relationship discovery is cached for the requested
-    element kind, making traversal one-time per articulation. This path does not
-    construct a Newton model. ``root_view`` metadata and solver-view arrays remain
-    in backend order.
-
-    Missing relationship APIs or targets, unresolved target prims, and incomplete
-    relationship orders are treated as absent metadata and may fall through to
-    :class:`NotImplementedError`. USD provider exceptions outside those absence
-    checks propagate.
+    The result defines the public axis only; backend views remain in native order.
 
     Args:
         articulation: Articulation whose source USD relationships are resolved.
-        kind: Element kind, either ``"joint"`` or ``"body"``.
+        kind: Element kind, either joint or body.
 
     Returns:
-        Names in public authored robot-schema relationship order.
+        Names in authored robot-schema relationship order.
 
     Raises:
-        AttributeError: If a USD provider raises this error outside optional
-            attribute probes.
-        TypeError: If a USD provider raises this error outside handled target
-            lookups or name-sequence coercion.
-        ValueError: If :paramref:`kind` is invalid, or source-asset resolution
-            or another USD provider rejects the metadata.
-        NotImplementedError: If robot-schema relationship metadata is absent or
-            incomplete after all fallbacks.
+        TypeError: If backend names are not a sequence of strings.
+        ValueError: If kind is invalid or USD resolution rejects the source
+            metadata.
+        NotImplementedError: If the required relationships are unavailable or
+            incomplete. The message identifies the corresponding configuration
+            field and explicit-name fallback.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -791,8 +663,6 @@ def _resolve_articulation_ordering_names(
     ordering: Sequence[str] | str | ArticulationOrderingConvention | None,
     active_backend_name: str,
     articulation: BaseArticulation | None = None,
-    convention_name_resolver: Callable[[ArticulationOrderingConvention, Literal["joint", "body"]], Sequence[str]]
-    | None = None,
 ) -> tuple[str, ...]:
     """Resolve configured public articulation ordering to concrete names.
 
@@ -801,18 +671,15 @@ def _resolve_articulation_ordering_names(
     are type-checked here; complete-permutation validation is performed later by
     :func:`build_articulation_name_map`.
 
-    A cross-backend convention first uses :paramref:`convention_name_resolver`
-    when supplied, otherwise it delegates to
-    :func:`_resolve_articulation_convention_name_ordering`. The articulation path
-    reuses that resolver's per-articulation discovery cache. Joint names are
-    normalized to active-backend spelling when Newton multi-DoF separators
-    differ.
+    Cross-backend conventions delegate to
+    :func:`_resolve_articulation_convention_name_ordering` and reuse its
+    per-articulation discovery cache. Joint names are normalized to active-backend
+    spelling when Newton multi-DoF separators differ.
 
-    The returned tuple defines public order. :paramref:`backend_names`,
-    ``root_view`` metadata, and solver-view arrays remain in backend order.
-    Optional metadata failures handled as absence by the delegated resolver may
-    end in :class:`NotImplementedError`. Unsupported ordering inputs and custom
-    resolver, provider, or builder exceptions not handled as absence propagate.
+    The returned tuple defines public order. :paramref:`backend_names` and
+    solver-view arrays remain in backend order. Supported discovery failures may
+    end in :class:`NotImplementedError`; other provider or builder exceptions
+    propagate.
 
     Args:
         kind: Element kind, either ``"joint"`` or ``"body"``.
@@ -822,23 +689,19 @@ def _resolve_articulation_ordering_names(
         active_backend_name: Name of the backend exposing
             :paramref:`backend_names`.
         articulation: Articulation used for cached cross-backend discovery when
-            no explicit resolver is supplied.
-        convention_name_resolver: Optional resolver called with the parsed
-            convention and :paramref:`kind`; its returned sequence defines the
-            requested public order.
+            a symbolic convention differs from the active backend.
 
     Returns:
         Concrete names for the public joint or body axis.
 
     Raises:
-        AttributeError: If a custom resolver, provider, or builder raises this
-            error outside an optional metadata probe.
+        AttributeError: If a provider or builder raises this error.
         TypeError: If :paramref:`ordering` has an unsupported type, an explicit
-            sequence contains a non-string, or an unhandled resolver error occurs.
-        ValueError: If :paramref:`kind` is invalid, :paramref:`ordering` is an unsupported
-            alias, or a custom resolver, provider, or builder rejects the source metadata.
-        NotImplementedError: If cross-backend ordering lacks an articulation or
-            resolver, or all optional convention metadata is absent or incomplete.
+            sequence contains a non-string, or a provider raises an unhandled type error.
+        ValueError: If :paramref:`kind` is invalid, :paramref:`ordering` is an
+            unsupported alias, or a provider or builder rejects the source metadata.
+        NotImplementedError: If cross-backend ordering lacks an articulation, or
+            all supported convention metadata is absent or incomplete.
     """
     kind = _validate_ordering_kind(kind)
     backend_names = _coerce_articulation_names(backend_names, parameter_name="backend_names")
@@ -857,12 +720,6 @@ def _resolve_articulation_ordering_names(
 
     if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
         return backend_names
-    if convention_name_resolver is not None:
-        convention_names = _coerce_articulation_names(
-            convention_name_resolver(convention, kind),
-            parameter_name="convention_name_resolver result",
-        )
-        return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
     if articulation is not None:
         convention_names = _resolve_articulation_convention_name_ordering(
             articulation=articulation,
@@ -871,7 +728,9 @@ def _resolve_articulation_ordering_names(
         )
         return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
 
+    config_field = "joint_ordering" if kind == "joint" else "body_ordering"
     raise NotImplementedError(
-        f"Resolving {convention.value} {kind} ordering from backend '{active_backend_name}' requires an "
-        "articulation or backend convention name resolver for this asset."
+        f"Unable to resolve '{convention.value}' {kind} ordering for active backend '{active_backend_name}'. "
+        f"Set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or supply an articulation "
+        "whose source USD can provide that convention."
     )

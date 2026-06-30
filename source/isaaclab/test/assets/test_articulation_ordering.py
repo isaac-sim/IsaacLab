@@ -378,57 +378,76 @@ def test_resolve_articulation_ordering_names_keeps_matching_backend_preset_ident
     assert user_names == ("base", "left_foot", "right_foot")
 
 
-def test_physx_ordering_helper_reads_physx_root_view_names() -> None:
-    """Resolve the PhysX convention from PhysX root-view name metadata."""
-
-    class _SharedMetatype:
-        dof_names = ["shoulder", "elbow", "wrist"]
-        link_names = ["base", "arm", "hand"]
-
-    class _RootView:
-        shared_metatype = _SharedMetatype()
+@pytest.mark.parametrize("backend_name", ["physx", "ovphysx"])
+def test_physx_ordering_helper_uses_same_backend_identity_without_discovery(
+    monkeypatch: pytest.MonkeyPatch, backend_name: str
+) -> None:
+    """Return PhysX and OVPhysX backend names without metadata discovery."""
 
     class _Articulation:
-        __backend_name__ = "mock"
-        root_view = _RootView()
+        __backend_name__ = backend_name
+        backend_joint_names = ("shoulder", "elbow", "wrist")
+        backend_body_names = ("base", "arm", "hand")
 
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["shoulder", "elbow", "wrist"]
-
-        @property
-        def backend_body_names(self) -> list[str]:
-            return ["base", "arm", "hand"]
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_physx_names_from_newton_usd_builder",
+        lambda _: pytest.fail("same-backend resolution must not invoke the USD builder"),
+    )
 
     articulation = _Articulation()
+    assert get_physx_articulation_name_ordering(articulation, kind="joint") == articulation.backend_joint_names
+    assert get_physx_articulation_name_ordering(articulation, kind="body") == articulation.backend_body_names
 
-    assert get_physx_articulation_name_ordering(articulation, kind="joint") == ("shoulder", "elbow", "wrist")
-    assert get_physx_articulation_name_ordering(articulation, kind="body") == ("base", "arm", "hand")
 
-
-def test_mjwarp_ordering_helper_reads_newton_root_view_names() -> None:
-    """Resolve the MJWarp convention from Newton root-view name metadata."""
-
-    class _RootView:
-        joint_dof_names = ["knee", "hip", "ankle"]
-        link_names = ["base", "thigh", "foot"]
+def test_mjwarp_ordering_helper_uses_newton_identity_without_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Return Newton backend names without metadata discovery."""
 
     class _Articulation:
         __backend_name__ = "newton"
-        root_view = _RootView()
+        backend_joint_names = ("knee", "hip", "ankle")
+        backend_body_names = ("base", "thigh", "foot")
 
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return self.root_view.joint_dof_names
-
-        @property
-        def backend_body_names(self) -> list[str]:
-            return self.root_view.link_names
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_mjwarp_names_from_newton_usd_builder",
+        lambda _: pytest.fail("same-backend resolution must not invoke the USD builder"),
+    )
 
     articulation = _Articulation()
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == articulation.backend_joint_names
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == articulation.backend_body_names
 
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == ("knee", "hip", "ankle")
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == ("base", "thigh", "foot")
+
+@pytest.mark.parametrize(
+    ("kind", "config_field"),
+    [
+        ("joint", "joint_ordering"),
+        ("body", "body_ordering"),
+    ],
+)
+def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    config_field: str,
+) -> None:
+    """Explain how to recover when MJWarp ordering discovery is unavailable."""
+
+    class _Articulation:
+        __backend_name__ = "physx"
+        backend_joint_names = ("hip", "knee")
+        backend_body_names = ("base", "foot")
+
+    monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", lambda _: None)
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        get_mjwarp_articulation_name_ordering(_Articulation(), kind=kind)  # type: ignore[arg-type]
+
+    message = str(exc_info.value)
+    assert f"Unable to resolve 'mjwarp' {kind} ordering" in message
+    assert "active backend 'physx'" in message
+    assert f"env.scene.robot.{config_field}" in message
+    assert f"explicit {kind}-name permutation" in message
 
 
 def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -544,7 +563,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
 
     class _Articulation:
         __backend_name__ = "newton"
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
 
         @property
         def backend_joint_names(self) -> list[str]:
@@ -653,13 +672,13 @@ def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypat
 
     class _Articulation:
         __backend_name__ = "newton"
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
 
         @property
         def backend_joint_names(self) -> list[str]:
             return ["joint_a", "joint_b", "joint_c"]
 
-    with pytest.raises(NotImplementedError, match="robot_schema joint ordering"):
+    with pytest.raises(NotImplementedError, match="Unable to resolve 'robot_schema' joint ordering"):
         get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
 
 
@@ -902,26 +921,26 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     assert calls["views"] == [("/World/envs/env_0/Robot/base", {"verbose": False, "exclude_joint_types": [0, 1]})]
 
 
-def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -> None:
-    """Resolve a symbolic preset through articulation convention metadata."""
-
-    class _RootView:
-        joint_dof_names = ["knee", "hip", "ankle"]
-        link_names = ["base", "thigh", "foot"]
+def test_symbolic_cross_backend_resolver_uses_newton_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve a cross-backend symbolic preset through the Newton USD builder."""
+    calls = []
 
     class _Articulation:
-        __backend_name__ = "mock"
-        root_view = _RootView()
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["hip", "knee", "ankle"]
-
-        @property
-        def backend_body_names(self) -> list[str]:
-            return ["foot", "base", "thigh"]
+        __backend_name__ = "physx"
+        backend_joint_names = ("hip", "knee", "ankle")
+        backend_body_names = ("foot", "base", "thigh")
 
     articulation = _Articulation()
+
+    def _build_names(candidate):
+        calls.append(candidate)
+        return {
+            "joint": ("knee", "hip", "ankle"),
+            "body": ("base", "thigh", "foot"),
+        }
+
+    monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", _build_names)
+
     user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=articulation.backend_joint_names,
@@ -931,177 +950,83 @@ def test_symbolic_cross_backend_resolver_uses_articulation_convention_helper() -
     )
 
     assert user_names == ("knee", "hip", "ankle")
+    assert calls == [articulation]
 
 
-def test_symbolic_cross_backend_resolver_prefers_explicit_name_resolver() -> None:
-    """Use the optional resolver even when an articulation object is supplied."""
-
-    class _RootView:
-        joint_dof_names = ["articulation_order"]
-        link_names = []
-
-    class _Articulation:
-        __backend_name__ = "mock"
-        root_view = _RootView()
-
-    user_names = _resolve_articulation_ordering_names(
-        kind="joint",
-        backend_names=("resolver_order",),
-        ordering=ArticulationOrderingConvention.MJWARP,
-        active_backend_name="mock",
-        articulation=_Articulation(),
-        convention_name_resolver=lambda convention, kind: ("resolver_order",),
-    )
-
-    assert user_names == ("resolver_order",)
-
-
-@pytest.mark.parametrize(
-    ("resolved_names", "expected_message"),
-    [
-        ("joint_0", "convention_name_resolver result must be a sequence of strings; got str."),
-        (b"joint_0", "convention_name_resolver result must be a sequence of strings; got bytes."),
-        (
-            bytearray(b"joint_0"),
-            "convention_name_resolver result must be a sequence of strings; got bytearray.",
-        ),
-        (("joint_0", 7), "convention_name_resolver result element 1 must be str; got 7 (int)."),
-    ],
-)
-def test_symbolic_cross_backend_resolver_rejects_malformed_resolver_names(
-    resolved_names, expected_message: str
-) -> None:
-    """Reject malformed custom resolver results without scalar string expansion."""
-    with pytest.raises(TypeError) as exc_info:
-        _resolve_articulation_ordering_names(
-            kind="joint",
-            backend_names=("joint_0",),
-            ordering=ArticulationOrderingConvention.MJWARP,
-            active_backend_name="physx",
-            convention_name_resolver=lambda convention, kind: resolved_names,
-        )
-
-    assert str(exc_info.value) == expected_message
-
-
-def test_symbolic_resolver_skips_incomplete_cached_names() -> None:
-    """Continue to a valid provider when cached convention metadata is incomplete."""
+def test_symbolic_resolver_skips_incomplete_cached_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Continue to the Newton USD builder when cached names are incomplete."""
 
     class _Articulation:
         __backend_name__ = "physx"
+        backend_joint_names = ("joint_0", "joint_1")
+        backend_body_names = ("body_0", "body_1")
         _ordering_convention_name_cache = {
             (ArticulationOrderingConvention.MJWARP, "joint"): ("joint_0",),
         }
-        _mjwarp_joint_names = ("joint_1", "joint_0")
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_0", "joint_1"]
-
-    assert get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint") == ("joint_1", "joint_0")
-
-
-def test_symbolic_resolver_skips_incomplete_precomputed_names() -> None:
-    """Continue to valid root-view metadata when precomputed names are incomplete."""
-
-    class _RootView:
-        joint_dof_names = ("joint_1", "joint_0")
-
-    class _Articulation:
-        __backend_name__ = "physx"
-        _mjwarp_joint_names = ("joint_0",)
-        root_view = _RootView()
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_0", "joint_1"]
-
-    assert get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint") == ("joint_1", "joint_0")
-
-
-def test_symbolic_resolver_skips_incomplete_root_view_names(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Continue to the USD builder when root-view convention metadata is incomplete."""
-
-    class _RootView:
-        joint_dof_names = ("joint_0",)
-
-    class _Articulation:
-        __backend_name__ = "physx"
-        root_view = _RootView()
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_0", "joint_1"]
 
     monkeypatch.setattr(
         ordering_resolvers,
         "_get_mjwarp_names_from_newton_usd_builder",
-        lambda articulation: {"joint": ("joint_1", "joint_0"), "body": ()},
+        lambda _: {
+            "joint": ("joint_1", "joint_0"),
+            "body": ("body_1", "body_0"),
+        },
     )
 
     assert get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint") == ("joint_1", "joint_0")
 
 
 def test_symbolic_resolver_does_not_cache_incomplete_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Do not poison later convention resolution with incomplete builder metadata."""
+    """Cache a builder result only when both joint and body orders are complete."""
+    calls = []
 
     class _Articulation:
         __backend_name__ = "physx"
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_0", "joint_1"]
+        backend_joint_names = ("joint_0", "joint_1")
+        backend_body_names = ("body_0", "body_1")
 
     articulation = _Articulation()
-    builder_names = {"joint": ("joint_0",), "body": ()}
-    monkeypatch.setattr(
-        ordering_resolvers,
-        "_get_mjwarp_names_from_newton_usd_builder",
-        lambda candidate: builder_names,
-    )
+    builder_names = {
+        "joint": ("joint_0",),
+        "body": ("body_1", "body_0"),
+    }
 
-    with pytest.raises(NotImplementedError, match="mjwarp joint ordering"):
+    def _build_names(candidate):
+        calls.append(candidate)
+        return builder_names
+
+    monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", _build_names)
+
+    with pytest.raises(NotImplementedError, match="Unable to resolve 'mjwarp' joint ordering"):
         get_mjwarp_articulation_name_ordering(articulation, kind="joint")
     assert not hasattr(articulation, "_ordering_convention_name_cache")
 
     builder_names["joint"] = ("joint_1", "joint_0")
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == ("joint_1", "joint_0")
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == ("body_1", "body_0")
+    assert calls == [articulation, articulation]
 
 
-def test_symbolic_resolver_propagates_attribute_error_from_existing_provider() -> None:
-    """Preserve failures raised by an existing metadata property."""
-
-    class _Articulation:
-        __backend_name__ = "physx"
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_0"]
-
-        @property
-        def mjwarp_joint_names(self) -> tuple[str, ...]:
-            raise AttributeError("MJWarp metadata provider failed")
-
-    with pytest.raises(AttributeError, match="MJWarp metadata provider failed"):
-        get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint")
-
-
-def test_symbolic_cross_backend_resolver_normalizes_newton_multi_dof_joint_names() -> None:
-    """Resolve Newton multi-DoF names to active-backend spellings."""
-
-    class _RootView:
-        joint_dof_names = ["ball:rot_x", "ball:rot_y", "ball:rot_z", "hinge"]
-        link_names = []
+def test_symbolic_cross_backend_resolver_normalizes_newton_multi_dof_joint_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Normalize Newton multi-DoF spelling only when each match is unique."""
 
     class _Articulation:
         __backend_name__ = "physx"
-        root_view = _RootView()
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["hinge", "ball_rot_z", "ball_rot_x", "ball_rot_y"]
+        backend_joint_names = ("hinge", "ball_rot_z", "ball_rot_x", "ball_rot_y")
+        backend_body_names = ("base",)
 
     articulation = _Articulation()
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_mjwarp_names_from_newton_usd_builder",
+        lambda _: {
+            "joint": ("ball:rot_x", "ball:rot_y", "ball:rot_z", "hinge"),
+            "body": ("base",),
+        },
+    )
+
     user_names = _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=articulation.backend_joint_names,
@@ -1118,6 +1043,14 @@ def test_symbolic_cross_backend_resolver_normalizes_newton_multi_dof_joint_names
         device="cpu",
     )
     assert name_map.user_to_backend_indices == (2, 3, 1, 0)
+
+
+def test_multi_dof_name_normalization_keeps_ambiguous_spellings() -> None:
+    """Do not rewrite separator variants when canonical backend names collide."""
+    convention_names = ("ball:rot_x", "ball_rot:x")
+    backend_names = ("ball_rot_x", "ball:rot_x")
+
+    assert ordering_resolvers._match_backend_joint_name_spellings(convention_names, backend_names) == convention_names
 
 
 def test_base_articulation_data_property_uses_base_data_contract() -> None:
