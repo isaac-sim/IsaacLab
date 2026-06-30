@@ -6,9 +6,11 @@
 """Shared Warp kernels for articulation ordering conversions.
 
 Axis 0 is always the environment axis. An articulation item axis is described
-as public or backend order at each argument. Ordering arrays are validated,
-read-only permutations owned by ArticulationNameMap. Component, spatial, and
-floating-base DoF axes are preserved unless a kernel explicitly states otherwise.
+as public or backend order at each argument. Nonidentity ordering arrays are
+validated, read-only permutations owned by ArticulationNameMap. Fused identity
+and no-order paths may instead receive articulation-owned ``_ALL_*_INDICES``
+identity buffers. Component, spatial, and floating-base DoF axes are preserved
+unless a kernel explicitly states otherwise.
 
 Index-based writers require unique environment and public-item selectors;
 duplicate selectors issue concurrent writes with undefined winners. Mask-based
