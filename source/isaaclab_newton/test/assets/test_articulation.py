@@ -556,6 +556,32 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     articulation.update(sim.cfg.dt)
 
     data = articulation.data
+    primed_joint_vel_values = (
+        np.arange(np.prod(data._sim_bind_joint_vel.shape), dtype=np.float32).reshape(data._sim_bind_joint_vel.shape)
+        + 100.0
+    )
+    body_velocity_shape = (*data._sim_bind_body_com_vel_w.shape, 6)
+    primed_body_com_vel_values = (
+        np.arange(np.prod(body_velocity_shape), dtype=np.float32).reshape(body_velocity_shape) + 200.0
+    )
+    data._sim_bind_joint_vel.assign(
+        wp.array(primed_joint_vel_values, dtype=wp.float32, device=data._sim_bind_joint_vel.device)
+    )
+    data._sim_bind_body_com_vel_w.assign(
+        wp.array(
+            primed_body_com_vel_values,
+            dtype=wp.spatial_vectorf,
+            device=data._sim_bind_body_com_vel_w.device,
+        )
+    )
+    data.update(sim.cfg.dt)
+    primed_joint_acc = data.joint_acc.warp.numpy().copy()
+    primed_body_com_acc_w = data.body_com_acc_w.warp.numpy().copy()
+    assert data._joint_acc.timestamp == data._sim_timestamp
+    assert data._body_com_acc_w.timestamp == data._sim_timestamp
+    assert np.any(primed_joint_acc != 0.0)
+    assert np.any(primed_body_com_acc_w != 0.0)
+
     public_to_binding = {
         "joint_pos": "_sim_bind_joint_pos",
         "joint_vel": "_sim_bind_joint_vel",
@@ -632,6 +658,10 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         assert int(rebound.ptr) == int(new_source_bindings[binding_name].ptr)
 
     assert data._joint_pos_limits_timestamp == -1.0
+    assert data._joint_acc.timestamp == -1.0
+    assert data._body_com_acc_w.timestamp == -1.0
+    if data._body_com_acc_w_backend is not None:
+        assert data._body_com_acc_w_backend.timestamp == -1.0
     if has_ordering:
         for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
             assert getattr(data, cache_name).timestamp == -1.0
@@ -646,6 +676,23 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         if articulation.body_ordering is not None
         else np.arange(articulation.num_bodies)
     )
+    expected_previous_joint_vel = new_source_bindings["_sim_bind_joint_vel"].numpy()[:, joint_user_to_backend]
+    expected_previous_body_com_vel = new_source_bindings["_sim_bind_body_com_vel_w"].numpy()
+    np.testing.assert_array_equal(data._previous_joint_vel.numpy(), expected_previous_joint_vel)
+    np.testing.assert_array_equal(data._previous_body_com_vel.numpy(), expected_previous_body_com_vel)
+
+    joint_acc = data.joint_acc.warp.numpy()
+    body_com_acc_w = data.body_com_acc_w.warp.numpy()
+    np.testing.assert_array_equal(joint_acc, np.zeros_like(expected_previous_joint_vel))
+    np.testing.assert_array_equal(
+        body_com_acc_w,
+        np.zeros_like(expected_previous_body_com_vel[:, body_user_to_backend]),
+    )
+    assert data._joint_acc.timestamp == data._sim_timestamp
+    assert data._body_com_acc_w.timestamp == data._sim_timestamp
+    assert not np.array_equal(joint_acc, primed_joint_acc)
+    assert not np.array_equal(body_com_acc_w, primed_body_com_acc_w)
+
     expected_public = {
         "joint_pos": new_source_bindings["_sim_bind_joint_pos"].numpy()[:, joint_user_to_backend],
         "joint_vel": new_source_bindings["_sim_bind_joint_vel"].numpy()[:, joint_user_to_backend],

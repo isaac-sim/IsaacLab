@@ -1703,6 +1703,24 @@ class ArticulationData(BaseArticulationData):
         # On first init, _create_buffers() handles this after all buffers exist.
         if hasattr(self, "_root_link_pose_w_ta"):
             self._pin_proxy_arrays()
+            if self._has_joint_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[self._sim_bind_joint_vel, self._joint_user_to_backend],
+                    outputs=[self._previous_joint_vel],
+                    device=self.device,
+                )
+            else:
+                self._previous_joint_vel.assign(self._sim_bind_joint_vel)
+            self._previous_body_com_vel.assign(self._sim_bind_body_com_vel_w)
+            reset_timestamps(
+                [
+                    self._joint_acc,
+                    self._body_com_acc_w_backend,
+                    self._body_com_acc_w,
+                ]
+            )
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
