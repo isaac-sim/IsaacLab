@@ -27,6 +27,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+from scipy.ndimage import gaussian_filter1d
 from tqdm import tqdm
 
 
@@ -187,6 +188,20 @@ def _scan_episodes(hdf5_files: list) -> list:
     return infos
 
 
+def _smooth_actions(actions: np.ndarray, sigma: float = 2.0) -> np.ndarray:
+    """Gaussian-smooth EEF dims (0:6); leave gripper dim (6) unsmoothed.
+
+    Generated Mimic trajectories are ~5× more jerky than source demos due to
+    nearest-neighbour stitching discontinuities.  sigma=2.0 gives ~95% jerk
+    reduction while preserving the overall trajectory shape.
+    Gripper is kept sharp so grasp/release timing is not blurred.
+    """
+    smoothed = actions.copy()
+    smoothed[:, :6] = gaussian_filter1d(actions[:, :6].astype(np.float64),
+                                        sigma=sigma, axis=0).astype(np.float32)
+    return smoothed
+
+
 def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
     """Load a single episode. Each call opens its own h5py handle (thread-safe)."""
     with h5py.File(hdf5_path, "r") as f:
@@ -198,7 +213,7 @@ def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
             return None
         ep_dict: dict = {
             "name":    ep_name,
-            "actions": actions[:T].astype(np.float32),
+            "actions": _smooth_actions(actions[:T].astype(np.float32)),
             "states":  states[:T].astype(np.float32),
             "success": bool(ep.attrs.get("success", False)),
         }

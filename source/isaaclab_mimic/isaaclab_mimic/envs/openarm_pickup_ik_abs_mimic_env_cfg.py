@@ -33,7 +33,7 @@ class OpenArmPickUpIKAbsMimicEnvCfg(OpenarmPickUpRedCubeEnvCfg, MimicEnvCfg):
         # True would pick a different source demo for each subtask, creating a hard
         # EEF-pose jump at the boundary that is the main cause of jerkiness.
         self.datagen_config.generation_select_src_per_subtask = False
-        self.datagen_config.generation_transform_first_robot_pose = False
+        self.datagen_config.generation_transform_first_robot_pose = True
         # True = interpolation at subtask seams starts from the LAST COMMANDED pose
         # (smoother when IK tracking is good). Set False if the robot often lags
         # behind its command, which would cause a jump from actual→commanded position.
@@ -54,14 +54,14 @@ class OpenArmPickUpIKAbsMimicEnvCfg(OpenarmPickUpRedCubeEnvCfg, MimicEnvCfg):
                 subtask_term_offset_range=(2, 5),
                 selection_strategy="nearest_neighbor_object",
                 # nn_k=5: more candidates → pick the closest source demo geometry
-                selection_strategy_kwargs={"nn_k": 5},
+                selection_strategy_kwargs={"nn_k": 10},
                 # Near-zero noise: clean data for policy training.
                 # Add noise only if you explicitly want data augmentation.
-                action_noise=0.005,
-                # 25 interp steps ≈ ~0.8 s at 30 Hz to bridge from robot start
-                # pose to the first waypoint of the source segment. Smooth enough
-                # to remove the "snap" at the beginning of each subtask.
-                num_interpolation_steps=25,
+                action_noise=0.001,
+                # 50 interp steps ≈ ~1.7 s at 30 Hz — longer approach gives a
+                # smoother velocity profile into the source segment, reducing the
+                # velocity discontinuity at the interpolation/playback boundary.
+                num_interpolation_steps=50,
                 num_fixed_steps=0,
                 apply_noise_during_interpolation=False,
                 description="Reach and grasp the red cube",
@@ -76,8 +76,8 @@ class OpenArmPickUpIKAbsMimicEnvCfg(OpenarmPickUpRedCubeEnvCfg, MimicEnvCfg):
                 subtask_term_signal=None,
                 subtask_term_offset_range=(0, 0),
                 selection_strategy="nearest_neighbor_object",
-                selection_strategy_kwargs={"nn_k": 5},
-                action_noise=0.005,
+                selection_strategy_kwargs={"nn_k": 10},
+                action_noise=0.001,
                 # Since generation_select_src_per_subtask=False, subtask 2 is always
                 # from the same demo as subtask 1 → the seam is naturally tight and
                 # fewer interp steps are needed here.
