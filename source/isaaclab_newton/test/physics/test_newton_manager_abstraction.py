@@ -13,6 +13,10 @@ Covers:
   manager.
 * Each leaf manager subclasses :class:`NewtonManager` and implements
   :meth:`_build_solver` (with the abstract base raising ``NotImplementedError``).
+* :class:`FeatherPGSSolverCfg` exposes exactly the arguments accepted by
+  Newton's ``SolverFeatherPGS`` constructor.
+* Contact reporting supports Newton solvers with and without a state argument
+  on ``update_contacts``.
 * The cross-config validation in :meth:`NewtonMJWarpManager._build_solver`
   rejects the ``MJWarp + use_mujoco_contacts=True + collision_cfg`` combination.
 * Manager name dispatch (used by :class:`InteractiveScene` and the various
@@ -25,18 +29,21 @@ Covers:
 
 from __future__ import annotations
 
+import inspect
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonCfg,
     NewtonCollisionPipelineCfg,
+    NewtonFeatherPGSManager,
     NewtonFeatherstoneManager,
     NewtonKaminoManager,
     NewtonManager,
@@ -48,6 +55,11 @@ from isaaclab_newton.physics import (
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
+
+try:
+    from newton.solvers import SolverFeatherPGS
+except ImportError:
+    from newton._src.solvers import SolverFeatherPGS
 
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
@@ -91,6 +103,14 @@ SOLVER_MATRIX = [
         id="featherstone",
     ),
     pytest.param(
+        lambda: FeatherPGSSolverCfg(),
+        NewtonFeatherPGSManager,
+        SolverFeatherPGS,
+        False,
+        True,
+        id="feather_pgs",
+    ),
+    pytest.param(
         lambda: KaminoSolverCfg(use_collision_detector=True),
         NewtonKaminoManager,
         SolverKamino,
@@ -115,6 +135,28 @@ SOLVER_MATRIX = [
         id="implicit_mpm",
     ),
 ]
+
+
+def test_feather_pgs_cfg_matches_newton_constructor():
+    """Every public FeatherPGS field is forwarded to Newton instead of silently ignored."""
+    cfg_fields = set(FeatherPGSSolverCfg().to_dict()) - {"class_type", "solver_type"}
+    constructor_fields = set(inspect.signature(SolverFeatherPGS.__init__).parameters) - {"self", "model"}
+    assert cfg_fields == constructor_fields
+
+
+def test_solver_update_contacts_signature_detection():
+    """Contact reporting supports both Newton's base and FeatherPGS signatures."""
+
+    class BaseSignature:
+        def update_contacts(self, _contacts, _state=None):
+            pass
+
+    class FeatherPGSSignature:
+        def update_contacts(self, _contacts):
+            pass
+
+    assert NewtonManager._solver_accepts_update_contacts_state(BaseSignature())
+    assert not NewtonManager._solver_accepts_update_contacts_state(FeatherPGSSignature())
 
 
 # ---------------------------------------------------------------------------

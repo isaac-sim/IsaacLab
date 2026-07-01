@@ -27,7 +27,7 @@ all = [
     "prettytable>=3.3.0",
     "PyOpenGL-accelerate>=3.1.0",
     "pyglet>=2.1.6,<3",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
+    "newton[sim] @ git+https://github.com/dylanturpin/newton-collab.git@3674b45e00cbe7b1e0d0b8f613af087298dcc110",
 ]
 
 [tool.setuptools]
