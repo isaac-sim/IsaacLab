@@ -3,7 +3,7 @@ Added
 
 * Added an ``isaacsim`` extra to the root ``pyproject.toml`` so the PhysX
   backend can be pulled in directly under uv, e.g.
-  ``uv run --extra isaacsim train --task Isaac-Cartpole-Direct presets=physx``.
+  ``uv run --extra isaacsim isaaclab train --task Isaac-Cartpole-Direct presets=physx``.
   Isaac Sim narrows ``newton`` to its own pinned version, while the base install
   otherwise tracks the latest ``newton[sim]>=1.2.0`` from the package index.
 

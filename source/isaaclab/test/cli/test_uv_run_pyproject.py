@@ -121,7 +121,7 @@ def test_uv_run_isaacsim_extra_is_conflict_forked():
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
-    """The documented bare ``uv run train`` command needs Newton and RSL-RL in core."""
+    """The documented bare ``uv run isaaclab train`` command needs Newton and RSL-RL in core."""
     dependencies = _root_pyproject()["project"]["dependencies"]
 
     # Newton is the default physics engine and RSL-RL the default training library,

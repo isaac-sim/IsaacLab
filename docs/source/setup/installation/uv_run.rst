@@ -20,15 +20,15 @@ Clone the repo and start training immediately — no virtual environment setup r
 .. code-block:: bash
 
    # Newton backend training without Isaac Sim
-   uv run train --rl_library rsl_rl \
+   uv run isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # Add OVRTX/OVPhysX extras only when the workflow needs them
-   uv run --extra ov --extra rtx train --rl_library rsl_rl \
+   uv run --extra ov --extra rtx isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct physics=newton_mjwarp
 
    # PhysX backend: --extra isaacsim pulls in Isaac Sim on the fly
-   uv run --extra isaacsim train --rl_library rsl_rl \
+   uv run --extra isaacsim isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct presets=physx
 
 ``uv`` resolves and manages the environment automatically on each invocation. Supported
@@ -40,4 +40,4 @@ Play / Evaluation
 
 .. code-block:: bash
 
-   uv run play --rl_library rsl_rl --task <any_task>
+   uv run isaaclab play --rl_library rsl_rl --task <any_task>

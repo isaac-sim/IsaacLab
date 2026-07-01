@@ -25,11 +25,11 @@ dependencies = []
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
+# Only the ``isaaclab`` entry point is exposed; training/play are subcommands
+# (``isaaclab train`` / ``isaaclab play`` / ``isaaclab train_multigpu``) so they
+# do not clash with ``train``/``play`` scripts from other installed packages.
 [project.scripts]
 isaaclab = "isaaclab.cli:cli"
-play = "isaaclab.cli:play"
-train = "isaaclab.cli:train"
-train_multigpu = "isaaclab.cli:train_multigpu"
 
 [tool.setuptools]
 include-package-data = true

@@ -368,8 +368,6 @@ def _ensure_cuda_torch() -> None:
 
 
 # Isaac Sim install settings.
-ISAACSIM_VERSION_SPEC = ">=6.0.0"
-ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
 
@@ -415,6 +413,17 @@ def _pinned_version(package: str) -> str:
     if not version:
         raise KeyError(f"'{package}' is missing from [tool.isaaclab.versions] in the root pyproject.toml.")
     return version
+
+
+def _isaacsim_requirement() -> str:
+    """Return the pinned ``isaacsim`` requirement from the root ``isaacsim`` extra."""
+    optional = _load_root_pyproject().get("project", {}).get("optional-dependencies", {})
+    requirement = next((r for r in optional.get("isaacsim", []) if _requirement_name(r) == "isaacsim"), None)
+    if not requirement:
+        raise KeyError(
+            "The 'isaacsim' extra is missing from [project.optional-dependencies] in the root pyproject.toml."
+        )
+    return requirement
 
 
 def _root_core_dependencies() -> list[str]:
@@ -609,7 +618,7 @@ def _install_isaacsim() -> None:
         pip_cmd
         + [
             "install",
-            f"isaacsim[{ISAACSIM_EXTRAS}]{ISAACSIM_VERSION_SPEC}",
+            _isaacsim_requirement(),
             "--extra-index-url",
             NVIDIA_INDEX_URL,
         ]

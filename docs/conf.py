@@ -85,6 +85,10 @@ torchvision_version = _pinned_versions["torchvision"]
 ovrtx_spec = _pinned_versions["ovrtx"]
 ovphysx_version = _pinned_versions["ovphysx"]
 
+# Short version strings used in external documentation URLs and badges.
+torch_docs_version = ".".join(torch_version.split(".")[:2])  # e.g. "2.11"
+isaacsim_docs_version = ".".join(isaacsim_version.split(".")[:3])  # e.g. "6.0.0"
+
 # Copy buttons on highlighted code blocks (including nested directive output).
 copybutton_selector = "div.highlight pre"
 
@@ -183,9 +187,9 @@ intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
-    # NOTE: pinned to /docs/2.11/ because /docs/stable/objects.inv currently 404s
-    "torch": ("https://docs.pytorch.org/docs/2.11/", None),
-    "isaacsim": ("https://docs.isaacsim.omniverse.nvidia.com/6.0.0/py/", None),
+    # pinned to the release version because /docs/stable/objects.inv currently 404s
+    "torch": (f"https://docs.pytorch.org/docs/{torch_docs_version}/", None),
+    "isaacsim": (f"https://docs.isaacsim.omniverse.nvidia.com/{isaacsim_docs_version}/py/", None),
     "gymnasium": ("https://gymnasium.farama.org/", None),
     # NOTE: pinned to /stable/ because /objects.inv at the root currently 404s
     "warp": ("https://nvidia.github.io/warp/stable/", None),
@@ -346,7 +350,7 @@ html_theme_options = {
         {
             "name": "Isaac Sim",
             "url": "https://developer.nvidia.com/isaac-sim",
-            "icon": "https://img.shields.io/badge/IsaacSim-6.0.0-silver.svg",
+            "icon": f"https://img.shields.io/badge/IsaacSim-{isaacsim_docs_version}-silver.svg",
             "type": "url",
         },
         {
