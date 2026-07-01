@@ -55,7 +55,7 @@ def _kamino_newton_cfg() -> NewtonCfg:
             use_collision_detector=False,
             collision_detector_pipeline="unified",
             collision_detector_max_contacts_per_pair=8,
-            use_fk_solver=False,
+            use_fk_solver=True,
             constraints_alpha=0.1,
             padmm_max_iterations=100,
             padmm_primal_tolerance=1.0e-5,
@@ -192,8 +192,22 @@ class EventCfg:
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
-            "pose_range": {},
-            "velocity_range": {},
+            "pose_range": {
+                "x": (-0.05, 0.05),
+                "y": (-0.05, 0.05),
+                "z": (-0.02, 0.02),
+                "roll": (-0.1, 0.1),
+                "pitch": (-0.1, 0.1),
+                "yaw": (-3.14159, 3.14159),
+            },
+            "velocity_range": {
+                "x": (-0.2, 0.2),
+                "y": (-0.2, 0.2),
+                "z": (-0.1, 0.1),
+                "roll": (-0.2, 0.2),
+                "pitch": (-0.2, 0.2),
+                "yaw": (-0.2, 0.2),
+            },
         },
     )
 
