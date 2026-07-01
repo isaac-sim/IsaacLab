@@ -211,6 +211,7 @@ def _run_main(
         if torch.cuda.is_available() and torch.cuda.is_initialized():
             torch.cuda.synchronize()
         first_step_time_end = time.perf_counter_ns()
+        end_utc = capture.now_utc_iso()
 
         imports_wall_ms = (_imports_time_end - _imports_time_begin) / 1e6
         task_config_wall_ms = (_task_config_time_end - _task_config_time_begin) / 1e6
@@ -245,7 +246,6 @@ def _run_main(
 
         cfg = capture.run_config_from_presets(_hydra_args, env_cfg=env_cfg)
 
-        end_utc = capture.now_utc_iso()
         stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
 
         seed = args_cli.seed if args_cli.seed is not None else 0

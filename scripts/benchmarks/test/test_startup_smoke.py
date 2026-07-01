@@ -34,6 +34,8 @@ def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
         "16",
         "--seed",
         "0",
+        "--top_n",
+        "30",
         "--output_path",
         str(tmp_path),
         "--benchmark_formatter",
@@ -57,7 +59,11 @@ def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
     data = json.loads(schema_files[0].read_text())
     assert data["schema_version"] == "1.0", f"unexpected schema_version: {data['schema_version']}"
     assert data["run"]["framework"] is None, "startup bundle should have framework=null"
-    assert data["run"]["duration_s"] >= sum(phase["total_time_s"] for phase in data["phases"].values())
+    phase_total_s = sum(phase["total_time_s"] for phase in data["phases"].values())
+    assert data["run"]["duration_s"] >= phase_total_s
+    assert data["run"]["duration_s"] - phase_total_s < 0.25, (
+        "startup duration should end at the first step, before profile reports are generated"
+    )
     assert set(data["phases"]) == _EXPECTED_PHASES, f"unexpected phases: {set(data['phases'])}"
 
     for phase_name, phase in data["phases"].items():

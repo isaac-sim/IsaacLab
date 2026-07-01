@@ -13,3 +13,5 @@ Fixed
   backends.
 * Fixed runtime and startup bundle metadata to record resolved task-default
   physics and rendering backends.
+* Fixed the startup benchmark total duration to end at the first synchronized
+  environment step instead of including profile-report generation.
