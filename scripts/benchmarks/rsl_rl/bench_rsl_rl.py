@@ -109,8 +109,7 @@ def run(argv: list[str]) -> None:
 
     from isaaclab.app import launch_simulation
     from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
-    from isaaclab.test.benchmark.metrics import parse_tf_logs
-    from isaaclab.test.benchmark.rllib_descriptor import RL_LIBRARY_DESCRIPTORS
+    from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.test.benchmark.schema import StartupTime
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
