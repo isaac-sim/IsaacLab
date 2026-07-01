@@ -401,7 +401,10 @@ class ContactSensor(BaseContactSensor):
         Args:
             env_mask: Mask of the environments to update. None: update all environments.
         """
-        # Copy data from Newton into owned buffers (respecting env_mask)
+        # Copy data from Newton into owned buffers (respecting env_mask). This single path
+        # works for every solver backend: the Newton :class:`~newton.sensors.SensorContact`
+        # accumulates per-contact forces from ``Contacts.force``, which the MuJoCo-Warp and
+        # Kamino solvers both populate in their ``update_contacts`` conversions.
         # Launch with 3D for coalescing: dim=(num_envs, num_sensors, max(num_filter_objects, 1))
         wp.launch(
             copy_from_newton_kernel,

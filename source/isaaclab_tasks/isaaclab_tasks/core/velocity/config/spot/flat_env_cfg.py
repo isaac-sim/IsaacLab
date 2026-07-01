@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -43,6 +43,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(), num_substeps=2)
 
 
 ##
@@ -223,6 +224,7 @@ class SpotEventCfg(PresetCfg):
     default = SpotPhysxEventCfg()
     newton_mjwarp = SpotNewtonEventCfg()
     physx = default
+    newton_kamino = newton_mjwarp
 
 
 @configclass

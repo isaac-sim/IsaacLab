@@ -391,6 +391,20 @@ class ArticulationData(BaseArticulationData):
         """
         return self._applied_torque_ta
 
+    @property
+    def joint_act_target(self) -> ProxyArray:
+        """Per-DOF feedforward actuation written to Newton's ``Control.joint_act``.
+
+        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
+        (num_instances, num_joints).
+
+        Populated each ``write_data_to_sim`` from the per-actuator computed torques whose
+        :attr:`~isaaclab.actuators.ActuatorBase.route_torque_to` is set to ``"joint_act"``.
+        For the Kamino solver this becomes ``pd_tau_j_ff`` and feeds the implicit joint
+        dynamic-constraint row.
+        """
+        return self._joint_act_target_ta
+
     """
     Joint properties
     """
@@ -1884,6 +1898,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_pos_limits_upper_ta = ProxyArray(self._sim_bind_joint_pos_limits_upper)
             self._joint_vel_limits_ta = ProxyArray(self._sim_bind_joint_vel_limits_sim)
             self._joint_effort_limits_ta = ProxyArray(self._sim_bind_joint_effort_limits_sim)
+            self._joint_act_target_ta = ProxyArray(self._sim_bind_joint_act)
             self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
             self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
             self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
@@ -1915,6 +1930,7 @@ class ArticulationData(BaseArticulationData):
             self._joint_pos_limits_upper_ta = ProxyArray(self._sim_bind_joint_pos_limits_upper)
             self._joint_vel_limits_ta = ProxyArray(self._sim_bind_joint_vel_limits_sim)
             self._joint_effort_limits_ta = ProxyArray(self._sim_bind_joint_effort_limits_sim)
+            self._joint_act_target_ta = ProxyArray(self._sim_bind_joint_act)
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
             self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
             self._gear_ratio_ta = ProxyArray(self._gear_ratio)
