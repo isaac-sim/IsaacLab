@@ -31,6 +31,8 @@ pip extras include:
      - What it installs
    * - ``isaacsim``
      - Isaac Sim (``isaacsim[all,extscache]==6.0.0.1``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
+   * - ``usd``
+     - ``usd-exchange`` for kit-less USD workflows. Do not combine with ``isaacsim``.
    * - ``all``
      - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install.
 

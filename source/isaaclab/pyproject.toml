@@ -53,9 +53,6 @@ dependencies = [
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    # OpenUSD (kit-less mode)
-    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
-    "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
 ]
@@ -82,6 +79,7 @@ test = [
     "coverage>=7.6.1",
 ]
 isaacsim = ["isaacsim[all,extscache]>=6.0.0"]
+usd = ["usd-exchange>=2.2"]
 all = [
     "isaacsim[all,extscache]>=6.0.0",
     "isaaclab_assets",

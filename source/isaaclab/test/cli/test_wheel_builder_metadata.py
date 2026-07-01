@@ -112,3 +112,14 @@ def test_wheel_builder_warp_pin_matches_core_package():
 
     assert wheel_core_pin == expected_pin
     assert wheel_newton_pin == expected_pin
+
+
+def test_wheel_builder_standalone_usd_is_an_opt_in_extra():
+    """The bundled wheel must not install a standalone USD provider with Isaac Sim."""
+    dependencies_by_extra = _wheel_builder_dependencies_by_extra()
+
+    assert dependencies_by_extra["usd"] == ["usd-exchange>=2.2"]
+    for extra_name in ("all", "isaacsim"):
+        assert not any(
+            dependency.startswith(("usd-core", "usd-exchange")) for dependency in dependencies_by_extra[extra_name]
+        )

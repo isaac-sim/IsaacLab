@@ -943,3 +943,41 @@ class TestRePointPrebundlePackages:
 
         assert (prebundle / pkg_name).is_symlink(), f"{pkg_name} should be repointed"
         assert (prebundle / pkg_name).resolve() == (site_pkgs / pkg_name).resolve()
+
+
+# ---------------------------------------------------------------------------
+# Standalone USD selection
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("install_isaacsim", "isaacsim_path", "expected"),
+    [
+        (False, None, True),
+        (False, Path("/tmp/isaacsim"), False),
+        (True, None, False),
+    ],
+)
+def test_selects_standalone_usd_only_without_isaacsim(install_isaacsim, isaacsim_path, expected):
+    """Standalone USD is selected only when Isaac Sim is absent and not requested."""
+    with mock.patch("isaaclab.cli.commands.install.extract_isaacsim_path", return_value=isaacsim_path):
+        assert install_cmd._should_install_standalone_usd(install_isaacsim) is expected
+
+
+def test_installs_usd_extra_only_for_isaaclab_root_submodule(tmp_path):
+    """The standalone USD extra is applied only to the root Isaac Lab package."""
+    source_dir = tmp_path / "source" / "isaaclab"
+    source_dir.mkdir(parents=True)
+    (source_dir / "pyproject.toml").touch()
+
+    python_exe = str(tmp_path / "python")
+    pip_cmd = [python_exe, "-m", "pip"]
+    with (
+        mock.patch("isaaclab.cli.commands.install.ISAACLAB_ROOT", tmp_path),
+        mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+        mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+        mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+    ):
+        install_cmd._install_isaaclab_submodules(["isaaclab"], install_standalone_usd=True)
+
+    mock_run.assert_called_once_with(pip_cmd + ["install", "--editable", f"{source_dir}[usd]"])

@@ -581,13 +581,20 @@ def split_install_items(install_type: str) -> list[str]:
     return parts
 
 
-def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
+def _should_install_standalone_usd(install_isaacsim: bool) -> bool:
+    """Return whether a kit-less install needs the standalone USD provider."""
+    return not install_isaacsim and extract_isaacsim_path(required=False) is None
+
+
+def _install_isaaclab_submodules(isaaclab_submodules: list[str], install_standalone_usd: bool = False) -> None:
     """Install Isaac Lab submodules from the source directory as editable packages.
 
     Args:
         isaaclab_submodules: Ordered list of source directory names to install
             (e.g. ``["isaaclab", "isaaclab_assets", ...]``). ``isaaclab`` must
             appear first so downstream packages resolve against the local copy.
+        install_standalone_usd: Whether to install the root ``isaaclab`` package
+            with its standalone USD extra.
     """
     python_exe = extract_python_exe()
     source_dir = ISAACLAB_ROOT / "source"
@@ -603,7 +610,8 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
             print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
-        run_command(pip_cmd + ["install", "--editable", str(item)])
+        install_target = f"{item}[usd]" if pkg_name == "isaaclab" and install_standalone_usd else str(item)
+        run_command(pip_cmd + ["install", "--editable", install_target])
         _upgrade_extension_pip_dependencies(
             python_exe,
             pip_cmd,
@@ -1048,11 +1056,13 @@ def command_install(install_type: str = "all") -> None:
         if install_isaacsim:
             _install_isaacsim()
 
+        install_standalone_usd = _should_install_standalone_usd(install_isaacsim)
+
         # Install pytorch (version based on arch).
         _ensure_cuda_torch()
 
         # Install all submodules (core set + any explicitly requested optional ones).
-        _install_isaaclab_submodules(submodules_to_install)
+        _install_isaaclab_submodules(submodules_to_install, install_standalone_usd=install_standalone_usd)
 
         # Install requested optional submodule dependency extras.
         if optional_submodule_extra_dependencies:

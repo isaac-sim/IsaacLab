@@ -7,7 +7,7 @@
 Setup:
     - (wheel supplied by runner: tools/run_install_ci.py --build-wheel or --wheel <path>)
     - ./isaaclab.sh -u
-    - uv pip install <wheel>
+    - uv pip install <wheel>[usd]
 Tests:
     - python -c "import isaaclab" -> verify isaaclab importable
     - python -c "from isaaclab import __version__; print(__version__)" -> verify version matches wheel
@@ -42,8 +42,8 @@ class Test_Uv_Pip_Install_Isaaclab_Imports_Isaaclab(UV_Mixin):
         cls.python = self.python
         cls.cli_script = self.cli_script
 
-        result = self.run_in_uv_env(["uv", "pip", "install", cls._wheel], cwd=isaaclab_root, timeout=900)
-        assert result.returncode == 0, f"uv pip install {cls._wheel} failed:\n{result.stdout}\n{result.stderr}"
+        result = self.run_in_uv_env(["uv", "pip", "install", f"{cls._wheel}[usd]"], cwd=isaaclab_root, timeout=900)
+        assert result.returncode == 0, f"uv pip install {cls._wheel}[usd] failed:\n{result.stdout}\n{result.stderr}"
 
         yield
 
@@ -71,3 +71,14 @@ class Test_Uv_Pip_Install_Isaaclab_Imports_Isaaclab(UV_Mixin):
         assert imported_version == expected_version, (
             f"isaaclab.__version__ mismatch: expected {expected_version}, got {imported_version}"
         )
+
+    @pytest.mark.docker
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.timeout(900)
+    def test_install_usd_makes_usd_exchange_available_without_usd_core(self):
+        """``[usd]`` installs only the standalone USD provider."""
+        result = self.run_in_uv_env(["uv", "pip", "list"])
+        installed_distributions = result.stdout.lower()
+        assert result.returncode == 0, f"uv pip list failed:\n{result.stdout}\n{result.stderr}"
+        assert "usd-exchange" in installed_distributions

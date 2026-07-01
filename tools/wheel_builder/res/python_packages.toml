@@ -82,6 +82,8 @@ pyproject.dependencies.all = [
 ]
 pyproject.optional-dependencies.all = [
     # Isaac Sim
+    # OpenUSD (kit-less mode)
+    { "usd" = ["usd-exchange>=2.2"] },
     { "isaacsim" = ["isaacsim[all,extscache]==6.0.0.1"] },
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py

@@ -119,3 +119,14 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
             env=aarch64_isaacsim_env(),
         )
         assert result.returncode == 0, f"import isaaclab.sim failed:\n{result.stdout}\n{result.stderr}"
+
+    @pytest.mark.docker
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.timeout(1800)
+    def test_install_isaacsim_omits_standalone_usd_providers(self):
+        """``[isaacsim]`` uses Isaac Sim's USD provider exclusively."""
+        result = self.run_in_uv_env(["uv", "pip", "list"])
+        installed_distributions = result.stdout.lower()
+        assert result.returncode == 0, f"uv pip list failed:\n{result.stdout}\n{result.stderr}"
+        assert "usd-exchange" not in installed_distributions
