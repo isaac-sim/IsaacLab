@@ -18,7 +18,7 @@ Changed
   the single source of truth for externally-pinned versions (Isaac Sim, the
   torch stack, and the OV renderer/physics wheels). The install CLI, docs, and
   CI read these values; a unit test enforces that the literal pins in the extras
-  and ``[tool.uv].constraint-dependencies`` stay in sync with the table.
+  and ``[tool.uv].override-dependencies`` stay in sync with the table.
 * **Changed:** The aggregate ``all`` extra now contains only packages that can
   co-resolve with ``isaacsim`` (the documented ``[all,isaacsim]`` install).
   ``ov`` (OVRTX / OvPhysX), ``viser``, and the mimic USD-to-URDF converter

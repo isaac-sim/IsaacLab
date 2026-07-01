@@ -73,14 +73,15 @@ def test_uv_run_exposes_centralized_feature_extras():
 def test_version_single_source_matches_literal_pins():
     """``[tool.isaaclab.versions]`` is the single source for externally-pinned versions.
 
-    TOML cannot interpolate, so the literal pins in ``[project.optional-dependencies]``
-    and ``[tool.uv].constraint-dependencies`` must mirror the table exactly. This test
-    fails if any of them drift apart.
+    TOML cannot interpolate, so the literal pins in ``[project.dependencies]``,
+    ``[project.optional-dependencies]``, and ``[tool.uv].override-dependencies`` must
+    mirror the table exactly. This test fails if any of them drift apart.
     """
     pyproject = _root_pyproject()
     versions = pyproject["tool"]["isaaclab"]["versions"]
+    dependencies = pyproject["project"]["dependencies"]
     optional = pyproject["project"]["optional-dependencies"]
-    constraints = pyproject["tool"]["uv"]["constraint-dependencies"]
+    overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
     # Isaac Sim extra mirrors the table.
     assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
@@ -89,9 +90,14 @@ def test_version_single_source_matches_literal_pins():
     assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
     assert f"ovrtx{versions['ovrtx']}" in optional["rtx"]
 
-    # uv torch-stack constraints mirror the table.
+    # uv torch-stack overrides mirror the table.
     for package in ("torch", "torchvision", "torchaudio"):
-        assert f"{package}=={versions[package]}" in constraints
+        assert f"{package}=={versions[package]}" in overrides
+
+    # Newton is pinned to a git commit via a uv override; warp-lang is a core dependency.
+    # Both are upgraded together, so both mirror the table.
+    assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
+    assert f"warp-lang=={versions['warp']}" in dependencies
 
 
 def test_uv_run_isaacsim_extra_is_conflict_forked():

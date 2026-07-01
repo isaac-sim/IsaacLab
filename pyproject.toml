@@ -73,8 +73,9 @@ dependencies = [
     "rsl-rl-lib==5.0.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Loose bound keeps the exported wheel resolvable; the dev/CI ``all`` extra pins
-    # the exact git prerelease (kit-less fork), while ``isaacsim`` keeps ``newton==1.2.0``.
+    # Loose bound keeps the exported wheel resolvable. Isaac Lab owns the exact
+    # Newton version via [tool.uv].override-dependencies below, which forces the git
+    # prerelease and neutralizes isaacsim's transitive ``newton[sim]==1.2.0`` pin.
     "newton[sim]>=1.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -143,17 +144,12 @@ rlinf = [
 # with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
-    # Pin Newton to the dev/CI git prerelease (kit-less fork). This extra conflicts
-    # with ``isaacsim`` (see [tool.uv].conflicts), which keeps its own ``newton==1.2.0``;
-    # the exported wheel's base ``newton[sim]>=1.2.0`` stays index-resolvable. Keep the
-    # commit in sync with ``warp-lang`` in [project.dependencies].
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
-# install CLI, and CI. TOML cannot interpolate, so the pins in the extras above and
-# in [tool.uv].constraint-dependencies mirror these; ``test_version_single_source``
-# fails CI if they drift.
+# install CLI, and CI. TOML cannot interpolate, so the pins in [project.dependencies],
+# the extras above, and [tool.uv].override-dependencies mirror these values;
+# ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
 isaacsim = "6.0.0.1"
 torch = "2.11.0"
@@ -161,6 +157,9 @@ torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
+# Newton git commit + matching warp-lang prerelease (upgraded together).
+newton = "2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee"
+warp = "1.15.0.dev20260626"
 
 [tool.ruff]
 line-length = 120
@@ -314,10 +313,14 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-override-dependencies = ["numpy>=2"]
-# Pin the dev workspace torch stack (routed to the CUDA indexes via [tool.uv.sources]);
-# the loose [project.dependencies] specs keep the wheel resolvable against isaacsim.
-constraint-dependencies = [
+# Isaac Lab owns the Newton and torch versions. Overrides replace these requirements
+# for EVERY requester (unlike constraints, which only intersect), so ``--extra isaacsim``
+# — which pins ``newton[sim]==1.2.0`` and its own torch stack — can neither block
+# resolution nor downgrade an already-installed newton/torch. The torch stack routes to
+# the CUDA indexes via [tool.uv.sources]. Values mirror [tool.isaaclab.versions] above.
+override-dependencies = [
+    "numpy>=2",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
