@@ -417,9 +417,6 @@ class AppLauncher:
           - ``cuda``: Use GPU with device ID ``0``.
           - ``cuda:N``: Use GPU, where N is the device ID. For example, "cuda:0".
 
-        * ``multi_gpu`` (bool): Enable single-process multi-GPU rendering. Disabled by default so each Kit
-          process uses only its assigned GPU. Distributed execution always disables this setting per process.
-
         * ``experience`` (str): The experience file to load when launching the SimulationApp. If a relative path
           is provided, it is resolved relative to the ``apps`` folder in Isaac Sim and Isaac Lab (in that order).
 
@@ -440,6 +437,8 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
+          multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
         * ``visualizer`` (str): Visualizer backends to enable.
           Valid options are:
@@ -531,12 +530,6 @@ class AppLauncher:
             action=ExplicitAction,
             default=AppLauncher._APPLAUNCHER_CFG_INFO["device"][1],
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
-        )
-        arg_group.add_argument(
-            "--multi_gpu",
-            action="store_true",
-            default=AppLauncher._APPLAUNCHER_CFG_INFO["multi_gpu"][1],
-            help="Enable single-process multi-GPU rendering.",
         )
         arg_group.add_argument(
             "--visualizer",
@@ -642,7 +635,6 @@ class AppLauncher:
         "enable_cameras": ([bool], False),
         "xr": ([bool], False),
         "device": ([str], "cuda:0"),
-        "multi_gpu": ([bool], False),
         "experience": ([str], ""),
         "deterministic": ([bool], False),
         "rendering_mode": ([str], "balanced"),
@@ -1018,7 +1010,6 @@ class AppLauncher:
         """Resolve simulation GPU device related settings."""
         self.device_id = 0
         device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
-        multi_gpu = launcher_args.get("multi_gpu", AppLauncher._APPLAUNCHER_CFG_INFO["multi_gpu"][1])
 
         device_explicitly_passed = launcher_args.pop("device_explicit", False)
         if self._xr and not device_explicitly_passed:
@@ -1062,7 +1053,7 @@ class AppLauncher:
                 self.device_id = 0
 
             device = "cuda:" + str(self.device_id)
-            multi_gpu = False
+            launcher_args["multi_gpu"] = False
             # limit CPU threads to minimize thread context switching
             # this ensures processes do not take up all available threads and fight for resources
             num_cpu_cores = os.cpu_count()
@@ -1077,7 +1068,6 @@ class AppLauncher:
         # as the active_gpu device. Setting physics_gpu explicitly may result in a different device to be used.
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
-        launcher_args["multi_gpu"] = multi_gpu
 
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
@@ -1189,14 +1179,6 @@ class AppLauncher:
         """Resolve additional arguments passed to Kit."""
         self._kit_args = launcher_args.get("kit_args", "").split()
 
-        default_args = []
-        if not launcher_args["multi_gpu"]:
-            default_args = [
-                "--/renderer/multiGpu/enabled=false",
-                "--/renderer/multiGpu/autoEnable=false",
-                "--/renderer/multiGpu/maxGpuCount=1",
-            ]
-
         fabric_gpu_interop = os.environ.get(_FABRIC_GPU_INTEROP_ENV)
         if fabric_gpu_interop is not None:
             if fabric_gpu_interop not in {"0", "1"}:
@@ -1204,10 +1186,7 @@ class AppLauncher:
                     f"Invalid value for environment variable `{_FABRIC_GPU_INTEROP_ENV}`: {fabric_gpu_interop}."
                     " Expected: 0 or 1."
                 )
-            default_args.append(f"--/physics/fabricUseGPUInterop={'true' if fabric_gpu_interop == '1' else 'false'}")
-
-        # Preserve explicit Kit settings from sys.argv or kit_args.
-        for argument in default_args:
+            argument = f"--/physics/fabricUseGPUInterop={'true' if fabric_gpu_interop == '1' else 'false'}"
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
                 self._kit_args.append(argument)

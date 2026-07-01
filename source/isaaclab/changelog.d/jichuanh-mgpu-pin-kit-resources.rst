@@ -1,9 +1,9 @@
 Changed
 ^^^^^^^
 
-* Changed :class:`~isaaclab.app.AppLauncher` to disable single-process multi-GPU
-  rendering by default. Set ``multi_gpu=True`` or pass ``--multi_gpu`` to restore
-  the previous rendering behavior.
+* Changed the Isaac Lab Kit experiences to use one renderer GPU by default. To
+  enable single-process multi-GPU rendering, pass the ``renderer.multiGpu``
+  settings explicitly through :class:`~isaaclab.app.AppLauncher`'s ``kit_args``.
 
 Added
 ^^^^^
