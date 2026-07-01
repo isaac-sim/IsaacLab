@@ -48,8 +48,11 @@ class KaminoSolverCfg(NewtonSolverCfg):
     use_collision_detector: bool = False
     """Whether to use Kamino's internal collision detector instead of Newton's pipeline."""
 
-    use_fk_solver: bool = True
+    use_fk_solver: bool | None = None
     """Whether to enable the forward kinematics solver for state resets.
+
+    When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's 
+    articulation structure. If the model has loop-closing joints, the FK solver will be used.
 
     When ``True``, :meth:`NewtonKaminoManager._eval_fk_impl` reconciles body state via
     :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints`. Kamino's FK
@@ -176,6 +179,10 @@ class KaminoSolverCfg(NewtonSolverCfg):
             PADMMSolverConfig,
         )
         from newton.solvers import SolverKamino
+
+        # Kamino Manager will set the automatic value before. This is a fallback to true if that mechanism was bypassed.
+        if self.use_fk_solver is None:
+            self.use_fk_solver = True
 
         # Build collision detector config if using Kamino's internal detector
         collision_detector = None

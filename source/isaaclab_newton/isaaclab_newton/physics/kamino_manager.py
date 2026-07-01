@@ -21,6 +21,31 @@ from .newton_manager import NewtonManager
 logger = logging.getLogger(__name__)
 
 
+def _model_has_loop_closing_joints(model: Model) -> bool:
+    """Return whether ``model`` contains converted loop-closing articulation joints.
+
+    Newton stores regular tree joints in ``[articulation_start[i], articulation_end[i])`` and
+    loop-closing joints in ``[articulation_end[i], articulation_start[i + 1])``. Loop closures
+    are present when the next articulation sentinel exceeds the tree joint end for any
+    articulation.
+
+    Args:
+        model: Finalized Newton model to inspect.
+
+    Returns:
+        ``True`` if at least one articulation has loop-closing joints.
+    """
+    articulation_start = model.articulation_start
+    articulation_end = model.articulation_end
+    if articulation_start is None or articulation_end is None:
+        return False
+    articulation_start_np = articulation_start.numpy()
+    articulation_end_np = articulation_end.numpy()
+    if articulation_end_np.shape[0] == 0:
+        return False
+    return bool((articulation_start_np[1:] > articulation_end_np).any())
+
+
 class NewtonKaminoManager(NewtonManager):
     """:class:`NewtonManager` specialization for the Kamino solver.
 
@@ -98,6 +123,11 @@ class NewtonKaminoManager(NewtonManager):
                 f" has {model.articulation_count} articulations across {model.world_count} environments."
                 " Multiple articulations per environment are not yet supported in IsaacLab's Kamino manager."
             )
+
+        # Set the use_fk_solver flag based on the model's articulation structure if not specified by user.
+        if solver_cfg.use_fk_solver is None:
+            solver_cfg.use_fk_solver = _model_has_loop_closing_joints(model)
+
         NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
