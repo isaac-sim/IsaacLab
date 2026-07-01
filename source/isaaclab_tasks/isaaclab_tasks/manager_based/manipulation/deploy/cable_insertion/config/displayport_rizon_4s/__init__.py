@@ -7,13 +7,18 @@ import gymnasium as gym
 
 from . import agents
 
+# Env class that logs task-success metrics during training (see insertion_env.py).
+_INSERTION_ENV_ENTRY = (
+    "isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.insertion_env:DisplayportInsertionEnv"
+)
+
 ##
 # Register Gym environments.
 ##
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:Rizon4sGravDisplayportInsertionEnvCfg",
@@ -23,7 +28,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:Rizon4sGravDisplayportInsertionEnvCfg_PLAY",
@@ -33,7 +38,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:Rizon4sGravDisplayportInsertionNoJointVelEnvCfg",
@@ -43,7 +48,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:Rizon4sGravDisplayportInsertionNoJointVelEnvCfg_PLAY",
@@ -53,7 +58,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-NoJointVel-ROS-Inference-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": (
@@ -65,7 +70,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.task_space_env_cfg:Rizon4sTaskSpaceDisplayportInsertionEnvCfg",
@@ -75,7 +80,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-Play-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.task_space_env_cfg:Rizon4sTaskSpaceDisplayportInsertionEnvCfg_PLAY",
@@ -85,7 +90,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-ROS-Inference-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ros_inference_env_cfg:Rizon4sGravDisplayportInsertionROSInferenceEnvCfg",
@@ -95,7 +100,7 @@ gym.register(
 
 gym.register(
     id="Isaac-Deploy-DisplayportInsertion-Rizon4s-Grav-TaskSpace-ROS-Inference-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=_INSERTION_ENV_ENTRY,
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": (
