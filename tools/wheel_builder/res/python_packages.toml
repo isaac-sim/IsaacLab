@@ -22,7 +22,7 @@ pyproject.dependencies.all = [
     # image processing
     "transformers==4.57.6",
     "einops",  # needed for transformers, doesn't always auto-install
-    "warp-lang==1.14.0",
+    "warp-lang==1.15.0.dev20260626",
     "matplotlib>=3.10.3",
     # make sure this is consistent with isaac sim version
     "pillow==12.1.1",
@@ -87,8 +87,8 @@ pyproject.optional-dependencies.all = [
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_newton/setup.py
     # ================================================================================
     { "newton" = [
-        "warp-lang==1.14.0",
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@79e95bf5571d70a0a46c8eaedc80644531d27368",
+        "warp-lang==1.15.0.dev20260626",
+        "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
         "PyOpenGL-accelerate==3.1.10"
     ] },
     # ================================================================================

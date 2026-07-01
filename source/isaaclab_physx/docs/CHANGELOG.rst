@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+2.6.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.RigidObject` center-of-mass writes for
+  compatibility with Warp 1.15.
+
+
 2.6.0 (2026-06-30)
 ~~~~~~~~~~~~~~~~~~
 

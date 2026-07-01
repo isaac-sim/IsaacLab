@@ -432,12 +432,13 @@ def make_require_ovlibs_install_fixture():
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovlibs_install(request):
+    def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
 
         if callspec.params.get("renderer") == "ovrtx_renderer":
+            monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "0")
             try:
                 import ovrtx
 
