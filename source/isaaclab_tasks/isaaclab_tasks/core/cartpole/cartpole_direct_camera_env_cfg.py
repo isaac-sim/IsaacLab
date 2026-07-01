@@ -30,8 +30,8 @@ class CartpoleTiledCameraCfg(PresetCfg):
         spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         )
-        width: int = 64
-        height: int = 64
+        width: int = 100
+        height: int = 100
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
@@ -61,7 +61,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         """
 
         # spaces: an image instead of the 4-dim joint-state vector
-        observation_space = [3, 64, 64]
+        observation_space = [3, 100, 100]
         state_space = 4
 
         # change viewer settings
@@ -74,9 +74,9 @@ class CartpoleCameraEnvCfg(PresetCfg):
         initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
     default = BaseCartpoleCameraEnvCfg()
-    depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 64, 64])
+    depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 100, 100])
     albedo = BaseCartpoleCameraEnvCfg()
-    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 64, 64])
+    semantic_segmentation = BaseCartpoleCameraEnvCfg(observation_space=[4, 100, 100])
     simple_shading_constant_diffuse = BaseCartpoleCameraEnvCfg()
     simple_shading_diffuse_mdl = BaseCartpoleCameraEnvCfg()
     simple_shading_full_mdl = BaseCartpoleCameraEnvCfg()

@@ -41,8 +41,8 @@ class CartpoleTiledCameraCfg(PresetCfg):
         spawn: sim_utils.PinholeCameraCfg = sim_utils.PinholeCameraCfg(
             focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(0.1, 20.0)
         )
-        width: int = 64
-        height: int = 64
+        width: int = 100
+        height: int = 100
         renderer_cfg: MultiBackendRendererCfg = MultiBackendRendererCfg()
 
     default = BaseCartpoleTiledCameraCfg(data_types=["rgb"])
