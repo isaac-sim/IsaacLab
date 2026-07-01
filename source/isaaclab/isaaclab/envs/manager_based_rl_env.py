@@ -256,13 +256,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
             self._reset_idx(reset_env_ids)
 
-            # Refresh kinematics and derived buffers for the just-reset envs so the
-            # observations / terminations below reflect the reset pose. Maximal-coordinate
-            # solvers (e.g. Kamino) apply reset FK one step late; for others this is a no-op.
-            self.scene.write_data_to_sim()
-            self.sim.forward()
-            self.scene.update(dt=self.physics_dt)
-
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
