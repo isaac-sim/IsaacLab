@@ -68,7 +68,7 @@ class NewtonKaminoManager(NewtonManager):
         return solver_cfg
 
     @classmethod
-    def _eval_fk_impl(cls, fk_mask: wp.array | None) -> None:
+    def _eval_fk_impl(cls, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
         """Update body states from joint coordinates.
 
         For the Kamino (maximal-coordinate) solver, body poses/velocities are the authoritative
@@ -81,12 +81,13 @@ class NewtonKaminoManager(NewtonManager):
         ``fk_mask``; the caller is then responsible for writing constraint-consistent joint values.
 
         Args:
+            world_reset_mask: Per-world mask passed to :meth:`SolverKamino.reset` (``None`` means all).
             fk_mask: Per-articulation mask of articulations to update (``None`` means all).
         """
         if cls._get_kamino_solver_cfg().use_fk_solver:
             cls._solver.reset(
                 cls._state_0,
-                world_mask=fk_mask,
+                world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.from_joints(),
             )
         else:
@@ -95,7 +96,7 @@ class NewtonKaminoManager(NewtonManager):
             # Reset solver internals without performing Kamino's FK.
             cls._solver.reset(
                 cls._state_0,
-                world_mask=fk_mask,
+                world_mask=world_reset_mask,
                 config=SolverKamino.ResetConfig.preserve(),
             )
 
@@ -109,20 +110,15 @@ class NewtonKaminoManager(NewtonManager):
 
         Sets :attr:`NewtonManager._needs_fk_before_step` because Kamino treats body state as
         authoritative: reset worlds (written via joint coordinates) must be reconciled before each
-        step. The shared :attr:`NewtonManager._fk_reset_mask` restricts both that pre-step
-        reconcile and :meth:`NewtonManager.forward` to reset worlds, so non-reset worlds keep
-        their live, authoritative body state through Kamino's :meth:`_eval_fk_impl` overwrite.
+        step. The shared :attr:`NewtonManager._world_reset_mask` and
+        :attr:`NewtonManager._fk_reset_mask` restrict that pre-step reconcile and
+        :meth:`NewtonManager.forward` to reset worlds, so non-reset worlds keep their live,
+        authoritative body state through Kamino's :meth:`_eval_fk_impl` overwrite.
 
         Raises:
             RuntimeError: If the model has more than one articulation per environment. The Kamino
                 interface in IsaacLab currently only supports one articulation per environment.
         """
-        if model.articulation_count != model.world_count:
-            raise RuntimeError(
-                "The Kamino manager requires exactly one articulation per environment, but the model"
-                f" has {model.articulation_count} articulations across {model.world_count} environments."
-                " Multiple articulations per environment are not yet supported in IsaacLab's Kamino manager."
-            )
 
         # Set the max contacts per world if specified.
         if solver_cfg.max_contacts_per_world is not None:
@@ -137,6 +133,13 @@ class NewtonKaminoManager(NewtonManager):
         # Set the use_fk_solver flag based on the model's articulation structure if not specified by user.
         if solver_cfg.use_fk_solver is None:
             solver_cfg.use_fk_solver = _model_has_loop_closing_joints(model)
+
+        if solver_cfg.use_fk_solver and model.articulation_count != model.world_count:
+            raise RuntimeError(
+                "The Kamino FK solver requires exactly one articulation per environment, but the model"
+                f" has {model.articulation_count} articulations across {model.world_count} environments."
+                " Multiple articulations per environment are not yet supported in Kamino's FK solver."
+            )
 
         NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
         NewtonManager._use_single_state = False

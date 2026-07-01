@@ -125,26 +125,30 @@ class _ParticleVisualPrim:
 
 
 @wp.kernel(enable_backward=False)
-def _reset_mask_from_mask(
+def _or_reset_masks_from_mask(
     env_mask: wp.array(dtype=wp.bool),
     articulation_ids: wp.array2d(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """Set the per-articulation fk_mask bits from env_mask."""
+    """OR env_mask into world_mask and set corresponding articulation bits in fk_mask."""
     world, arti = wp.tid()
     if env_mask[world]:
+        world_mask[world] = True
         fk_mask[articulation_ids[world, arti]] = True
 
 
 @wp.kernel(enable_backward=False)
-def _scatter_reset_mask_from_ids(
+def _scatter_reset_masks_from_ids(
     env_ids: wp.array(dtype=int),
     articulation_ids: wp.array2d(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
     fk_mask: wp.array(dtype=wp.bool),
 ):
-    """Scatter-set fk_mask from sparse env_ids."""
+    """Scatter-set world_mask and fk_mask from sparse env_ids."""
     i, arti = wp.tid()
     world = env_ids[i]
+    world_mask[world] = True
     fk_mask[articulation_ids[world, arti]] = True
 
 
@@ -186,7 +190,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         return NewtonManager.get_state_0()
 
 
-def _eval_fk_unbound(fk_mask: wp.array | None) -> None:
+def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
     """Default :attr:`NewtonManager._eval_fk` value before a solver is initialized.
 
     Raises so a stray ``forward()`` / ``step()`` before ``initialize_solver()`` fails loudly
@@ -263,10 +267,11 @@ class NewtonManager(PhysicsManager):
     _pending_extended_contact_attributes: set[str] = set()
     _report_contacts: bool = False
 
-    # Per-articulation reset mask (allocated in start_simulation, consumed in step/forward).
-    _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool
+    # Per-world reset masks (allocated in start_simulation, consumed in step/forward).
+    _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
+    _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
-    _eval_fk: Callable[[wp.array | None], None] = _eval_fk_unbound
+    _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
@@ -374,7 +379,7 @@ class NewtonManager(PhysicsManager):
             cls.initialize_solver()
 
     @classmethod
-    def _eval_fk_impl(cls, fk_mask: wp.array | None) -> None:
+    def _eval_fk_impl(cls, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
         """Update body states from joint coordinates.
 
         Solver-specialized FK implementation. The base implementation runs Newton's generic
@@ -382,6 +387,9 @@ class NewtonManager(PhysicsManager):
         this method to use a solver-specific FK.
 
         Args:
+            world_reset_mask: Per-world mask of environments to reset (``None`` means all).
+                Unused by the base implementation; consumed by solver-specific overrides such as
+                :meth:`NewtonKaminoManager._eval_fk_impl`.
             fk_mask: Per-articulation mask of articulations to update (``None`` means all).
         """
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, fk_mask)
@@ -392,16 +400,20 @@ class NewtonManager(PhysicsManager):
 
         Update body poses from joint coordinates via the solver-specialized FK delegate
         (:attr:`_eval_fk`, bound to the active subclass's :meth:`_eval_fk_impl` in
-        :meth:`initialize_solver`). Only the articulations flagged dirty in :attr:`_fk_reset_mask`
-        (see :meth:`invalidate_fk`) are updated. The mask is consumed (zeroed)
-        afterwards so the next :meth:`step` does not redundantly re-solve them.
+        :meth:`initialize_solver`). Only the articulations flagged dirty in
+        :attr:`_fk_reset_mask` and :attr:`_world_reset_mask` (see :meth:`invalidate_fk`) are
+        updated. The masks are consumed (zeroed) afterwards so the next :meth:`step` does not
+        redundantly re-solve them.
 
         The delegate (rather than a direct ``cls._eval_fk_impl`` call) is required because the
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
-        cls._eval_fk(cls._fk_reset_mask)
-        cls._fk_reset_mask.zero_()
+        cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
+        if cls._fk_reset_mask is not None:
+            cls._fk_reset_mask.zero_()
+        if cls._world_reset_mask is not None:
+            cls._world_reset_mask.zero_()
 
     @classmethod
     def pre_render(cls) -> None:
@@ -697,9 +709,10 @@ class NewtonManager(PhysicsManager):
         # that treat body state as the main state (e.g. Kamino) require FK before step.
         # Only runs FK for dirtied articulations via the accumulated mask.
         if cls._needs_collision_pipeline or cls._needs_fk_before_step:
-            cls._eval_fk(cls._fk_reset_mask)
+            cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
 
-        # Zero the mask after consumption
+        # Zero both masks after consumption
+        NewtonManager._world_reset_mask.zero_()
         NewtonManager._fk_reset_mask.zero_()
 
         physics_dt = cls._solver_dt * cls._num_substeps
@@ -808,7 +821,8 @@ class NewtonManager(PhysicsManager):
         # a CUDA graph (see :meth:`_is_all_graphable`).
         NewtonManager._use_newton_actuators_active = False
         NewtonManager._decimation = 1
-        # Per-articulation reset mask
+        # Per-world reset masks
+        NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
@@ -1080,7 +1094,7 @@ class NewtonManager(PhysicsManager):
         """Mark environments as needing FK recomputation and solver reset.
 
         Called by asset write methods that modify joint coordinates or root
-        transforms. The mask is consumed in :meth:`step` before physics
+        transforms. The masks are consumed in :meth:`step` before physics
         stepping.
 
         Args:
@@ -1094,27 +1108,28 @@ class NewtonManager(PhysicsManager):
         """
         cls._mark_transforms_dirty()
 
-        if cls._fk_reset_mask is None:
+        if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
-                _reset_mask_from_mask,
+                _or_reset_masks_from_mask,
                 dim=articulation_ids.shape,
                 inputs=[env_mask, articulation_ids],
-                outputs=[NewtonManager._fk_reset_mask],
+                outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
                 device=PhysicsManager._device,
             )
         elif articulation_ids is not None and env_ids is not None:
             wp.launch(
-                _scatter_reset_mask_from_ids,
+                _scatter_reset_masks_from_ids,
                 dim=(env_ids.shape[0], articulation_ids.shape[1]),
                 inputs=[env_ids, articulation_ids],
-                outputs=[NewtonManager._fk_reset_mask],
+                outputs=[NewtonManager._world_reset_mask, NewtonManager._fk_reset_mask],
                 device=PhysicsManager._device,
             )
         else:
             # Fallback: no topology info — mark everything dirty
+            NewtonManager._world_reset_mask.fill_(True)
             NewtonManager._fk_reset_mask.fill_(True)
 
     @classmethod
@@ -1170,7 +1185,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._adapter = None
         NewtonManager._use_newton_actuators_active = False
 
-        # Allocate the per-articulation reset mask (drives masked FK for all solvers).
+        # Allocate per-world reset masks (used by all solvers for masked FK, and by Kamino for masked reset).
+        NewtonManager._world_reset_mask = wp.zeros(cls._model.world_count, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls._model.articulation_count, dtype=wp.bool, device=device)
 
         logger.info("Dispatching PHYSICS_READY callbacks")
@@ -1451,7 +1467,7 @@ class NewtonManager(PhysicsManager):
         # Establish the initial kinematically-consistent body state through the
         # solver-specialized FK delegate, now that the solver and the delegate both exist.
         # Runs before graph capture below so the capture warmup sees a valid body_q.
-        cls._eval_fk(None)
+        cls._eval_fk(None, None)
 
         if cls._usdrt_stage is not None:
             cls._setup_cubric_bindings()
