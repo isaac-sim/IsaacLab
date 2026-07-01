@@ -156,6 +156,16 @@ class KaminoSolverCfg(NewtonSolverCfg):
     Only used when :attr:`use_collision_detector` is ``True``. If ``None``, Newton's default is used.
     """
 
+    max_contacts_per_world: int | None = None
+    """Cap the per-world contact pre-allocation handed to Kamino.
+
+    When ``None``, Kamino falls back to ``geoms.world_minimum_contacts`` derived from the
+    collision pipeline, which over-allocates dramatically for contact-rich assets. Set this
+    to bound GPU memory for multi-env training of contact-heavy tasks (e.g. legged
+    locomotion or manipulation). The total ``model.rigid_contact_max`` is computed as
+    ``max_contacts_per_world * model.world_count`` before solver construction.
+    """
+
     dynamics_preconditioning: bool = True
     """Whether to use preconditioning in the constrained dynamics solver.
 
