@@ -91,7 +91,7 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     max_cart_pos = 3.0  # the cart is reset if it exceeds that position [m]
     initial_cart_position_range = (-1.0, 1.0)  # [m]
     initial_cart_velocity_range = (-0.5, 0.5)  # [m/s]
-    initial_pole_angle_range = [-0.25, 0.25]  # range as multiples of pi [rad]
+    initial_pole_angle_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad]
     initial_pole_velocity_range = (-0.25 * math.pi, 0.25 * math.pi)  # [rad/s]
     # reward scales
     rew_scale_alive = 1.0

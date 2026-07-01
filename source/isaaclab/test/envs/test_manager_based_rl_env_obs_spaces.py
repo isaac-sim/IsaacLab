@@ -48,7 +48,6 @@ def test_non_concatenated_obs_groups_contain_all_terms(device):
 
         expected_policy_terms = ["joint_pos_rel", "joint_vel_rel"]
 
-        # Before the fix, only the last term would be present.
         assert list(policy_space.spaces) == expected_policy_terms
         for term_name in expected_policy_terms:
             assert isinstance(policy_space.spaces[term_name], gym.spaces.Box)

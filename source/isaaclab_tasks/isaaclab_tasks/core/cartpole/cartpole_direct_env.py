@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -124,8 +123,8 @@ class CartpoleEnv(DirectRLEnv):
             joint_vel.device,
         )
         joint_pos[:, self._pole_dof_idx] += sample_uniform(
-            self.cfg.initial_pole_angle_range[0] * math.pi,
-            self.cfg.initial_pole_angle_range[1] * math.pi,
+            self.cfg.initial_pole_angle_range[0],
+            self.cfg.initial_pole_angle_range[1],
             joint_pos[:, self._pole_dof_idx].shape,
             joint_pos.device,
         )

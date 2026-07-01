@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import math
+
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -69,7 +71,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset: smaller initial pole angle than the proprioceptive task
-        initial_pole_angle_range = [-0.125, 0.125]
+        initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 64, 64])
