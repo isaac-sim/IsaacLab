@@ -209,6 +209,16 @@ class TestNormalizeCameraOutputForDisplay:
         expected = torch.tensor([[[[1.0, 128.0 / 255.0, 64.0 / 255.0]]]], device=device)
         torch.testing.assert_close(out, expected)
 
+    def test_motion_vectors_map_uv_to_rgb(self, device):
+        from isaaclab.utils.images import normalize_camera_output_for_display
+
+        # (u, v) offsets; peak magnitude is 4.0, so values map to [-1, 1] -> [0, 1] and gain a zero B channel.
+        src = torch.tensor([[[[4.0, -2.0], [0.0, 4.0]]]], device=device)
+        out = normalize_camera_output_for_display(src, "motion_vectors")
+        expected = torch.tensor([[[[1.0, 0.25, 0.0], [0.5, 1.0, 0.0]]]], device=device)
+        assert out.shape[-1] == 3
+        torch.testing.assert_close(out, expected)
+
 
 class TestMakeCameraOutputGrid:
     """Grid composition for multi-env camera capture."""
