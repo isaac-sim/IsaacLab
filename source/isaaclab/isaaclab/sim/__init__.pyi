@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "RenderCfg",
     "SimulationCfg",
     "SimulationContext",
     "build_simulation_context",
@@ -288,7 +287,7 @@ from .schemas import (
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
 )
-from .simulation_cfg import RenderCfg, SimulationCfg
+from .simulation_cfg import SimulationCfg
 from .simulation_context import SimulationContext, build_simulation_context
 
 # Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim
