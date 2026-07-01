@@ -49,7 +49,7 @@ class ActuatorBase(ABC):
     - ``"joint_f"`` (default): torque is written to ``Control.joint_f`` and enters the
       body wrench, integrated semi-explicitly. This matches PhysX/MuJoCo semantics.
     - ``"joint_act"``: torque is written to ``Control.joint_act`` instead. For the Kamino
-      solver this enters the joint dynamic-constraint row of the PADMM solve, getting 
+      solver this enters the joint dynamic-constraint row of the PADMM solve, getting
       backward-Euler treatment of joint armature and damping.
     """
 

@@ -5,8 +5,8 @@
 
 """Configuration for the Disney DR Legs closed-loop biped.
 
-DR Legs is a parallel-linkage bipedal lower body with30 joints (12 actuated + 18 passive 
-linkage DOFs) plus 6 loop-closing joints. The Kamino solver enforces the loop-closing joints 
+DR Legs is a parallel-linkage bipedal lower body with30 joints (12 actuated + 18 passive
+linkage DOFs) plus 6 loop-closing joints. The Kamino solver enforces the loop-closing joints
 as bilateral constraints in maximal coordinates.
 
 The following configuration is available:
