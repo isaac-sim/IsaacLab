@@ -596,7 +596,10 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (needs.config.outputs.ovphysx_wheelhouse_resource == '' ||
+       (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) ||
+       (github.event_name != 'pull_request' && github.ref_name == 'develop'))
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
