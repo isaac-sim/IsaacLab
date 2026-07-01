@@ -178,7 +178,83 @@ def test_ovrtx_process_frame_skips_ldr_rgba_when_ppisp_is_active():
     render_data = _make_ovrtx_render_data()
     render_data.ppisp_pipeline = object()
 
-    renderer._process_render_frame(render_data, Frame(), {"rgba": object()})
+    renderer._process_render_frame(render_data, Frame(), {"rgba": object()}, sync_stream=0)
+
+
+@pytest.mark.parametrize("ppisp_enabled", [False, True], ids=["without_ppisp", "with_ppisp"])
+def test_ovrtx_render_scopes_frame_processing_and_ppisp(monkeypatch, ppisp_enabled):
+    """OVRTX extraction and optional PPISP run in one synchronized Warp stream scope."""
+    events = []
+    scope_calls = []
+    process_calls = []
+    ppisp_calls = []
+
+    sync_stream_handle = 1234
+
+    class FakeStream:
+        cuda_stream = sync_stream_handle
+
+    class RecordingScopedStream:
+        def __init__(self, stream, *, sync_enter, sync_exit):
+            scope_calls.append((stream, sync_enter, sync_exit))
+
+        def __enter__(self):
+            events.append("scope_enter")
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            events.append("scope_exit")
+
+    product_path = "/Render/Product"
+    frame = object()
+
+    class FakeProduct:
+        frames = [frame]
+
+    class FakeBackend:
+        def step(self, *, render_products, delta_time):
+            events.append("step")
+            return {product_path: FakeProduct()}
+
+    class FakePpispPipeline:
+        def apply(self, source, destination):
+            events.append("ppisp_apply")
+            ppisp_calls.append((source, destination))
+
+    def process_render_frame(render_data_arg, frame_arg, output_buffers_arg, *, sync_stream):
+        events.append("process_frame")
+        process_calls.append((render_data_arg, frame_arg, output_buffers_arg, sync_stream))
+
+    monkeypatch.setattr(wp, "ScopedStream", RecordingScopedStream)
+
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._initialized_scene = True
+    renderer._renderer = FakeBackend()
+    renderer._render_product_paths = [product_path]
+    renderer._ovrtx_wp_stream = FakeStream()
+    monkeypatch.setattr(renderer, "_process_render_frame", process_render_frame)
+
+    hdr_buffer = object()
+    rgba_buffer = object()
+    render_data = _make_ovrtx_render_data()
+    render_data.warp_buffers = {
+        str(RenderBufferKind.RGB_HDR): hdr_buffer,
+        str(RenderBufferKind.RGBA): rgba_buffer,
+    }
+    if ppisp_enabled:
+        render_data.ppisp_pipeline = FakePpispPipeline()
+
+    renderer.render(render_data)
+
+    expected_events = ["step", "scope_enter", "process_frame"]
+    if ppisp_enabled:
+        expected_events.append("ppisp_apply")
+    expected_events.append("scope_exit")
+
+    assert events == expected_events
+    assert scope_calls == [(renderer._ovrtx_wp_stream, True, True)]
+    assert process_calls == [(render_data, frame, render_data.warp_buffers, sync_stream_handle)]
+    assert ppisp_calls == ([(hdr_buffer, rgba_buffer)] if ppisp_enabled else [])
 
 
 def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):

@@ -278,6 +278,7 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
         self._clone_plan: ClonePlan | None = None
+        self._ovrtx_wp_stream: wp.Stream | None = None
 
         logger.info("Creating OVRTX renderer...")
         OVRTX_CONFIG = RendererConfig(
@@ -538,7 +539,16 @@ class OVRTXRenderer(BaseRenderer):
         Performs OVRTX initialization (stage export, USD load, bindings) on first call,
         matching the interface of Isaac RTX and Newton Warp which need no separate initialize().
         """
+        if not spec.device.startswith("cuda"):
+            raise RuntimeError(f"OVRTX renderer requires a CUDA device, got {spec.device!r}.")
+        if self._ovrtx_wp_stream is not None and spec.device != self._device:
+            raise RuntimeError(
+                "OVRTX renderer does not support changing devices after device resources are initialized"
+                f" ({self._device!r} -> {spec.device!r})."
+            )
         self._device = spec.device
+        if self._ovrtx_wp_stream is None:
+            self._ovrtx_wp_stream = wp.Stream(device=self._device)
         if not self._initialized_scene:
             self._initialize_from_spec(spec)
         return OVRTXRenderData(spec, self._device)
@@ -589,14 +599,21 @@ class OVRTXRenderer(BaseRenderer):
             if body_q is None:
                 return
 
-            with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-                ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.launch(
-                    kernel=sync_newton_transforms_kernel,
-                    dim=len(self._object_newton_indices),
-                    inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
-                    device=self._device,
-                )
+            if self._ovrtx_wp_stream is None:
+                raise RuntimeError("OVRTX Warp stream is not initialized. Call create_render_data() first.")
+            with wp.ScopedStream(self._ovrtx_wp_stream):
+                with self._object_binding.map(
+                    device=Device.CUDA,
+                    device_id=self._device_id,
+                ) as mapping:
+                    ovrtx_transforms = wp.from_dlpack(mapping.tensor, dtype=wp.mat44d)
+                    wp.launch(
+                        sync_newton_transforms_kernel,
+                        dim=len(self._object_newton_indices),
+                        inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
+                        device=self._device,
+                    )
+                    mapping.unmap(stream=self._ovrtx_wp_stream.cuda_stream)
         except Exception as e:
             logger.warning("Failed to update object transforms: %s", e)
 
@@ -609,25 +626,29 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Update camera transforms in OVRTX binding."""
         num_envs = positions.shape[0]
-        converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
-        convert_camera_frame_orientation_convention_wp(
-            src=orientations.warp,
-            dst=converted_wp,
-            origin="world",
-            target="opengl",
-            device=self._device,
-        )
-        camera_transforms = wp.zeros(num_envs, dtype=wp.mat44d, device=self._device)
-        wp.launch(
-            kernel=create_camera_transforms_kernel,
-            dim=num_envs,
-            inputs=[positions, converted_wp, camera_transforms],
-            device=self._device,
-        )
-        if self._camera_binding is not None:
-            with self._camera_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-                wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.copy(wp_transforms_view, camera_transforms)
+        if self._ovrtx_wp_stream is None:
+            raise RuntimeError("OVRTX Warp stream is not initialized. Call create_render_data() first.")
+        with wp.ScopedStream(self._ovrtx_wp_stream):
+            converted_wp = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
+            convert_camera_frame_orientation_convention_wp(
+                src=orientations.warp,
+                dst=converted_wp,
+                origin="world",
+                target="opengl",
+                device=self._device,
+            )
+            camera_transforms = wp.empty(num_envs, dtype=wp.mat44d, device=self._device)
+            wp.launch(
+                kernel=create_camera_transforms_kernel,
+                dim=num_envs,
+                inputs=[positions, converted_wp, camera_transforms],
+                device=self._device,
+            )
+            if self._camera_binding is not None:
+                with self._camera_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
+                    wp_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+                    wp.copy(wp_transforms, camera_transforms)
+                    attr_mapping.unmap(stream=self._ovrtx_wp_stream.cuda_stream)
 
     def read_output(
         self,
@@ -749,7 +770,9 @@ class OVRTXRenderer(BaseRenderer):
         # bindings, which use ``device_id=self._device_id``.
         return wp.clone(tiled_data, device=output_device)
 
-    def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
+    def _process_render_frame(
+        self, render_data: OVRTXRenderData, frame, output_buffers: dict, sync_stream: int
+    ) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         if "LdrColor" in frame.render_vars:
             buffer_key = None
@@ -765,35 +788,39 @@ class OVRTXRenderer(BaseRenderer):
                         break
 
             if buffer_key is not None:
-                with frame.render_vars["LdrColor"].map(device=Device.CUDA) as mapping:
+                with frame.render_vars["LdrColor"].map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
                     tiled_data = wp.from_dlpack(mapping.tensor)
                     self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
+                    mapping.unmap(stream=sync_stream)
 
         for depth_var in ["DistanceToCameraSD", "DistanceToImagePlaneSD", "DepthSD"]:
             if depth_var not in frame.render_vars:
                 continue
-            with frame.render_vars[depth_var].map(device=Device.CUDA) as mapping:
+            with frame.render_vars[depth_var].map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
                 tiled_depth_data = wp.from_dlpack(mapping.tensor)
                 if tiled_depth_data.dtype == wp.uint32:
                     tiled_depth_data = wp.from_torch(
                         wp.to_torch(tiled_depth_data).view(torch.float32), dtype=wp.float32
                     )
                 self._extract_depth_tiles(render_data, tiled_depth_data, output_buffers)
+                mapping.unmap(stream=sync_stream)
             break
 
         if "DiffuseAlbedoSD" in frame.render_vars and "albedo" in output_buffers:
-            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA) as mapping:
+            with frame.render_vars["DiffuseAlbedoSD"].map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
                 tiled_albedo_data = wp.from_dlpack(mapping.tensor)
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
+                mapping.unmap(stream=sync_stream)
 
         if "HdrColor" in frame.render_vars and "rgb_hdr" in output_buffers:
-            with frame.render_vars["HdrColor"].map(device=Device.CUDA) as mapping:
+            with frame.render_vars["HdrColor"].map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
                 tiled_hdr_data = wp.from_dlpack(mapping.tensor)
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
+                mapping.unmap(stream=sync_stream)
 
         if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
+            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
                 if tiled_semantic_data.dtype == wp.uint32:
@@ -815,9 +842,10 @@ class OVRTXRenderer(BaseRenderer):
                     "semantic_segmentation",
                     suffix="semantic",
                 )
+                mapping.unmap(stream=sync_stream)
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
-            with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
+            with frame.render_vars["NormalSD"].map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
                 tiled_normals_data = wp.from_dlpack(mapping.tensor)
                 wp.launch(
                     kernel=extract_all_rgb_float_tiles_kernel,
@@ -831,6 +859,7 @@ class OVRTXRenderer(BaseRenderer):
                     ],
                     device=self._device,
                 )
+                mapping.unmap(stream=sync_stream)
 
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""
@@ -839,25 +868,29 @@ class OVRTXRenderer(BaseRenderer):
         if self._renderer is None or len(self._render_product_paths) == 0:
             return
         try:
+            if self._ovrtx_wp_stream is None:
+                raise RuntimeError("OVRTX Warp stream is not initialized. Call create_render_data() first.")
             products = self._renderer.step(
                 render_products=set(self._render_product_paths),
                 delta_time=1.0 / 60.0,
             )
             product_path = self._render_product_paths[0]
-            if product_path in products and len(products[product_path].frames) > 0:
-                self._process_render_frame(
-                    render_data,
-                    products[product_path].frames[0],
-                    render_data.warp_buffers,
-                )
+            with wp.ScopedStream(self._ovrtx_wp_stream, sync_enter=True, sync_exit=True):
+                if product_path in products and len(products[product_path].frames) > 0:
+                    self._process_render_frame(
+                        render_data,
+                        products[product_path].frames[0],
+                        render_data.warp_buffers,
+                        sync_stream=self._ovrtx_wp_stream.cuda_stream,
+                    )
 
-            # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-            # buffers are the same warp buffer map used by extraction.
-            if render_data.ppisp_pipeline is not None:
-                render_data.ppisp_pipeline.apply(
-                    render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                    render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-                )
+                # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
+                # buffers are the same warp buffer map used by extraction.
+                if render_data.ppisp_pipeline is not None:
+                    render_data.ppisp_pipeline.apply(
+                        render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
+                        render_data.warp_buffers[str(RenderBufferKind.RGBA)],
+                    )
         except Exception as e:
             logger.warning("OVRTX rendering failed: %s", e, exc_info=True)
 
@@ -889,4 +922,5 @@ class OVRTXRenderer(BaseRenderer):
 
         self._render_product_paths.clear()
         self._output_semantic_color_buffer = None
+        self._ovrtx_wp_stream = None
         self._initialized_scene = False
