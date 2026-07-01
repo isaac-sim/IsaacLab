@@ -209,7 +209,7 @@ runs:
 
         export NGC_CLI_API_KEY="$NGC_API_KEY"
         export NGC_CLI_ORG=nvidian
-        export NGC_CLI_TEAM=omniverse
+        export NGC_CLI_TEAM=no-team
         export NGC_CLI_HOME="$ngc_home"
 
         ngc --version
