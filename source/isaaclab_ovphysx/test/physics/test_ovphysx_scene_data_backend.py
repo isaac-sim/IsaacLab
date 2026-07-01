@@ -186,6 +186,7 @@ def test_transforms_reads_each_binding_and_returns_transform_format():
         {
             "pattern": "/World/envs/env_*/Cube",
             "pose": SimpleNamespace(read=fake_read_a, prim_paths=["/Cube0", "/Cube1"]),
+            "view": SimpleNamespace(read_into=lambda name, dst, _r=fake_read_a: _r(dst)),
             "pose_buf": buf_a,
             "pose_buf_transformf": buf_a_tf,
             "row_offset": 0,
@@ -194,6 +195,7 @@ def test_transforms_reads_each_binding_and_returns_transform_format():
         {
             "pattern": "/World/envs/env_*/Pole",
             "pose": SimpleNamespace(read=fake_read_b, prim_paths=["/Pole"]),
+            "view": SimpleNamespace(read_into=lambda name, dst, _r=fake_read_b: _r(dst)),
             "pose_buf": buf_b,
             "pose_buf_transformf": buf_b_tf,
             "row_offset": 2,
@@ -324,6 +326,7 @@ def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
         {
             "pattern": "/World/envs/env_*/Good",
             "pose": SimpleNamespace(read=good_read, prim_paths=["/Good"]),
+            "view": SimpleNamespace(read_into=lambda name, dst, _r=good_read: _r(dst)),
             "pose_buf": buf_good,
             "pose_buf_transformf": buf_good_tf,
             "row_offset": 0,
@@ -332,6 +335,7 @@ def test_transforms_logs_warning_when_a_binding_read_fails(caplog):
         {
             "pattern": "/World/envs/env_*/Bad",
             "pose": SimpleNamespace(read=bad_read, prim_paths=["/Bad"]),
+            "view": SimpleNamespace(read_into=lambda name, dst, _r=bad_read: _r(dst)),
             "pose_buf": buf_bad,
             "pose_buf_transformf": buf_bad_tf,
             "row_offset": 1,

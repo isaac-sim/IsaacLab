@@ -34,18 +34,17 @@ class NewtonKaminoManager(NewtonManager):
     def _forward_kamino(cls, world_mask: wp.array | None = None) -> None:
         """Kamino-specific forward kinematics via ``solver.reset()``.
 
-        Kamino's ``joint_q`` / ``joint_u`` include coordinates for **all** joints
-        (including free joints), so we pass Newton's full state arrays directly.
+        ``SolverKamino.ResetConfig.from_joints()`` consumes Newton's full
+        canonical state arrays directly, including free-joint coordinates.
 
         Args:
             world_mask: Per-world mask indicating which worlds to reset.
                 Shape ``(num_worlds,)``, dtype ``wp.bool``. If None, resets all worlds.
         """
         cls._solver.reset(
-            cls._state_0,
-            joint_q=cls._state_0.joint_q,
-            joint_u=cls._state_0.joint_qd,
+            state=cls._state_0,
             world_mask=world_mask,
+            config=SolverKamino.ResetConfig.from_joints(),
         )
 
     @classmethod

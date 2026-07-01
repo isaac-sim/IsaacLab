@@ -21,6 +21,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import StackEnvCfg
+from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 ##
 # Pre-defined configs
@@ -364,7 +365,8 @@ class FrankaCubeStackVisuomotorEnvCfg(StackEnvCfg):
 
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 3
-        self.sim.render.antialiasing_mode = "DLAA"  # Use DLAA for higher quality rendering
+        for camera_cfg in (self.scene.table_cam, self.scene.wrist_cam):
+            set_isaac_rtx_global_settings(camera_cfg.renderer_cfg, antialiasing_mode="DLAA")
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]

@@ -19,6 +19,11 @@ from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
+from isaaclab_tasks.core.cartpole.constants import (
+    CARTPOLE_DISTANT_LIGHT_COLOR,
+    CARTPOLE_DISTANT_LIGHT_INTENSITY,
+    CARTPOLE_DISTANT_LIGHT_ORIENTATION,
+)
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
@@ -107,8 +112,10 @@ class CartpoleCameraEnv(CartpoleEnv):
         self.scene.articulations["cartpole"] = self.cartpole
         self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
+        light_cfg = sim_utils.DistantLightCfg(
+            intensity=CARTPOLE_DISTANT_LIGHT_INTENSITY, color=CARTPOLE_DISTANT_LIGHT_COLOR
+        )
+        light_cfg.func("/World/Light", light_cfg, orientation=CARTPOLE_DISTANT_LIGHT_ORIENTATION)
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.tiled_camera.data_types[0]

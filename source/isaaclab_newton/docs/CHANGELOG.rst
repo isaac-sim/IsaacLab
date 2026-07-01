@@ -1,6 +1,54 @@
 Changelog
 ---------
 
+1.5.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.physics.NewtonKaminoManager` reset
+  compatibility with Newton's ``SolverKamino.ResetConfig`` API.
+
+
+1.5.0 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton mesh-collision cooking fragments:
+  :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` (``newton:maxHullVertices`` via
+  ``NewtonMeshCollisionAPI``) and :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+  (Newton SDF generation and hydroelastic-contact attributes via ``NewtonSDFCollisionAPI``). Each is
+  a single-namespace :class:`~isaaclab.sim.schemas.MeshCollisionFragment` dispatched via
+  :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+* Added the :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg` joint-drive fragment
+  (``mjc:*`` / ``MjcJointAPI``), carrying joint-level ``actuatorgravcomp``. Applied alongside
+  :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` via
+  :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. The from-files spawn site continues
+  to auto-enable body-level gravcomp for the fragment path.
+
+
+1.4.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg` and its applier
+  :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon` for tuning ``mjc:*``
+  fixed-tendon attributes on ``MjcTendon`` prims,
+  splitting the Mujoco tune path out of the PhysX fixed-tendon applier.
+
+
 1.3.0 (2026-06-26)
 ~~~~~~~~~~~~~~~~~~
 

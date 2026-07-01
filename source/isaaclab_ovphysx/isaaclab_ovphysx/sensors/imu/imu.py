@@ -16,6 +16,7 @@ from isaaclab.sensors.imu import BaseImu
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .imu_data import ImuData
 from .kernels import imu_reset_kernel, imu_update_kernel
@@ -134,9 +135,10 @@ class Imu(BaseImu):
         # Translate the regex-style path expression to an ovphysx fnmatch glob.
         pattern = self._rigid_parent_expr.replace(".*", "*")
 
-        self._pose_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_POSE)
-        self._vel_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_VELOCITY)
-        self._com_binding = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=TT.RIGID_BODY_COM_POSE)
+        self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
+        self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
+        self._vel_binding = self._root_view.binding_for(TT.RIGID_BODY_VELOCITY)
+        self._com_binding = self._root_view.binding_for(TT.RIGID_BODY_COM_POSE)
         self._num_bodies = self._pose_binding.count
 
         if self._num_bodies != self._num_envs:
@@ -167,17 +169,27 @@ class Imu(BaseImu):
             self._offset_pos_b = wp.from_torch(composed_p.contiguous(), dtype=wp.vec3f)
             self._offset_quat_b = wp.from_torch(composed_q.contiguous(), dtype=wp.quatf)
 
+    def _invalidate_initialize_callback(self, event) -> None:
+        """Drop the OVPhysX view and bindings when physics stops."""
+        super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) so a stale/destroyed handle is not held
+        # across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
+        self._pose_binding = None
+        self._vel_binding = None
+        self._com_binding = None
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # ovphysx ``binding.read(dst)`` writes into the pre-allocated dst buffer;
-        # ``_*_view`` are float32 aliases of the structured-dtype buffers below.
-        self._pose_binding.read(self._transforms_view)
-        self._vel_binding.read(self._velocities_view)
+        # ``read_into`` fills the structured-dtype destination in place through a cached
+        # float32 reinterpret of the binding's flat shape (no extra copy).
+        self._root_view.read_into(TT.RIGID_BODY_POSE, self._transforms)
+        self._root_view.read_into(TT.RIGID_BODY_VELOCITY, self._velocities)
         # RIGID_BODY_COM_POSE is a CPU tensor type in the OVPhysX wheel.
-        # For GPU simulations, stage on CPU then copy into the kernel buffer.
-        self._com_binding.read(self._coms_read_view)
+        # For GPU simulations, stage on a pinned CPU buffer then copy into the kernel buffer.
+        self._root_view.read_into(TT.RIGID_BODY_COM_POSE, self._coms_read_view)
         if self._coms_read_view is not self._coms_gpu_view:
             wp.copy(self._coms_gpu_view, self._coms_read_view)
 
@@ -212,25 +224,16 @@ class Imu(BaseImu):
         self._offset_pos_b = wp.from_torch(offset_pos_torch.contiguous(), dtype=wp.vec3f)
         self._offset_quat_b = wp.from_torch(offset_quat_torch.contiguous(), dtype=wp.quatf)
 
-        # Structured-dtype buffers consumed by the kernel.
+        # Structured-dtype buffers consumed by the kernel. ``read_into`` fills the GPU-resident
+        # pose/velocity buffers directly, building and caching the float32 reinterpret itself.
         self._transforms = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
         self._velocities = wp.zeros(self._num_bodies, dtype=wp.spatial_vectorf, device=self._device)
         self._coms_buffer = wp.zeros(self._num_bodies, dtype=wp.transformf, device=self._device)
 
-        self._transforms_view = wp.array(
-            ptr=self._transforms.ptr,
-            shape=self._pose_binding.shape,
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
-        self._velocities_view = wp.array(
-            ptr=self._velocities.ptr,
-            shape=self._vel_binding.shape,
-            dtype=wp.float32,
-            device=self._device,
-            copy=False,
-        )
+        # RIGID_BODY_COM_POSE is CPU-only in the OVPhysX wheel. ``read_into`` requires the
+        # destination on the binding's native device (cpu), so on a GPU sim we read into a pinned
+        # CPU buffer and copy into the GPU kernel buffer; on a CPU sim the two alias and the copy
+        # is skipped. ``_coms_gpu_view`` stays a flat float32 view so the copy dtype matches.
         self._coms_gpu_view = wp.array(
             ptr=self._coms_buffer.ptr,
             shape=self._com_binding.shape,

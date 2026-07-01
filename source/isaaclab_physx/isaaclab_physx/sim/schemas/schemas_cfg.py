@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
@@ -13,10 +14,15 @@ from isaaclab.sim.schemas.schemas_cfg import (
     CollisionBaseCfg,
     CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
+    FixedTendonFragment,
     JointDriveBaseCfg,
+    JointDriveFragment,
     MeshCollisionBaseCfg,
+    MeshCollisionFragment,
     RigidBodyBaseCfg,
     RigidBodyFragment,
+    SpatialTendonFragment,
+    _deprecate_field_alias,
 )
 from isaaclab.utils.configclass import configclass
 
@@ -345,6 +351,56 @@ class RigidBodyPropertiesCfg(PhysxRigidBodyPropertiesCfg):
 
 
 @configclass
+class PhysxJointCfg(JointDriveFragment):
+    """``physxJoint:*`` joint attributes from `PhysxJointAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the
+    PhysX joint add-on schema. Applied alongside :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg`
+    via :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. Written with the dedicated
+    :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` writer, which converts
+    :attr:`max_joint_velocity` from rad/s to deg/s for angular (revolute) joints.
+
+    .. _PhysxJointAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_joint_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxJoint"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxJointAPI"
+    # Override the generic applier: ``max_joint_velocity`` needs joint-type-aware rad->deg
+    # conversion for angular joints, which ``apply_namespaced`` cannot do.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_physx_joint"
+
+    def __post_init__(self):
+        # Deprecation alias: ``max_velocity`` -> ``max_joint_velocity`` (the USD attr is
+        # ``maxJointVelocity``). Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
+        _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
+
+    max_joint_velocity: float | None = None
+    """Maximum velocity of the joint [m/s for linear joints, rad/s for angular joints].
+
+    Notes:
+        Today this writes ``physxJoint:maxJointVelocity`` (a PhysX add-on schema attribute).
+        Newton's USD importer consumes the same attribute via its PhysX-bridge resolver and
+        populates ``Model.joint_velocity_limit``; the PhysX engine consumes it natively.
+
+    .. note::
+        Authored in rad/s; :func:`~isaaclab_physx.sim.schemas.apply_physx_joint` converts it to
+        deg/s for angular (revolute) joints (PhysX's angular convention) and writes linear
+        (prismatic) joints unchanged, matching the legacy
+        :func:`~isaaclab.sim.schemas.modify_joint_drive_properties`.
+    """
+
+    max_velocity: float | None = None
+    """Deprecated alias for :attr:`max_joint_velocity`.
+
+    .. deprecated:: 4.6.25
+        Use :attr:`max_joint_velocity` instead. The cfg field is renamed so its snake_case name
+        maps identity-style to the USD camelCase attribute (``physxJoint:maxJointVelocity``). The
+        alias is forwarded to :attr:`max_joint_velocity` in :meth:`__post_init__` and will be
+        removed in 4.0.
+    """
+
+
+@configclass
 class PhysxJointDrivePropertiesCfg(JointDriveBaseCfg):
     """PhysX-specific joint drive properties.
 
@@ -586,6 +642,171 @@ class CollisionPropertiesCfg(PhysxCollisionPropertiesCfg):
             stacklevel=2,
         )
         super().__post_init__()
+
+
+# -------------------------------------------------------------------------------------
+# Mesh-collision cooking fragments (single-namespace; PhysX cooking add-on schemas).
+#
+# Each fragment owns one ``physx*Collision:*`` namespace + applied schema; its
+# ``mesh_approximation_name`` default encodes the ``physics:approximation`` token its cooking
+# schema implies. The token is written by the family writer
+# ``isaaclab.sim.schemas.apply_mesh_collision_properties``; tuning attrs go via ``apply_namespaced``.
+# -------------------------------------------------------------------------------------
+
+
+@configclass
+class PhysxConvexHullCfg(MeshCollisionFragment):
+    """``physxConvexHullCollision:*`` mesh-cooking attributes from `PhysxConvexHullCollisionAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the PhysX
+    convex-hull cooking schema. The ``convexHull`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxConvexHullCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_hull_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxConvexHullCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexHullCollisionAPI"
+
+    mesh_approximation_name: str = "convexHull"
+    """Name of mesh collision approximation method. Default: "convexHull"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
+
+    min_thickness: float | None = None
+    """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
+
+
+@configclass
+class PhysxConvexDecompositionCfg(MeshCollisionFragment):
+    """``physxConvexDecompositionCollision:*`` mesh-cooking attributes from `PhysxConvexDecompositionCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX convex-decomposition cooking schema. The
+    ``convexDecomposition`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxConvexDecompositionCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_convex_decomposition_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxConvexDecompositionCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxConvexDecompositionCollisionAPI"
+
+    mesh_approximation_name: str = "convexDecomposition"
+    """Name of mesh collision approximation method. Default: "convexDecomposition"."""
+
+    hull_vertex_limit: int | None = None
+    """Convex hull vertex limit used for convex hull cooking [dimensionless]. Defaults to 64."""
+
+    max_convex_hulls: int | None = None
+    """Maximum of convex hulls created during convex decomposition [dimensionless]. Default value is 32."""
+
+    min_thickness: float | None = None
+    """Convex hull min thickness [m]. Range: [0, inf). Default value is 0.001."""
+
+    voxel_resolution: int | None = None
+    """Voxel resolution used for convex decomposition [dimensionless]. Defaults to 500,000 voxels."""
+
+    error_percentage: float | None = None
+    """Convex decomposition error percentage parameter [%]. Defaults to 10 percent."""
+
+    shrink_wrap: bool | None = None
+    """Attempts to adjust the convex hull points so that they are projected onto the surface of the
+    original graphics mesh. Defaults to False.
+    """
+
+
+@configclass
+class PhysxTriangleMeshCfg(MeshCollisionFragment):
+    """``physxTriangleMeshCollision:*`` mesh-cooking attributes from `PhysxTriangleMeshCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX triangle-mesh cooking schema (PhysX-only colliders).
+
+    .. _PhysxTriangleMeshCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshCollisionAPI"
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none" (uses triangle mesh)."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance controlling the distance at which vertices are welded [m].
+
+    Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
+    Range: [0, inf).
+    """
+
+
+@configclass
+class PhysxTriangleMeshSimplificationCfg(MeshCollisionFragment):
+    """``physxTriangleMeshSimplificationCollision:*`` attributes from `PhysxTriangleMeshSimplificationCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX triangle-mesh-simplification cooking schema. The
+    ``meshSimplification`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxTriangleMeshSimplificationCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_triangle_mesh_simplification_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxTriangleMeshSimplificationCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxTriangleMeshSimplificationCollisionAPI"
+
+    mesh_approximation_name: str = "meshSimplification"
+    """Name of mesh collision approximation method. Default: "meshSimplification"."""
+
+    simplification_metric: float | None = None
+    """Mesh simplification accuracy [dimensionless]. Defaults to 0.55."""
+
+    weld_tolerance: float | None = None
+    """Mesh weld tolerance controlling the distance at which vertices are welded [m].
+
+    Default ``-inf`` autocomputes the welding tolerance from the mesh size; ``0`` disables welding.
+    Range: [0, inf).
+    """
+
+
+@configclass
+class PhysxSDFMeshCfg(MeshCollisionFragment):
+    """``physxSDFMeshCollision:*`` mesh-cooking attributes from `PhysxSDFMeshCollisionAPI`_.
+
+    A single-namespace fragment for the PhysX signed-distance-field cooking schema (PhysX-only
+    colliders). The ``sdf`` token is written to ``physics:approximation`` by
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+
+    .. _PhysxSDFMeshCollisionAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_s_d_f_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxSDFMeshCollision"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxSDFMeshCollisionAPI"
+
+    mesh_approximation_name: str = "sdf"
+    """Name of mesh collision approximation method. Default: "sdf"."""
+
+    sdf_margin: float | None = None
+    """Margin to increase the size of the SDF relative to the mesh bounding-box diagonal [dimensionless].
+
+    Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, inf).
+    """
+
+    sdf_narrow_band_thickness: float | None = None
+    """Size of the narrow band around the mesh surface with high-resolution SDF samples [dimensionless].
+
+    Scale-independent (fraction of the bounding-box diagonal). Default value is 0.01. Range: [0, 1].
+    """
+
+    sdf_resolution: int | None = None
+    """Uniform SDF sampling resolution (largest AABB extent divided by this value) [dimensionless].
+
+    Default value is 256. Range: (1, inf).
+    """
+
+    sdf_subgrid_resolution: int | None = None
+    """Subgrid resolution enabling SDF sparsity; ``0`` selects a dense SDF [dimensionless].
+
+    Default value is 6. Range: [0, inf).
+    """
 
 
 @configclass
@@ -1023,3 +1244,96 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
             stacklevel=2,
         )
         super().__post_init__()
+
+
+@configclass
+class PhysxFixedTendonCfg(FixedTendonFragment):
+    """PhysX fixed-tendon attributes from `PhysxTendonAxisRootAPI`_.
+
+    A fixed-tendon fragment (see :class:`~isaaclab.sim.schemas.FixedTendonFragment`) for the
+    PhysX fixed-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
+    fragment: the multi-instance ``PhysxTendonAxisRootAPI:<inst>`` schemas already exist on the
+    prim (authored in the source asset), so the fragment overrides
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_fixed_tendon`, which
+    descends the prim subtree and tunes every existing ``PhysxTendonAxisRootAPI:<inst>`` instance
+    directly.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`.
+
+    .. _PhysxTendonAxisRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_axis_root_a_p_i.html
+    """
+
+    # Not namespace-driven: the custom applier matches the multi-instance schema explicitly, so
+    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
+    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
+    _usd_namespace: ClassVar[str | None] = None
+    # override ``func``: writer iterates multi-instance ``PhysxTendonAxisRootAPI`` schemas; ``apply_namespaced`` cannot.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_fixed_tendon"
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits [N/m]."""
+
+    offset: float | None = None
+    """Length offset term for the tendon [m].
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
+
+    rest_length: float | None = None
+    """Spring rest length of the tendon [m]."""
+
+
+@configclass
+class PhysxSpatialTendonCfg(SpatialTendonFragment):
+    """PhysX spatial-tendon attributes from `PhysxTendonAttachmentRootAPI`_.
+
+    A spatial-tendon fragment (see :class:`~isaaclab.sim.schemas.SpatialTendonFragment`) for the
+    PhysX spatial-tendon schema. Unlike single-namespace fragments, this is a *tune-not-apply*
+    fragment: the multi-instance ``PhysxTendonAttachmentRootAPI:<inst>`` /
+    ``PhysxTendonAttachmentLeafAPI:<inst>`` schemas already exist on the prim (authored in the
+    source asset), so the fragment overrides
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func` with :func:`apply_spatial_tendon`, which
+    descends the prim subtree and tunes every existing ``PhysxTendonAttachmentRootAPI:<inst>`` /
+    ``PhysxTendonAttachmentLeafAPI:<inst>`` instance directly.
+
+    Dispatched via :func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`.
+
+    .. _PhysxTendonAttachmentRootAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_tendon_attachment_root_a_p_i.html
+    """
+
+    # Not namespace-driven: the custom applier matches the multi-instance schemas explicitly, so
+    # ``_usd_namespace`` stays ``None`` -- this also guards against accidentally routing the fragment
+    # through the generic ``apply_namespaced`` (which would raise on a missing namespace).
+    _usd_namespace: ClassVar[str | None] = None
+    # override ``func``: writer iterates multi-instance ``PhysxTendonAttachment{Root,Leaf}API``
+    # schemas, which the generic ``apply_namespaced`` cannot.
+    func: Callable | str = "isaaclab_physx.sim.schemas:apply_spatial_tendon"
+
+    tendon_enabled: bool | None = None
+    """Whether to enable or disable the tendon."""
+
+    stiffness: float | None = None
+    """Spring stiffness term acting on the tendon's length [N/m]."""
+
+    damping: float | None = None
+    """The damping term acting on both the tendon length and the tendon-length limits [N·s/m]."""
+
+    limit_stiffness: float | None = None
+    """Limit stiffness term acting on the tendon's length limits [N/m]."""
+
+    offset: float | None = None
+    """Length offset term for the tendon [m].
+
+    It defines an amount to be added to the accumulated length computed for the tendon. This allows the application
+    to actuate the tendon by shortening or lengthening it.
+    """
