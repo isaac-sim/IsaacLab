@@ -29,10 +29,9 @@ only the dependencies needed for the features you use:
 .. code-block:: bash
 
    # The base contrib package is installed with the core Isaac Lab packages.
-   # Install its optional dependencies (e.g., for RLinf VLA post-training) with pip:
-   pip install "ray[default]>=2.47.0" "av>=12.3.0" "numpydantic>=1.7.0" \
-       "albumentations>=1.4.18" decord2 "dm_tree>=0.1.8" "diffusers>=0.35.0" \
-       "timm>=1.0.14" "peft>=0.17.0" pandas
+   # Install optional dependencies (e.g., for RLinf VLA post-training) via the
+   # matching root extra. --inexact keeps the existing environment untouched.
+   uv sync --inexact --extra rlinf
 
 Current Contributions
 ---------------------
