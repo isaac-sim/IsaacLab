@@ -12,7 +12,7 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -26,6 +26,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 class CartpolePhysicsCfg(PresetCfg):
     default: PhysxCfg = PhysxCfg()
     physx: PhysxCfg = PhysxCfg()
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
     newton_mjwarp: NewtonCfg = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             njmax=5,
@@ -61,7 +62,6 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
-    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 @configclass
@@ -73,6 +73,9 @@ class CartpoleEnvCfg(DirectRLEnvCfg):
     action_space = 1
     observation_space = 4
     state_space = 0
+
+    # viewer
+    viewer: ViewerCfg = ViewerCfg(eye=(8.0, 0.0, 5.0))
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=CartpolePhysicsCfg())

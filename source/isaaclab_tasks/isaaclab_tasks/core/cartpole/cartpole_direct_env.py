@@ -137,6 +137,12 @@ class CartpoleEnv(DirectRLEnv):
             joint_vel.device,
         )
 
+        # clamp the sampled state to the joint limits (matches the manager-based reset_joints_by_offset)
+        joint_pos_limits = self.cartpole.data.soft_joint_pos_limits.torch[env_ids]
+        joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
+        joint_vel_limits = self.cartpole.data.soft_joint_vel_limits.torch[env_ids]
+        joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
+
         default_root_pose = self.cartpole.data.default_root_pose.torch[env_ids].clone()
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
         default_root_vel = self.cartpole.data.default_root_vel.torch[env_ids].clone()
