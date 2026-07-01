@@ -267,5 +267,11 @@ class GroundPlaneCfg(SpawnerCfg):
     size: tuple[float, float] = (100.0, 100.0)
     """The size of the ground plane. Defaults to 100 m x 100 m."""
 
-    physics_material: materials.RigidBodyMaterialCfg = materials.RigidBodyMaterialCfg()
-    """Physics material properties. Defaults to the default rigid body material."""
+    physics_material: (
+        materials.PhysicsMaterialCfg | materials.RigidBodyMaterialFragment | list[materials.RigidBodyMaterialFragment]
+    ) = materials.RigidBodyMaterialCfg()
+    """Physics material properties. Defaults to the default rigid body material.
+
+    Accepts either a legacy material cfg or a list of single-namespace
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
+    """

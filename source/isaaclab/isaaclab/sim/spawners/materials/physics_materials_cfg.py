@@ -128,6 +128,13 @@ class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
     restitution: float | None = None
     """The restitution coefficient. Writes ``physics:restitution``."""
 
+    density: float | None = None
+    """The material density [kg/m^3]. Writes ``physics:density``.
+
+    Participates in mass computation via material binding when the owning rigid body does not
+    define an explicit mass.
+    """
+
 
 @configclass
 class DeformableBodyMaterialBaseCfg(PhysicsMaterialCfg):

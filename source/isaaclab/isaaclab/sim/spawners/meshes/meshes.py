@@ -16,7 +16,12 @@ from pxr import Usd, UsdPhysics
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
-from ..materials import DeformableBodyMaterialBaseCfg, RigidBodyMaterialCfg, SurfaceDeformableBodyMaterialBaseCfg
+from ..materials import (
+    DeformableBodyMaterialBaseCfg,
+    RigidBodyMaterialCfg,
+    RigidBodyMaterialFragment,
+    SurfaceDeformableBodyMaterialBaseCfg,
+)
 from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
@@ -368,7 +373,15 @@ def _spawn_mesh_geom_from_mesh(
         if not isinstance(cfg.physics_material, DeformableBodyMaterialBaseCfg):
             raise ValueError("Deformable properties require a deformable physics material.")
     if cfg.rigid_props is not None and cfg.physics_material is not None:
-        if not isinstance(cfg.physics_material, RigidBodyMaterialCfg):
+        # accept anything spawn_physics_material accepts for the rigid case: a legacy rigid-body
+        # material cfg, a single fragment, or a list/tuple of fragments
+        physics_material_frags = (
+            cfg.physics_material if isinstance(cfg.physics_material, (list, tuple)) else [cfg.physics_material]
+        )
+        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialCfg) or all(
+            isinstance(frag, RigidBodyMaterialFragment) for frag in physics_material_frags
+        )
+        if not is_rigid_material:
             raise ValueError("Rigid properties require a rigid physics material.")
 
     # create all the paths we need for clarity

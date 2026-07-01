@@ -164,6 +164,31 @@ def test_newton_material_no_schema_when_none(setup_sim):
     assert "NewtonMaterialAPI" not in prim.GetAppliedSchemas()
 
 
+@pytest.mark.isaacsim_ci
+def test_newton_material_fragment_composes_with_usd_physics_fragment(setup_sim):
+    """NewtonMaterialCfg is a rigid-body material fragment (backend symmetry with the PhysX
+    fragment): it must compose in a fragment list with UsdPhysicsRigidBodyMaterialCfg and author
+    both the ``newton:*`` and solver-common ``physics:*`` namespaces on the same material prim."""
+    from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
+
+    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+
+    prim = spawn_rigid_body_material_from_fragments(
+        "/World/newton_mat_frag",
+        [
+            UsdPhysicsRigidBodyMaterialCfg(static_friction=0.6, dynamic_friction=0.5),
+            NewtonMaterialCfg(torsional_friction=0.3, rolling_friction=0.001),
+        ],
+    )
+    assert bool(UsdPhysics.MaterialAPI(prim))
+    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.6)
+    assert prim.GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.5)
+    assert "NewtonMaterialAPI" in prim.GetAppliedSchemas()
+    assert prim.GetAttribute("newton:torsionalFriction").Get() == pytest.approx(0.3)
+    assert prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
+
+
 # ---------------------------------------------------------------------------
 # Newton articulation root
 # ---------------------------------------------------------------------------

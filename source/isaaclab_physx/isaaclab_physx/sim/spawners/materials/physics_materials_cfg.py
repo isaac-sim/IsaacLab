@@ -160,7 +160,7 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
 
     See :meth:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material` for more information.
 
-    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_material_a_p_i.html
+    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_material_a_p_i.html
     """
 
     # -- Class metadata (not dataclass fields) --
@@ -214,7 +214,7 @@ class PhysxMaterialCfg(RigidBodyMaterialFragment):
     ``physxMaterial:*`` attributes authored) by the generic
     :func:`~isaaclab.sim.schemas.apply_namespaced` writer. ``None`` fields are left unchanged.
 
-    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_material_a_p_i.html
+    .. _PhysxMaterialAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/latest/class_physx_schema_physx_material_a_p_i.html
     """
 
     _usd_namespace: ClassVar[str | None] = "physxMaterial"
@@ -234,11 +234,30 @@ class PhysxMaterialCfg(RigidBodyMaterialFragment):
     ``physxMaterial:compliantContactDamping``.
     """
 
+    compliant_contact_acceleration_spring: bool | None = None
+    """Whether the compliant contact spring is formulated in acceleration (rather than force) units.
+
+    Writes ``physxMaterial:compliantContactAccelerationSpring``. Only relevant when compliant
+    contacts are enabled (:attr:`compliant_contact_stiffness` is non-zero).
+    """
+
     friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """How friction is combined during collisions. Writes ``physxMaterial:frictionCombineMode``."""
 
     restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """How restitution is combined during collisions. Writes ``physxMaterial:restitutionCombineMode``."""
+
+    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """How the (compliant-contact) damping coefficient is combined during collisions.
+
+    Writes ``physxMaterial:dampingCombineMode``.
+
+    .. attention::
+
+        When two physics materials with different combine modes collide, the combine mode with
+        the higher priority will be used. The priority order is provided `here
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
+    """
 
 
 @configclass

@@ -10,6 +10,7 @@ from typing import ClassVar
 
 from isaaclab.sim.spawners.materials.physics_materials_cfg import (
     DeformableBodyMaterialBaseCfg,
+    RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from isaaclab.utils.configclass import configclass
@@ -77,3 +78,37 @@ class NewtonSurfaceDeformableBodyMaterialCfg(SurfaceDeformableBodyMaterialBaseCf
 
     edge_kd: float = 1e-2
     """Bending damping [N*m*s]. Used by Newton backend for cloth meshes."""
+
+
+@configclass
+class NewtonMaterialCfg(RigidBodyMaterialFragment):
+    """``newton:*`` rigid-body material attributes from ``NewtonMaterialAPI``.
+
+    Single-namespace fragment (see
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`) for the Newton-only
+    friction knobs: torsional and rolling friction. The ``NewtonMaterialAPI`` schema is applied
+    (and the ``newton:*`` attributes authored) by the generic
+    :func:`~isaaclab.sim.schemas.apply_namespaced` writer. ``None`` fields are left unchanged.
+
+    Composes with other rigid-body material fragments (e.g.
+    :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in the same fragment
+    list passed to
+    :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`. For the
+    legacy (non-fragment) equivalent, see
+    :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "newton"
+    _usd_applied_schema: ClassVar[str | None] = "NewtonMaterialAPI"
+
+    torsional_friction: float | None = None
+    """Torsional friction coefficient (resistance to spinning at a contact point) [dimensionless].
+
+    Writes ``newton:torsionalFriction``. Range: [0, inf).
+    """
+
+    rolling_friction: float | None = None
+    """Rolling friction coefficient (resistance to rolling motion) [dimensionless].
+
+    Writes ``newton:rollingFriction``. Range: [0, inf).
+    """
