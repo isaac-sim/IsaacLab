@@ -16,40 +16,8 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "rl", "wrappers", "learning"]
 requires-python = ">=3.12"
-# >>> BEGIN auto-generated dependencies -- edit [tool.isaaclab.packages] in the root pyproject.toml and run tools/gen_package_pyproject.py >>>
-dependencies = [
-    "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
-    "protobuf>=4.25.8,!=5.26.0",
-    "hydra-core",
-    "h5py>=3.15.0",
-    "tensorboard",
-    "moviepy",
-    "packaging",
-    "tqdm>=4.67.1",
-]
-
-[project.optional-dependencies]
-sb3 = [
-    "stable-baselines3>=2.6",
-    "tqdm>=4.67.1",
-    "rich",
-]
-skrl = [
-    "skrl>=2.1.0",
-]
-rl-games = [
-    "aiohttp>=3.12.14",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-    "gym",
-    "standard-distutils",
-]
-rsl-rl = [
-    "rsl-rl-lib==5.0.1",
-    "onnxscript>=0.5",
-]
-# <<< END auto-generated dependencies <<<
+# Third-party requirements are centralized in the root pyproject.toml.
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

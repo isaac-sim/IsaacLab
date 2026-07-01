@@ -16,43 +16,8 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "visualization"]
 requires-python = ">=3.12"
-# >>> BEGIN auto-generated dependencies -- edit [tool.isaaclab.packages] in the root pyproject.toml and run tools/gen_package_pyproject.py >>>
-dependencies = [
-    "isaaclab",
-    "numpy>=2",
-]
-
-[project.optional-dependencies]
-kit = []
-newton = [
-    "warp-lang>=1.14.0",
-    "newton[sim]>=1.2.0",
-    "PyOpenGL-accelerate>=3.1.0",
-    "pyglet>=2.1.6,<3",
-    "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.12.2",
-]
-rerun = [
-    "newton[sim]>=1.2.0",
-    "rerun-sdk>=0.29.0",
-    "pyarrow==22.0.0",
-]
-viser = [
-    "newton[sim]>=1.2.0",
-    "viser>=1.0.16",
-]
-all = [
-    "imgui-bundle>=1.92.5",
-    "newton[sim]>=1.2.0",
-    "PyOpenGL-accelerate>=3.1.0",
-    "pyglet>=2.1.6,<3",
-    "pyarrow==22.0.0",
-    "rerun-sdk>=0.29.0",
-    "typing-extensions>=4.12.2",
-    "viser>=1.0.16",
-    "warp-lang>=1.14.0",
-]
-# <<< END auto-generated dependencies <<<
+# Third-party requirements are centralized in the root pyproject.toml.
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

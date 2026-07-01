@@ -37,17 +37,17 @@ dependencies = [
     "gymnasium>=1.2.0",
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # x86_64-only wheel (sdist fails to build on aarch64). Capped <0.3: >=0.3
+    # x86_64-only wheel (sdist fails to build on aarch64). Pinned ==0.2.3: >=0.3
     # imports pyvista at import time.
-    "pytetwild>=0.2.3,<0.3 ; platform_machine in 'x86_64 AMD64'",
-    "transformers>=4.57.6",
+    "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
+    "transformers==4.57.6",
     "einops",
-    "warp-lang>=1.14.0",
+    "warp-lang==1.14.0",
     "matplotlib>=3.10.3",
-    "pillow>=12.1.1",  # keep consistent with isaac sim
+    "pillow==12.1.1",  # keep consistent with isaac sim
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
-    "omniverseclient>=2.71.1.7015",
+    "omniverseclient==2.71.1.7015",
     "filelock",
     "lazy_loader>=0.4",
     # IK controller (Linux only); 3.1.0/0.8.5 pins avoid a breaking change
@@ -166,174 +166,6 @@ torchvision = "0.26.0"
 torchaudio = "2.11.0"
 ovphysx = "0.4.13"
 ovrtx = ">=0.3.0,<0.4.0"
-
-# Single source of truth for each distributable sub-package's third-party
-# dependencies. ``tools/gen_package_pyproject.py`` copies these declarations into
-# the managed region of every ``source/<pkg>/pyproject.toml`` so the sub-packages
-# keep complete, self-contained metadata while being edited in one place. Specs
-# are deliberately relaxed (``>=``, upper bounds only where strictly required);
-# the exact, known-good versions live in ``[tool.uv]`` and ``uv.lock``. Each spec
-# must match the curated root ``[project.dependencies]`` / extras above (enforced
-# by ``gen_package_pyproject.py --check`` and ``test_source_package_metadata``).
-[tool.isaaclab.packages.isaaclab]
-dependencies = [
-    "numpy>=2",
-    "torch>=2.11",
-    "onnx>=1.18.0",
-    "prettytable>=3.3.0",
-    "hidapi>=0.14.0",
-    "gymnasium>=1.2.0",
-    "trimesh",
-    "pyglet>=2.1.6,<3",
-    "pytetwild>=0.2.3,<0.3 ; platform_machine in 'x86_64 AMD64'",
-    "transformers>=4.57.6",
-    "einops",
-    "warp-lang>=1.14.0",
-    "matplotlib>=3.10.3",
-    "pillow>=12.1.1",
-    "botocore",
-    "starlette>=0.46.0,<0.50",
-    "omniverseclient>=2.71.1.7015",
-    "filelock",
-    "lazy_loader>=0.4",
-    "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
-    "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-]
-
-[tool.isaaclab.packages.isaaclab-assets]
-dependencies = []
-
-[tool.isaaclab.packages.isaaclab-contrib]
-dependencies = []
-[tool.isaaclab.packages.isaaclab-contrib.optional-dependencies]
-rlinf = [
-    "ray[default]>=2.47.0",
-    "av>=12.3.0",
-    "numpydantic>=1.7.0",
-    "albumentations>=1.4.18",
-    "decord2",
-    "dm_tree>=0.1.8",
-    "diffusers>=0.35.0",
-    "timm>=1.0.14",
-    "peft>=0.17.0",
-    "pandas",
-]
-
-[tool.isaaclab.packages.isaaclab-experimental]
-dependencies = []
-
-[tool.isaaclab.packages.isaaclab-mimic]
-dependencies = [
-    "ipywidgets>=8.1.5",
-    "h5py>=3.15.0",
-    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
-]
-
-[tool.isaaclab.packages.isaaclab-newton]
-dependencies = [
-    "newton[sim]>=1.2.0",
-    "prettytable>=3.3.0",
-    "PyOpenGL-accelerate>=3.1.0",
-    "pyglet>=2.1.6,<3",
-]
-
-[tool.isaaclab.packages.isaaclab-ov]
-dependencies = []
-[tool.isaaclab.packages.isaaclab-ov.optional-dependencies]
-ovrtx = ["ovrtx>=0.3.0,<0.4.0"]
-all = ["ovrtx>=0.3.0,<0.4.0"]
-
-[tool.isaaclab.packages.isaaclab-ovphysx]
-dependencies = []
-[tool.isaaclab.packages.isaaclab-ovphysx.optional-dependencies]
-ovphysx = ["ovphysx==0.4.13"]
-
-[tool.isaaclab.packages.isaaclab-physx]
-dependencies = []
-[tool.isaaclab.packages.isaaclab-physx.optional-dependencies]
-newton = ["newton[sim]>=1.2.0"]
-
-[tool.isaaclab.packages.isaaclab-ppisp]
-dependencies = []
-
-[tool.isaaclab.packages.isaaclab-rl]
-dependencies = [
-    "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
-    "protobuf>=4.25.8,!=5.26.0",
-    "hydra-core",
-    "h5py>=3.15.0",
-    "tensorboard",
-    "moviepy",
-    "packaging",
-    "tqdm>=4.67.1",
-]
-[tool.isaaclab.packages.isaaclab-rl.optional-dependencies]
-sb3 = ["stable-baselines3>=2.6", "tqdm>=4.67.1", "rich"]
-skrl = ["skrl>=2.1.0"]
-rl-games = [
-    "aiohttp>=3.12.14",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
-    "gym",
-    "standard-distutils",
-]
-rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
-
-[tool.isaaclab.packages.isaaclab-tasks]
-dependencies = [
-    "numpy>=2",
-    "torch>=2.11",
-    "torchvision>=0.26.0",
-    "protobuf>=4.25.8,!=5.26.0",
-    "tensorboard",
-]
-
-[tool.isaaclab.packages.isaaclab-tasks-experimental]
-dependencies = ["isaaclab-tasks"]
-
-[tool.isaaclab.packages.isaaclab-teleop]
-dependencies = [
-    "isaacteleop[retargeters,ui,cloudxr]~=1.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
-    "dex-retargeting==0.5.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64'",
-]
-
-[tool.isaaclab.packages.isaaclab-visualizers]
-dependencies = ["isaaclab", "numpy>=2"]
-[tool.isaaclab.packages.isaaclab-visualizers.optional-dependencies]
-kit = []
-newton = [
-    "warp-lang>=1.14.0",
-    "newton[sim]>=1.2.0",
-    "PyOpenGL-accelerate>=3.1.0",
-    "pyglet>=2.1.6,<3",
-    "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.12.2",
-]
-rerun = [
-    "newton[sim]>=1.2.0",
-    "rerun-sdk>=0.29.0",
-    "pyarrow==22.0.0",
-]
-viser = [
-    "newton[sim]>=1.2.0",
-    "viser>=1.0.16",
-]
-all = [
-    "imgui-bundle>=1.92.5",
-    "newton[sim]>=1.2.0",
-    "PyOpenGL-accelerate>=3.1.0",
-    "pyglet>=2.1.6,<3",
-    "pyarrow==22.0.0",
-    "rerun-sdk>=0.29.0",
-    "typing-extensions>=4.12.2",
-    "viser>=1.0.16",
-    "warp-lang>=1.14.0",
-]
 
 [tool.ruff]
 line-length = 120
@@ -488,22 +320,13 @@ explicit = true
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
 override-dependencies = ["numpy>=2"]
-# Pin the dev workspace to a known-good, reproducible environment. The loose
-# ``>=`` specs in [project.dependencies] and the per-package
-# [tool.isaaclab.packages] tables keep the published wheel and sub-packages
-# under-constrained; these constraints (plus uv.lock) carry the exact versions
-# that the development/CI environment and Isaac Sim interop require. The torch
-# stack mirrors ``[tool.isaaclab.versions]`` and is routed to the CUDA indexes
-# via [tool.uv.sources].
+# Pin the dev workspace torch stack (routed to the CUDA indexes via [tool.uv.sources]).
+# The loose [project.dependencies] specs keep the wheel resolvable against isaacsim.
+# These versions mirror ``[tool.isaaclab.versions]`` (the single source of truth).
 constraint-dependencies = [
     "torch==2.11.0",
     "torchvision==0.26.0",
     "torchaudio==2.11.0",
-    # Isaac Sim interop pins (relaxed to ``>=`` in the package metadata above).
-    "transformers==4.57.6",
-    "warp-lang==1.14.0",
-    "pillow==12.1.1",
-    "omniverseclient==2.71.1.7015",
 ]
 # teleop (lxml>=5.2.2) and mimic (lxml<5.0.0, also in ``all``) cannot co-resolve;
 # declaring the conflict lets uv fork the resolution instead of failing.

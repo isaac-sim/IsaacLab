@@ -76,9 +76,3 @@ repos:
         entry: tools/pre_commit/check_git_lfs_pointers.sh
         language: script
         pass_filenames: true
-      - id: gen-package-pyproject
-        name: sub-package dependencies generated from root pyproject
-        entry: python3 tools/gen_package_pyproject.py --check
-        language: system
-        files: (^pyproject\.toml|^source/isaaclab[^/]*/pyproject\.toml)$
-        pass_filenames: false

@@ -16,35 +16,10 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "learning", "ai"]
 requires-python = ">=3.12"
-# >>> BEGIN auto-generated dependencies -- edit [tool.isaaclab.packages] in the root pyproject.toml and run tools/gen_package_pyproject.py >>>
-dependencies = [
-    "numpy>=2",
-    "torch>=2.11",
-    "onnx>=1.18.0",
-    "prettytable>=3.3.0",
-    "hidapi>=0.14.0",
-    "gymnasium>=1.2.0",
-    "trimesh",
-    "pyglet>=2.1.6,<3",
-    "pytetwild>=0.2.3,<0.3 ; platform_machine in 'x86_64 AMD64'",
-    "transformers>=4.57.6",
-    "einops",
-    "warp-lang>=1.14.0",
-    "matplotlib>=3.10.3",
-    "pillow>=12.1.1",
-    "botocore",
-    "starlette>=0.46.0,<0.50",
-    "omniverseclient>=2.71.1.7015",
-    "filelock",
-    "lazy_loader>=0.4",
-    "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
-    "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-]
-# <<< END auto-generated dependencies <<<
+# Third-party requirements are centralized in the root pyproject.toml
+# (single source of truth for the uv workspace, the wheel builder, and the
+# ./isaaclab.sh -i install CLI).
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
