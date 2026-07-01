@@ -5,6 +5,10 @@
 
 """Unit tests for benchmark recorder classes."""
 
+import builtins
+import sys
+import types
+
 import pytest
 
 from isaaclab.test.benchmark.interfaces import MeasurementData
@@ -595,6 +599,103 @@ class TestVersionInfoRecorder:
         assert "torch" in versions
         assert "numpy" in versions
         assert "isaaclab" in versions
+
+    def test_captures_active_kit_versions(self, monkeypatch, tmp_path):
+        """Test that versions are captured from an active Kit runtime."""
+        isaac_path = tmp_path / "isaacsim"
+        isaac_path.mkdir()
+        (isaac_path / "VERSION").write_text("6.0.0-test")
+        monkeypatch.setenv("ISAAC_PATH", str(isaac_path))
+
+        omni = types.ModuleType("omni")
+        kit = types.ModuleType("omni.kit")
+        app = types.ModuleType("omni.kit.app")
+        app.get_app = lambda: types.SimpleNamespace(get_build_version=lambda: "110.1.1-test")
+        omni.kit = kit
+        kit.app = app
+        monkeypatch.setitem(sys.modules, "omni", omni)
+        monkeypatch.setitem(sys.modules, "omni.kit", kit)
+        monkeypatch.setitem(sys.modules, "omni.kit.app", app)
+
+        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
+
+        assert versions["kit"] == "110.1.1-test"
+        assert versions["isaacsim"] == "6.0.0-test"
+
+    def test_captures_isaacsim_version_without_isaac_path(self, monkeypatch):
+        """Test that an active Kit runtime provides the Isaac Sim application version."""
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+
+        omni = types.ModuleType("omni")
+        kit = types.ModuleType("omni.kit")
+        app = types.ModuleType("omni.kit.app")
+        app.get_app = lambda: types.SimpleNamespace(get_kit_version=lambda: "110.1.1-test")
+        omni.kit = kit
+        kit.app = app
+        isaacsim = types.ModuleType("isaacsim")
+        core = types.ModuleType("isaacsim.core")
+        version = types.ModuleType("isaacsim.core.version")
+        version.get_version = lambda: ("6.0.0", "rc.59", "6", "0", "0", "rc", "59", "main.0.test")
+        isaacsim.core = core
+        core.version = version
+        monkeypatch.setitem(sys.modules, "omni", omni)
+        monkeypatch.setitem(sys.modules, "omni.kit", kit)
+        monkeypatch.setitem(sys.modules, "omni.kit.app", app)
+        monkeypatch.setitem(sys.modules, "isaacsim", isaacsim)
+        monkeypatch.setitem(sys.modules, "isaacsim.core", core)
+        monkeypatch.setitem(sys.modules, "isaacsim.core.version", version)
+        monkeypatch.setitem(sys.modules, "carb", types.ModuleType("carb"))
+
+        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
+
+        assert versions["isaacsim"] == "6.0.0-rc.59+main.0.test"
+
+    def test_omits_kit_versions_without_active_kit(self, monkeypatch):
+        """Test that Kit versions are omitted when no Kit runtime is active."""
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+
+        omni = types.ModuleType("omni")
+        kit = types.ModuleType("omni.kit")
+        app = types.ModuleType("omni.kit.app")
+        app.get_app = lambda: None
+        omni.kit = kit
+        kit.app = app
+        isaacsim = types.ModuleType("isaacsim")
+        isaacsim.__version__ = "should-not-be-recorded"
+        carb = types.ModuleType("carb")
+        monkeypatch.setitem(sys.modules, "omni", omni)
+        monkeypatch.setitem(sys.modules, "isaacsim", isaacsim)
+        monkeypatch.setitem(sys.modules, "carb", carb)
+        monkeypatch.setitem(sys.modules, "omni.kit", kit)
+        monkeypatch.setitem(sys.modules, "omni.kit.app", app)
+
+        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
+
+        assert "kit" not in versions
+        assert "isaacsim" not in versions
+
+    def test_omits_kit_versions_without_importing_kit(self, monkeypatch):
+        """Test that Kitless runs do not import the Kit application module."""
+        monkeypatch.delenv("ISAAC_PATH", raising=False)
+        for module_name in ("omni.kit.app", "omni.kit", "omni"):
+            monkeypatch.delitem(sys.modules, module_name, raising=False)
+
+        kit_imports = []
+        original_import = builtins.__import__
+
+        def import_without_kit(name, globals=None, locals=None, fromlist=(), level=0):
+            if name == "omni.kit.app":
+                kit_imports.append(name)
+                raise AssertionError("Kit must not be imported for Kitless runs")
+            return original_import(name, globals, locals, fromlist, level)
+
+        monkeypatch.setattr(builtins, "__import__", import_without_kit)
+
+        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
+
+        assert kit_imports == []
+        assert "kit" not in versions
+        assert "isaacsim" not in versions
 
     def test_version_values_are_strings(self, recorder):
         """Test that version values are strings."""

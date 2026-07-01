@@ -34,3 +34,5 @@ Fixed
   rendering backends.
 * Fixed simulation launch failures being reported with a zero process exit
   status during Kit fast shutdown.
+* Fixed benchmark metadata so Kit-full runs now report Kit and Isaac Sim
+  versions while Kitless runs omit them.

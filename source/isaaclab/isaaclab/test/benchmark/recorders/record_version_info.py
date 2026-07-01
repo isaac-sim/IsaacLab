@@ -6,6 +6,7 @@
 import importlib.metadata
 import os
 import subprocess
+import sys
 
 from isaaclab.test.benchmark.interfaces import MeasurementData, MeasurementDataRecorder
 from isaaclab.test.benchmark.measurements import DictMetadata, StringMetadata
@@ -47,6 +48,42 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         except Exception:
             return None
 
+    def _get_kit_version(self) -> str | None:
+        """Get the version from the active Kit application."""
+        app_module = sys.modules.get("omni.kit.app")
+        if app_module is None:
+            return None
+        try:
+            app = app_module.get_app()
+            get_version = getattr(app, "get_kit_version", None)
+            if not callable(get_version):
+                get_version = getattr(app, "get_build_version", None)
+            return str(get_version()) if callable(get_version) else None
+        except Exception:
+            return None
+
+    def _get_isaacsim_version(self) -> str | None:
+        """Get the Isaac Sim version from an install or active Kit runtime."""
+        try:
+            with open(os.path.join(os.environ["ISAAC_PATH"], "VERSION")) as file:
+                return file.read().strip()
+        except Exception:
+            pass
+        try:
+            from isaacsim.core.version import get_version
+
+            core, prerelease, _, _, _, _, _, buildtag = get_version()
+            if core:
+                version = str(core)
+                if prerelease:
+                    version += f"-{prerelease}"
+                if buildtag:
+                    version += f"+{buildtag}"
+                return version
+        except Exception:
+            pass
+        return self._get_pkg_version("isaacsim")
+
     def _record(self, key: str, version: str | None) -> None:
         """Store a version entry only if version is non-empty."""
         if version:
@@ -60,14 +97,11 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         version = self._get_version("warp", "config.version") or self._get_version("warp")
         self._record("warp", version)
 
-        # isaacsim
-        self._record("isaacsim", self._get_version("isaacsim"))
-
-        # kit (from omni.kit if available)
-        version = self._get_version("omni.kit", "app.get_app().get_build_version")
-        if not version:
-            version = self._get_version("carb", "settings.get_settings().get('/app/version')")
-        self._record("kit", version)
+        # Kit and Isaac Sim are meaningful only for an active Kit runtime.
+        version = self._get_kit_version()
+        if version:
+            self._record("kit", version)
+            self._record("isaacsim", self._get_isaacsim_version())
 
         # torch
         self._record("torch", self._get_version("torch"))
