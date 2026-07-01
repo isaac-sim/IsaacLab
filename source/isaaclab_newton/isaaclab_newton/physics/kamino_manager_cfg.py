@@ -51,8 +51,7 @@ class KaminoSolverCfg(NewtonSolverCfg):
     use_fk_solver: bool | None = None
     """Whether to enable the forward kinematics solver for state resets.
 
-<<<<<<< HEAD
-    When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's 
+    When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's
     articulation structure. If the model has loop-closing joints, the FK solver will be used.
 
     When ``True``, :meth:`NewtonKaminoManager._eval_fk_impl` reconciles body state via
@@ -65,11 +64,6 @@ class KaminoSolverCfg(NewtonSolverCfg):
     When ``False``, Newton's articulated ``eval_fk`` is used instead over the full
     ``joint_q`` / ``joint_qd``. It is then up to the user to specify constraint-consistent
     values. This is the faster option for purely articulated (tree-structured) systems.
-=======
-    Required for proper environment resets. The FK solver computes consistent body poses
-    and velocities from the actuated joint coordinates/velocities after state writes, which is
-    essential for maximal-coordinate solvers (closed-loop poses are solved loop-consistent).
->>>>>>> e10abbbfc9 (Cleanup reset and FK logic)
     """
 
     fk_use_regularization: bool = True
