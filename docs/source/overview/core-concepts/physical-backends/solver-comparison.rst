@@ -18,9 +18,12 @@ The solvers covered are:
 * **Newton Kamino** — beta P-ADMM :doc:`Newton solver <newton/kamino-solver>`,
   configured by :class:`~isaaclab_newton.physics.KaminoSolverCfg`.
 
-Newton additionally ships ``FeatherstoneSolverCfg`` and ``XPBDSolverCfg``;
-neither is wired into an Isaac Lab task at the time of writing and they
-are omitted from this comparison.
+Newton additionally ships
+:class:`~isaaclab_newton.physics.FeatherPGSSolverCfg`,
+``FeatherstoneSolverCfg``, and ``XPBDSolverCfg``. These experimental
+paths are not wired into an Isaac Lab task at the time of writing and are
+omitted from this comparison. See :doc:`newton/feather-pgs-solver` for the
+FeatherPGS configuration and current limitations.
 
 
 Friction Model
