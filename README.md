@@ -55,10 +55,50 @@ conda activate env_isaaclab
 
 # Environment Setup
 
-If you want to change environment in IsaacSim, please refer to 
+If you want to change environment in IsaacSim, please refer to the following setting
 
 ```
 source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/stack/config/franka/stack_joint_pos_env_cfg.py
+```
+
+### Table / Workspace (Pad)
+
+PAD_HEIGHT = 0.13          # height of the gray platform (m)
+
+CUBE_Z = PAD_HEIGHT + 0.02 # cube resting height = pad top + half-block
+
+### Robot Base Height
+
+```
+self.scene.robot.init_state.pos = (0.0, 0.0, 0.0)  # adjust Z to raise/lower
+```
+
+### Cube Size and Color
+
+```
+for i, (name, pos, color) in enumerate([
+    ("cube_1", [0.2,  0.08,  CUBE_Z], "blue"),   # change "blue" → any color name
+    ("cube_2", [0.55, 0.05,  CUBE_Z], "red"),     # the pickup cube
+    ("cube_3", [0.60, -0.10, CUBE_Z], "green")
+]):
+    spawn=UsdFileCfg(
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/{color}_block.usd",  # USD determines size too
+    )
+```
+
+### Cube Randomization Range (each episode)
+
+```
+randomize_cube_2 = EventTerm(
+    func=mdp_core.reset_root_state_uniform,
+    params={
+        "pose_range": {
+            "x": (-0.38, -0.28),  # offset from default x=0.55 → actual x:[0.17, 0.27]
+            "y": (-0.02,  0.12),  # offset from default y=0.05 → actual y:[0.03, 0.17]
+        },
+        ...
+    },
+)
 ```
 
 # Isaac Lab Mimic
@@ -98,7 +138,38 @@ Generate augmented dataset
     --output_file logs/demos/pickup_generated.hdf5 \
     --generation_num_trials 50 --num_envs 4 --enable_cameras
 ```
-    
+
+## Generate augmented dataset(Cosmos-transfer)
+
+```
+git clone https://github.com/nvidia-cosmos/cosmos-transfer1.git
+cd cosmos-transfer1
+git checkout e4055e39ee9c53165e85275bdab84ed20909714a   # tested commit
+
+conda create -n cosmos python=3.10 -y
+conda activate cosmos
+pip install -e .
+```
+
+```
+./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Cosmos-Mimic-v0     --input_file logs/demos/pickup_source_annotated.hdf5     --output_file logs/demos/pickup_source_generated_10_cosmos.hdf5     --generation_num_trials 10 --num_envs 4 --enable_cameras     --rendering_mode performance
+```
+
+```
+ python scripts/tools/hdf5_to_mp4.py \
+    --input_file logs/demos/pickup_source_generated_10_cosmos.hdf5 \
+    --output_dir logs/demos/pickup_cosmos_mp4 \
+    --input_keys front_cam wrist_cam body_cam \
+                 front_cam_segmentation front_cam_normals front_cam_depth \
+                 wrist_cam_depth \
+    --video_height 704 --video_width 1280 --framerate 30
+```
+
+```
+cd ~/Stanley_ws/cosmos-transfer1
+/home/csl/Stanley_ws/IsaacLab/scripts/cosmos/run_cosmos_inference.sh
+```
+
 # Convert HDF5 to LeRobot format 
 
 ```
