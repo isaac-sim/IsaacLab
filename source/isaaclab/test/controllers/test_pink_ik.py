@@ -82,10 +82,10 @@ def create_test_env(env_name, num_envs):
 @pytest.fixture(
     scope="module",
     params=[
-        "Isaac-PickPlace-GR1T2-Abs-v0",
-        "Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0",
-        "Isaac-PickPlace-FixedBaseUpperBodyIK-G1-Abs-v0",
-        "Isaac-PickPlace-Locomanipulation-G1-Abs-v0",
+        "IsaacContrib-PickPlace-GR1T2-Abs",
+        "IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs",
+        "IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs",
+        "IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
     ],
 )
 def env_and_cfg(request):

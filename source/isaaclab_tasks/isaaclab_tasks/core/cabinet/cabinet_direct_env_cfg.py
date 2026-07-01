@@ -7,6 +7,10 @@ from __future__ import annotations
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -16,6 +20,21 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+from isaaclab_tasks.utils import PresetCfg
+
+
+@configclass
+class CabinetDirectPhysicsCfg(PresetCfg):
+    physx: PhysxCfg = PhysxCfg()
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            integrator="implicitfast",
+        ),
+        num_substeps=1,
+    )
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    default = physx
 
 
 @configclass
@@ -45,6 +64,7 @@ class CabinetDirectEnvCfg(DirectRLEnvCfg):
             dynamic_friction=1.0,
             restitution=0.0,
         ),
+        physics=CabinetDirectPhysicsCfg(),
     )
 
     # scene

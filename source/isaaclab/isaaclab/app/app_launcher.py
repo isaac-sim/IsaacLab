@@ -567,7 +567,8 @@ class AppLauncher:
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
                 ' Can be "performance", "balanced", or "quality".'
-                " Individual settings can be overwritten by using the RenderCfg class."
+                " Individual Isaac RTX settings can be overwritten through "
+                "IsaacRtxRendererCfg.global_settings."
             ),
         )
         arg_group.add_argument(

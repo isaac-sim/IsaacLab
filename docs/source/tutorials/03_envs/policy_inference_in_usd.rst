@@ -8,7 +8,7 @@ Policy Inference in USD Environment
 
 Having learnt how to modify a task in :ref:`tutorial-modify-direct-rl-env`, we will now look at how to run a trained policy in a prebuilt USD scene.
 
-In this tutorial, we will use the RSL RL library and the trained policy from the Humanoid Rough Terrain ``Isaac-Velocity-Rough-H1-v0`` task in a simple warehouse USD.
+In this tutorial, we will use the RSL RL library and the trained policy from the Humanoid Rough Terrain ``Isaac-Velocity-Rough-H1`` task in a simple warehouse USD.
 
 
 The Tutorial Code
@@ -38,11 +38,11 @@ This is because when simulating a small number of environment, CPU simulation ca
 The Code Execution
 ~~~~~~~~~~~~~~~~~~
 
-First, we need to train the ``Isaac-Velocity-Rough-H1-v0`` task by running the following:
+First, we need to train the ``Isaac-Velocity-Rough-H1`` task by running the following:
 
 .. code-block:: bash
 
-  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1-v0
+  ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Rough-H1
 
 When the training is finished, we can visualize the result with the following command.
 To stop the simulation, you can either close the window, or press ``Ctrl+C`` in the terminal
@@ -50,7 +50,7 @@ where you started the simulation.
 
 .. code-block:: bash
 
-  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1-v0 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
+  ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Velocity-Rough-H1 --num_envs 64 --checkpoint logs/rsl_rl/h1_rough/EXPERIMENT_NAME/POLICY_FILE.pt --viz kit
 
 
 After running the play script, the policy will be exported to jit and onnx files under the experiment logs directory.

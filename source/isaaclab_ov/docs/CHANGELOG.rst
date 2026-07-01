@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+0.5.3 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS`` environment variable to control whether
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` enables OVRTX GPU transform reads.
+
+
+0.5.2 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"normals"`` support to :class:`~isaaclab_ov.renderers.OVRTXRenderer`. The renderer now
+  declares :attr:`~isaaclab.renderers.RenderBufferKind.NORMALS` in
+  :meth:`~isaaclab_ov.renderers.OVRTXRenderer.supported_output_types` (3-channel ``float32``) and
+  extracts the ``NormalSD`` AOV from each rendered frame into the output buffer.
+
+
+0.5.1 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``distance_to_camera`` incorrectly mapping to ``DistanceToImagePlaneSD`` in the OVRTX
+  renderer backend. It now correctly uses ``DistanceToCameraSD``, matching the intended semantics
+  of eye-space ray length versus perpendicular image-plane distance.
+
+
+0.5.0 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Overrode :meth:`provides_temporal_camera_data` on :class:`OVRTXRenderer` to return ``True``
+  only for the ``rgb``/``rgba`` beauty buffer (temporally accumulated by DLSS), matching Isaac RTX;
+  other AOVs return ``False``.
+
+
+0.4.6 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed OVRTX camera PPISP/HDR rendering to disable Gaussian skip-tonemapping before renderer initialization.
+
+
+0.4.5 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Extended the :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.use_ovrtx_cloning` path to support
+  heterogeneous scenes as well as homogeneous ones. :meth:`~isaaclab_ov.renderers.OVRTXRenderer.prepare_stage`
+  now exports only :class:`~isaaclab.cloner.ClonePlan` source prototypes plus global stage metadata, and
+  replication uses OVRTX cloning API (``clone_usd``) for all rows in the published clone plan instead of
+  cloning only ``/World/envs/env_0``.
+
+
 0.4.4 (2026-06-09)
 ~~~~~~~~~~~~~~~~~~
 

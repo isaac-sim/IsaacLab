@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
@@ -144,6 +145,50 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._sim_timestamp += dt
         # Prime the FD-dependent COM acceleration so the first read returns a sensible (zero) value.
         _ = self.body_com_acc_w
+
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Reset pose-dependent cached rigid object collection properties.
+
+        Writing body poses moves the bodies, so the composite body state buffers go stale.
+
+        Args:
+            from_link: Set ``True`` when the body link poses were written so the derived body
+                center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
+                the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
+        """
+        # The body com poses are derived from the body link poses, so only invalidate them when the link
+        # poses were the quantity written (otherwise we would clobber the freshly-written com poses).
+        # The composite body state buffers always go stale on a pose write.
+        reset_timestamps(
+            [
+                self._body_com_pose_w if from_link else None,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Reset velocity-dependent cached rigid object collection properties.
+
+        Writing body velocities changes the body velocities, so the composite body state buffers go stale.
+
+        Args:
+            from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
+                link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
+                velocities were written directly so they are not clobbered. Defaults to True.
+        """
+        # The body link velocities are derived from the body com velocities, so only invalidate them when
+        # the com velocities were the quantity written (otherwise we would clobber the freshly-written value).
+        # The composite body state buffers always go stale on a velocity write.
+        reset_timestamps(
+            [
+                self._body_link_vel_w if from_com else None,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
 
     """
     Names.

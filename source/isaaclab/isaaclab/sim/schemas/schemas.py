@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import logging
 import math
+from collections.abc import Iterable
 
 import numpy as np
 import warp as wp
@@ -16,7 +17,7 @@ import warp as wp
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils.string import to_camel_case
+from isaaclab.utils.string import string_to_callable, to_camel_case
 
 from ..utils import (
     apply_nested,
@@ -27,6 +28,7 @@ from ..utils import (
     safe_set_attribute_on_usd_schema,
 )
 from . import schemas_cfg
+from ._backend_hooks import _skip_joint_drive
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -214,6 +216,60 @@ def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
             safe_set_attribute_on_usd_prim(prim, f"{namespace}:{usd_attr}", value, camel_case=False)
 
 
+def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Default fragment applier: apply the fragment's schema and write its namespaced attrs.
+
+    Reads :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_namespace` /
+    :attr:`~isaaclab.sim.schemas.SchemaFragment._usd_applied_schema` from the cfg's class. If the
+    fragment owns an applied schema, it is applied (once). Each non-``None`` dataclass field is
+    written as ``<namespace>:<camelCase(field)>``; the ``func`` field is skipped. ``None`` fields
+    are left unchanged on the prim (partial update).
+
+    Args:
+        cfg: The fragment instance carrying ``_usd_namespace`` / ``_usd_applied_schema`` metadata.
+        prim_path: The prim path to author on.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_/modify_ writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    namespace = type(cfg)._usd_namespace
+    applied = type(cfg)._usd_applied_schema
+    # every fragment field is a namespaced USD attribute, so a namespace is required
+    if namespace is None:
+        raise ValueError(
+            f"Fragment '{type(cfg).__name__}' has no '_usd_namespace' set. Every fragment field is"
+            " authored as '<namespace>:<attr>', so a USD namespace is required; non-USD state must"
+            " live on the spawner cfg or be passed as a writer keyword argument, not as a fragment"
+            " field."
+        )
+    if applied and applied not in prim.GetAppliedSchemas():
+        prim.AddAppliedSchema(applied)
+    for f in dataclasses.fields(cfg):
+        # ``func`` is the only non-USD field; non-scalar values raise in the setter
+        if f.name == "func":
+            continue
+        # ``mesh_approximation_name`` is not a namespaced attribute: it is the standard
+        # ``physics:approximation`` token, written by ``apply_mesh_collision_properties`` (the
+        # family writer) which validates it against ``MESH_APPROXIMATION_TOKENS``. Skip it here
+        # so a mesh-collision cooking fragment dispatched through this generic applier does not
+        # author a spurious ``<namespace>:meshApproximationName`` attribute.
+        if f.name == "mesh_approximation_name":
+            continue
+        value = getattr(cfg, f.name)
+        if value is None:
+            continue
+        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{to_camel_case(f.name, 'cC')}", value, camel_case=False)
+    return True
+
+
 """
 Articulation root properties.
 """
@@ -386,6 +442,143 @@ Rigid body properties.
 """
 
 
+def apply_rigid_body_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.RigidBodyFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of rigid-body fragments to a prim.
+
+    Applies ``UsdPhysics.RigidBodyAPI`` as the implicit anchor (the defining schema for a rigid
+    body), then dispatches each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the rigid-body schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.RigidBodyFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_rigid_body_properties writer)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not UsdPhysics.RigidBodyAPI(prim):
+        UsdPhysics.RigidBodyAPI.Apply(prim)
+    # aggregate per-fragment results so a reported failure is not masked by the always-applied anchor
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
+
+
+def apply_mesh_collision(
+    cfg: schemas_cfg.MeshCollisionFragment, prim_path: str, stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a single mesh-collision fragment: its namespaced cooking attrs plus the shared token.
+
+    This is the default :attr:`~isaaclab.sim.schemas.SchemaFragment.func` for every
+    :class:`~isaaclab.sim.schemas.MeshCollisionFragment`. Unlike the generic :func:`apply_namespaced`,
+    a mesh-collision fragment additionally authors the shared ``physics:approximation`` token (via the
+    standard ``UsdPhysics.MeshCollisionAPI``) on top of its own backend cooking namespace.
+
+    The token is *not* a plain namespaced attribute -- it is shared state on the family anchor implied
+    by the present cooking fragment. Each fragment carries a :attr:`mesh_approximation_name` whose
+    default encodes the token its schema implies (e.g. ``"convexHull"`` for :class:`PhysxConvexHullCfg`,
+    ``"sdf"`` for :class:`PhysxSDFMeshCfg`). A name of ``"none"`` leaves the token unchanged, so when
+    several fragments are dispatched in order by :func:`apply_mesh_collision_properties` the last one
+    with a non-``"none"`` name wins -- this is how a core fragment composes with a backend cooking
+    fragment. The name is validated against :const:`MESH_APPROXIMATION_TOKENS`; an unknown name raises
+    ``ValueError``. :attr:`mesh_approximation_name` is skipped by :func:`apply_namespaced`, so it is
+    never authored as a spurious ``<namespace>:meshApproximationName`` attribute.
+
+    Args:
+        cfg: The mesh-collision fragment to apply.
+        prim_path: The prim path to author on. This prim should be a Mesh.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the fragment was applied successfully.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid, or when the fragment's mesh
+            approximation name is not in :const:`MESH_APPROXIMATION_TOKENS`.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # ensure the standard MeshCollisionAPI anchor (carrier of ``physics:approximation``) exists
+    if not UsdPhysics.MeshCollisionAPI(prim):
+        UsdPhysics.MeshCollisionAPI.Apply(prim)
+    # write the fragment's backend cooking namespace + applied schema; ``mesh_approximation_name`` is
+    # skipped by the generic applier as it is the shared token handled below
+    success = apply_namespaced(cfg, prim_path, stage)
+    # author the shared ``physics:approximation`` token this fragment implies; ``"none"`` leaves the
+    # token untouched so a later non-"none" fragment in a list dispatch wins
+    name = getattr(cfg, "mesh_approximation_name", None)
+    if name is not None and name != "none":
+        if name not in MESH_APPROXIMATION_TOKENS:
+            raise ValueError(
+                f"Invalid mesh approximation name: '{name}'. "
+                f"Valid options are: {list(MESH_APPROXIMATION_TOKENS.keys())}"
+            )
+        safe_set_attribute_on_usd_schema(
+            UsdPhysics.MeshCollisionAPI(prim), "Approximation", MESH_APPROXIMATION_TOKENS[name], camel_case=False
+        )
+    return success
+
+
+def apply_mesh_collision_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.MeshCollisionFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of mesh-collision fragments to a prim.
+
+    Applies ``UsdPhysics.MeshCollisionAPI`` as the implicit anchor (the carrier of the
+    ``physics:approximation`` token), then dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. The default mesh-collision func
+    (:func:`apply_mesh_collision`) authors both the fragment's backend cooking namespace and the
+    shared approximation token it implies, so composing a core fragment with a backend cooking
+    fragment lets the last fragment with a non-``"none"`` :attr:`mesh_approximation_name` set the
+    token. Backend cooking fragments carry their own funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the mesh-collision schemas on. This prim should be a Mesh.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.MeshCollisionFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid, or when a fragment's mesh
+            approximation name is not in :const:`MESH_APPROXIMATION_TOKENS`.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # apply the standard MeshCollisionAPI anchor (carrier of ``physics:approximation``)
+    if not UsdPhysics.MeshCollisionAPI(prim):
+        UsdPhysics.MeshCollisionAPI.Apply(prim)
+    # dispatch each fragment via its ``func`` (cooking-schema namespace + implied approximation
+    # token), aggregating per-fragment results so a reported failure is not masked by the anchor
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
+
+
 def define_rigid_body_properties(prim_path: str, cfg: schemas_cfg.RigidBodyBaseCfg, stage: Usd.Stage | None = None):
     """Apply the rigid body schema on the input prim and set its properties.
 
@@ -473,6 +666,36 @@ def modify_rigid_body_properties(
 """
 Collision properties.
 """
+
+
+def apply_collision_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.CollisionFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of collision fragments to a prim.
+
+    Applies ``UsdPhysics.CollisionAPI`` as the implicit anchor (the defining schema for a
+    collider), then dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry backend-specific
+    funcs, so core never imports a backend.
+
+    Args:
+        prim_path: The prim path to apply the collision schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.CollisionFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not UsdPhysics.CollisionAPI(prim):
+        UsdPhysics.CollisionAPI.Apply(prim)
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        func(cfg, prim_path, stage)
+    return True
 
 
 def define_collision_properties(
@@ -567,6 +790,39 @@ def modify_collision_properties(
 """
 Mass properties.
 """
+
+
+def apply_mass_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.MassFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of mass fragments to a prim.
+
+    Applies ``UsdPhysics.MassAPI`` as the implicit anchor (the defining schema for mass properties),
+    then dispatches each fragment via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+
+    Args:
+        prim_path: The prim path to apply the mass schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.MassFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the properties were successfully set.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the legacy define_mass_properties writer)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    if not UsdPhysics.MassAPI(prim):
+        UsdPhysics.MassAPI.Apply(prim)
+    # aggregate per-fragment results so a reported failure is not masked by the always-applied anchor
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 def define_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, stage: Usd.Stage | None = None):
@@ -730,6 +986,226 @@ Joint drive properties.
 """
 
 
+def _drive_instance_name(prim) -> str | None:
+    """Return the ``UsdPhysics.DriveAPI`` instance for a joint prim, or ``None`` if it has no drive.
+
+    Revolute joints use the ``"angular"`` instance, prismatic joints the ``"linear"`` instance; any
+    other prim type has no joint drive. Shared by :func:`apply_drive` and :func:`_ensure_drive_exists`.
+
+    Args:
+        prim: The candidate joint prim.
+
+    Returns:
+        ``"angular"``, ``"linear"``, or ``None`` when the prim is not a revolute/prismatic joint.
+    """
+    if prim.IsA(UsdPhysics.RevoluteJoint):
+        return "angular"
+    if prim.IsA(UsdPhysics.PrismaticJoint):
+        return "linear"
+    return None
+
+
+def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
+    """Apply a :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment to a single joint prim.
+
+    This is the override ``func`` for the ``UsdPhysics.DriveAPI`` fragment: the drive attributes
+    live under a multi-instance schema, so the generic :func:`apply_namespaced` writer cannot be
+    used. The writer reproduces the solver-common drive logic of
+    :func:`modify_joint_drive_properties`:
+
+    * Selects the drive instance: ``"angular"`` for a revolute joint, ``"linear"`` for a prismatic
+      joint. For any other prim type, the function is a no-op and returns ``False``.
+    * Skips joints excluded by a backend-registered predicate (see
+      :func:`register_joint_drive_skip_predicate`, e.g. PhysX tendon members), returning ``False``.
+    * Applies ``UsdPhysics.DriveAPI`` for the selected instance (presence-gated -- only applied when
+      this fragment is present).
+    * Converts angular-drive :attr:`stiffness` and :attr:`damping` from radians to degrees
+      (``N·m/rad`` -> ``N·m/deg`` and ``N·m·s/rad`` -> ``N·m·s/deg``); linear drives are written
+      as-is.
+    * Writes the typed ``drive:<inst>:physics:{type,maxForce,stiffness,damping}`` attributes,
+      mapping the :attr:`drive_type` field to the USD attribute named ``type``.
+
+    Args:
+        cfg: The :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment to apply.
+        prim_path: The joint prim path to author on.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if the drive was applied to a joint prim, False if the prim is not a revolute or
+        prismatic joint (or is a tendon child).
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    # select the drive instance based on the joint type
+    drive_api_name = _drive_instance_name(prim)
+    if drive_api_name is None:
+        return False
+    # skip joints a backend owns (e.g. PhysX tendon members); see register_joint_drive_skip_predicate
+    if _skip_joint_drive(prim):
+        return False
+
+    # apply the multi-instance drive API (presence-gated anchor for the joint-drive family)
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
+    if not usd_drive_api:
+        usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
+
+    # gather the solver-common drive fields
+    drive_type = cfg.drive_type
+    max_force = cfg.max_force
+    stiffness = cfg.stiffness
+    damping = cfg.damping
+
+    # angular drives use degree units in USD; convert stiffness/damping from radian units
+    if drive_api_name == "angular":
+        if stiffness is not None:
+            # N-m/rad --> N-m/deg
+            stiffness = stiffness * math.pi / 180.0
+        if damping is not None:
+            # N-m-s/rad --> N-m-s/deg
+            damping = damping * math.pi / 180.0
+
+    # ``drive_type`` is a permanent inline carve-out: the USD attribute is named ``type``
+    # (a Python keyword-like name we cannot use as a cfg field). All other solver-common
+    # joint-drive fields follow the snake_case = camelCase convention.
+    for field_name, value in (
+        ("drive_type", drive_type),
+        ("max_force", max_force),
+        ("stiffness", stiffness),
+        ("damping", damping),
+    ):
+        if value is None:
+            continue
+        usd_attr_name = "type" if field_name == "drive_type" else field_name
+        safe_set_attribute_on_usd_schema(usd_drive_api, usd_attr_name, value, camel_case=True)
+
+    return True
+
+
+def apply_joint_drive_properties(
+    prim_path: str, fragments, stage: Usd.Stage | None = None, ensure_drives_exist: bool = False
+) -> bool:
+    """Apply a list of joint-drive fragments to all joint prims under a prim path.
+
+    Mirrors the recursion behaviour of :func:`modify_joint_drive_properties` (decorated with
+    :func:`~isaaclab.sim.utils.apply_nested`): the prim path and all its descendants are visited,
+    and the fragments are dispatched to every revolute/prismatic joint prim found. As soon as a
+    prim is successfully handled, its children are not descended into (nested joints are not
+    allowed).
+
+    Unlike :func:`apply_rigid_body_properties`, the joint-drive family has no implicit anchor:
+    ``UsdPhysics.DriveAPI`` is *presence-gated* and applied only by :func:`apply_drive` when a
+    :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present in ``fragments``. Each
+    fragment is dispatched via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, so backend
+    fragments carry backend-specific funcs and core never imports a backend.
+
+    Args:
+        prim_path: The root prim path to search for joint prims under.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.JointDriveFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+        ensure_drives_exist: If True, write a minimal stiffness (``1e-3``) to any drive whose
+            authored stiffness *and* damping are both zero, so that backends (e.g. Newton) treat
+            the drive as active. Reproduces the legacy
+            :attr:`~isaaclab.sim.schemas.JointDriveBaseCfg.ensure_drives_exist` behaviour. This is
+            a spawner-level flag, not a fragment field.
+
+    Returns:
+        True if the fragments were applied to at least one joint prim, False otherwise.
+    """
+    if stage is None:
+        stage = get_current_stage()
+
+    fragments = list(fragments)
+    # detect whether a UsdPhysics.DriveAPI fragment is present (governs presence-gating + the
+    # ensure_drives_exist behaviour, which only makes sense for the solver-common drive fragment)
+    drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
+
+    root_prim = stage.GetPrimAtPath(prim_path)
+    if not root_prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+
+    count_success = 0
+    instanced_prim_paths = []
+    all_prims = [root_prim]
+    while len(all_prims) > 0:
+        child_prim = all_prims.pop(0)
+        child_prim_path = child_prim.GetPath().pathString
+        # skip instanced prims (cannot author on prototypes)
+        if child_prim.IsInstance():
+            instanced_prim_paths.append(child_prim_path)
+            continue
+        # a prim is a valid joint-drive target only if it is a revolute/prismatic joint
+        is_joint = child_prim.IsA(UsdPhysics.RevoluteJoint) or child_prim.IsA(UsdPhysics.PrismaticJoint)
+        if not is_joint:
+            all_prims += child_prim.GetChildren()
+            continue
+        # skip backend-owned joints wholesale (e.g. PhysX tendon members): no fragment may author on
+        # them. The backend registers the detector via register_joint_drive_skip_predicate, so this
+        # gate carries no backend-specific knowledge; descend into children to reach nested joints.
+        if _skip_joint_drive(child_prim):
+            all_prims += child_prim.GetChildren()
+            continue
+        # dispatch each fragment via its func
+        success = False
+        for cfg in fragments:
+            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+            if func(cfg, child_prim_path, stage):
+                success = True
+        # seed a minimal stiffness only when the drive fragment authored neither stiffness nor
+        # damping and the resulting drive is fully passive
+        if ensure_drives_exist and drive_cfg is not None and success:
+            _ensure_drive_exists(drive_cfg, child_prim)
+        if success:
+            count_success += 1
+        else:
+            all_prims += child_prim.GetChildren()
+
+    if count_success == 0:
+        logger.warning(
+            f"Could not apply joint-drive properties on any prims under: '{prim_path}'."
+            " This might be because no revolute/prismatic joint prims were found, or they are"
+            f" instanced. Discovered list of instanced prim paths: {instanced_prim_paths}"
+        )
+    return count_success > 0
+
+
+def _ensure_drive_exists(drive_cfg, prim) -> None:
+    """Seed a minimal stiffness on a fully-passive drive so backends treat it as active.
+
+    Reproduces the legacy ``ensure_drives_exist`` behaviour: if the drive fragment authored
+    neither :attr:`stiffness` nor :attr:`damping` and the authored drive currently has zero
+    (or unset) stiffness *and* damping, write a minimal stiffness of ``1e-3`` directly to the
+    drive API (converted to degree units for angular drives, matching :func:`apply_drive`). The
+    fragment is not mutated, so this is safe across multiple joint prims sharing one fragment.
+
+    Args:
+        drive_cfg: The :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment.
+        prim: The joint prim being authored.
+    """
+    if drive_cfg.stiffness is not None or drive_cfg.damping is not None:
+        return
+    drive_api_name = _drive_instance_name(prim)
+    if drive_api_name is None:
+        return
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
+    if not usd_drive_api:
+        usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
+    cur_stiffness = usd_drive_api.GetStiffnessAttr().Get()
+    cur_damping = usd_drive_api.GetDampingAttr().Get()
+    if (cur_stiffness is None or cur_stiffness == 0.0) and (cur_damping is None or cur_damping == 0.0):
+        # mirror the legacy writer: 1e-3 is set before the rad->deg conversion, so an angular
+        # drive ends up with ``1e-3 * pi / 180``.
+        stiffness = 1e-3
+        if drive_api_name == "angular":
+            stiffness = stiffness * math.pi / 180.0
+        safe_set_attribute_on_usd_schema(usd_drive_api, "stiffness", stiffness, camel_case=True)
+
+
 @apply_nested
 def modify_joint_drive_properties(
     prim_path: str, cfg: schemas_cfg.JointDriveBaseCfg, stage: Usd.Stage | None = None
@@ -845,6 +1321,48 @@ Fixed tendon properties.
 """
 
 
+def apply_fixed_tendon_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.FixedTendonFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of fixed-tendon fragments to a prim.
+
+    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
+    multi-instance schemas already exist on the prim (authored in the source asset). This writer
+    therefore applies no anchor schema; it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Each fragment tunes only its own schema and returns ``False`` when that schema is not
+    present on the prim. A prim carries a single tendon backend, so compose backends across
+    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+
+    Args:
+        prim_path: The prim path to apply the fixed-tendon schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.FixedTendonFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # tune-not-apply: the PhysxTendonAxisRootAPI instances already exist; apply no anchor.
+    # aggregate per-fragment results so a reported failure is not silently masked.
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
+
+
 @apply_nested
 def modify_fixed_tendon_properties(
     prim_path: str, cfg: schemas_cfg.PhysxFixedTendonPropertiesCfg, stage: Usd.Stage | None = None
@@ -876,6 +1394,9 @@ def modify_fixed_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
+    # Retained for backward compatibility with callers passing PhysxFixedTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_fixed_tendon_properties path.
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -903,6 +1424,7 @@ def modify_fixed_tendon_properties(
                     camel_case=False,
                 )
     else:
+        # NOTE: ``mjc:*`` branch (``MjcTendon`` prim) kept inline; future split candidate into isaaclab_newton.
         # only stiffness and damping in the cfg map to mjc attributes
         for attr_name, value in cfg.items():
             safe_set_attribute_on_usd_prim(
@@ -915,6 +1437,50 @@ def modify_fixed_tendon_properties(
 """
 Spatial tendon properties.
 """
+
+
+def apply_spatial_tendon_properties(
+    prim_path: str, fragments: Iterable[schemas_cfg.SpatialTendonFragment], stage: Usd.Stage | None = None
+) -> bool:
+    """Apply a list of spatial-tendon fragments to a prim.
+
+    Spatial tendons are a *tune-not-apply* family: the applied
+    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
+    already exist on the prim (authored in the source asset). This writer therefore applies no
+    anchor schema; it only dispatches each fragment via its
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`, which tunes the existing instances.
+    Backend fragments carry backend-specific funcs, so core never imports a backend.
+
+    Each fragment tunes only its own schema and returns ``False`` when that schema is not
+    present on the prim. A prim carries a single tendon backend, so compose backends across
+    prims rather than mixing PhysX and Mujoco fragments in one list on one prim.
+
+    Args:
+        prim_path: The prim path to apply the spatial-tendon schemas on.
+        fragments: An iterable of :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
+        stage: The stage where to find the prim. Defaults to None, in which case the current
+            stage is used.
+
+    Returns:
+        True if all fragments applied successfully, False if any fragment reported failure.
+
+    Raises:
+        ValueError: If the prim at ``prim_path`` is not valid.
+    """
+    if stage is None:
+        stage = get_current_stage()
+    prim = stage.GetPrimAtPath(prim_path)
+    # fail loudly on an invalid path (matches the sibling apply_* writers)
+    if not prim.IsValid():
+        raise ValueError(f"Prim path '{prim_path}' is not valid.")
+    # tune-not-apply: the PhysxTendonAttachmentRootAPI / PhysxTendonAttachmentLeafAPI instances
+    # already exist; apply no anchor.
+    # aggregate per-fragment results so a reported failure is not silently masked.
+    success = True
+    for cfg in fragments:
+        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+        success = bool(func(cfg, prim_path, stage)) and success
+    return success
 
 
 @apply_nested
@@ -950,6 +1516,9 @@ def modify_spatial_tendon_properties(
     Raises:
         ValueError: If the input prim path is not valid.
     """
+    # Retained for backward compatibility with callers passing PhysxSpatialTendonPropertiesCfg
+    # directly. Will be removed in a future release once callers adopt the fragment-based
+    # apply_spatial_tendon_properties path.
     # obtain stage
     if stage is None:
         stage = get_current_stage()

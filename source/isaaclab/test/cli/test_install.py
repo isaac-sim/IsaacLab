@@ -222,3 +222,36 @@ class TestDeterminePythonVersion:
         ):
             result = determine_python_version()
             assert result == "3.11"
+
+
+# ---------------------------------------------------------------------------
+# Prebundled-torch shadowing invariant (regression: nvbugs 6343978)
+# ---------------------------------------------------------------------------
+
+
+def test_no_shadowing_prebundled_torch_in_isaac_sim():
+    """A prebundled torch must not shadow the pip-installed torch.
+
+    Regression test for nvbugs 6343978: Isaac Sim 6.0 ships a prebundled PyTorch under
+    the deprecated ``omni.isaac.ml_archive`` extension whose ``libtorch_cuda.so``
+    requires an NCCL symbol the co-bundled NCCL does not export. Launch paths that do
+    not import :mod:`isaaclab` (e.g. ``isaac-sim.streaming.sh`` / ``runheadless.sh``)
+    bypass the ``sys.path`` deprioritization and import this broken copy, crashing with
+    ``undefined symbol: ncclDevCommCreate``. After install/build, every
+    ``pip_prebundle/torch`` under Isaac Sim must therefore be either removed or a
+    symlink into the active environment, never a real shadowing directory.
+    """
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is None or not isaacsim_path.exists():
+        pytest.skip("Isaac Sim installation not found; skipping prebundle-shadow invariant check")
+
+    shadowing = [
+        prebundled_torch
+        for prebundled_torch in isaacsim_path.rglob("pip_prebundle/torch")
+        if prebundled_torch.is_dir() and not prebundled_torch.is_symlink()
+    ]
+    assert not shadowing, (
+        "Found prebundled torch directories that shadow the pip-installed torch (nvbugs 6343978). "
+        "They must be removed at image build time or repointed to the active environment:\n  "
+        + "\n  ".join(str(p) for p in shadowing)
+    )

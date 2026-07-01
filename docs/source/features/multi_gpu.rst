@@ -286,7 +286,7 @@ Single-node training (defaults to all available GPUs):
         .. code-block:: bash
 
             ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
-               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
@@ -295,7 +295,7 @@ Single-node training (defaults to all available GPUs):
         .. code-block:: bash
 
             uv run train_multigpu \
-               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
 Override the GPU count or torchrun settings when needed:
@@ -310,7 +310,7 @@ Override the GPU count or torchrun settings when needed:
 
             ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
                --num_gpus 4 --master_port 29504 \
-               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
@@ -319,7 +319,7 @@ Override the GPU count or torchrun settings when needed:
         .. code-block:: bash
 
             uv run train_multigpu --num_gpus 4 --master_port 29504 \
-               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
 Use ``--rl_library`` to select other distributed-capable libraries (``rsl_rl``, ``rl_games``, or ``skrl``).
@@ -336,7 +336,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
             ./isaaclab.sh -p scripts/reinforcement_learning/train_multigpu.py \
                --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
-               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
     .. tab-item:: uv run
@@ -346,7 +346,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 
             uv run train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
-               --task Isaac-Dexsuite-Kuka-Allegro-Reorient-v0 \
+               --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
 For multi-node torch jobs, pass torchrun settings such as ``--nnodes``, ``--node_rank``,

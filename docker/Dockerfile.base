@@ -88,15 +88,11 @@ RUN install_carb_env_shim() { \
 
 # arm64-only build deps:
 # - imgui-bundle has no prebuilt arm64 wheel; needs GL/X11 dev headers.
-# - swig is required for the nlopt source build (see arm64 nlopt step below).
-# - libgmp-dev is required by pytetwild's fTetWild source build (no aarch64 wheel for 0.2.3).
 RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         apt-get update && \
         apt-get install -y --no-install-recommends \
         libgl1-mesa-dev libopengl-dev libglx-dev \
-        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev \
-        libgmp-dev \
-        swig; \
+        libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
 # copy files necessary for installing Isaac Lab and its dependencies
@@ -143,22 +139,25 @@ RUN touch /bin/nvidia-smi && \
     mkdir -p /var/run/nvidia-persistenced && \
     touch /var/run/nvidia-persistenced/socket
 
-# On arm64, pre-install nlopt 2.6.2 (transitively pinned by isaacteleop[retargeters]).
-# There is no aarch64 wheel for this version, and pip's isolated build env hides the
-# system numpy from nlopt's cmake-based build, so we install it manually with
-# --no-build-isolation. setuptools+wheel+numpy must be importable in the host Python
-# for that mode (PEP 517 backend lookup). The subsequent isaaclab.sh --install then
-# sees nlopt as already satisfied and skips the from-source rebuild that would fail.
+# On arm64, temporarily install swig for the nlopt source build, keep it
+# through the Isaac Lab dependency install, then purge it before the layer ends.
+# This lets ./isaaclab.sh --install see nlopt as already satisfied without
+# leaving swig in the final container filesystem.
 RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
     if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends swig && \
         ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install setuptools wheel numpy && \
         ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install --no-build-isolation nlopt==2.6.2; \
+    fi && \
+    ${ISAACLAB_PATH}/isaaclab.sh --install && \
+    if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
+        ${ISAACLAB_PATH}/isaaclab.sh -p -c "import nlopt" && \
+        apt-get purge -y --auto-remove swig && \
+        apt-get clean && \
+        rm -rf /var/lib/apt/lists/* && \
+        if command -v swig >/dev/null 2>&1; then exit 1; fi; \
     fi
-
-# installing Isaac Lab dependencies
-# use pip caching to avoid reinstalling large packages
-RUN --mount=type=cache,target=${DOCKER_USER_HOME}/.cache/pip \
-    ${ISAACLAB_PATH}/isaaclab.sh --install
 
 # HACK: Remove install of quadprog dependency
 RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip uninstall -y quadprog

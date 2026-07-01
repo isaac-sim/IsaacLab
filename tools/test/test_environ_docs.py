@@ -58,7 +58,7 @@ from isaaclab_tasks.utils.preset_target import PresetTarget  # noqa: E402
 def test_is_training_task_filters_inference_variants():
     assert is_training_task("Isaac-Cartpole")
     assert not is_training_task("Isaac-Cartpole-Play-v0")
-    assert not is_training_task("Isaac-Assemble-Trocar-G129-Dex3-Eval-v0")
+    assert not is_training_task("IsaacContrib-Assemble-Trocar-G129-Dex3-Eval")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Direct-Play-v0")
     assert not is_training_task("Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0")
 
@@ -92,7 +92,7 @@ def test_parse_rl_libraries_detects_vision_config_from_filename():
 
 def test_apply_rl_library_overrides_supplements_registry_gaps():
     agents = apply_rl_library_overrides(
-        "Isaac-Assemble-Trocar-G129-Dex3-v0",
+        "IsaacContrib-Assemble-Trocar-G129-Dex3",
         {},
     )
     assert agents == {"rlinf": ["PPO"]}
@@ -102,13 +102,13 @@ def test_find_inference_task_name_supports_play_and_eval():
     registry_ids = {
         "Isaac-Ant-v0",
         "Isaac-Ant-Play-v0",
-        "Isaac-Assemble-Trocar-G129-Dex3-v0",
-        "Isaac-Assemble-Trocar-G129-Dex3-Eval-v0",
+        "IsaacContrib-Assemble-Trocar-G129-Dex3",
+        "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval",
     }
     assert find_inference_task_name("Isaac-Ant-v0", registry_ids) == "Isaac-Ant-Play-v0"
     assert (
-        find_inference_task_name("Isaac-Assemble-Trocar-G129-Dex3-v0", registry_ids)
-        == "Isaac-Assemble-Trocar-G129-Dex3-Eval-v0"
+        find_inference_task_name("IsaacContrib-Assemble-Trocar-G129-Dex3", registry_ids)
+        == "IsaacContrib-Assemble-Trocar-G129-Dex3-Eval"
     )
     assert find_inference_task_name("Isaac-Cartpole", registry_ids) is None
 
@@ -199,7 +199,7 @@ def test_collect_environment_doc_rows_from_mock_specs():
 def test_collect_environment_doc_rows_applies_rlinf_override():
     specs = [
         EnvSpec(
-            id="Isaac-Assemble-Trocar-G129-Dex3-v0",
+            id="IsaacContrib-Assemble-Trocar-G129-Dex3",
             entry_point="isaaclab.envs:ManagerBasedRLEnv",
             kwargs={"env_cfg_entry_point": "cfg:G1AssembleTrocarEnvCfg"},
         ),

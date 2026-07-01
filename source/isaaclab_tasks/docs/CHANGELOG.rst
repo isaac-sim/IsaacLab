@@ -1,6 +1,268 @@
 Changelog
 ---------
 
+8.1.2 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Cartpole task lighting from :class:`~isaaclab.sim.DomeLightCfg` to
+  :class:`~isaaclab.sim.DistantLightCfg` with unified light
+  intensity (``CARTPOLE_DISTANT_LIGHT_INTENSITY = 2000.0``), color
+  (``CARTPOLE_DISTANT_LIGHT_COLOR = (1.0, 1.0, 1.0)``), and orientation
+  (``CARTPOLE_DISTANT_LIGHT_ORIENTATION``, -45° pitch and -45° yaw) across the direct, camera,
+  and manager-based variants via shared constants in ``constants.py``. Updated lighting-dependent
+  test golden images accordingly.
+
+
+8.1.1 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Changed :class:`~isaaclab_tasks.core.dexsuite.dexsuite_env_cfg.DexsuiteReorientEnvCfg` to derive
+  from :class:`~isaaclab.envs.ManagerBasedRLEnvCfg` instead of
+  :class:`~isaaclab.envs.ManagerBasedEnvCfg`, so the RL-specific configuration fields are inherited
+  rather than set ad hoc in ``__post_init__``.
+
+
+8.1.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Stack-Cube-SO101-v0`` and ``Isaac-Stack-Cube-SO101-IK-Abs-v0`` cube-stacking
+  environments for the SO-101 5-DOF arm. The IK-Abs variant uses absolute task-space
+  differential inverse kinematics and is seated on the table.
+* Generalized the cube-stack MDP gripper observations and terminations to support single-jaw
+  grippers in addition to two-finger parallel grippers.
+* Added XR teleoperation for ``Isaac-Stack-Cube-SO101-IK-Abs-v0`` via an IsaacTeleop retargeting
+  pipeline built from the SO-101 retargeters in ``isaacteleop.retargeters``. Controller poses are
+  rebased into the robot base frame upstream via
+  :attr:`~isaaclab_teleop.IsaacTeleopCfg.target_frame_prim_path` (set to the seated, +90 deg-yawed
+  base prim), so the retargeters work directly in the IK command frame. End-effector motion is
+  clutch-rebased around the pose captured on engage: the clutch latches on the first running frame
+  (the headset "Play") and seeds its home from a static reset-origin (the gripper's pose in the
+  base frame at the seated init pose) so engaging with a steady controller does not move the arm,
+  then keeps a running home so a mid-task re-clutch resumes from the last commanded pose. The
+  gripper jaw tracks the controller trigger continuously (analog).
+
+Changed
+^^^^^^^
+
+* **Breaking:** Reworked the ``Isaac-Stack-Cube-SO101-IK-Abs-v0`` teleop control to command the
+  full end-effector SE3 pose. The arm action is now an 8-D
+  ``[pos_x, pos_y, pos_z, quat_x, quat_y, quat_z, quat_w, gripper]`` (orientation xyzw),
+  replacing the previous 6-D ``[pos_x, pos_y, pos_z, pitch, roll, gripper]``. A single
+  full-pose differential IK (``SO101PoseIKController``, ``command_type="pose"``) now solves all
+  **5** arm joints (``shoulder_pan``, ``shoulder_lift``, ``elbow_flex``, ``wrist_flex``,
+  ``wrist_roll``) over a 6-row task: 3 linear rows track position exactly (weight 1) and 3
+  orientation rows are soft-weighted by the core controller's ``orientation_weight`` (default
+  ``0.5``). This replaces the reduced 4-row ``[x, y, z, pitch]`` IK over 4 joints plus a separate
+  ``wrist_roll`` action. The manipulability-aware damped least squares
+  (``ik_method="adaptive_dls"``) and null-space joint-limit avoidance are now provided by the core
+  :class:`~isaaclab.controllers.DifferentialIKController`; ``SO101PoseIKController`` only adds the
+  wrist-only orientation joint mask (restricting orientation to ``wrist_flex`` / ``wrist_roll`` so
+  ``shoulder_pan`` stays position-only) on top.
+
+  Migration: the controller / action classes were renamed
+  ``SO101PositionPitchIK{Controller,ControllerCfg,Action,ActionCfg}`` ->
+  ``SO101PoseIK{...}`` (modules ``position_pitch_ik_{controller,action}.py`` ->
+  ``pose_ik_{controller,action}.py``), the cfg field ``pitch_task_weight`` ->
+  ``orientation_weight``, and the ``wrist_roll_action`` term was removed (``wrist_roll`` is
+  now solved by the IK). The SO-101 ``SO101WristRetargeter`` (and its ``SO101RollRetargeter``
+  alias) was removed from ``isaacteleop.retargeters``; the clutch retargeter now drives the full
+  pose with a fixed orientation calibration offset.
+* Refactored the cube-stack scaffolding so the SO-101 config no longer depends on Franka. The
+  cube setup, table/ground/robot semantics, end-effector frame builder, and reset events were
+  promoted to the robot-neutral :class:`~isaaclab_tasks.contrib.stack.stack_env_cfg.StackEnvCfg`
+  base, and the Franka and SO-101 joint-position configs are now override-only. The generic stack
+  event functions moved to ``isaaclab_tasks.contrib.stack.mdp.stack_events`` (``franka_stack_events``
+  re-exports them for backward compatibility), and ``randomize_joint_by_gaussian_offset`` now holds
+  the gripper joints fixed by resolving them from the env's ``gripper_joint_names`` rather than
+  assuming the last two joints are the gripper.
+
+
+8.0.7 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``"normals"`` to the rendering correctness validation suite. The ``normals`` data type
+  (float32 surface normal vectors in ``[-1, 1]``) is now included in
+  :data:`~rendering_test_utils._DEFAULT_SENSOR_DATA_TYPES` for all RTX-based renderer
+  combinations and as an explicit parameter for the Newton Warp renderer.
+
+Changed
+^^^^^^^
+
+* Changed :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg` to
+  expose automatic ``rtx`` selection through ``renderer=rtx``.
+
+
+8.0.6 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added golden-image rendering tests for ``distance_to_camera`` and ``distance_to_image_plane``
+  AOV types across the Cartpole, DexSuite Kuka, and Shadow Hand camera environments.
+  Test-local subclasses of the relevant env and camera configs are used so the production
+  task API remains unchanged.
+* Added ``enable_scene_partition`` pytest fixture and enabled Isaac RTX per-environment scene
+  partitioning in rendering correctness tests for cartpole and registered camera tasks as a
+  temporary workaround.
+
+
+8.0.5 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the camera-based Cartpole task failing to converge under Newton physics with the RTX
+  ``depth``, ``albedo``, and ``simple_shading`` AOV observations. These AOVs bypass DLSS temporal
+  accumulation, so the observation carried no temporal cue for the policy to infer velocity from
+  (Newton's symplectic integrator has no implicit damping). The ``frame_stack`` default resolver
+  now enables 2-frame stacking for these Newton + RTX AOVs, matching the existing Newton + Warp
+  behavior; Newton + RTX ``rgb`` keeps single-frame observations as DLSS already supplies the cue.
+  The resolver reads backend capability classmethods
+  (:meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping`,
+  :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`) resolved
+  from the configs, instead of hard-coding backend types in the task.
+
+
+8.0.4 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added OVPhysX physics preset support to
+  ``Isaac-Franka-Cabinet-Direct-v0``.
+
+Changed
+^^^^^^^
+
+* Updated golden images for the ``dexsuite_kuka_hetero`` tests combining Newton
+  physics with the IsaacSim RTX renderer, reflecting corrected USD prim
+  population.
+
+
+8.0.3 (2026-06-18)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``ovphysx`` preset to
+  :class:`~isaaclab_tasks.manager_based.locomotion.velocity.velocity_env_cfg.LocomotionVelocityRoughEnvCfg.RoughPhysicsCfg`
+  for use under the OVPhysX backend. ``RoughPhysicsCfg`` now exposes an
+  ``ovphysx`` member so ``Isaac-Velocity-Rough-Anymal-D-v0`` selects the
+  right physics + contact-sensor configuration when run with
+  ``presets=ovphysx``.
+
+
+8.0.2 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated golden images for the ``dexsuite_kuka_hetero`` Newton renderer tests (RGB and RGBA) to
+  reflect corrected shape colors now that USD material colors are propagated before clone
+  replication.
+
+
+8.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated GR1T2 and G1-Inspire Pink IK task frame names to match URDFs generated by Isaac Sim's exporter.
+
+
+8.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-Reach-Franka-Newton-IK-Rel-v0`` for Newton-backed Franka reach IK.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed all contributed environment IDs (under ``isaaclab_tasks.contrib``) to use the
+  ``IsaacContrib-`` prefix instead of ``Isaac-`` and dropped the trailing ``-v0`` version suffix, so
+  they follow the same naming convention as the refactored core tasks. The Python API
+  (config classes, ``mdp`` modules, agent configs) is unchanged. Update ``gym.make`` / ``--task``
+  calls accordingly, for example ``Isaac-Velocity-Rough-AnymalC-v0`` →
+  ``IsaacContrib-Velocity-Rough-AnymalC`` and ``Isaac-Cartpole-Showcase-Direct`` →
+  ``IsaacContrib-Cartpole-Showcase-Direct``.
+
+
+7.0.0 (2026-06-12)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-Reorient-KukaAllegro-Camera`` and ``Isaac-Lift-KukaAllegro-Camera`` vision
+  environments.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Split the KukaAllegro dexsuite camera (vision) configuration out of the state task
+  into dedicated ``-Camera`` environments, matching the cartpole layout. The base state tasks
+  (``Isaac-Reorient-KukaAllegro``, ``Isaac-Lift-KukaAllegro``) no longer accept the
+  ``presets=single_camera`` / ``presets=duo_camera`` selectors; use the new camera tasks instead:
+
+  * ``Isaac-Lift-KukaAllegro`` + ``presets=single_camera`` → ``Isaac-Lift-KukaAllegro-Camera``.
+  * ``Isaac-Reorient-KukaAllegro`` + ``presets=single_camera`` → ``Isaac-Reorient-KukaAllegro-Camera``.
+
+  The ``single_camera`` / ``duo_camera`` (and the camera data-type / renderer-backend) selectors now
+  live on the ``-Camera`` tasks. The camera configs were moved to a dedicated
+  ``dexsuite_kuka_allegro_camera_env_cfg`` module whose env configs inherit from the state base.
+* **Breaking:** Renamed the Dexsuite Kuka-Allegro environment IDs to drop the ``Dexsuite`` prefix and
+  the ``-v0`` version suffix. Update ``gym.make`` / ``--task`` calls:
+
+  * ``Isaac-Dexsuite-Kuka-Allegro-Reorient-v0`` → ``Isaac-Reorient-KukaAllegro``.
+  * ``Isaac-Dexsuite-Kuka-Allegro-Reorient-Play-v0`` → ``Isaac-Reorient-KukaAllegro-Play``.
+  * ``Isaac-Dexsuite-Kuka-Allegro-Lift-v0`` → ``Isaac-Lift-KukaAllegro``.
+  * ``Isaac-Dexsuite-Kuka-Allegro-Lift-Play-v0`` → ``Isaac-Lift-KukaAllegro-Play``.
+* **Breaking:** Dropped the ``-v0`` version suffix from the core locomotion-velocity environment IDs
+  (AnymalD, Cassie, Digit, G1, H1, Spot, UnitreeGo2; ``Flat`` and ``Rough``, plus their ``-Play``
+  variants). Multi-word robot names also drop the internal ``-`` (``-`` now separates task aspects
+  only): ``Isaac-Velocity-Flat-Anymal-D-v0`` → ``Isaac-Velocity-Flat-AnymalD`` and
+  ``Isaac-Velocity-Flat-Unitree-Go2-v0`` → ``Isaac-Velocity-Flat-UnitreeGo2``. Update ``gym.make`` /
+  ``--task`` calls accordingly. The ``isaaclab_tasks.core.velocity`` Python API
+  (:class:`~isaaclab_tasks.core.velocity.velocity_env_cfg.LocomotionVelocityRoughEnvCfg`, the
+  shared ``mdp`` module, per-robot configs, and agent configs) is unchanged, so the contributed and
+  experimental locomotion tasks that build on it continue to work. (Those tasks keep their ``-v0`` /
+  ``-Warp-v0`` suffixes; the robot-name spelling change is covered separately.)
+* **Breaking:** Multi-word robot names in Gym environment IDs are now written in CamelCase, since
+  ``-`` is reserved for separating task-name aspects (task / object / robot / workflow / variant).
+  This applies across the core, contributed, and experimental (Warp) tasks. Update ``gym.make`` /
+  ``--task`` calls; the surrounding ID structure and any ``-v0`` / ``-Warp-v0`` suffix are otherwise
+  unchanged:
+
+  * ``Anymal-B`` → ``AnymalB``, ``Anymal-C`` → ``AnymalC``, ``Anymal-D`` → ``AnymalD``.
+  * ``Unitree-A1`` → ``UnitreeA1``, ``Unitree-Go1`` → ``UnitreeGo1``, ``Unitree-Go2`` → ``UnitreeGo2``.
+  * ``Kuka-Allegro`` → ``KukaAllegro``.
+  * ``OpenArm-Bi`` → ``OpenArmBi``.
+
+  For example ``Isaac-Velocity-Rough-Anymal-C-v0`` → ``Isaac-Velocity-Rough-AnymalC-v0`` and
+  ``Isaac-Reach-OpenArm-Bi-v0`` → ``Isaac-Reach-OpenArmBi-v0``.
+
+
 6.0.0 (2026-06-11)
 ~~~~~~~~~~~~~~~~~~
 

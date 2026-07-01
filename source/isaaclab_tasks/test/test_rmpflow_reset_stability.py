@@ -48,10 +48,10 @@ _SETTLE_TOL = 0.3
 # per-task drift is characterized more precisely. The suction task carries a larger null-space
 # residual, hence its higher budget.
 _RMPFLOW_TASKS = [
-    ("Isaac-Place-Toy2Box-Agibot-Right-Arm-RmpFlow-v0", 1.5),
-    ("Isaac-Place-Mug-Agibot-Left-Arm-RmpFlow-v0", 1.5),
-    ("Isaac-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow-v0", 1.5),
-    ("Isaac-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow-v0", 2.5),
+    ("IsaacContrib-Place-Toy2Box-Agibot-Right-Arm-RmpFlow", 1.5),
+    ("IsaacContrib-Place-Mug-Agibot-Left-Arm-RmpFlow", 1.5),
+    ("IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-RmpFlow", 1.5),
+    ("IsaacContrib-Stack-Cube-Galbot-Right-Arm-Suction-RmpFlow", 2.5),
 ]
 
 

@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.utils import capture_unsafe
 
@@ -133,6 +134,80 @@ class ArticulationData(BaseArticulationData):
         if self._fk_timestamp < self._sim_timestamp:
             SimulationManager.forward()
             self._fk_timestamp = self._sim_timestamp
+
+    def _reset_pose(
+        self, from_link: bool = True, *, env_ids: wp.array | None = None, env_mask: wp.array | None = None
+    ) -> None:
+        """Reset the pose of the articulation.
+
+        This will mark all the pose related properties as stale, and trigger a FK refresh.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
+        """
+        # Invalidate the derived root com pose only when it was not the quantity just written.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_com_pose_w,
+                # root states
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        # NOTE: _fk_timestamp and invalidate_fk serve two distinct roles. _fk_timestamp is on the
+        # data side and forces a refresh on the next outdated read. invalidate_fk is on the
+        # simulation-manager side and lets the solver know state changed before its next step.
+        self._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(
+            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+        )
+
+    def _reset_velocity(
+        self, from_com: bool = True, *, env_ids: wp.array | None = None, env_mask: wp.array | None = None
+    ) -> None:
+        """Reset the velocity of the articulation.
+
+        This will mark all the velocity related properties as stale, and trigger a FK refresh.
+
+        Args:
+            env_ids: Environment indices. If None, then all indices are used.
+            env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
+        """
+        # Invalidate the derived root link velocity only when it was not the quantity just written.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_link_vel_w,
+                # root states
+                self._root_state_w,
+                self._root_link_state_w,
+                self._root_com_state_w,
+                # body com states
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+        # NOTE: _fk_timestamp and invalidate_fk serve two distinct roles. _fk_timestamp is on the
+        # data side and forces a refresh on the next outdated read. invalidate_fk is on the
+        # simulation-manager side and lets the solver know state changed before its next step.
+        self._fk_timestamp = -1.0
+        SimulationManager.invalidate_fk(
+            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+        )
 
     """
     Names.
@@ -717,6 +792,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the articulation links relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        self._ensure_fk_fresh()
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             wp.launch(
                 shared_kernels.get_body_com_pose_from_body_link_pose,
@@ -744,6 +820,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' center of mass frame
         relative to the world.
         """
+        self._ensure_fk_fresh()
         return self._body_com_vel_w_ta
 
     @property

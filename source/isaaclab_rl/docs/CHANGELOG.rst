@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.6.2 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated ``Sb3VecEnvWrapper`` to use Isaac Lab Same-Step ``extras["final_obs"]``
+  as SB3 ``terminal_observation`` when it is available.
+
+
 0.6.1 (2026-06-09)
 ~~~~~~~~~~~~~~~~~~
 

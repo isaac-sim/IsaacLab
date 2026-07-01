@@ -125,7 +125,7 @@ class Rizon4sGearAssemblyEnvCfg_PLAY(Rizon4sGearAssemblyROSInferenceEnvCfg):
     the physical setup, then run::
 
         python scripts/reinforcement_learning/rsl_rl/play.py \\
-            --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \\
+            --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \\
             --num_envs 1 --checkpoint <path_to_model.pt>
 
     Observation overrides (``OBS_SHAFT_POS``, ``OBS_SHAFT_QUAT``) let you

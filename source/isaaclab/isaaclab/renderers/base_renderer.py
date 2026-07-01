@@ -21,6 +21,25 @@ if TYPE_CHECKING:
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
 
+    @classmethod
+    def provides_temporal_camera_data(cls, data_type: str) -> bool:
+        """Whether this renderer's ``data_type`` output carries temporal information.
+
+        Under a physics backend without implicit damping (e.g. Newton), a camera policy
+        needs a temporal cue to infer velocity. Renderers that accumulate frames over time
+        (temporal AA / DLSS) supply it; pure rasterizers and non-beauty AOVs do not.
+
+        The base default is ``False`` (assume no temporal information); renderer subclasses
+        override per output type.
+
+        Args:
+            data_type: The camera output type, e.g. ``"rgb"`` or ``"depth"``.
+
+        Returns:
+            Whether the ``data_type`` output carries temporal information.
+        """
+        return False
+
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""
         return
