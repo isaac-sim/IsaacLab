@@ -327,10 +327,7 @@ def _get_complete_convention_names_by_kind(
 def _get_source_asset_prim(articulation: BaseArticulation) -> object | None:
     """Return the source asset prim for an articulation config when available."""
     prim_path = articulation.cfg.prim_path
-    try:
-        from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
-    except ImportError:
-        return None
+    from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
 
     source_asset_matches = resolve_matching_prims_from_source(prim_path, expected_num_matches=1)
     if not source_asset_matches:
@@ -390,7 +387,10 @@ def _get_names_from_newton_usd_builder(
 
         from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
-    except ImportError:
+    except ModuleNotFoundError as exc:
+        missing_module = exc.name or ""
+        if missing_module not in {"newton", "pxr"} and not missing_module.startswith(("newton.", "pxr.")):
+            raise
         return None
 
     stage = get_current_stage()

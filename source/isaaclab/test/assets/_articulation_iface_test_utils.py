@@ -78,7 +78,10 @@ if importlib.util.find_spec("isaaclab_newton") is not None:
 
     BACKENDS.append("newton")
 
-if importlib.util.find_spec("isaaclab_ovphysx") is not None:
+if (
+    importlib.util.find_spec("isaaclab_ovphysx") is not None
+    and importlib.util.find_spec("ovphysx") is not None
+):
     from isaaclab_ovphysx.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ovphysx.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ovphysx.test.mock_interfaces.views import MockOvPhysxBindingSet
