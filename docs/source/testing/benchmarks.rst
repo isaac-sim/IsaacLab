@@ -405,10 +405,10 @@ Example:
    benchmark.add_measurement("training", measurement=reward_measurement)
 
 Output Formatters
----------------
+-----------------
 
 JSON Formatter
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Full output with all phases, measurements, and metadata:
 
@@ -438,7 +438,7 @@ Output structure:
    ]
 
 Osmo Formatter
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~
 
 Simplified key-value format for CI/CD integration:
 
@@ -458,7 +458,7 @@ Output structure:
    }
 
 OmniPerf Formatter
-~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
 
 Format for database upload and performance tracking:
 
@@ -492,7 +492,7 @@ typed, stable output contract is required.
    ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
 
 Summary Formatter
-~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
 
 Human-readable console report plus JSON file. Prints a formatted summary to the
 terminal while also writing the same data as JSON. Standard phases (runtime,
@@ -695,7 +695,7 @@ Ensure ``_finalize_impl()`` is called before the script exits:
        benchmark._finalize_impl()
 
 Formatter Not Recognized
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 Valid formatter types are: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
 
