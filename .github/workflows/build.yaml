@@ -598,7 +598,7 @@ jobs:
       github.event_name != 'push' &&
       needs.build.result == 'success'
     env:
-      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop') || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
