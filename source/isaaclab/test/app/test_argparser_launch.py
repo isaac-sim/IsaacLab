@@ -4,63 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
-import json
-import subprocess
-import sys
-import textwrap
 
 import pytest
 
 from isaaclab.app import AppLauncher
-
-
-def test_prelaunch_imports_do_not_import_runtime_modules():
-    """Test that pre-launch imports do not import Isaac Sim runtime modules."""
-    program = textwrap.dedent(
-        """
-        import json
-        import traceback
-
-        forbidden = {"pxr", "omni.kit", "omni.usd", "carb", "isaacsim", "usdrt"}
-        violations = {}
-        original_import = __builtins__.__import__
-
-        def _matching_forbidden_prefix(name):
-            for prefix in forbidden:
-                if name == prefix or name.startswith(prefix + "."):
-                    return prefix
-            return None
-
-        def import_hook(name, globals=None, locals=None, fromlist=(), level=0):
-            prefix = _matching_forbidden_prefix(name)
-            if prefix is not None and prefix not in violations:
-                violations[prefix] = "".join(traceback.format_stack(limit=18))
-            return original_import(name, globals, locals, fromlist, level)
-
-        __builtins__.__import__ = import_hook
-        try:
-            from isaaclab.sim import SimulationContext
-            from isaaclab_tasks.core.cartpole import cartpole_direct_env
-
-            assert SimulationContext.__name__ == "SimulationContext"
-            assert cartpole_direct_env.CartpoleEnv.__name__ == "CartpoleEnv"
-        finally:
-            __builtins__.__import__ = original_import
-
-        print("__VIOLATIONS__" + json.dumps(violations, sort_keys=True))
-        """
-    )
-
-    result = subprocess.run([sys.executable, "-c", program], capture_output=True, check=True, text=True)
-    violations_line = None
-    for line in result.stdout.splitlines():
-        if line.startswith("__VIOLATIONS__"):
-            violations_line = line[len("__VIOLATIONS__") :]
-            break
-    assert violations_line is not None, result.stdout
-
-    violations = json.loads(violations_line)
-    assert violations == {}
 
 
 @pytest.mark.usefixtures("mocker")

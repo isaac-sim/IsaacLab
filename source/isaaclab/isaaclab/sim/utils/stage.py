@@ -151,9 +151,7 @@ def _sync_isaacsim_stage_context() -> None:
     except ImportError:
         return
 
-    # _context is a singleton design in isaacsim and for that reason
-    # until we fully replace all modules that references the singleton (such as XformPrim, Prim, ....),
-    # we have to point that singleton to this _context.
+    # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = _context  # type: ignore
     _isaacsim_stage_context_synced = True
 
