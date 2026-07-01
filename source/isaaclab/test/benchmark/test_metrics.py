@@ -8,6 +8,7 @@
 import pytest
 
 from isaaclab.test.benchmark.metrics import (
+    RL_LIBRARY_DESCRIPTORS,
     SUCCESS_RATE_LOG_TAGS,
     SuccessRateTracker,
     check_convergence,
@@ -19,6 +20,29 @@ from isaaclab.test.benchmark.metrics import (
     success_rate_step_value,
 )
 from isaaclab.test.benchmark.schema import MeanStd
+
+
+@pytest.mark.parametrize(
+    ("framework", "tfevents_pattern", "reward_tag", "ep_length_tag"),
+    [
+        ("rsl_rl", "events*", "Train/mean_reward", "Train/mean_episode_length"),
+        ("rl_games", "summaries/events*", "rewards/iter", "episode_lengths/iter"),
+        ("skrl", "events*", "Reward / Total reward (mean)", "Episode / Total timesteps (mean)"),
+        ("sb3", "PPO_*/events*", "rollout/ep_rew_mean", "rollout/ep_len_mean"),
+    ],
+)
+def test_rl_library_descriptors(
+    framework: str,
+    tfevents_pattern: str,
+    reward_tag: str,
+    ep_length_tag: str,
+):
+    descriptor = RL_LIBRARY_DESCRIPTORS[framework]
+
+    assert descriptor.framework == framework
+    assert descriptor.tfevents_pattern == tfevents_pattern
+    assert descriptor.reward_tag == reward_tag
+    assert descriptor.ep_length_tag == ep_length_tag
 
 
 def test_mean_std_peak_computes_peak():

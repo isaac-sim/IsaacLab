@@ -13,12 +13,58 @@ import logging
 import os
 import statistics
 from collections.abc import Sequence
+from dataclasses import dataclass
 
 from tensorboard.backend.event_processing import event_accumulator
 
-from isaaclab.test.benchmark.schema import MeanStd
+from isaaclab.test.benchmark.schema import Framework, MeanStd
 
 SUCCESS_RATE_LOG_TAGS = ("Metrics/success_rate", "Episode/Metrics/success_rate")
+
+
+@dataclass(frozen=True)
+class RLLibraryDescriptor:
+    """TensorBoard locations and tags for one RL library benchmark integration.
+
+    Attributes:
+        framework: Schema framework id.
+        tfevents_pattern: Glob relative to the run log directory matching TensorBoard event files.
+        reward_tag: TensorBoard scalar tag for mean reward per iteration.
+        ep_length_tag: TensorBoard scalar tag for mean episode length per iteration.
+    """
+
+    framework: Framework
+    tfevents_pattern: str
+    reward_tag: str
+    ep_length_tag: str
+
+
+RL_LIBRARY_DESCRIPTORS: dict[Framework, RLLibraryDescriptor] = {
+    "rsl_rl": RLLibraryDescriptor(
+        framework="rsl_rl",
+        tfevents_pattern="events*",
+        reward_tag="Train/mean_reward",
+        ep_length_tag="Train/mean_episode_length",
+    ),
+    "rl_games": RLLibraryDescriptor(
+        framework="rl_games",
+        tfevents_pattern="summaries/events*",
+        reward_tag="rewards/iter",
+        ep_length_tag="episode_lengths/iter",
+    ),
+    "skrl": RLLibraryDescriptor(
+        framework="skrl",
+        tfevents_pattern="events*",
+        reward_tag="Reward / Total reward (mean)",
+        ep_length_tag="Episode / Total timesteps (mean)",
+    ),
+    "sb3": RLLibraryDescriptor(
+        framework="sb3",
+        tfevents_pattern="PPO_*/events*",
+        reward_tag="rollout/ep_rew_mean",
+        ep_length_tag="rollout/ep_len_mean",
+    ),
+}
 
 
 def parse_tf_logs(log_dir: str, pattern: str = "events*") -> dict[str, list[float]]:
