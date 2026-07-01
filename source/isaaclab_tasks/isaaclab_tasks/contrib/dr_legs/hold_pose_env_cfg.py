@@ -216,8 +216,8 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "position_range": (0.0, 0.0),
-            "velocity_range": (0.0, 0.0),
+            "position_range": (-0.1, 0.1),
+            "velocity_range": (0.0, 0.0), # currently not supported in Kamino
         },
     )
 
