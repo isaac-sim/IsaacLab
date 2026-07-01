@@ -325,6 +325,8 @@ class RewardsCfg:
 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-5.0e-06)
 
+    # action_l2 = RewTerm(func=mdp.action_l2, weight=-5.0e-06)
+
 
 @configclass
 class TerminationsCfg:
@@ -343,6 +345,22 @@ class DisplayportInsertionEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
+
+    # ------------------------------------------------------------------
+    # Task-success logging (consumed by ``insertion_env.DisplayportInsertionEnv``).
+    # ------------------------------------------------------------------
+    # Success = plug mate point within ``success_pos_threshold`` (m) of the socket
+    # mate point, measured from the same keypoint frames as the reward. Purely for
+    # logging; does not affect observations/actions/rewards/terminations.
+    log_success_metrics: bool = True
+    success_socket_asset: str = "dp_socket"
+    success_plug_asset: str = "dp_plug"
+    success_pos_threshold: float = 0.003
+    success_keypoint_scale: float = 0.15
+    # Set from the asset-geometry constants in ``__post_init__``.
+    success_socket_offset: list = MISSING
+    success_plug_offset: list = MISSING
+    success_plug_goal_rot_inv: list = MISSING
     sim: SimulationCfg = SimulationCfg(
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -369,3 +387,8 @@ class DisplayportInsertionEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 8
         self.sim.render_interval = self.decimation
         self.sim.dt = 1.0 / 240.0
+
+        # Success mate-point geometry mirrors the keypoint-tracking reward.
+        self.success_socket_offset = list(SOCKET_INSERTION_OFFSET)
+        self.success_plug_offset = list(PLUG_INSERTION_OFFSET)
+        self.success_plug_goal_rot_inv = list(PLUG_GOAL_ROT_INV)
