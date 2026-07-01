@@ -64,6 +64,7 @@ from .ovrtx_renderer_kernels import (
     extract_all_rgb_float_tiles_kernel,
     extract_all_rgb_half_tiles_kernel,
     extract_all_rgba_tiles_kernel,
+    extract_all_uint32_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
@@ -245,6 +246,9 @@ class OVRTXRenderer(BaseRenderer):
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this OVRTX backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
+        instance_seg_spec = (
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_instance_segmentation else RenderBufferSpec(1, wp.uint32)
+        )
         return {
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
@@ -254,6 +258,7 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.INSTANCE_SEGMENTATION_FAST: instance_seg_spec,
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
@@ -277,6 +282,7 @@ class OVRTXRenderer(BaseRenderer):
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
         self._output_semantic_color_buffer: wp.array | None = None
+        self._output_instance_color_buffer: wp.array | None = None
         self._clone_plan: ClonePlan | None = None
 
         logger.info("Creating OVRTX renderer...")
@@ -644,12 +650,20 @@ class OVRTXRenderer(BaseRenderer):
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
         """
 
-    def _generate_random_colors_from_ids(self, input_ids: wp.array) -> wp.array:
-        """Generate pseudo-random colors from semantic IDs."""
-        if self._output_semantic_color_buffer is None or self._output_semantic_color_buffer.shape != input_ids.shape:
-            self._output_semantic_color_buffer = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=self._device)
+    def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
+        """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.
 
-        output_colors = self._output_semantic_color_buffer
+        Args:
+            input_ids: 3-D uint32 Warp array of shape (H, W, 1).
+            output_colors: Existing color buffer to reuse, or None to allocate a new one.
+
+        Returns:
+            Color buffer containing the generated colors.
+        """
+
+        # Lazily allocate, and re-allocate if the shape changes.
+        if output_colors is None or output_colors.shape != input_ids.shape:
+            output_colors = wp.zeros(shape=input_ids.shape, dtype=wp.uint32, device=self._device)
 
         wp.launch(
             kernel=generate_random_colors_from_ids_kernel,
@@ -657,7 +671,6 @@ class OVRTXRenderer(BaseRenderer):
             inputs=[input_ids, output_colors],
             device=self._device,
         )
-
         return output_colors
 
     def _extract_rgba_tiles(
@@ -797,7 +810,10 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_semantic_data = wp.from_dlpack(mapping.tensor)
 
                 if tiled_semantic_data.dtype == wp.uint32:
-                    semantic_colors = self._generate_random_colors_from_ids(tiled_semantic_data)
+                    self._output_semantic_color_buffer = self._generate_random_colors_from_ids(
+                        tiled_semantic_data, self._output_semantic_color_buffer
+                    )
+                    semantic_colors = self._output_semantic_color_buffer
 
                     semantic_torch = wp.to_torch(semantic_colors)
                     semantic_uint8 = semantic_torch.view(torch.uint8)
@@ -815,6 +831,47 @@ class OVRTXRenderer(BaseRenderer):
                     "semantic_segmentation",
                     suffix="semantic",
                 )
+
+        if "NonStableInstanceSegmentation" in frame.render_vars and "instance_segmentation_fast" in output_buffers:
+            with frame.render_vars["NonStableInstanceSegmentation"].map(device=Device.CUDA) as mapping:
+                tiled_instance_data = wp.from_dlpack(mapping.tensor)
+
+                if tiled_instance_data.dtype == wp.uint32:
+                    if self.cfg.colorize_instance_segmentation:
+                        self._output_instance_color_buffer = self._generate_random_colors_from_ids(
+                            tiled_instance_data, self._output_instance_color_buffer
+                        )
+                        instance_colors = self._output_instance_color_buffer
+                        instance_torch = wp.to_torch(instance_colors)
+                        instance_uint8 = instance_torch.view(torch.uint8)
+                        if instance_torch.dim() == 2:
+                            h, w = instance_torch.shape
+                            instance_uint8 = instance_uint8.reshape(h, w, 4)
+                        tiled_instance_data = wp.from_torch(instance_uint8, dtype=wp.uint8)
+                        self._extract_rgba_tiles(
+                            render_data,
+                            tiled_instance_data,
+                            output_buffers,
+                            "instance_segmentation_fast",
+                        )
+                    else:
+                        # Non-colorized: ensure (TH, TW, 1) shape for the uint32 extraction kernel.
+                        instance_torch = wp.to_torch(tiled_instance_data)
+                        if instance_torch.dim() == 2:
+                            instance_torch = instance_torch.unsqueeze(-1)
+                        tiled_instance_data = wp.from_torch(instance_torch, dtype=wp.uint32)
+                        wp.launch(
+                            kernel=extract_all_uint32_tiles_kernel,
+                            dim=(render_data.num_envs, render_data.height, render_data.width),
+                            inputs=[
+                                tiled_instance_data,
+                                output_buffers["instance_segmentation_fast"],
+                                render_data.num_cols,
+                                render_data.width,
+                                render_data.height,
+                            ],
+                            device=self._device,
+                        )
 
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
@@ -889,4 +946,5 @@ class OVRTXRenderer(BaseRenderer):
 
         self._render_product_paths.clear()
         self._output_semantic_color_buffer = None
+        self._output_instance_color_buffer = None
         self._initialized_scene = False
