@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "RenderCfg",
     "SimulationCfg",
     "SimulationContext",
     "build_simulation_context",
@@ -49,6 +48,7 @@ __all__ = [
     "JointDriveBaseCfg",
     "MassCfg",
     "MassFragment",
+    "JointDriveFragment",
     "MassPropertiesCfg",
     "MeshCollisionPropertiesCfg",
     "MujocoJointDrivePropertiesCfg",
@@ -60,6 +60,7 @@ __all__ = [
     "NewtonMeshCollisionPropertiesCfg",
     "NewtonRigidBodyPropertiesCfg",
     "NewtonSDFCollisionPropertiesCfg",
+    "MeshCollisionFragment",
     "PhysxJointDrivePropertiesCfg",
     "PhysxRigidBodyPropertiesCfg",
     "RigidBodyBaseCfg",
@@ -67,10 +68,16 @@ __all__ = [
     "SchemaFragment",
     "SpatialTendonFragment",
     "UsdPhysicsCollisionCfg",
+    "UsdPhysicsMeshCollisionCfg",
     "UsdPhysicsRigidBodyCfg",
     "apply_collision_properties",
     "apply_fixed_tendon_properties",
     "apply_mass_properties",
+    "UsdPhysicsDriveCfg",
+    "apply_drive",
+    "apply_joint_drive_properties",
+    "apply_mesh_collision",
+    "apply_mesh_collision_properties",
     "apply_namespaced",
     "apply_rigid_body_properties",
     "apply_spatial_tendon_properties",
@@ -235,7 +242,9 @@ from .schemas import (
     JointDriveBaseCfg,
     MassCfg,
     MassFragment,
+    JointDriveFragment,
     MassPropertiesCfg,
+    MeshCollisionFragment,
     MeshCollisionPropertiesCfg,
     PhysxJointDrivePropertiesCfg,
     PhysxRigidBodyPropertiesCfg,
@@ -248,11 +257,17 @@ from .schemas import (
     TriangleMeshPropertiesCfg,
     TriangleMeshSimplificationPropertiesCfg,
     UsdPhysicsCollisionCfg,
+    UsdPhysicsMeshCollisionCfg,
     UsdPhysicsRigidBodyCfg,
     activate_contact_sensors,
     apply_collision_properties,
     apply_fixed_tendon_properties,
     apply_mass_properties,
+    UsdPhysicsDriveCfg,
+    apply_drive,
+    apply_joint_drive_properties,
+    apply_mesh_collision,
+    apply_mesh_collision_properties,
     apply_namespaced,
     apply_rigid_body_properties,
     apply_spatial_tendon_properties,
@@ -272,7 +287,7 @@ from .schemas import (
     modify_rigid_body_properties,
     modify_spatial_tendon_properties,
 )
-from .simulation_cfg import RenderCfg, SimulationCfg
+from .simulation_cfg import SimulationCfg
 from .simulation_context import SimulationContext, build_simulation_context
 
 # Forwarded to isaaclab_newton.sim.schemas via __getattr__ shim

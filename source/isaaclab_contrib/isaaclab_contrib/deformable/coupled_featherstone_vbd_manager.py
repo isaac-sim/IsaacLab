@@ -472,6 +472,7 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
                 model.body_com,
                 model.shape_body,
                 model.shape_material_mu,
+                model.shape_margin,
                 float(model.soft_contact_ke),
                 float(model.soft_contact_kd),
                 float(model.soft_contact_mu),

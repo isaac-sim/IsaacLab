@@ -247,9 +247,9 @@ def test_smoke_featherstone_kinematic(sim):
     assert free_cube.data.root_pos_w.torch[0, 2].item() < initial_z_free - 0.01
 
 
-def _run_lateral_rigid_cube_response(coupling_mode: str) -> float:
+def _run_lateral_rigid_cube_response(coupling_mode: str, rigid_solver: str) -> float:
     """Run a compact lateral contact scene and return rigid cube X displacement."""
-    with _coupled_sim_context(_make_coupled_cfg(coupling_mode)) as sim:
+    with _coupled_sim_context(_make_coupled_cfg(coupling_mode, rigid_solver)) as sim:
         sim._app_control_on_stop_handle = None
         rigid_cube, deformable_cube = generate_lateral_rigid_and_deformable_cubes()
         sim.reset()
@@ -267,10 +267,11 @@ def _run_lateral_rigid_cube_response(coupling_mode: str) -> float:
         return rigid_cube.data.root_pos_w.torch[0, 0].item() - initial_rigid_x
 
 
-def test_two_way_coupling_applies_reaction_to_rigid_body():
+@pytest.mark.parametrize("rigid_solver", ["mjwarp", "featherstone"])
+def test_two_way_coupling_applies_reaction_to_rigid_body(rigid_solver: str):
     """Test that two-way coupling laterally pushes a rigid body."""
-    one_way_dx = _run_lateral_rigid_cube_response("one_way")
-    two_way_dx = _run_lateral_rigid_cube_response("two_way")
+    one_way_dx = _run_lateral_rigid_cube_response("one_way", rigid_solver)
+    two_way_dx = _run_lateral_rigid_cube_response("two_way", rigid_solver)
 
     assert abs(one_way_dx) < 1e-2
     assert two_way_dx > one_way_dx + 1e-2

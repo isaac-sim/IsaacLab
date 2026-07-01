@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.5.3 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS`` environment variable to control whether
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` enables OVRTX GPU transform reads.
+
+
 0.5.2 (2026-06-26)
 ~~~~~~~~~~~~~~~~~~
 

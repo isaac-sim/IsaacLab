@@ -643,7 +643,7 @@ class TestRePointPrebundlePackages:
         symlink = prebundle / "torch"
         assert symlink.is_symlink(), "torch should be a symlink after repoint"
         assert symlink.resolve() == (site_pkgs / "torch").resolve()
-        assert (prebundle / "torch.bak").is_dir(), "Original torch should be backed up"
+        assert not (prebundle / "torch.bak").exists(), "repoint replaces in place — no .bak (env copy is the target)"
 
     def test_local_build_skips_nvidia_when_cudnn_absent_kit_python(self, tmp_path):
         """Local build + kit Python: site-packages/nvidia has only 'srl' (no cudnn) → nvidia NOT repointed.
@@ -717,23 +717,20 @@ class TestRePointPrebundlePackages:
 
         assert (prebundle / "torch").resolve() == (site_pkgs / "torch").resolve(), "Stale symlink must be updated"
 
-    def test_removes_old_backup_before_renaming(self, tmp_path):
-        """A pre-existing .bak directory is removed before the current package is backed up."""
+    def test_raises_when_prebundled_torch_not_neutralized(self, tmp_path):
+        """Fail loud: a real prebundled torch surviving repoint would shadow the pip torch
+        on launch paths that do not import isaaclab (nvbugs 6343978), so repoint raises
+        instead of silently leaving the broken state in place."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch"])
         site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
         py = str(tmp_path / "env" / "bin" / "python")
 
-        # Simulate leftover backup from a previous partial install.
-        old_backup = prebundle / "torch.bak"
-        old_backup.mkdir()
-        (old_backup / "stale_file.py").touch()
-
+        # Simulate the removal not taking effect (e.g. an unhandled filesystem quirk): the
+        # prebundled torch stays a real directory rather than becoming a symlink.
         with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "torch").is_symlink(), "torch must be repointed"
-        # The old backup was replaced by the fresh backup.
-        assert (prebundle / "torch.bak").is_dir()
+            with mock.patch("isaaclab.cli.commands.install._force_remove"):
+                with pytest.raises(RuntimeError, match="neutralize"):
+                    _repoint_prebundle_packages()
 
     # ---- pip-installed isaacsim (path found via import probe) ----------------
 

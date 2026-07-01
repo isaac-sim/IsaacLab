@@ -93,6 +93,7 @@ _PPISP_IMPORT_ERROR_MESSAGE = (
     "Install Isaac Lab with the 'all' extra (`pip install isaaclab[all]`) or install the "
     "isaaclab-ppisp extension from the Isaac Lab source checkout."
 )
+_READ_GPU_TRANSFORMS_ENV = "ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS"
 
 
 def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
@@ -101,6 +102,16 @@ def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
     if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
         raise exc
     raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
+
+
+def _read_gpu_transforms_enabled() -> bool:
+    """Return whether OVRTX should read GPU transforms from its internal transform cache."""
+    value = os.environ.get(_READ_GPU_TRANSFORMS_ENV, "1").strip()
+    if value not in {"0", "1"}:
+        raise ValueError(
+            f"Invalid value for environment variable `{_READ_GPU_TRANSFORMS_ENV}`: {value}. Expected 0 or 1."
+        )
+    return value == "1"
 
 
 def _resolve_rtx_minimal_mode(data_types: list[str]) -> int | None:
@@ -272,7 +283,7 @@ class OVRTXRenderer(BaseRenderer):
         OVRTX_CONFIG = RendererConfig(
             log_file_path=self.cfg.log_file_path,
             log_level=self.cfg.log_level,
-            read_gpu_transforms=True,
+            read_gpu_transforms=_read_gpu_transforms_enabled(),
             keep_system_alive=True,
         )
         self._renderer = Renderer(OVRTX_CONFIG)

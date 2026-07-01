@@ -77,6 +77,10 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  omni-github-test-type:
+    description: 'Test type stored on each uploaded omni-github test row'
+    default: 'pytest'
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -160,6 +164,7 @@ runs:
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        omni-github-test-type: ${{ inputs.omni-github-test-type }}
 
     - name: Check Test Results
       if: always()

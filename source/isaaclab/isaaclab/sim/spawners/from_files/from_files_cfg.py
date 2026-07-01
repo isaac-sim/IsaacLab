@@ -55,14 +55,34 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     or one or more :class:`~isaaclab.sim.schemas.SpatialTendonFragment` instances.
     """
 
-    joint_drive_props: schemas.JointDriveBaseCfg | None = None
+    joint_drive_props: (
+        schemas.JointDriveBaseCfg | schemas.JointDriveFragment | list[schemas.JointDriveFragment] | None
+    ) = None
     """Properties to apply to a joint.
+
+    Accepts either a single legacy cfg (e.g. :class:`~isaaclab.sim.schemas.JointDriveBaseCfg`) or a
+    list of :class:`~isaaclab.sim.schemas.JointDriveFragment` fragments
+    (e.g. ``[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)]``). When a fragment list is given,
+    ``UsdPhysics.DriveAPI`` is applied (presence-gated) only when a
+    :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` fragment is present, and each fragment writes
+    its own namespace.
 
     .. note::
         The joint drive properties set the USD attributes of all the joint drives in the asset.
         We recommend using this attribute sparingly and only when necessary. Instead, please use the
         :attr:`~isaaclab.assets.ArticulationCfg.actuators` parameter to set the joint drive properties
         for specific joints in an articulation.
+    """
+
+    ensure_drives_exist: bool = False
+    """Whether to ensure every joint drive is active when authoring :attr:`joint_drive_props`.
+
+    When True, any joint drive whose authored stiffness *and* damping are both zero is given a
+    minimal stiffness (``1e-3``) so that backends (e.g. Newton) create proper actuators for it.
+    This is a spawner-level behavior flag (not a USD attribute and not a fragment field). It is
+    only consumed when :attr:`joint_drive_props` is given as a fragment list; legacy
+    :class:`~isaaclab.sim.schemas.JointDriveBaseCfg` cfgs carry their own
+    ``ensure_drives_exist`` field.
     """
 
     visual_material_path: str = "material"
