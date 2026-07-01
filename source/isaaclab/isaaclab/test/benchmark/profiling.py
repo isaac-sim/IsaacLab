@@ -61,7 +61,7 @@ def parse_cprofile_stats(
         if not filename or filename.startswith("<") or filename == "~":
             return funcname
         # Convert absolute path to dotted module-style label
-        for prefix in isaaclab_prefixes:
+        for prefix in sorted(isaaclab_prefixes, key=len, reverse=True):
             if filename.startswith(prefix):
                 rel = os.path.relpath(filename, prefix)
                 # Strip .py, replace os.sep with dot

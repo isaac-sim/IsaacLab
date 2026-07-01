@@ -44,3 +44,24 @@ def test_whitelist_placeholder_is_4_tuple():
     rows = parse_cprofile_stats(p, prefixes, whitelist=["nonexistent.module:does_not_exist"])
     # unmatched pattern yields a placeholder row, still a 4-tuple
     assert any(r[0] == "nonexistent.module:does_not_exist" and r[3] == 0 for r in rows)
+
+
+def test_parse_cprofile_prefers_most_specific_source_root():
+    namespace = {}
+    exec(
+        compile(
+            "def profile_target():\n    return sum(range(10))",
+            "/tmp/repro/source/isaaclab_tasks/isaaclab_tasks/example.py",
+            "exec",
+        ),
+        namespace,
+    )
+    profile = cProfile.Profile()
+    profile.runcall(namespace["profile_target"])
+
+    rows = parse_cprofile_stats(
+        profile,
+        ["/tmp/repro/source/isaaclab", "/tmp/repro/source/isaaclab_tasks"],
+    )
+
+    assert any(label == "isaaclab_tasks.example:profile_target" for label, *_ in rows)

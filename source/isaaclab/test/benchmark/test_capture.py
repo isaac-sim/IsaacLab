@@ -103,6 +103,29 @@ def test_capture_resources_peaks():
     assert r.cpu_util_pct.peak is None
 
 
+def test_capture_resources_uses_current_gpu_for_multiple_devices():
+    gpu = _Rec(
+        MeasurementData(
+            measurements=[
+                SingleMeasurement(name="GPU 1 Utilization", value=80.0, unit="%"),
+                SingleMeasurement(name="GPU 1 Utilization std", value=5.0, unit="%"),
+                SingleMeasurement(name="GPU 1 Memory Used", value=10.0, unit="GB"),
+                SingleMeasurement(name="GPU 1 Memory Used std", value=0.5, unit="GB"),
+                SingleMeasurement(name="GPU 1 Memory Used peak", value=12.0, unit="GB"),
+            ],
+            metadata=[
+                IntMetadata(name="gpu_device_count", data=2),
+                IntMetadata(name="gpu_current_device", data=1),
+            ],
+            artefacts=[],
+        )
+    )
+    resources = capture_resources(_Bm({"GPUInfo": gpu}))
+
+    assert resources.gpu_util_pct.mean == pytest.approx(80.0)
+    assert resources.gpu_mem_gb.peak == pytest.approx(12.0)
+
+
 def test_capture_hardware():
     gpu = _Rec(
         MeasurementData(

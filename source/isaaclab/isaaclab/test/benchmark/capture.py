@@ -34,10 +34,6 @@ from isaaclab.test.benchmark.schema import (
     Versions,
 )
 
-###
-# Private helpers
-###
-
 
 def _find_value(measurements: Any, name: str, default: float = 0.0) -> float:
     """Scan a measurement list for a :class:`~.measurements.SingleMeasurement` by name.
@@ -79,11 +75,6 @@ def _get_recorder_data(bm: Any, key: str) -> Any | None:
     return rec.get_data()
 
 
-###
-# Public API — run-identity helpers
-###
-
-
 def now_utc_iso() -> str:
     """Return the current UTC time as an ISO-8601 string.
 
@@ -115,11 +106,6 @@ def synth_run_id(
     """
     fw = framework or "runtime"
     return f"{fw}_{physics_backend}_{task}_{stamp}_seed{seed}"
-
-
-###
-# Public API — schema capture functions
-###
 
 
 def capture_versions(bm: Any) -> Versions:
@@ -416,13 +402,17 @@ def capture_resources(bm: Any) -> Resources:
 
     # --- GPU ---
     gpu_meas = gpu_data.measurements if gpu_data is not None else []
+    gpu_metadata = {m.name: m.data for m in gpu_data.metadata or []} if gpu_data is not None else {}
+    gpu_prefix = (
+        f"GPU {gpu_metadata.get('gpu_current_device', 0)} " if gpu_metadata.get("gpu_device_count", 1) > 1 else "GPU "
+    )
 
-    gpu_util_mean = _find_value(gpu_meas, "GPU Utilization")
-    gpu_util_std = _find_value(gpu_meas, "GPU Utilization std")
+    gpu_util_mean = _find_value(gpu_meas, f"{gpu_prefix}Utilization")
+    gpu_util_std = _find_value(gpu_meas, f"{gpu_prefix}Utilization std")
 
-    gpu_mem_mean = _find_value(gpu_meas, "GPU Memory Used")
-    gpu_mem_std = _find_value(gpu_meas, "GPU Memory Used std")
-    _gpu_mem_peak_raw = _find_value(gpu_meas, "GPU Memory Used peak", default=0.0)
+    gpu_mem_mean = _find_value(gpu_meas, f"{gpu_prefix}Memory Used")
+    gpu_mem_std = _find_value(gpu_meas, f"{gpu_prefix}Memory Used std")
+    _gpu_mem_peak_raw = _find_value(gpu_meas, f"{gpu_prefix}Memory Used peak", default=0.0)
     gpu_mem_peak = max(gpu_mem_mean, _gpu_mem_peak_raw)
 
     # --- CPU ---
