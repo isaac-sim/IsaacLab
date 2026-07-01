@@ -54,9 +54,11 @@ dependencies = [
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    # OpenUSD (kit-less mode)
+    # OpenUSD (kit-less mode). Both packages vendor a complete ``pxr`` runtime, so
+    # they must never co-install: usd-core supplies pxr where it has wheels (x86_64),
+    # usd-exchange supplies it on aarch64 (where usd-core has no wheel).
     "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
-    "usd-exchange>=2.2 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "usd-exchange>=2.2 ; platform_machine in 'aarch64 arm64'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # ----- tasks -----
@@ -71,7 +73,8 @@ dependencies = [
     "rsl-rl-lib==5.0.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Loose bound keeps the wheel resolvable; the isaacsim extra narrows it to its pin.
+    # Loose bound keeps the exported wheel resolvable; the dev/CI ``all`` extra pins
+    # the exact git prerelease (kit-less fork), while ``isaacsim`` keeps ``newton==1.2.0``.
     "newton[sim]>=1.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
@@ -140,6 +143,11 @@ rlinf = [
 # with isaacsim (lxml, packaging<24, websockets); install those via their own extra.
 all = [
     "isaaclab-dev[sb3,skrl,rl-games,rsl-rl,rerun,rlinf,mimic]",
+    # Pin Newton to the dev/CI git prerelease (kit-less fork). This extra conflicts
+    # with ``isaacsim`` (see [tool.uv].conflicts), which keeps its own ``newton==1.2.0``;
+    # the exported wheel's base ``newton[sim]>=1.2.0`` stays index-resolvable. Keep the
+    # commit in sync with ``warp-lang`` in [project.dependencies].
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
 ]
 
 # Single source of truth for externally-pinned versions, read by docs/conf.py, the
