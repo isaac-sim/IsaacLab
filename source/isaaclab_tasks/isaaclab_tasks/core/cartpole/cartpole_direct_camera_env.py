@@ -16,11 +16,6 @@ from isaaclab.utils.buffers import CircularBuffer
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
-from isaaclab_tasks.core.cartpole.constants import (
-    CARTPOLE_DISTANT_LIGHT_COLOR,
-    CARTPOLE_DISTANT_LIGHT_INTENSITY,
-    CARTPOLE_DISTANT_LIGHT_ORIENTATION,
-)
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
@@ -69,10 +64,10 @@ class CartpoleCameraEnv(CartpoleEnv):
         self.scene.articulations["cartpole"] = self.cartpole
         self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights
-        light_cfg = sim_utils.DistantLightCfg(
-            intensity=CARTPOLE_DISTANT_LIGHT_INTENSITY, color=CARTPOLE_DISTANT_LIGHT_COLOR
-        )
-        light_cfg.func("/World/Light", light_cfg, orientation=CARTPOLE_DISTANT_LIGHT_ORIENTATION)
+        light_cfg = sim_utils.DistantLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
+        # quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
+        light_orientation = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+        light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.tiled_camera.data_types[0]

@@ -17,12 +17,6 @@ from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform, wrap_to_pi
 
-from isaaclab_tasks.core.cartpole.constants import (
-    CARTPOLE_DISTANT_LIGHT_COLOR,
-    CARTPOLE_DISTANT_LIGHT_INTENSITY,
-    CARTPOLE_DISTANT_LIGHT_ORIENTATION,
-)
-
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
@@ -57,10 +51,10 @@ class CartpoleEnv(DirectRLEnv):
         self.scene.articulations["cartpole"] = self.cartpole
 
         # add lights
-        light_cfg = sim_utils.DistantLightCfg(
-            intensity=CARTPOLE_DISTANT_LIGHT_INTENSITY, color=CARTPOLE_DISTANT_LIGHT_COLOR
-        )
-        light_cfg.func("/World/Light", light_cfg, orientation=CARTPOLE_DISTANT_LIGHT_ORIENTATION)
+        light_cfg = sim_utils.DistantLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
+        # quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
+        light_orientation = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+        light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = self.action_scale * actions.clone()
