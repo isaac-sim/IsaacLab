@@ -46,3 +46,10 @@ class OVRTXRendererCfg(RendererCfg):
     If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
     If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
     """
+
+    colorize_instance_id_segmentation: bool = True
+    """Whether to colorize instance ID segmentation output. Defaults to True.
+
+    If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
+    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    """

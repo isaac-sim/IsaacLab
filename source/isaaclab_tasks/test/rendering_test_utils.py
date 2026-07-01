@@ -64,6 +64,7 @@ _SSIM_DISABLED_DATA_TYPES: set[str] = {
     "distance_to_camera",
     "distance_to_image_plane",
     "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
 }
 
 # Directory for comparison images saved during the test session.
@@ -92,6 +93,7 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "distance_to_image_plane",
     "normals",
     "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
 )
 
 
@@ -600,11 +602,12 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Error opening golden image: {error}"
             continue
 
-        # Instance seg colors are non-stable across runs (NonStableInstanceSegmentation IDs vary).
-        # Compare only the alpha channel (instance mask shape) by zeroing RGB on both images.
+        # Instance seg colors are non-stable across runs (NonStableInstanceSegmentation /
+        # InstanceSegmentationSD IDs vary). Compare only the alpha channel (instance mask shape)
+        # by zeroing RGB on both images.
         result_image_for_comparison = result_image
         golden_image_for_comparison = golden_image
-        if data_type == "instance_segmentation_fast":
+        if data_type in {"instance_segmentation_fast", "instance_id_segmentation_fast"}:
 
             def _alpha_only(img: Image.Image) -> Image.Image:
                 r, g, b, a = img.split()
@@ -680,6 +683,7 @@ def rendering_test_shadow_hand(
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
         instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
+        instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
 
     @configclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
@@ -745,6 +749,9 @@ def rendering_test_cartpole(
         instance_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
             data_types=["instance_segmentation_fast"]
         )
+        instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_id_segmentation_fast"]
+        )
 
     @configclass
     class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
@@ -765,6 +772,9 @@ def rendering_test_cartpole(
             observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
         instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
@@ -851,6 +861,15 @@ def rendering_test_dexsuite_kuka(
         )
         instance_segmentation_fast256 = BASE_CAMERA_CFG.replace(
             data_types=["instance_segmentation_fast"], width=256, height=256
+        )
+        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        )
+        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        )
+        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=256, height=256
         )
 
     @configclass
