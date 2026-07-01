@@ -170,9 +170,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
             super().__post_init__()
             # remove ground as it obstructs the camera
             self.scene.ground = None
-            # match the direct camera task's lighting and reset distribution
-            self.scene.dome_light.spawn.intensity = 2000.0
-            self.scene.dome_light.spawn.color = (0.75, 0.75, 0.75)
             self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
             # viewer settings
             self.viewer.eye = (20.0, 20.0, 20.0)
