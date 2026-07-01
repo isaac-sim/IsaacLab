@@ -51,6 +51,7 @@ class KaminoSolverCfg(NewtonSolverCfg):
     use_fk_solver: bool | None = None
     """Whether to enable the forward kinematics solver for state resets.
 
+<<<<<<< HEAD
     When ``None``, Kamino will automatically determine whether to use the FK solver based on the model's 
     articulation structure. If the model has loop-closing joints, the FK solver will be used.
 
@@ -64,7 +65,21 @@ class KaminoSolverCfg(NewtonSolverCfg):
     When ``False``, Newton's articulated ``eval_fk`` is used instead over the full
     ``joint_q`` / ``joint_qd``. It is then up to the user to specify constraint-consistent
     values. This is the faster option for purely articulated (tree-structured) systems.
+=======
+    Required for proper environment resets. The FK solver computes consistent body poses
+    and velocities from the actuated joint coordinates/velocities after state writes, which is
+    essential for maximal-coordinate solvers (closed-loop poses are solved loop-consistent).
+>>>>>>> e10abbbfc9 (Cleanup reset and FK logic)
     """
+
+    fk_use_regularization: bool = True
+    """Whether to regularize the FK reset solve (Tikhonov term on body poses)."""
+
+    fk_regularization_weight: float = 1e-5
+    """Weight of the FK reset regularizer, used when :attr:`fk_use_regularization` is ``True``."""
+
+    fk_tolerance: float = 1e-5
+    """Convergence tolerance of the FK reset solve."""
 
     sparse_jacobian: bool = False
     """Whether to use sparse Jacobian computation."""
@@ -186,6 +201,7 @@ class KaminoSolverCfg(NewtonSolverCfg):
             CollisionDetectorConfig,
             ConstrainedDynamicsConfig,
             ConstraintStabilizationConfig,
+            ForwardKinematicsSolverConfig,
             PADMMSolverConfig,
         )
         from newton.solvers import SolverKamino
@@ -215,6 +231,11 @@ class KaminoSolverCfg(NewtonSolverCfg):
             collect_solver_info=self.collect_solver_info,
             compute_solution_metrics=self.compute_solution_metrics,
             collision_detector=collision_detector,
+            fk=ForwardKinematicsSolverConfig(
+                use_regularization=self.fk_use_regularization,
+                regularization_weight=self.fk_regularization_weight,
+                tolerance=self.fk_tolerance,
+            ),
             constraints=ConstraintStabilizationConfig(
                 alpha=self.constraints_alpha,
                 beta=self.constraints_beta,
