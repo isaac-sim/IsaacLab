@@ -34,7 +34,7 @@ EXTRAS_REQUIRE = {
     "rerun": [
         "newton[sim]==1.2.1",
         "rerun-sdk>=0.29.0",
-        "pyarrow==22.0.0",
+        "pyarrow==23.0.1",
     ],
     "viser": [
         "newton[sim]==1.2.1",

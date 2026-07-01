@@ -41,7 +41,7 @@ pyproject.dependencies.all = [
     # visualizers
     "imgui-bundle==1.92.601",
     "rerun-sdk>=0.29.0",
-    "pyarrow==22.0.0",
+    "pyarrow==23.0.1",
     # viser is intentionally not a base dep: viser>=1.0.16 pulls websockets>=13.1,
     # but isaacsim-kernel==6.0.0.0 pins websockets==12.0. Users who want the viser
     # visualizer install isaaclab[viser] explicitly (see the optional-dependencies
