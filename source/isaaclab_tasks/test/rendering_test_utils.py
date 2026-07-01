@@ -6,7 +6,6 @@
 """Shared helpers for rendering correctness tests."""
 
 import os
-import platform
 from datetime import datetime
 from typing import Any
 
@@ -421,8 +420,6 @@ def make_require_ovlibs_install_fixture():
 
                 print(f"ovrtx version: {ovrtx.__version__}")
             except ImportError as exc:
-                if platform.machine() == "aarch64":
-                    pytest.skip("OVRTX has no aarch64 wheel; skipping renderer=ovrtx_renderer on this platform.")
                 pytest.fail(
                     "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
                     "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
@@ -435,8 +432,6 @@ def make_require_ovlibs_install_fixture():
 
                 print(f"ovphysx version: {ovphysx.__version__}")
             except ImportError as exc:
-                if platform.machine() == "aarch64":
-                    pytest.skip("OVPhysX has no aarch64 wheel; skipping physics_backend=ovphysx on this platform.")
                 pytest.fail(
                     "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
                     "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"

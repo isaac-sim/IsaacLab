@@ -273,7 +273,17 @@ jobs:
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
+        extra-pip-packages: "ovrtx ovphysx==0.4.13"
         ci-marker: arm_ci
+        volume-mount-source: ${{ github.workspace }}
+
+    - name: Run shared Cartpole smoke
+      uses: ./.github/actions/run-tests
+      with:
+        test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
+        result-file: arm-ci-cartpole-smoke-report.xml
+        container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
+        image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
         volume-mount-source: ${{ github.workspace }}
 
     - name: Upload test reports

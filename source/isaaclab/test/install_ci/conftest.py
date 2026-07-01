@@ -41,6 +41,12 @@ def isaaclab_root() -> Path:
     return find_isaaclab_root()
 
 
+@pytest.fixture(scope="session")
+def cartpole_smoke_script() -> Path:
+    """Path to the shared Cartpole smoke probe executed inside installed environments."""
+    return Path(__file__).resolve().parent / "misc" / "cartpole_training_smoke.py"
+
+
 @pytest.fixture
 def tmp_venv(tmp_path: Path):
     """Create a temporary Python virtual-environment and tear it down after the test.
