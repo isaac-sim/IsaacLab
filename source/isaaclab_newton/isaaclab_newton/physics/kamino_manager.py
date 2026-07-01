@@ -124,6 +124,16 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in IsaacLab's Kamino manager."
             )
 
+        # Set the max contacts per world if specified.
+        if solver_cfg.max_contacts_per_world is not None:
+            model.rigid_contact_max = int(solver_cfg.max_contacts_per_world) * model.world_count
+            logger.info(
+                "[KAMINO] Capping rigid_contact_max to %d (%d/world * %d worlds)",
+                model.rigid_contact_max,
+                solver_cfg.max_contacts_per_world,
+                model.world_count,
+            )
+
         # Set the use_fk_solver flag based on the model's articulation structure if not specified by user.
         if solver_cfg.use_fk_solver is None:
             solver_cfg.use_fk_solver = _model_has_loop_closing_joints(model)
