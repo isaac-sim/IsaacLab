@@ -1,6 +1,22 @@
 Changelog
 ---------
 
+2.6.0 (2026-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+  to configure process-global Isaac RTX quality settings from
+  :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`.
+
+Fixed
+^^^^^
+
+* Fixed a crash in :class:`~isaaclab_physx.physics.PhysxManager` when ``omni.physx`` is reloaded during a session.
+
+
 2.5.0 (2026-06-28)
 ~~~~~~~~~~~~~~~~~~
 

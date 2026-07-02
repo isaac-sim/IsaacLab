@@ -21,6 +21,11 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
+from isaaclab_tasks.core.cartpole.constants import (
+    CARTPOLE_DISTANT_LIGHT_COLOR,
+    CARTPOLE_DISTANT_LIGHT_INTENSITY,
+    CARTPOLE_DISTANT_LIGHT_ORIENTATION,
+)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
@@ -91,9 +96,10 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    distant_light = AssetBaseCfg(
+        prim_path="/World/DistantLight",
+        init_state=AssetBaseCfg.InitialStateCfg(rot=CARTPOLE_DISTANT_LIGHT_ORIENTATION),
+        spawn=sim_utils.DistantLightCfg(color=CARTPOLE_DISTANT_LIGHT_COLOR, intensity=CARTPOLE_DISTANT_LIGHT_INTENSITY),
     )
 
 
