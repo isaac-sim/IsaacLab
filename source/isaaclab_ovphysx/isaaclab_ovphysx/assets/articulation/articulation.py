@@ -279,9 +279,12 @@ class Articulation(BaseArticulation):
         self._apply_actuator_model()
         # write actions into simulation (zeros are safe when no actuators are active)
         if self._effort_write_view is not None:
-            effort = self._get_backend_ordered_joint_buffer(
-                self._data._applied_torque, self._joint_effort_target_backend
-            )
+            # ``_applied_torque`` is the actuator-computed output (may differ from the raw
+            # commanded target, e.g. once clipped), so it must be reordered into its own
+            # scratch buffer rather than ``_joint_effort_target_backend``. The latter is the
+            # persistent mirror of the raw target that partial writes rely on for their
+            # unselected joints (see ``set_joint_effort_target_index``/``_mask``).
+            effort = self._get_backend_ordered_joint_buffer(self._data._applied_torque, self._applied_torque_backend)
             self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
@@ -3905,6 +3908,7 @@ class Articulation(BaseArticulation):
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
         self._joint_effort_target_backend: wp.array | None = None
+        self._applied_torque_backend: wp.array | None = None
         self._cache_ordering_maps()
 
         # All-true masks.
@@ -4091,11 +4095,21 @@ class Articulation(BaseArticulation):
     """
 
     def _ordering_configure_backend_staging(self) -> None:
-        """Configure OVPhysX joint-target staging."""
+        """Configure OVPhysX joint-target and applied-torque staging.
+
+        ``_joint_pos_target_backend`` / ``_joint_vel_target_backend`` / ``_joint_effort_target_backend``
+        are persistent backend-order mirrors of the corresponding user-order target buffers, kept
+        current by the partial :meth:`set_joint_position_target_index`-style setters.
+        ``_applied_torque_backend`` is separate, purely transient scratch: :meth:`write_data_to_sim`
+        fully overwrites it every step with the backend-order actuator output, so it must not alias
+        ``_joint_effort_target_backend`` (whose unselected rows a partial effort-target write relies
+        on to still hold the persisted target, not the last pushed applied torque).
+        """
         for backend_name in (
             "_joint_pos_target_backend",
             "_joint_vel_target_backend",
             "_joint_effort_target_backend",
+            "_applied_torque_backend",
         ):
             if not hasattr(self, backend_name):
                 continue
