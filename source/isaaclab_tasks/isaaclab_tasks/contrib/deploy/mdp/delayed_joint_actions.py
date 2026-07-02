@@ -10,6 +10,7 @@ import re
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 from isaaclab.envs.mdp.actions.joint_actions import RelativeJointPositionAction
 
@@ -45,7 +46,7 @@ class DelayedRelativeJointPositionAction(RelativeJointPositionAction):
             self._delay_steps = int(self.cfg.latency_steps)
         self._effective_latency_s = self._delay_steps * apply_dt
 
-        current_target = self._asset.data.joint_pos.torch[:, self._joint_ids].clone()
+        current_target = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids].clone()
         self._latest_target = current_target.clone()
         self._delayed_target = current_target.clone()
         self._target_buffer = None
@@ -54,7 +55,7 @@ class DelayedRelativeJointPositionAction(RelativeJointPositionAction):
 
     def process_actions(self, actions: torch.Tensor):
         super().process_actions(actions)
-        current_joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        current_joint_pos = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         self._latest_target = current_joint_pos + self.processed_actions
 
     def apply_actions(self):
@@ -71,7 +72,7 @@ class DelayedRelativeJointPositionAction(RelativeJointPositionAction):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         super().reset(env_ids)
         reset_ids = slice(None) if env_ids is None else env_ids
-        current_target = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        current_target = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         self._latest_target[reset_ids] = current_target[reset_ids]
         self._delayed_target[reset_ids] = current_target[reset_ids]
         if self._target_buffer is not None:
@@ -105,7 +106,7 @@ class ShapedDelayedRelativeJointPositionAction(DelayedRelativeJointPositionActio
             self._delay_steps = int(self.cfg.latency_steps)
         self._effective_latency_s = self._delay_steps * control_dt
 
-        current_target = self._asset.data.joint_pos.torch[:, self._joint_ids].clone()
+        current_target = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids].clone()
         self._latest_target = current_target.clone()
         self._delayed_target = current_target.clone()
         self._target_buffer = None
@@ -118,7 +119,7 @@ class ShapedDelayedRelativeJointPositionAction(DelayedRelativeJointPositionActio
 
     def process_actions(self, actions: torch.Tensor):
         RelativeJointPositionAction.process_actions(self, actions)
-        current_joint_pos = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        current_joint_pos = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         self._latest_target = current_joint_pos + self.processed_actions
 
         if self._delay_steps > 0:
@@ -142,7 +143,7 @@ class ShapedDelayedRelativeJointPositionAction(DelayedRelativeJointPositionActio
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         super().reset(env_ids)
         reset_ids = slice(None) if env_ids is None else env_ids
-        current_target = self._asset.data.joint_pos.torch[:, self._joint_ids]
+        current_target = wp.to_torch(self._asset.data.joint_pos)[:, self._joint_ids]
         self._shaped_target[reset_ids] = current_target[reset_ids]
         self._shaped_velocity[reset_ids] = 0.0
 
@@ -272,6 +273,8 @@ class FlexivDynamicsAwareRelativeJointPositionAction(DelayedRelativeJointPositio
             )
 
         mass_matrix = data.mass_matrix
+        if isinstance(mass_matrix, wp.array):
+            return wp.to_torch(mass_matrix)
         if hasattr(mass_matrix, "torch"):
             return mass_matrix.torch
         if isinstance(mass_matrix, torch.Tensor):

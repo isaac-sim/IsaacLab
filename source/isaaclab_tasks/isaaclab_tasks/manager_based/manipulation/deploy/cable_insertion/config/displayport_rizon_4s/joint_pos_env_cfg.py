@@ -54,23 +54,31 @@ _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
 # Sim-to-real action model toggle (ported from IsaacLab_ashwin gear-assembly
 # ``sysid_physx_env_cfg.py``)
 # ---------------------------------------------------------------------------
-# Master switch. Flip to ``True`` to enable the sim-to-real action pipeline:
-#   1. Action latency  -> ``ShapedDelayedRelativeJointPositionActionCfg`` delays
+# Master switch. Flip to ``True`` to enable the sim-to-real action pipeline
+# (mirrors IsaacLab_ashwin ``Rizon4sGearAssemblyROSInferenceSysIDPhysXShapedEnvCfg``):
+#   1. Sim rate       -> 200 Hz PhysX physics with decimation 4 => 50 Hz control,
+#      matching the Flexiv deployment command loop.
+#   2. Action latency -> ``ShapedDelayedRelativeJointPositionActionCfg`` delays
 #      the applied joint target by ``USE_SIM2REAL_ACTION_LATENCY_S`` seconds,
 #      approximating the real robot's command loop lag.
-#   2. Command shaping -> per-step velocity / acceleration clamping of the arm
+#   3. Command shaping -> per-step velocity / acceleration clamping of the arm
 #      joint targets (matches the collection-time command limits).
-#   3. SysID PD gains  -> replaces the stock arm PD (1320/600/216) with the
+#   4. SysID PD gains  -> replaces the stock arm PD (1320/600/216) with the
 #      PhysX SysID-tuned per-joint stiffness/damping for the Flexiv Rizon 4S.
 #
 # Leave ``False`` to keep the current behavior exactly (plain
-# ``RelativeJointPositionActionCfg`` + stock actuator PD gains). This single
-# flag is the only thing you need to change to revert.
+# ``RelativeJointPositionActionCfg`` + stock actuator PD gains + 240 Hz / dec 8).
+# This single flag is the only thing you need to change to revert.
 USE_SIM2REAL_ACTION_MODEL = True
 
-# Command latency in seconds. 20 ms = one 50 Hz collection sample in ashwin.
-# NOTE: this env runs ~30 Hz control (decimation 8 @ 240 Hz), so the delay
-# rounds to a minimum of one control step (~33 ms) unless you raise the value.
+# Sim rate for the sim-to-real deployment loop. 200 Hz PhysX physics with
+# decimation 4 gives a 50 Hz effective control rate (== ashwin gear assembly).
+# Uses PhysX implicit actuators (not Newton). At 50 Hz, a 20 ms latency maps to
+# exactly one control step.
+USE_SIM2REAL_PHYSICS_FREQ_HZ = 200.0
+USE_SIM2REAL_DECIMATION = 4
+
+# Command latency in seconds. 20 ms = one 50 Hz control sample in ashwin.
 USE_SIM2REAL_ACTION_LATENCY_S = 0.02
 # Command-target slew limits applied to the arm (rad/s and rad/s^2). Zero
 # disables the respective limit. Deployment values from ashwin gear assembly.
@@ -287,6 +295,14 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
+
+        if USE_SIM2REAL_ACTION_MODEL:
+            # Deployment sim rate: 200 Hz PhysX physics, decimation 4 => 50 Hz
+            # control loop (overrides the base 240 Hz / decimation 8). At 50 Hz a
+            # 20 ms latency maps to exactly one control step.
+            self.decimation = USE_SIM2REAL_DECIMATION
+            self.sim.dt = 1.0 / USE_SIM2REAL_PHYSICS_FREQ_HZ
+            self.sim.render_interval = self.decimation
 
         self.end_effector_body_name = "flange"
         self.num_arm_joints = 7
