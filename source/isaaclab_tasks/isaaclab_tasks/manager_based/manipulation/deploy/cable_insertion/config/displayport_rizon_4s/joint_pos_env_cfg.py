@@ -77,7 +77,7 @@ _INSERTION_LENGTH = 0.011
 # Leave ``False`` to keep the current behavior exactly (plain
 # ``RelativeJointPositionActionCfg`` + stock actuator PD gains + 240 Hz / dec 8).
 # This single flag is the only thing you need to change to revert.
-USE_SIM2REAL_ACTION_MODEL = True
+USE_SIM2REAL_ACTION_MODEL = False
 
 # Sim rate for the sim-to-real deployment loop. 200 Hz PhysX physics with
 # decimation 4 gives a 50 Hz effective control rate (== ashwin gear assembly).
