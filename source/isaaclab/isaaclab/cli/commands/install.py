@@ -850,8 +850,9 @@ def _assert_prebundle_dists_intact(snapshot: dict[Path, set[str]]) -> None:
             "Installation removed pre-bundled distribution(s) from Isaac Sim:\n  "
             + "\n  ".join(damaged)
             + "\nIsaac Sim extensions load these prebundles at runtime; removing them breaks extension"
-            " startup (see nvbugs 6343978). This usually means a pip operation ran with pip_prebundle"
-            " paths visible on sys.path. Restore the Isaac Sim installation before retrying."
+            " startup (see nvbugs 6343978). This usually means a dependency pin forced pip to"
+            " downgrade/replace a prebundled package — fix that pin instead of shipping a broken"
+            " prebundle, and restore the Isaac Sim installation before retrying."
         )
 
 
