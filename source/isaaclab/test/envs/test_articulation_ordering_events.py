@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from isaaclab.assets import BaseArticulation
 from isaaclab.envs.mdp import events as events_module
 
 _NUM_SHAPES_PER_BACKEND_BODY = (1, 2, 3)
@@ -61,6 +62,9 @@ class _FakePhysicsSimulationView:
 class _FakePhysxArticulation:
     """Minimal articulation surface consumed by the PhysX material term."""
 
+    # exercise the real public translation instead of re-implementing it
+    map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
+
     def __init__(self, body_ordering):
         self.body_ordering = body_ordering
         self.root_view = _FakePhysxRootView()
@@ -84,14 +88,13 @@ class _FakeNewtonRootView:
 class _FakeNewtonArticulation:
     """Minimal articulation surface consumed by the Newton material term."""
 
+    # exercise the real public translation instead of re-implementing it
+    map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
+
     def __init__(self, body_ordering):
         self.body_ordering = body_ordering
-        if body_ordering is None:
-            self.num_shapes_per_body = _NUM_SHAPES_PER_BACKEND_BODY
-        else:
-            self.num_shapes_per_body = tuple(
-                _NUM_SHAPES_PER_BACKEND_BODY[index] for index in body_ordering.user_to_backend_indices
-            )
+        # shape counts are always exposed in backend order by the Newton asset
+        self.backend_num_shapes_per_body = list(_NUM_SHAPES_PER_BACKEND_BODY)
         self._root_view = _FakeNewtonRootView()
 
 
@@ -208,3 +211,55 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     torch.testing.assert_close(term._friction_binding, expected_friction)
     torch.testing.assert_close(term._restitution_binding, expected_restitution)
     assert len(_FakeNewtonManager.notifications) == 1
+
+
+class _MapBodyIdsSurface:
+    """Minimal surface exercising the real body-id translation method."""
+
+    map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
+
+    def __init__(self, body_ordering):
+        self.body_ordering = body_ordering
+
+
+def test_map_body_ids_to_backend_returns_input_unchanged_for_default_ordering():
+    """A ``None`` (default) body ordering returns the input object unchanged."""
+    asset = _MapBodyIdsSurface(None)
+    body_ids = [2, 0, 1]
+    assert asset.map_body_ids_to_backend(body_ids) is body_ids
+
+
+def test_map_body_ids_to_backend_returns_input_unchanged_for_identity_ordering():
+    """An identity body ordering also returns the input object unchanged."""
+    identity_ordering = SimpleNamespace(
+        user_to_backend_indices=(0, 1, 2),
+        backend_to_user_indices=(0, 1, 2),
+        is_identity=True,
+    )
+    asset = _MapBodyIdsSurface(identity_ordering)
+    body_ids = [2, 0, 1]
+    assert asset.map_body_ids_to_backend(body_ids) is body_ids
+
+
+def test_map_body_ids_to_backend_permutes_ids_for_nonidentity_ordering():
+    """A nonidentity body ordering gathers public IDs into backend order."""
+    asset = _MapBodyIdsSurface(_NONIDENTITY_BODY_ORDERING)
+    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
+    assert asset.map_body_ids_to_backend([1, 2]) == [2, 1]
+
+
+def test_map_body_ids_to_backend_agrees_with_backend_body_names_index():
+    """The permutation matches translating via ``backend_body_names.index``."""
+    backend_body_names = ("bodyA", "bodyB", "bodyC")
+    user_body_names = ("bodyA", "bodyC", "bodyB")
+    ordering = SimpleNamespace(
+        backend_names=backend_body_names,
+        user_names=user_body_names,
+        user_to_backend_indices=tuple(backend_body_names.index(name) for name in user_body_names),
+        backend_to_user_indices=tuple(user_body_names.index(name) for name in backend_body_names),
+        is_identity=False,
+    )
+    asset = _MapBodyIdsSurface(ordering)
+    body_ids = [1, 2]
+    expected = [backend_body_names.index(user_body_names[body_id]) for body_id in body_ids]
+    assert asset.map_body_ids_to_backend(body_ids) == expected

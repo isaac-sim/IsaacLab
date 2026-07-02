@@ -39,21 +39,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _map_articulation_body_ids_to_backend(asset: Articulation, body_ids: list[int]) -> tuple[int, ...]:
-    """Map public articulation body indices to active-backend indices.
-
-    Args:
-        asset: Articulation whose body ordering defines the index conversion.
-        body_ids: Body indices in public API order.
-
-    Returns:
-        Body indices in active-backend order.
-    """
-    if asset.body_ordering is None:
-        return tuple(body_ids)
-    return tuple(asset.body_ordering.user_to_backend_indices[body_id] for body_id in body_ids)
-
-
 def randomize_rigid_body_scale(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor | None,
@@ -208,7 +193,7 @@ class _RandomizeRigidBodyMaterialPhysx:
                 link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
             # ``body_ids`` are public IDs; convert once before deriving backend-ordered shape ranges.
-            self._backend_body_ids = _map_articulation_body_ids_to_backend(asset, asset_cfg.body_ids)
+            self._backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
             # ensure the parsing is correct
             num_shapes = sum(self.num_shapes_per_body)
             expected_shapes = asset.root_view.max_shapes
@@ -299,15 +284,11 @@ class _RandomizeRigidBodyMaterialNewton:
 
         # compute shape indices for body-specific randomization
         if isinstance(asset, NewtonArticulation) and asset_cfg.body_ids != slice(None):
-            # ``body_ids`` and the count list use public order, while shape bindings use backend order.
-            # Restore backend counts first, then convert the selected IDs exactly once.
-            num_shapes_per_body = asset.num_shapes_per_body
-            if asset.body_ordering is not None and not asset.body_ordering.is_identity:
-                num_shapes_per_body = [
-                    num_shapes_per_body[user_id] for user_id in asset.body_ordering.backend_to_user_indices
-                ]
+            # ``body_ids`` are public IDs, while shape bindings use backend order; convert the
+            # selected IDs once and index the backend-ordered shape counts directly.
+            num_shapes_per_body = asset.backend_num_shapes_per_body
             shape_indices_list = []
-            backend_body_ids = _map_articulation_body_ids_to_backend(asset, asset_cfg.body_ids)
+            backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
             for body_id in backend_body_ids:
                 start_idx = sum(num_shapes_per_body[:body_id])
                 end_idx = start_idx + num_shapes_per_body[body_id]

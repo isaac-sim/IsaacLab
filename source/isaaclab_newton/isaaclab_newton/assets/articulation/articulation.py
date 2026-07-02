@@ -192,6 +192,19 @@ class Articulation(BaseArticulation):
         return [backend_num_shapes_per_body[backend_id] for backend_id in self.body_ordering.user_to_backend_indices]
 
     @property
+    def backend_num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes per body in active backend solver-view order.
+
+        Each element corresponds to the body at the same index in
+        :attr:`backend_body_names`, matching the shape axis of the backend
+        solver arrays. Use :attr:`num_shapes_per_body` for public body order.
+
+        Returns:
+            List of integers representing the number of shapes per backend-order body.
+        """
+        return self._backend_num_shapes_per_body
+
+    @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
         return self.root_view.tendon_names

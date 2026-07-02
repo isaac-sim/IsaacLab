@@ -254,6 +254,31 @@ class BaseArticulation(AssetBase):
         """
         return getattr(self.data, "body_ordering", None)
 
+    def map_body_ids_to_backend(self, body_ids: Sequence[int]) -> Sequence[int]:
+        """Translate public body indices to active-backend body indices.
+
+        Backend solver views expose body metadata and body-indexed arrays in
+        :attr:`backend_body_names` order, which can differ from the public
+        :attr:`body_names` order selected by :attr:`body_ordering`. Consumers
+        that pick bodies with public indices (for example event terms) must
+        convert those indices before addressing backend arrays.
+
+        When :attr:`body_ordering` is ``None`` or an identity permutation, the
+        public and backend orders coincide and :paramref:`body_ids` is returned
+        unchanged without any per-index lookup.
+
+        Args:
+            body_ids: Body indices in public :attr:`body_names` order.
+
+        Returns:
+            The same body indices expressed in :attr:`backend_body_names` order,
+            or :paramref:`body_ids` unchanged when the orders coincide.
+        """
+        ordering = self.body_ordering
+        if ordering is None or ordering.is_identity:
+            return body_ids
+        return [ordering.user_to_backend_indices[body_id] for body_id in body_ids]
+
     @property
     @abstractmethod
     def root_view(self):
