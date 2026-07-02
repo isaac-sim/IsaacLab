@@ -155,7 +155,7 @@ jobs:
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
-          premerge: true
+          premerge: ${{ needs.changes.outputs.premerge }}
           testmon-data-dir: ${{ github.workspace }}/.testmon/${{ runner.arch }}
           test-filter: ${{ inputs.test_filter }}
 
@@ -182,6 +182,6 @@ jobs:
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
-          premerge: true
+          premerge: ${{ needs.changes.outputs.premerge }}
           testmon-data-dir: ${{ github.workspace }}/.testmon/${{ runner.arch }}
           test-filter: ${{ inputs.test_filter }}

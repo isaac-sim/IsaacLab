@@ -82,7 +82,7 @@ inputs:
     required: false
   testmon-mode:
     description: 'Override Testmon mode with select or collect'
-    default: 'select'
+    default: ''
     required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'

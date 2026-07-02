@@ -23,7 +23,7 @@ class TestDetectExecutionEnvironment:
             filesystem_root=tmp_path,
         )
 
-        assert environment in ("docker",)
+        assert environment == "docker"
 
     def test_detects_marker_file(self, tmp_path):
         (tmp_path / ".dockerenv").touch()
