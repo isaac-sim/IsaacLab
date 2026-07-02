@@ -9,7 +9,6 @@ Re-exports the stock Isaac Lab manager-based MDP terms and adds the few
 DR-Legs-specific terms that have no stock equivalent.
 """
 
-from isaaclab.envs.mdp import *  # noqa: F401, F403
+from isaaclab.utils.module import lazy_export
 
-from .observations import *  # noqa: F401, F403
-from .rewards import *  # noqa: F401, F403
+lazy_export()
