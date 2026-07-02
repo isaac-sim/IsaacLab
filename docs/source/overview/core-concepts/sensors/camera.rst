@@ -255,7 +255,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
    * - ``instance_id_segmentation_fast``
      - ✅
-     - ❌
+     - ✅
      - ❌
 
 RGB and RGBA
