@@ -90,6 +90,26 @@ def _reference_extract_all_depth_tiles(
     return out
 
 
+def _reference_extract_all_uint32_tiles(
+    tiled_np: np.ndarray,
+    num_envs: int,
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+) -> np.ndarray:
+    """NumPy reference for the uint32 (e.g. raw instance segmentation ID) case of ``extract_all_tiles_kernel``."""
+    out = np.zeros((num_envs, tile_height, tile_width, 1), dtype=np.uint32)
+    for env_idx in range(num_envs):
+        tile_x = env_idx % num_cols
+        tile_y = env_idx // num_cols
+        for y in range(tile_height):
+            for x in range(tile_width):
+                src_y = tile_y * tile_height + y
+                src_x = tile_x * tile_width + x
+                out[env_idx, y, x, 0] = tiled_np[src_y, src_x, 0]
+    return out
+
+
 def _reference_extract_all_rgba_tiles(
     tiled_np: np.ndarray,
     num_envs: int,
@@ -216,6 +236,84 @@ class TestExtractAllDepthTilesKernel:
 
         expected = _reference_extract_all_depth_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
         np.testing.assert_allclose(output_wp.numpy(), expected, rtol=1e-6, atol=1e-6)
+
+
+class TestExtractAllUint32TilesKernel:
+    """Tests for the uint32 (e.g. raw instance segmentation ID) case of ``extract_all_tiles_kernel``."""
+
+    def test_two_by_two_tile_grid(self):
+        num_cols = 2
+        num_envs = 4
+        tile_width = 2
+        tile_height = 3
+        tiled_h = (num_envs // num_cols) * tile_height
+        tiled_w = num_cols * tile_width
+        rng = np.random.default_rng(98765)
+        tiled_np = rng.integers(0, 2**31, size=(tiled_h, tiled_w, 1), dtype=np.uint32)
+
+        tiled_wp = wp.array(tiled_np, dtype=wp.uint32, ndim=3, device=DEVICE)
+        output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 1), dtype=wp.uint32, device=DEVICE)
+
+        wp.launch(
+            kernel=extract_all_tiles_kernel,
+            dim=(num_envs, tile_height, tile_width),
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        expected = _reference_extract_all_uint32_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
+        np.testing.assert_array_equal(output_wp.numpy(), expected)
+
+    def test_single_tile(self):
+        num_cols = 1
+        num_envs = 1
+        tile_width = 4
+        tile_height = 4
+        tiled_np = np.arange(tile_height * tile_width, dtype=np.uint32).reshape(tile_height, tile_width, 1)
+
+        tiled_wp = wp.array(tiled_np, dtype=wp.uint32, ndim=3, device=DEVICE)
+        output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 1), dtype=wp.uint32, device=DEVICE)
+
+        wp.launch(
+            kernel=extract_all_tiles_kernel,
+            dim=(num_envs, tile_height, tile_width),
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        expected = _reference_extract_all_uint32_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
+        np.testing.assert_array_equal(output_wp.numpy(), expected)
+
+    @pytest.mark.parametrize(
+        ("num_cols", "num_envs", "tile_width", "tile_height"),
+        [
+            (3, 6, 2, 2),
+            (1, 3, 5, 1),
+            (4, 8, 1, 1),
+        ],
+    )
+    def test_various_layouts(self, num_cols, num_envs, tile_width, tile_height):
+        num_rows = (num_envs + num_cols - 1) // num_cols
+        tiled_h = num_rows * tile_height
+        tiled_w = num_cols * tile_width
+        rng = np.random.default_rng(13579)
+        tiled_np = rng.integers(0, 2**31, size=(tiled_h, tiled_w, 1), dtype=np.uint32)
+
+        tiled_wp = wp.array(tiled_np, dtype=wp.uint32, ndim=3, device=DEVICE)
+        output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 1), dtype=wp.uint32, device=DEVICE)
+
+        wp.launch(
+            kernel=extract_all_tiles_kernel,
+            dim=(num_envs, tile_height, tile_width),
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        expected = _reference_extract_all_uint32_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
+        np.testing.assert_array_equal(output_wp.numpy(), expected)
 
 
 class TestExtractAllRgbaTilesKernel:
