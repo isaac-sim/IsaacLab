@@ -31,7 +31,7 @@ The renderer used by a camera is configured via the ``renderer_cfg`` field on
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 30 40
+   :widths: 30 30
 
    * - ``renderer_cfg``
      - Requires Isaac Sim?
