@@ -24,6 +24,8 @@ from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     import omni.physics.tensors as physx
 
 # import logger
@@ -1157,6 +1159,69 @@ class ArticulationData(BaseArticulationData):
     Joint state properties.
     """
 
+    def _refresh_joint_state_user(self, user_buffer: TimestampedBuffer, view_getter: Callable[[], wp.array]) -> None:
+        """Refresh a public-order joint-state buffer directly from its backend view.
+
+        Reads the backend view once and, when stale for the current timestamp, either aliases it
+        (identity ordering) or gathers it into the owned public-order buffer. The PhysX tensor API
+        returns views into stable pre-allocated buffers, so the gather can read the view directly
+        without an intermediate full-buffer staging copy.
+
+        Args:
+            user_buffer: The public-order joint-state buffer to refresh in place.
+            view_getter: Zero-argument callable returning the backend-order view.
+        """
+        if user_buffer.timestamp >= self._sim_timestamp:
+            return
+        if not self._has_joint_ordering:
+            user_buffer.data = view_getter()
+        else:
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[view_getter(), self._joint_user_to_backend],
+                outputs=[user_buffer.data],
+                device=self.device,
+            )
+        user_buffer.timestamp = self._sim_timestamp
+
+    def _get_joint_state_write_buffer(
+        self,
+        user_buffer: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        view_getter: Callable[[], wp.array],
+        require_current: bool,
+    ) -> wp.array:
+        """Return the complete backend-order joint-state rows used by PhysX setters.
+
+        Partial writes scatter into this full-image buffer, so when ``require_current`` is set the
+        buffer is first refreshed from the backend view to keep the unwritten rows current. This is
+        the only path that stages the backend-order image from the view; ordered reads gather from
+        the view directly in :meth:`_refresh_joint_state_user`.
+
+        Args:
+            user_buffer: The public-order joint-state buffer, also the write target under identity
+                ordering.
+            backend_buffer: The owned backend-order staging buffer, or ``None`` under identity
+                ordering.
+            view_getter: Zero-argument callable returning the backend-order view.
+            require_current: Whether the unwritten rows must reflect the current state, i.e. the
+                write covers only a subset of joints.
+
+        Returns:
+            The backend-order buffer that setters scatter into and push to PhysX.
+        """
+        if not self._has_joint_ordering:
+            if require_current:
+                self._refresh_joint_state_user(user_buffer, view_getter)
+            return user_buffer.data
+        if backend_buffer is None:
+            raise RuntimeError("PhysX joint state ordering staging was not initialized.")
+        if require_current and backend_buffer.timestamp < self._sim_timestamp:
+            backend_buffer.data.assign(view_getter())
+            backend_buffer.timestamp = self._sim_timestamp
+        return backend_buffer.data
+
     @property
     def joint_pos(self) -> ProxyArray:
         """Joint positions of all joints.
@@ -1169,37 +1234,14 @@ class ArticulationData(BaseArticulationData):
         return self._joint_pos_ta
 
     def _refresh_joint_pos(self) -> None:
-        """Refresh public and backend-order joint-position buffers when stale."""
-        if not self._has_joint_ordering:
-            if self._joint_pos.timestamp < self._sim_timestamp:
-                self._joint_pos.data = self._root_view.get_dof_positions()
-                self._joint_pos.timestamp = self._sim_timestamp
-            return
-
-        if self._joint_pos_backend is None:
-            raise RuntimeError("PhysX joint position ordering staging was not initialized.")
-        if self._joint_pos_backend.timestamp < self._sim_timestamp:
-            self._joint_pos_backend.data.assign(self._root_view.get_dof_positions())
-            self._joint_pos_backend.timestamp = self._sim_timestamp
-        if self._joint_pos.timestamp < self._joint_pos_backend.timestamp:
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[self._joint_pos_backend.data, self._joint_user_to_backend],
-                outputs=[self._joint_pos.data],
-                device=self.device,
-            )
-            self._joint_pos.timestamp = self._joint_pos_backend.timestamp
+        """Refresh the public-order joint-position buffer when stale."""
+        self._refresh_joint_state_user(self._joint_pos, self._root_view.get_dof_positions)
 
     def _get_joint_pos_write_buffer(self, require_current: bool) -> wp.array:
         """Return the complete backend-order position rows used by PhysX setters."""
-        if require_current:
-            self._refresh_joint_pos()
-        if not self._has_joint_ordering:
-            return self._joint_pos.data
-        if self._joint_pos_backend is None:
-            raise RuntimeError("PhysX joint position ordering staging was not initialized.")
-        return self._joint_pos_backend.data
+        return self._get_joint_state_write_buffer(
+            self._joint_pos, self._joint_pos_backend, self._root_view.get_dof_positions, require_current
+        )
 
     @property
     def joint_vel(self) -> ProxyArray:
@@ -1213,37 +1255,14 @@ class ArticulationData(BaseArticulationData):
         return self._joint_vel_ta
 
     def _refresh_joint_vel(self) -> None:
-        """Refresh public and backend-order joint-velocity buffers when stale."""
-        if not self._has_joint_ordering:
-            if self._joint_vel.timestamp < self._sim_timestamp:
-                self._joint_vel.data = self._root_view.get_dof_velocities()
-                self._joint_vel.timestamp = self._sim_timestamp
-            return
-
-        if self._joint_vel_backend is None:
-            raise RuntimeError("PhysX joint velocity ordering staging was not initialized.")
-        if self._joint_vel_backend.timestamp < self._sim_timestamp:
-            self._joint_vel_backend.data.assign(self._root_view.get_dof_velocities())
-            self._joint_vel_backend.timestamp = self._sim_timestamp
-        if self._joint_vel.timestamp < self._joint_vel_backend.timestamp:
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[self._joint_vel_backend.data, self._joint_user_to_backend],
-                outputs=[self._joint_vel.data],
-                device=self.device,
-            )
-            self._joint_vel.timestamp = self._joint_vel_backend.timestamp
+        """Refresh the public-order joint-velocity buffer when stale."""
+        self._refresh_joint_state_user(self._joint_vel, self._root_view.get_dof_velocities)
 
     def _get_joint_vel_write_buffer(self, require_current: bool) -> wp.array:
         """Return the complete backend-order velocity rows used by PhysX setters."""
-        if require_current:
-            self._refresh_joint_vel()
-        if not self._has_joint_ordering:
-            return self._joint_vel.data
-        if self._joint_vel_backend is None:
-            raise RuntimeError("PhysX joint velocity ordering staging was not initialized.")
-        return self._joint_vel_backend.data
+        return self._get_joint_state_write_buffer(
+            self._joint_vel, self._joint_vel_backend, self._root_view.get_dof_velocities, require_current
+        )
 
     @property
     def joint_acc(self) -> ProxyArray:
