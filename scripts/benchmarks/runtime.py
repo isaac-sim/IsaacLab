@@ -67,8 +67,10 @@ def run(argv: list[str]) -> None:
     Args:
         argv: Command-line arguments excluding the script path.
     """
-    import contextlib
     import time
+
+    imports_t0 = time.perf_counter_ns()
+    import contextlib
 
     import gymnasium as gym
 
@@ -86,8 +88,11 @@ def run(argv: list[str]) -> None:
         import isaaclab_tasks_experimental  # noqa: F401
 
     args, remaining = _parse_args(argv)
+    imports_t1 = time.perf_counter_ns()
 
+    task_config_t0 = time.perf_counter_ns()
     env_cfg, _ = resolve_task_config(args.task, None)
+    task_config_t1 = time.perf_counter_ns()
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -138,6 +143,8 @@ def run(argv: list[str]) -> None:
                 app_launch=(app_t1 - app_t0) / 1e9,
                 env_creation=(env_t1 - env_t0) / 1e9,
                 first_step=(step_times_s[0] if step_times_s else 0.0),
+                python_imports=(imports_t1 - imports_t0) / 1e9,
+                task_config=(task_config_t1 - task_config_t0) / 1e9,
             )
 
             fps = [num_envs / t for t in step_times_s if t > 0]
