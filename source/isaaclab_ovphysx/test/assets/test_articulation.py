@@ -53,6 +53,7 @@ pattern.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 import torch
@@ -70,7 +71,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
-from isaaclab.assets import ArticulationCfg  # noqa: E402
+from isaaclab.assets import ArticulationCfg, get_mjwarp_articulation_name_ordering  # noqa: E402
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
 from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
@@ -360,7 +361,7 @@ def sim(request):
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(sim, num_articulations, device):
     """Test that a partial ordered write preserves every unselected backend joint."""
     articulation_cfg = generate_articulation_cfg("anymal").replace(
@@ -393,6 +394,9 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
 
 
 @pytest.mark.parametrize("num_articulations", [1])
+# COM pose is a CPU-resident OVPhysX binding (``_CPU_ONLY_TYPES``) even on a GPU sim, and this test
+# restores it via the low-level ``root_view.set_attribute`` which forbids cross-device staging, so it
+# is inherently CPU-only (aligning it to ``cuda:0`` would fail on the CPU-native COM binding).
 @pytest.mark.parametrize("device", ["cpu"])
 def test_live_panda_manual_body_ordering_preserves_unselected_coms(sim, num_articulations, device):
     """Test that a partial ordered COM write preserves every unselected backend body."""
@@ -449,7 +453,7 @@ def test_live_panda_manual_body_ordering_preserves_unselected_coms(sim, num_arti
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reversed_body_ordering_wrench_composes_from_backend_pose_without_shadow_refresh(
     sim, num_articulations, device
 ):
@@ -503,7 +507,7 @@ def test_reversed_body_ordering_wrench_composes_from_backend_pose_without_shadow
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reversed_joint_ordering_joint_acc_matches_canonicalized_finite_difference(sim, num_articulations, device):
     """Reversed joint ordering: the fused ``joint_acc`` finite difference reads the backend-order
     velocity source and equals the identity-order acceleration permuted into public order (finding [40]).
@@ -550,6 +554,103 @@ def test_reversed_joint_ordering_joint_acc_matches_canonicalized_finite_differen
     acc_backend = (cur_vel_backend - prev_vel_backend) / dt
     expected_user = acc_backend[:, user_to_backend]
     torch.testing.assert_close(joint_acc_user, expected_user, rtol=1e-5, atol=1e-6)
+
+
+def _branching_fixture_path() -> Path:
+    """Locate the shared branching articulation fixture in the isaaclab_physx test data directory.
+
+    Referenced cross-package (same pattern as isaaclab_newton's
+    ``test_mjwarp_ordering_resolver_matches_newton_backend_names``) so every backend asserts its
+    symbolic-ordering resolution against a single ground-truth asset.
+    """
+    return (
+        Path(__file__).resolve().parents[3]
+        / "isaaclab_physx"
+        / "test"
+        / "assets"
+        / "data"
+        / "articulation_ordering_branching.usda"
+    )
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
+    """Take the same-backend identity fast path for ``joint_ordering="physx"`` on OVPhysX.
+
+    Live coverage for the same-backend symbolic-convention path (finding [64]): OVPhysX is a
+    PhysX-family backend whose articulation view is already in PhysX (breadth-first) order, so
+    requesting ``physx`` must expose the public joint/body axes verbatim in backend order with no
+    reorder map.
+    """
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(_branching_fixture_path())),
+            actuators={},
+            joint_ordering="physx",
+            body_ordering="physx",
+        )
+    )
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Ground truth pinned by isaaclab_physx's test_branching_fixture_resolves_distinct_conventions.
+    expected_physx_joint_names = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
+    expected_physx_body_names = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
+
+    # OVPhysX exposes the native breadth-first PhysX order on the backend axis.
+    assert tuple(articulation.backend_joint_names) == expected_physx_joint_names
+    assert tuple(articulation.backend_body_names) == expected_physx_body_names
+
+    # Same-backend preset: the public axis equals the backend axis and no reorder map is created.
+    assert tuple(articulation.joint_names) == tuple(articulation.backend_joint_names)
+    assert tuple(articulation.body_names) == tuple(articulation.backend_body_names)
+    assert tuple(articulation.joint_names) == expected_physx_joint_names
+    assert tuple(articulation.body_names) == expected_physx_body_names
+    assert articulation.joint_ordering is None or articulation.joint_ordering.is_identity
+    assert articulation.body_ordering is None or articulation.body_ordering.is_identity
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
+    """Resolve depth-first MJWarp order cross-backend for ``joint_ordering="mjwarp"`` on OVPhysX.
+
+    Live coverage for the cross-backend symbolic-convention path (findings [10]/[64]): OVPhysX is a
+    PhysX-family backend (native breadth-first order), so requesting ``mjwarp`` triggers a temporary
+    Newton USD discovery of the depth-first order and reorders the public joint/body axes to it. The
+    MJWarp/DFS ground truth is the same tuple isaaclab_newton's
+    ``test_mjwarp_ordering_resolver_matches_newton_backend_names`` pins for its live Newton backend.
+    """
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(_branching_fixture_path())),
+            actuators={},
+            joint_ordering="mjwarp",
+            body_ordering="mjwarp",
+        )
+    )
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Ground truth shared with isaaclab_physx's test_branching_fixture_resolves_distinct_conventions
+    # and isaaclab_newton's test_mjwarp_ordering_resolver_matches_newton_backend_names.
+    expected_physx_joint_names = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
+    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
+    expected_physx_body_names = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
+    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
+
+    # OVPhysX exposes the native breadth-first PhysX order on the backend axis.
+    assert tuple(articulation.backend_joint_names) == expected_physx_joint_names
+    assert tuple(articulation.backend_body_names) == expected_physx_body_names
+
+    # Cross-backend Newton discovery resolves the depth-first MJWarp order and reorders the public axis.
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == expected_mjwarp_joint_names
+    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == expected_mjwarp_body_names
+    assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
+    assert tuple(articulation.body_names) == expected_mjwarp_body_names
+    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
+    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

@@ -363,7 +363,7 @@ def sim(request):
         yield sim
 
 
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
     """Smoke-test non-identity joint/body ordering through a live PhysX articulation."""
@@ -443,7 +443,7 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
     torch.testing.assert_close(articulation.data.body_quat_w.torch, articulation.data.body_link_pose_w.torch[..., 3:])
 
 
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
     """Keep floating-base root writes invariant when public body order moves the root."""
@@ -603,7 +603,7 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
 
 
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_anymal_d_mjwarp_ordering_reorders_named_state(sim, device, gravity_enabled):
     """Exercise resolver-driven MJWarp ordering across live PhysX read/write boundaries."""
@@ -670,7 +670,7 @@ def test_live_anymal_d_mjwarp_ordering_reorders_named_state(sim, device, gravity
     )
 
 
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_live_anymal_d_mjwarp_partial_joint_write_preserves_unselected_backend_state(sim, device, gravity_enabled):
     """Preserve complete PhysX rows when writing one public joint before a cache read."""

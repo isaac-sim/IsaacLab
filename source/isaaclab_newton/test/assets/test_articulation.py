@@ -37,7 +37,10 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.assets.articulation.ordering_resolvers import get_mjwarp_articulation_name_ordering
+from isaaclab.assets.articulation.ordering_resolvers import (
+    get_mjwarp_articulation_name_ordering,
+    get_physx_articulation_name_ordering,
+)
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -615,6 +618,65 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, grav
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
 
 
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
+def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gravity_enabled, articulation_type):
+    """Resolve the documented Newton ``joint_ordering="physx"`` sim-to-sim workflow on a branching asset.
+
+    Mirrors :func:`isaaclab_physx.test.assets.test_articulation.test_branching_fixture_resolves_distinct_conventions`
+    with the backend roles swapped: here the live backend is Newton (depth-first, so its native view is
+    the MJWarp order), and the request is ``physx``/``body_ordering="physx"``. Cross-backend discovery must
+    resolve the breadth-first PhysX order and reorder the public joint/body axes to it. This is the headline
+    workflow documented in
+    ``docs/source/overview/core-concepts/physical-backends/sim-to-sim-policy-transfer.rst``.
+
+    The branching fixture lives in the isaaclab_physx test data directory; it is referenced cross-package so
+    the two backends assert against a single shared ground-truth asset (same pattern as
+    :func:`test_mjwarp_ordering_resolver_matches_newton_backend_names`).
+    """
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "isaaclab_physx"
+        / "test"
+        / "assets"
+        / "data"
+        / "articulation_ordering_branching.usda"
+    )
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+            joint_ordering="physx",
+            body_ordering="physx",
+        )
+    )
+
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Ground truth pinned by isaaclab_physx's test_branching_fixture_resolves_distinct_conventions.
+    expected_physx_joint_names = ("left_shoulder", "right_shoulder", "left_elbow", "right_elbow")
+    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
+    expected_physx_body_names = ("base", "left_upper", "right_upper", "left_tip", "right_tip")
+    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
+
+    # Newton's native traversal is depth-first, so the live backend view already reflects MJWarp order.
+    assert tuple(articulation.backend_joint_names) == expected_mjwarp_joint_names
+    assert tuple(articulation.backend_body_names) == expected_mjwarp_body_names
+
+    # Cross-backend discovery (bypassing the same-backend fast path) resolves the breadth-first PhysX order.
+    assert get_physx_articulation_name_ordering(articulation, kind="joint") == expected_physx_joint_names
+    assert get_physx_articulation_name_ordering(articulation, kind="body") == expected_physx_body_names
+
+    # The requested PhysX ordering reorders the public joint/body axes to the BFS convention.
+    assert tuple(articulation.joint_names) == expected_physx_joint_names
+    assert tuple(articulation.body_names) == expected_physx_body_names
+    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
+    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+
+
 def test_num_shapes_per_body_follows_public_body_order() -> None:
     """Align Newton shape counts with the public body-name axis."""
 
@@ -635,7 +697,7 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
 
 
 @pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.parametrize("use_newton_actuators", [True])
@@ -698,7 +760,7 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.parametrize("state_kind", ["pose", "velocity"])
@@ -745,7 +807,7 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
@@ -941,7 +1003,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
@@ -1016,7 +1078,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
 
 
 @pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 def test_newton_post_step_hook_publishes_ordered_state_inside_step(
