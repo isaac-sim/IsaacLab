@@ -1,0 +1,62 @@
+_generated_by: scripts/sysid/run_sysid.py
+_source_best_params_yaml: /home/horde/IsaacLab/output/sysid/flexiv/pd_only_gravityoff_high_cmdlimits_seed_default_steps_pm10_physx_n64_g20/best_params.yaml
+_source_gains_yaml: /home/horde/IsaacLab/input/manual_pd/flexiv_pd_only_gravityoff_high_cmdlimits_tuned_physx.yaml
+_base_actuator_yaml: flexiv/rizon4s_grav_usd_default_implicit.yaml
+
+effort_limit_sim:
+  joint1: 123.0
+  joint2: 123.0
+  joint3: 64.0
+  joint4: 64.0
+  joint5: 39.0
+  joint6: 39.0
+  joint7: 39.0
+
+velocity_limit_sim:
+  joint1: 2.094
+  joint2: 2.094
+  joint3: 2.443
+  joint4: 2.443
+  joint5: 4.887
+  joint6: 4.887
+  joint7: 4.887
+
+stiffness:
+  joint1: 6051.500977
+  joint2: 3004.328857
+  joint3: 7032.64209
+  joint4: 4346.786133
+  joint5: 6829.847656
+  joint6: 3769.23291
+  joint7: 6181.429199
+
+damping:
+  joint1: 121.620995
+  joint2: 220.929214
+  joint3: 162.582214
+  joint4: 186.334442
+  joint5: 199.962311
+  joint6: 118.462029
+  joint7: 152.861771
+
+armature:
+  joint1: 0.0
+  joint2: 0.0
+  joint3: 0.0
+  joint4: 0.0
+  joint5: 0.0
+  joint6: 0.0
+  joint7: 0.0
+
+friction:
+  joint1: 0.0
+  joint2: 0.0
+  joint3: 0.0
+  joint4: 0.0
+  joint5: 0.0
+  joint6: 0.0
+  joint7: 0.0
+
+motor_lag_ms: 20.0
+command_velocity_limit: 2.0
+command_acceleration_limit: 3.0
