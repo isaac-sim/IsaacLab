@@ -22,6 +22,8 @@ import pytest
 
 from isaaclab_rl.utils.pretrained_checkpoint import WORKFLOW_EXPERIMENT_NAME_VARIABLE, WORKFLOW_TRAINER
 
+pytestmark = pytest.mark.always
+
 
 def setup_environment():
     """Setup environment for testing."""

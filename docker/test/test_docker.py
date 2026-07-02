@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.always
+
 
 def start_stop_docker(profile, suffix):
     """Test starting and stopping docker profile with suffix."""

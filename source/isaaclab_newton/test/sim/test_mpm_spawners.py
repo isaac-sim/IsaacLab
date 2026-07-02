@@ -9,6 +9,10 @@ import subprocess
 import sys
 import textwrap
 
+import pytest
+
+pytestmark = pytest.mark.always
+
 
 def test_mpm_config_imports_do_not_load_pxr():
     code = textwrap.dedent(

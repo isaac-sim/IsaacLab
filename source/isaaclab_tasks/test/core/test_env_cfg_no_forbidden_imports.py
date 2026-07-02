@@ -48,6 +48,8 @@ import pytest
 
 import isaaclab_tasks  # noqa: F401 -- triggers task registration
 
+pytestmark = pytest.mark.always
+
 # Forbidden module prefixes -- these must NOT appear in sys.modules after
 # config loading because they require SimulationApp / a specific physics
 # backend to be started first, or because they are heavyweight runtime

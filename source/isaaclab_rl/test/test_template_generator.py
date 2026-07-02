@@ -16,6 +16,8 @@ from pathlib import Path
 import gymnasium as gym
 import pytest
 
+pytestmark = pytest.mark.always
+
 ROOT_DIR = Path(__file__).resolve().parents[3]
 TEMPLATE_TOOL_DIR = ROOT_DIR / "tools" / "template"
 sys.path.insert(0, str(TEMPLATE_TOOL_DIR))

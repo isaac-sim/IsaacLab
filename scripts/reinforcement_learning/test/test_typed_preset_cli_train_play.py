@@ -43,6 +43,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.always
+
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 # Each (action, library) pair runs through the unified dispatcher at

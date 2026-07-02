@@ -22,6 +22,8 @@ from tensorboard.backend.event_processing import event_accumulator
 
 from isaaclab.app import AppLauncher
 
+pytestmark = pytest.mark.always
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 
 

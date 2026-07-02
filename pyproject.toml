@@ -195,6 +195,7 @@ ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty,segway"
 [tool.pytest.ini_options]
 
 markers = [
+    "always: always run the test when Testmon selection is enabled",
     "isaacsim_ci: mark test to run in isaacsim ci",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
     "windows_ci: mark test to run on Windows platforms in CI",

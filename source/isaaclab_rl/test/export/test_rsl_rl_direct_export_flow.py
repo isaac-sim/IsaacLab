@@ -22,6 +22,8 @@ from pathlib import Path
 import gymnasium as gym
 import pytest
 
+pytestmark = pytest.mark.always
+
 _THIS_FILE = Path(__file__).resolve()
 _REPO_ROOT = str(_THIS_FILE.parents[4])
 _EXPORT_SCRIPT = os.path.join(_REPO_ROOT, "scripts", "reinforcement_learning", "leapp", "rsl_rl", "export.py")
