@@ -262,8 +262,11 @@ class Articulation(BaseArticulation):
                 force_b = perm.out_force_b.warp
                 torque_b = perm.out_torque_b.warp
 
-            # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``
-            poses = self._data.body_link_pose_w.warp
+            # rotate body-frame wrenches into the world frame expected by ``LINK_WRENCH``.
+            # Read the link poses directly from the backend-order ``LINK_POSE`` buffer: the
+            # kernel indexes them in backend order (same physical body as the public wrench),
+            # so no public-order pose shadow refresh / reorder launch is needed here.
+            poses = self._data._backend_body_link_pose_w
             wp.launch(
                 shared_kernels._body_wrench_to_world_ordered,
                 dim=(self._num_instances, self._num_bodies),

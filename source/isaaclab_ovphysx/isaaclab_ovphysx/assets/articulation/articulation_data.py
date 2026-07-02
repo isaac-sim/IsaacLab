@@ -23,6 +23,7 @@ from isaaclab_ovphysx.assets.kernels import (
     _compose_root_com_pose,
     _compute_heading,
     _copy_first_body,
+    _fd_joint_acc_ordered,
     _projected_gravity,
     _world_vel_to_body_ang,
     _world_vel_to_body_lin,
@@ -902,6 +903,26 @@ class ArticulationData(BaseArticulationData):
         self._read_static_binding_into_buf(TT.BODY_COM_POSE, backend_staging)
         return backend_staging.data
 
+    @property
+    def _backend_body_link_pose_w(self) -> wp.array(dtype=wp.transformf, ndim=2):
+        """Backend-order body link pose buffer for wrench composition.
+
+        Refreshes the world-frame link poses straight from the ``LINK_POSE`` binding in backend
+        body order, skipping the backend-to-public reorder that :attr:`body_link_pose_w` performs.
+        Used by wrench composition, which only needs each body's world orientation and position
+        (identical in either order for the same physical body), so it must not advance the public
+        :attr:`body_link_pose_w` shadow.
+        """
+        self._ensure_fk_fresh()
+        if not self._has_body_ordering:
+            self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
+            return self._body_link_pose_w.data
+        backend_buffer = self._body_link_pose_w_backend
+        if backend_buffer is None:
+            raise RuntimeError("OVPhysX _has_body_ordering requires _body_link_pose_w_backend.")
+        self._read_transform_binding(TT.LINK_POSE, backend_buffer)
+        return backend_buffer.data
+
     """
     Body state properties.
     """
@@ -1223,17 +1244,39 @@ class ArticulationData(BaseArticulationData):
             the finite-difference baseline.
         """
         if self._joint_acc.timestamp < self._sim_timestamp:
-            # Finite-difference the joint velocities. ``_fd_joint_acc`` also advances
+            # Finite-difference the joint velocities. The FD kernel also advances
             # ``_previous_joint_vel`` in place, so no separate copy is needed.
             time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
-            joint_vel = self.joint_vel.warp
-            wp.launch(
-                _fd_joint_acc,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[joint_vel, self._previous_joint_vel, 1.0 / time_elapsed],
-                outputs=[self._joint_acc.data],
-                device=self.device,
-            )
+            if self._has_joint_ordering:
+                # Fuse the backend-to-public reorder into the finite difference: read the
+                # backend-order velocity source directly and map it to public order inside the
+                # kernel, saving the separate reorder launch that ``joint_vel`` would run.
+                # ``_previous_joint_vel`` stays in public order to match the joint-velocity
+                # write path, which resets the finite-difference baseline in public order.
+                if self._joint_vel_backend is None:
+                    raise RuntimeError("OVPhysX _has_joint_ordering requires _joint_vel_backend.")
+                self._read_binding_into_buf(TT.DOF_VELOCITY, self._joint_vel_backend)
+                wp.launch(
+                    _fd_joint_acc_ordered,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[
+                        self._joint_vel_backend.data,
+                        self._joint_user_to_backend,
+                        self._previous_joint_vel,
+                        1.0 / time_elapsed,
+                    ],
+                    outputs=[self._joint_acc.data],
+                    device=self.device,
+                )
+            else:
+                joint_vel = self.joint_vel.warp
+                wp.launch(
+                    _fd_joint_acc,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[joint_vel, self._previous_joint_vel, 1.0 / time_elapsed],
+                    outputs=[self._joint_acc.data],
+                    device=self.device,
+                )
             self._joint_acc.timestamp = self._sim_timestamp
         if self._joint_acc_ta is None:
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)

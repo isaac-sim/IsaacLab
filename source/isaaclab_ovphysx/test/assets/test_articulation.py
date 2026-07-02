@@ -448,6 +448,110 @@ def test_live_panda_manual_body_ordering_preserves_unselected_coms(sim, num_arti
     assert torch.equal(backend_after[..., 3:7], noop_after[..., 3:7])
 
 
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_reversed_body_ordering_wrench_composes_from_backend_pose_without_shadow_refresh(
+    sim, num_articulations, device
+):
+    """Reversed body ordering: an external wrench composes from the backend-order link pose and
+    ``write_data_to_sim`` no longer refreshes the public ``body_link_pose_w`` shadow (finding [27]).
+    """
+    articulation_cfg = FRANKA_PANDA_CFG.replace(body_ordering=_PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+
+    body_ordering = articulation.body_ordering
+    assert body_ordering is not None
+    assert not body_ordering.is_identity
+
+    # Apply a body-frame wrench to a single named body (public order).
+    body_ids, _ = articulation.find_bodies("panda_hand")
+    public_body_id = body_ids[0]
+    backend_body_id = int(body_ordering.user_to_backend_indices[public_body_id])
+    assert backend_body_id != public_body_id  # exercises the reorder
+
+    force_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=device)
+    torque_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=device)
+    force_b[..., 0], force_b[..., 1], force_b[..., 2] = 3.0, -5.0, 7.0
+    torque_b[..., 0], torque_b[..., 1], torque_b[..., 2] = 0.5, -1.5, 2.5
+    articulation.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=force_b, torques=torque_b, body_ids=body_ids
+    )
+
+    # Step once so the link poses are non-trivial (rotated), giving the quaternion rotation teeth.
+    articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
+    articulation.write_data_to_sim()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    # write_data_to_sim must NOT advance the public body_link_pose_w shadow timestamp: the wrench
+    # path now reads the backend-order pose buffer instead of refreshing the public shadow.
+    shadow_ts_before = articulation.data._body_link_pose_w.timestamp
+    articulation.write_data_to_sim()
+    assert articulation.data._body_link_pose_w.timestamp == shadow_ts_before
+
+    # The wrench buffer is in backend order; the world-frame wrench must match the one composed
+    # from the SAME physical body's pose read via the public (user-order) shadow.
+    wrench_buf = wp.to_torch(articulation._wrench_buf).to(device)
+    pose = articulation.data.body_link_pose_w.torch[0, public_body_id]  # user order, [pos(3), quat_xyzw(4)]
+    quat_xyzw = pose[3:7]
+    expected_force_w = math_utils.quat_apply(quat_xyzw, force_b[0, 0])
+    expected_torque_w = math_utils.quat_apply(quat_xyzw, torque_b[0, 0])
+    torch.testing.assert_close(wrench_buf[0, backend_body_id, 0:3], expected_force_w, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(wrench_buf[0, backend_body_id, 3:6], expected_torque_w, rtol=1e-4, atol=1e-4)
+    torch.testing.assert_close(wrench_buf[0, backend_body_id, 6:9], pose[0:3], rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+def test_reversed_joint_ordering_joint_acc_matches_canonicalized_finite_difference(sim, num_articulations, device):
+    """Reversed joint ordering: the fused ``joint_acc`` finite difference reads the backend-order
+    velocity source and equals the identity-order acceleration permuted into public order (finding [40]).
+    """
+    articulation_cfg = generate_articulation_cfg("anymal").replace(
+        joint_ordering=tuple(reversed(_ANYMAL_PHYSX_JOINT_NAMES))
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    data = articulation.data
+
+    joint_ordering = articulation.joint_ordering
+    assert joint_ordering is not None
+    assert not joint_ordering.is_identity
+    num_joints = articulation.num_joints
+
+    user_to_backend = torch.as_tensor(
+        [int(joint_ordering.user_to_backend_indices[u]) for u in range(num_joints)],
+        dtype=torch.long,
+        device=device,
+    )
+
+    # Controlled, non-uniform finite-difference scenario in backend order (so a wrong permutation
+    # in the kernel would produce a different result -- i.e. the test has teeth).
+    cur_vel_backend = (torch.arange(1, num_joints + 1, dtype=torch.float32, device=device) * 0.1).reshape(1, -1)
+    prev_vel_backend = (torch.arange(1, num_joints + 1, dtype=torch.float32, device=device) * -0.03).reshape(1, -1)
+
+    # Push the current velocity into the backend DOF_VELOCITY binding (backend order).
+    articulation.root_view.set_attribute(TT.DOF_VELOCITY, wp.from_torch(cur_vel_backend.contiguous()))
+
+    # ``_previous_joint_vel`` is stored in PUBLIC order: prev_user[u] = prev_backend[map[u]].
+    prev_vel_user = prev_vel_backend[:, user_to_backend].contiguous()
+    data._previous_joint_vel.assign(wp.from_torch(prev_vel_user))
+
+    # Force a stale finite-difference state with a known dt so the ordered branch recomputes, and a
+    # stale backend velocity staging so it re-reads the value we just set.
+    dt = 0.02
+    data._joint_acc.timestamp = data._sim_timestamp - dt
+    data._joint_vel_backend.timestamp = -1.0
+
+    joint_acc_user = data.joint_acc.torch.clone()
+
+    # Expected identity-order acceleration, then permuted into public order.
+    acc_backend = (cur_vel_backend - prev_vel_backend) / dt
+    expected_user = acc_backend[:, user_to_backend]
+    torch.testing.assert_close(joint_acc_user, expected_user, rtol=1e-5, atol=1e-6)
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
