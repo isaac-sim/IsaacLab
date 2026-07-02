@@ -100,6 +100,64 @@ class PhysicsManager(ABC):
         return True
 
     @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix an articulation base to the world frame and return the resulting root prim.
+
+        Authors a world<->root fixed joint that pins the articulation base at its current world pose.
+        The base implementation authors a backend-neutral ``UsdPhysics.FixedJoint`` (via
+        :func:`~isaaclab.sim.schemas.create_fixed_root_joint`) and returns ``articulation_prim``
+        unchanged -- sufficient for backends whose parser reads a fixed joint on the root directly
+        (e.g. Newton). Backends whose parser does not treat a fixed joint on a rigid body as a
+        fixed-base articulation (e.g. PhysX) override this to relocate the articulation root and
+        return the new root prim, so the caller applies articulation-root schemas to the actual root.
+
+        This is a backend capability rather than a registry keyed by cfg type: the active backend's
+        manager class is resolved from ``cfg.physics.class_type``, so subclassed cfgs and every
+        supported backend inherit the correct behaviour through the normal method-resolution order.
+
+        Args:
+            articulation_prim: The resolved articulation-root prim to fix to the world frame.
+            stage: The stage the prim lives on. Defaults to None, in which case the current stage is
+                used.
+
+        Returns:
+            The articulation-root prim after fixing. May differ from ``articulation_prim`` when the
+            backend relocates the root (e.g. PhysX moves it to the parent prim).
+
+        Raises:
+            NotImplementedError: When the root prim is not a rigid body and the first rigid-body link
+                cannot be determined to anchor the fixed joint.
+        """
+
+        from isaaclab.sim.schemas import create_fixed_root_joint  # noqa: PLC0415
+
+        cls._require_rigid_body_root(articulation_prim)
+        create_fixed_root_joint(articulation_prim, stage)
+        return articulation_prim
+
+    @staticmethod
+    def _require_rigid_body_root(articulation_prim: Any) -> None:
+        """Raise ``NotImplementedError`` when the articulation root is not a rigid body.
+
+        A fixed root joint is anchored to the first rigid-body link of the articulation; when the
+        resolved root carries no ``RigidBodyAPI`` that link cannot be determined.
+
+        Args:
+            articulation_prim: The resolved articulation-root prim.
+
+        Raises:
+            NotImplementedError: When the prim does not have ``UsdPhysics.RigidBodyAPI`` applied.
+        """
+        from pxr import UsdPhysics  # noqa: PLC0415
+
+        if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            raise NotImplementedError(
+                f"The articulation prim '{articulation_prim.GetPath().pathString}' does not have the"
+                " RigidBodyAPI applied. To create a fixed joint, we need to determine the first rigid"
+                " body link in the articulation tree. However, this is not implemented yet."
+            )
+
+    @classmethod
     def register_callback(
         cls,
         callback: Callable[[Any], None],

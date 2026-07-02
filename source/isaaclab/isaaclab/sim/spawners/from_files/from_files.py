@@ -368,17 +368,30 @@ def _spawn_from_usd_file(
             schemas.modify_mass_properties(prim_path, cfg.mass_props)
 
     # modify articulation root properties
-    if cfg.articulation_props is not None:
-        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> modify_*
+    # ``fix_root_link`` is a spawner-level topology flag (not a schema property); it is honored on the
+    # fragment path independently of whether any articulation schema properties were supplied.
+    articulation_props = cfg.articulation_props
+    articulation_fix_root_link = getattr(cfg, "fix_root_link", None)
+    # transition shim, remove later: route a legacy single cfg (a dataclass, not a fragment) to the
+    # legacy writer -- it owns its own ``fix_root_link`` field; everything else goes to the fragment
+    # writer, routing by type so an empty list is still a valid (topology-only) fragment collection
+    # rather than being mis-sent to the legacy writer.
+    if (
+        articulation_props is not None
+        and not isinstance(articulation_props, (list, tuple))
+        and not isinstance(articulation_props, schemas.SchemaFragment)
+    ):
+        schemas.modify_articulation_root_properties(prim_path, articulation_props)
+    else:
         articulation_frags = (
-            cfg.articulation_props if isinstance(cfg.articulation_props, (list, tuple)) else [cfg.articulation_props]
+            list(articulation_props)
+            if isinstance(articulation_props, (list, tuple))
+            else ([articulation_props] if isinstance(articulation_props, schemas.SchemaFragment) else [])
         )
-        if articulation_frags and all(isinstance(f, schemas.SchemaFragment) for f in articulation_frags):
+        if articulation_frags or articulation_fix_root_link is not None:
             schemas.apply_articulation_root_properties(
-                prim_path, articulation_frags, fix_root_link=getattr(cfg, "fix_root_link", None)
+                prim_path, articulation_frags, fix_root_link=articulation_fix_root_link
             )
-        else:
-            schemas.modify_articulation_root_properties(prim_path, cfg.articulation_props)
     # modify tendon properties
     if cfg.fixed_tendons_props is not None:
         # transition shim, remove later: fragment(s) -> apply_*; legacy cfg -> modify_*

@@ -304,6 +304,38 @@ class PhysxManager(PhysicsManager):
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
 
     @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix an articulation base for the PhysX parser and return the relocated root prim.
+
+        The PhysX parser does not treat a fixed joint on a rigid body as a fixed-base articulation --
+        it folds it into the maximal-coordinate tree. To work around that, this authors the
+        world<->root fixed joint and then relocates the ``UsdPhysics.ArticulationRootAPI`` anchor from
+        the root link to its parent prim, returning the parent as the new root. Articulation-root
+        fragments are applied by the caller *after* this call, so they land on the returned root; no
+        attribute copying is needed here.
+
+        Args:
+            articulation_prim: The resolved articulation-root prim to fix to the world frame.
+            stage: The stage the prim lives on. Defaults to None, in which case the current stage is
+                used.
+
+        Returns:
+            The parent prim, which becomes the articulation root after relocation.
+
+        Raises:
+            NotImplementedError: When the root prim is not a rigid body.
+        """
+        from isaaclab.sim.schemas import create_fixed_root_joint
+
+        cls._require_rigid_body_root(articulation_prim)
+        create_fixed_root_joint(articulation_prim, stage)
+        # Relocate the articulation root to the parent so the PhysX parser recognises a fixed base.
+        parent_prim = articulation_prim.GetParent()
+        UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
+        articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
+        return parent_prim
+
+    @classmethod
     def reset(cls, soft: bool = False) -> None:
         """Reset the physics simulation."""
         if not soft:
