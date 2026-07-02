@@ -670,8 +670,12 @@ def write_3d_user_to_backend_with_mask(
         backend_data[env_id, user_to_backend[user_id], component_id] = value
 
 
-# Concrete overloads preserve typed torch.Tensor argument adaptation.
-_write_2d_user_to_backend_with_indices_vec3 = wp.overload(
+# Concrete, dtype-suffixed overloads of the generic ``write_*`` kernels above.
+# They exist to give torch-tensor inputs (adapted through Warp) a concrete
+# dtype signature at launch time, and are the public entry points that the
+# backend packages launch by name (the ``_vec3``/``_transform``/``_float``
+# suffix names the input/output element dtype).
+write_2d_user_to_backend_with_indices_vec3 = wp.overload(
     write_2d_user_to_backend_with_indices,
     {
         "input_data": wp.array2d(dtype=wp.vec3f),
@@ -679,7 +683,7 @@ _write_2d_user_to_backend_with_indices_vec3 = wp.overload(
         "backend_data": wp.array2d(dtype=wp.vec3f),
     },
 )
-_write_2d_user_to_backend_with_mask_vec3 = wp.overload(
+write_2d_user_to_backend_with_mask_vec3 = wp.overload(
     write_2d_user_to_backend_with_mask,
     {
         "input_data": wp.array2d(dtype=wp.vec3f),
@@ -687,7 +691,7 @@ _write_2d_user_to_backend_with_mask_vec3 = wp.overload(
         "backend_data": wp.array2d(dtype=wp.vec3f),
     },
 )
-_write_2d_user_to_backend_with_indices_transform = wp.overload(
+write_2d_user_to_backend_with_indices_transform = wp.overload(
     write_2d_user_to_backend_with_indices,
     {
         "input_data": wp.array2d(dtype=wp.transformf),
@@ -695,7 +699,7 @@ _write_2d_user_to_backend_with_indices_transform = wp.overload(
         "backend_data": wp.array2d(dtype=wp.transformf),
     },
 )
-_write_2d_user_to_backend_with_mask_transform = wp.overload(
+write_2d_user_to_backend_with_mask_transform = wp.overload(
     write_2d_user_to_backend_with_mask,
     {
         "input_data": wp.array2d(dtype=wp.transformf),
@@ -703,7 +707,7 @@ _write_2d_user_to_backend_with_mask_transform = wp.overload(
         "backend_data": wp.array2d(dtype=wp.transformf),
     },
 )
-_write_3d_user_to_backend_with_indices_float = wp.overload(
+write_3d_user_to_backend_with_indices_float = wp.overload(
     write_3d_user_to_backend_with_indices,
     {
         "input_data": wp.array3d(dtype=wp.float32),
@@ -711,7 +715,7 @@ _write_3d_user_to_backend_with_indices_float = wp.overload(
         "backend_data": wp.array3d(dtype=wp.float32),
     },
 )
-_write_3d_user_to_backend_with_mask_float = wp.overload(
+write_3d_user_to_backend_with_mask_float = wp.overload(
     write_3d_user_to_backend_with_mask,
     {
         "input_data": wp.array3d(dtype=wp.float32),
@@ -825,10 +829,13 @@ def write_float_user_to_backend_with_mask(
         backend_data[env_id, backend_id] = value
 
 
-# Concrete array overloads preserve typed torch.Tensor argument adaptation.
-_write_float_user_to_backend_with_indices_array = wp.overload(
+# Concrete array overloads of the ``write_float_*`` kernels above. They give an
+# adapted torch-tensor (rather than scalar) input a concrete 2-D float dtype
+# signature at launch time, and are the public entry points that the backend
+# packages launch by name (the ``_array`` suffix marks the array input form).
+write_float_user_to_backend_with_indices_array = wp.overload(
     write_float_user_to_backend_with_indices, {"input_data": wp.array2d(dtype=wp.float32)}
 )
-_write_float_user_to_backend_with_mask_array = wp.overload(
+write_float_user_to_backend_with_mask_array = wp.overload(
     write_float_user_to_backend_with_mask, {"input_data": wp.array2d(dtype=wp.float32)}
 )

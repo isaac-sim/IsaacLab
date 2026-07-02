@@ -898,7 +898,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[position, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_pos_buf.data, joint_pos_backend],
@@ -945,7 +945,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_mask_array,
+            ordering_kernels.write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_joints),
             inputs=[position, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_pos_buf.data, joint_pos_backend],
@@ -2187,7 +2187,7 @@ class Articulation(BaseArticulation):
                 raise RuntimeError("OVPhysX _has_body_ordering requires _body_mass_backend.")
             body_mass_backend = backend_staging.data
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[masses, env_ids, body_ids, self._body_user_to_backend, self._has_body_ordering, False],
             outputs=[self._data._body_mass.data, body_mass_backend],
@@ -2236,7 +2236,7 @@ class Articulation(BaseArticulation):
                 raise RuntimeError("OVPhysX _has_body_ordering requires _body_mass_backend.")
             body_mass_backend = backend_staging.data
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_mask_array,
+            ordering_kernels.write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_bodies),
             inputs=[masses, env_mask_wp, body_mask_wp, self._body_user_to_backend, self._has_body_ordering],
             outputs=[self._data._body_mass.data, body_mass_backend],
@@ -2308,7 +2308,7 @@ class Articulation(BaseArticulation):
 
         if use_mask:
             wp.launch(
-                ordering_kernels._write_2d_user_to_backend_with_mask_transform,
+                ordering_kernels.write_2d_user_to_backend_with_mask_transform,
                 dim=(self._num_instances, self._num_bodies),
                 inputs=[coms, env_sel, body_sel, self._body_user_to_backend, self._has_body_ordering],
                 outputs=[self._data._body_com_pose_b.data, body_com_backend],
@@ -2316,7 +2316,7 @@ class Articulation(BaseArticulation):
             )
         else:
             wp.launch(
-                ordering_kernels._write_2d_user_to_backend_with_indices_transform,
+                ordering_kernels.write_2d_user_to_backend_with_indices_transform,
                 dim=(env_sel.shape[0], body_sel.shape[0]),
                 inputs=[coms, env_sel, body_sel, self._body_user_to_backend, self._has_body_ordering, False],
                 outputs=[self._data._body_com_pose_b.data, body_com_backend],
@@ -2446,7 +2446,7 @@ class Articulation(BaseArticulation):
                 raise RuntimeError("OVPhysX _has_body_ordering requires _body_inertia_backend.")
             body_inertia_backend = backend_staging.data
         wp.launch(
-            ordering_kernels._write_3d_user_to_backend_with_indices_float,
+            ordering_kernels.write_3d_user_to_backend_with_indices_float,
             dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[inertias, env_ids, body_ids, self._body_user_to_backend, self._has_body_ordering, False],
             outputs=[self._data._body_inertia.data, body_inertia_backend],
@@ -2495,7 +2495,7 @@ class Articulation(BaseArticulation):
                 raise RuntimeError("OVPhysX _has_body_ordering requires _body_inertia_backend.")
             body_inertia_backend = backend_staging.data
         wp.launch(
-            ordering_kernels._write_3d_user_to_backend_with_mask_float,
+            ordering_kernels.write_3d_user_to_backend_with_mask_float,
             dim=(self._num_instances, self._num_bodies, 9),
             inputs=[inertias, env_mask_wp, body_mask_wp, self._body_user_to_backend, self._has_body_ordering],
             outputs=[self._data._body_inertia.data, body_inertia_backend],
@@ -2564,7 +2564,7 @@ class Articulation(BaseArticulation):
             target_backend = user_buffer
         if use_mask:
             wp.launch(
-                ordering_kernels._write_float_user_to_backend_with_mask_array,
+                ordering_kernels.write_float_user_to_backend_with_mask_array,
                 dim=(self._num_instances, self._num_joints),
                 inputs=[target, env_sel, joint_sel, self._joint_user_to_backend, self._has_joint_ordering],
                 outputs=[user_buffer, target_backend],
@@ -2573,7 +2573,7 @@ class Articulation(BaseArticulation):
             self._root_view.set_attribute(tensor_type, target_backend, mask=env_sel)
         else:
             wp.launch(
-                ordering_kernels._write_float_user_to_backend_with_indices_array,
+                ordering_kernels.write_float_user_to_backend_with_indices_array,
                 dim=(env_sel.shape[0], joint_sel.shape[0]),
                 inputs=[target, env_sel, joint_sel, self._joint_user_to_backend, self._has_joint_ordering, False],
                 outputs=[user_buffer, target_backend],

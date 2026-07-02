@@ -1211,7 +1211,7 @@ class Articulation(BaseArticulation):
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
@@ -1267,7 +1267,7 @@ class Articulation(BaseArticulation):
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_mask_array,
+            ordering_kernels.write_float_user_to_backend_with_mask_array,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[
                 position,
@@ -1428,7 +1428,7 @@ class Articulation(BaseArticulation):
             write_kernel = ordering_kernels.write_float_user_to_backend_with_indices
         else:
             self.assert_shape_and_dtype(value, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, value_name)
-            write_kernel = ordering_kernels._write_float_user_to_backend_with_indices_array
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_indices_array
         wp.launch(
             write_kernel,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1471,7 +1471,7 @@ class Articulation(BaseArticulation):
             write_kernel = ordering_kernels.write_float_user_to_backend_with_mask
         else:
             self.assert_shape_and_dtype_mask(value, (env_mask, joint_mask), wp.float32, value_name)
-            write_kernel = ordering_kernels._write_float_user_to_backend_with_mask_array
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_mask_array
         wp.launch(
             write_kernel,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
@@ -2174,7 +2174,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
@@ -2219,7 +2219,7 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_mask_array,
+            ordering_kernels.write_float_user_to_backend_with_mask_array,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 masses,
@@ -2270,7 +2270,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            ordering_kernels._write_2d_user_to_backend_with_indices_vec3,
+            ordering_kernels.write_2d_user_to_backend_with_indices_vec3,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -2322,7 +2322,7 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            ordering_kernels._write_2d_user_to_backend_with_mask_vec3,
+            ordering_kernels.write_2d_user_to_backend_with_mask_vec3,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 coms,
@@ -2368,7 +2368,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            ordering_kernels._write_3d_user_to_backend_with_indices_float,
+            ordering_kernels.write_3d_user_to_backend_with_indices_float,
             dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[
                 inertias,
@@ -2413,7 +2413,7 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
-            ordering_kernels._write_3d_user_to_backend_with_mask_float,
+            ordering_kernels.write_3d_user_to_backend_with_mask_float,
             dim=(env_mask.shape[0], body_mask.shape[0], 9),
             inputs=[
                 inertias,
@@ -3891,7 +3891,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(self.num_instances, j_ids.shape[0]),
             inputs=[
                 actuator.armature,
@@ -3908,7 +3908,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(self.num_instances, j_ids.shape[0]),
             inputs=[
                 actuator.friction,

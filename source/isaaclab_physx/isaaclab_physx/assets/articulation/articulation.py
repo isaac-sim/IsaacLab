@@ -1106,7 +1106,7 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
@@ -2397,7 +2397,7 @@ class Articulation(BaseArticulation):
                 raise RuntimeError("PhysX _has_body_ordering requires _body_mass_backend.")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            ordering_kernels._write_float_user_to_backend_with_indices_array,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
@@ -2497,7 +2497,7 @@ class Articulation(BaseArticulation):
 
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            ordering_kernels._write_2d_user_to_backend_with_indices_transform,
+            ordering_kernels.write_2d_user_to_backend_with_indices_transform,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
@@ -2600,7 +2600,7 @@ class Articulation(BaseArticulation):
                 raise RuntimeError("PhysX _has_body_ordering requires _body_inertia_backend.")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            ordering_kernels._write_3d_user_to_backend_with_indices_float,
+            ordering_kernels.write_3d_user_to_backend_with_indices_float,
             dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[
                 inertias,
