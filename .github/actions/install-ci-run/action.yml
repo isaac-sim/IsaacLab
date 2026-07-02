@@ -6,8 +6,7 @@
 name: 'Run Installation CI Tests'
 description: >
   Runs the install_ci suite inside the project's Docker harness via
-  tools/run_install_ci.py and uploads the JUnit XML report as an artifact
-  named install-ci-junit-<runner.arch>.
+  tools/run_install_ci.py and uploads JUnit XML and Testmon data artifacts.
 
 inputs:
   base-image:
@@ -62,6 +61,15 @@ runs:
         uv venv --seed --python 3.12 "${RUNNER_TEMP}/venv-runner"
         source "${RUNNER_TEMP}/venv-runner/bin/activate"
         tools/run_install_ci.py "${args[@]}"
+    - name: Upload Testmon Data
+      if: always() && inputs.testmon-data-dir != ''
+      uses: actions/upload-artifact@v7
+      with:
+        name: install-ci-testmon-${{ runner.arch }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: ${{ inputs.testmon-data-dir }}/.testmondata
+        if-no-files-found: warn
+        include-hidden-files: true
+        retention-days: 7
     - name: Upload JUnit XML report
       if: always()
       id: upload-junit-report
