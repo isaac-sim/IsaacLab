@@ -11,9 +11,7 @@ import pytest
 
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> Generator[None, None, None]:
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> Generator[None, None, None]:
     """Keep tests marked ``always`` selected when Testmon filters the collection."""
     always_items = [item for item in items if item.get_closest_marker("always")]
     yield
