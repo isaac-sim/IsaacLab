@@ -255,8 +255,8 @@ class TaskSpaceEventCfg:
         params={
             "plug_cfg": SceneEntityCfg("dp_plug"),
             "socket_cfg": SceneEntityCfg("dp_socket"),
-            "at_goal_prob": 0.8,
-            "at_goal_prob_final": 0.2,
+            "at_goal_prob": 0.0,
+            "at_goal_prob_final": 0.0,
             "anneal_start_iter": 0.0,
             "anneal_end_iter": 1000.0,
             "num_steps_per_env": 512,
