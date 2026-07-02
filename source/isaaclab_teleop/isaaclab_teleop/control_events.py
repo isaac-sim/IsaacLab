@@ -67,9 +67,10 @@ def poll_control_events(teleop_interface: SupportsControlEvents | object) -> Con
         A :class:`ControlEvents` with the latest start/stop and reset
         signals.
     """
+    default_events = _NO_OP_EVENTS
     events = getattr(teleop_interface, "last_control_events", None)
     if events is None:
-        return _NO_OP_EVENTS
+        return default_events
     if isinstance(events, ControlEvents):
         return events
     return ControlEvents(

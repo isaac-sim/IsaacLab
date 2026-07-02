@@ -56,8 +56,7 @@ def to_snake_case(camel_str: str) -> str:
         A string in snake case (i.e. with '_')
     """
     camel_str = re.sub("(.)([A-Z][a-z]+)", r"\1_\2", camel_str)
-    snake_str = re.sub("([a-z0-9])([A-Z])", r"\1_\2", camel_str).lower()
-    return snake_str
+    return re.sub("([a-z0-9])([A-Z])", r"\1_\2", camel_str).lower()
 
 
 def string_to_slice(s: str):
