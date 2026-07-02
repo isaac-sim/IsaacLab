@@ -742,6 +742,9 @@ class ArticulationData(BaseArticulationData):
         """Body mass ``wp.float32`` in the world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
+
+        With body ordering active, direct writes to the Newton model arrays bypass the public-order
+        buffers; use the asset setters instead.
         """
         return self._body_mass_ta
 

@@ -510,7 +510,68 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
         torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
 
 
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+@pytest.mark.parametrize("body_ordering", ["identity", "reversed"])
+def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravity_enabled, body_ordering):
+    """Direct tensor-view writes to body masses/inertias become visible on the lazy read.
+
+    Regression for the timestamp-lazy body-property buffers. Shipped Factory/Forge envs write
+    masses/inertias straight through ``root_view.set_masses`` / ``set_inertias`` (bypassing the
+    asset setters). With the previous init-clone-only getters those writes were never seen. The
+    getters must now refresh from the tensor view, so a direct view write is reflected by
+    ``data.body_mass`` / ``data.body_inertia``:
+
+    - Case A: after a primed read and a subsequent simulation update (the lazy gate opens once per
+      step).
+    - Case B: on the very first read of a cold buffer (initial timestamp -1.0).
+
+    Both identity and non-identity (reversed) body ordering are covered; under ordering the public
+    buffers must equal the backend-order view gathered through ``user_to_backend``.
+    """
+    body_ordering_arg = None if body_ordering == "identity" else _PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
+    articulation = Articulation(FRANKA_PANDA_CFG.replace(prim_path="/World/Robot", body_ordering=body_ordering_arg))
+    sim.reset()
+    assert articulation.is_initialized
+
+    if body_ordering == "identity":
+        assert articulation.body_ordering is None
+        body_user_to_backend = list(range(articulation.num_bodies))
+    else:
+        assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+        body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
+
+    cpu_env_ids = wp.array(list(range(articulation.num_instances)), dtype=wp.int32, device="cpu")
+
+    def write_backend_mass_inertia(delta_mass: float, delta_inertia: float) -> tuple[torch.Tensor, torch.Tensor]:
+        """Write distinct backend-order masses/inertias straight through the tensor view."""
+        backend_masses = wp.to_torch(articulation.root_view.get_masses()).clone() + delta_mass
+        backend_inertias = wp.to_torch(articulation.root_view.get_inertias()).clone() + delta_inertia
+        articulation.root_view.set_masses(
+            wp.from_torch(backend_masses.contiguous(), dtype=wp.float32), indices=cpu_env_ids
+        )
+        articulation.root_view.set_inertias(
+            wp.from_torch(backend_inertias.contiguous(), dtype=wp.float32), indices=cpu_env_ids
+        )
+        return backend_masses, backend_inertias
+
+    # Case A: prime the buffers, write through the view, then advance the sim so the lazy gate opens.
+    _ = articulation.data.body_mass.torch
+    _ = articulation.data.body_inertia.torch
+    backend_masses, backend_inertias = write_backend_mass_inertia(0.137, 0.011)
+    articulation.update(sim.cfg.dt)
+    _assert_backend_to_user(articulation.data.body_mass.torch, backend_masses, body_user_to_backend)
+    _assert_backend_to_user(articulation.data.body_inertia.torch, backend_inertias, body_user_to_backend)
+
+    # Case B: a cold buffer (initial timestamp -1.0) must reflect a write on its first read.
+    articulation.data._body_mass.timestamp = -1.0
+    articulation.data._body_inertia.timestamp = -1.0
+    backend_masses, backend_inertias = write_backend_mass_inertia(0.293, 0.023)
+    _assert_backend_to_user(articulation.data.body_mass.torch, backend_masses, body_user_to_backend)
+    _assert_backend_to_user(articulation.data.body_inertia.torch, backend_inertias, body_user_to_backend)
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_enabled):
     """Resolve concrete breadth-first PhysX and depth-first MJWarp name orders."""

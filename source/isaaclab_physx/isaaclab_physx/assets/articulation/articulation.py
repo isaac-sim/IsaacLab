@@ -2397,7 +2397,12 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
-        body_mass_backend = self.data._body_mass
+        if self.data._body_mass.timestamp < self.data._sim_timestamp and (
+            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
+        ):
+            # Partial writes scatter into the full-image buffers, so refresh the untouched entries first.
+            self.data.body_mass
+        body_mass_backend = self.data._body_mass.data
         if self._has_body_ordering:
             body_mass_backend = self.data._body_mass_backend
             if body_mass_backend is None:
@@ -2415,11 +2420,14 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._body_mass,
+                self.data._body_mass.data,
                 body_mass_backend,
             ],
             device=self.device,
         )
+        # The user buffer now matches the value pushed to the simulation this step; stamp it so the
+        # timestamp-lazy getter returns the written value without re-reading the tensor view.
+        self.data._body_mass.timestamp = self.data._sim_timestamp
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
@@ -2592,7 +2600,12 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
-        body_inertia_backend = self.data._body_inertia
+        if self.data._body_inertia.timestamp < self.data._sim_timestamp and (
+            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
+        ):
+            # Partial writes scatter into the full-image buffers, so refresh the untouched entries first.
+            self.data.body_inertia
+        body_inertia_backend = self.data._body_inertia.data
         if self._has_body_ordering:
             body_inertia_backend = self.data._body_inertia_backend
             if body_inertia_backend is None:
@@ -2610,11 +2623,14 @@ class Articulation(BaseArticulation):
                 full_data,
             ],
             outputs=[
-                self.data._body_inertia,
+                self.data._body_inertia.data,
                 body_inertia_backend,
             ],
             device=self.device,
         )
+        # The user buffer now matches the value pushed to the simulation this step; stamp it so the
+        # timestamp-lazy getter returns the written value without re-reading the tensor view.
+        self.data._body_inertia.timestamp = self.data._sim_timestamp
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         self.root_view.set_inertias(wp.clone(body_inertia_backend, device="cpu"), indices=cpu_env_ids)

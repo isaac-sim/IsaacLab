@@ -845,23 +845,65 @@ class ArticulationData(BaseArticulationData):
 
     @property
     def body_mass(self) -> ProxyArray:
-        """Body mass in the world frame.
+        """Body mass [kg].
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
+
+        Refresh is timestamp-lazy: the buffer is refreshed from the tensor view at most once per
+        simulation step, on the first read of the step. ``get_masses()`` is CPU-only, so on GPU
+        pipelines this refresh performs a host-to-device copy; this is acceptable because consumers
+        are init or episodic. Values written directly through the tensor view (``root_view.set_masses``)
+        become visible at the first read after the next simulation update; same-step view-write
+        visibility is not guaranteed.
         """
+        if self._body_mass.timestamp < self._sim_timestamp:
+            if not self._has_body_ordering:
+                self._body_mass.data.assign(self._root_view.get_masses())
+            else:
+                # Stage the backend-order masses on-device, then gather them into public order.
+                self._body_mass_backend.assign(self._root_view.get_masses())
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies),
+                    inputs=[self._body_mass_backend, self._body_user_to_backend],
+                    outputs=[self._body_mass.data],
+                    device=self.device,
+                )
+            self._body_mass.timestamp = self._sim_timestamp
         if self._body_mass_ta is None:
-            self._body_mass_ta = ProxyArray(self._body_mass)
+            self._body_mass_ta = ProxyArray(self._body_mass.data)
         return self._body_mass_ta
 
     @property
     def body_inertia(self) -> ProxyArray:
-        """Flattened body inertia in the world frame.
+        """Flattened body inertia [kg*m^2].
 
         Shape is (num_instances, num_bodies, 9), dtype = wp.float32. In torch this resolves to
         (num_instances, num_bodies, 9).
+
+        Refresh is timestamp-lazy: the buffer is refreshed from the tensor view at most once per
+        simulation step, on the first read of the step. ``get_inertias()`` is CPU-only, so on GPU
+        pipelines this refresh performs a host-to-device copy; this is acceptable because consumers
+        are init or episodic. Values written directly through the tensor view (``root_view.set_inertias``)
+        become visible at the first read after the next simulation update; same-step view-write
+        visibility is not guaranteed.
         """
+        if self._body_inertia.timestamp < self._sim_timestamp:
+            if not self._has_body_ordering:
+                self._body_inertia.data.assign(self._root_view.get_inertias())
+            else:
+                # Stage the backend-order inertias on-device, then gather them into public order.
+                self._body_inertia_backend.assign(self._root_view.get_inertias())
+                wp.launch(
+                    ordering_kernels.reorder_3d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies, 9),
+                    inputs=[self._body_inertia_backend, self._body_user_to_backend],
+                    outputs=[self._body_inertia.data],
+                    device=self.device,
+                )
+            self._body_inertia.timestamp = self._sim_timestamp
         if self._body_inertia_ta is None:
-            self._body_inertia_ta = ProxyArray(self._body_inertia)
+            self._body_inertia_ta = ProxyArray(self._body_inertia.data)
         return self._body_inertia_ta
 
     @property
@@ -1897,8 +1939,16 @@ class ArticulationData(BaseArticulationData):
             self._spatial_tendon_limit_stiffness = None
             self._spatial_tendon_offset = None
         # -- Body properties
-        self._body_mass = wp.clone(self._root_view.get_masses(), device=self.device)
-        self._body_inertia = wp.clone(self._root_view.get_inertias(), device=self.device)
+        # Timestamp-lazy model-property buffers (initial timestamp -1.0 so the first read always
+        # refreshes). Direct tensor-view writes (``root_view.set_masses`` / ``set_inertias``) thus
+        # become visible on the first read after the next simulation update, matching the OVPhysX
+        # articulation. ``get_masses()`` / ``get_inertias()`` are CPU-only; the refresh copies
+        # host-to-device on GPU pipelines. Under body ordering the backend-order staging buffers
+        # below are gathered into these public-order buffers on read.
+        _masses = self._root_view.get_masses()
+        self._body_mass = TimestampedBuffer(_masses.shape, self.device, _masses.dtype)
+        _inertias = self._root_view.get_inertias()
+        self._body_inertia = TimestampedBuffer(_inertias.shape, self.device, _inertias.dtype)
         self._body_mass_backend: wp.array | None = None
         self._body_inertia_backend: wp.array | None = None
         self._has_joint_ordering = False
@@ -2055,30 +2105,20 @@ class ArticulationData(BaseArticulationData):
                     (self._num_instances, self._num_bodies), self.device, wp.transformf
                 )
             if self._body_mass_backend is None:
-                self._body_mass_backend = wp.clone(self._body_mass, device=self.device)
+                self._body_mass_backend = wp.clone(self._body_mass.data, device=self.device)
             if self._body_inertia_backend is None:
-                self._body_inertia_backend = wp.clone(self._body_inertia, device=self.device)
-            reset_timestamps([self._body_com_pose_b, self._body_com_pose_b_backend])
-            wp.launch(
-                ordering_kernels.reorder_2d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies),
-                inputs=[self._body_mass_backend, self._body_user_to_backend],
-                outputs=[self._body_mass],
-                device=self.device,
-            )
-            wp.launch(
-                ordering_kernels.reorder_3d_backend_to_user,
-                dim=(self._num_instances, self._num_bodies, 9),
-                inputs=[self._body_inertia_backend, self._body_user_to_backend],
-                outputs=[self._body_inertia],
-                device=self.device,
+                self._body_inertia_backend = wp.clone(self._body_inertia.data, device=self.device)
+            # The public-order mass/inertia buffers are refreshed lazily (gathered from the backend
+            # staging on the next read), so only reset their timestamps here.
+            reset_timestamps(
+                [self._body_com_pose_b, self._body_com_pose_b_backend, self._body_mass, self._body_inertia]
             )
         else:
             if had_body_ordering:
                 if self._body_mass_backend is not None:
-                    self._body_mass.assign(self._body_mass_backend)
+                    self._body_mass.data.assign(self._body_mass_backend)
                 if self._body_inertia_backend is not None:
-                    self._body_inertia.assign(self._body_inertia_backend)
+                    self._body_inertia.data.assign(self._body_inertia_backend)
             self._body_com_pose_b_backend = None
             self._body_mass_backend = None
             self._body_inertia_backend = None
