@@ -24,6 +24,7 @@ from isaaclab_tasks.contrib.assemble_trocar.config import (  # isort: skip
     CameraPresets,
     G1RobotPresets,
 )
+from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 joint_names = [
     "left_hip_pitch_joint",
@@ -396,12 +397,18 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
-        self.sim.render.enable_translucency = True
-        self.sim.render.carb_settings = {
-            "rtx.raytracing.fractionalCutoutOpacity": True,
-        }
-        self.sim.render.rendering_mode = "quality"
-        self.sim.render.antialiasing_mode = "DLAA"
+        for camera_cfg in (
+            self.scene.front_camera,
+            self.scene.left_wrist_camera,
+            self.scene.right_wrist_camera,
+        ):
+            set_isaac_rtx_global_settings(
+                camera_cfg.renderer_cfg,
+                enable_translucency=True,
+                carb_settings={"rtx.raytracing.fractionalCutoutOpacity": True},
+                rendering_mode="quality",
+                antialiasing_mode="DLAA",
+            )
 
 
 @configclass

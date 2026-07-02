@@ -782,7 +782,7 @@ class RigidObject(BaseRigidObject):
         self.data._root_com_pose_w.timestamp = -1.0
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE, self._cpu_body_coms.reshape((self._num_instances, 7)), indices=cpu_env_ids
@@ -820,7 +820,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         self.data._root_com_pose_w.timestamp = -1.0
-        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE,
             self._cpu_body_coms.reshape((self._num_instances, 7)),

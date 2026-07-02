@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world, resolve_view_ids
 from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .rigid_object_collection_data import RigidObjectCollectionData
 
@@ -91,8 +92,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             queue_ovphysx_replication(cfg.rigid_objects[rigid_body_name])
         # stores object names
         self._body_names_list: list[str] = []
-        # one fused TensorBinding per tensor type, populated in _initialize_impl
-        self._bindings: dict[int, Any] = {}
+        # binding manager over the fused multi-prim bindings; created in _initialize_impl
+        self._root_view: OvPhysxView | None = None
 
         # register various callback functions
         self._register_callbacks()
@@ -121,16 +122,19 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         return list(self._body_names_list)
 
     @property
-    def root_view(self):
+    def root_view(self) -> OvPhysxView:
         """Root view for the rigid object collection.
 
-        Dictionary keyed by TensorType constant, each value a single fused
-        :class:`~isaaclab_ovphysx.TensorBinding` spanning all bodies in the collection.
+        On OVPhysX this is an :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` over a single
+        **fused** multi-prim binding per tensor type (created with ``prim_paths=[...]``),
+        spanning all bodies in the collection. The collection's ``LINK_*``/``BODY_*``
+        data-class keys are mapped to the underlying ``RIGID_BODY_*`` types via the view's
+        ``key_aliases``.
 
         .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._bindings
+        return self._root_view
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
@@ -211,10 +215,10 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             # ``(N, B, 9)`` view directly; the native fused binding lays elements body-
             # major flat as ``(N * B, 9)``. Dispatch via the binding's exposed shape.
             if len(binding.shape) >= 2 and binding.shape[1] == self._num_bodies:
-                binding.write(self._wrench_buf)
+                self._root_view.set_attribute(TT.LINK_WRENCH, self._wrench_buf)
             else:
                 view = self.reshape_data_to_view_3d(self._wrench_buf, 9, device=self._device)
-                binding.write(view)
+                self._root_view.set_attribute(TT.LINK_WRENCH, view)
         inst.reset()
 
     def update(self, dt: float) -> None:
@@ -907,7 +911,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate derived buffers that depend on body_com_pose_b.
         self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -954,7 +958,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         )
         # Invalidate derived buffers that depend on body_com_pose_b.
         self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data)
+        wp.copy(self.data._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
         self._binding_write(
             TT.BODY_COM_POSE,
             self.data._cpu_body_coms,
@@ -1094,29 +1098,33 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # ``(body0_env0, body0_env1, ..., body1_env0, ...)``. Bindings are stored under
         # the ``LINK_*``/``BODY_*`` data-class keys so the same key works with the
         # articulation-mode mock used by iface tests.
-        _TT_MAP = (
-            (TT.LINK_POSE, TT.RIGID_BODY_POSE),
-            (TT.LINK_VELOCITY, TT.RIGID_BODY_VELOCITY),
-            (TT.LINK_WRENCH, TT.RIGID_BODY_WRENCH),
-            (TT.BODY_MASS, TT.RIGID_BODY_MASS),
-            (TT.BODY_COM_POSE, TT.RIGID_BODY_COM_POSE),
-            (TT.BODY_INERTIA, TT.RIGID_BODY_INERTIA),
+        # The view creates each fused binding from the underlying RIGID_BODY_* type but stores
+        # it under the collection's LINK_*/BODY_* data-class key via key_aliases (every alias
+        # stays within its CPU/GPU residency class, which the view requires).
+        key_aliases = {
+            TT.LINK_POSE: TT.RIGID_BODY_POSE,
+            TT.LINK_VELOCITY: TT.RIGID_BODY_VELOCITY,
+            TT.LINK_WRENCH: TT.RIGID_BODY_WRENCH,
+            TT.BODY_MASS: TT.RIGID_BODY_MASS,
+            TT.BODY_COM_POSE: TT.RIGID_BODY_COM_POSE,
+            TT.BODY_INERTIA: TT.RIGID_BODY_INERTIA,
+        }
+        self._root_view = OvPhysxView(
+            self._ovphysx, prim_paths=self._prim_paths, device=self._device, key_aliases=key_aliases
         )
-        for store_key, rb_tt in _TT_MAP:
+        for store_key in key_aliases:
             try:
-                self._bindings[store_key] = self._ovphysx.create_tensor_binding(
-                    prim_paths=self._prim_paths, tensor_type=rb_tt
-                )
+                self._root_view.binding_for(store_key)
             except Exception as e:
                 raise RuntimeError(
-                    f"OVPhysX could not create fused RIGID_BODY binding {rb_tt!r} for"
+                    f"OVPhysX could not create the fused RIGID_BODY binding for {store_key!r} with"
                     f" prim_paths={self._prim_paths!r}."
                     f" Check that each prim path matches at least one"
                     f" UsdPhysics.RigidBodyAPI prim."
                 ) from e
 
         # Native fused binding has ``count == N * num_bodies`` (body-major flat).
-        pose_count = self._bindings[TT.LINK_POSE].count
+        pose_count = self._root_view.binding_for(TT.LINK_POSE).count
         if pose_count % self._num_bodies != 0:
             raise RuntimeError(
                 f"Fused LINK_POSE binding count {pose_count} is not divisible by"
@@ -1125,7 +1133,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._num_instances = pose_count // self._num_bodies
 
         self._data = RigidObjectCollectionData(
-            root_view=self._bindings,
+            root_view=self._root_view,
             num_bodies=self._num_bodies,
             device=self._device,
         )
@@ -1143,7 +1151,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         self._ALL_ENV_INDICES = wp.array(np.arange(N), dtype=wp.int32, device=self._device)
         self._ALL_BODY_INDICES = wp.array(np.arange(B), dtype=wp.int32, device=self._device)
 
-        # CPU copy of all-env indices used when calling CPU-only binding.write().
+        # CPU copy of all-env indices used when writing CPU-only attributes via set_attribute.
         self._cpu_all_env_ids = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_all_env_ids, self._ALL_ENV_INDICES)
 
@@ -1194,6 +1202,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Invalidates the scene elements."""
         # call parent
         super()._invalidate_initialize_callback(event)
+        # Drop the fused view (and the bindings it caches) on stop so a destroyed/stale binding
+        # is not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     """
     Helper functions.
@@ -1213,7 +1224,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         Returns:
             The cached :class:`TensorBinding`, or ``None`` if not found.
         """
-        return self._bindings.get(tensor_type)
+        return self._root_view.try_binding_for(tensor_type)
 
     def reshape_data_to_view_2d(self, data: wp.array, device: str | None = None) -> wp.array:
         """Reshape instance-major ``(num_instances, num_bodies)`` data to body-major view order.
@@ -1326,7 +1337,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             float32_data = (
                 instance_major_data if instance_major_data.dtype == wp.float32 else instance_major_data.view(wp.float32)
             )
-            binding.write(float32_data, indices=env_ids)
+            self._root_view.set_attribute(tensor_type, float32_data, indices=env_ids)
             return
         # Native fused path: body-major flat (N*B[, D]); reshape and use view_ids.
         if data_dim is None:
@@ -1334,7 +1345,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         else:
             view = self.reshape_data_to_view_3d(instance_major_data, data_dim, device=device)
         view_ids = self._env_body_ids_to_view_ids(env_ids, self._ALL_BODY_INDICES, device=device)
-        binding.write(view, indices=view_ids)
+        self._root_view.set_attribute(tensor_type, view, indices=view_ids)
 
     """
     Internal helper.

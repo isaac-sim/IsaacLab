@@ -67,9 +67,9 @@ _LOCKED_DEVICE: list[str | None] = [None]
 def _ovphysx_skip_other_device(request):
     """Skip parametrized tests on the device the session is not pinned to.
 
-    ``ovphysx<=0.3.7`` binds device mode at the C++ layer on the first
-    ``ovphysx.PhysX(device=...)`` construction and cannot swap without a
-    process restart.  Pin the session to whichever device is first used.
+    The OVPhysX runtime fixes device mode when the process creates its first
+    ``ovphysx.PhysX`` instance and cannot switch modes without a process
+    restart. Pin the session to whichever device is first used.
     """
     callspec = getattr(request.node, "callspec", None)
     device = callspec.params.get("device") if callspec is not None else None

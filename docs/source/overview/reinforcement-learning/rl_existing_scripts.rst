@@ -398,6 +398,18 @@ the repository. The logs directory follows the pattern ``logs/<library>/<task>/<
 is the name of the learning framework, ``<task>`` is the task name, and ``<date-time>`` is the timestamp at
 which the training command was executed.
 
+New training runs also store a ``run.json`` manifest in their run directory. This manifest allows the unified
+``train`` and ``play`` commands to resolve a checkpoint without copying its path manually. Pass
+``--checkpoint latest`` to select the highest-step checkpoint from the newest compatible run:
+
+.. code:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest
+
+Pass ``--checkpoint best`` to prefer the library-specific best or final checkpoint. For libraries without a
+distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported
+by RL-Games, RSL-RL, skrl, and Stable-Baselines3. RSL-RL training resume continues to require ``--resume``.
+
 To view the logs, run:
 
 .. tab-set::

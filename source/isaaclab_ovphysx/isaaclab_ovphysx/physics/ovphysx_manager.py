@@ -13,7 +13,6 @@ using the ovphysx C/Python API.
 from __future__ import annotations
 
 import atexit
-import inspect
 import logging
 import os
 import re
@@ -339,8 +338,7 @@ class OvPhysxManager(PhysicsManager):
         if cls._physx is None:
             return
         dt = cls.get_physics_dt()
-        sim_time = PhysicsManager._sim_time
-        cls._physx.step_sync(dt=dt, sim_time=sim_time)
+        cls._physx.step_sync(dt=dt)
         cls._physx.update_articulations_kinematic()
         PhysicsManager._sim_time += dt
 
@@ -353,7 +351,7 @@ class OvPhysxManager(PhysicsManager):
         cls._stage_path = None
         cls._warmup_done = False
         # Drop the SceneDataBackend singleton: its cached ``TensorBinding`` handles
-        # point into the wheel's prior scene which we just ``physx.reset()``-ed.
+        # point into the wheel's prior scene which we just cleared.
         # The next :class:`SimulationContext` re-creates the backend in
         # :meth:`initialize`. Matches Newton's lifecycle.
         cls._scene_data_backend = None
@@ -368,9 +366,9 @@ class OvPhysxManager(PhysicsManager):
     def _release_physx(cls) -> None:
         """Soft-reset the ovphysx runtime stage; keep the C++ instance alive.
 
-        Calls ``physx.reset()`` to clear the loaded scene, but does **not** drop
-        the Python reference.  The cached :class:`ovphysx.PhysX` is reused by the
-        next :class:`~isaaclab.sim.SimulationContext` via the reuse path in
+        Calls ``physx.reset_stage()`` to clear the loaded scene, but does **not**
+        drop the Python reference.  The cached :class:`ovphysx.PhysX` is reused by
+        the next :class:`~isaaclab.sim.SimulationContext` via the reuse path in
         :meth:`_warmup_and_load`.  Safe to call multiple times.
 
         HACK(ovphysx<=0.3.7): the wheel's bundled libcarb.so and Kit's libcarb.so
@@ -385,7 +383,7 @@ class OvPhysxManager(PhysicsManager):
         namespace-isolated Carbonite (different soname / hidden visibility).
         """
         if cls._physx is not None:
-            op = cls._physx.reset()
+            op = cls._physx.reset_stage()
             cls._physx.wait_op(op)
 
     @classmethod
@@ -537,8 +535,8 @@ class OvPhysxManager(PhysicsManager):
         if cls._locked_device is not None and ovphysx_device != cls._locked_device:
             raise RuntimeError(
                 f"OvPhysxManager is locked to device {cls._locked_device!r} for the lifetime of this process; "
-                f"cannot switch to {ovphysx_device!r}.  ovphysx<=0.3.7 binds device mode at the C++ layer on the "
-                "first ovphysx.PhysX(...) construction and it cannot be changed without restarting the process."
+                f"cannot switch to {ovphysx_device!r} while its cached ovphysx.PhysX instance is active. "
+                "Restart the process to use a different device."
             )
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
@@ -573,12 +571,12 @@ class OvPhysxManager(PhysicsManager):
             cls._locked_device = ovphysx_device
         else:
             # Reuse path: the cached PhysX may still hold the prior stage (the
-            # wheel allows only one loaded USD at a time).  ``physx.reset()`` is
-            # idempotent on an already-cleared stage and required when this is
+            # wheel allows only one loaded USD at a time).  ``physx.reset_stage()``
+            # is idempotent on an already-cleared stage and required when this is
             # a second :meth:`_warmup_and_load` within the same SimulationContext
             # (e.g. when a caller manually clears ``_warmup_done`` to force a
             # re-warmup).
-            op = cls._physx.reset()
+            op = cls._physx.reset_stage()
             cls._physx.wait_op(op)
 
         usd_handle, op_idx = cls._physx.add_usd(stage_file)
@@ -651,40 +649,28 @@ class OvPhysxManager(PhysicsManager):
             _sys.modules.update(_hidden_pxr)
 
         ovphysx = import_ovphysx()
+        ovphysx.PhysX.set_cpu_mode(ovphysx_device == "cpu")
 
-        physx_kwargs = {"device": ovphysx_device}
-        physx_signature = inspect.signature(ovphysx.PhysX)
-        physx_parameters = physx_signature.parameters
-        if "active_cuda_gpus" in physx_parameters:
-            if ovphysx_device == "gpu":
-                # ovphysx 0.4 accepts a comma-separated CUDA ordinal string; IsaacLab selects one GPU.
-                physx_kwargs["active_cuda_gpus"] = str(gpu_index)
-                physx_kwargs["config"] = ovphysx.PhysXConfig(
-                    carbonite_overrides={
-                        "/physics/suppressReadback": True,
-                        "/physics/suppressFabricUpdate": True,
-                    }
-                )
-        elif "gpu_index" in physx_parameters:
-            physx_kwargs["gpu_index"] = gpu_index
+        carbonite_overrides = {
+            "/physics/physxDispatcher": True,
+            "/physics/updateToUsd": False,
+            "/physics/updateVelocitiesToUsd": False,
+            "/physics/updateParticlesToUsd": False,
+        }
+        if ovphysx_device == "gpu":
+            carbonite_overrides.update(
+                {
+                    "/physics/suppressReadback": True,
+                    "/physics/suppressFabricUpdate": True,
+                }
+            )
+        physx_kwargs = {
+            "config": ovphysx.PhysXConfig(num_threads=8, carbonite_overrides=carbonite_overrides),
+        }
+        if ovphysx_device == "gpu":
+            physx_kwargs["active_cuda_gpus"] = str(gpu_index)
 
         cls._physx = ovphysx.PhysX(**physx_kwargs)
-
-        # Without worker threads the stepper runs simulate()+fetchResults()
-        # synchronously, blocking the calling thread for the full GPU step time.
-        #
-        # COMPAT(ovphysx<=0.3.7): The public 0.3.7 wheel exposes typed config
-        # setters (set_config_int32 etc.) rather than the Carbonite-settings-based
-        # set_setting() added in newer internal builds.  This guard keeps both
-        # working.  REVERT once the public wheel ships set_setting().
-        if hasattr(cls._physx, "set_setting"):
-            cls._physx.set_setting("/persistent/physics/numThreads", "8")
-            cls._physx.set_setting("/physics/physxDispatcher", "true")
-            cls._physx.set_setting("/physics/updateToUsd", "false")
-            cls._physx.set_setting("/physics/updateVelocitiesToUsd", "false")
-            cls._physx.set_setting("/physics/updateParticlesToUsd", "false")
-        else:
-            cls._physx.set_config_int32(ovphysx.ConfigInt32.NUM_THREADS, 8)
 
         # FIXME(malesiani): re-evaluate this when carbonite ships an isolated copy.
         # At process exit, two Carbonite instances are in memory:
@@ -731,7 +717,7 @@ class OvPhysxManager(PhysicsManager):
         The schema and scene-query-support attribute are applied regardless of
         device. The GPU-specific dynamics/broadphase/capacity attributes are
         applied only when ``device == "gpu"`` — without them PhysX defaults to
-        CPU broadphase even when ovphysx is created with ``device="gpu"``.
+        CPU broadphase even when OVPhysX is configured for GPU execution.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.

@@ -31,20 +31,16 @@ The renderer used by a camera is configured via the ``renderer_cfg`` field on
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 30 40
+   :widths: 30 30
 
    * - ``renderer_cfg``
      - Requires Isaac Sim?
-     - Supported data types
    * - ``IsaacRtxRendererCfg`` *(default)*
      - Yes
-     - All annotators (rgb, rgba, depth, distances, normals, motion vectors, semantic/instance segmentation)
    * - ``NewtonWarpRendererCfg``
      - No (kit-less)
-     - rgb, rgba, rgb_hdr, depth, normals, instance segmentation
    * - ``OVRTXRendererCfg``
      - No (+ ``isaaclab_ov``)
-     - rgb, rgba, rgb_hdr, depth, distances, normals, semantic segmentation
 
 .. note::
 
@@ -251,11 +247,11 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ❌
    * - ``instance_segmentation_fast``
      - ✅
-     - ❌
+     - ✅
      - ✅
    * - ``instance_id_segmentation_fast``
      - ✅
-     - ❌
+     - ✅
      - ❌
 
 RGB and RGBA
@@ -505,6 +501,11 @@ An ``info`` dictionary is available via ``tiled_camera.data.info['instance_segme
 
 - If ``colorize_instance_segmentation=True``: shape ``(B, H, W, 4)``, type ``torch.uint8``.
 - If ``colorize_instance_segmentation=False``: shape ``(B, H, W, 1)``, type ``torch.int32``.
+
+Pixels belonging to prims with no assigned semantic label are rendered black
+(RGBA ``(0, 0, 0, 255)``) when ``colorize_instance_segmentation=True``. When
+``colorize_instance_segmentation=False``, those pixels instead carry the raw
+UNLABELLED instance ID (``1``) rather than a color value.
 
 The ``idToLabels`` dict maps color to USD prim path. The ``idToSemantics`` dict maps color to
 semantic label.

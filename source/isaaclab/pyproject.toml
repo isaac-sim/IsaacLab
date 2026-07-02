@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab"
-version = "7.5.0"
+version = "8.0.2"
 description = "Extension providing main framework interfaces and abstractions for robot learning."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -37,7 +37,7 @@ dependencies = [
     # image processing
     "transformers==4.57.6",
     "einops",
-    "warp-lang==1.14.0",
+    "warp-lang==1.15.0.dev20260626",
     "matplotlib>=3.10.3",
     # keep consistent with isaac sim version
     "pillow==12.1.1",

@@ -13,11 +13,13 @@ import logging
 import math
 import os
 import random
+import re
 import time
 from datetime import datetime
 from distutils.util import strtobool
 
 from common import (
+    CHECKPOINT_SELECTORS,
     add_common_train_args,
     add_isaaclab_launcher_args,
     apply_env_overrides,
@@ -25,9 +27,11 @@ from common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
     wrap_record_video,
+    write_run_manifest,
 )
 
 import isaaclab_tasks  # noqa: F401
@@ -47,7 +51,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         agent_default="rl_games_cfg_entry_point",
         agent_help="Name of the RL agent configuration entry point.",
     )
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
     parser.add_argument("--sigma", type=str, default=None, help="The policy's initial standard deviation.")
     parser.add_argument("--wandb-project-name", type=str, default=None, help="the wandb's project name")
     parser.add_argument("--wandb-entity", type=str, default=None, help="the entity (team) of wandb's project")
@@ -101,7 +105,7 @@ def run(argv: list[str]) -> None:
             if args_cli.max_iterations is not None
             else agent_cfg["params"]["config"]["max_epochs"]
         )
-        if args_cli.checkpoint is not None:
+        if args_cli.checkpoint is not None and args_cli.checkpoint not in CHECKPOINT_SELECTORS:
             resume_path = retrieve_file_path(args_cli.checkpoint)
             agent_cfg["params"]["load_checkpoint"] = True
             agent_cfg["params"]["load_path"] = resume_path
@@ -124,6 +128,20 @@ def run(argv: list[str]) -> None:
             log_root_path = os.path.abspath(log_root_path)
 
         print(f"[INFO] Logging experiment in directory: {log_root_path}")
+        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="rl_games",
+                task=args_cli.task,
+                checkpoint_pattern=r".*\.pth",
+                other_dirs=["nn"],
+                preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+                metadata={"agent": args_cli.agent},
+            )
+            agent_cfg["params"]["load_checkpoint"] = True
+            agent_cfg["params"]["load_path"] = resume_path
+            print(f"[INFO]: Loading model checkpoint from: {resume_path}")
         log_dir = agent_cfg["params"]["config"].get(
             "full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         )
@@ -133,6 +151,12 @@ def run(argv: list[str]) -> None:
         experiment_name = log_dir if args_cli.wandb_name is None else args_cli.wandb_name
 
         run_log_dir = os.path.join(log_root_path, log_dir)
+        write_run_manifest(
+            run_log_dir,
+            library="rl_games",
+            task=args_cli.task,
+            metadata={"agent": args_cli.agent},
+        )
         dump_train_configs(run_log_dir, env_cfg, agent_cfg)
         print(f"Exact experiment name requested from command line: {run_log_dir}")
 
