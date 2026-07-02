@@ -10,9 +10,12 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import make_feather_pgs_physics_cfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from .rough_env_cfg import G1RoughEnvCfg
+
+from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 
 
 @configclass
@@ -30,6 +33,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
+    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=4, pgs_mode="matrix_free", update_mass_matrix_interval=2)
 
 
 @configclass
@@ -39,6 +43,18 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        self.decimation = preset(default=self.decimation, feather_pgs=2)
+        self.sim.dt = preset(default=self.sim.dt, feather_pgs=0.01)
+        self.sim.render_interval = preset(default=self.sim.render_interval, feather_pgs=2)
+        self.scene.contact_forces.update_period = preset(
+            default=self.scene.contact_forces.update_period, feather_pgs=0.01
+        )
+        for name, actuator in self.scene.robot.actuators.items():
+            actuator.armature = preset(
+                default=actuator.armature,
+                feather_pgs=G1_MINIMAL_CFG.actuators[name].armature,
+            )
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"

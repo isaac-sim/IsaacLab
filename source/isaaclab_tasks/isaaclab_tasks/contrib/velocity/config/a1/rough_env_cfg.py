@@ -4,9 +4,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    LocomotionVelocityRoughEnvCfg,
+    RoughPhysicsCfg,
+    make_feather_pgs_physics_cfg,
+)
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -15,12 +21,22 @@ from isaaclab_assets.robots.unitree import UNITREE_A1_CFG  # isort: skip
 
 
 @configclass
+class PhysicsCfg(RoughPhysicsCfg):
+    feather_pgs = make_feather_pgs_physics_cfg(
+        pgs_iterations=16, pgs_beta=0.02, pgs_cfm=1.0e-5, pgs_omega=0.8, angular_damping=0.6
+    )
+
+
+@configclass
 class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
         self.scene.robot = UNITREE_A1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, feather_pgs=0.05)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/trunk"
         # scale down the terrains because the robot is small
         self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)

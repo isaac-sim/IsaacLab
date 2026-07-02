@@ -9,6 +9,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.core.velocity.velocity_env_cfg import make_feather_pgs_physics_cfg
 from isaaclab_tasks.utils import PresetCfg
 
 from .rough_env_cfg import AnymalCRoughEnvCfg
@@ -28,6 +29,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=8, num_substeps=2, dense_max_constraints=32)
     physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
 

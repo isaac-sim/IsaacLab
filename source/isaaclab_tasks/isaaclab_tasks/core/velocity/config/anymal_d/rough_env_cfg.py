@@ -4,9 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    LocomotionVelocityRoughEnvCfg,
+    RoughPhysicsCfg,
+    make_feather_pgs_physics_cfg,
+)
 
 ##
 # Pre-defined configs
@@ -15,7 +20,14 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
 
 
 @configclass
+class PhysicsCfg(RoughPhysicsCfg):
+    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=2, num_substeps=2)
+
+
+@configclass
 class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

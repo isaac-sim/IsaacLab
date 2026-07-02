@@ -5,8 +5,15 @@
 
 import math
 from dataclasses import MISSING
+from typing import Literal
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+)
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_ovphysx.sensors import ContactSensorCfg as OvPhysXContactSensorCfg
@@ -71,6 +78,59 @@ class RoughPhysicsCfg(PresetCfg):
     ovphysx = OvPhysxCfg()
 
 
+def make_feather_pgs_physics_cfg(
+    *,
+    pgs_iterations: int,
+    num_substeps: int = 1,
+    pgs_mode: Literal["dense", "split", "matrix_free"] = "split",
+    pgs_beta: float = 0.05,
+    pgs_cfm: float = 1.0e-6,
+    pgs_omega: float = 1.0,
+    angular_damping: float = 0.05,
+    dense_max_constraints: int = 64,
+    mf_max_constraints: int = 512,
+    update_mass_matrix_interval: int = 1,
+) -> NewtonCfg:
+    """Create the shared FeatherPGS configuration for velocity tasks.
+
+    Args:
+        pgs_iterations: Number of projected Gauss-Seidel iterations per substep.
+        num_substeps: Number of solver substeps per simulation step.
+        pgs_mode: Constraint solve layout.
+        pgs_beta: Dimensionless position-error reduction factor.
+        pgs_cfm: Constraint-force regularization in solver-space units.
+        pgs_omega: Dimensionless successive over-relaxation factor.
+        angular_damping: Angular velocity damping rate [s^-1].
+        dense_max_constraints: Maximum dense constraint rows per world.
+        mf_max_constraints: Maximum matrix-free constraint rows per world.
+        update_mass_matrix_interval: Simulation steps between mass-matrix updates.
+
+    Returns:
+        A Newton physics configuration using FeatherPGS and the rough-terrain
+        collision settings validated by the velocity tasks.
+    """
+    return NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=angular_damping,
+            update_mass_matrix_interval=update_mass_matrix_interval,
+            enable_joint_limits=True,
+            pgs_iterations=pgs_iterations,
+            pgs_beta=pgs_beta,
+            pgs_cfm=pgs_cfm,
+            pgs_omega=pgs_omega,
+            dense_max_constraints=dense_max_constraints,
+            pgs_warmstart=False,
+            pgs_mode=pgs_mode,
+            mf_max_constraints=mf_max_constraints,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=num_substeps,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
+
+
 ##
 # Scene definition
 ##
@@ -81,6 +141,7 @@ class VelocityEnvContactSensorCfg(PresetCfg):
     default = PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     newton_mjwarp = NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     newton_kamino = newton_mjwarp
+    feather_pgs = newton_mjwarp
     physx = default
     ovphysx = OvPhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
 

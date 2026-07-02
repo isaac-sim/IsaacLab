@@ -6,7 +6,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -26,7 +26,7 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from . import mdp
 
@@ -78,6 +78,25 @@ class CabinetSimCfg(PresetCfg):
         render_interval=1,
         physics=NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=1),
     )
+    feather_pgs: SimulationCfg = SimulationCfg(
+        dt=1 / 60,
+        render_interval=1,
+        physics=NewtonCfg(
+            solver_cfg=FeatherPGSSolverCfg(
+                angular_damping=0.2,
+                enable_joint_limits=True,
+                pgs_iterations=32,
+                pgs_beta=0.02,
+                pgs_cfm=1.0e-5,
+                pgs_omega=1.0,
+                dense_max_constraints=64,
+                mf_max_constraints=512,
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=False,
+        ),
+    )
 
 
 ##
@@ -119,7 +138,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
                 joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
                 effort_limit_sim=87.0,
                 stiffness=10.0,
-                damping=1.0,
+                damping=preset(default=1.0, feather_pgs=3.0),
             ),
             "doors": ImplicitActuatorCfg(
                 joint_names_expr=["door_left_joint", "door_right_joint"],
@@ -262,10 +281,35 @@ class _CabinetNewtonEventCfg:
 
 
 @configclass
+class _CabinetFeatherPGSEventCfg(_CabinetNewtonEventCfg):
+    robot_body_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "inertia_distribution_params": (0.02, 0.02),
+            "operation": "add",
+            "diagonal_only": True,
+        },
+    )
+    cabinet_body_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("cabinet"),
+            "inertia_distribution_params": (0.05, 0.05),
+            "operation": "add",
+            "diagonal_only": True,
+        },
+    )
+
+
+@configclass
 class CabinetEventCfg(PresetCfg):
     default: EventCfg = EventCfg()
     physx: EventCfg = EventCfg()
     newton_mjwarp: _CabinetNewtonEventCfg = _CabinetNewtonEventCfg()
+    feather_pgs: _CabinetFeatherPGSEventCfg = _CabinetFeatherPGSEventCfg()
 
 
 @configclass

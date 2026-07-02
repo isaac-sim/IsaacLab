@@ -5,19 +5,22 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
+import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs import DirectRLEnvCfg
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets import HUMANOID_CFG
 
@@ -38,7 +41,52 @@ class HumanoidPhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=5.0,
+            enable_joint_limits=True,
+            pgs_iterations=24,
+            pgs_beta=0.002,
+            pgs_cfm=1.0e-4,
+            pgs_omega=0.5,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+    )
     ovphysx: OvPhysxCfg = OvPhysxCfg()
+
+
+@configclass
+class FeatherPGSEventCfg:
+    robot_body_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": (2.0, 2.0),
+            "operation": "abs",
+            "recompute_inertia": False,
+        },
+    )
+    robot_body_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "inertia_distribution_params": (2.0, 2.0),
+            "operation": "add",
+            "diagonal_only": True,
+        },
+    )
+
+
+@configclass
+class HumanoidDirectEventCfg(PresetCfg):
+    default = None
+    feather_pgs = FeatherPGSEventCfg()
 
 
 @configclass
@@ -52,6 +100,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
     action_space = 21
     observation_space = 75
     state_space = 0
+    events: HumanoidDirectEventCfg = HumanoidDirectEventCfg()
 
     # simulation
     sim: SimulationCfg = SimulationCfg(dt=1 / 120, render_interval=decimation, physics=HumanoidPhysicsCfg())
@@ -76,6 +125,7 @@ class HumanoidEnvCfg(DirectRLEnvCfg):
 
     # robot
     robot: ArticulationCfg = HUMANOID_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot.actuators["body"].armature = preset(default=robot.actuators["body"].armature, feather_pgs=0.2)
 
     physx_joint_gears: list[float] = [
         67.5000,  # lower_waist

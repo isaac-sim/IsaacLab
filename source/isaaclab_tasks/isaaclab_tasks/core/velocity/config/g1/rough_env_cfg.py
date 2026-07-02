@@ -6,18 +6,29 @@
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
+    RoughPhysicsCfg,
+    make_feather_pgs_physics_cfg,
 )
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
+
+
+@configclass
+class PhysicsCfg(RoughPhysicsCfg):
+    feather_pgs = make_feather_pgs_physics_cfg(
+        pgs_iterations=16, pgs_beta=0.02, pgs_cfm=1.0e-5, pgs_omega=0.8, angular_damping=0.5
+    )
 
 
 @configclass
@@ -106,6 +117,8 @@ class G1Rewards(RewardsCfg):
 
 @configclass
 class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     rewards: G1Rewards = G1Rewards()
 
     def __post_init__(self):
@@ -117,6 +130,8 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         # Scene
         self.scene.robot = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        for actuator in self.scene.robot.actuators.values():
+            actuator.armature = preset(default=actuator.armature, feather_pgs=0.1)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
 
         # G1 uses "torso_link" as base body — disable mass randomization for bipeds

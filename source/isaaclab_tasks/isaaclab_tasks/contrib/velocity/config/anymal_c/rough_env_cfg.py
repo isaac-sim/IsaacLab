@@ -4,9 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    LocomotionVelocityRoughEnvCfg,
+    RoughPhysicsCfg,
+    make_feather_pgs_physics_cfg,
+)
 from isaaclab_tasks.utils import preset
 
 ##
@@ -16,13 +21,22 @@ from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
 
 @configclass
+class PhysicsCfg(RoughPhysicsCfg):
+    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=4, num_substeps=2)
+
+
+@configclass
 class AnymalCRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
         # switch robot to anymal-c
         self.scene.robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, newton_mjwarp=0.01, physx=0.0)
+        self.scene.robot.actuators["legs"].armature = preset(
+            default=0.0, newton_mjwarp=0.01, feather_pgs=0.01, physx=0.0
+        )
 
 
 @configclass

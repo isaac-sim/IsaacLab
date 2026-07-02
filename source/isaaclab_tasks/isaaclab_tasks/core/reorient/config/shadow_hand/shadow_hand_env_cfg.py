@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -21,7 +21,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
 
@@ -85,6 +85,26 @@ class NewtonEventCfg:
             "distribution": "log_uniform",
         },
     )
+
+
+@configclass
+class FeatherPGSEventCfg:
+    object_physics_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "inertia_distribution_params": (0.1, 0.1),
+            "operation": "add",
+            "diagonal_only": True,
+        },
+    )
+
+
+@configclass
+class ShadowHandDirectEventCfg(PresetCfg):
+    default = None
+    feather_pgs = FeatherPGSEventCfg()
 
 
 @configclass
@@ -207,6 +227,9 @@ class ShadowHandRobotCfg(PresetCfg):
         },
         soft_joint_pos_limit_factor=1.0,
     )
+    feather_pgs = newton_mjwarp.copy()
+    feather_pgs.actuators["fingers"].friction = 0.1
+    feather_pgs.actuators["fingers"].armature = 0.05
     default = physx
     newton_kamino = newton_mjwarp
 
@@ -247,6 +270,7 @@ class ObjectCfg(PresetCfg):
         actuators={},
         articulation_root_prim_path="",
     )
+    feather_pgs = newton_mjwarp
     default = physx
     newton_kamino = newton_mjwarp
 
@@ -265,6 +289,7 @@ class ShadowHandSceneCfg(PresetCfg):
     newton_mjwarp: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
+    feather_pgs: InteractiveSceneCfg = newton_mjwarp
     default: InteractiveSceneCfg = physx
     newton_kamino = newton_mjwarp
 
@@ -290,6 +315,21 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            pgs_iterations=24,
+            pgs_beta=0.005,
+            pgs_cfm=5.0e-5,
+            pgs_omega=1.0,
+            pgs_mode="matrix_free",
+            mf_max_constraints=512,
+        ),
+        num_substeps=12,
+        debug_mode=False,
+        use_cuda_graph=False,
+    )
     default = physx
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128), num_substeps=2)
 
@@ -314,6 +354,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
     # robot
     robot_cfg: ShadowHandRobotCfg = ShadowHandRobotCfg()
+    events: ShadowHandDirectEventCfg = ShadowHandDirectEventCfg()
     actuated_joint_names = [
         "robot0_WRJ1",
         "robot0_WRJ0",
@@ -360,8 +401,8 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     scene: ShadowHandSceneCfg = ShadowHandSceneCfg()
 
     # reset
-    reset_position_noise = 0.01  # range of position at reset
-    reset_dof_pos_noise = 0.2  # range of dof pos at reset
+    reset_position_noise = preset(default=0.01, feather_pgs=0.0)
+    reset_dof_pos_noise = preset(default=0.2, feather_pgs=0.0)
     reset_dof_vel_noise = 0.0  # range of dof vel at reset
     # reward scales
     dist_reward_scale = -10.0
@@ -377,7 +418,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     success_count_threshold: int = 1
     """Minimum number of goals reached in an episode to count it as a successful episode."""
     av_factor = 0.1
-    act_moving_average = 1.0
+    act_moving_average = preset(default=1.0, feather_pgs=0.05)
     force_torque_obs_scale = 10.0
 
 
