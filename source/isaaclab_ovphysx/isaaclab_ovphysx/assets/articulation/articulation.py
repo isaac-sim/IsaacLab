@@ -893,7 +893,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[position, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_pos_buf.data, joint_pos_backend],
@@ -940,7 +940,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (self._num_instances, self._num_joints), wp.float32, "position")
         joint_pos_backend = self._data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_joints),
             inputs=[position, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_pos_buf.data, joint_pos_backend],
@@ -2490,7 +2490,7 @@ class Articulation(BaseArticulation):
         else:
             target_backend = self._data._joint_pos_target
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[target, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_pos_target, target_backend],
@@ -2532,7 +2532,7 @@ class Articulation(BaseArticulation):
         else:
             target_backend = self._data._joint_pos_target
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_joints),
             inputs=[target, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_pos_target, target_backend],
@@ -2577,7 +2577,7 @@ class Articulation(BaseArticulation):
         else:
             target_backend = self._data._joint_vel_target
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[target, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_vel_target, target_backend],
@@ -2619,7 +2619,7 @@ class Articulation(BaseArticulation):
         else:
             target_backend = self._data._joint_vel_target
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_joints),
             inputs=[target, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_vel_target, target_backend],
@@ -2664,7 +2664,7 @@ class Articulation(BaseArticulation):
         else:
             target_backend = self._data._joint_effort_target
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[target, env_ids, joint_ids, self._joint_user_to_backend, self._has_joint_ordering, False],
             outputs=[self._data._joint_effort_target, target_backend],
@@ -2706,7 +2706,7 @@ class Articulation(BaseArticulation):
         else:
             target_backend = self._data._joint_effort_target
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_joints),
             inputs=[target, env_mask_wp, joint_mask_wp, self._joint_user_to_backend, self._has_joint_ordering],
             outputs=[self._data._joint_effort_target, target_backend],

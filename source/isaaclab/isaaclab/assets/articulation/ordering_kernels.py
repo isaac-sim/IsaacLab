@@ -49,74 +49,6 @@ def reorder_2d_backend_to_user(
 
 
 @wp.kernel
-def write_scalar_user_to_backend_with_indices(
-    value: wp.float32,
-    env_ids: wp.array(dtype=wp.int32),
-    user_ids: wp.array(dtype=wp.int32),
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
-    user_data: wp.array2d(dtype=wp.float32),
-    backend_data: wp.array2d(dtype=wp.float32),
-) -> None:
-    """Write one scalar to selected public items and their backend counterparts.
-
-    The Cartesian-product selectors must each contain unique indices. Repeated
-    indices can issue concurrent writes to the same destination cell.
-
-    Args:
-        value: Scalar value in caller-defined SI units.
-        env_ids: Unique environment indices selected from [0, num_envs).
-        user_ids: Unique public item indices selected from [0, num_items).
-        user_to_backend: Read-only map shaped [num_items] from public to backend
-            item indices.
-        has_ordering: Whether to scatter the selected values into backend_data.
-            When false, backend_data is not written and may alias user_data.
-        user_data: Public-order destination shaped [num_envs, num_items].
-        backend_data: Backend-order destination shaped [num_envs, num_items].
-    """
-    i, j = wp.tid()
-    env_id = env_ids[i]
-    user_id = user_ids[j]
-    user_data[env_id, user_id] = value
-    if has_ordering:
-        backend_id = user_to_backend[user_id]
-        backend_data[env_id, backend_id] = value
-
-
-@wp.kernel
-def write_scalar_user_to_backend_with_mask(
-    value: wp.float32,
-    env_mask: wp.array(dtype=wp.bool),
-    user_mask: wp.array(dtype=wp.bool),
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
-    user_data: wp.array2d(dtype=wp.float32),
-    backend_data: wp.array2d(dtype=wp.float32),
-) -> None:
-    """Write one scalar to masked public items and their backend counterparts.
-
-    Args:
-        value: Scalar value in caller-defined SI units.
-        env_mask: Environment-selection mask shaped [num_envs].
-        user_mask: Public-item selection mask shaped [num_items].
-        user_to_backend: Read-only map shaped [num_items] from public to backend
-            item indices.
-        has_ordering: Whether to scatter selected values into backend_data.
-            When false, backend_data is not written and may alias user_data.
-        user_data: Public-order destination shaped [num_envs, num_items].
-        backend_data: Backend-order destination shaped [num_envs, num_items].
-    """
-    env_id, user_id = wp.tid()
-    if not env_mask[env_id] or not user_mask[user_id]:
-        return
-
-    user_data[env_id, user_id] = value
-    if has_ordering:
-        backend_id = user_to_backend[user_id]
-        backend_data[env_id, backend_id] = value
-
-
-@wp.kernel
 def reorder_2d_user_to_backend(
     user_data: wp.array2d(dtype=Any),
     backend_to_user: wp.array(dtype=wp.int32),
@@ -527,9 +459,37 @@ def write_joint_state_user_to_backend_with_mask(
         backend_vel[env_id, backend_id] = velocity
 
 
+@wp.func
+def _resolve_float_input(
+    input_data: wp.float32,
+    env_id: int,
+    user_id: int,
+    local_env_id: int,
+    local_user_id: int,
+    full_data: bool,
+) -> wp.float32:
+    """Return a scalar input unchanged."""
+    return input_data
+
+
+@wp.func
+def _resolve_float_input(
+    input_data: wp.array2d(dtype=wp.float32),
+    env_id: int,
+    user_id: int,
+    local_env_id: int,
+    local_user_id: int,
+    full_data: bool,
+) -> wp.float32:
+    """Read a 2-D input using full or selector-local indices."""
+    if full_data:
+        return input_data[env_id, user_id]
+    return input_data[local_env_id, local_user_id]
+
+
 @wp.kernel
-def write_2d_float_user_to_backend_with_indices(
-    in_data: wp.array2d(dtype=wp.float32),
+def write_float_user_to_backend_with_indices(
+    input_data: Any,
     env_ids: wp.array(dtype=wp.int32),
     user_ids: wp.array(dtype=wp.int32),
     user_to_backend: wp.array(dtype=wp.int32),
@@ -538,21 +498,21 @@ def write_2d_float_user_to_backend_with_indices(
     user_data: wp.array2d(dtype=wp.float32),
     backend_data: wp.array2d(dtype=wp.float32),
 ) -> None:
-    """Write selected 2-D public values and their backend-order counterparts.
+    """Write a scalar or selected 2-D public values to public and backend buffers.
 
     The Cartesian-product selectors must each contain unique indices. Repeated
     indices can issue concurrent writes to the same destination cell.
 
     Args:
-        in_data: Values in caller-defined SI units. With full_data true, shape
-            is [num_envs, num_items] in public order; otherwise it is
-            [len(env_ids), len(user_ids)].
+        input_data: Scalar or 2-D values in caller-defined SI units. With full_data
+            true, 2-D input is shaped [num_envs, num_items] in public order;
+            otherwise it is shaped [len(env_ids), len(user_ids)].
         env_ids: Unique environment indices selected from [0, num_envs).
         user_ids: Unique public item indices selected from [0, num_items).
         user_to_backend: Read-only map from public to backend item indices.
         has_ordering: Whether to scatter values into backend_data. When false,
             backend_data is not written and may alias user_data.
-        full_data: Whether in_data uses full public indices instead of compact
+        full_data: Whether 2-D input uses full public indices instead of compact
             selector-local indices.
         user_data: Public-order destination shaped [num_envs, num_items].
         backend_data: Backend-order destination shaped [num_envs, num_items].
@@ -561,10 +521,7 @@ def write_2d_float_user_to_backend_with_indices(
     env_id = env_ids[i]
     user_id = user_ids[j]
 
-    if full_data:
-        value = in_data[env_id, user_id]
-    else:
-        value = in_data[i, j]
+    value = _resolve_float_input(input_data, env_id, user_id, i, j, full_data)
 
     user_data[env_id, user_id] = value
     if has_ordering:
@@ -573,8 +530,8 @@ def write_2d_float_user_to_backend_with_indices(
 
 
 @wp.kernel
-def write_2d_float_user_to_backend_with_mask(
-    in_data: wp.array2d(dtype=wp.float32),
+def write_float_user_to_backend_with_mask(
+    input_data: Any,
     env_mask: wp.array(dtype=wp.bool),
     user_mask: wp.array(dtype=wp.bool),
     user_to_backend: wp.array(dtype=wp.int32),
@@ -582,11 +539,11 @@ def write_2d_float_user_to_backend_with_mask(
     user_data: wp.array2d(dtype=wp.float32),
     backend_data: wp.array2d(dtype=wp.float32),
 ) -> None:
-    """Write masked 2-D public values and their backend-order counterparts.
+    """Write a scalar or masked 2-D public values to public and backend buffers.
 
     Args:
-        in_data: Values in caller-defined SI units, shaped
-            [num_envs, num_items] in public order.
+        input_data: Scalar or 2-D values in caller-defined SI units. A 2-D input is
+            shaped [num_envs, num_items] in public order.
         env_mask: Environment-selection mask shaped [num_envs].
         user_mask: Public-item selection mask shaped [num_items].
         user_to_backend: Read-only map from public to backend item indices.
@@ -599,8 +556,17 @@ def write_2d_float_user_to_backend_with_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    value = in_data[env_id, user_id]
+    value = _resolve_float_input(input_data, env_id, user_id, env_id, user_id, True)
     user_data[env_id, user_id] = value
     if has_ordering:
         backend_id = user_to_backend[user_id]
         backend_data[env_id, backend_id] = value
+
+
+# Concrete array overloads preserve typed torch.Tensor argument adaptation.
+_write_float_user_to_backend_with_indices_array = wp.overload(
+    write_float_user_to_backend_with_indices, {"input_data": wp.array2d(dtype=wp.float32)}
+)
+_write_float_user_to_backend_with_mask_array = wp.overload(
+    write_float_user_to_backend_with_mask, {"input_data": wp.array2d(dtype=wp.float32)}
+)

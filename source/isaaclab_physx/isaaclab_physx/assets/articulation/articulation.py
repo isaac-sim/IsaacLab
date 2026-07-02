@@ -1118,7 +1118,7 @@ class Articulation(BaseArticulation):
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,

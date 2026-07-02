@@ -1168,7 +1168,7 @@ class Articulation(BaseArticulation):
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
@@ -1224,7 +1224,7 @@ class Articulation(BaseArticulation):
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[
                 position,
@@ -1382,41 +1382,27 @@ class Articulation(BaseArticulation):
             user_data = backend_buffer
 
         if isinstance(value, float):
-            wp.launch(
-                ordering_kernels.write_scalar_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    value,
-                    env_ids,
-                    joint_ids,
-                    self._joint_user_to_backend,
-                    self._has_joint_ordering,
-                ],
-                outputs=[
-                    user_data,
-                    backend_buffer,
-                ],
-                device=self.device,
-            )
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_indices
         else:
             self.assert_shape_and_dtype(value, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, value_name)
-            wp.launch(
-                ordering_kernels.write_2d_float_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    value,
-                    env_ids,
-                    joint_ids,
-                    self._joint_user_to_backend,
-                    self._has_joint_ordering,
-                    False,
-                ],
-                outputs=[
-                    user_data,
-                    backend_buffer,
-                ],
-                device=self.device,
-            )
+            write_kernel = ordering_kernels._write_float_user_to_backend_with_indices_array
+        wp.launch(
+            write_kernel,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                value,
+                env_ids,
+                joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
+            ],
+            outputs=[
+                user_data,
+                backend_buffer,
+            ],
+            device=self.device,
+        )
 
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
@@ -1439,40 +1425,26 @@ class Articulation(BaseArticulation):
             user_data = backend_buffer
 
         if isinstance(value, float):
-            wp.launch(
-                ordering_kernels.write_scalar_user_to_backend_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    value,
-                    env_mask,
-                    joint_mask,
-                    self._joint_user_to_backend,
-                    self._has_joint_ordering,
-                ],
-                outputs=[
-                    user_data,
-                    backend_buffer,
-                ],
-                device=self.device,
-            )
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_mask
         else:
             self.assert_shape_and_dtype_mask(value, (env_mask, joint_mask), wp.float32, value_name)
-            wp.launch(
-                ordering_kernels.write_2d_float_user_to_backend_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    value,
-                    env_mask,
-                    joint_mask,
-                    self._joint_user_to_backend,
-                    self._has_joint_ordering,
-                ],
-                outputs=[
-                    user_data,
-                    backend_buffer,
-                ],
-                device=self.device,
-            )
+            write_kernel = ordering_kernels._write_float_user_to_backend_with_mask_array
+        wp.launch(
+            write_kernel,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                value,
+                env_mask,
+                joint_mask,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+            ],
+            outputs=[
+                user_data,
+                backend_buffer,
+            ],
+            device=self.device,
+        )
 
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
@@ -3873,7 +3845,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(self.num_instances, j_ids.shape[0]),
             inputs=[
                 actuator.armature,
@@ -3890,7 +3862,7 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         wp.launch(
-            ordering_kernels.write_2d_float_user_to_backend_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(self.num_instances, j_ids.shape[0]),
             inputs=[
                 actuator.friction,
