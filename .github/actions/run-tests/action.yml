@@ -77,6 +77,13 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  wheelhouse-host-dir:
+    description: 'Host directory containing wheelhouse/ and manifest.json for offline pip installs'
+    default: ''
+    required: false
+  wheelhouse-packages:
+    description: 'Space-separated packages to install from /tmp/ovphysx-wheelhouse with pip --no-index'
+    default: ''
   omni-github-test-type:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
@@ -107,6 +114,8 @@ runs:
           local extra_pip_packages="${15}"
           local test_node_ids_file="${16}"
           local test_node_ids_key="${17}"
+          local wheelhouse_host_dir="${18}"
+          local wheelhouse_packages="${19}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -131,6 +140,12 @@ runs:
           fi
           if [ -n "$extra_pip_packages" ]; then
             echo "With extra pip packages: $extra_pip_packages"
+          fi
+          if [ -n "$wheelhouse_host_dir" ]; then
+            echo "With wheelhouse host directory: $wheelhouse_host_dir"
+          fi
+          if [ -n "$wheelhouse_packages" ]; then
+            echo "With wheelhouse packages: $wheelhouse_packages"
           fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
@@ -291,6 +306,31 @@ runs:
             echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
           fi
 
+          if [ -n "$wheelhouse_host_dir" ]; then
+            if [ -z "$wheelhouse_packages" ]; then
+              echo "::error::wheelhouse-host-dir was provided but wheelhouse-packages is empty"
+              return 1
+            fi
+            if [ ! -d "${wheelhouse_host_dir}/wheelhouse" ]; then
+              echo "::error::wheelhouse directory not found: ${wheelhouse_host_dir}/wheelhouse"
+              return 1
+            fi
+            if [ ! -f "${wheelhouse_host_dir}/manifest.json" ]; then
+              echo "::error::wheelhouse manifest not found: ${wheelhouse_host_dir}/manifest.json"
+              return 1
+            fi
+
+            export TEST_WHEELHOUSE_PACKAGES="$wheelhouse_packages"
+            docker_volume_args="$docker_volume_args \
+              -v ${wheelhouse_host_dir}/wheelhouse:/tmp/ovphysx-wheelhouse:ro \
+              -v ${wheelhouse_host_dir}/manifest.json:/tmp/ovphysx-wheelhouse-manifest.json:ro"
+            docker_env_vars="$docker_env_vars \
+              -e TEST_WHEELHOUSE_PATH=/tmp/ovphysx-wheelhouse \
+              -e TEST_WHEELHOUSE_MANIFEST=/tmp/ovphysx-wheelhouse-manifest.json \
+              -e TEST_WHEELHOUSE_PACKAGES"
+            echo "Mounting wheelhouse at /tmp/ovphysx-wheelhouse"
+          fi
+
           echo "Docker environment variables: '$docker_env_vars'"
 
           # Run tests in a detached container and follow logs.  Running detached
@@ -323,6 +363,26 @@ runs:
               # fall back to slow repeated retries.
               unset HUB__ARGS__DETECT_ONLY
               ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky \"coverage>=7.6.1\"
+              if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
+                if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+                  echo \"Wheelhouse path is missing: \${TEST_WHEELHOUSE_PATH:-}\"
+                  exit 1
+                fi
+                if [ ! -f \"\${TEST_WHEELHOUSE_MANIFEST:-}\" ]; then
+                  echo \"Wheelhouse manifest is missing: \${TEST_WHEELHOUSE_MANIFEST:-}\"
+                  exit 1
+                fi
+
+                echo \"Installing wheelhouse packages offline: \${TEST_WHEELHOUSE_PACKAGES}\"
+                ./isaaclab.sh -p -m pip uninstall -y \${TEST_WHEELHOUSE_PACKAGES} || true
+                PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --force-reinstall \${TEST_WHEELHOUSE_PACKAGES}
+
+                case \" \${TEST_WHEELHOUSE_PACKAGES} \" in
+                  *\" ovphysx \"*)
+                    ./isaaclab.sh -p -c \"import importlib.metadata,json,os,pathlib; from packaging.version import Version; manifest=json.loads(pathlib.Path(os.environ['TEST_WHEELHOUSE_MANIFEST']).read_text(encoding='utf-8')); expected=manifest.get('ovphysx_version'); actual=importlib.metadata.version('ovphysx'); print(f'Resolved ovphysx package version: {actual}'); print(f'Wheelhouse manifest ovphysx version: {expected}'); import ovphysx; runtime=getattr(ovphysx, '__version__', actual); print(f'Imported ovphysx runtime version: {runtime}'); raise SystemExit(0 if Version(actual) == Version(expected) and Version(runtime) == Version(expected) else f'ovphysx version mismatch: installed {actual}, import {runtime}, manifest {expected}')\"
+                    ;;
+                esac
+              fi
               if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
                 echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
                 ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
@@ -431,7 +491,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}"
 
     - name: Kill container on cancellation
       if: cancelled()

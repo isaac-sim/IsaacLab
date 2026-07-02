@@ -97,8 +97,8 @@ pyproject.optional-dependencies.all = [
     # RL libraries
     { "sb3" = ["stable-baselines3>=2.6", "tqdm", "rich"] },
     { "skrl" = ["skrl>=2.1.0"] },
-    { "rsl-rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
-    { "rsl_rl" = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"] },
+    { "rsl-rl" = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"] },
+    { "rsl_rl" = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"] },
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_visualizers/pyproject.toml
     # ================================================================================
@@ -112,7 +112,7 @@ pyproject.optional-dependencies.all = [
         "tqdm",
         "rich",
         "skrl>=2.1.0",
-        "rsl-rl-lib==5.0.1",
+        "rsl-rl-lib==5.4.1",
         "onnxscript>=0.5",
     ] },
 ]

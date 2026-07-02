@@ -11,72 +11,24 @@ from typing import TYPE_CHECKING
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation
-from isaaclab.renderers.renderer import Renderer
 from isaaclab.sensors import Camera, save_images_to_file
 from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.configclass import resolve_cfg_presets
 from isaaclab.utils.images import is_rgb_like, normalize_camera_image
-from isaaclab.utils.string import string_to_callable
 
 from isaaclab_tasks.core.cartpole.cartpole_direct_env import CartpoleEnv
-from isaaclab_tasks.core.cartpole.constants import (
-    CARTPOLE_DISTANT_LIGHT_COLOR,
-    CARTPOLE_DISTANT_LIGHT_INTENSITY,
-    CARTPOLE_DISTANT_LIGHT_ORIENTATION,
-)
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg
 
 
 class CartpoleCameraEnv(CartpoleEnv):
-    """Cartpole environment driven by camera observations.
-
-    Stacks frames to supply the temporal cue Newton needs when the render lacks one; see
-    :meth:`_resolve_frame_stack_default`.
-    """
+    """Cartpole environment driven by stacked camera observations."""
 
     cfg: CartpoleCameraEnvCfg
 
-    @staticmethod
-    def _resolve_frame_stack_default(camera_cfg, physics_cfg) -> int:
-        """Default frame-stack size from the backend capability classmethods.
-
-        Stack ``2`` frames when the policy needs a temporal cue to infer velocity but the
-        observation carries none -- the physics backend has no implicit damping AND the renderer
-        provides no temporal data for this data type. Otherwise ``1``. The capability lives on the
-        runtime backend classes (resolved from the cfg without building the sim):
-        :meth:`~isaaclab.physics.physics_manager.PhysicsManager.provides_implicit_damping` and
-        :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.provides_temporal_camera_data`.
-        """
-        # ``class_type`` may be a class or a ``"module:Class"`` ResolvableString.
-        class_type = getattr(physics_cfg, "class_type", None)
-        if class_type is None:
-            return 1
-        physics_manager_cls = string_to_callable(str(class_type)) if isinstance(class_type, str) else class_type
-        if physics_manager_cls.provides_implicit_damping():
-            return 1
-
-        renderer_cfg = getattr(camera_cfg, "renderer_cfg", None)
-        if renderer_cfg is None:
-            return 2
-        data_types = getattr(camera_cfg, "data_types", None) or []
-        data_type = data_types[0] if data_types else ""
-        renderer_cls = Renderer.resolve_class(renderer_cfg)
-        return 1 if renderer_cls.provides_temporal_camera_data(data_type) else 2
-
     def __init__(self, cfg: CartpoleCameraEnvCfg, render_mode: str | None = None, **kwargs):
-        # Flatten preset wrappers so the frame-stack resolution below sees concrete types.
-        # Idempotent — base ``DirectRLEnv.__init__`` calls this again with no effect.
-        resolve_cfg_presets(cfg)
-
-        frame_stack = getattr(cfg, "frame_stack", 1)
-        if frame_stack < 0:
-            frame_stack = self._resolve_frame_stack_default(cfg.tiled_camera, cfg.sim.physics)
-        elif frame_stack == 0:
-            frame_stack = 1
-        if hasattr(cfg, "frame_stack"):
-            cfg.frame_stack = frame_stack
+        frame_stack = max(1, cfg.frame_stack)
+        cfg.frame_stack = frame_stack
         if frame_stack > 1:
             single_channels = int(cfg.observation_space[0])
             cfg.observation_space = [single_channels * frame_stack, *cfg.observation_space[1:]]
@@ -112,10 +64,10 @@ class CartpoleCameraEnv(CartpoleEnv):
         self.scene.articulations["cartpole"] = self.cartpole
         self.scene.sensors["tiled_camera"] = self._tiled_camera
         # add lights
-        light_cfg = sim_utils.DistantLightCfg(
-            intensity=CARTPOLE_DISTANT_LIGHT_INTENSITY, color=CARTPOLE_DISTANT_LIGHT_COLOR
-        )
-        light_cfg.func("/World/Light", light_cfg, orientation=CARTPOLE_DISTANT_LIGHT_ORIENTATION)
+        light_cfg = sim_utils.DistantLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
+        # quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
+        light_orientation = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+        light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.tiled_camera.data_types[0]
@@ -158,7 +110,8 @@ class CartpoleCameraEnv(CartpoleEnv):
         if self.cfg.write_image_to_file:
             save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
 
-        return {"policy": obs}
+        critic_obs = super()._get_observations()["policy"]
+        return {"policy": obs, "critic": critic_obs}
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)
