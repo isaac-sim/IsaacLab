@@ -3,14 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
+    KaminoSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+)
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import make_feather_pgs_physics_cfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
 from .rough_env_cfg import G1RoughEnvCfg
@@ -33,7 +39,26 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
-    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=4, pgs_mode="matrix_free", update_mass_matrix_interval=2)
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=0.05,
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            pgs_iterations=4,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            pgs_omega=1.0,
+            dense_max_constraints=64,
+            pgs_warmstart=False,
+            pgs_mode="matrix_free",
+            mf_max_constraints=512,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
 
 
 @configclass

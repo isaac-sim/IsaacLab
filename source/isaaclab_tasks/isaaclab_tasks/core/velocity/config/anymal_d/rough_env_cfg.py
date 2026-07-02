@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -10,7 +11,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RoughPhysicsCfg,
-    make_feather_pgs_physics_cfg,
 )
 
 ##
@@ -21,7 +21,26 @@ from isaaclab_assets.robots.anymal import ANYMAL_D_CFG  # isort: skip
 
 @configclass
 class PhysicsCfg(RoughPhysicsCfg):
-    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=2, num_substeps=2)
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=0.05,
+            update_mass_matrix_interval=1,
+            enable_joint_limits=True,
+            pgs_iterations=2,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            pgs_omega=1.0,
+            dense_max_constraints=64,
+            pgs_warmstart=False,
+            pgs_mode="split",
+            mf_max_constraints=512,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=2,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
 
 
 @configclass
