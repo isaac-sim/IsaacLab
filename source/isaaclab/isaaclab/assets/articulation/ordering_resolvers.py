@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
@@ -12,6 +13,8 @@ from .ordering import ArticulationOrderingConvention, _coerce_articulation_names
 
 if TYPE_CHECKING:
     from .base_articulation import BaseArticulation
+
+logger = logging.getLogger(__name__)
 
 
 def _backend_matches_ordering_convention(
@@ -189,8 +192,33 @@ def _collect_robot_schema_relationship_names(
     robot_prim: object,
     kind: Literal["joint", "body"],
     visited_paths: set[str],
+    unresolved_targets: list[str] | None = None,
 ) -> tuple[str, ...]:
-    """Collect names from robot schema relationships, expanding nested robot targets."""
+    """Collect names from robot schema relationships, expanding nested robot targets.
+
+    An authored relationship target that cannot be resolved on the stage (for
+    example a typo'd path) is logged and skipped rather than silently dropped,
+    since an unresolvable target otherwise degrades to a generic incomplete-
+    ordering failure with no indication of which target was at fault. A target
+    that resolves to a prim path already seen in :paramref:`visited_paths`
+    raises instead of being silently deduplicated, since an authored ordering
+    should never reference the same element twice.
+
+    Args:
+        robot_prim: Prim-like object whose robot schema relationship is read.
+        kind: Element kind, either joint or body.
+        visited_paths: Resolved target prim paths seen so far in this
+            expansion, used to detect duplicate targets.
+        unresolved_targets: Optional list collecting unresolvable target path
+            strings, for diagnostics when the caller reports a failure.
+
+    Returns:
+        Names collected from the relationship, in authored order.
+
+    Raises:
+        ValueError: If a relationship target resolves to a prim path already
+            present in :paramref:`visited_paths`.
+    """
     relationship_name = _ROBOT_SCHEMA_RELATIONSHIP_NAMES[kind]
     target_paths = _get_relationship_targets(robot_prim, relationship_name)
     if not target_paths:
@@ -201,17 +229,34 @@ def _collect_robot_schema_relationship_names(
     if callable(get_stage):
         stage = get_stage()
 
+    robot_prim_path = _get_prim_path_string(robot_prim)
     names: list[str] = []
     for target_path in target_paths:
         target_prim = _get_stage_prim_at_path(stage, target_path)
         if target_prim is None:
+            target_path_string = str(target_path)
+            logger.warning(
+                "Ignoring unresolvable '%s' target '%s' authored on '%s'.",
+                relationship_name,
+                target_path_string,
+                robot_prim_path,
+            )
+            if unresolved_targets is not None:
+                unresolved_targets.append(target_path_string)
             continue
         target_prim_path = _get_prim_path_string(target_prim)
         if target_prim_path in visited_paths:
-            continue
+            raise ValueError(
+                f"Duplicate '{relationship_name}' target '{target_prim_path}' authored on '{robot_prim_path}'; "
+                "each articulation-schema target must appear exactly once."
+            )
         visited_paths.add(target_prim_path)
         if _get_relationship_targets(target_prim, relationship_name):
-            names.extend(_collect_robot_schema_relationship_names(target_prim, kind, visited_paths))
+            names.extend(
+                _collect_robot_schema_relationship_names(
+                    target_prim, kind, visited_paths, unresolved_targets=unresolved_targets
+                )
+            )
         else:
             names.append(_get_robot_schema_target_name(target_prim, kind))
     return tuple(names)
@@ -356,16 +401,48 @@ def _get_robot_schema_candidate_prims(articulation: BaseArticulation) -> tuple[o
 def _get_robot_schema_names(
     articulation: BaseArticulation,
     kind: Literal["joint", "body"],
-) -> tuple[str, ...] | None:
-    """Return complete articulation names from Isaac Sim robot schema relationships."""
-    backend_names = _get_backend_names(articulation, kind)
+) -> tuple[tuple[str, ...] | None, str]:
+    """Return complete articulation names from Isaac Sim robot schema relationships.
 
-    for candidate_prim in _get_robot_schema_candidate_prims(articulation):
-        relationship_names = _collect_robot_schema_relationship_names(candidate_prim, kind, set())
+    Args:
+        articulation: Articulation whose source USD relationships are resolved.
+        kind: Element kind, either joint or body.
+
+    Returns:
+        A tuple of the resolved names, or ``None`` when no candidate prim
+        authored a complete backend-name permutation, and a short diagnostic
+        reason describing why resolution stopped (empty when names were
+        resolved).
+    """
+    backend_names = _get_backend_names(articulation, kind)
+    relationship_name = _ROBOT_SCHEMA_RELATIONSHIP_NAMES[kind]
+
+    candidate_prims = _get_robot_schema_candidate_prims(articulation)
+    if not candidate_prims:
+        return None, "robot_schema: source asset prim is unavailable"
+
+    unresolved_targets: list[str] = []
+    best_relationship_names: tuple[str, ...] = ()
+    for candidate_prim in candidate_prims:
+        relationship_names = _collect_robot_schema_relationship_names(
+            candidate_prim, kind, set(), unresolved_targets=unresolved_targets
+        )
+        if len(relationship_names) > len(best_relationship_names):
+            best_relationship_names = relationship_names
         names = _filter_complete_backend_name_order(relationship_names, backend_names)
         if names is not None:
-            return names
-    return None
+            return names, ""
+
+    if unresolved_targets:
+        return None, (
+            f"robot_schema: {len(unresolved_targets)} relationship target(s) unresolved: "
+            f"[{', '.join(unresolved_targets)}]"
+        )
+    if not best_relationship_names:
+        return None, f"robot_schema: no '{relationship_name}' relationship authored"
+    missing = sorted(set(backend_names) - set(best_relationship_names))
+    extra = sorted(set(best_relationship_names) - set(backend_names))
+    return None, f"robot_schema: incomplete permutation (missing={missing}, extra={extra})"
 
 
 def _get_names_from_newton_usd_builder(
@@ -444,6 +521,12 @@ def _get_physx_names_from_newton_usd_builder(
     articulation: BaseArticulation,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with PhysX-style articulation names."""
+    # NOTE: "bfs" assumes Newton's breadth-first USD traversal reproduces
+    # PhysX's native articulation-view order. Unlike the MJWarp constants
+    # below, this is not coupled to isaaclab_newton's NewtonManager: a live
+    # PhysX/OVPhysX backend never goes through Newton's ModelBuilder.add_usd,
+    # so there is no analogous "active backend already matches these
+    # arguments" identity path to keep in sync.
     return _get_names_from_newton_usd_builder(
         articulation,
         joint_ordering="bfs",
@@ -455,11 +538,79 @@ def _get_mjwarp_names_from_newton_usd_builder(
     articulation: BaseArticulation,
 ) -> dict[Literal["joint", "body"], tuple[str, ...]] | None:
     """Build a lightweight Newton prototype view with MJWarp-style articulation names."""
+    # NOTE: "dfs" and bodies_follow_joint_ordering=True mirror the defaults of
+    # Newton's ModelBuilder.add_usd. isaaclab_newton's NewtonManager calls
+    # add_usd (see instantiate_builder_from_stage) without passing
+    # joint_ordering/bodies_follow_joint_ordering, so a live Newton backend's
+    # native order matches this emulation only because both sides currently
+    # rely on the same Newton library defaults. get_mjwarp_articulation_name_ordering's
+    # same-backend identity path (active backend "newton") returns that live
+    # order directly, assuming it equals what these hardcoded constants would
+    # produce. If NewtonManager ever passes explicit ordering arguments to
+    # add_usd, these constants must be updated in lockstep or MJWarp
+    # resolution will silently diverge from the live backend.
     return _get_names_from_newton_usd_builder(
         articulation,
         joint_ordering="dfs",
         bodies_follow_joint_ordering=True,
     )
+
+
+def _describe_incomplete_convention_names(
+    kind: Literal["joint", "body"],
+    names: Sequence[str] | None,
+    backend_names: Sequence[str],
+) -> str:
+    """Return a short reason a convention candidate is not a complete backend-name permutation."""
+    if names is None:
+        return f"no {kind} names were discovered"
+    missing = sorted(set(backend_names) - set(names))
+    extra = sorted(set(names) - set(backend_names))
+    return f"{kind} names are not a complete permutation (missing={missing}, extra={extra})"
+
+
+def _describe_newton_usd_builder_unavailability(articulation: BaseArticulation) -> str:
+    """Return a short reason the temporary Newton USD builder produced no articulation names.
+
+    Only re-derives the cheap early-exit checks (module availability, stage
+    availability, source-prim resolution); it never re-runs the Newton model
+    build. Never raises: an articulation missing the USD-backed contract
+    properties (for example in unit tests) falls back to a generic reason
+    instead of masking the caller's real failure.
+    """
+    cfg = getattr(articulation, "cfg", None)
+    prim_path = getattr(cfg, "prim_path", None)
+    if prim_path is None:
+        return "the Newton USD builder returned no articulation names"
+
+    try:
+        import newton  # noqa: F401, PLC0415
+
+        from pxr import UsdPhysics  # noqa: PLC0415
+
+        from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
+        from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+    except ModuleNotFoundError as exc:
+        return f"'{exc.name or 'unknown'}' module is not installed"
+
+    if get_current_stage() is None:
+        return "no current USD stage is available"
+
+    if not resolve_matching_prims_from_source(prim_path, expected_num_matches=1):
+        return f"source asset prim matching '{prim_path}' was not found"
+
+    articulation_root_prim_path = getattr(cfg, "articulation_root_prim_path", None)
+    if articulation_root_prim_path is None:
+
+        def has_articulation_root_api(prim) -> bool:
+            return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
+
+        if not resolve_matching_prims_from_source(
+            prim_path, predicate=has_articulation_root_api, expected_num_matches=1
+        ):
+            return "no prim with ArticulationRootAPI was found under the source asset"
+
+    return "the Newton USD builder returned no articulation names"
 
 
 def _resolve_articulation_convention_name_ordering(
@@ -488,11 +639,13 @@ def _resolve_articulation_convention_name_ordering(
     Raises:
         AttributeError: If required articulation contract properties are absent.
         TypeError: If convention or discovered names are malformed.
-        ValueError: If kind or convention is invalid, or a provider rejects source
-            metadata.
+        ValueError: If kind or convention is invalid, a provider rejects source
+            metadata, or an authored robot-schema relationship targets the
+            same prim more than once.
         NotImplementedError: If no supported source provides a complete ordering.
-            The message identifies the corresponding configuration field and
-            explicit-name fallback.
+            The message identifies the corresponding configuration field, the
+            explicit-name fallback, and a short reason the attempted
+            resolution strategy did not apply.
     """
     kind = _validate_ordering_kind(kind)
     parsed_convention = parse_articulation_ordering_convention(convention)
@@ -504,6 +657,7 @@ def _resolve_articulation_convention_name_ordering(
         return _get_backend_names(articulation, kind)
 
     backend_names = _get_backend_names(articulation, kind)
+    resolution_failures: list[str] = []
 
     cached_names = _get_cached_convention_names(articulation, parsed_convention, kind)
     cached_names = _get_complete_convention_names(
@@ -515,15 +669,16 @@ def _resolve_articulation_convention_name_ordering(
         return cached_names
 
     if parsed_convention is ArticulationOrderingConvention.ROBOT_SCHEMA:
-        robot_schema_names = _get_robot_schema_names(articulation, kind)
+        raw_robot_schema_names, robot_schema_failure_reason = _get_robot_schema_names(articulation, kind)
         robot_schema_names = _get_complete_convention_names(
             kind=kind,
-            names=robot_schema_names,
+            names=raw_robot_schema_names,
             backend_names=backend_names,
         )
         if robot_schema_names is not None:
             _cache_convention_names(articulation, parsed_convention, {kind: robot_schema_names})
             return robot_schema_names
+        resolution_failures.append(robot_schema_failure_reason)
 
     if parsed_convention is ArticulationOrderingConvention.PHYSX:
         physx_names = _get_physx_names_from_newton_usd_builder(articulation)
@@ -533,6 +688,11 @@ def _resolve_articulation_convention_name_ordering(
                 _cache_convention_names(articulation, parsed_convention, complete_physx_names)
             if kind in complete_physx_names:
                 return complete_physx_names[kind]
+            reason = _describe_incomplete_convention_names(kind, physx_names.get(kind), backend_names)
+            resolution_failures.append(f"physx_usd_builder: {reason}")
+        else:
+            reason = _describe_newton_usd_builder_unavailability(articulation)
+            resolution_failures.append(f"physx_usd_builder: {reason}")
 
     if parsed_convention is ArticulationOrderingConvention.MJWARP:
         mjwarp_names = _get_mjwarp_names_from_newton_usd_builder(articulation)
@@ -542,13 +702,19 @@ def _resolve_articulation_convention_name_ordering(
                 _cache_convention_names(articulation, parsed_convention, complete_mjwarp_names)
             if kind in complete_mjwarp_names:
                 return complete_mjwarp_names[kind]
+            reason = _describe_incomplete_convention_names(kind, mjwarp_names.get(kind), backend_names)
+            resolution_failures.append(f"mjwarp_usd_builder: {reason}")
+        else:
+            reason = _describe_newton_usd_builder_unavailability(articulation)
+            resolution_failures.append(f"mjwarp_usd_builder: {reason}")
 
     config_field = "joint_ordering" if kind == "joint" else "body_ordering"
+    attempted_resolutions = f" Attempted resolutions: {'; '.join(resolution_failures)}." if resolution_failures else ""
     raise NotImplementedError(
         f"Unable to resolve '{parsed_convention.value}' {kind} ordering for active backend "
         f"'{active_backend_name}'. Ensure the source USD and required ordering dependencies are available, "
         f"set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or use None to keep "
-        "active-backend order."
+        f"active-backend order.{attempted_resolutions}"
     )
 
 
@@ -577,7 +743,8 @@ def get_physx_articulation_name_ordering(
         ValueError: If kind is invalid or the builder rejects the source asset.
         NotImplementedError: If the source USD, builder dependencies, or complete
             name permutation is unavailable. The message identifies the
-            corresponding configuration field and explicit-name fallback.
+            corresponding configuration field, the explicit-name fallback, and
+            a short reason resolution did not produce a complete ordering.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -611,7 +778,8 @@ def get_mjwarp_articulation_name_ordering(
         ValueError: If kind is invalid or the builder rejects the source asset.
         NotImplementedError: If the source USD, builder dependencies, or complete
             name permutation is unavailable. The message identifies the
-            corresponding configuration field and explicit-name fallback.
+            corresponding configuration field, the explicit-name fallback, and
+            a short reason resolution did not produce a complete ordering.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
@@ -628,9 +796,10 @@ def get_robot_schema_articulation_name_ordering(
 
     The source asset prim or configured articulation-root prim must author
     robotJoints for joints or robotLinks for bodies. Nested robot targets are
-    expanded, name overrides are honored, unrelated targets are ignored, and the
-    remaining names must be a complete unique permutation of active-backend
-    names. A successful result is cached for the requested element kind.
+    expanded, name overrides are honored, unresolvable targets are logged and
+    skipped, and the remaining names must be a complete unique permutation of
+    active-backend names. A successful result is cached for the requested
+    element kind.
 
     The result defines the public axis only; backend views remain in native order.
 
@@ -643,11 +812,13 @@ def get_robot_schema_articulation_name_ordering(
 
     Raises:
         TypeError: If backend names are not a sequence of strings.
-        ValueError: If kind is invalid or USD resolution rejects the source
-            metadata.
+        ValueError: If kind is invalid, USD resolution rejects the source
+            metadata, or a robot-schema relationship targets the same prim
+            more than once.
         NotImplementedError: If the required relationships are unavailable or
             incomplete. The message identifies the corresponding configuration
-            field and explicit-name fallback.
+            field, the explicit-name fallback, and a short reason resolution
+            did not produce a complete ordering.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,

@@ -1235,6 +1235,16 @@ class NewtonManager(PhysicsManager):
 
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
+        # NOTE: None of the add_usd calls below pass joint_ordering or
+        # bodies_follow_joint_ordering, so the live articulation's native
+        # joint/body order comes from Newton's ModelBuilder.add_usd defaults
+        # (joint_ordering="dfs", bodies_follow_joint_ordering=True).
+        # isaaclab.assets.articulation.ordering_resolvers hardcodes matching
+        # constants to emulate that same order for cross-backend name
+        # resolution (see _get_mjwarp_names_from_newton_usd_builder). If
+        # ordering arguments are ever passed here, update the resolver
+        # constants in lockstep or MJWarp resolution will silently diverge
+        # from the live backend.
         if not env_paths:
             # No env Xforms — flat loading
             builder.add_usd(stage, schema_resolvers=schema_resolvers)

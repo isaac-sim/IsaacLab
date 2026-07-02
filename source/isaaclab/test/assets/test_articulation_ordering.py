@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import logging
 import subprocess
 import sys
 import textwrap
@@ -564,6 +565,129 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
     assert "active backend 'physx'" in message
     assert f"env.scene.robot.{config_field}" in message
     assert f"explicit {kind}-name permutation" in message
+    assert "mjwarp_usd_builder: the Newton USD builder returned no articulation names" in message
+
+
+def test_mjwarp_ordering_helper_reports_incomplete_usd_builder_names_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Name the missing/extra backend names when the temporary builder view is incomplete."""
+
+    class _Articulation:
+        __backend_name__ = "physx"
+        backend_joint_names = ("hip", "knee")
+        backend_body_names = ("base", "foot")
+
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_mjwarp_names_from_newton_usd_builder",
+        lambda _: {"joint": ("hip",), "body": ("base", "foot")},
+    )
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint")
+
+    message = str(exc_info.value)
+    assert "mjwarp_usd_builder: joint names are not a complete permutation" in message
+    assert "missing=['knee']" in message
+    assert "extra=[]" in message
+
+
+def test_mjwarp_ordering_helper_surfaces_specific_usd_builder_unavailability_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Forward the specific unavailability reason instead of a generic one when known."""
+
+    class _Articulation:
+        __backend_name__ = "physx"
+        backend_joint_names = ("hip", "knee")
+        backend_body_names = ("base", "foot")
+
+    monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", lambda _: None)
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_describe_newton_usd_builder_unavailability",
+        lambda _: "no current USD stage is available",
+    )
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint")
+
+    assert "mjwarp_usd_builder: no current USD stage is available" in str(exc_info.value)
+
+
+def test_describe_newton_usd_builder_unavailability_falls_back_without_cfg() -> None:
+    """Return a generic reason instead of raising when the articulation has no cfg."""
+
+    class _Articulation:
+        pass
+
+    reason = ordering_resolvers._describe_newton_usd_builder_unavailability(_Articulation())
+
+    assert reason == "the Newton USD builder returned no articulation names"
+
+
+def test_describe_newton_usd_builder_unavailability_reports_missing_stage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Identify a missing current USD stage as the reason resolution could not proceed."""
+
+    class _UsdPhysics:
+        class ArticulationRootAPI:
+            pass
+
+    pxr_mod = types.ModuleType("pxr")
+    pxr_mod.UsdPhysics = _UsdPhysics
+    stage_mod = types.ModuleType("isaaclab.sim.utils.stage")
+    stage_mod.get_current_stage = lambda: None
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = lambda *args, **kwargs: pytest.fail(
+        "must not resolve prims when the stage is unavailable"
+    )
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
+    monkeypatch.setitem(sys.modules, "pxr", pxr_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.stage", stage_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+    class _Articulation:
+        cfg = types.SimpleNamespace(prim_path="/World/Robot", articulation_root_prim_path=None)
+
+    reason = ordering_resolvers._describe_newton_usd_builder_unavailability(_Articulation())
+
+    assert reason == "no current USD stage is available"
+
+
+def test_describe_newton_usd_builder_unavailability_reports_missing_source_asset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Identify a missing source asset prim as the reason resolution could not proceed."""
+
+    class _UsdPhysics:
+        class ArticulationRootAPI:
+            pass
+
+    class _Stage:
+        pass
+
+    pxr_mod = types.ModuleType("pxr")
+    pxr_mod.UsdPhysics = _UsdPhysics
+    stage_mod = types.ModuleType("isaaclab.sim.utils.stage")
+    stage_mod.get_current_stage = lambda: _Stage()
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = lambda *args, **kwargs: []
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
+    monkeypatch.setitem(sys.modules, "pxr", pxr_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.stage", stage_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+    class _Articulation:
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+
+    reason = ordering_resolvers._describe_newton_usd_builder_unavailability(_Articulation())
+
+    assert reason == "source asset prim matching '/World/envs/env_.*/Robot' was not found"
 
 
 def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -794,7 +918,191 @@ def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypat
         def backend_joint_names(self) -> list[str]:
             return ["joint_a", "joint_b", "joint_c"]
 
-    with pytest.raises(NotImplementedError, match="Unable to resolve 'robot_schema' joint ordering"):
+    with pytest.raises(NotImplementedError) as exc_info:
+        get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
+
+    message = str(exc_info.value)
+    assert "Unable to resolve 'robot_schema' joint ordering" in message
+    assert "robot_schema: incomplete permutation (missing=['joint_c'], extra=[])" in message
+
+
+def test_robot_schema_ordering_helper_reports_unresolvable_relationship_target(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Name the unresolvable target in both the warning log and the terminal failure message."""
+
+    class _Path:
+        def __init__(self, value: str):
+            self.pathString = value
+
+        def __str__(self) -> str:
+            return self.pathString
+
+    class _Relationship:
+        def __init__(self, targets: list[str]):
+            self._targets = [_Path(target) for target in targets]
+
+        def GetTargets(self):
+            return self._targets
+
+    class _Prim:
+        def __init__(self, path: str, relationships: dict[str, _Relationship] | None = None):
+            self._path = _Path(path)
+            self._relationships = relationships or {}
+            self._stage = None
+
+        def GetPath(self):
+            return self._path
+
+        def GetName(self) -> str:
+            return str(self._path).rsplit("/", maxsplit=1)[-1]
+
+        def GetAttribute(self, name: str):
+            return None
+
+        def GetRelationship(self, name: str):
+            return self._relationships.get(name)
+
+        def GetStage(self):
+            return self._stage
+
+        def IsValid(self) -> bool:
+            return True
+
+    class _Stage:
+        def __init__(self, prims: list[_Prim]):
+            self._prims = {str(prim.GetPath()): prim for prim in prims}
+            for prim in prims:
+                prim._stage = self
+
+        def GetPrimAtPath(self, path):
+            return self._prims.get(str(path))
+
+    unresolved_target_path = "/World/envs/env_0/Robot/joint_typo"
+    robot_prim = _Prim(
+        "/World/envs/env_0/Robot",
+        relationships={
+            "isaac:physics:robotJoints": _Relationship(
+                [
+                    "/World/envs/env_0/Robot/joint_a",
+                    unresolved_target_path,
+                ]
+            )
+        },
+    )
+    _Stage([robot_prim, _Prim("/World/envs/env_0/Robot/joint_a")])
+
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        return [(robot_prim, "/World/envs/env_.*/Robot")]
+
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+    class _Articulation:
+        __backend_name__ = "newton"
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+
+        @property
+        def backend_joint_names(self) -> list[str]:
+            # A second backend joint name that the single resolvable target cannot cover, so
+            # resolution falls through to the terminal failure instead of an incomplete-but-silent
+            # success.
+            return ["joint_a", "joint_b"]
+
+    caplog.set_level(logging.WARNING, logger="isaaclab.assets.articulation.ordering_resolvers")
+
+    with pytest.raises(NotImplementedError) as exc_info:
+        get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
+
+    message = str(exc_info.value)
+    assert unresolved_target_path in message
+    assert any(unresolved_target_path in record.message for record in caplog.records)
+
+
+def test_robot_schema_ordering_helper_rejects_duplicate_relationship_targets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Raise instead of silently deduplicating a relationship target authored twice."""
+
+    class _Path:
+        def __init__(self, value: str):
+            self.pathString = value
+
+        def __str__(self) -> str:
+            return self.pathString
+
+    class _Relationship:
+        def __init__(self, targets: list[str]):
+            self._targets = [_Path(target) for target in targets]
+
+        def GetTargets(self):
+            return self._targets
+
+    class _Prim:
+        def __init__(self, path: str, relationships: dict[str, _Relationship] | None = None):
+            self._path = _Path(path)
+            self._relationships = relationships or {}
+            self._stage = None
+
+        def GetPath(self):
+            return self._path
+
+        def GetName(self) -> str:
+            return str(self._path).rsplit("/", maxsplit=1)[-1]
+
+        def GetAttribute(self, name: str):
+            return None
+
+        def GetRelationship(self, name: str):
+            return self._relationships.get(name)
+
+        def GetStage(self):
+            return self._stage
+
+        def IsValid(self) -> bool:
+            return True
+
+    class _Stage:
+        def __init__(self, prims: list[_Prim]):
+            self._prims = {str(prim.GetPath()): prim for prim in prims}
+            for prim in prims:
+                prim._stage = self
+
+        def GetPrimAtPath(self, path):
+            return self._prims.get(str(path))
+
+    duplicated_target_path = "/World/envs/env_0/Robot/joint_a"
+    robot_prim = _Prim(
+        "/World/envs/env_0/Robot",
+        relationships={"isaac:physics:robotJoints": _Relationship([duplicated_target_path, duplicated_target_path])},
+    )
+    _Stage([robot_prim, _Prim(duplicated_target_path)])
+
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        return [(robot_prim, "/World/envs/env_.*/Robot")]
+
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+    class _Articulation:
+        __backend_name__ = "newton"
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+
+        @property
+        def backend_joint_names(self) -> list[str]:
+            return ["joint_a", "joint_b"]
+
+    with pytest.raises(ValueError, match=f"Duplicate .* target '{duplicated_target_path}'"):
         get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
 
 

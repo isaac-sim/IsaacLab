@@ -19,6 +19,7 @@ simulation_app = AppLauncher(headless=True).app
 
 import sys
 from copy import copy, deepcopy
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
@@ -30,6 +31,7 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton.solvers import SolverNotifyFlags
 
+import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -553,17 +555,62 @@ def sim(request):
         yield sim
 
 
-@pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["single_joint_explicit"])
-def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, num_articulations, device, articulation_type):
-    """Test that the MJWarp ordering resolver matches live Newton articulation names."""
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, gravity_enabled, articulation_type):
+    """Compare the resolver's emulated MJWarp ordering against the live Newton backend view.
+
+    The articulation below is already native to the Newton backend, so
+    :func:`~isaaclab.assets.articulation.ordering_resolvers.get_mjwarp_articulation_name_ordering`
+    takes the same-backend identity fast path and never exercises the
+    temporary Newton USD builder used for cross-backend discovery (the path a
+    PhysX-backed articulation would take). That fast path is checked below,
+    but it is not sufficient by itself: it would pass even if the emulation's
+    BFS/DFS traversal had silently diverged from the live backend. To close
+    that gap, this test also calls the private builder helper directly —
+    forcing the temporary-builder emulation to run — and compares its output
+    against the live backend view. A branching (non-single-joint) fixture is
+    required for this comparison to be meaningful, since BFS and DFS produce
+    the same order on a single-joint chain.
+    """
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "isaaclab_physx"
+        / "test"
+        / "assets"
+        / "data"
+        / "articulation_ordering_branching.usda"
+    )
+    articulation = Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
+            actuators={},
+        )
+    )
 
     sim.reset()
-
     assert articulation.is_initialized
+
+    # Newton's native traversal is depth-first (see NewtonManager.instantiate_builder_from_stage),
+    # so the live backend view already reflects MJWarp order on this branching fixture. These
+    # values are the same ground truth isaaclab_physx's own
+    # test_branching_fixture_resolves_distinct_conventions asserts for expected_mjwarp_*_names.
+    expected_mjwarp_joint_names = ("left_shoulder", "left_elbow", "right_shoulder", "right_elbow")
+    expected_mjwarp_body_names = ("base", "left_upper", "left_tip", "right_upper", "right_tip")
+    assert tuple(articulation.backend_joint_names) == expected_mjwarp_joint_names
+    assert tuple(articulation.backend_body_names) == expected_mjwarp_body_names
+
+    # Force the cross-backend emulation path (bypassing the same-backend identity fast path) and
+    # compare its independently rebuilt Newton view against the live backend view above. A
+    # BFS/DFS regression in the emulation would fail this even though the fixture is small.
+    emulated_names = ordering_resolvers._get_mjwarp_names_from_newton_usd_builder(articulation)
+    assert emulated_names is not None
+    assert emulated_names["joint"] == tuple(articulation.backend_joint_names)
+    assert emulated_names["body"] == tuple(articulation.backend_body_names)
+
+    # The public resolver still returns live names without discovery for a same-backend request.
     assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
     assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
 
