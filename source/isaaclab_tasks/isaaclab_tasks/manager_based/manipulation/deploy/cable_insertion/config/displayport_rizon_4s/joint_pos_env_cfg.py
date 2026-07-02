@@ -25,6 +25,9 @@ from isaaclab.utils import configclass
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
 import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as cable_terminations
 from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.displayport_insertion_env_cfg import (
+    PLUG_GOAL_ROT,
+    PLUG_INSERTION_OFFSET,
+    SOCKET_INSERTION_OFFSET,
     DisplayportInsertionEnvCfg,
     compute_plug_pose,
     compute_socket_root,
@@ -49,6 +52,11 @@ _SOCKET_ROOT = compute_socket_root(_GEOMETRY_POS, _SOCKET_ROT)
 _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
     _GEOMETRY_POS, _SOCKET_ROT, z_clearance=_PLUG_CLEARANCE_Z,
 )
+
+# DisplayPort plug insertion length (blade engagement along the insertion axis)
+# used by the at-goal curriculum. ~11 mm of blade nests in the socket cavity at
+# the verified seated pose. Kept identical to the task-space env.
+_INSERTION_LENGTH = 0.011
 
 # ---------------------------------------------------------------------------
 # Sim-to-real action model toggle (ported from IsaacLab_ashwin gear-assembly
@@ -225,23 +233,61 @@ class EventCfg:
         },
     )
 
-    randomize_plug_pose = EventTerm(
-        func=mdp.reset_root_state_uniform,
+    # Disabled: plain uniform plug randomization. Superseded by the at-goal
+    # curriculum below (re-enable this and comment out reset_plug_curriculum to
+    # revert to simple uniform plug randomization).
+    # randomize_plug_pose = EventTerm(
+    #     func=mdp.reset_root_state_uniform,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {
+    #             "x": [-0.02, 0.02],
+    #             "y": [-0.02, 0.02],
+    #             "z": [-0.01, 0.01],
+    #             "roll": [0.0, 0.0],
+    #             "pitch": [0.0, 0.0],
+    #             "yaw": [0.0, 0.0],
+    #         },
+    #         "velocity_range": {},
+    #         "asset_cfg": SceneEntityCfg("dp_plug"),
+    #     },
+    # )
+
+    # 80% at-goal curriculum (mirrors IsaacLab_UR gb300, osmo at_goal_prob=0.8).
+    # Identical to the task-space env: IsaacLab_UR applies this curriculum
+    # regardless of control space (it lives in the object reset, not the
+    # controller). A fraction `at_goal_prob` of envs spawn the plug already
+    # inserted at a random depth (0 -> insertion_length) with goal orientation;
+    # the rest get uniform approach-pose randomization via `normal_pose_range`.
+    #
+    # at_goal_prob is annealed linearly from `at_goal_prob` (start) down to
+    # `at_goal_prob_final` between iterations `anneal_start_iter` and
+    # `anneal_end_iter`. Iterations are derived from the env step counter via
+    # `num_steps_per_env` (must match the agent cfg). Set `at_goal_prob_final=None`
+    # to disable annealing (constant at_goal_prob).
+    reset_plug_curriculum = EventTerm(
+        func=mdp.reset_plug_at_goal_curriculum,
         mode="reset",
         params={
-            "pose_range": {
+            "plug_cfg": SceneEntityCfg("dp_plug"),
+            "socket_cfg": SceneEntityCfg("dp_socket"),
+            "at_goal_prob": 0.8,
+            "at_goal_prob_final": 0.2,
+            "anneal_start_iter": 0.0,
+            "anneal_end_iter": 1000.0,
+            "num_steps_per_env": 512,
+            "insertion_axis": [1.0, 0.0, 0.0],
+            "insertion_length": _INSERTION_LENGTH,
+            "socket_insertion_offset": SOCKET_INSERTION_OFFSET,
+            "plug_insertion_offset": PLUG_INSERTION_OFFSET,
+            "goal_rot": list(PLUG_GOAL_ROT),
+            # Non-at-goal approach randomization. Matches gb300's
+            # held_asset_init_pos_range = [0.02, 0.02, 0.01] (x, y, z) [m].
+            "normal_pose_range": {
                 "x": [-0.02, 0.02],
                 "y": [-0.02, 0.02],
                 "z": [-0.01, 0.01],
-                # "x": [-0.0, 0.0],
-                # "y": [-0.0, 0.0],
-                # "z": [-0.0, 0.0],
-                "roll": [0.0, 0.0],
-                "pitch": [0.0, 0.0],
-                "yaw": [0.0, 0.0],
             },
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("dp_plug"),
         },
     )
 
