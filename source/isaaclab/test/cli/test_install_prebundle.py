@@ -145,3 +145,16 @@ class TestPrebundleSymlinkIntegrity:
             before = _find_dangling_prebundle_symlinks()
             (core / "six.py").unlink()
             _assert_no_new_dangling_prebundle_symlinks(before)
+
+    def test_non_package_dangles_warn_but_pass(self, tmp_path):
+        """Routine residue (dangling non-__init__ files) warns without failing.
+
+        Every docker build leaves a few dozen dangling links to files Python
+        never imports at startup (test modules, WHEEL/license files, cmake
+        hooks); those must not abort the install.
+        """
+        core, services = self._make_prebundles(tmp_path)
+        (services / "WHEEL").symlink_to(core / "gone-WHEEL")
+        (services / "test_module.py").symlink_to(core / "gone-test.py")
+        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={core, services}):
+            _assert_no_new_dangling_prebundle_symlinks(set())

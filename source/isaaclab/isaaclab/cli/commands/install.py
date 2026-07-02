@@ -826,35 +826,46 @@ def _find_dangling_prebundle_symlinks() -> set[Path]:
 
 
 def _assert_no_new_dangling_prebundle_symlinks(before: set[Path]) -> None:
-    """Raise when the installation left new dangling symlinks in Isaac Sim prebundles.
+    """Fail when the installation broke a prebundled package's symlinked ``__init__.py``.
 
     A new dangling symlink means a pip operation deleted a prebundled package
     that other extensions reference through Isaac Sim's symlink farms — the
     failure mode behind the ``packaging`` removal cascade in nvbugs 6343978
-    (14 extensions failing to start). Pre-existing dangling links are tolerated;
-    only links broken by this installation fail it.
+    (14 extensions failing to start). Routine pip replacements do leave a few
+    dozen dangling links to files Python never imports at startup (test modules,
+    ``WHEEL``/license files, cmake hooks), so only a dangling ``__init__.py`` —
+    which makes the whole package unimportable — fails the install; other new
+    dangling links are reported as warnings.
 
     Args:
         before: Dangling symlinks from :func:`_find_dangling_prebundle_symlinks`,
             collected before the pip operations.
 
     Raises:
-        RuntimeError: If the installation introduced new dangling symlinks.
+        RuntimeError: If the installation left a prebundled package with a
+            dangling ``__init__.py``.
     """
     introduced = sorted(_find_dangling_prebundle_symlinks() - before)
-    if introduced:
-        shown = "\n  ".join(str(p) for p in introduced[:20])
-        extra = f"\n  ... and {len(introduced) - 20} more" if len(introduced) > 20 else ""
+    if not introduced:
+        return
+    broken_packages = [p for p in introduced if p.name == "__init__.py"]
+    if broken_packages:
+        shown = "\n  ".join(str(p) for p in broken_packages)
         raise RuntimeError(
-            f"Installation left {len(introduced)} dangling symlink(s) in Isaac Sim prebundles:\n  "
+            f"Installation broke {len(broken_packages)} prebundled package(s) in Isaac Sim"
+            f" (dangling __init__.py, {len(introduced)} new dangling symlink(s) total):\n  "
             + shown
-            + extra
             + "\nA pip operation deleted a prebundled package that other Isaac Sim extensions share"
             " via symlinks; extensions will fail to start at runtime (see nvbugs 6343978). This"
             " usually means a dependency pin forced pip to downgrade/replace the prebundled copy —"
             " fix that pin instead of shipping a broken prebundle, and restore the Isaac Sim"
             " installation before retrying."
         )
+    print_warning(
+        f"Installation left {len(introduced)} new dangling symlink(s) in Isaac Sim prebundles"
+        " (no package __init__.py affected — extensions should still start). First few: "
+        + ", ".join(str(p) for p in introduced[:5])
+    )
 
 
 def _repoint_prebundle_packages() -> None:
