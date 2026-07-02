@@ -60,6 +60,39 @@ def test_capture_versions_renames_and_defaults():
     assert v.isaacsim is None
 
 
+def test_capture_versions_preserves_runtime_packages():
+    md = [
+        StringMetadata(name="numpy_version", data="2.4.4"),
+        StringMetadata(name="isaaclab_newton_version", data="1.0.2"),
+        StringMetadata(name="isaaclab_physx_version", data="2.0.1"),
+        StringMetadata(name="isaaclab_ov_version", data="0.4.6"),
+        StringMetadata(name="isaaclab_tasks_version", data="8.0.1"),
+        StringMetadata(name="isaaclab_rl_version", data="0.6.1"),
+        StringMetadata(name="ovrtx_version", data=None),
+        StringMetadata(name="ovphysx_version", data="3.0.5"),
+        StringMetadata(name="mujoco_version", data="3.8.1"),
+        StringMetadata(name="cuda_bindings_version", data="12.9.4"),
+        StringMetadata(name="usd_core_version", data="25.11"),
+        StringMetadata(name="isaaclab_release_version", data="3.0.0"),
+    ]
+    bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
+
+    versions = capture_versions(bm)
+
+    assert versions.numpy == "2.4.4"
+    assert versions.isaaclab_newton == "1.0.2"
+    assert versions.isaaclab_physx == "2.0.1"
+    assert versions.isaaclab_ov == "0.4.6"
+    assert versions.isaaclab_tasks == "8.0.1"
+    assert versions.isaaclab_rl == "0.6.1"
+    assert versions.ovrtx is None
+    assert versions.ovphysx == "3.0.5"
+    assert versions.mujoco == "3.8.1"
+    assert versions.cuda_bindings == "12.9.4"
+    assert versions.usd_core == "25.11"
+    assert versions.isaaclab_release == "3.0.0"
+
+
 def test_capture_resources_peaks():
     gpu = _Rec(
         MeasurementData(

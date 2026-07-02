@@ -159,6 +159,18 @@ def capture_versions(bm: Any) -> Versions:
         git_commit=dev.get("commit_hash"),
         git_branch=dev.get("branch"),
         git_dirty=dev.get("dirty", False),
+        numpy=md.get("numpy_version"),
+        isaaclab_newton=md.get("isaaclab_newton_version"),
+        isaaclab_physx=md.get("isaaclab_physx_version"),
+        isaaclab_ov=md.get("isaaclab_ov_version"),
+        isaaclab_tasks=md.get("isaaclab_tasks_version"),
+        isaaclab_rl=md.get("isaaclab_rl_version"),
+        ovrtx=md.get("ovrtx_version"),
+        ovphysx=md.get("ovphysx_version"),
+        mujoco=md.get("mujoco_version"),
+        cuda_bindings=md.get("cuda_bindings_version"),
+        usd_core=md.get("usd_core_version"),
+        isaaclab_release=md.get("isaaclab_release_version"),
     )
 
 

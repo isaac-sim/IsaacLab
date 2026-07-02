@@ -10,6 +10,9 @@ Added
   :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`, and taught
   ``BaseIsaacLabBenchmark`` to emit several formatters in one run from a
   comma-separated formatter selection and a new ``attach_bundle`` hook.
+* Added runtime and package version metadata to schema benchmark bundles,
+  including IsaacLab extensions, OVRTX, OVPhysX, MuJoCo, CUDA bindings, and
+  USD Core.
 
 Changed
 ^^^^^^^
