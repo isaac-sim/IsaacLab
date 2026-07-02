@@ -641,7 +641,7 @@ def validate_camera_outputs(
             "img_golden_path": None,
         }
 
-        if not succeeded:
+        if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
             entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
             entry["img_golden_path"] = _save_comparison_image(golden_image, f"{prefix}-golden.png")
