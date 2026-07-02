@@ -1980,18 +1980,17 @@ class ArticulationData(BaseArticulationData):
                 self._joint_vel_backend = TimestampedBuffer(
                     (self._num_instances, self._num_joints), self.device, wp.float32
                 )
-            if self._joint_stiffness_backend is None:
-                self._joint_stiffness_backend = wp.clone(self._joint_stiffness, device=self.device)
-            if self._joint_damping_backend is None:
-                self._joint_damping_backend = wp.clone(self._joint_damping, device=self.device)
-            if self._joint_armature_backend is None:
-                self._joint_armature_backend = wp.clone(self._joint_armature, device=self.device)
-            if self._joint_pos_limits_backend is None:
-                self._joint_pos_limits_backend = wp.clone(self._joint_pos_limits, device=self.device)
-            if self._joint_vel_limits_backend is None:
-                self._joint_vel_limits_backend = wp.clone(self._joint_vel_limits, device=self.device)
-            if self._joint_effort_limits_backend is None:
-                self._joint_effort_limits_backend = wp.clone(self._joint_effort_limits, device=self.device)
+            joint_property_specs = (
+                ("_joint_stiffness_backend", self._joint_stiffness),
+                ("_joint_damping_backend", self._joint_damping),
+                ("_joint_armature_backend", self._joint_armature),
+                ("_joint_pos_limits_backend", self._joint_pos_limits),
+                ("_joint_vel_limits_backend", self._joint_vel_limits),
+                ("_joint_effort_limits_backend", self._joint_effort_limits),
+            )
+            for backend_name, user_buffer in joint_property_specs:
+                if getattr(self, backend_name) is None:
+                    setattr(self, backend_name, wp.clone(user_buffer, device=self.device))
             if self._joint_friction_props_user is None:
                 self._joint_friction_props_user = wp.zeros(
                     (self._num_instances, self._num_joints, 3), dtype=wp.float32, device=self.device
@@ -2021,18 +2020,11 @@ class ArticulationData(BaseArticulationData):
                 outputs=[self._previous_joint_vel],
                 device=self.device,
             )
-            for backend_buffer, user_buffer in (
-                (self._joint_stiffness_backend, self._joint_stiffness),
-                (self._joint_damping_backend, self._joint_damping),
-                (self._joint_armature_backend, self._joint_armature),
-                (self._joint_pos_limits_backend, self._joint_pos_limits),
-                (self._joint_vel_limits_backend, self._joint_vel_limits),
-                (self._joint_effort_limits_backend, self._joint_effort_limits),
-            ):
+            for backend_name, user_buffer in joint_property_specs:
                 wp.launch(
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_joints),
-                    inputs=[backend_buffer, self._joint_user_to_backend],
+                    inputs=[getattr(self, backend_name), self._joint_user_to_backend],
                     outputs=[user_buffer],
                     device=self.device,
                 )
