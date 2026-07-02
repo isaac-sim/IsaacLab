@@ -806,6 +806,7 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
+        self._ensure_fk_fresh()
         # ovphysx ROOT_VELOCITY is COM velocity; link velocity comes from the first
         # element of the backend-order per-link velocity tensor.
         if self._has_body_ordering:

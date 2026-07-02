@@ -2158,6 +2158,51 @@ def test_body_com_pose_b_cache_and_set_coms_invalidation(sim, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(sim, device):
+    """Reading ``root_link_vel_w`` must run FK before ``body_com_vel_w`` sees a "fresh" buffer.
+
+    Regression test for a bug where ``root_link_vel_w`` read the ``LINK_VELOCITY`` binding without
+    first calling ``_ensure_fk_fresh()``, unlike the sibling ``body_com_vel_w`` / ``body_link_pose_w``
+    getters. ``_read_binding_into_buf`` stamps a buffer's timestamp as fresh unconditionally, so a
+    ``root_link_vel_w`` read performed right after ``write_joint_velocity_to_sim_index`` (which sets
+    ``_fk_timestamp = -1.0`` to force a refresh) would mark the shared velocity buffer fresh *before*
+    FK actually ran. A subsequent ``body_com_vel_w`` read then sees the buffer already fresh and skips
+    its own re-read, silently returning pre-FK data.
+
+    The OVPhysX kitless backend recomputes ``LINK_VELOCITY`` eagerly on every attribute read
+    regardless of whether ``update_articulations_kinematic`` was called, so comparing the numeric
+    value of ``body_com_vel_w`` before and after the fix would pass either way here. The invariant
+    that actually catches the bug is that ``_fk_timestamp`` must be current by the time
+    ``root_link_vel_w`` finishes reading, so every dependent buffer it marks fresh is trustworthy.
+    """
+    sim._app_control_on_stop_handle = None
+    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
+    articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
+
+    sim.reset()
+    articulation.update(sim.cfg.dt)
+
+    # Prime the derived buffers before the write so their TimestampedBuffers are populated; otherwise
+    # the reads below would trivially be "first reads" regardless of the cache-invalidation bug.
+    articulation.data.root_link_vel_w
+    articulation.data.body_com_vel_w
+
+    joint_vel = torch.full((2, articulation.num_joints), 3.0, device=device)
+    articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
+
+    # The velocity write forces a kinematic refresh on the next FK-dependent read.
+    assert articulation.data._fk_timestamp < 0.0
+
+    articulation.data.root_link_vel_w
+    # `root_link_vel_w` must have triggered the FK refresh itself -- it cannot rely on a later
+    # `body_com_vel_w` read to do so, because it already marks the shared velocity buffer fresh.
+    assert articulation.data._fk_timestamp == articulation.data._sim_timestamp
+
+    body_com_vel_w = articulation.data.body_com_vel_w.torch
+    assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_setting_articulation_root_prim_path(sim, device):
     """Test that the articulation root prim path can be set explicitly."""
     sim._app_control_on_stop_handle = None
