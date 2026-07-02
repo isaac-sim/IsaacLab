@@ -105,7 +105,7 @@ class PhysicsManager(ABC):
 
         Authors a world<->root fixed joint that pins the articulation base at its current world pose.
         The base implementation authors a backend-neutral ``UsdPhysics.FixedJoint`` (via
-        :func:`~isaaclab.sim.schemas.create_fixed_root_joint`) and returns ``articulation_prim``
+        :func:`~isaaclab.sim.utils.create_fixed_root_joint`) and returns ``articulation_prim``
         unchanged -- sufficient for backends whose parser reads a fixed joint on the root directly
         (e.g. Newton). Backends whose parser does not treat a fixed joint on a rigid body as a
         fixed-base articulation (e.g. PhysX) override this to relocate the articulation root and
@@ -129,7 +129,7 @@ class PhysicsManager(ABC):
                 cannot be determined to anchor the fixed joint.
         """
 
-        from isaaclab.sim.schemas import create_fixed_root_joint  # noqa: PLC0415
+        from isaaclab.sim.utils import create_fixed_root_joint  # noqa: PLC0415
 
         cls._require_rigid_body_root(articulation_prim)
         create_fixed_root_joint(articulation_prim, stage)

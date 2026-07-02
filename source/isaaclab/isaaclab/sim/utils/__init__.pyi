@@ -13,6 +13,7 @@ __all__ = [
     "define_prim",
     "get_prim_type_name",
     "get_next_free_path",
+    "create_fixed_root_joint",
     "create_prim",
     "delete_prim",
     "make_uninstanceable",
@@ -73,6 +74,7 @@ from .legacy import (
     get_next_free_path,
 )
 from .prims import (
+    create_fixed_root_joint,
     create_prim,
     delete_prim,
     make_uninstanceable,

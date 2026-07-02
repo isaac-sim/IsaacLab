@@ -186,6 +186,60 @@ def create_prim(
     return prim
 
 
+def create_fixed_root_joint(articulation_prim, stage: Usd.Stage | None = None):
+    """Author a world<->prim ``UsdPhysics.FixedJoint`` that pins a prim at its current world pose.
+
+    Backend-neutral USD authoring with no Kit/``omni`` dependency: it mirrors the fixed, world-anchored
+    joint produced by Kit's ``omni.physx`` ``createJoint`` helper -- ``body0`` is left empty (the world
+    frame), ``body1`` targets the prim, and the joint's world-side local frame is set to the prim's
+    current world transform so the constraint pins the body where it is (otherwise it would be pinned to
+    the world origin). The joint prim is created under the first writable (non-instanced) ancestor.
+
+    Args:
+        articulation_prim: The prim to fix to the world frame.
+        stage: The stage the prim lives on. Defaults to None, in which case the current stage is used.
+
+    Returns:
+        The created ``UsdPhysics.FixedJoint`` prim.
+    """
+    from pxr import Gf, UsdGeom, UsdPhysics
+
+    if stage is None:
+        stage = get_current_stage()
+
+    # host the joint under the first writable ancestor (an instanced/prototype prim is not writable)
+    base_prim = articulation_prim
+    while base_prim != stage.GetPseudoRoot():
+        if base_prim.IsInPrototype() or base_prim.IsInstanceProxy() or base_prim.IsInstanceable():
+            base_prim = base_prim.GetParent()
+        else:
+            break
+    base_path = str(base_prim.GetPrimPath())
+    if base_path == "/":
+        base_path = ""
+    # pick a unique child name so repeated calls do not collide
+    name = "FixedJoint"
+    if stage.GetPrimAtPath(f"{base_path}/{name}").IsValid():
+        index = 0
+        while stage.GetPrimAtPath(f"{base_path}/{name}{index}").IsValid():
+            index += 1
+        name = f"{name}{index}"
+    joint = UsdPhysics.FixedJoint.Define(stage, f"{base_path}/{name}")
+
+    # body0 empty -> world; body1 -> the prim, pinned at its current world pose
+    world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
+    joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
+    joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_xform.ExtractTranslation()))
+    joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
+    joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+    joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+    # disable joint breaking (matches Kit's createJoint defaults; float32 max)
+    max_float = 3.40282347e38
+    joint.CreateBreakForceAttr().Set(max_float)
+    joint.CreateBreakTorqueAttr().Set(max_float)
+    return joint.GetPrim()
+
+
 def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) -> bool:
     """Removes the USD Prim and its descendants from the scene if able.
 

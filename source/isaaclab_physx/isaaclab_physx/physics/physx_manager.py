@@ -325,7 +325,7 @@ class PhysxManager(PhysicsManager):
         Raises:
             NotImplementedError: When the root prim is not a rigid body.
         """
-        from isaaclab.sim.schemas import create_fixed_root_joint
+        from isaaclab.sim.utils import create_fixed_root_joint
 
         cls._require_rigid_body_root(articulation_prim)
         create_fixed_root_joint(articulation_prim, stage)

@@ -348,7 +348,7 @@ def test_apply_articulation_root_properties_honors_explicit_stage():
 def test_create_fixed_root_joint_authors_world_anchored_joint():
     """create_fixed_root_joint authors a world<->prim ``UsdPhysics.FixedJoint``: ``body1`` targets the
     prim, ``body0`` is left empty (the world frame), and the body1-side local frame is identity."""
-    from isaaclab.sim.schemas import create_fixed_root_joint
+    from isaaclab.sim.utils import create_fixed_root_joint
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -370,7 +370,7 @@ def test_create_fixed_root_joint_authors_world_anchored_joint():
 def test_create_fixed_root_joint_pins_prim_at_current_world_pose():
     """The world-side local frame is set to the prim's current world transform, so the constraint pins
     the body where it is rather than teleporting it to the world origin."""
-    from isaaclab.sim.schemas import create_fixed_root_joint
+    from isaaclab.sim.utils import create_fixed_root_joint
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -385,7 +385,7 @@ def test_create_fixed_root_joint_pins_prim_at_current_world_pose():
 
 def test_create_fixed_root_joint_uses_unique_names():
     """Repeated calls author distinct joint prims (no path collision)."""
-    from isaaclab.sim.schemas import create_fixed_root_joint
+    from isaaclab.sim.utils import create_fixed_root_joint
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
@@ -459,7 +459,7 @@ def test_fix_articulation_root_capability_inherited_by_manager_subclass():
     class _BackendLike(PhysicsManager):
         @classmethod
         def fix_articulation_root(cls, articulation_prim, stage=None):
-            from isaaclab.sim.schemas import create_fixed_root_joint
+            from isaaclab.sim.utils import create_fixed_root_joint
 
             cls._require_rigid_body_root(articulation_prim)
             create_fixed_root_joint(articulation_prim, stage)
@@ -566,5 +566,5 @@ def test_public_imports():
         ArticulationRootFragment,
         SchemaFragment,
         apply_articulation_root_properties,
-        create_fixed_root_joint,
     )
+    from isaaclab.sim.utils import create_fixed_root_joint  # noqa: F401
