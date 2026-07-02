@@ -118,6 +118,7 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # Renderers & physics engines
         self._record("ovrtx", self._get_pkg_version("ovrtx"))
+        self._record("ovphysx", self._get_pkg_version("isaaclab_ovphysx"))
         self._record("newton", self._get_pkg_version("newton"))
         self._record("mujoco", self._get_pkg_version("mujoco"))
         self._record("mujoco_warp", self._get_pkg_version("mujoco-warp"))

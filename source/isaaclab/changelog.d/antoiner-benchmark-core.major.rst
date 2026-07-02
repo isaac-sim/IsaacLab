@@ -36,3 +36,4 @@ Fixed
   status during Kit fast shutdown.
 * Fixed benchmark metadata so Kit-full runs now report Kit and Isaac Sim
   versions while Kitless runs omit them.
+* Fixed benchmark metadata to report the installed OVPhysX runtime version.

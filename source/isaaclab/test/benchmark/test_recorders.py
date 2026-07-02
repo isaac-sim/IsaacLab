@@ -600,6 +600,18 @@ class TestVersionInfoRecorder:
         assert "numpy" in versions
         assert "isaaclab" in versions
 
+    def test_captures_renderer_runtime_versions(self, monkeypatch):
+        versions_by_distribution = {"ovrtx": "0.3.1", "isaaclab_ovphysx": "3.0.5"}
+        monkeypatch.setattr(
+            VersionInfoRecorder,
+            "_get_pkg_version",
+            lambda _self, distribution: versions_by_distribution.get(distribution),
+        )
+
+        versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
+        assert versions["ovrtx"] == "0.3.1"
+        assert versions["ovphysx"] == "3.0.5"
+
     def test_captures_active_kit_versions(self, monkeypatch, tmp_path):
         """Test that versions are captured from an active Kit runtime."""
         isaac_path = tmp_path / "isaacsim"
