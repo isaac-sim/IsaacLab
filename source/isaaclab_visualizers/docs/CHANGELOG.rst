@@ -1,6 +1,24 @@
 Changelog
 ---------
 
+1.1.0 (2026-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.newton.NewtonVisualizer.render_rgb_array` to access the latest
+  Newton viewer framebuffer.
+* Added :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing`
+  to visually separate Newton worlds without changing their simulated poses.
+
+Fixed
+^^^^^
+
+* Fixed Newton marker filtering for environment-major marker arrays and aligned marker
+  overlays with visual world spacing.
+
+
 1.0.4 (2026-07-01)
 ~~~~~~~~~~~~~~~~~~
 

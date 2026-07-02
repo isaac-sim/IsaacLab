@@ -20,6 +20,7 @@ import time
 import gymnasium as gym
 import skrl
 import torch
+from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from packaging import version
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -59,7 +60,7 @@ parser.add_argument(
         "--algorithm is used to determine the default agent configuration entry point."
     ),
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--use_pretrained_checkpoint",
@@ -147,6 +148,20 @@ def main():
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="skrl",
+                task=train_task_name,
+                checkpoint_pattern=r".*",
+                other_dirs=["checkpoints"],
+                metadata={
+                    "agent": agent_cfg_entry_point,
+                    "algorithm": algorithm,
+                    "ml_framework": args_cli.ml_framework,
+                },
+            )
         elif args_cli.checkpoint:
             resume_path = os.path.abspath(args_cli.checkpoint)
         else:

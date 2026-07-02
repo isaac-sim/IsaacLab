@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+2.6.2 (2026-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the public export of
+  :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+
+
 2.6.1 (2026-07-01)
 ~~~~~~~~~~~~~~~~~~
 

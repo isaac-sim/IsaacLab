@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import logging
 
 import pytest
 
@@ -52,6 +53,40 @@ class _DummySettings:
 
     def set_bool(self, path: str, value: bool) -> None:
         self.values[path] = value
+
+
+@pytest.mark.parametrize(
+    ("headless", "livestream", "xr", "expected_has_gui"),
+    [
+        pytest.param(False, 0, False, True, id="local-window"),
+        pytest.param(True, 0, False, False, id="headless"),
+        pytest.param(True, 1, False, True, id="livestream"),
+        pytest.param(True, 0, True, True, id="xr"),
+    ],
+)
+def test_load_extensions_publishes_has_gui_setting(
+    monkeypatch: pytest.MonkeyPatch, headless: bool, livestream: int, xr: bool, expected_has_gui: bool
+):
+    """Publish the GUI state consumed by SimulationContext and RTX rendering."""
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._apply_rtx_determinism = False
+    launcher._python_logging_level = logging.ERROR
+    launcher._headless = headless
+    launcher._livestream = livestream
+    launcher._enable_cameras = False
+    launcher._offscreen_render = False
+    launcher._render_viewport = False
+    launcher._xr = xr
+    launcher._video_enabled = False
+
+    settings = _DummySettings()
+    monkeypatch.setattr(app_launcher_module, "initialize_carb_settings", lambda: None)
+    monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(AppLauncher, "_apply_python_logging_level", lambda _level: None)
+
+    launcher._load_extensions()
+
+    assert settings.values["/isaaclab/has_gui"] is expected_has_gui
 
 
 def test_set_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):

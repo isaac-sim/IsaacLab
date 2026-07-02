@@ -295,6 +295,23 @@ def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
 
 
 @wp.kernel
+def extract_all_uint32_tiles_kernel(
+    tiled_buffer: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore  (TH, TW, 1)
+    output_buffer: wp.array(dtype=wp.uint32, ndim=4),  # type: ignore  (num_envs, H, W, 1)
+    num_cols: int,
+    tile_width: int,
+    tile_height: int,
+):
+    """Extract all single-channel uint32 tiles (e.g. raw instance segmentation IDs)."""
+    env_idx, y, x = wp.tid()
+    tile_x = env_idx % num_cols
+    tile_y = env_idx // num_cols
+    src_x = tile_x * tile_width + x
+    src_y = tile_y * tile_height + y
+    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
+
+
+@wp.kernel
 def generate_random_colors_from_ids_kernel(
     input_ids: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore
     output_colors: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore

@@ -77,6 +77,13 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  wheelhouse-resource:
+    description: 'Optional NGC resource containing wheelhouse/ and manifest.json for offline pip installs'
+    default: ''
+    required: false
+  wheelhouse-packages:
+    description: 'Space-separated packages to install from the wheelhouse with pip --no-index'
+    default: ''
   omni-github-test-type:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
@@ -145,6 +152,130 @@ runs:
         printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
         echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
 
+    - name: Restore NGC CLI cache
+      if: inputs.wheelhouse-resource != '' && env.NGC_API_KEY != ''
+      uses: actions/cache@v4
+      with:
+        path: ${{ runner.temp }}/ngc-cli-cache/ngccli_linux.zip
+        key: ngc-cli-${{ runner.os }}-${{ runner.arch }}-4.20.0-5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
+
+    - name: Extract ovphysx wheelhouse
+      id: extract-wheelhouse
+      if: inputs.wheelhouse-resource != ''
+      shell: bash
+      env:
+        WHEELHOUSE_RESOURCE: ${{ inputs.wheelhouse-resource }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "${NGC_API_KEY:-}" ]; then
+          echo "::error::wheelhouse-resource is set but NGC_API_KEY is unavailable; cannot download configured wheelhouse resource"
+          exit 1
+        fi
+
+        NGC_CLI_VERSION="4.20.0"
+        NGC_CLI_SHA256="5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b"
+        NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
+
+        wheelhouse_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-wheelhouse.XXXXXX")"
+        download_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-wheelhouse-download.XXXXXX")"
+        ngc_home="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ovphysx-ngc-home.XXXXXX")"
+        ngc_unpack_dir=""
+        preserve_wheelhouse_root=false
+        cleanup() {
+          if [ "$preserve_wheelhouse_root" != "true" ]; then
+            rm -rf "$wheelhouse_root"
+          fi
+          rm -rf "$download_root" "$ngc_home"
+          if [ -n "$ngc_unpack_dir" ]; then
+            rm -rf "$ngc_unpack_dir"
+          fi
+        }
+        trap cleanup EXIT
+
+        if ! command -v ngc >/dev/null 2>&1; then
+          cache_dir="${RUNNER_TEMP:-/tmp}/ngc-cli-cache"
+          ngc_zip="${cache_dir}/ngccli_linux.zip"
+          mkdir -p "$cache_dir"
+          if [ ! -f "$ngc_zip" ]; then
+            echo "Downloading NGC CLI ${NGC_CLI_VERSION}"
+            curl -fsSL -o "$ngc_zip" "$NGC_CLI_URL"
+          fi
+          echo "${NGC_CLI_SHA256}  ${ngc_zip}" | sha256sum -c -
+          ngc_unpack_dir="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-cli.XXXXXX")"
+          unzip -q "$ngc_zip" -d "$ngc_unpack_dir"
+          export PATH="${ngc_unpack_dir}/ngc-cli:${PATH}"
+        fi
+
+        export NGC_CLI_API_KEY="$NGC_API_KEY"
+        export NGC_CLI_ORG=nvidian
+        export NGC_CLI_TEAM=no-team
+        export NGC_CLI_HOME="$ngc_home"
+
+        ngc --version
+        echo "Downloading wheelhouse resource: $WHEELHOUSE_RESOURCE"
+        ngc registry resource download-version "$WHEELHOUSE_RESOURCE" --dest "$download_root"
+
+        mapfile -t manifests < <(find "$download_root" -type f -name manifest.json)
+        if [ "${#manifests[@]}" -ne 1 ]; then
+          echo "::error::expected exactly one manifest.json in downloaded wheelhouse resource, found ${#manifests[@]}"
+          printf '%s\n' "${manifests[@]}"
+          exit 1
+        fi
+
+        payload_dir="$(dirname "${manifests[0]}")"
+        if [ ! -d "${payload_dir}/wheelhouse" ]; then
+          echo "::error::downloaded wheelhouse resource is missing wheelhouse/ next to manifest.json"
+          exit 1
+        fi
+
+        mkdir -p "$wheelhouse_root/wheelhouse"
+        cp "${payload_dir}/manifest.json" "$wheelhouse_root/manifest.json"
+        cp "${payload_dir}/wheelhouse/"*.whl "$wheelhouse_root/wheelhouse/"
+
+        python3 - <<'PY' "$wheelhouse_root/manifest.json" "$wheelhouse_root/wheelhouse"
+        import hashlib
+        import json
+        import pathlib
+        import sys
+
+        manifest_path = pathlib.Path(sys.argv[1])
+        wheelhouse_dir = pathlib.Path(sys.argv[2])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        expected = {
+            "artifact": "ovphysx-wheelhouse",
+            "platform": "manylinux_2_35_x86_64",
+        }
+        for key, value in expected.items():
+            actual = manifest.get(key)
+            if actual != value:
+                raise SystemExit(f"manifest {key!r} mismatch: expected {value!r}, got {actual!r}")
+
+        wheels = manifest.get("wheels")
+        if not isinstance(wheels, list) or not wheels:
+            raise SystemExit("manifest has no wheels list")
+
+        for wheel in wheels:
+            filename = wheel.get("file")
+            expected_sha = wheel.get("sha256")
+            if not filename or not expected_sha:
+                raise SystemExit(f"invalid wheel manifest entry: {wheel!r}")
+            wheel_path = wheelhouse_dir / filename
+            if not wheel_path.is_file():
+                raise SystemExit(f"manifest wheel is missing from wheelhouse: {filename}")
+            actual_sha = hashlib.sha256(wheel_path.read_bytes()).hexdigest()
+            if actual_sha != expected_sha:
+                raise SystemExit(f"sha256 mismatch for {filename}: expected {expected_sha}, got {actual_sha}")
+
+        print(f"Validated {len(wheels)} wheelhouse wheels from {manifest_path}")
+        PY
+
+        echo "Wheelhouse contents:"
+        ls -l "$wheelhouse_root/wheelhouse"
+        preserve_wheelhouse_root=true
+        echo "wheelhouse_host_dir=$wheelhouse_root" >> "$GITHUB_OUTPUT"
+
     - name: Run Tests
       uses: ./.github/actions/run-tests
       with:
@@ -164,6 +295,8 @@ runs:
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
+        wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
 
     - name: Check Test Results
@@ -179,6 +312,11 @@ runs:
           echo "No test results file found. This might indicate test execution failed."
           exit 1
         fi
+
+    - name: Cleanup wheelhouse artifacts
+      if: always() && steps.extract-wheelhouse.outputs.wheelhouse_host_dir != ''
+      shell: bash
+      run: rm -rf "${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}"
 
     - name: Kill container on cancellation
       if: cancelled()
