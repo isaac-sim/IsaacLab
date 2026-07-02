@@ -1107,15 +1107,6 @@ class NewtonManager(PhysicsManager):
         cls._cl_inject_sites_fallback()
 
         device = PhysicsManager._device
-        # Pin torch + Warp to the target device before any Warp/Newton
-        # allocations. Without this, mujoco_warp's collision pipeline later
-        # allocates on cuda:1 against a primary CUDA context that was never
-        # made current, returning null pointers (issue #5132).
-        if device and "cuda" in device:
-            import torch
-
-            torch.cuda.set_device(device)
-            wp.set_device(device)
         logger.info(f"Finalizing model on device: {device}")
         cls._builder.up_axis = Axis.from_string(cls._up_axis)
         # Forward pending extended attribute requests to builder and clear them
@@ -1402,16 +1393,6 @@ class NewtonManager(PhysicsManager):
         cfg = PhysicsManager._cfg
         if cfg is None:
             return
-
-        # Pin torch + Warp to the target device before solver build and
-        # collision-pipeline init.  Mirrors the guard in :meth:`start_simulation`
-        # (issue #5132); idempotent if already pinned.
-        device = PhysicsManager._device
-        if device and "cuda" in device:
-            import torch
-
-            torch.cuda.set_device(device)
-            wp.set_device(device)
 
         with Timer(name="newton_initialize_solver", msg="Initialize solver took:"):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
