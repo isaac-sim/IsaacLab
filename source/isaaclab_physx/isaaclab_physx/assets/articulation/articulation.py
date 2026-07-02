@@ -4596,6 +4596,17 @@ class Articulation(BaseArticulation):
         w = self._physx_actuator_wrapper
         w.joint_f_2d.assign(self._data._joint_effort_target)
         if self.newton_actuator_adapter is not None:
+            if self._has_joint_ordering:
+                # ``w.joint_q``/``w.joint_qd`` were bound once (at actuator setup) to
+                # ``_data.joint_pos``/``_data.joint_vel``. With identity ordering those
+                # bindings alias PhysX-owned memory directly and are always current. With
+                # non-identity ordering they alias an owned shadow buffer that is only
+                # refreshed when the public ``joint_pos``/``joint_vel`` getters run -- which
+                # otherwise would not happen until the telemetry kernel below reads them,
+                # one step too late for the adapter. Force the refresh here so the adapter
+                # sees this step's state instead of a stale one-step-old shadow.
+                self._data._refresh_joint_pos()
+                self._data._refresh_joint_vel()
             self.newton_actuator_adapter.step(w, w, SimulationManager.get_physics_dt())
 
         wp.launch(

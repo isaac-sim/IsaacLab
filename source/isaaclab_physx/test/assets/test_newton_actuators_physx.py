@@ -342,6 +342,114 @@ def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
             )
 
 
+def _assert_newton_actuator_uses_current_joint_state(
+    joint_ordering: tuple[str, ...] | None, *, num_steps: int = NUM_STEPS
+) -> None:
+    """Check that ``applied_torque`` always matches the IdealPD formula on *this* step's true state.
+
+    Ground truth is read every step via ``root_view.get_dof_positions()``/``get_dof_velocities()`` --
+    the raw PhysX view, bypassing :class:`ArticulationData`'s cached ``joint_pos``/``joint_vel`` shadow
+    entirely -- so the read itself cannot refresh (and thereby mask staleness in) the shadow under test.
+
+    Args:
+        joint_ordering: Optional explicit public joint-name order to install on the articulation.
+        num_steps: Number of simulation steps to check.
+    """
+    kp, kd, effort_limit = 40.0, 5.0, 80.0
+    actuators = {
+        "legs": IdealPDActuatorCfg(
+            joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+            stiffness=kp,
+            damping=kd,
+            effort_limit=effort_limit,
+        ),
+    }
+    sim_cfg = SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=True)
+    with build_simulation_context(
+        device="cuda:0",
+        gravity_enabled=True,
+        add_ground_plane=True,
+        sim_cfg=sim_cfg,
+    ) as sim:
+        sim._app_control_on_stop_handle = None
+        for i in range(NUM_ENVS):
+            sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+        art_cfg = ANYMAL_C_CFG.replace(
+            actuators=actuators,
+            prim_path="/World/Env_.*/Robot",
+            joint_ordering=joint_ordering,
+        )
+        articulation = Articulation(art_cfg)
+        sim.reset()
+        assert articulation.is_initialized
+
+        ordering = articulation.joint_ordering
+        if ordering is not None:
+            user_to_backend = torch.tensor(
+                ordering.user_to_backend_indices, dtype=torch.long, device=articulation.device
+            )
+
+            def to_user_order(raw_backend: wp.array) -> torch.Tensor:
+                return wp.to_torch(raw_backend).index_select(1, user_to_backend)
+
+        else:
+
+            def to_user_order(raw_backend: wp.array) -> torch.Tensor:
+                return wp.to_torch(raw_backend)
+
+        init_pos = to_user_order(articulation.root_view.get_dof_positions()).clone()
+        target_pos = init_pos + TARGET_OFFSET
+        target_vel = torch.zeros_like(init_pos)
+        articulation.set_joint_position_target_index(target=target_pos)
+        articulation.set_joint_velocity_target_index(target=target_vel)
+
+        for step in range(num_steps):
+            # Ground truth for *this* step, independent of ArticulationData's joint_pos/joint_vel shadow.
+            true_pos = to_user_order(articulation.root_view.get_dof_positions()).clone()
+            true_vel = to_user_order(articulation.root_view.get_dof_velocities()).clone()
+
+            articulation.write_data_to_sim()
+            applied = wp.to_torch(articulation.data.applied_torque).clone()
+
+            expected = torch.clamp(kp * (target_pos - true_pos) - kd * true_vel, -effort_limit, effort_limit)
+            torch.testing.assert_close(
+                applied,
+                expected,
+                atol=1e-3,
+                rtol=1e-3,
+                msg=(
+                    f"applied_torque at step {step} does not match the IdealPD formula evaluated on this"
+                    " step's true PhysX joint state -- the Newton actuator likely used a stale"
+                    " joint_pos/joint_vel shadow"
+                ),
+            )
+
+            sim.step()
+            articulation.update(DT)
+
+
+def test_newton_actuator_identity_ordering_uses_current_joint_state() -> None:
+    """Sanity check: with identity joint ordering, ``applied_torque`` always reflects this step's state."""
+    _assert_newton_actuator_uses_current_joint_state(None)
+
+
+def test_newton_actuator_reversed_ordering_uses_current_joint_state() -> None:
+    """Regression test: a non-identity ordering must not lag PhysX's true joint state by one step.
+
+    ``_apply_actuator_model_newton`` binds ``w.joint_q``/``w.joint_qd`` once, at actuator setup, to
+    ``data.joint_pos``/``data.joint_vel``. With identity joint ordering those bindings alias PhysX-owned
+    memory directly and are always current. With non-identity ordering they alias an owned shadow buffer
+    that is only refreshed when the ``joint_pos``/``joint_vel`` *public* getters run -- which
+    :meth:`_apply_actuator_model_newton` itself only triggers *after* stepping the adapter (for torque
+    telemetry), i.e. one step too late for the adapter to see it. Explicit Newton PD actuators then
+    silently compute torques from one-physics-step-stale joint state whenever nothing else in that step
+    happens to read ``data.joint_pos``/``data.joint_vel`` first.
+    """
+    probe = _run_simulation(IDEAL_PD_ACTUATORS, use_newton_actuators=True, num_steps=0)
+    reversed_joint_names = tuple(reversed(probe["joint_names"]))
+    _assert_newton_actuator_uses_current_joint_state(reversed_joint_names)
+
+
 # ---------------------------------------------------------------------------
 # Base test class
 # ---------------------------------------------------------------------------
