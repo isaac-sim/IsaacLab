@@ -37,6 +37,7 @@ _CORE_PACKAGES = [
 ]
 
 
+@pytest.mark.smoke
 class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
     """./isaaclab.sh -i core: core set installed, no optional extras."""
 
