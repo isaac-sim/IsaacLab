@@ -280,27 +280,55 @@ class Articulation(BaseArticulation):
 
         # apply actuator models
         self._apply_actuator_model()
-        # write actions into simulation (zeros are safe when no actuators are active)
-        if self._effort_write_view is not None:
-            # ``_applied_torque`` is the actuator-computed output (may differ from the raw
-            # commanded target, e.g. once clipped), so it must be reordered into its own
-            # scratch buffer rather than ``_joint_effort_target_backend``. The latter is the
-            # persistent mirror of the raw target that partial writes rely on for their
-            # unselected joints (see ``set_joint_effort_target_index``/``_mask``).
-            effort = self._get_backend_ordered_joint_buffer(self._data._applied_torque, self._applied_torque_backend)
-            self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
+        # write actions into simulation (zeros are safe when no actuators are active).
+        # ``_applied_torque`` is the actuator-computed output (may differ from the raw
+        # commanded target, e.g. once clipped), so it must be reordered into its own
+        # scratch buffer rather than ``_joint_effort_target_backend``. The latter is the
+        # persistent mirror of the raw target that partial writes rely on for their
+        # unselected joints (see ``set_joint_effort_target_index``/``_mask``).
+        write_effort = self._effort_write_view is not None
         # position and velocity targets only for implicit actuators
-        if self._has_implicit_actuators:
-            if self._pos_target_write_view is not None:
-                pos_target = self._get_backend_ordered_joint_buffer(
-                    self._data._joint_pos_target, self._joint_pos_target_backend
+        write_pos = self._has_implicit_actuators and self._pos_target_write_view is not None
+        write_vel = self._has_implicit_actuators and self._vel_target_write_view is not None
+        if self._has_joint_ordering:
+            if write_effort or write_pos or write_vel:
+                # One fused gather replaces the per-target reorder launches. The
+                # effort scratch also backs the unused joint_act output (its flag
+                # is off, so it is never indexed).
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[
+                        self._data._applied_torque,
+                        self._data._joint_pos_target,
+                        self._data._joint_vel_target,
+                        self._joint_backend_to_user,
+                        write_effort,
+                        write_pos,
+                        write_vel,
+                        False,
+                    ],
+                    outputs=[
+                        self._applied_torque_backend,
+                        self._joint_pos_target_backend,
+                        self._joint_vel_target_backend,
+                        self._applied_torque_backend,
+                    ],
+                    device=self._device,
                 )
-                self._root_view.set_attribute(TT.DOF_POSITION_TARGET, pos_target)
-            if self._vel_target_write_view is not None:
-                vel_target = self._get_backend_ordered_joint_buffer(
-                    self._data._joint_vel_target, self._joint_vel_target_backend
-                )
-                self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, vel_target)
+            effort = self._applied_torque_backend
+            pos_target = self._joint_pos_target_backend
+            vel_target = self._joint_vel_target_backend
+        else:
+            effort = self._data._applied_torque
+            pos_target = self._data._joint_pos_target
+            vel_target = self._data._joint_vel_target
+        if write_effort:
+            self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, effort)
+        if write_pos:
+            self._root_view.set_attribute(TT.DOF_POSITION_TARGET, pos_target)
+        if write_vel:
+            self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, vel_target)
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.

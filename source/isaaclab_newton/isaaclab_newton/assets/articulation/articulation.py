@@ -344,25 +344,82 @@ class Articulation(BaseArticulation):
             # the user's effort target across all DOFs here; the adapter step
             # will zero it at explicit DOFs and overwrite them with each
             # actuator's computed effort, while implicit DOFs keep the FF.
-            self._assign_backend_ordered_joint_buffer(
-                self.data._sim_bind_joint_position_target, self._data._joint_pos_target
-            )
-            self._assign_backend_ordered_joint_buffer(
-                self.data._sim_bind_joint_velocity_target, self._data._joint_vel_target
-            )
-            self._assign_backend_ordered_joint_buffer(self.data._sim_bind_joint_act, self._data._joint_effort_target)
-            self._assign_backend_ordered_joint_buffer(self.data._sim_bind_joint_effort, self._data._joint_effort_target)
+            if self._has_joint_ordering:
+                # Fuse the four per-buffer reorders into one gather; the effort
+                # source is read once and feeds both joint_act and joint_effort.
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._data._joint_effort_target,
+                        self._data._joint_pos_target,
+                        self._data._joint_vel_target,
+                        self._joint_backend_to_user,
+                        True,
+                        True,
+                        True,
+                        True,
+                    ],
+                    outputs=[
+                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_position_target,
+                        self.data._sim_bind_joint_velocity_target,
+                        self.data._sim_bind_joint_act,
+                    ],
+                    device=self.device,
+                )
+            else:
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_position_target, self._data._joint_pos_target
+                )
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_velocity_target, self._data._joint_vel_target
+                )
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_act, self._data._joint_effort_target
+                )
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_effort, self._data._joint_effort_target
+                )
         else:
             # Standard Lab actuator path
             self._apply_actuator_model()
-            self._assign_backend_ordered_joint_buffer(self.data._sim_bind_joint_effort, self._joint_effort_target_sim)
-            if self._has_implicit_actuators:
-                self._assign_backend_ordered_joint_buffer(
-                    self.data._sim_bind_joint_position_target, self._joint_pos_target_sim
+            if self._has_joint_ordering:
+                # Fuse the effort reorder with the optional target reorders. The
+                # last output aliases the effort buffer because write_joint_act
+                # is off, so it is never indexed.
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._joint_effort_target_sim,
+                        self._joint_pos_target_sim,
+                        self._joint_vel_target_sim,
+                        self._joint_backend_to_user,
+                        True,
+                        self._has_implicit_actuators,
+                        self._has_implicit_actuators,
+                        False,
+                    ],
+                    outputs=[
+                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_position_target,
+                        self.data._sim_bind_joint_velocity_target,
+                        self.data._sim_bind_joint_effort,
+                    ],
+                    device=self.device,
                 )
+            else:
                 self._assign_backend_ordered_joint_buffer(
-                    self.data._sim_bind_joint_velocity_target, self._joint_vel_target_sim
+                    self.data._sim_bind_joint_effort, self._joint_effort_target_sim
                 )
+                if self._has_implicit_actuators:
+                    self._assign_backend_ordered_joint_buffer(
+                        self.data._sim_bind_joint_position_target, self._joint_pos_target_sim
+                    )
+                    self._assign_backend_ordered_joint_buffer(
+                        self.data._sim_bind_joint_velocity_target, self._joint_vel_target_sim
+                    )
 
     def update(self, dt: float):
         """Updates the simulation data.

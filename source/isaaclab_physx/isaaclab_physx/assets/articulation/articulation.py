@@ -305,21 +305,18 @@ class Articulation(BaseArticulation):
                     outputs=[force_backend, torque_backend],
                     device=self.device,
                 )
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=force_backend.flatten().view(wp.float32),
-                    torque_data=torque_backend.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                force_data = force_backend
+                torque_data = torque_backend
             else:
-                self.root_view.apply_forces_and_torques_at_position(
-                    force_data=composer.out_force_b.warp.flatten().view(wp.float32),
-                    torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
-                    position_data=None,
-                    indices=self._ALL_INDICES,
-                    is_global=False,
-                )
+                force_data = composer.out_force_b.warp
+                torque_data = composer.out_torque_b.warp
+            self.root_view.apply_forces_and_torques_at_position(
+                force_data=force_data.flatten().view(wp.float32),
+                torque_data=torque_data.flatten().view(wp.float32),
+                position_data=None,
+                indices=self._ALL_INDICES,
+                is_global=False,
+            )
         self._instantaneous_wrench_composer.reset()
 
         if getattr(self, "_has_newton_actuators", False):
@@ -329,36 +326,54 @@ class Articulation(BaseArticulation):
             # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
             # to PhysX as the actuation force.
             self._apply_actuator_model_newton()
-            effort_target = self._get_backend_ordered_joint_buffer(
-                self._physx_actuator_wrapper.joint_f_2d, self._joint_effort_target_backend
-            )
-            self.root_view.set_dof_actuation_forces(effort_target, self._ALL_INDICES)
-            if self._has_implicit_actuators:
-                pos_target = self._get_backend_ordered_joint_buffer(
-                    self._data._joint_pos_target, self._joint_pos_target_backend
-                )
-                vel_target = self._get_backend_ordered_joint_buffer(
-                    self._data._joint_vel_target, self._joint_vel_target_backend
-                )
-                self.root_view.set_dof_position_targets(pos_target, self._ALL_INDICES)
-                self.root_view.set_dof_velocity_targets(vel_target, self._ALL_INDICES)
+            user_effort = self._physx_actuator_wrapper.joint_f_2d
+            user_pos_target = self._data._joint_pos_target
+            user_vel_target = self._data._joint_vel_target
         else:
             # Standard Lab actuator path: per-group ``actuator.compute()`` may
             # transform targets, so we push the staging buffers PhysX-side.
             self._apply_actuator_model()
-            effort_target = self._get_backend_ordered_joint_buffer(
-                self._joint_effort_target_sim, self._joint_effort_target_backend
+            user_effort = self._joint_effort_target_sim
+            user_pos_target = self._joint_pos_target_sim
+            user_vel_target = self._joint_vel_target_sim
+
+        if self._has_joint_ordering:
+            # One fused gather replaces the per-target reorder launches. The
+            # last output aliases the effort staging because PhysX has no
+            # direct-drive joint_act output (its flag is off, never indexed).
+            wp.launch(
+                ordering_kernels.reorder_joint_targets_user_to_backend,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    user_effort,
+                    user_pos_target,
+                    user_vel_target,
+                    self._joint_backend_to_user,
+                    True,
+                    self._has_implicit_actuators,
+                    self._has_implicit_actuators,
+                    False,
+                ],
+                outputs=[
+                    self._joint_effort_target_backend,
+                    self._joint_pos_target_backend,
+                    self._joint_vel_target_backend,
+                    self._joint_effort_target_backend,
+                ],
+                device=self.device,
             )
-            self.root_view.set_dof_actuation_forces(effort_target, self._ALL_INDICES)
-            if self._has_implicit_actuators:
-                pos_target = self._get_backend_ordered_joint_buffer(
-                    self._joint_pos_target_sim, self._joint_pos_target_backend
-                )
-                vel_target = self._get_backend_ordered_joint_buffer(
-                    self._joint_vel_target_sim, self._joint_vel_target_backend
-                )
-                self.root_view.set_dof_position_targets(pos_target, self._ALL_INDICES)
-                self.root_view.set_dof_velocity_targets(vel_target, self._ALL_INDICES)
+            effort_target = self._joint_effort_target_backend
+            pos_target = self._joint_pos_target_backend
+            vel_target = self._joint_vel_target_backend
+        else:
+            effort_target = user_effort
+            pos_target = user_pos_target
+            vel_target = user_vel_target
+
+        self.root_view.set_dof_actuation_forces(effort_target, self._ALL_INDICES)
+        if self._has_implicit_actuators:
+            self.root_view.set_dof_position_targets(pos_target, self._ALL_INDICES)
+            self.root_view.set_dof_velocity_targets(vel_target, self._ALL_INDICES)
 
     def update(self, dt: float):
         """Updates the simulation data.

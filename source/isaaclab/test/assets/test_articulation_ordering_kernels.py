@@ -13,6 +13,7 @@ from isaaclab.assets.articulation.ordering_kernels import (
     reorder_2d_backend_to_user,
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
+    reorder_joint_targets_user_to_backend,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
     write_3d_user_to_backend_with_indices,
@@ -104,6 +105,61 @@ def test_reorder_3d_backend_to_user_gathers_user_axis() -> None:
     )
 
     np.testing.assert_allclose(user_data.numpy(), backend_data_np[:, [1, 2, 0], :])
+
+
+@pytest.mark.parametrize(
+    "combo, write_effort, write_pos, write_vel, write_act",
+    [
+        ("effort_only", True, False, False, False),
+        ("all_targets", True, True, True, False),
+        ("newton_four", True, True, True, True),
+    ],
+)
+def test_reorder_joint_targets_user_to_backend_writes_only_flagged_outputs(
+    combo: str,
+    write_effort: bool,
+    write_pos: bool,
+    write_vel: bool,
+    write_act: bool,
+) -> None:
+    """Fuse the write-path target reorders, honoring per-output flags over a non-trivial permutation."""
+    user_effort_np = np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32)
+    user_pos_np = user_effort_np + 10.0
+    user_vel_np = user_effort_np + 20.0
+    # Non-identity permutation: backend joint i draws from public joint backend_to_user[i].
+    backend_to_user_np = np.asarray([2, 0, 1], dtype=np.int32)
+
+    user_effort = wp.array(user_effort_np, dtype=wp.float32, device="cpu")
+    user_pos = wp.array(user_pos_np, dtype=wp.float32, device="cpu")
+    user_vel = wp.array(user_vel_np, dtype=wp.float32, device="cpu")
+    backend_to_user = wp.array(backend_to_user_np, dtype=wp.int32, device="cpu")
+
+    # Distinct sentinels so gated-off outputs are provably untouched.
+    effort_sentinel = np.full_like(user_effort_np, -1.0)
+    pos_sentinel = np.full_like(user_effort_np, -2.0)
+    vel_sentinel = np.full_like(user_effort_np, -3.0)
+    act_sentinel = np.full_like(user_effort_np, -4.0)
+    backend_effort = wp.array(effort_sentinel, dtype=wp.float32, device="cpu")
+    backend_pos = wp.array(pos_sentinel, dtype=wp.float32, device="cpu")
+    backend_vel = wp.array(vel_sentinel, dtype=wp.float32, device="cpu")
+    backend_act = wp.array(act_sentinel, dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        reorder_joint_targets_user_to_backend,
+        dim=(user_effort_np.shape[0], user_effort_np.shape[1]),
+        inputs=[user_effort, user_pos, user_vel, backend_to_user, write_effort, write_pos, write_vel, write_act],
+        outputs=[backend_effort, backend_pos, backend_vel, backend_act],
+        device="cpu",
+    )
+
+    expected_effort = user_effort_np[:, backend_to_user_np] if write_effort else effort_sentinel
+    expected_pos = user_pos_np[:, backend_to_user_np] if write_pos else pos_sentinel
+    expected_vel = user_vel_np[:, backend_to_user_np] if write_vel else vel_sentinel
+    expected_act = user_effort_np[:, backend_to_user_np] if write_act else act_sentinel
+    np.testing.assert_array_equal(backend_effort.numpy(), expected_effort)
+    np.testing.assert_array_equal(backend_pos.numpy(), expected_pos)
+    np.testing.assert_array_equal(backend_vel.numpy(), expected_vel)
+    np.testing.assert_array_equal(backend_act.numpy(), expected_act)
 
 
 @pytest.mark.parametrize("selection", ["indices", "mask"])
