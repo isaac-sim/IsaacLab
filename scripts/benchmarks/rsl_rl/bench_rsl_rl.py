@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 _BENCH_DIR = Path(__file__).resolve().parents[1]
 _RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
@@ -18,6 +19,11 @@ if str(_RL_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_RL_SCRIPTS))
 
 import common as _common  # noqa: E402
+
+
+def _disable_code_state_capture(runner: Any) -> None:
+    """Disable RSL-RL Git state capture while retaining TensorBoard logging."""
+    runner.logger.git_status_repos = []
 
 
 def _parse_args(argv: list[str]):
@@ -202,6 +208,7 @@ def run(argv: list[str]) -> None:
         if agent_cfg.class_name not in runner_types:
             raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
         runner = runner_types[agent_cfg.class_name](env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+        _disable_code_state_capture(runner)
         if resume_path is not None:
             runner.load(resume_path)
 

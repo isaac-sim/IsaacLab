@@ -10,8 +10,18 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from scripts.benchmarks.rsl_rl import bench_rsl_rl
 from scripts.benchmarks.sb3 import bench_sb3
 from scripts.benchmarks.skrl import bench_skrl
+
+
+def test_rsl_rl_disables_code_state_capture():
+    logger = SimpleNamespace(git_status_repos=["rsl_rl.py"])
+    runner = SimpleNamespace(logger=logger)
+
+    bench_rsl_rl._disable_code_state_capture(runner)
+
+    assert logger.git_status_repos == []
 
 
 def test_sb3_iteration_time_includes_policy_update(monkeypatch: pytest.MonkeyPatch):
