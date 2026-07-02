@@ -2131,19 +2131,22 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
+                False,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._body_mass_user if self._has_body_ordering else self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
             ],
             device=self.device,
         )
-        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_mass, self.data._body_mass_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2173,19 +2176,21 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 masses,
                 env_mask,
                 body_mask,
+                self._body_user_to_backend,
+                self._has_body_ordering,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._body_mass_user if self._has_body_ordering else self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
             ],
             device=self.device,
         )
-        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_mass, self.data._body_mass_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2222,19 +2227,22 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_index,
+            ordering_kernels._write_2d_user_to_backend_with_indices_vec3,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
+                False,
             ],
             outputs=[
-                self.data.body_com_pos_b,
+                self.data._body_com_pos_b_user if self._has_body_ordering else self.data._sim_bind_body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
             ],
             device=self.device,
         )
-        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_com_pos_b, self.data._body_com_pos_b_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2271,19 +2279,21 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_mask,
+            ordering_kernels._write_2d_user_to_backend_with_mask_vec3,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 coms,
                 env_mask,
                 body_mask,
+                self._body_user_to_backend,
+                self._has_body_ordering,
             ],
             outputs=[
-                self.data.body_com_pos_b,
+                self.data._body_com_pos_b_user if self._has_body_ordering else self.data._sim_bind_body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
             ],
             device=self.device,
         )
-        self._assign_backend_ordered_body_buffer(self.data._sim_bind_body_com_pos_b, self.data._body_com_pos_b_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2315,19 +2325,22 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
+            ordering_kernels._write_3d_user_to_backend_with_indices_float,
+            dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[
                 inertias,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
+                False,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._body_inertia_user if self._has_body_ordering else self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
             ],
             device=self.device,
         )
-        self._assign_backend_ordered_body_3d_buffer(self.data._sim_bind_body_inertia, self.data._body_inertia_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -2357,19 +2370,21 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_mask,
-            dim=(env_mask.shape[0], body_mask.shape[0]),
+            ordering_kernels._write_3d_user_to_backend_with_mask_float,
+            dim=(env_mask.shape[0], body_mask.shape[0], 9),
             inputs=[
                 inertias,
                 env_mask,
                 body_mask,
+                self._body_user_to_backend,
+                self._has_body_ordering,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._body_inertia_user if self._has_body_ordering else self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
             ],
             device=self.device,
         )
-        self._assign_backend_ordered_body_3d_buffer(self.data._sim_bind_body_inertia, self.data._body_inertia_user)
         # tell the physics engine that some of the body properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.BODY_INERTIAL_PROPERTIES)
 
@@ -3521,30 +3536,6 @@ class Articulation(BaseArticulation):
             ordering_kernels.reorder_2d_user_to_backend,
             dim=(self.num_instances, self.num_joints),
             inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_buffer],
-            device=self.device,
-        )
-
-    def _assign_backend_ordered_body_buffer(self, backend_buffer: wp.array, user_buffer: wp.array) -> None:
-        """Assign a public-order body buffer into a backend-order simulation buffer."""
-        if not self._has_body_ordering:
-            return
-        wp.launch(
-            ordering_kernels.reorder_2d_user_to_backend,
-            dim=(self.num_instances, self.num_bodies),
-            inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_buffer],
-            device=self.device,
-        )
-
-    def _assign_backend_ordered_body_3d_buffer(self, backend_buffer: wp.array, user_buffer: wp.array) -> None:
-        """Assign a public-order 3-D body buffer into a backend-order simulation buffer."""
-        if not self._has_body_ordering:
-            return
-        wp.launch(
-            ordering_kernels.reorder_3d_user_to_backend,
-            dim=(self.num_instances, self.num_bodies, 9),
-            inputs=[user_buffer, self._body_backend_to_user],
             outputs=[backend_buffer],
             device=self.device,
         )

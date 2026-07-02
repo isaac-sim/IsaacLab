@@ -2175,17 +2175,20 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        body_mass_backend = self._data._body_mass.data
+        if self._has_body_ordering:
+            backend_staging = self._data._body_mass_backend
+            if backend_staging is None:
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_mass_backend.")
+            body_mass_backend = backend_staging.data
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[masses, env_ids, body_ids],
-            outputs=[self._data._body_mass.data],
+            inputs=[masses, env_ids, body_ids, self._body_user_to_backend, self._has_body_ordering, False],
+            outputs=[self._data._body_mass.data, body_mass_backend],
             device=self._device,
         )
         self._data._body_mass.timestamp = self._data._sim_timestamp
-        body_mass_backend = self._get_backend_ordered_body_buffer(
-            self._data._body_mass.data, self._data._body_mass_backend
-        )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_mass, body_mass_backend)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, indices=cpu_env_ids)
@@ -2221,17 +2224,20 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(masses, (self._num_instances, self._num_bodies), wp.float32, "masses")
+        body_mass_backend = self._data._body_mass.data
+        if self._has_body_ordering:
+            backend_staging = self._data._body_mass_backend
+            if backend_staging is None:
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_mass_backend.")
+            body_mass_backend = backend_staging.data
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            ordering_kernels._write_float_user_to_backend_with_mask_array,
             dim=(self._num_instances, self._num_bodies),
-            inputs=[masses, env_mask_wp, body_mask_wp],
-            outputs=[self._data._body_mass.data],
+            inputs=[masses, env_mask_wp, body_mask_wp, self._body_user_to_backend, self._has_body_ordering],
+            outputs=[self._data._body_mass.data, body_mass_backend],
             device=self._device,
         )
         self._data._body_mass.timestamp = self._data._sim_timestamp
-        body_mass_backend = self._get_backend_ordered_body_buffer(
-            self._data._body_mass.data, self._data._body_mass_backend
-        )
         wp.copy(self.data._cpu_body_mass, body_mass_backend)
         self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, mask=self._get_cpu_env_mask(env_mask_wp))
 
@@ -2267,8 +2273,11 @@ class Articulation(BaseArticulation):
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         backend_staging = self._data._body_com_pose_b_backend
-        if self._has_body_ordering and backend_staging is None:
-            raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_pose_b_backend.")
+        body_com_backend = self._data._body_com_pose_b.data
+        if self._has_body_ordering:
+            if backend_staging is None:
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_pose_b_backend.")
+            body_com_backend = backend_staging.data
         if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
@@ -2277,17 +2286,13 @@ class Articulation(BaseArticulation):
         )
 
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_index,
+            ordering_kernels._write_2d_user_to_backend_with_indices_transform,
             dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[coms, env_ids, body_ids],
-            outputs=[self._data._body_com_pose_b.data],
+            inputs=[coms, env_ids, body_ids, self._body_user_to_backend, self._has_body_ordering, False],
+            outputs=[self._data._body_com_pose_b.data, body_com_backend],
             device=self._device,
         )
         self._data._reset_body_com_pose_b_dependents()
-        if self._has_body_ordering:
-            body_com_backend = self._get_backend_ordered_body_buffer(self._data._body_com_pose_b.data, backend_staging)
-        else:
-            body_com_backend = self._data._body_com_pose_b.data
         validity = 0.0 if cache_is_valid else -1.0
         self._data._body_com_pose_b.timestamp = validity
         if self._has_body_ordering:
@@ -2331,8 +2336,11 @@ class Articulation(BaseArticulation):
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(coms, (self._num_instances, self._num_bodies), wp.transformf, "coms")
         backend_staging = self._data._body_com_pose_b_backend
-        if self._has_body_ordering and backend_staging is None:
-            raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_pose_b_backend.")
+        body_com_backend = self._data._body_com_pose_b.data
+        if self._has_body_ordering:
+            if backend_staging is None:
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_pose_b_backend.")
+            body_com_backend = backend_staging.data
         if not all_bodies_selected:
             self._data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
@@ -2341,17 +2349,13 @@ class Articulation(BaseArticulation):
         )
 
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer_mask,
+            ordering_kernels._write_2d_user_to_backend_with_mask_transform,
             dim=(self._num_instances, self._num_bodies),
-            inputs=[coms, env_mask_wp, body_mask_wp],
-            outputs=[self._data._body_com_pose_b.data],
+            inputs=[coms, env_mask_wp, body_mask_wp, self._body_user_to_backend, self._has_body_ordering],
+            outputs=[self._data._body_com_pose_b.data, body_com_backend],
             device=self._device,
         )
         self._data._reset_body_com_pose_b_dependents()
-        if self._has_body_ordering:
-            body_com_backend = self._get_backend_ordered_body_buffer(self._data._body_com_pose_b.data, backend_staging)
-        else:
-            body_com_backend = self._data._body_com_pose_b.data
         validity = 0.0 if cache_is_valid else -1.0
         self._data._body_com_pose_b.timestamp = validity
         if self._has_body_ordering:
@@ -2391,17 +2395,20 @@ class Articulation(BaseArticulation):
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        body_inertia_backend = self._data._body_inertia.data
+        if self._has_body_ordering:
+            backend_staging = self._data._body_inertia_backend
+            if backend_staging is None:
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_inertia_backend.")
+            body_inertia_backend = backend_staging.data
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[inertias, env_ids, body_ids],
-            outputs=[self._data._body_inertia.data],
+            ordering_kernels._write_3d_user_to_backend_with_indices_float,
+            dim=(env_ids.shape[0], body_ids.shape[0], 9),
+            inputs=[inertias, env_ids, body_ids, self._body_user_to_backend, self._has_body_ordering, False],
+            outputs=[self._data._body_inertia.data, body_inertia_backend],
             device=self._device,
         )
         self._data._body_inertia.timestamp = self._data._sim_timestamp
-        body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
-            self._data._body_inertia.data, self._data._body_inertia_backend, 9
-        )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
         self._root_view.set_attribute(TT.BODY_INERTIA, self.data._cpu_body_inertia, indices=cpu_env_ids)
@@ -2437,17 +2444,20 @@ class Articulation(BaseArticulation):
         env_mask_wp = self._resolve_env_mask(env_mask)
         body_mask_wp = self._resolve_body_mask(body_mask)
         self.assert_shape_and_dtype(inertias, (self._num_instances, self._num_bodies, 9), wp.float32, "inertias")
+        body_inertia_backend = self._data._body_inertia.data
+        if self._has_body_ordering:
+            backend_staging = self._data._body_inertia_backend
+            if backend_staging is None:
+                raise RuntimeError("OVPhysX _has_body_ordering requires _body_inertia_backend.")
+            body_inertia_backend = backend_staging.data
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_mask,
-            dim=(self._num_instances, self._num_bodies),
-            inputs=[inertias, env_mask_wp, body_mask_wp],
-            outputs=[self._data._body_inertia.data],
+            ordering_kernels._write_3d_user_to_backend_with_mask_float,
+            dim=(self._num_instances, self._num_bodies, 9),
+            inputs=[inertias, env_mask_wp, body_mask_wp, self._body_user_to_backend, self._has_body_ordering],
+            outputs=[self._data._body_inertia.data, body_inertia_backend],
             device=self._device,
         )
         self._data._body_inertia.timestamp = self._data._sim_timestamp
-        body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
-            self._data._body_inertia.data, self._data._body_inertia_backend, 9
-        )
         wp.copy(self.data._cpu_body_inertia, body_inertia_backend)
         self._root_view.set_attribute(
             TT.BODY_INERTIA, self.data._cpu_body_inertia, mask=self._get_cpu_env_mask(env_mask_wp)

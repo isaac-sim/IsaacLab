@@ -13,6 +13,10 @@ from isaaclab.assets.articulation.ordering_kernels import (
     reorder_2d_backend_to_user,
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
+    write_2d_user_to_backend_with_indices,
+    write_2d_user_to_backend_with_mask,
+    write_3d_user_to_backend_with_indices,
+    write_3d_user_to_backend_with_mask,
     write_float_user_to_backend_with_indices,
     write_float_user_to_backend_with_mask,
     write_joint_state_user_to_backend_with_indices,
@@ -405,3 +409,89 @@ def test_write_joint_vel_user_to_backend_with_mask_updates_selected_entries() ->
     np.testing.assert_allclose(user_prev_vel.numpy(), expected_user)
     np.testing.assert_allclose(backend_vel.numpy(), expected_backend)
     np.testing.assert_allclose(user_acc.numpy()[0, 1:], np.zeros((2,), dtype=np.float32))
+
+
+@pytest.mark.parametrize("selection", ["indices", "mask"])
+def test_write_2d_user_to_backend_updates_structured_buffers(selection: str) -> None:
+    """Fuse selected structured writes into public and backend-order buffers."""
+    kernel = write_2d_user_to_backend_with_indices if selection == "indices" else write_2d_user_to_backend_with_mask
+
+    input_data_np = np.asarray(
+        [
+            [[10.0, 11.0, 12.0], [20.0, 21.0, 22.0], [30.0, 31.0, 32.0]],
+            [[40.0, 41.0, 42.0], [50.0, 51.0, 52.0], [60.0, 61.0, 62.0]],
+        ],
+        dtype=np.float32,
+    )
+    input_data = wp.array(input_data_np, dtype=wp.vec3f, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_data = wp.zeros_like(input_data)
+    backend_data = wp.zeros_like(input_data)
+
+    if selection == "indices":
+        env_ids = wp.array(np.asarray([0], dtype=np.int32), dtype=wp.int32, device="cpu")
+        user_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
+        wp.launch(
+            kernel,
+            dim=(env_ids.shape[0], user_ids.shape[0]),
+            inputs=[input_data, env_ids, user_ids, user_to_backend, True, True],
+            outputs=[user_data, backend_data],
+            device="cpu",
+        )
+    else:
+        env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
+        user_mask = wp.array(np.asarray([True, False, True]), dtype=wp.bool, device="cpu")
+        wp.launch(
+            kernel,
+            dim=input_data.shape,
+            inputs=[input_data, env_mask, user_mask, user_to_backend, True],
+            outputs=[user_data, backend_data],
+            device="cpu",
+        )
+
+    expected_user = np.zeros_like(input_data_np)
+    expected_user[0, [0, 2]] = input_data_np[0, [0, 2]]
+    expected_backend = np.zeros_like(input_data_np)
+    expected_backend[0, [1, 0]] = input_data_np[0, [0, 2]]
+    np.testing.assert_allclose(user_data.numpy(), expected_user)
+    np.testing.assert_allclose(backend_data.numpy(), expected_backend)
+
+
+@pytest.mark.parametrize("selection", ["indices", "mask"])
+def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> None:
+    """Fuse selected component-array writes into public and backend-order buffers."""
+    kernel = write_3d_user_to_backend_with_indices if selection == "indices" else write_3d_user_to_backend_with_mask
+
+    input_data_np = np.arange(2 * 3 * 4, dtype=np.float32).reshape(2, 3, 4) + 1.0
+    input_data = wp.array(input_data_np, dtype=wp.float32, device="cpu")
+    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    user_data = wp.zeros_like(input_data)
+    backend_data = wp.zeros_like(input_data)
+
+    if selection == "indices":
+        env_ids = wp.array(np.asarray([0], dtype=np.int32), dtype=wp.int32, device="cpu")
+        user_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
+        wp.launch(
+            kernel,
+            dim=(env_ids.shape[0], user_ids.shape[0], input_data.shape[2]),
+            inputs=[input_data, env_ids, user_ids, user_to_backend, True, True],
+            outputs=[user_data, backend_data],
+            device="cpu",
+        )
+    else:
+        env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
+        user_mask = wp.array(np.asarray([True, False, True]), dtype=wp.bool, device="cpu")
+        wp.launch(
+            kernel,
+            dim=input_data.shape,
+            inputs=[input_data, env_mask, user_mask, user_to_backend, True],
+            outputs=[user_data, backend_data],
+            device="cpu",
+        )
+
+    expected_user = np.zeros_like(input_data_np)
+    expected_user[0, [0, 2]] = input_data_np[0, [0, 2]]
+    expected_backend = np.zeros_like(input_data_np)
+    expected_backend[0, [1, 0]] = input_data_np[0, [0, 2]]
+    np.testing.assert_allclose(user_data.numpy(), expected_user)
+    np.testing.assert_allclose(backend_data.numpy(), expected_backend)

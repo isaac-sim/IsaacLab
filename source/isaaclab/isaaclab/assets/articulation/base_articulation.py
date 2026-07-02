@@ -2531,47 +2531,6 @@ class BaseArticulation(AssetBase):
         )
         return backend_data
 
-    def _get_backend_ordered_body_buffer(
-        self,
-        user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
-    ) -> wp.array:
-        """Return a backend-order view or copy of a public-order body buffer."""
-        if not self._has_body_ordering:
-            return user_buffer
-        if backend_buffer is None:
-            raise RuntimeError(f"{self.__backend_name__} body ordering requires backend staging.")
-        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
-        wp.launch(
-            ordering_kernels.reorder_2d_user_to_backend,
-            dim=(self.num_instances, self.num_bodies),
-            inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_data],
-            device=self.device,
-        )
-        return backend_data
-
-    def _get_backend_ordered_body_3d_buffer(
-        self,
-        user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
-        component_count: int,
-    ) -> wp.array:
-        """Return a backend-order view or copy of a public-order 3-D body buffer."""
-        if not self._has_body_ordering:
-            return user_buffer
-        if backend_buffer is None:
-            raise RuntimeError(f"{self.__backend_name__} body ordering requires 3-D backend staging.")
-        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
-        wp.launch(
-            ordering_kernels.reorder_3d_user_to_backend,
-            dim=(self.num_instances, self.num_bodies, component_count),
-            inputs=[user_buffer, self._body_backend_to_user],
-            outputs=[backend_data],
-            device=self.device,
-        )
-        return backend_data
-
     """
     Internal helpers -- Actuators.
     """

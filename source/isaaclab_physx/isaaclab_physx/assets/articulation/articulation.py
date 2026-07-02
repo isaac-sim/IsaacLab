@@ -2397,25 +2397,32 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        body_mass_backend = self.data._body_mass
+        if self._has_body_ordering:
+            body_mass_backend = self.data._body_mass_backend
+            if body_mass_backend is None:
+                raise RuntimeError("PhysX _has_body_ordering requires _body_mass_backend.")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels._write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
                 full_data,
             ],
             outputs=[
                 self.data._body_mass,
+                body_mass_backend,
             ],
             device=self.device,
         )
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        body_mass_backend = self._get_backend_ordered_body_buffer(self.data._body_mass, self.data._body_mass_backend)
         self.root_view.set_masses(wp.clone(body_mass_backend, device="cpu"), indices=cpu_env_ids)
 
     def set_masses_mask(
@@ -2480,8 +2487,11 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
         backend_staging = self.data._body_com_pose_b_backend
-        if self._has_body_ordering and backend_staging is None:
-            raise RuntimeError("PhysX _has_body_ordering requires _body_com_pose_b_backend.")
+        body_com_backend = self.data._body_com_pose_b.data
+        if self._has_body_ordering:
+            if backend_staging is None:
+                raise RuntimeError("PhysX _has_body_ordering requires _body_com_pose_b_backend.")
+            body_com_backend = backend_staging.data
         if not all_bodies_selected:
             self.data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
@@ -2491,24 +2501,23 @@ class Articulation(BaseArticulation):
 
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer,
+            ordering_kernels._write_2d_user_to_backend_with_indices_transform,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
                 full_data,
             ],
             outputs=[
                 self.data._body_com_pose_b.data,
+                body_com_backend,
             ],
             device=self.device,
         )
         self.data._reset_body_com_pose_b_dependents()
-        if self._has_body_ordering:
-            body_com_backend = self._get_backend_ordered_body_buffer(self.data._body_com_pose_b.data, backend_staging)
-        else:
-            body_com_backend = self.data._body_com_pose_b.data
         validity = 0.0 if cache_is_valid else -1.0
         self.data._body_com_pose_b.timestamp = validity
         if self._has_body_ordering:
@@ -2583,26 +2592,31 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        body_inertia_backend = self.data._body_inertia
+        if self._has_body_ordering:
+            body_inertia_backend = self.data._body_inertia_backend
+            if body_inertia_backend is None:
+                raise RuntimeError("PhysX _has_body_ordering requires _body_inertia_backend.")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
+            ordering_kernels._write_3d_user_to_backend_with_indices_float,
+            dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[
                 inertias,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
                 full_data,
             ],
             outputs=[
                 self.data._body_inertia,
+                body_inertia_backend,
             ],
             device=self.device,
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        body_inertia_backend = self._get_backend_ordered_body_3d_buffer(
-            self.data._body_inertia, self.data._body_inertia_backend, 9
-        )
         self.root_view.set_inertias(wp.clone(body_inertia_backend, device="cpu"), indices=cpu_env_ids)
 
     def set_inertias_mask(
