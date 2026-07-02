@@ -641,6 +641,9 @@ def validate_camera_outputs(
             "img_golden_path": None,
         }
 
+        # We want to keep the record in the test artifact so that we can have a chance to see whether
+        # test cases that appear successful is a false positive or not, e.g. image diff threshold is set
+        # 8%, if the result image is 7% different from the golden, it is considered a pass
         if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
             entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
