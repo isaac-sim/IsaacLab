@@ -35,7 +35,7 @@ Fixed
 * Fixed simulation launch failures being reported with a zero process exit
   status during Kit fast shutdown.
 * Fixed benchmark metadata so Kit-full runs now report Kit and Isaac Sim
-  versions while Kitless runs omit them.
+  versions while Kitless runs report null.
 * Fixed benchmark metadata to report the installed OVPhysX runtime version.
-* Fixed benchmark metadata to preserve null values for unavailable Kit, Isaac Sim,
-  OVRTX, and OVPhysX runtimes.
+* Fixed benchmark metadata to preserve null values for unavailable OVRTX and
+  OVPhysX runtimes.
