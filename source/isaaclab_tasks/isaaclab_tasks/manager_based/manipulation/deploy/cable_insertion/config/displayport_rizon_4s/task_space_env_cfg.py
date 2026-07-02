@@ -421,6 +421,16 @@ class Rizon4sTaskSpaceDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             ),
         )
 
+        # OSC requires the arm joints to be pure torque-controlled. The stock
+        # Flexiv cfg gives the arm a stiff implicit position PD (stiffness
+        # 1320/600/216); left enabled it holds every joint at its reset target
+        # and completely overrides the OSC-computed joint efforts, so the arm
+        # never moves. Zero the arm PD gains (damping is provided by the OSC via
+        # ``motion_damping_ratio_task``). Mirrors scripts/tutorials/05_controllers/run_osc.py.
+        for _arm_actuator in ("shoulder", "elbow", "wrist"):
+            self.scene.robot.actuators[_arm_actuator].stiffness = 0.0
+            self.scene.robot.actuators[_arm_actuator].damping = 0.0
+
         # Grav gripper actuator configuration
         self.scene.robot.actuators["gripper_drive"] = ImplicitActuatorCfg(
             joint_names_expr=["finger_joint"],
