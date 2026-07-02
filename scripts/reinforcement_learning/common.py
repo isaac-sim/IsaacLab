@@ -110,8 +110,10 @@ class CaptureEnvSensors(gym.Wrapper):
                 continue
 
             for data_type, output in camera_outputs.items():
-                output = output.clone()
+                if output is None:
+                    continue
                 tensor = output if isinstance(output, torch.Tensor) else output.torch
+                tensor = tensor[: self.capture_num_envs].detach().clone()
                 condition = torch.logical_or(torch.isinf(tensor), torch.isnan(tensor))
                 corrected = torch.where(condition, torch.zeros_like(tensor), tensor)
                 normalized = normalize_camera_output_for_display(corrected, data_type)

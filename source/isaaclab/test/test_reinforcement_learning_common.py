@@ -69,8 +69,6 @@ def _make_capture_wrapper(tmp_path: Path, **kwargs: Any) -> Any:
         "frame_count": 1,
         "capture_num_envs": 1,
         "interval": 1,
-        "sensor_names": None,
-        "data_types": None,
         "output_format": "file",
     }
     defaults.update(kwargs)
@@ -80,7 +78,7 @@ def _make_capture_wrapper(tmp_path: Path, **kwargs: Any) -> Any:
 def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """File capture writes filtered image tensors during the active capture window."""
+    """File capture writes image grids during the active capture window."""
     rgb = torch.tensor(
         [
             [[[0, 127, 255, 9], [255, 0, 127, 9]]],
@@ -88,28 +86,25 @@ def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
         ],
         dtype=torch.uint8,
     )
-    sensors = {
-        "front/camera": _make_sensor({"rgb": rgb, "distance_to_camera": torch.ones((2, 1, 2, 1))}),
-        "side camera": _make_sensor({"rgb": rgb}),
-        "not_image": _make_sensor({"rgb": torch.ones((1, 2, 3))}),
-    }
-    env = _FakeEnv(sensors)
-    saved_images: list[torch.Tensor] = []
+    env = _FakeEnv({"front/camera": _make_sensor({"rgb": rgb})})
+    saved_images: list[Any] = []
     saved_paths: list[Path] = []
 
-    def fake_save_images_to_file(images: torch.Tensor, path: str) -> None:
-        saved_images.append(images.clone())
-        saved_paths.append(Path(path))
+    class _FakeImage:
+        def __init__(self, image: Any) -> None:
+            self.image = image
 
-    monkeypatch.setattr(_rl_common, "save_images_to_file", fake_save_images_to_file)
+        def save(self, path: str) -> None:
+            saved_images.append(self.image.copy())
+            saved_paths.append(Path(path))
+
+    monkeypatch.setattr(_rl_common.Image, "fromarray", _FakeImage)
     wrapper = _make_capture_wrapper(
         tmp_path,
         env=env,
         frame_count=2,
         capture_num_envs=1,
         interval=3,
-        sensor_names={"front/camera"},
-        data_types={"rgb"},
     )
 
     wrapper.reset()
@@ -123,69 +118,38 @@ def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
         "front_camera/rgb/run_00001_step_00000001.png",
         "front_camera/rgb/run_00001_step_00000003.png",
     ]
-    assert all(image.shape == (1, 1, 2, 3) for image in saved_images)
-    assert all(torch.allclose(image, rgb[:1, :, :, :3].float() / 255.0) for image in saved_images)
+    assert all(image.shape == (1, 2, 4) for image in saved_images)
+    assert all((image == rgb[0].numpy()).all() for image in saved_images)
 
 
-@pytest.mark.parametrize(
-    ("data_type", "image_buffer", "expected"),
-    [
-        (
-            "distance_to_camera",
-            torch.tensor([[[[0.0], [2.0]], [[float("inf")], [float("nan")]]]]),
-            torch.tensor([[[[0.0], [1.0]], [[0.0], [0.0]]]]),
-        ),
-        (
-            "normals",
-            torch.tensor([[[[-1.0, 0.0, 1.0], [1.0, -1.0, 0.0]]]]),
-            torch.tensor([[[[0.0, 0.5, 1.0], [1.0, 0.0, 0.5]]]]),
-        ),
-        (
-            "semantic_segmentation",
-            torch.tensor([[[[-1.0, 1.0, 3.0]]]]),
-            torch.tensor([[[[0.0, 0.5, 1.0]]]]),
-        ),
-    ],
-)
-def test_capture_env_sensors_normalizes_float_image_buffers(
-    tmp_path: Path, data_type: str, image_buffer: torch.Tensor, expected: torch.Tensor
-) -> None:
-    """Float image-like buffers are normalized according to their sensor data type."""
-    wrapper = _make_capture_wrapper(tmp_path)
-
-    image_tensor = wrapper._to_image_tensor(image_buffer, data_type)
-
-    assert image_tensor is not None
-    assert torch.allclose(image_tensor, expected)
-
-
-def test_capture_env_sensors_accepts_proxyarray_torch_buffers(tmp_path: Path) -> None:
+def test_capture_env_sensors_accepts_proxyarray_torch_buffers(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """ProxyArray-style buffers are read through their ``.torch`` accessor."""
-    wrapper = _make_capture_wrapper(tmp_path, capture_num_envs=2)
     image_buffer = SimpleNamespace(torch=torch.ones((3, 2, 2, 4), dtype=torch.float32))
+    env = _FakeEnv({"camera": _make_sensor({"rgb": image_buffer})})
+    captured_tensors: list[torch.Tensor] = []
 
-    image_tensor = wrapper._to_image_tensor(image_buffer, "rgb")
+    def fake_normalize(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
+        captured_tensors.append(tensor.clone())
+        return tensor
 
-    assert image_tensor is not None
-    assert image_tensor.shape == (2, 2, 2, 3)
-    assert image_tensor.is_contiguous()
-    assert torch.allclose(image_tensor, torch.ones((2, 2, 2, 3)))
+    monkeypatch.setattr(_rl_common, "normalize_camera_output_for_display", fake_normalize)
+    monkeypatch.setattr(_rl_common, "make_camera_output_grid", lambda images: torch.zeros((4, 1, 1)))
+    wrapper = _make_capture_wrapper(tmp_path, env=env, capture_num_envs=2)
+
+    wrapper.reset()
+
+    assert len(captured_tensors) == 1
+    assert captured_tensors[0].shape == (2, 2, 2, 4)
 
 
-@pytest.mark.parametrize(
-    "image_buffer",
-    [
-        torch.ones((1, 2, 3)),
-        torch.ones((1, 2, 2, 0)),
-        SimpleNamespace(torch="not a tensor"),
-        object(),
-    ],
-)
-def test_capture_env_sensors_rejects_non_image_buffers(tmp_path: Path, image_buffer: Any) -> None:
-    """Non-image buffers are skipped instead of being written."""
-    wrapper = _make_capture_wrapper(tmp_path)
+def test_capture_env_sensors_skips_none_outputs(tmp_path: Path) -> None:
+    """Missing sensor outputs are skipped instead of being written."""
+    env = _FakeEnv({"camera": _make_sensor({"rgb": None})})
+    wrapper = _make_capture_wrapper(tmp_path, env=env)
 
-    assert wrapper._to_image_tensor(image_buffer, "rgb") is None
+    wrapper.reset()
+
+    assert not any(tmp_path.rglob("*.png"))
 
 
 def test_capture_env_sensors_rejects_unknown_output_format(tmp_path: Path) -> None:
