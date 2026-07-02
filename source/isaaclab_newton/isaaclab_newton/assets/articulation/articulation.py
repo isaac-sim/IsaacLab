@@ -1034,8 +1034,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         if self._has_joint_ordering:
-            joint_pos_user = self.data._joint_pos_user.data
-            joint_vel_user = self.data._joint_vel_user.data
+            joint_pos_user = self.data._joint_pos_user
+            joint_vel_user = self.data._joint_vel_user
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
             joint_vel_user = self.data._sim_bind_joint_vel
@@ -1100,8 +1100,8 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
         if self._has_joint_ordering:
-            joint_pos_user = self.data._joint_pos_user.data
-            joint_vel_user = self.data._joint_vel_user.data
+            joint_pos_user = self.data._joint_pos_user
+            joint_vel_user = self.data._joint_vel_user
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
             joint_vel_user = self.data._sim_bind_joint_vel
@@ -1164,7 +1164,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if self._has_joint_ordering:
-            joint_pos_user = self.data._joint_pos_user.data
+            joint_pos_user = self.data._joint_pos_user
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
@@ -1220,7 +1220,7 @@ class Articulation(BaseArticulation):
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         if self._has_joint_ordering:
-            joint_pos_user = self.data._joint_pos_user.data
+            joint_pos_user = self.data._joint_pos_user
         else:
             joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
@@ -1277,7 +1277,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if self._has_joint_ordering:
-            joint_vel_user = self.data._joint_vel_user.data
+            joint_vel_user = self.data._joint_vel_user
         else:
             joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
@@ -1334,7 +1334,7 @@ class Articulation(BaseArticulation):
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
         if self._has_joint_ordering:
-            joint_vel_user = self.data._joint_vel_user.data
+            joint_vel_user = self.data._joint_vel_user
         else:
             joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
@@ -3452,6 +3452,13 @@ class Articulation(BaseArticulation):
         # asset named data
         self._resolve_and_install_ordering_maps()
         self._cache_ordering_maps()
+        # Republish the Tier-1 backend->user state shadows inside the stepped
+        # (and captured) region after the last solver substep. Registering only
+        # when ordering is non-identity keeps identity-ordering scenes at zero
+        # overhead (empty callback list). The reorders are then recorded into
+        # every captured graph, so passthrough state getters never replay stale.
+        if self._has_joint_ordering or self._has_body_ordering:
+            SimulationManager.register_post_step_callback(self._data._refresh_user_order_state)
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
@@ -3683,8 +3690,8 @@ class Articulation(BaseArticulation):
                     actuator_kernels.sync_torque_telemetry,
                     dim=(self.num_instances, self.num_joints),
                     inputs=[
-                        self._data.joint_pos.warp,
-                        self._data.joint_vel.warp,
+                        self._data._sim_bind_joint_pos,
+                        self._data._sim_bind_joint_vel,
                         self._data._joint_pos_target,
                         self._data._joint_vel_target,
                         self._data.joint_stiffness.warp,

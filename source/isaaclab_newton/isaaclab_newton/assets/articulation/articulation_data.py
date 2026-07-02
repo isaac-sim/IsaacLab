@@ -131,9 +131,15 @@ class ArticulationData(BaseArticulationData):
         write that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set
         to ``-1.0`` to force a refresh on the next read of any property that depends on
         body poses (``body_link_pose_w``, the Jacobian properties, ``mass_matrix``).
+
+        This out-of-band FK path also republishes the user-order body-state shadows via
+        :meth:`_refresh_user_order_body_state`: the post-step callback only fires inside a
+        sim step, so a manual write followed by an FK refresh would otherwise leave the
+        passthrough ``body_link_pose_w`` / ``body_com_vel_w`` shadows stale.
         """
         if self._fk_timestamp < self._sim_timestamp:
             SimulationManager.forward()
+            self._refresh_user_order_body_state()
             self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(
@@ -155,7 +161,6 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_com_pose_w if from_link else None,
                 self._body_com_pose_w,
-                self._body_link_pose_w_user,
                 # root states
                 self._root_state_w,
                 self._root_link_state_w,
@@ -193,7 +198,6 @@ class ArticulationData(BaseArticulationData):
             [
                 self._root_link_vel_w if from_com else None,
                 self._body_link_vel_w,
-                self._body_com_vel_w_user,
                 # root states
                 self._root_state_w,
                 self._root_link_state_w,
@@ -761,16 +765,6 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         self._ensure_fk_fresh()
-        if self._has_body_ordering:
-            if self._body_link_pose_w_user.timestamp < self._sim_timestamp:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[self._sim_bind_body_link_pose_w, self._body_user_to_backend],
-                    outputs=[self._body_link_pose_w_user.data],
-                    device=self.device,
-                )
-                self._body_link_pose_w_user.timestamp = self._sim_timestamp
         return self._body_link_pose_w_ta
 
     @property
@@ -842,16 +836,6 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         self._ensure_fk_fresh()
-        if self._has_body_ordering:
-            if self._body_com_vel_w_user.timestamp < self._sim_timestamp:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[self._sim_bind_body_com_vel_w, self._body_user_to_backend],
-                    outputs=[self._body_com_vel_w_user.data],
-                    device=self.device,
-                )
-                self._body_com_vel_w_user.timestamp = self._sim_timestamp
         return self._body_com_vel_w_ta
 
     @property
@@ -1066,16 +1050,6 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
-        if self._has_joint_ordering:
-            if self._joint_pos_user.timestamp < self._sim_timestamp:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[self._sim_bind_joint_pos, self._joint_user_to_backend],
-                    outputs=[self._joint_pos_user.data],
-                    device=self.device,
-                )
-                self._joint_pos_user.timestamp = self._sim_timestamp
         return self._joint_pos_ta
 
     @property
@@ -1085,16 +1059,6 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to
         (num_instances, num_joints).
         """
-        if self._has_joint_ordering:
-            if self._joint_vel_user.timestamp < self._sim_timestamp:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_joints),
-                    inputs=[self._sim_bind_joint_vel, self._joint_user_to_backend],
-                    outputs=[self._joint_vel_user.data],
-                    device=self.device,
-                )
-                self._joint_vel_user.timestamp = self._sim_timestamp
         return self._joint_vel_ta
 
     @property
@@ -1796,8 +1760,8 @@ class ArticulationData(BaseArticulationData):
         self._body_link_vel_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
-        self._body_link_pose_w_user: TimestampedBuffer | None = None
-        self._body_com_vel_w_user: TimestampedBuffer | None = None
+        self._body_link_pose_w_user: wp.array | None = None
+        self._body_com_vel_w_user: wp.array | None = None
         self._body_mass_user: wp.array | None = None
         self._body_inertia_user: wp.array | None = None
         self._body_com_pos_b_user: wp.array | None = None
@@ -1826,8 +1790,8 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
-        self._joint_pos_user: TimestampedBuffer | None = None
-        self._joint_vel_user: TimestampedBuffer | None = None
+        self._joint_pos_user: wp.array | None = None
+        self._joint_vel_user: wp.array | None = None
         self._joint_stiffness_user: wp.array | None = None
         self._joint_damping_user: wp.array | None = None
         self._joint_armature_user: wp.array | None = None
@@ -2004,9 +1968,9 @@ class ArticulationData(BaseArticulationData):
         if self._has_joint_ordering:
             shape = (self._num_instances, self._num_joints)
             if self._joint_pos_user is None:
-                self._joint_pos_user = TimestampedBuffer(shape=shape, dtype=wp.float32, device=self.device)
+                self._joint_pos_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
             if self._joint_vel_user is None:
-                self._joint_vel_user = TimestampedBuffer(shape=shape, dtype=wp.float32, device=self.device)
+                self._joint_vel_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
             for field_name in (
                 "_joint_stiffness_user",
                 "_joint_damping_user",
@@ -2020,7 +1984,23 @@ class ArticulationData(BaseArticulationData):
                 if getattr(self, field_name) is None:
                     setattr(self, field_name, wp.zeros(shape, dtype=wp.float32, device=self.device))
             self._validate_joint_ordering_buffers()
-            reset_timestamps([self._joint_pos_user, self._joint_vel_user])
+            # Seed the Lab-owned actuator gain records from the solver's initial
+            # gains at ordering-resolve time, before actuator processing overwrites
+            # the actuator-covered DOFs. These records are Lab-owned afterwards
+            # (sim gains are deliberately zeroed for explicit DOFs), so they must
+            # never be resynced from the solver on rebind -- unlike the sim-owned
+            # mirrors in :meth:`_sync_user_ordered_joint_property_buffers`.
+            for backend_data, user_data in (
+                (self._sim_bind_joint_stiffness_sim, self._actuator_stiffness),
+                (self._sim_bind_joint_damping_sim, self._actuator_damping),
+            ):
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=shape,
+                    inputs=[backend_data, self._joint_user_to_backend],
+                    outputs=[user_data],
+                    device=self.device,
+                )
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=shape,
@@ -2050,9 +2030,9 @@ class ArticulationData(BaseArticulationData):
         if self._has_body_ordering:
             shape = (self._num_instances, self._num_bodies)
             if self._body_link_pose_w_user is None:
-                self._body_link_pose_w_user = TimestampedBuffer(shape=shape, dtype=wp.transformf, device=self.device)
+                self._body_link_pose_w_user = wp.zeros(shape, dtype=wp.transformf, device=self.device)
             if self._body_com_vel_w_user is None:
-                self._body_com_vel_w_user = TimestampedBuffer(shape=shape, dtype=wp.spatial_vectorf, device=self.device)
+                self._body_com_vel_w_user = wp.zeros(shape, dtype=wp.spatial_vectorf, device=self.device)
             if self._body_mass_user is None:
                 self._body_mass_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
             if self._body_inertia_user is None:
@@ -2071,8 +2051,6 @@ class ArticulationData(BaseArticulationData):
 
         reset_timestamps(
             [
-                self._body_link_pose_w_user,
-                self._body_com_vel_w_user,
                 self._body_link_vel_w,
                 self._body_com_pose_b,
                 self._body_com_pose_w,
@@ -2103,10 +2081,79 @@ class ArticulationData(BaseArticulationData):
             self._sync_user_ordered_body_property_buffers()
         self._pin_proxy_arrays()
 
+    def _refresh_user_order_joint_state(self) -> None:
+        """Reorder the live backend joint state into the user-order shadows.
+
+        Launches :func:`ordering_kernels.reorder_2d_backend_to_user` for
+        ``_sim_bind_joint_pos`` -> ``_joint_pos_user`` and ``_sim_bind_joint_vel``
+        -> ``_joint_vel_user``. No-op under identity ordering (the shadows are the
+        sim-bound arrays themselves).
+        """
+        if not self._has_joint_ordering:
+            return
+        for backend_data, user_data in (
+            (self._sim_bind_joint_pos, self._joint_pos_user),
+            (self._sim_bind_joint_vel, self._joint_vel_user),
+        ):
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[backend_data, self._joint_user_to_backend],
+                outputs=[user_data],
+                device=self.device,
+            )
+
+    def _refresh_user_order_body_state(self) -> None:
+        """Reorder the live backend body state into the user-order shadows.
+
+        Launches :func:`ordering_kernels.reorder_2d_backend_to_user` for
+        ``_sim_bind_body_link_pose_w`` -> ``_body_link_pose_w_user`` and
+        ``_sim_bind_body_com_vel_w`` -> ``_body_com_vel_w_user``. No-op under
+        identity ordering (the shadows are the sim-bound arrays themselves).
+        """
+        if not self._has_body_ordering:
+            return
+        for backend_data, user_data in (
+            (self._sim_bind_body_link_pose_w, self._body_link_pose_w_user),
+            (self._sim_bind_body_com_vel_w, self._body_com_vel_w_user),
+        ):
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[backend_data, self._body_user_to_backend],
+                outputs=[user_data],
+                device=self.device,
+            )
+
+    def _refresh_user_order_state(self) -> None:
+        """Republish all Tier-1 user-order state shadows from live backend state.
+
+        Registered as a post-step callback (see
+        :meth:`isaaclab_newton.physics.NewtonManager.register_post_step_callback`)
+        so the reorder launches land inside the stepped/captured region right after
+        the last solver substep. With no Python freshness guard the launches are
+        recorded into every captured graph and replayed on each tick, so the
+        passthrough ``joint_pos`` / ``joint_vel`` / ``body_link_pose_w`` /
+        ``body_com_vel_w`` shadows behave exactly like sim-bound memory.
+        """
+        self._refresh_user_order_joint_state()
+        self._refresh_user_order_body_state()
+
     def _sync_user_ordered_joint_property_buffers(self) -> None:
-        """Refresh user-order joint property buffers from sim-bound backend-order arrays."""
+        """Refresh user-order joint property buffers from sim-bound backend-order arrays.
+
+        Only sim-owned mirrors belong here: the solver is authoritative for these
+        arrays, so re-gathering them on init and rebind is always correct. This
+        includes the Tier-1 joint-state shadows (``_joint_pos_user`` /
+        ``_joint_vel_user``), which the solver owns. The Lab-owned actuator gain
+        records (``_actuator_stiffness`` / ``_actuator_damping``) are deliberately
+        excluded -- they are seeded once in :meth:`_configure_joint_ordering_buffers`
+        and would be clobbered here on every rebind.
+        """
         self._validate_joint_ordering_buffers()
         for backend_data, user_data in (
+            (self._sim_bind_joint_pos, self._joint_pos_user),
+            (self._sim_bind_joint_vel, self._joint_vel_user),
             (self._sim_bind_joint_stiffness_sim, self._joint_stiffness_user),
             (self._sim_bind_joint_damping_sim, self._joint_damping_user),
             (self._sim_bind_joint_armature, self._joint_armature_user),
@@ -2115,8 +2162,6 @@ class ArticulationData(BaseArticulationData):
             (self._sim_bind_joint_pos_limits_upper, self._joint_pos_limits_upper_user),
             (self._sim_bind_joint_vel_limits_sim, self._joint_vel_limits_user),
             (self._sim_bind_joint_effort_limits_sim, self._joint_effort_limits_user),
-            (self._sim_bind_joint_stiffness_sim, self._actuator_stiffness),
-            (self._sim_bind_joint_damping_sim, self._actuator_damping),
         ):
             wp.launch(
                 ordering_kernels.reorder_2d_backend_to_user,
@@ -2127,8 +2172,15 @@ class ArticulationData(BaseArticulationData):
             )
 
     def _sync_user_ordered_body_property_buffers(self) -> None:
-        """Refresh user-order body property buffers from sim-bound backend-order arrays."""
+        """Refresh user-order body property buffers from sim-bound backend-order arrays.
+
+        Only sim-owned mirrors belong here; the solver is authoritative for all of
+        them. The Tier-1 body-state shadows (``_body_link_pose_w_user`` /
+        ``_body_com_vel_w_user``) are republished via
+        :meth:`_refresh_user_order_body_state`.
+        """
         self._validate_body_ordering_buffers()
+        self._refresh_user_order_body_state()
         wp.launch(
             ordering_kernels.reorder_2d_backend_to_user,
             dim=(self._num_instances, self._num_bodies),
@@ -2169,14 +2221,6 @@ class ArticulationData(BaseArticulationData):
             self._sync_user_ordered_body_property_buffers()
         if is_rebind:
             self._joint_pos_limits_timestamp = -1.0
-            reset_timestamps(
-                [
-                    self._joint_pos_user if self._has_joint_ordering else None,
-                    self._joint_vel_user if self._has_joint_ordering else None,
-                    self._body_link_pose_w_user if self._has_body_ordering else None,
-                    self._body_com_vel_w_user if self._has_body_ordering else None,
-                ]
-            )
 
         joint_stiffness = self._joint_stiffness_user if self._has_joint_ordering else self._sim_bind_joint_stiffness_sim
         joint_damping = self._joint_damping_user if self._has_joint_ordering else self._sim_bind_joint_damping_sim
@@ -2202,13 +2246,11 @@ class ArticulationData(BaseArticulationData):
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
             body_link_pose_w = (
-                self._body_link_pose_w_user.data if self._has_body_ordering else self._sim_bind_body_link_pose_w
+                self._body_link_pose_w_user if self._has_body_ordering else self._sim_bind_body_link_pose_w
             )
-            body_com_vel_w = (
-                self._body_com_vel_w_user.data if self._has_body_ordering else self._sim_bind_body_com_vel_w
-            )
-            joint_pos = self._joint_pos_user.data if self._has_joint_ordering else self._sim_bind_joint_pos
-            joint_vel = self._joint_vel_user.data if self._has_joint_ordering else self._sim_bind_joint_vel
+            body_com_vel_w = self._body_com_vel_w_user if self._has_body_ordering else self._sim_bind_body_com_vel_w
+            joint_pos = self._joint_pos_user if self._has_joint_ordering else self._sim_bind_joint_pos
+            joint_vel = self._joint_vel_user if self._has_joint_ordering else self._sim_bind_joint_vel
             self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
             self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
             self._joint_pos_ta = ProxyArray(joint_pos)
@@ -2235,13 +2277,11 @@ class ArticulationData(BaseArticulationData):
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
             body_link_pose_w = (
-                self._body_link_pose_w_user.data if self._has_body_ordering else self._sim_bind_body_link_pose_w
+                self._body_link_pose_w_user if self._has_body_ordering else self._sim_bind_body_link_pose_w
             )
-            body_com_vel_w = (
-                self._body_com_vel_w_user.data if self._has_body_ordering else self._sim_bind_body_com_vel_w
-            )
-            joint_pos = self._joint_pos_user.data if self._has_joint_ordering else self._sim_bind_joint_pos
-            joint_vel = self._joint_vel_user.data if self._has_joint_ordering else self._sim_bind_joint_vel
+            body_com_vel_w = self._body_com_vel_w_user if self._has_body_ordering else self._sim_bind_body_com_vel_w
+            joint_pos = self._joint_pos_user if self._has_joint_ordering else self._sim_bind_joint_pos
+            joint_vel = self._joint_vel_user if self._has_joint_ordering else self._sim_bind_joint_vel
             self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
             self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
             self._joint_pos_ta = ProxyArray(joint_pos)

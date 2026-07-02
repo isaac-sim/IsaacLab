@@ -127,8 +127,8 @@ def patch_actuator_param_kernel(
 
 @wp.kernel(enable_backward=False)
 def sync_torque_telemetry(
-    joint_pos: wp.array2d(dtype=wp.float32),
-    joint_vel: wp.array2d(dtype=wp.float32),
+    joint_pos_backend: wp.array2d(dtype=wp.float32),
+    joint_vel_backend: wp.array2d(dtype=wp.float32),
     joint_pos_target: wp.array2d(dtype=wp.float32),
     joint_vel_target: wp.array2d(dtype=wp.float32),
     joint_stiffness: wp.array2d(dtype=wp.float32),
@@ -138,7 +138,7 @@ def sync_torque_telemetry(
     sim_bind_joint_effort: wp.array2d(dtype=wp.float32),
     actuator_computed_effort: wp.array2d(dtype=wp.float32),
     user_to_backend: wp.array(dtype=wp.int32),
-    effort_buffers_are_backend_order: bool,
+    sim_buffers_are_backend_order: bool,
     computed: wp.array2d(dtype=wp.float32),
     applied: wp.array2d(dtype=wp.float32),
 ):
@@ -148,29 +148,31 @@ def sync_torque_telemetry(
     runs on these); for explicit DOFs we read the pre-clamp effort the
     actuators just scatter-added into ``actuator_computed_effort`` and the
     post-clamp effort already in ``sim_bind_joint_effort`` (= ``joint_f``).
-    When those effort buffers are backend-order, only those reads gather
-    through ``user_to_backend``; the public state, gains, targets, and
-    telemetry outputs remain user-order.
+    When the sim-bound buffers are backend-order, the live joint state
+    (``joint_pos_backend`` / ``joint_vel_backend``) and both effort buffers are
+    gathered through ``user_to_backend`` so every read resolves to public joint
+    ``j``; the user-facing targets, gains, limits, and telemetry outputs are
+    already user-order and are indexed at ``[i, j]`` directly.
 
     Note: ``effort_limit`` clamps only the PD shadow used for implicit-DOF
     telemetry; the FF written into ``joint_f`` is not bounded by it.
     """
     i, j = wp.tid()
-    effort_j = j
-    if effort_buffers_are_backend_order:
-        effort_j = user_to_backend[j]
+    backend_j = j
+    if sim_buffers_are_backend_order:
+        backend_j = user_to_backend[j]
     if joint_modes[j] == 1:
-        err_p = joint_pos_target[i, j] - joint_pos[i, j]
-        err_v = joint_vel_target[i, j] - joint_vel[i, j]
+        err_p = joint_pos_target[i, j] - joint_pos_backend[i, backend_j]
+        err_v = joint_vel_target[i, j] - joint_vel_backend[i, backend_j]
         pd = joint_stiffness[i, j] * err_p + joint_damping[i, j] * err_v
         limit = effort_limit[i, j]
         pd_clipped = wp.clamp(pd, -limit, limit)
-        total = pd_clipped + sim_bind_joint_effort[i, effort_j]
+        total = pd_clipped + sim_bind_joint_effort[i, backend_j]
         computed[i, j] = total
         applied[i, j] = total
     else:
-        computed[i, j] = actuator_computed_effort[i, effort_j]
-        applied[i, j] = sim_bind_joint_effort[i, effort_j]
+        computed[i, j] = actuator_computed_effort[i, backend_j]
+        applied[i, j] = sim_bind_joint_effort[i, backend_j]
 
 
 def build_implicit_dof_mask(

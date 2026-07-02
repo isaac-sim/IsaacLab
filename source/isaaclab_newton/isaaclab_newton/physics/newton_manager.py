@@ -264,6 +264,11 @@ class NewtonManager(PhysicsManager):
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
     _post_actuator_callbacks: list[Callable[[], None]] = []
+    # In-graph hooks invoked after the last solver substep and before sensors,
+    # in registration order. Articulations with non-identity ordering register
+    # their backend-to-user state republish kernels here so the reorders are
+    # recorded into every captured graph.
+    _post_step_callbacks: list[Callable[[], None]] = []
 
     # CUDA graphing
     _graph = None
@@ -767,6 +772,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._report_contacts = False
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
+        NewtonManager._post_step_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
         # check, this gates whether the decimation loop can be captured into
@@ -1706,6 +1712,8 @@ class NewtonManager(PhysicsManager):
 
             cls._run_solver_substeps(contacts)
 
+        for cb in cls._post_step_callbacks:
+            cb()
         cls._update_sensors(contacts)
 
     @classmethod
@@ -1722,6 +1730,8 @@ class NewtonManager(PhysicsManager):
             contacts = None
 
         cls._run_solver_substeps(contacts)
+        for cb in cls._post_step_callbacks:
+            cb()
         cls._update_sensors(contacts)
 
     # State accessors (used extensively by articulation/rigid object data)
@@ -2001,6 +2011,22 @@ class NewtonManager(PhysicsManager):
         registered callbacks fire in registration order each step.
         """
         cls._post_actuator_callbacks.append(callback)
+
+    @classmethod
+    def register_post_step_callback(cls, callback: Callable[[], None]) -> None:
+        """Append a hook to the list invoked after the last solver substep on every step.
+
+        Each callback runs inside the stepped (and, when
+        :meth:`_is_all_graphable` is ``True``, captured) region right after the
+        final solver substep of the decimation loop and before
+        :meth:`_update_sensors`, so the launches it issues are recorded into
+        every captured CUDA graph and replayed on each tick. Callbacks must be
+        graph-safe (fixed shapes, no host branching on device data) and must be
+        registered before capture. Articulations with non-identity ordering
+        register their backend-to-user state republish here; all registered
+        callbacks fire in registration order each step.
+        """
+        cls._post_step_callbacks.append(callback)
 
     @classmethod
     def set_decimation(cls, decimation: int) -> None:

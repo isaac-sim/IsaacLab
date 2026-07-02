@@ -729,7 +729,6 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
         assert data._sim_timestamp == sim_timestamp
         torch.testing.assert_close(data.root_link_pose_w.torch, written_root_state)
         refreshed_body_state = data.body_link_pose_w.torch[:, root_body_idx]
-        assert data._body_link_pose_w_user.timestamp == sim_timestamp
     else:
         cached_body_state = data.body_com_vel_w.torch[:, root_body_idx].clone()
         written_root_state = torch.tensor(
@@ -740,7 +739,6 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
         assert data._sim_timestamp == sim_timestamp
         torch.testing.assert_close(data.root_com_vel_w.torch, written_root_state)
         refreshed_body_state = data.body_com_vel_w.torch[:, root_body_idx]
-        assert data._body_com_vel_w_user.timestamp == sim_timestamp
 
     torch.testing.assert_close(refreshed_body_state, written_root_state)
     assert not torch.equal(refreshed_body_state, cached_body_state)
@@ -791,6 +789,12 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
             device=data._sim_bind_body_com_vel_w.device,
         )
     )
+    # The raw sim-bind writes above simulate the solver advancing state; in the
+    # real pipeline the post-step callback republishes the passthrough shadows in
+    # the same step. Mirror that here so ``joint_acc`` (which reads the passthrough
+    # ``joint_vel`` shadow) observes the primed backend state. No-op under identity
+    # ordering, where the getters alias the sim-bound arrays directly.
+    data._refresh_user_order_state()
     data.update(sim.cfg.dt)
     primed_joint_acc = data.joint_acc.warp.numpy().copy()
     primed_body_com_acc_w = data.body_com_acc_w.warp.numpy().copy()
@@ -816,9 +820,11 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
     data.joint_pos_limits.torch.clone()
     assert data._joint_pos_limits_timestamp == data._sim_timestamp
+    # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
+    # allocated for non-identity ordering and stay ``None`` for identity ordering.
     if has_ordering:
         for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
-            assert getattr(data, cache_name).timestamp == data._sim_timestamp
+            assert getattr(data, cache_name) is not None
     else:
         for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
             assert getattr(data, cache_name) is None
@@ -877,9 +883,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     assert data._joint_pos_limits_timestamp == -1.0
     assert data._joint_acc.timestamp == -1.0
     assert data._body_com_acc_w.timestamp == -1.0
-    if has_ordering:
-        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
-            assert getattr(data, cache_name).timestamp == -1.0
 
     joint_user_to_backend = (
         np.asarray(articulation.joint_ordering.user_to_backend_indices)
@@ -921,7 +924,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         assert int(proxy.warp.ptr) != old_binding_ptrs[binding_name]
         if has_ordering:
             shadow = getattr(data, public_to_shadow[property_name])
-            assert int(proxy.warp.ptr) == int(shadow.data.ptr)
+            assert int(proxy.warp.ptr) == int(shadow.ptr)
         else:
             assert int(proxy.warp.ptr) == int(getattr(data, binding_name).ptr)
         np.testing.assert_array_equal(proxy.warp.numpy(), expected)
@@ -936,9 +939,133 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     np.testing.assert_array_equal(data.joint_pos_limits.warp.numpy(), expected_limits)
     assert data._joint_pos_limits_timestamp == data._sim_timestamp
 
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+def test_newton_rebind_preserves_lab_owned_actuator_gains(
+    sim, num_articulations, device, gravity_enabled, articulation_type, ordering_mode
+):
+    """Keep Lab-owned actuator gains across a rebind that re-seeds the solver's sim gains.
+
+    Part 2 (D3) regression: ``_actuator_stiffness`` / ``_actuator_damping`` are Lab-owned
+    records (the actuator kp/kd); the solver's sim gains are deliberately zeroed for
+    explicit DOFs. A full sim reset recreates the solver arrays, and rebind must NOT
+    resync the Lab-owned records from the freshly rebuilt (here: sentinel) solver gains.
+    ``none`` is the identity-ordering control that must pass with or without the fix.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={
+            "legs": IdealPDActuatorCfg(
+                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
+                stiffness=40.0,
+                damping=5.0,
+                effort_limit=80.0,
+            )
+        },
+    )
+    if ordering_mode == "reversed":
+        articulation_cfg = articulation_cfg.replace(joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)))
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    has_ordering = ordering_mode == "reversed"
+    data = articulation.data
+    assert data._has_joint_ordering is has_ordering
+
+    # Prime: explicit (IdealPD) actuators keep their PD in the Lab-owned records,
+    # while the solver's sim gains are zeroed so it applies no PD on these DOFs.
+    np.testing.assert_allclose(data._actuator_stiffness.numpy(), 40.0)
+    np.testing.assert_allclose(data._actuator_damping.numpy(), 5.0)
+    np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), 0.0)
+    np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), 0.0)
+
+    # Simulate a full sim reset: shallow-copy the model, swap the joint gain arrays
+    # for sentinel-filled arrays (standing in for whatever the solver rebuilds), and
+    # rebind the data-side sim bindings.
+    old_model = SimulationManager.get_model()
+    new_model = copy(old_model)
+    sentinel_ke = 12345.0
+    sentinel_kd = 678.0
+    new_model.joint_target_ke = wp.array(
+        np.full(len(old_model.joint_target_ke), sentinel_ke, dtype=np.float32),
+        dtype=wp.float32,
+        device=old_model.joint_target_ke.device,
+    )
+    new_model.joint_target_kd = wp.array(
+        np.full(len(old_model.joint_target_kd), sentinel_kd, dtype=np.float32),
+        dtype=wp.float32,
+        device=old_model.joint_target_kd.device,
+    )
+    SimulationManager._model = new_model
+    data._create_simulation_bindings()
+
+    # The Lab-owned actuator gains must survive the rebind unchanged...
+    np.testing.assert_allclose(data._actuator_stiffness.numpy(), 40.0)
+    np.testing.assert_allclose(data._actuator_damping.numpy(), 5.0)
+    # ...while the sim-owned mirrors track the solver's freshly seeded (sentinel) gains.
     if has_ordering:
-        for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
-            assert getattr(data, cache_name).timestamp == data._sim_timestamp
+        np.testing.assert_allclose(data._joint_stiffness_user.numpy(), sentinel_ke)
+        np.testing.assert_allclose(data._joint_damping_user.numpy(), sentinel_kd)
+    else:
+        np.testing.assert_allclose(data._sim_bind_joint_stiffness_sim.numpy(), sentinel_ke)
+        np.testing.assert_allclose(data._sim_bind_joint_damping_sim.numpy(), sentinel_kd)
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_newton_post_step_hook_publishes_ordered_state_inside_step(
+    sim, num_articulations, device, gravity_enabled, articulation_type
+):
+    """Republish the user-order Tier-1 shadows inside the sim step, without any read.
+
+    Part 1 (D1) regression: with non-identity ordering the passthrough state getters no
+    longer reorder on read; the post-step callback republishes the shadows from live
+    backend state inside the stepped region. We deliberately clobber the four shadows,
+    step the simulation WITHOUT reading any state property, and assert the shadows again
+    equal the reordered backend state -- which can only hold if the hook ran inside the
+    step. Under the lazy design (no hook), only a property read would refresh them, so
+    the clobbered shadows would stay stale and the assertions would fail.
+
+    Ships the eager-mode invariant variant: CUDA-graph capture is not reliably reachable
+    from this CPU test harness, and this invariant directly proves the in-step republish.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)),
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    data = articulation.data
+    assert data._has_joint_ordering
+    assert data._has_body_ordering
+    joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
+    body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
+
+    # Clobber every Tier-1 shadow with a large sentinel so a stale (unrepublished) shadow
+    # is unmistakably detectable -- the true backend joint/velocity state sits near zero,
+    # so a plain zero-fill would coincide with it. Then step WITHOUT touching joint_pos /
+    # joint_vel / body_link_pose_w / body_com_vel_w.
+    data._joint_pos_user.fill_(1000.0)
+    data._joint_vel_user.fill_(1000.0)
+    data._body_link_pose_w_user.fill_(wp.transformf(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0, 1.0))
+    data._body_com_vel_w_user.fill_(wp.spatial_vectorf(1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0))
+    sim.step()
+
+    np.testing.assert_allclose(data._joint_pos_user.numpy(), data._sim_bind_joint_pos.numpy()[:, joint_u2b])
+    np.testing.assert_allclose(data._joint_vel_user.numpy(), data._sim_bind_joint_vel.numpy()[:, joint_u2b])
+    np.testing.assert_allclose(
+        data._body_link_pose_w_user.numpy(), data._sim_bind_body_link_pose_w.numpy()[:, body_u2b]
+    )
+    np.testing.assert_allclose(data._body_com_vel_w_user.numpy(), data._sim_bind_body_com_vel_w.numpy()[:, body_u2b])
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

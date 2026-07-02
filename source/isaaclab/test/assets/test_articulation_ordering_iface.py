@@ -473,6 +473,9 @@ def _seed_backend_joint_state(
     if backend == "newton":
         art.data._sim_bind_joint_pos.assign(wp.array(position, dtype=wp.float32, device=art.device))
         art.data._sim_bind_joint_vel.assign(wp.array(velocity, dtype=wp.float32, device=art.device))
+        # Raw sim-bind writes bypass the solver step, so mirror the post-step
+        # publish that keeps the public-order shadows coherent under ordering.
+        art.data._refresh_user_order_joint_state()
         return
     raise AssertionError(f"Unsupported backend for joint-state parity test: {backend}")
 
