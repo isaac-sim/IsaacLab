@@ -8,7 +8,7 @@
 import sys
 from types import SimpleNamespace
 
-from isaaclab.utils.device import set_cuda_device
+from isaaclab.utils._device import set_cuda_device
 
 
 def test_set_cuda_device_sets_torch_before_warp(monkeypatch):

@@ -29,7 +29,6 @@ from isaaclab.renderers.render_context import RenderContext
 from isaaclab.scene_data import SceneDataProvider
 from isaaclab.sim.service_locator import ServiceLocator
 from isaaclab.sim.utils import create_new_stage
-from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.string import clear_resolve_matching_names_cache
 from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
@@ -160,12 +159,6 @@ class SimulationContext:
             cuda_device = self.get_setting("/physics/cudaDevice")
             device_id = max(0, int(cuda_device) if cuda_device is not None else 0)
             self.cfg.device = f"cuda:{device_id}"
-
-        # Synchronize the process-wide CUDA device before any physics backend
-        # initializes or allocates state. PyTorch must select the device before
-        # Warp so that both runtimes retain the same primary CUDA context.
-        if "cuda" in self.cfg.device:
-            set_cuda_device(self.cfg.device)
 
         # Set default physics backend if not specified
         if self.cfg.physics is None:

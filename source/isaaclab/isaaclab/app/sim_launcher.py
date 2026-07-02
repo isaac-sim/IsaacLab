@@ -30,7 +30,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
-from isaaclab.utils.device import set_cuda_device
+from isaaclab.utils._device import set_cuda_device
 
 logger = logging.getLogger(__name__)
 

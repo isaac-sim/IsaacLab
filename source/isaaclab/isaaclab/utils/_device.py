@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for selecting compute devices."""
+"""Internal utilities for selecting compute devices."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from __future__ import annotations
 def set_cuda_device(device: str | int) -> None:
     """Set the process-wide CUDA device for both PyTorch and Warp.
 
-    PyTorch must select the device before Warp so that Warp initializes and
-    retains the primary CUDA context for the intended device.
+    PyTorch must select the device before Warp so that a newly imported Warp
+    runtime initializes on that device, or an existing runtime switches to it.
 
     Args:
         device: CUDA device index or a device string such as ``"cuda:1"``.
