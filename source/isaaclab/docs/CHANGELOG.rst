@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+8.0.2 (2026-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton training videos to reuse the active visualizer framebuffer, preserving selected
+  environments, the live camera, and markers without a second rendering pass.
+
+
 8.0.1 (2026-07-01)
 ~~~~~~~~~~~~~~~~~~
 

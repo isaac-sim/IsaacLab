@@ -28,6 +28,12 @@ class NewtonVisualizerCfg(VisualizerCfg):
     update_frequency: int = 1
     """Visualizer update frequency (updates every N frames)."""
 
+    world_spacing: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Visual spacing between simulation worlds along each axis [m].
+
+    Non-zero axes arrange visible worlds in a compact grid without changing their simulated poses.
+    """
+
     show_joints: bool = False
     """Show joint visualization."""
 
