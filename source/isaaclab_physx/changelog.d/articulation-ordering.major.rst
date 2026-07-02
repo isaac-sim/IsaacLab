@@ -4,6 +4,15 @@ Added
 * Added backend joint/body ordering introspection properties to
   :class:`~isaaclab_physx.assets.Articulation`.
 
+Removed
+^^^^^^^
+
+* Removed the ``write_joint_state_data`` and ``write_joint_vel_data`` kernels
+  from ``isaaclab_physx.assets.articulation.kernels``. Use the shared
+  ordering-aware kernels ``write_joint_state_user_to_backend_with_indices`` and
+  ``write_joint_vel_user_to_backend_with_indices`` from
+  ``isaaclab.assets.articulation.ordering_kernels`` instead.
+
 Changed
 ^^^^^^^
 
