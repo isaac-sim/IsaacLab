@@ -128,6 +128,16 @@ class BaseArticulationData(ABC):
     spatial_tendon_names: list[str] | None = None
     """Spatial tendon names in active backend solver-view order."""
 
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Configure backend-order staging after the articulation resolves ordering maps.
+
+        The owning articulation calls this once it has resolved and stored the joint
+        and body ordering maps (:attr:`joint_ordering` and :attr:`body_ordering`) on
+        this data container. The base implementation is a no-op; backend data classes
+        override it to allocate or release the backend-order shadow buffers their read
+        paths require when the public order differs from backend order.
+        """
+
     ##
     # Defaults - Initial state.
     ##

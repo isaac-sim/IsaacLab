@@ -67,11 +67,7 @@ def _get_cached_convention_names(
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...] | None:
     """Return cached convention names for an articulation, if present."""
-    cache = getattr(articulation, "_ordering_convention_name_cache", None)
-    if isinstance(cache, dict):
-        names = cache.get((convention, kind))
-        return _coerce_name_sequence(names)
-    return None
+    return _coerce_name_sequence(articulation._ordering_convention_name_cache.get((convention, kind)))
 
 
 def _cache_convention_names(
@@ -79,16 +75,10 @@ def _cache_convention_names(
     convention: ArticulationOrderingConvention,
     names_by_kind: dict[Literal["joint", "body"], tuple[str, ...]],
 ) -> None:
-    """Cache convention names on mutable articulation instances."""
-    cache = getattr(articulation, "_ordering_convention_name_cache", None)
-    if not isinstance(cache, dict):
-        cache = {}
+    """Cache convention names on the articulation instance."""
+    cache = articulation._ordering_convention_name_cache
     for kind, names in names_by_kind.items():
         cache[(convention, kind)] = tuple(names)
-    try:
-        setattr(articulation, "_ordering_convention_name_cache", cache)
-    except AttributeError:
-        return
 
 
 def _get_prim_path_string(prim: Usd.Prim) -> str:
@@ -639,33 +629,28 @@ def _resolve_articulation_convention_name_ordering(
             return robot_schema_names
         resolution_failures.append(robot_schema_failure_reason)
 
-    if parsed_convention is ArticulationOrderingConvention.PHYSX:
-        physx_names = _get_physx_names_from_newton_usd_builder(articulation)
-        if physx_names is not None:
-            complete_physx_names = _get_complete_convention_names_by_kind(articulation, physx_names)
-            if len(complete_physx_names) == 2:
-                _cache_convention_names(articulation, parsed_convention, complete_physx_names)
-            if kind in complete_physx_names:
-                return complete_physx_names[kind]
-            reason = _describe_incomplete_convention_names(kind, physx_names.get(kind), backend_names)
-            resolution_failures.append(f"physx_usd_builder: {reason}")
+    # PhysX and MJWarp both resolve through a temporary Newton USD build; they
+    # differ only in the provider function (breadth- vs depth-first joint
+    # ordering) and the failure-reason label.
+    newton_usd_builder_providers = {
+        ArticulationOrderingConvention.PHYSX: ("physx_usd_builder", _get_physx_names_from_newton_usd_builder),
+        ArticulationOrderingConvention.MJWARP: ("mjwarp_usd_builder", _get_mjwarp_names_from_newton_usd_builder),
+    }
+    builder_provider = newton_usd_builder_providers.get(parsed_convention)
+    if builder_provider is not None:
+        provider_label, provider = builder_provider
+        builder_names = provider(articulation)
+        if builder_names is not None:
+            complete_names = _get_complete_convention_names_by_kind(articulation, builder_names)
+            if len(complete_names) == 2:
+                _cache_convention_names(articulation, parsed_convention, complete_names)
+            if kind in complete_names:
+                return complete_names[kind]
+            reason = _describe_incomplete_convention_names(kind, builder_names.get(kind), backend_names)
+            resolution_failures.append(f"{provider_label}: {reason}")
         else:
             reason = _describe_newton_usd_builder_unavailability(articulation)
-            resolution_failures.append(f"physx_usd_builder: {reason}")
-
-    if parsed_convention is ArticulationOrderingConvention.MJWARP:
-        mjwarp_names = _get_mjwarp_names_from_newton_usd_builder(articulation)
-        if mjwarp_names is not None:
-            complete_mjwarp_names = _get_complete_convention_names_by_kind(articulation, mjwarp_names)
-            if len(complete_mjwarp_names) == 2:
-                _cache_convention_names(articulation, parsed_convention, complete_mjwarp_names)
-            if kind in complete_mjwarp_names:
-                return complete_mjwarp_names[kind]
-            reason = _describe_incomplete_convention_names(kind, mjwarp_names.get(kind), backend_names)
-            resolution_failures.append(f"mjwarp_usd_builder: {reason}")
-        else:
-            reason = _describe_newton_usd_builder_unavailability(articulation)
-            resolution_failures.append(f"mjwarp_usd_builder: {reason}")
+            resolution_failures.append(f"{provider_label}: {reason}")
 
     config_field = "joint_ordering" if kind == "joint" else "body_ordering"
     attempted_resolutions = f" Attempted resolutions: {'; '.join(resolution_failures)}." if resolution_failures else ""

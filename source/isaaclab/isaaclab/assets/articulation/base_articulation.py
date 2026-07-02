@@ -11,7 +11,7 @@ from __future__ import annotations
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import torch
 import warp as wp
@@ -21,7 +21,7 @@ from ...utils.buffers import TimestampedBufferWarp
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ..asset_base import AssetBase
 from . import ordering_kernels
-from .ordering import ArticulationNameMap, build_articulation_name_map
+from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
 from .ordering_resolvers import _resolve_articulation_ordering_names
 
 if TYPE_CHECKING:
@@ -108,6 +108,13 @@ class BaseArticulation(AssetBase):
         super().__init__(cfg)
         sim_ctx = SimulationContext.instance()
         self._sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
+        # Per-articulation cache of resolved cross-backend convention name orderings,
+        # populated lazily while ordering maps are resolved. A single resolution may
+        # query the same convention for both joints and bodies, so results are keyed
+        # by ``(convention, kind)``.
+        self._ordering_convention_name_cache: dict[
+            tuple[ArticulationOrderingConvention, Literal["joint", "body"]], tuple[str, ...]
+        ] = {}
 
     """
     Properties
@@ -312,10 +319,9 @@ class BaseArticulation(AssetBase):
             self.data.body_ordering = body_ordering
             self.data.body_names = list(body_ordering.user_names)
 
-        apply_ordering_maps = getattr(self.data, "_apply_ordering_maps_after_resolve", None)
         has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
-        if apply_ordering_maps is not None and (had_ordering or has_ordering):
-            apply_ordering_maps()
+        if had_ordering or has_ordering:
+            self.data._apply_ordering_maps_after_resolve()
 
     @property
     def num_base_dofs(self) -> int:
@@ -2337,28 +2343,22 @@ class BaseArticulation(AssetBase):
     """
 
     def _cache_ordering_maps(self) -> None:
-        """Cache ordering maps while preserving persistent physical commands."""
-        cache_initialized = getattr(self, "_ordering_maps_cached", False)
-        if cache_initialized:
-            joint_command_buffers = self._ordering_joint_command_buffers()
-            joint_backend_snapshots = self._ordering_snapshot_buffers(
-                joint_command_buffers,
-                self.num_joints,
-                self._has_joint_ordering,
-                self._joint_backend_to_user,
+        """Cache backend/public ordering maps on the articulation instance.
+
+        Backends install ordering maps exactly once during initialization. There
+        is no public runtime re-ordering API, so re-invoking this method after the
+        maps are cached indicates a programming error and is rejected. A backend
+        that legitimately rebuilds its maps must reset :attr:`_ordering_maps_cached`
+        to ``False`` before calling again, mirroring the single initialization path.
+
+        Raises:
+            RuntimeError: If invoked again after the ordering maps were cached.
+        """
+        if getattr(self, "_ordering_maps_cached", False):
+            raise RuntimeError(
+                "Articulation ordering maps are cached exactly once during initialization; "
+                "re-ordering an already initialized articulation is not supported."
             )
-            body_command_buffers = self._ordering_body_command_buffers()
-            body_backend_snapshots = self._ordering_snapshot_buffers(
-                body_command_buffers,
-                self.num_bodies,
-                self._has_body_ordering,
-                self._body_backend_to_user,
-            )
-        else:
-            joint_command_buffers = ()
-            joint_backend_snapshots = ()
-            body_command_buffers = ()
-            body_backend_snapshots = ()
 
         joint_ordering = self.data.joint_ordering
         if joint_ordering is None:
@@ -2381,114 +2381,72 @@ class BaseArticulation(AssetBase):
             self._has_body_ordering = not body_ordering.is_identity
 
         self._ordering_configure_backend_staging()
-
-        if cache_initialized:
-            self._ordering_restore_buffers(
-                joint_command_buffers,
-                joint_backend_snapshots,
-                self.num_joints,
-                self._has_joint_ordering,
-                self._joint_user_to_backend,
-            )
-            self._ordering_restore_buffers(
-                body_command_buffers,
-                body_backend_snapshots,
-                self.num_bodies,
-                self._has_body_ordering,
-                self._body_user_to_backend,
-            )
-            self._ordering_restore_backend_staging(joint_backend_snapshots)
-
         self._ordering_maps_cached = True
 
     def _ordering_configure_backend_staging(self) -> None:
         """Configure backend-owned staging after ordering maps change."""
 
     def _ordering_restore_backend_staging(self, joint_backend_snapshots: tuple[wp.array, ...]) -> None:
-        """Restore backend-owned staging from canonical joint snapshots."""
+        """Restore backend-owned staging from canonical joint snapshots.
 
-    def _ordering_snapshot_buffers(
+        Backend extension hook. The base implementation is a no-op; backends that
+        stage joint commands in backend order override it. Not exercised on the
+        single initialization path and reserved for backends that rebuild their
+        ordering maps.
+        """
+
+    def _reorder_joint_buffer_to_backend(
         self,
-        user_buffers: tuple[wp.array, ...],
-        item_count: int,
-        has_ordering: bool,
-        backend_to_user: wp.array,
-    ) -> tuple[wp.array, ...]:
-        """Snapshot public-order command buffers in canonical backend order."""
-        backend_snapshots: list[wp.array] = []
-        for user_buffer in user_buffers:
-            backend_snapshot = wp.zeros_like(user_buffer)
-            if has_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_user_to_backend,
-                    dim=(self.num_instances, item_count),
-                    inputs=[user_buffer, backend_to_user],
-                    outputs=[backend_snapshot],
-                    device=self.device,
-                )
-            else:
-                backend_snapshot.assign(user_buffer)
-            backend_snapshots.append(backend_snapshot)
-        return tuple(backend_snapshots)
+        user_buffer: wp.array,
+        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        *,
+        component_count: int | None = None,
+    ) -> wp.array:
+        """Return a backend-order view or copy of a public-order joint buffer.
 
-    def _ordering_restore_buffers(
-        self,
-        user_buffers: tuple[wp.array, ...],
-        backend_snapshots: tuple[wp.array, ...],
-        item_count: int,
-        has_ordering: bool,
-        user_to_backend: wp.array,
-    ) -> None:
-        """Restore canonical command snapshots into the current public order."""
-        for user_buffer, backend_snapshot in zip(user_buffers, backend_snapshots, strict=True):
-            if has_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self.num_instances, item_count),
-                    inputs=[backend_snapshot, user_to_backend],
-                    outputs=[user_buffer],
-                    device=self.device,
-                )
-            else:
-                user_buffer.assign(backend_snapshot)
+        When :paramref:`component_count` is ``None`` the buffer is treated as
+        two-dimensional (per joint); otherwise it is treated as three-dimensional
+        with that many trailing components per joint.
 
-    def _ordering_joint_command_buffers(self) -> tuple[wp.array, ...]:
-        """Return persistent public-order joint command and telemetry buffers."""
-        buffers = [
-            self.data._joint_pos_target,
-            self.data._joint_vel_target,
-            self.data._joint_effort_target,
-            self.data._computed_torque,
-            self.data._applied_torque,
-        ]
-        for buffer_name in (
-            "_joint_pos_target_sim",
-            "_joint_vel_target_sim",
-            "_joint_effort_target_sim",
-        ):
-            buffer = getattr(self, buffer_name, None)
-            if buffer is not None:
-                buffers.append(buffer)
-        return tuple(buffers)
+        Args:
+            user_buffer: Public-order joint buffer to reorder.
+            backend_buffer: Backend-order staging destination, either a raw Warp
+                array or a :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`.
+                Required when the articulation has a non-identity joint ordering.
+            component_count: Number of trailing components per joint for a
+                three-dimensional buffer, or ``None`` for a two-dimensional buffer.
 
-    def _ordering_body_command_buffers(self) -> tuple[wp.array, ...]:
-        """Return persistent public-order wrench-composer buffers."""
-        buffers = []
-        for composer_name in ("_instantaneous_wrench_composer", "_permanent_wrench_composer"):
-            composer = getattr(self, composer_name, None)
-            if composer is None:
-                continue
-            for buffer_name in (
-                "_global_force_w",
-                "_global_torque_w",
-                "_global_force_at_com_w",
-                "_local_force_b",
-                "_local_torque_b",
-                "_out_force_b",
-                "_out_torque_b",
-            ):
-                buffers.append(getattr(composer, buffer_name))
-        return tuple(buffers)
+        Returns:
+            :paramref:`user_buffer` when the joint ordering is identity; otherwise
+            the backend-order staging array populated from :paramref:`user_buffer`.
+
+        Raises:
+            RuntimeError: If a non-identity joint ordering is active but no backend
+                staging buffer was provided.
+        """
+        if not self._has_joint_ordering:
+            return user_buffer
+        if backend_buffer is None:
+            detail = "backend staging" if component_count is None else "3-D backend staging"
+            raise RuntimeError(f"{self.__backend_name__} joint ordering requires {detail}.")
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        if component_count is None:
+            wp.launch(
+                ordering_kernels.reorder_2d_user_to_backend,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[user_buffer, self._joint_backend_to_user],
+                outputs=[backend_data],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                ordering_kernels.reorder_3d_user_to_backend,
+                dim=(self.num_instances, self.num_joints, component_count),
+                inputs=[user_buffer, self._joint_backend_to_user],
+                outputs=[backend_data],
+                device=self.device,
+            )
+        return backend_data
 
     def _get_backend_ordered_joint_buffer(
         self,
@@ -2496,19 +2454,7 @@ class BaseArticulation(AssetBase):
         backend_buffer: wp.array | TimestampedBufferWarp | None,
     ) -> wp.array:
         """Return a backend-order view or copy of a public-order joint buffer."""
-        if not self._has_joint_ordering:
-            return user_buffer
-        if backend_buffer is None:
-            raise RuntimeError(f"{self.__backend_name__} joint ordering requires backend staging.")
-        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
-        wp.launch(
-            ordering_kernels.reorder_2d_user_to_backend,
-            dim=(self.num_instances, self.num_joints),
-            inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_data],
-            device=self.device,
-        )
-        return backend_data
+        return self._reorder_joint_buffer_to_backend(user_buffer, backend_buffer)
 
     def _get_backend_ordered_joint_3d_buffer(
         self,
@@ -2517,19 +2463,7 @@ class BaseArticulation(AssetBase):
         component_count: int,
     ) -> wp.array:
         """Return a backend-order view or copy of a public-order 3-D joint buffer."""
-        if not self._has_joint_ordering:
-            return user_buffer
-        if backend_buffer is None:
-            raise RuntimeError(f"{self.__backend_name__} joint ordering requires 3-D backend staging.")
-        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
-        wp.launch(
-            ordering_kernels.reorder_3d_user_to_backend,
-            dim=(self.num_instances, self.num_joints, component_count),
-            inputs=[user_buffer, self._joint_backend_to_user],
-            outputs=[backend_data],
-            device=self.device,
-        )
-        return backend_data
+        return self._reorder_joint_buffer_to_backend(user_buffer, backend_buffer, component_count=component_count)
 
     """
     Internal helpers -- Actuators.

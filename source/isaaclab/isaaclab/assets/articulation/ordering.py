@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import operator
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Literal
 
@@ -106,6 +106,9 @@ class ArticulationNameMap:
         user_to_backend: Read-only device permutation from public to backend indices.
         backend_to_user: Read-only device inverse permutation from backend to public indices.
         is_identity: Whether names and both permutations are in identical order.
+        _prevalidated: Internal, init-only. :func:`build_articulation_name_map`
+            sets this to skip revalidating fields it already validated; direct
+            construction leaves it ``False`` and fully validates every field.
 
     Raises:
         TypeError: If either name field is not a sequence of strings, a CPU map
@@ -139,8 +142,22 @@ class ArticulationNameMap:
     is_identity: bool
     """Whether names and both index maps are identity permutations."""
 
-    def __post_init__(self) -> None:
-        """Validate CPU-side name-map invariants."""
+    _prevalidated: InitVar[bool] = False
+    """Set by :func:`build_articulation_name_map` to skip revalidating fields it already validated."""
+
+    def __post_init__(self, _prevalidated: bool) -> None:
+        """Validate CPU-side name-map invariants unless the builder pre-validated them.
+
+        :func:`build_articulation_name_map` establishes every invariant while
+        constructing the map, so it passes ``_prevalidated=True`` to skip the
+        redundant checks (including two device-to-host copies). Directly
+        constructed maps are always fully validated.
+        """
+        if not _prevalidated:
+            self._validate()
+
+    def _validate(self) -> None:
+        """Coerce name/index fields and enforce all CPU and device map invariants."""
         if self.kind not in {"joint", "body"}:
             raise ValueError(f"ArticulationNameMap kind must be 'joint' or 'body'. Got {self.kind!r}.")
         if type(self.is_identity) is not bool:
@@ -340,4 +357,5 @@ def build_articulation_name_map(
         user_to_backend=wp.array(user_to_backend_np, dtype=wp.int32, device=device),
         backend_to_user=wp.array(backend_to_user_np, dtype=wp.int32, device=device),
         is_identity=is_identity,
+        _prevalidated=True,
     )
