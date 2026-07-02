@@ -9,8 +9,12 @@ from pathlib import Path
 
 try:
     from .backend_identity import make_backend_key, normalize_physics_backend, normalize_render_backend
+    from .gate_types import FpsMeanThreshold
+    from .gpu_identity import gpu_model_config_keys
 except ImportError:  # pragma: no cover - supports direct script imports
     from backend_identity import make_backend_key, normalize_physics_backend, normalize_render_backend
+    from gate_types import FpsMeanThreshold
+    from gpu_identity import gpu_model_config_keys
 
 _DEFAULT_TASKS_JSON = Path(__file__).parent / "tasks.json"
 
@@ -18,6 +22,34 @@ _DEFAULT_TASKS_JSON = Path(__file__).parent / "tasks.json"
 _BACKEND_CACHES: dict[str, list[str]] = {
     "newton": ["mjwarp_jit"],
 }
+
+
+def parse_fps_mean_thresholds(raw) -> dict[str, dict[str, list[FpsMeanThreshold]]]:
+    """Parse the nested ``{gpu_model: {backend_key: [entries]}}`` threshold config.
+
+    Validation (mandatory names, gating-verdict enum, value-less skips) happens
+    here via :meth:`FpsMeanThreshold.from_list`, so malformed ``tasks.json`` fails
+    fast at load time.
+
+    Args:
+        raw: The raw ``fps_mean_thresholds`` value from ``tasks.json`` (may be empty).
+
+    Returns:
+        Nested mapping of GPU model to backend key to parsed thresholds.
+    """
+    if not raw:
+        return {}
+    if not isinstance(raw, dict):
+        raise TypeError("fps_mean_thresholds must be an object keyed by GPU model")
+    parsed: dict[str, dict[str, list[FpsMeanThreshold]]] = {}
+    for gpu_key, backends in raw.items():
+        if not isinstance(backends, dict):
+            raise TypeError(f"fps_mean_thresholds[{gpu_key!r}] must be an object keyed by backend")
+        parsed[gpu_key] = {
+            backend_key: FpsMeanThreshold.from_list(entries, context=f"{gpu_key}/{backend_key}")
+            for backend_key, entries in backends.items()
+        }
+    return parsed
 
 
 def caches_for_backend(backend: str) -> list[str]:
@@ -52,7 +84,7 @@ class TaskConfig:
     excluded_frames_raw: list[int | list[int]]
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
-    fps_mean_floor: dict
+    fps_mean_thresholds: dict[str, dict[str, list[FpsMeanThreshold]]]
     caches: list[str]
     tags: list[str] = field(default_factory=lambda: ["always"])
     task_type: str = "benchmark"
@@ -68,6 +100,24 @@ class TaskConfig:
         otherwise returns physics_backend.
         """
         return make_backend_key(self.physics_backend, self.render_backend)
+
+    def thresholds_for(self, gpu_model: str) -> list[FpsMeanThreshold]:
+        """Return configured FPS thresholds for this task/backend on ``gpu_model``.
+
+        Resolves across the canonical and legacy GPU config keys (e.g. ``L40S``),
+        returning the first matching backend entry, or an empty list if none apply.
+
+        Args:
+            gpu_model: GPU model string (canonical or raw display name).
+
+        Returns:
+            List of :class:`~gate_types.FpsMeanThreshold` (possibly empty).
+        """
+        for key in gpu_model_config_keys(gpu_model):
+            backends = self.fps_mean_thresholds.get(key)
+            if backends and self.backend_key in backends:
+                return backends[self.backend_key]
+        return []
 
     @property
     def excluded_frames(self) -> frozenset[int]:
@@ -131,7 +181,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
         camera_resolution: tuple[int, int] | None = (
             tuple(camera_raw) if camera_raw is not None else None  # type: ignore[assignment]
         )
-        fps_mean_floor: dict = merged.get("fps_mean_floor", {})
+        fps_mean_thresholds = parse_fps_mean_thresholds(merged.get("fps_mean_thresholds", {}))
         backends: list[dict] = merged.get("backends", [])
 
         for backend_entry in backends:
@@ -150,7 +200,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
                     excluded_frames_raw=merged["excluded_frames"],
                     camera_resolution=camera_resolution,
                     timeout_minutes=int(merged["timeout_minutes"]),
-                    fps_mean_floor=fps_mean_floor,
+                    fps_mean_thresholds=fps_mean_thresholds,
                     caches=caches_for_backend(physics),
                     tags=merged["tags"],
                     task_type=merged["type"],

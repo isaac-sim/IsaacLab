@@ -14,7 +14,6 @@ if str(_MODULE_DIR) not in sys.path:
     sys.path.insert(0, str(_MODULE_DIR))
 
 from backend_identity import make_backend_key, normalize_render_backend
-from gpu_identity import gpu_model_config_keys
 from launch_config import hydra_args_for_task, task_to_launch_config, write_launch_config
 from task_config import get_task
 
@@ -34,15 +33,9 @@ def main() -> int:
     render_backend = normalize_render_backend(args.render_backend)
     backend_key = make_backend_key(args.physics_backend, render_backend)
     task = get_task(args.task_id, backend_key)
-    fps_mean_floor = 0.0
-    for gpu_key in gpu_model_config_keys(args.gpu_model):
-        configured_floor = task.fps_mean_floor.get(gpu_key, {}).get(task.backend_key)
-        if configured_floor is not None:
-            fps_mean_floor = float(configured_floor)
-            break
     config = task_to_launch_config(
         task,
-        fps_mean_floor=fps_mean_floor,
+        fps_mean_thresholds=task.thresholds_for(args.gpu_model),
         gpu_model=args.gpu_model,
         hydra_args=hydra_args_for_task(task),
     )

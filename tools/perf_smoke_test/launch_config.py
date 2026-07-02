@@ -18,10 +18,12 @@ from typing import Any
 
 try:
     from .backend_identity import make_backend_key, normalize_render_backend
+    from .gate_types import FpsMeanThreshold
     from .gpu_identity import normalize_gpu_fields
     from .task_config import TaskConfig
 except ImportError:  # pragma: no cover (for direct scripting execution/import)
     from backend_identity import make_backend_key, normalize_render_backend
+    from gate_types import FpsMeanThreshold
     from gpu_identity import normalize_gpu_fields
     from task_config import TaskConfig
 
@@ -73,7 +75,7 @@ def hydra_args_for_task(task: TaskConfig) -> list[str]:
 def task_to_launch_config(
     task: TaskConfig,
     *,
-    fps_mean_floor: float,
+    fps_mean_thresholds: list[FpsMeanThreshold],
     gpu_model: str | None = None,
     hydra_args: list[str] | None = None,
     benchmark_backend: str = "json",
@@ -98,7 +100,7 @@ def task_to_launch_config(
         "gpu_model_raw": gpu_fields["gpu_model_raw"],
         "benchmark_backend": benchmark_backend,
         "hydra_args": list(hydra_args or []),
-        "fps_mean_floor": float(fps_mean_floor),
+        "fps_mean_thresholds": [t.to_dict() for t in fps_mean_thresholds],
         "baseline_epoch": int(getattr(task, "baseline_epoch", DEFAULT_BASELINE_EPOCH)),
         "benchmark_contract_version": BENCHMARK_CONTRACT_VERSION,
     }
@@ -145,7 +147,7 @@ def fallback_launch_config(
             "gpu_model_raw": gpu_fields["gpu_model_raw"],
             "benchmark_backend": "json",
             "hydra_args": [],
-            "fps_mean_floor": 0.0,
+            "fps_mean_thresholds": [],
             "baseline_epoch": DEFAULT_BASELINE_EPOCH,
             "benchmark_contract_version": BENCHMARK_CONTRACT_VERSION,
         }
@@ -161,7 +163,7 @@ def fallback_launch_config(
 
     return task_to_launch_config(
         task,
-        fps_mean_floor=(task.fps_mean_floor.get("L40S", {}) or {}).get(task.backend_key, 0.0),
+        fps_mean_thresholds=task.thresholds_for("L40S"),
         hydra_args=[],
     )
 

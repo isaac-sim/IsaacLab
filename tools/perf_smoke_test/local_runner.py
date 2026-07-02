@@ -45,7 +45,7 @@ if str(_MODULE_DIR) not in sys.path:
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
+from gpu_identity import canonical_gpu_model  # noqa: E402
 from launch_config import hydra_args_for_task, task_to_launch_config, write_launch_config  # noqa: E402
 from task_config import TaskConfig, load_tasks  # noqa: E402
 from validate_tasks import validate as validate_tasks  # noqa: E402
@@ -154,14 +154,6 @@ def _print_matrix(tasks: list[TaskConfig], tags: list[str]) -> None:
 
 def _hydra_args(task: TaskConfig) -> list[str]:
     return hydra_args_for_task(task)
-
-
-def _fps_mean_floor(task: TaskConfig, gpu_model: str) -> float:
-    for key in gpu_model_config_keys(gpu_model):
-        value = task.fps_mean_floor.get(key, {}).get(task.backend_key)
-        if value is not None:
-            return float(value)
-    return 0.0
 
 
 def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> list[str]:
@@ -352,15 +344,12 @@ def main() -> int:
 
         bench_result_path = artifact_dir / "perf_smoke_test_result.json"
         if args.skip_existing and bench_result_path.exists():
-            print(
-                f"[{i}/{len(tasks)}] SKIP (perf_smoke_test_result.json exists): "
-                f"{task.task_id} / {task.backend_key}"
-            )
+            print(f"[{i}/{len(tasks)}] SKIP (perf_smoke_test_result.json exists): {task.task_id} / {task.backend_key}")
             continue
 
         launch_config = task_to_launch_config(
             task,
-            fps_mean_floor=_fps_mean_floor(task, gpu_model),
+            fps_mean_thresholds=task.thresholds_for(gpu_model),
             gpu_model=gpu_model_raw,
             hydra_args=_hydra_args(task),
         )

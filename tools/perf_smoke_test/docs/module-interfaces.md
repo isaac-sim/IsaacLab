@@ -59,22 +59,44 @@ Mirrored PR pushes under `pull-request/<number>` use the GitHub PR API to recove
 def compare(
     bench_result: dict,
     baseline: Baseline | None,
-    fps_mean_floor: float,
+    fps_mean_thresholds: list[FpsMeanThreshold],
     excluded_frames: frozenset[int],
     artifact_dir: Path,
+    *,
+    min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT,
 ) -> OracleResult
 ```
 
 The central verdict function. Reads `perf_smoke_test_info.json` from `artifact_dir`,
 applies `excluded_frames`, computes mean FPS, and returns an `OracleResult`.
 
+The final verdict is the **most severe** of the rolling-window/baseline verdict and
+the verdict from any crossed gating threshold (`WARN` < `BLOCK`). A crossed
+reporting-only threshold (one with no `threshold_verdict`) is recorded in
+`OracleResult.crossed_thresholds` without changing the verdict.
+
 | Parameter | Type | Description |
 |---|---|---|
 | `bench_result` | `dict` | Loaded `perf_smoke_test_result.json` |
 | `baseline` | `Baseline \| None` | Rolling baseline stats; `None` for seed run |
-| `fps_mean_floor` | `float` | Hard minimum FPS; 0.0 = disabled |
+| `fps_mean_thresholds` | `list[FpsMeanThreshold]` | Configured FPS floors/reference points for this task/backend; may be empty |
 | `excluded_frames` | `frozenset[int]` | 0-based frame indices to drop before computing mean |
 | `artifact_dir` | `Path` | Directory containing `perf_smoke_test_info.json` |
+| `min_block_regression_pct` | `float` | Minimum % regression below the MAD block band required to BLOCK |
+
+### `class FpsMeanThreshold`
+
+```python
+@dataclass(frozen=True)
+class FpsMeanThreshold:
+    name: str                       # informative label, e.g. "IsaacLab-2.0" (required)
+    value: float                    # mean-FPS floor; 0.0 is valid and effectively non-gating
+    verdict: OracleVerdict | None   # WARN/BLOCK to gate when crossed; None = reporting-only
+```
+
+A threshold is *crossed* when the measured mean FPS is below `value`. A crossed
+gating threshold contributes its `verdict`; a crossed reporting-only threshold
+(`verdict is None`) is surfaced in outputs but never changes the verdict.
 
 ### `apply_excluded_frames()`
 
@@ -118,9 +140,12 @@ class OracleResult:
     was_retried: bool               # Whether Phase 1 succeeded only after a retry
     task_id: str
     backend: str
+    crossed_thresholds: list[dict]  # Crossed thresholds (name/value/verdict/gating) for reporting
 ```
 
 `fps_median`, `fps_p5`, `fps_p95` are informational — they do not affect the verdict.
+`crossed_thresholds` lists every threshold whose value the measured mean FPS fell below,
+including reporting-only ones, and is surfaced in the aggregate summary and GitHub outputs.
 `measured_fps` (mean of filtered series) is the blocking metric.
 
 ### `class OracleVerdict`
@@ -180,7 +205,7 @@ class TaskConfig:
     excluded_frames_raw: list[int | list[int]]  # Raw JSON; use .excluded_frames
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
-    fps_mean_floor: dict            # {"L40S": {"physx": 100.0, ...}}
+    fps_mean_thresholds: dict       # {"L40S": {"physx": [FpsMeanThreshold, ...]}}
     caches: list[str]               # Cache identifiers from caches_for_backend()
     tags: list[str]                 # ["always"] or ["camera"]
     task_type: str                  # "benchmark"
@@ -194,6 +219,9 @@ class TaskConfig:
     @property
     def excluded_frames(self) -> frozenset[int]:
         # Expands excluded_frames_raw ranges to individual indices
+
+    def thresholds_for(self, gpu_model: str) -> list[FpsMeanThreshold]:
+        # Resolves this task/backend's thresholds across canonical + legacy GPU keys
 ```
 
 `excluded_frames_raw` supports two entry types:
@@ -515,9 +543,14 @@ Skips tasks with no baseline (prints `SKIP (no baseline)`).
         {"physics": "physx", "render": "newton_renderer"},
         {"physics": "newton", "render": "ovrtx_renderer"}
       ],
-      "fps_mean_floor": {
+      "fps_mean_thresholds": {
         "<gpu_model>": {
-          "<backend_key>": <float>      // 0.0 = disabled
+          "<backend_key>": [
+            // threshold_name is required; threshold_verdict is WARN|BLOCK, or
+            // omitted for a reporting-only entry; threshold 0.0 is non-gating.
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": <float>},
+            {"threshold_name": "IsaacLab-2.0", "threshold": <float>}
+          ]
         }
       }
     }

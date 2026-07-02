@@ -7,15 +7,31 @@
 
 import json
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
     from .gate_config import DEFAULT_K_BLOCK, DEFAULT_K_WARN, MIN_BASELINE_SAMPLES, MIN_BLOCK_REGRESSION_PCT
-    from .gate_types import BisectVerdict, FailurePhase, OracleVerdict, ThresholdSource
+    from .gate_types import (
+        BisectVerdict,
+        FailurePhase,
+        FpsMeanThreshold,
+        OracleVerdict,
+        ThresholdSource,
+        verdict_severity,
+        worst_verdict,
+    )
 except ImportError:  # pragma: no cover (for direct scripting execution/import)
     from gate_config import DEFAULT_K_BLOCK, DEFAULT_K_WARN, MIN_BASELINE_SAMPLES, MIN_BLOCK_REGRESSION_PCT
-    from gate_types import BisectVerdict, FailurePhase, OracleVerdict, ThresholdSource
+    from gate_types import (
+        BisectVerdict,
+        FailurePhase,
+        FpsMeanThreshold,
+        OracleVerdict,
+        ThresholdSource,
+        verdict_severity,
+        worst_verdict,
+    )
 
 
 @dataclass
@@ -58,6 +74,7 @@ class OracleResult:
     hard_floor_fps: float | None = None
     min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT
     note: str | None = None
+    crossed_thresholds: list[dict] = field(default_factory=list)
 
 
 _BISECT_BAD_PHASES: frozenset[str] = frozenset({FailurePhase.INIT.value, FailurePhase.RUNTIME.value})
@@ -138,13 +155,19 @@ def _extract_fps_series(perf_smoke_test_info: list[dict]) -> list[float]:
 def compare(
     bench_result: dict,
     baseline: "Baseline | None",
-    fps_mean_floor: float,
+    fps_mean_thresholds: "list[FpsMeanThreshold]",
     excluded_frames: "frozenset[int]",
     artifact_dir: "Path",
     *,
     min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT,
 ) -> OracleResult:
-    """Compare a benchmark result against its baseline and return an OracleResult."""
+    """Compare a benchmark result against its baseline and return an OracleResult.
+
+    The final verdict is the most severe of the rolling-window/baseline verdict and
+    the verdict from any crossed gating threshold (see :class:`~gate_types.FpsMeanThreshold`).
+    Reporting-only thresholds that cross are recorded in ``crossed_thresholds`` without
+    changing the verdict.
+    """
     task_id: str = bench_result["task_id"]
     backend: str = bench_result.get("backend_key") or bench_result["backend"]
     failure_phase: str | None = bench_result.get("failure_phase")
@@ -187,41 +210,66 @@ def compare(
     if baseline_fps:
         regression_pct = ((mean_fps - baseline_fps) / baseline_fps) * 100.0
 
-    hard_floor_fps = fps_mean_floor if fps_mean_floor > 0 else None
-    threshold_source = ThresholdSource.NO_BASELINE.value
+    # --- Configured FPS thresholds (hard floors and named reference points) ---
+    crossed = [t for t in fps_mean_thresholds if t.crosses(mean_fps)]
+    crossed_thresholds = [
+        {
+            "threshold_name": t.name,
+            "threshold": t.value,
+            "threshold_verdict": t.verdict.value if t.verdict is not None else None,
+            "gating": t.is_gating,
+        }
+        for t in crossed
+    ]
+    threshold_verdict = OracleVerdict.PASS
+    for t in crossed:
+        if t.is_gating:
+            threshold_verdict = worst_verdict(threshold_verdict, t.verdict)
+    block_values = [t.value for t in fps_mean_thresholds if t.verdict == OracleVerdict.BLOCK]
+    hard_floor_fps = max(block_values) if block_values else None
+
+    # --- Rolling-window / baseline verdict ---
     warn_threshold = None
     block_threshold = None
-    note = None
+    baseline_threshold_source = ThresholdSource.NO_BASELINE.value
+    notes: list[str] = []
 
-    if fps_mean_floor > 0 and mean_fps < fps_mean_floor:
-        verdict = OracleVerdict.BLOCK
-        threshold_source = ThresholdSource.HARD_FLOOR.value
-        note = "below_hard_floor"
-    elif baseline is None:
-        verdict = OracleVerdict.WARN
-        note = "no_baseline"
+    if baseline is None:
+        baseline_verdict = OracleVerdict.WARN
+        notes.append("no_baseline")
     elif baseline.sample_count < MIN_BASELINE_SAMPLES:
-        verdict = OracleVerdict.WARN
-        threshold_source = ThresholdSource.INSUFFICIENT_WINDOW.value
-        note = f"insufficient_baseline(n={baseline.sample_count},min={MIN_BASELINE_SAMPLES})"
+        baseline_verdict = OracleVerdict.WARN
+        baseline_threshold_source = ThresholdSource.INSUFFICIENT_WINDOW.value
+        notes.append(f"insufficient_baseline(n={baseline.sample_count},min={MIN_BASELINE_SAMPLES})")
     else:
-        threshold_source = ThresholdSource.ROLLING_WINDOW.value
+        baseline_threshold_source = ThresholdSource.ROLLING_WINDOW.value
         block_threshold = baseline.median_fps - baseline.k_block * baseline.mad_fps
         warn_threshold = baseline.median_fps - baseline.k_warn * baseline.mad_fps
         if mean_fps < block_threshold:
             if regression_pct is None or regression_pct <= -float(min_block_regression_pct):
-                verdict = OracleVerdict.BLOCK
+                baseline_verdict = OracleVerdict.BLOCK
             else:
-                verdict = OracleVerdict.WARN
-                note = "below_mad_block_but_inside_regression_floor"
+                baseline_verdict = OracleVerdict.WARN
+                notes.append("below_mad_block_but_inside_regression_floor")
         elif mean_fps < warn_threshold:
-            verdict = OracleVerdict.WARN
+            baseline_verdict = OracleVerdict.WARN
         else:
-            verdict = OracleVerdict.PASS
+            baseline_verdict = OracleVerdict.PASS
+
+    # --- Combine: the most severe of the threshold and baseline verdicts wins ---
+    verdict = worst_verdict(threshold_verdict, baseline_verdict)
+    if threshold_verdict != OracleVerdict.PASS and verdict_severity(threshold_verdict) >= verdict_severity(
+        baseline_verdict
+    ):
+        threshold_source = ThresholdSource.THRESHOLD.value
+    else:
+        threshold_source = baseline_threshold_source
 
     if verdict == OracleVerdict.PASS and was_retried:
         verdict = OracleVerdict.WARN
-        note = note or "was_retried"
+        notes.append("was_retried")
+
+    note = "; ".join(notes) if notes else None
 
     return OracleResult(
         verdict=verdict,
@@ -247,4 +295,5 @@ def compare(
         hard_floor_fps=hard_floor_fps,
         min_block_regression_pct=float(min_block_regression_pct),
         note=note,
+        crossed_thresholds=crossed_thresholds,
     )

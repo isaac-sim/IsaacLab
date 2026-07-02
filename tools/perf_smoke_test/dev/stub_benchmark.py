@@ -30,7 +30,7 @@ def _presets_for_backend(task_id: str, identity) -> str:
         excluded_frames_raw=[],
         camera_resolution=None,
         timeout_minutes=1,
-        fps_mean_floor={},
+        fps_mean_thresholds={},
         caches=[],
     )
     args = hydra_args_for_task(task)

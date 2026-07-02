@@ -420,7 +420,7 @@ def _record_from_result(
     oracle_result = compare(
         bench_result=bench_result,
         baseline=None,
-        fps_mean_floor=0.0,
+        fps_mean_thresholds=[],
         excluded_frames=_excluded_frames(bench_result),
         artifact_dir=artifact_dir,
         min_block_regression_pct=0.0,

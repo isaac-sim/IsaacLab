@@ -19,10 +19,14 @@
         {"physics": "physx"},
         {"physics": "newton"}
       ],
-      "fps_mean_floor": {
+      "fps_mean_thresholds": {
         "L40S": {
-          "physx": 100.0,
-          "newton": 0.0
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 100.0}
+          ],
+          "newton": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ]
         }
       }
     },
@@ -32,9 +36,11 @@
       "backends": [
         {"physics": "physx"}
       ],
-      "fps_mean_floor": {
+      "fps_mean_thresholds": {
         "L40S": {
-          "physx": 30.0
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 30.0}
+          ]
         }
       }
     },
@@ -48,12 +54,20 @@
         {"physics": "newton"},
         {"physics": "newton", "render": "newton_renderer"}
       ],
-      "fps_mean_floor": {
+      "fps_mean_thresholds": {
         "L40S": {
-          "physx": 20.0,
-          "physx_newton_renderer": 0.0,
-          "newton": 0.0,
-          "newton_newton_renderer": 0.0
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 20.0}
+          ],
+          "physx_newton_renderer": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ],
+          "newton": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ],
+          "newton_newton_renderer": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ]
         }
       }
     },
@@ -64,10 +78,14 @@
         {"physics": "physx"},
         {"physics": "newton"}
       ],
-      "fps_mean_floor": {
+      "fps_mean_thresholds": {
         "L40S": {
-          "physx": 40.0,
-          "newton": 0.0
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 40.0}
+          ],
+          "newton": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ]
         }
       }
     }

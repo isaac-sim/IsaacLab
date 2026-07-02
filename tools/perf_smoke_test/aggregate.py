@@ -30,8 +30,8 @@ from baseline_manager import (  # noqa: E402
     update_baselines_git,
 )
 from gate_config import BASELINE_PUSH_RETRIES, load_gate_config  # noqa: E402
-from gate_types import OracleVerdict  # noqa: E402
-from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
+from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
+from gpu_identity import canonical_gpu_model  # noqa: E402
 from oracle import compare  # noqa: E402
 from task_config import get_task  # noqa: E402
 
@@ -94,19 +94,26 @@ def _bench_gpu_model(bench_result: dict, fallback: str) -> str:
     return canonical_gpu_model(fallback) if gpu_model == "unknown_gpu" else gpu_model
 
 
-def _hard_floor(bench_result: dict, gpu_model: str, backend: str) -> float:
+def _thresholds(bench_result: dict, gpu_model: str, backend: str) -> list[FpsMeanThreshold]:
+    """Resolve configured FPS thresholds, preferring the run's launch_config artifact."""
     launch_config = bench_result.get("launch_config") or {}
-    if launch_config.get("fps_mean_floor") is not None:
-        return float(launch_config.get("fps_mean_floor") or 0.0)
+    raw = launch_config.get("fps_mean_thresholds")
+    if raw is not None:
+        return FpsMeanThreshold.from_list(raw, context=f"{bench_result.get('task_id')}/{backend}")
     try:
         task = get_task(bench_result["task_id"], backend)
-        for key in gpu_model_config_keys(gpu_model):
-            value = task.fps_mean_floor.get(key, {}).get(backend)
-            if value is not None:
-                return float(value)
-        return 0.0
+        return task.thresholds_for(gpu_model)
     except Exception:
-        return 0.0
+        return []
+
+
+def _render_crossed(crossed: list[dict]) -> list[str]:
+    """Render crossed thresholds as compact ``name(verdict)@value`` tags for reporting."""
+    parts = []
+    for rec in crossed:
+        tag = rec.get("threshold_verdict") or "report"
+        parts.append(f"crossed:{rec.get('threshold_name')}({tag})@{_fmt(rec.get('threshold'))}")
+    return parts
 
 
 def _build_summary_table(rows: list[tuple]) -> str:
@@ -131,6 +138,7 @@ def _build_summary_table(rows: list[tuple]) -> str:
             if part
         )
         note_parts = [part for part in (result.note, bench_result.get("config_mismatch")) if part]
+        note_parts.extend(_render_crossed(result.crossed_thresholds))
         if bench_result.get("p99_over_median") is not None:
             note_parts.append(f"p99/med={bench_result['p99_over_median']}")
         if bench_result.get("outlier_count") is not None:
@@ -228,17 +236,19 @@ def main() -> int:
         oracle_result = compare(
             bench_result=bench_result,
             baseline=baseline,
-            fps_mean_floor=_hard_floor(bench_result, bench_gpu_model, backend),
+            fps_mean_thresholds=_thresholds(bench_result, bench_gpu_model, backend),
             excluded_frames=_excluded_frames(bench_result),
             artifact_dir=artifact_dir,
             min_block_regression_pct=min_block_regression_pct,
         )
         rows.append((oracle_result, bench_result))
 
+        crossed_summary = _render_crossed(oracle_result.crossed_thresholds)
         print(
             f"[aggregate] {task_id}/{backend}: {oracle_result.verdict.value}"
             f"  fps={_fmt(oracle_result.measured_fps)}  baseline={_fmt(oracle_result.baseline_fps)}"
             f"  samples={oracle_result.baseline_sample_count}  source={oracle_result.threshold_source}"
+            + (f"  {'  '.join(crossed_summary)}" if crossed_summary else "")
         )
 
         if oracle_result.verdict == OracleVerdict.BLOCK:

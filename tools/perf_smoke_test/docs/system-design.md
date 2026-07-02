@@ -246,14 +246,18 @@ only a signal when camera code changes to save test time cost.
 `backend_key` = `{physics}` or `{physics}_{render}`. Preset tokens are derived automatically
 by `local_runner.py` and the CI workflow.
 
-Floor = 0 means "no hard floor"; baseline MAD thresholds apply only.
+The "floor" column shows each backend's `BLOCK` `fps_mean_thresholds` entry. A floor of
+0 is a valid, effectively non-gating threshold (measured FPS never drops below it), so
+only the baseline MAD thresholds apply in practice. Each backend may configure multiple
+thresholds (e.g. a `WARN` reference point alongside a `BLOCK` floor) and reporting-only
+entries that are surfaced without gating.
 
 ---
 
 ## 8. Oracle Logic
 
 ```
-compare(bench_result, baseline, fps_mean_floor, excluded_frames, artifact_dir)
+compare(bench_result, baseline, fps_mean_thresholds, excluded_frames, artifact_dir)
   → OracleResult
 ```
 
@@ -270,20 +274,22 @@ filtered empty?
 
 mean_fps = statistics.mean(filtered)
 
-mean_fps < fps_mean_floor?
-    → BLOCK
+# threshold_verdict: worst gating threshold crossed (mean_fps < value); PASS if none.
+#   crossed reporting-only thresholds are recorded but do not affect threshold_verdict.
 
+# baseline_verdict:
 baseline is None?
     → WARN (no_baseline)
 baseline.sample_count < MIN_BASELINE_SAMPLES?
     → WARN (insufficient_baseline)
-
 mean_fps < baseline.median - 4.0 * baseline.mad AND regression_pct <= -MIN_BLOCK_REGRESSION_PCT?
     → BLOCK
 mean_fps < baseline.median - 2.5 * baseline.mad?
     → WARN
 else
     → PASS
+
+verdict = worst(threshold_verdict, baseline_verdict)   # most severe wins (e.g. WARN floor + baseline BLOCK → BLOCK)
 
 verdict == PASS and was_retried?
     → downgrade to WARN
