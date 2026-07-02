@@ -105,15 +105,10 @@ jobs:
           $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
-          $'^\\.github/test-subsets/\tCI test subset config'
           $'^\\.gitmodules$\tGit submodule config'
           $'^[^/]+\\.(toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$\tRoot configuration and scripts'
         )
-        if [ "$EVENT_NAME" = "push" ]; then
-          triggered_jobs="Docker base build job + rendering-correctness + rendering-correctness-kitless"
-        else
-          triggered_jobs="Docker build jobs + all test-* matrix jobs"
-        fi
+        triggered_jobs="Docker build jobs + all test-* matrix jobs"
 
         render_table() {
           local files="$1" entry regex desc count sample shown
@@ -255,7 +250,6 @@ jobs:
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
     if: >-
-      github.event_name != 'push' &&
       needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
@@ -283,7 +277,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -308,7 +301,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -333,7 +325,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -357,7 +348,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -380,7 +370,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -403,7 +392,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -426,7 +414,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -448,7 +435,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -469,7 +455,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -490,7 +475,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -511,7 +495,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -532,7 +515,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -553,7 +535,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -574,7 +555,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -595,7 +575,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -644,7 +623,6 @@ jobs:
     continue-on-error: true
     needs: [build-curobo, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -694,7 +672,6 @@ jobs:
     continue-on-error: true
     needs: [build-curobo, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -718,7 +695,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -759,9 +735,7 @@ jobs:
           test_rendering_dexsuite_kuka_hetero.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
-        testmon-mode: ${{ github.event_name == 'push' && 'off' || 'collect' }}
+        testmon-mode: collect
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
@@ -789,9 +763,7 @@ jobs:
           test_rendering_dexsuite_kuka_homo_kitless.py,
           test_rendering_dexsuite_kuka_hetero_kitless.py,
           test_rendering_shadow_hand_kitless.py
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
-        testmon-mode: ${{ github.event_name == 'push' && 'off' || 'collect' }}
+        testmon-mode: collect
         container-name: isaac-lab-rendering-correctness-kitless-test
         omni-github-test-type: rendering-correctness-kitless
   #endregion
