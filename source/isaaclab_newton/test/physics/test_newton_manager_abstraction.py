@@ -426,6 +426,38 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
     assert NewtonManager._graph_capture_pending is False
 
 
+def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
+    """CUDA graph capture should use the simulation device instead of Warp's default device."""
+    from isaaclab.physics import PhysicsManager
+
+    captured_devices = []
+    captured_graph = object()
+
+    class FakeScopedCapture:
+        def __init__(self, device=None):
+            captured_devices.append(device)
+            self.graph = captured_graph
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
+    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
+    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
+
+    NewtonManager._capture_or_defer_graph()
+
+    assert captured_devices == ["cuda:1"]
+    assert NewtonManager._graph is captured_graph
+
+
 # ---------------------------------------------------------------------------
 # Manager class hierarchy and factory contracts
 # ---------------------------------------------------------------------------
