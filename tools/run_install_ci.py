@@ -320,11 +320,25 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     if args.testmon_data_dir:
         testmon_data_dir = Path(args.testmon_data_dir).resolve()
         testmon_data_dir.mkdir(parents=True, exist_ok=True)
-        testmon_data_file = testmon_data_dir / ".testmondata"
-        testmon_data_dir.chmod(0o777)
-        if testmon_data_file.exists():
-            testmon_data_file.chmod(0o666)
-        docker_run_cmd.extend(["-v", f"{testmon_data_dir}:/tmp/testmon"])
+        testmon_mount = f"{testmon_data_dir}:/tmp/testmon"
+        ownership_cmd = [
+            "docker",
+            "run",
+            "--rm",
+            "--user",
+            "root",
+            "--entrypoint",
+            "chown",
+            "-v",
+            testmon_mount,
+            image_tag,
+            "-R",
+            "isaaclab:isaaclab",
+            "/tmp/testmon",
+        ]
+        if run_cmd(ownership_cmd, check=False, stream=True).returncode != 0:
+            return 1
+        docker_run_cmd.extend(["-v", testmon_mount])
         docker_run_cmd.extend(["-e", "TESTMON_DATAFILE=/tmp/testmon/.testmondata"])
 
     # Pass environment variables
