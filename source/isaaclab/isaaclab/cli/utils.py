@@ -259,6 +259,26 @@ def _is_virtualenv_python(python_exe: str | Path) -> bool:
     return (python_path.parent.parent / "pyvenv.cfg").is_file()
 
 
+def _concrete_pip_python(python_exe: str) -> str:
+    """Resolve a launcher-script Python to the concrete interpreter for pip operations.
+
+    Isaac Sim's ``python.sh`` re-sources ``setup_python_env.sh``, which appends the
+    ``pip_prebundle`` directories back onto ``PYTHONPATH`` regardless of the caller's
+    environment. pip run through the wrapper therefore sees those prebundled
+    distributions as installed and can uninstall them from Isaac Sim while resolving
+    version conflicts, breaking extension startup (nvbugs 6343978). Package
+    management only needs the interpreter and its ``site-packages``, so pip is
+    routed to the underlying kit binary instead — mirroring the Windows preference
+    for ``python.exe`` over ``python.bat`` in :func:`extract_python_exe`.
+    """
+    path = Path(python_exe)
+    if path.name == "python.sh":
+        kit_python = path.parent / "kit" / "python" / "bin" / "python3"
+        if kit_python.exists():
+            return str(kit_python)
+    return python_exe
+
+
 def get_pip_command(python_exe: str | None = None) -> list[str]:
     """Return the base pip command tokens for the current environment.
 
@@ -266,8 +286,10 @@ def get_pip_command(python_exe: str | None = None) -> list[str]:
     ``["uv", "pip"]``.  When the target Python belongs to a virtual
     environment, ``UV_PYTHON`` is set so ``uv pip`` installs into that
     environment even if the process itself is not activated.  Otherwise returns
-    ``[python_exe, "-m", "pip"]`` so that the target interpreter's own pip is
-    used (e.g. Isaac Sim's bundled ``python.sh``).
+    ``[python_exe, "-m", "pip"]`` using the target interpreter's own pip, with
+    launcher scripts (Isaac Sim's ``python.sh``) resolved to the underlying
+    binary via :func:`_concrete_pip_python` so pip never sees the prebundle
+    paths the launcher injects.
 
     Args:
         python_exe: Python executable path.  Resolved via
@@ -281,7 +303,7 @@ def get_pip_command(python_exe: str | None = None) -> list[str]:
         os.environ["UV_PYTHON"] = python_exe
         return ["uv", "pip"]
 
-    return [python_exe, "-m", "pip"]
+    return [_concrete_pip_python(python_exe), "-m", "pip"]
 
 
 def extract_python_exe() -> str:

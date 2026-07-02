@@ -250,7 +250,11 @@ def _maybe_preinstall_arm_nlopt(python_exe: str, pip_cmd: list[str]) -> None:
 # via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
 # ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
-_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.8.5")
+# pin-pink sits in the 3.3.x window on purpose: Isaac Sim 6.x's
+# ``isaacsim.robot_motion.pink`` extension needs ``pink.exceptions.NoSolutionFound``
+# (module layout introduced in 3.3.0), while pink 3.4+ breaks the task API used by
+# :mod:`isaaclab.controllers.pink_ik` (``set_target_from_configuration``).
+_PINK_IK_STACK = ("pin", "pin-pink==3.3.0", "daqp==0.8.5")
 
 
 def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
@@ -305,7 +309,7 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
         print_warning(
             "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
             f"{install_result.returncode}). The pink IK controller and its tests will not be"
-            " usable until ``pin pin-pink==3.1.0 daqp==0.8.5`` is installed manually."
+            " usable until ``pin pin-pink==3.3.0 daqp==0.8.5`` is installed manually."
         )
 
 
@@ -772,6 +776,85 @@ def _force_remove(path: Path) -> None:
         os.rmdir(path)
 
 
+def _discover_prebundle_dirs() -> set[Path]:
+    """Find every ``pip_prebundle`` directory under the Isaac Sim installation.
+
+    Searches both the Isaac Sim tree and the Omniverse cache roots — some Isaac
+    Sim directories are symlinked into ``~/.local/share/ov`` and would be missed
+    by a plain ``rglob()`` on ``_isaac_sim``. Returns an empty set when no Isaac
+    Sim installation is present.
+    """
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is None or not isaacsim_path.exists():
+        return set()
+
+    candidate_roots: set[Path] = set()
+    for root in (
+        isaacsim_path,
+        isaacsim_path.resolve(),
+        isaacsim_path / "extscache",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
+    ):
+        if root.exists():
+            candidate_roots.add(root)
+            candidate_roots.add(root.resolve())
+
+    prebundle_dirs: set[Path] = set()
+    for root in candidate_roots:
+        prebundle_dirs.update(root.rglob("pip_prebundle"))
+    return prebundle_dirs
+
+
+def _snapshot_prebundle_dists() -> dict[Path, set[str]]:
+    """Record which distributions each Isaac Sim prebundle currently contains.
+
+    ``*.dist-info`` directory names are what pip uses to consider a distribution
+    installed; one disappearing from a prebundle means a pip operation
+    uninstalled a package that Isaac Sim extensions load at runtime.
+    """
+    snapshot: dict[Path, set[str]] = {}
+    for prebundle_dir in _discover_prebundle_dirs():
+        try:
+            snapshot[prebundle_dir] = {p.name for p in prebundle_dir.iterdir() if p.name.endswith(".dist-info")}
+        except OSError:
+            continue
+    return snapshot
+
+
+def _assert_prebundle_dists_intact(snapshot: dict[Path, set[str]]) -> None:
+    """Raise when the installation removed a distribution from an Isaac Sim prebundle.
+
+    Isaac Sim shares prebundled packages across extensions through symlink farms,
+    so deleting one copy silently breaks other extensions at startup (e.g. the
+    ``packaging`` removal cascade in nvbugs 6343978). Never let that state ship.
+
+    Args:
+        snapshot: Per-prebundle ``*.dist-info`` names from
+            :func:`_snapshot_prebundle_dists`, taken before the pip operations.
+
+    Raises:
+        RuntimeError: If any distribution present in ``snapshot`` is gone.
+    """
+    damaged: list[str] = []
+    for prebundle_dir, before in snapshot.items():
+        try:
+            after = {p.name for p in prebundle_dir.iterdir() if p.name.endswith(".dist-info")}
+        except OSError:
+            after = set()
+        missing = sorted(before - after)
+        if missing:
+            damaged.append(f"{prebundle_dir}: {', '.join(missing)}")
+    if damaged:
+        raise RuntimeError(
+            "Installation removed pre-bundled distribution(s) from Isaac Sim:\n  "
+            + "\n  ".join(damaged)
+            + "\nIsaac Sim extensions load these prebundles at runtime; removing them breaks extension"
+            " startup (see nvbugs 6343978). This usually means a pip operation ran with pip_prebundle"
+            " paths visible on sys.path. Restore the Isaac Sim installation before retrying."
+        )
+
+
 def _repoint_prebundle_packages() -> None:
     """Replace prebundled packages in Isaac Sim with symlinks to the active environment.
 
@@ -805,25 +888,7 @@ def _repoint_prebundle_packages() -> None:
         print_warning(f"site-packages directory not found: {site_packages} — skipping prebundle repoint.")
         return
 
-    # Discover pip_prebundle directories from both the Isaac Sim tree and
-    # Omniverse cache roots. Some Isaac Sim directories are symlinked into
-    # ~/.local/share/ov and may be missed by a plain rglob() on _isaac_sim.
-    candidate_roots: set[Path] = set()
-    for root in (
-        isaacsim_path,
-        isaacsim_path.resolve(),
-        isaacsim_path / "extscache",
-        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
-        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
-    ):
-        if root.exists():
-            candidate_roots.add(root)
-            candidate_roots.add(root.resolve())
-
-    prebundle_dirs: set[Path] = set()
-    for root in candidate_roots:
-        prebundle_dirs.update(root.rglob("pip_prebundle"))
-
+    prebundle_dirs = _discover_prebundle_dirs()
     if not prebundle_dirs:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
@@ -1029,6 +1094,10 @@ def command_install(install_type: str = "all") -> None:
     if saved_pythonpath is not None:
         probe_env["PYTHONPATH"] = saved_pythonpath
 
+    # Baseline for the post-install integrity check: no pip operation below may
+    # remove a distribution from Isaac Sim's prebundles (nvbugs 6343978).
+    prebundle_dists_before = _snapshot_prebundle_dists()
+
     try:
         # Upgrade pip first to avoid compatibility issues (skip when using uv).
         if not using_uv:
@@ -1079,6 +1148,11 @@ def command_install(install_type: str = "all") -> None:
         # the active venv/conda versions are always loaded regardless of PYTHONPATH
         # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
         _repoint_prebundle_packages()
+
+        # Fail loud if any pip operation above deleted a distribution out of an
+        # Isaac Sim prebundle (repoint replaces package dirs with symlinks but
+        # keeps their dist-info, so it does not trip this check).
+        _assert_prebundle_dists_intact(prebundle_dists_before)
 
     finally:
         # Restore LD_PRELOAD if we cleared it.

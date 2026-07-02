@@ -92,6 +92,44 @@ class TestGetPipCommand:
             result = get_pip_command(python_exe=fake_python)
             assert result == [fake_python, "-m", "pip"]
 
+    def test_resolves_isaacsim_python_sh_to_kit_binary(self, tmp_path):
+        """Isaac Sim's python.sh launcher resolves to the concrete kit interpreter.
+
+        python.sh re-sources setup_python_env.sh, which puts pip_prebundle paths
+        back on PYTHONPATH; pip run through it can uninstall prebundled packages
+        from Isaac Sim (nvbugs 6343978). pip must target the underlying binary.
+        """
+        python_sh = tmp_path / "python.sh"
+        python_sh.write_text("#!/bin/bash\n")
+        kit_python = tmp_path / "kit" / "python" / "bin" / "python3"
+        kit_python.parent.mkdir(parents=True)
+        kit_python.touch()
+
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
+        env.pop("CONDA_PREFIX", None)
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
+        ):
+            result = get_pip_command(python_exe=str(python_sh))
+            assert result == [str(kit_python), "-m", "pip"]
+
+    def test_keeps_python_sh_when_kit_binary_missing(self, tmp_path):
+        """Without an underlying kit interpreter, the launcher is used as-is."""
+        python_sh = tmp_path / "python.sh"
+        python_sh.write_text("#!/bin/bash\n")
+
+        env = os.environ.copy()
+        env.pop("VIRTUAL_ENV", None)
+        env.pop("CONDA_PREFIX", None)
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
+        ):
+            result = get_pip_command(python_exe=str(python_sh))
+            assert result == [str(python_sh), "-m", "pip"]
+
 
 # ---------------------------------------------------------------------------
 # extract_python_exe

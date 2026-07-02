@@ -29,7 +29,10 @@ dependencies = [
     "tensorboard",
     # video recording
     "moviepy",
-    "packaging<24",
+    # unbounded on purpose: the old <24 bound (inherited from setup.py with no consumer
+    # requiring it) forced pip to downgrade the packaging shipped in Isaac Sim prebundles,
+    # deleting it from the prebundle in docker installs (nvbugs 6343978)
+    "packaging",
     "tqdm>=4.67.1",
 ]
 

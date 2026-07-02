@@ -49,9 +49,12 @@ dependencies = [
     # cross-platform file locking
     "filelock",
     "lazy_loader>=0.4",
-    # IK controller (Linux x86_64 + ARM64), requires pinning to 3.1.0 and 0.8.5 to avoid breaking change
+    # IK controller (Linux x86_64 + ARM64). pin-pink must stay in the 3.3.x window:
+    # Isaac Sim 6.x's isaacsim.robot_motion.pink extension needs pink.exceptions.NoSolutionFound
+    # (module layout from 3.3.0), while pink 3.4+ breaks the task API used by
+    # isaaclab.controllers.pink_ik. daqp is pinned because later versions change runtime behavior.
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
+    "pin-pink==3.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     # OpenUSD (kit-less mode)
     "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
