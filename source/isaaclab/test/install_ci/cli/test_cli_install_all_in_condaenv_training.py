@@ -83,6 +83,7 @@ class Test_Cli_Install_All_In_Condaenv_Training(Conda_Mixin):
             self.destroy_conda_env()
 
     @pytest.mark.install_path_cli
+    @pytest.mark.smoke
     @pytest.mark.conda
     @pytest.mark.slow
     @pytest.mark.gpu
