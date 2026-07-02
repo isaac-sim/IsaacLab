@@ -528,7 +528,8 @@ class OVRTXRenderer(BaseRenderer):
             tensor=np.full(len(object_paths), True, dtype=np.bool_),
         )
 
-        assert self._object_binding is not None, "Failed to create OVRTX object bindings for Newton"
+        if self._object_binding is None:
+            raise RuntimeError("Failed to create OVRTX object bindings for Newton")
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
