@@ -417,7 +417,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._camera_binding is not None:
             logger.info("Camera binding created successfully")
         else:
-            logger.warning("Camera binding is None")
+            raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
         self._setup_newton_object_bindings()
 
