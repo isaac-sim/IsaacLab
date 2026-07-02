@@ -11,10 +11,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
-    extract_all_depth_tiles_kernel,
-    extract_all_rgb_float_tiles_kernel,
-    extract_all_rgb_half_tiles_kernel,
-    extract_all_rgba_tiles_kernel,
+    extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
 )
 
@@ -142,7 +139,7 @@ def _reference_extract_all_rgb_float_tiles(
 
 
 class TestExtractAllDepthTilesKernel:
-    """Tests for ``extract_all_depth_tiles_kernel``."""
+    """Tests for the depth case of ``extract_all_tiles_kernel``."""
 
     def test_two_by_two_tile_grid(self):
         num_cols = 2
@@ -160,7 +157,7 @@ class TestExtractAllDepthTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 1), dtype=wp.float32, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_depth_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
             inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
@@ -181,7 +178,7 @@ class TestExtractAllDepthTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 1), dtype=wp.float32, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_depth_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
             inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
@@ -210,7 +207,7 @@ class TestExtractAllDepthTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 1), dtype=wp.float32, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_depth_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
             inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
@@ -222,7 +219,7 @@ class TestExtractAllDepthTilesKernel:
 
 
 class TestExtractAllRgbaTilesKernel:
-    """Tests for ``extract_all_rgba_tiles_kernel``."""
+    """Tests for the RGB/RGBA case of ``extract_all_tiles_kernel``."""
 
     def test_two_by_two_tile_grid_rgba(self):
         num_cols = 2
@@ -244,9 +241,9 @@ class TestExtractAllRgbaTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, num_channels), dtype=wp.uint8, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_rgba_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
-            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height, num_channels],
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
         )
         wp.synchronize()
@@ -268,9 +265,9 @@ class TestExtractAllRgbaTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, num_channels), dtype=wp.uint8, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_rgba_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
-            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height, num_channels],
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
         )
         wp.synchronize()
@@ -280,8 +277,8 @@ class TestExtractAllRgbaTilesKernel:
         )
         np.testing.assert_array_equal(output_wp.numpy(), expected)
 
-    def test_num_channels_not_four_skips_alpha(self):
-        """Values other than 4 use the RGB-only path (same as RGB tiled input)."""
+    def test_three_channel_output_skips_alpha(self):
+        """A 3-channel output buffer only copies RGB, even if the tiled input has an alpha channel."""
         num_cols = 1
         num_envs = 1
         tile_width = 2
@@ -298,14 +295,14 @@ class TestExtractAllRgbaTilesKernel:
         output_wp = wp.zeros(shape=(1, 2, 2, 3), dtype=wp.uint8, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_rgba_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(1, tile_height, tile_width),
-            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height, 2],
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
         )
         wp.synchronize()
 
-        expected = _reference_extract_all_rgba_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height, 2)
+        expected = _reference_extract_all_rgba_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height, 3)
         np.testing.assert_array_equal(output_wp.numpy(), expected)
 
     @pytest.mark.parametrize(
@@ -333,9 +330,9 @@ class TestExtractAllRgbaTilesKernel:
         )
 
         wp.launch(
-            kernel=extract_all_rgba_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
-            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height, num_channels],
+            inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
         )
         wp.synchronize()
@@ -347,7 +344,7 @@ class TestExtractAllRgbaTilesKernel:
 
 
 class TestExtractAllRgbFloatTilesKernel:
-    """Tests for ``extract_all_rgb_float_tiles_kernel`` used by OVRTX HdrColor."""
+    """Tests for the HdrColor (float32/float16) case of ``extract_all_tiles_kernel``."""
 
     def test_two_by_two_tile_grid(self):
         num_cols = 2
@@ -367,7 +364,7 @@ class TestExtractAllRgbFloatTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 3), dtype=wp.float32, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_rgb_float_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
             inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,
@@ -395,7 +392,7 @@ class TestExtractAllRgbFloatTilesKernel:
         output_wp = wp.zeros(shape=(num_envs, tile_height, tile_width, 3), dtype=wp.float32, device=DEVICE)
 
         wp.launch(
-            kernel=extract_all_rgb_half_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(num_envs, tile_height, tile_width),
             inputs=[tiled_wp, output_wp, num_cols, tile_width, tile_height],
             device=DEVICE,

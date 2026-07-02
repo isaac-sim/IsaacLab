@@ -60,11 +60,7 @@ from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_conve
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
-    extract_all_depth_tiles_kernel,
-    extract_all_rgb_float_tiles_kernel,
-    extract_all_rgb_half_tiles_kernel,
-    extract_all_rgba_tiles_kernel,
-    extract_all_uint32_tiles_kernel,
+    extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
     sync_newton_transforms_kernel,
 )
@@ -729,7 +725,7 @@ class OVRTXRenderer(BaseRenderer):
                     data_torch = data_torch.unsqueeze(-1)
                 tiled_data = wp.from_torch(data_torch, dtype=wp.uint32)
                 wp.launch(
-                    kernel=extract_all_uint32_tiles_kernel,
+                    kernel=extract_all_tiles_kernel,
                     dim=(render_data.num_envs, render_data.height, render_data.width),
                     inputs=[
                         tiled_data,
@@ -756,7 +752,7 @@ class OVRTXRenderer(BaseRenderer):
             raise ValueError(f"Expected RGB (3 channels) or RGBA (4 channels), got {num_channels}")
 
         wp.launch(
-            kernel=extract_all_rgba_tiles_kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
             inputs=[
                 tiled_data,
@@ -764,7 +760,6 @@ class OVRTXRenderer(BaseRenderer):
                 render_data.num_cols,
                 render_data.width,
                 render_data.height,
-                num_channels,
             ],
             device=self._device,
         )
@@ -776,7 +771,7 @@ class OVRTXRenderer(BaseRenderer):
         for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
             if depth_type in output_buffers:
                 wp.launch(
-                    kernel=extract_all_depth_tiles_kernel,
+                    kernel=extract_all_tiles_kernel,
                     dim=(render_data.num_envs, render_data.height, render_data.width),
                     inputs=[
                         tiled_depth_data,
@@ -794,14 +789,10 @@ class OVRTXRenderer(BaseRenderer):
         """Extract per-env HdrColor tiles into output_buffers."""
         if "rgb_hdr" not in output_buffers:
             return
-        if tiled_data.dtype == wp.float16:
-            kernel = extract_all_rgb_half_tiles_kernel
-        elif tiled_data.dtype == wp.float32:
-            kernel = extract_all_rgb_float_tiles_kernel
-        else:
+        if tiled_data.dtype not in (wp.float16, wp.float32):
             raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_data.dtype}.")
         wp.launch(
-            kernel=kernel,
+            kernel=extract_all_tiles_kernel,
             dim=(render_data.num_envs, render_data.height, render_data.width),
             inputs=[
                 tiled_data,
@@ -906,7 +897,7 @@ class OVRTXRenderer(BaseRenderer):
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
                 tiled_normals_data = wp.from_dlpack(mapping.tensor)
                 wp.launch(
-                    kernel=extract_all_rgb_float_tiles_kernel,
+                    kernel=extract_all_tiles_kernel,
                     dim=(render_data.num_envs, render_data.height, render_data.width),
                     inputs=[
                         tiled_normals_data,
