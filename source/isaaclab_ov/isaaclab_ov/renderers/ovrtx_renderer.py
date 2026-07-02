@@ -287,7 +287,6 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
-        self._output_semantic_color_buffer: wp.array | None = None
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._clone_plan: ClonePlan | None = None
 
@@ -690,9 +689,9 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Extract a uint32 ID-segmentation render var into ``output_buffers[buffer_key]``.
 
-        Shared by ``instance_segmentation_fast`` (``NonStableInstanceSegmentation``) and
-        ``instance_id_segmentation_fast`` (``InstanceSegmentationSD``), which only differ in
-        the source render var, the destination buffer, and whether to colorize.
+        Shared by ``semantic_segmentation`` (``SemanticSegmentation``), ``instance_segmentation_fast``
+        (``NonStableInstanceSegmentation``), and ``instance_id_segmentation_fast`` (``InstanceSegmentationSD``),
+        which only differ in the source render var, the destination buffer, and whether to colorize.
 
         Args:
             render_data: OVRTX render data for the current frame.
@@ -874,32 +873,16 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
-        if "SemanticSegmentation" in frame.render_vars and "semantic_segmentation" in output_buffers:
-            with frame.render_vars["SemanticSegmentation"].map(device=Device.CUDA) as mapping:
-                tiled_semantic_data = wp.from_dlpack(mapping.tensor)
-
-                if tiled_semantic_data.dtype == wp.uint32:
-                    self._output_semantic_color_buffer = self._generate_random_colors_from_ids(
-                        tiled_semantic_data, self._output_semantic_color_buffer
-                    )
-                    semantic_colors = self._output_semantic_color_buffer
-
-                    semantic_torch = wp.to_torch(semantic_colors)
-                    semantic_uint8 = semantic_torch.view(torch.uint8)
-
-                    if semantic_torch.dim() == 2:
-                        h, w = semantic_torch.shape
-                        semantic_uint8 = semantic_uint8.reshape(h, w, 4)
-
-                    tiled_semantic_data = wp.from_torch(semantic_uint8, dtype=wp.uint8)
-
-                self._extract_rgba_tiles(
-                    render_data,
-                    tiled_semantic_data,
-                    output_buffers,
-                    "semantic_segmentation",
-                    suffix="semantic",
-                )
+        # Semantic segmentation is always colorized: unlike instance (id) segmentation, there is no
+        # raw-uint32 output mode exposed for it (see OVRTXRenderer.supported_output_types).
+        self._process_id_segmentation_render_var(
+            render_data,
+            frame,
+            output_buffers,
+            "SemanticSegmentation",
+            "semantic_segmentation",
+            True,
+        )
 
         self._process_id_segmentation_render_var(
             render_data,
@@ -991,6 +974,5 @@ class OVRTXRenderer(BaseRenderer):
             self._renderer = None
 
         self._render_product_paths.clear()
-        self._output_semantic_color_buffer = None
         self._output_id_color_buffers.clear()
         self._initialized_scene = False
