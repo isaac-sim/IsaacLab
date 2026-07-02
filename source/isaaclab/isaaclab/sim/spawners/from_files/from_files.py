@@ -381,6 +381,12 @@ def _spawn_from_usd_file(
         and not isinstance(articulation_props, (list, tuple))
         and not isinstance(articulation_props, schemas.SchemaFragment)
     ):
+        if articulation_fix_root_link is not None:
+            logger.warning(
+                f"Ignoring the spawner-level 'fix_root_link={articulation_fix_root_link}' because"
+                " 'articulation_props' is a legacy cfg, which owns its own 'fix_root_link' field. Set"
+                " it on that cfg instead."
+            )
         schemas.modify_articulation_root_properties(prim_path, articulation_props)
     else:
         articulation_frags = (

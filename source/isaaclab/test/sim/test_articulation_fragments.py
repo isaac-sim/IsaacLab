@@ -16,7 +16,7 @@ import os
 
 import pytest
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -311,6 +311,103 @@ def test_physx_and_newton_fragments_fix_root_link_keeps_single_root():
     # ... and nothing is stranded on the former child root link
     assert not child.HasAPI(UsdPhysics.ArticulationRootAPI)
     assert not child.GetAttribute("newton:selfCollisionEnabled").HasAuthoredValue()
+
+
+def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
+    """A pre-authored backend root API (as on URDF/MJCF-imported assets) moves with the root when
+    PhysX relocates it, together with its authored attributes.
+
+    Regression: ``NewtonArticulationRootAPI`` composes ``PhysicsArticulationRootAPI``, so removing
+    only the directly applied anchor from the former root link leaves that prim an articulation root
+    through schema composition -- two roots -- with the ``newton:*`` values stranded on the wrong prim.
+    """
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/UrdfBot")
+    child = _make_xform(stage, "/World/UrdfBot/base")
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    # the asset ships with the Newton root API (and its attribute) already authored on the root link
+    child.AddAppliedSchema("NewtonArticulationRootAPI")
+    child.CreateAttribute("newton:selfCollisionEnabled", Sdf.ValueTypeNames.Bool).Set(True)
+    # precondition: the composed schema makes the prim an articulation root without a direct anchor
+    assert child.HasAPI(UsdPhysics.ArticulationRootAPI)
+
+    apply_articulation_root_properties("/World/UrdfBot", [], stage, fix_root_link=True)
+
+    parent = stage.GetPrimAtPath("/World/UrdfBot")
+    # exactly one articulation root remains, and it is the (relocated) parent
+    roots = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert len(roots) == 1 and roots[0] == parent
+    # the pre-authored backend schema and its value moved with the root
+    assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
+    assert parent.GetAttribute("newton:selfCollisionEnabled").Get() is True
+    # the former root link no longer carries the composed root API
+    assert not child.HasAPI(UsdPhysics.ArticulationRootAPI)
+
+
+def test_physx_fix_root_link_migrates_preauthored_physx_attrs():
+    """Asset-authored ``PhysxArticulationAPI`` attributes move to the relocated root (legacy parity):
+    the legacy writer copied ``physxArticulation:*`` values to the parent, so the fragment path must
+    not silently drop them on the former root link where the PhysX parser ignores them."""
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/UsdBot")
+    child = _make_xform(stage, "/World/UsdBot/base")
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    UsdPhysics.ArticulationRootAPI.Apply(child)
+    # the asset ships with PhysX articulation solver settings authored on the root link
+    child.AddAppliedSchema("PhysxArticulationAPI")
+    child.CreateAttribute("physxArticulation:solverVelocityIterationCount", Sdf.ValueTypeNames.Int).Set(4)
+
+    apply_articulation_root_properties("/World/UsdBot", [], stage, fix_root_link=True)
+
+    parent = stage.GetPrimAtPath("/World/UsdBot")
+    assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert "PhysxArticulationAPI" in parent.GetAppliedSchemas()
+    assert parent.GetAttribute("physxArticulation:solverVelocityIterationCount").Get() == 4
+
+
+def test_apply_articulation_root_properties_rejects_non_fragment_items():
+    """A list containing a non-fragment (e.g. a legacy single cfg) raises a clear ``TypeError`` --
+    not an ``AttributeError`` deep inside fragment dispatch."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationRootPropertiesCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    _make_xform(stage, "/World/BadList")
+    with pytest.raises(TypeError, match="ArticulationRootFragment"):
+        apply_articulation_root_properties(
+            "/World/BadList",
+            [PhysxArticulationRootPropertiesCfg(solver_position_iteration_count=8)],
+            stage,
+        )
+
+
+def test_apply_articulation_root_properties_topology_only_does_not_stamp_root():
+    """A topology-only call (empty fragments) on a prim with no articulation root anywhere must not
+    apply ``UsdPhysics.ArticulationRootAPI`` as a side effect -- the anchor is presence-gated on
+    fragments. The topology flag is ignored with a warning instead."""
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    prim = _make_xform(stage, "/World/NoRoot")
+    UsdPhysics.RigidBodyAPI.Apply(prim)
+
+    apply_articulation_root_properties("/World/NoRoot", [], stage, fix_root_link=False)
+
+    assert not prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not any(p.HasAPI(UsdPhysics.ArticulationRootAPI) for p in stage.Traverse())
 
 
 def test_apply_articulation_root_properties_honors_explicit_stage():

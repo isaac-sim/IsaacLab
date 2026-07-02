@@ -192,7 +192,7 @@ class ArticulationRootFragment(SchemaFragment):
     ``UsdPhysics.ArticulationRootAPI`` anchor is applied by the articulation-root family
     writer (:func:`~isaaclab.sim.schemas.apply_articulation_root_properties`) only when the
     ``articulation_props`` slot carries fragments (presence-gated, matching the legacy
-    :meth:`~isaaclab.sim.schemas.modify_articulation_root_properties` behaviour).
+    :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` behaviour).
     """
 
     pass

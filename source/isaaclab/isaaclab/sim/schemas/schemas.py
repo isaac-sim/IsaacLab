@@ -318,12 +318,24 @@ def apply_articulation_root_properties(
         True if the properties were successfully set.
 
     Raises:
+        TypeError: When an item in ``fragments`` is not an
+            :class:`~isaaclab.sim.schemas.ArticulationRootFragment` (e.g. a legacy single cfg, which
+            goes through :func:`modify_articulation_root_properties` instead).
         ValueError: When the prim path is not valid.
         RuntimeError: When ``fix_root_link`` is True and a fixed joint must be created but there is no
             active :class:`~isaaclab.sim.SimulationContext` to resolve the physics backend from.
         NotImplementedError: Propagated from the backend capability when it cannot create the fixed
             joint (e.g. the resolved root prim is not a rigid body).
     """
+    # validate early: a clear error beats an ``AttributeError`` deep inside fragment dispatch
+    fragments = list(fragments)
+    for frag in fragments:
+        if not isinstance(frag, schemas_cfg.ArticulationRootFragment):
+            raise TypeError(
+                "apply_articulation_root_properties: expected ArticulationRootFragment instances in"
+                f" 'fragments', got '{type(frag).__name__}'. Pass a legacy single cfg to"
+                " modify_articulation_root_properties instead."
+            )
     if stage is None:
         stage = get_current_stage()
     # resolve the existing root (it may live on a child prim in USD assets); instance proxies can't be
@@ -334,8 +346,10 @@ def apply_articulation_root_properties(
         stage,
         traverse_instance_prims=False,
     )
-    # no existing root in the subtree: define one on the input prim
-    if articulation_prim is None:
+    # No existing root in the subtree: define one on the input prim -- but only when fragments are
+    # supplied (the anchor is presence-gated). A topology-only call (empty fragments, just
+    # ``fix_root_link``) must not stamp an articulation root as a side effect.
+    if articulation_prim is None and fragments:
         articulation_prim = stage.GetPrimAtPath(prim_path)
         UsdPhysics.ArticulationRootAPI.Apply(articulation_prim)
 
@@ -345,35 +359,44 @@ def apply_articulation_root_properties(
     # former child and leave two articulation roots.
     final_root = articulation_prim
     if fix_root_link is not None:
-        root_path = articulation_prim.GetPath().pathString
-        # honor an explicit stage so the lookup does not fall back to the global current stage
-        existing_fixed_joint_prim = find_global_fixed_joint_prim(root_path, stage=stage)
-        if existing_fixed_joint_prim is not None:
-            # a joint already exists: just enable/disable it in place (no relocation)
-            logger.info(
-                f"Found an existing fixed joint for the articulation: '{root_path}'. Setting it to: {fix_root_link}."
+        if articulation_prim is None:
+            logger.warning(
+                f"No articulation root found under '{prim_path}': ignoring fix_root_link={fix_root_link}."
+                " The flag only applies to articulations."
             )
-            existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
-        elif fix_root_link:
-            logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
-            # Creating (and possibly relocating) the root is backend-specific. Delegate to the active
-            # backend's manager capability so core carries no backend logic; the capability returns the
-            # resulting root prim.
-            from isaaclab.sim import SimulationContext
-
-            sim = SimulationContext.instance()
-            if sim is None:
-                raise RuntimeError(
-                    f"Cannot fix the articulation root '{root_path}': no active SimulationContext to"
-                    " resolve the physics backend from. A simulation must be running to fix a base."
+        else:
+            root_path = articulation_prim.GetPath().pathString
+            # honor an explicit stage so the lookup does not fall back to the global current stage
+            existing_fixed_joint_prim = find_global_fixed_joint_prim(root_path, stage=stage)
+            if existing_fixed_joint_prim is not None:
+                # a joint already exists: just enable/disable it in place (no relocation)
+                logger.info(
+                    f"Found an existing fixed joint for the articulation: '{root_path}'. Setting it to:"
+                    f" {fix_root_link}."
                 )
-            final_root = sim.physics_manager.fix_articulation_root(articulation_prim, stage)
+                existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
+            elif fix_root_link:
+                logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
+                # Creating (and possibly relocating) the root is backend-specific. Delegate to the
+                # active backend's manager capability so core carries no backend logic; the capability
+                # returns the resulting root prim.
+                from isaaclab.sim import SimulationContext
+
+                sim = SimulationContext.instance()
+                if sim is None:
+                    raise RuntimeError(
+                        f"Cannot fix the articulation root '{root_path}': no active SimulationContext"
+                        " to resolve the physics backend from. A simulation must be running to fix a"
+                        " base."
+                    )
+                final_root = sim.physics_manager.fix_articulation_root(articulation_prim, stage)
 
     # dispatch each fragment to the resolved (possibly relocated) root via its own applier
-    final_root_path = final_root.GetPath().pathString
-    for cfg in fragments:
-        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, final_root_path, stage)
+    if fragments:
+        final_root_path = final_root.GetPath().pathString
+        for cfg in fragments:
+            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
+            func(cfg, final_root_path, stage)
 
     return True
 
