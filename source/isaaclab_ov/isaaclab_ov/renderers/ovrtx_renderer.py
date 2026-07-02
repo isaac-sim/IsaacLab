@@ -724,18 +724,47 @@ class OVRTXRenderer(BaseRenderer):
                 if data_torch.dim() == 2:
                     data_torch = data_torch.unsqueeze(-1)
                 tiled_data = wp.from_torch(data_torch, dtype=wp.uint32)
-                wp.launch(
-                    kernel=extract_all_tiles_kernel,
-                    dim=(render_data.num_envs, render_data.height, render_data.width),
-                    inputs=[
-                        tiled_data,
-                        output_buffers[buffer_key],
-                        render_data.num_cols,
-                        render_data.width,
-                        render_data.height,
-                    ],
-                    device=self._device,
-                )
+                self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
+
+    def _launch_extract_all_tiles(
+        self, render_data: OVRTXRenderData, tiled_buffer: wp.array, output_buffer: wp.array
+    ) -> None:
+        """Launch ``extract_all_tiles_kernel`` for one tiled/output buffer pair.
+
+        This is the only place that should launch ``extract_all_tiles_kernel``: it validates that
+        ``output_buffer`` cannot read past the end of ``tiled_buffer`` (the kernel derives its per-thread
+        channel loop bound from ``output_buffer``'s last dimension) before every launch, so callers cannot
+        accidentally skip the check.
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            tiled_buffer: 3D array of shape (H, W, C) holding all tiles packed into one buffer.
+            output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles, with C no
+                greater than ``tiled_buffer``'s channel count.
+
+        Raises:
+            ValueError: If ``output_buffer``'s channel count exceeds ``tiled_buffer``'s.
+        """
+        tiled_channels = tiled_buffer.shape[-1]
+        output_channels = output_buffer.shape[-1]
+        if output_channels > tiled_channels:
+            raise ValueError(
+                f"Output buffer has {output_channels} channels but the tiled buffer only has {tiled_channels};"
+                " extract_all_tiles_kernel would read out of bounds."
+            )
+
+        wp.launch(
+            kernel=extract_all_tiles_kernel,
+            dim=(render_data.num_envs, render_data.height, render_data.width),
+            inputs=[
+                tiled_buffer,
+                output_buffer,
+                render_data.num_cols,
+                render_data.width,
+                render_data.height,
+            ],
+            device=self._device,
+        )
 
     def _extract_rgba_tiles(
         self,
@@ -751,18 +780,7 @@ class OVRTXRenderer(BaseRenderer):
         if num_channels not in (3, 4):
             raise ValueError(f"Expected RGB (3 channels) or RGBA (4 channels), got {num_channels}")
 
-        wp.launch(
-            kernel=extract_all_tiles_kernel,
-            dim=(render_data.num_envs, render_data.height, render_data.width),
-            inputs=[
-                tiled_data,
-                output_buffer,
-                render_data.num_cols,
-                render_data.width,
-                render_data.height,
-            ],
-            device=self._device,
-        )
+        self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
 
     def _extract_depth_tiles(
         self, render_data: OVRTXRenderData, tiled_depth_data: wp.array, output_buffers: dict
@@ -770,18 +788,7 @@ class OVRTXRenderer(BaseRenderer):
         """Extract per-env depth tiles into output_buffers (single kernel launch)."""
         for depth_type in ["depth", "distance_to_image_plane", "distance_to_camera"]:
             if depth_type in output_buffers:
-                wp.launch(
-                    kernel=extract_all_tiles_kernel,
-                    dim=(render_data.num_envs, render_data.height, render_data.width),
-                    inputs=[
-                        tiled_depth_data,
-                        output_buffers[depth_type],
-                        render_data.num_cols,
-                        render_data.width,
-                        render_data.height,
-                    ],
-                    device=self._device,
-                )
+                self._launch_extract_all_tiles(render_data, tiled_depth_data, output_buffers[depth_type])
 
     def _extract_hdr_color_tiles(
         self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict
@@ -791,18 +798,7 @@ class OVRTXRenderer(BaseRenderer):
             return
         if tiled_data.dtype not in (wp.float16, wp.float32):
             raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_data.dtype}.")
-        wp.launch(
-            kernel=extract_all_tiles_kernel,
-            dim=(render_data.num_envs, render_data.height, render_data.width),
-            inputs=[
-                tiled_data,
-                output_buffers["rgb_hdr"],
-                render_data.num_cols,
-                render_data.width,
-                render_data.height,
-            ],
-            device=self._device,
-        )
+        self._launch_extract_all_tiles(render_data, tiled_data, output_buffers["rgb_hdr"])
 
     def _prepare_ppisp_hdr_source(
         self, render_data: OVRTXRenderData, tiled_data: wp.array, output_buffers: dict
@@ -896,18 +892,7 @@ class OVRTXRenderer(BaseRenderer):
         if "NormalSD" in frame.render_vars and "normals" in output_buffers:
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
                 tiled_normals_data = wp.from_dlpack(mapping.tensor)
-                wp.launch(
-                    kernel=extract_all_tiles_kernel,
-                    dim=(render_data.num_envs, render_data.height, render_data.width),
-                    inputs=[
-                        tiled_normals_data,
-                        output_buffers["normals"],
-                        render_data.num_cols,
-                        render_data.width,
-                        render_data.height,
-                    ],
-                    device=self._device,
-                )
+                self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""

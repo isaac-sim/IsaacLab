@@ -89,9 +89,17 @@ def extract_all_tiles_kernel(
     same kernel body serves every tile-extraction case; see the :func:`warp.overload` registrations below for
     the concrete dtype pairs this is compiled for.
 
+    Precondition:
+        ``output_buffer``'s channel count (last dimension) must not exceed ``tiled_buffer``'s (the per-thread
+        channel loop below indexes ``tiled_buffer`` up to that bound). In this package, always launch this
+        kernel through ``OVRTXRenderer._launch_extract_all_tiles``, which validates this before every launch
+        instead of relying on each call site to remember to check. Passing a wider output buffer than the
+        tiled input reads out of bounds on the GPU.
+
     Args:
         tiled_buffer: 3D array of shape (H, W, C) holding all tiles packed into one buffer.
-        output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles.
+        output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles, with C no greater
+            than ``tiled_buffer``'s channel count.
         num_cols: number of columns in the tiled buffer.
         tile_width: width of each tile.
         tile_height: height of each tile.
