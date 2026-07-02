@@ -801,47 +801,68 @@ class ArticulationData(BaseArticulationData):
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
 
-    def _ensure_body_com_pose_b_current(self) -> None:
-        """Refresh the static body COM pose cache when explicitly invalidated."""
-        if self._body_com_pose_b.timestamp >= 0.0:
-            return
-        if not self._has_body_ordering:
-            self._body_com_pose_b.data.assign(self._root_view.get_coms().view(wp.transformf))
-            self._body_com_pose_b.timestamp = 0.0
-            return
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBuffer) -> None:
+        """Assign the current backend-order body COM pose from the tensor view when stale.
 
-        backend_staging = self._body_com_pose_b_backend
-        if backend_staging is None:
-            raise RuntimeError("PhysX body COM ordering staging was not initialized.")
-        if backend_staging.timestamp < 0.0:
-            backend_staging.data.assign(self._root_view.get_coms().view(wp.transformf))
-            backend_staging.timestamp = 0.0
-        wp.launch(
-            ordering_kernels.reorder_2d_backend_to_user,
-            dim=(self._num_instances, self._num_bodies),
-            inputs=[backend_staging.data, self._body_user_to_backend],
-            outputs=[self._body_com_pose_b.data],
-            device=self.device,
-        )
-        self._body_com_pose_b.timestamp = backend_staging.timestamp
-
-    @property
-    def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
-        """Backend-order body COM pose buffer for root-only computations."""
-        if not self._has_body_ordering:
-            self._ensure_body_com_pose_b_current()
-            return self._body_com_pose_b.data
-        backend_staging = self._body_com_pose_b_backend
-        if backend_staging is None:
-            raise RuntimeError("PhysX body COM ordering staging was not initialized.")
-        if backend_staging.timestamp < 0.0:
-            backend_staging.data.assign(self._root_view.get_coms().view(wp.transformf))
-            backend_staging.timestamp = 0.0
-        return backend_staging.data
+        Backend fetch for the shared :meth:`_ensure_body_com_pose_b_current` /
+        :attr:`_backend_body_com_pose_b`. ``get_coms()`` is CPU-only, so this stages
+        host-to-device on GPU pipelines; the guard keeps it to at most one fetch per
+        invalidation.
+        """
+        if buf.timestamp < 0.0:
+            buf.data.assign(self._root_view.get_coms().view(wp.transformf))
+            buf.timestamp = 0.0
 
     """
     Body state properties.
     """
+
+    def _refresh_reordered_body_buffer(
+        self,
+        buf: TimestampedBuffer,
+        backend_buffer: wp.array,
+        view_getter: Callable[[], wp.array],
+        *,
+        component_count: int | None = None,
+    ) -> None:
+        """Refresh a timestamp-lazy static body buffer from a CPU-only tensor view.
+
+        When stale for the current step, aliases the view directly (identity body
+        ordering) or stages it in backend order and gathers it into the owned
+        public-order buffer. The CPU-only view is copied host-to-device on GPU
+        pipelines, matching the per-property refresh contract.
+
+        Args:
+            buf: Owned public-order buffer to refresh in place.
+            backend_buffer: Backend-order staging array used under body ordering.
+            view_getter: Zero-argument callable returning the backend-order tensor view.
+            component_count: Trailing components per body for a three-dimensional buffer,
+                or ``None`` for a two-dimensional buffer.
+        """
+        if buf.timestamp >= self._sim_timestamp:
+            return
+        if not self._has_body_ordering:
+            buf.data.assign(view_getter())
+        else:
+            # Stage the backend-order view on-device, then gather it into public order.
+            backend_buffer.assign(view_getter())
+            if component_count is None:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies),
+                    inputs=[backend_buffer, self._body_user_to_backend],
+                    outputs=[buf.data],
+                    device=self.device,
+                )
+            else:
+                wp.launch(
+                    ordering_kernels.reorder_3d_backend_to_user,
+                    dim=(self._num_instances, self._num_bodies, component_count),
+                    inputs=[backend_buffer, self._body_user_to_backend],
+                    outputs=[buf.data],
+                    device=self.device,
+                )
+        buf.timestamp = self._sim_timestamp
 
     @property
     def body_mass(self) -> ProxyArray:
@@ -856,20 +877,7 @@ class ArticulationData(BaseArticulationData):
         become visible at the first read after the next simulation update; same-step view-write
         visibility is not guaranteed.
         """
-        if self._body_mass.timestamp < self._sim_timestamp:
-            if not self._has_body_ordering:
-                self._body_mass.data.assign(self._root_view.get_masses())
-            else:
-                # Stage the backend-order masses on-device, then gather them into public order.
-                self._body_mass_backend.assign(self._root_view.get_masses())
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies),
-                    inputs=[self._body_mass_backend, self._body_user_to_backend],
-                    outputs=[self._body_mass.data],
-                    device=self.device,
-                )
-            self._body_mass.timestamp = self._sim_timestamp
+        self._refresh_reordered_body_buffer(self._body_mass, self._body_mass_backend, self._root_view.get_masses)
         if self._body_mass_ta is None:
             self._body_mass_ta = ProxyArray(self._body_mass.data)
         return self._body_mass_ta
@@ -888,20 +896,9 @@ class ArticulationData(BaseArticulationData):
         become visible at the first read after the next simulation update; same-step view-write
         visibility is not guaranteed.
         """
-        if self._body_inertia.timestamp < self._sim_timestamp:
-            if not self._has_body_ordering:
-                self._body_inertia.data.assign(self._root_view.get_inertias())
-            else:
-                # Stage the backend-order inertias on-device, then gather them into public order.
-                self._body_inertia_backend.assign(self._root_view.get_inertias())
-                wp.launch(
-                    ordering_kernels.reorder_3d_backend_to_user,
-                    dim=(self._num_instances, self._num_bodies, 9),
-                    inputs=[self._body_inertia_backend, self._body_user_to_backend],
-                    outputs=[self._body_inertia.data],
-                    device=self.device,
-                )
-            self._body_inertia.timestamp = self._sim_timestamp
+        self._refresh_reordered_body_buffer(
+            self._body_inertia, self._body_inertia_backend, self._root_view.get_inertias, component_count=9
+        )
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia.data)
         return self._body_inertia_ta
@@ -1125,6 +1122,42 @@ class ArticulationData(BaseArticulationData):
         )
         return self._body_link_jacobian_w_ta
 
+    def _refresh_generalized_joint_buffer(
+        self,
+        buf: TimestampedBuffer,
+        view_getter: Callable[[], wp.array],
+        reorder_kernel: wp.Kernel,
+    ) -> None:
+        """Refresh a timestamp-lazy generalized joint-axis buffer from its backend view.
+
+        Reads the backend view once when stale for the current step and either aliases
+        it (identity joint ordering) or gathers its joint axis into the owned
+        public-order buffer with :paramref:`reorder_kernel`. Unlike the world-frame pose
+        buffers this needs no explicit :meth:`_ensure_fk_fresh`, because PhysX recomputes
+        the quantity from the current joint state on query.
+
+        Args:
+            buf: Owned public-order buffer to refresh in place.
+            view_getter: Zero-argument callable returning the backend-order view.
+            reorder_kernel: Warp kernel launched with ``[backend, joint_user_to_backend,
+                num_base_dofs, has_joint_ordering]`` to gather the joint axis into
+                public order.
+        """
+        if buf.timestamp >= self._sim_timestamp:
+            return
+        backend_source = view_getter()
+        if self._has_joint_ordering:
+            wp.launch(
+                reorder_kernel,
+                dim=buf.data.shape,
+                inputs=[backend_source, self._joint_user_to_backend, self._num_base_dofs, self._has_joint_ordering],
+                outputs=[buf.data],
+                device=self.device,
+            )
+        else:
+            buf.data = backend_source
+        buf.timestamp = self._sim_timestamp
+
     @property
     def mass_matrix(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`.
@@ -1139,24 +1172,11 @@ class ArticulationData(BaseArticulationData):
         :meth:`_ensure_fk_fresh`: PhysX recomputes the mass matrix from the current joint
         state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
-        if self._mass_matrix.timestamp < self._sim_timestamp:
-            backend_mass_matrix = self._root_view.get_generalized_mass_matrices()
-            if self._has_joint_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_mass_matrix_backend_to_user,
-                    dim=self._mass_matrix.data.shape,
-                    inputs=[
-                        backend_mass_matrix,
-                        self._joint_user_to_backend,
-                        self._num_base_dofs,
-                        self._has_joint_ordering,
-                    ],
-                    outputs=[self._mass_matrix.data],
-                    device=self.device,
-                )
-            else:
-                self._mass_matrix.data = backend_mass_matrix
-            self._mass_matrix.timestamp = self._sim_timestamp
+        self._refresh_generalized_joint_buffer(
+            self._mass_matrix,
+            self._root_view.get_generalized_mass_matrices,
+            ordering_kernels.reorder_mass_matrix_backend_to_user,
+        )
         if self._mass_matrix_ta is None:
             self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
         return self._mass_matrix_ta
@@ -1175,24 +1195,11 @@ class ArticulationData(BaseArticulationData):
         :meth:`_ensure_fk_fresh`: PhysX recomputes these forces from the current joint
         state on query, so a fresh ``write_*_to_sim_*`` is already reflected here.
         """
-        if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
-            backend_forces = self._root_view.get_gravity_compensation_forces()
-            if self._has_joint_ordering:
-                wp.launch(
-                    ordering_kernels.reorder_generalized_vector_backend_to_user,
-                    dim=self._gravity_compensation_forces.data.shape,
-                    inputs=[
-                        backend_forces,
-                        self._joint_user_to_backend,
-                        self._num_base_dofs,
-                        self._has_joint_ordering,
-                    ],
-                    outputs=[self._gravity_compensation_forces.data],
-                    device=self.device,
-                )
-            else:
-                self._gravity_compensation_forces.data = backend_forces
-            self._gravity_compensation_forces.timestamp = self._sim_timestamp
+        self._refresh_generalized_joint_buffer(
+            self._gravity_compensation_forces,
+            self._root_view.get_gravity_compensation_forces,
+            ordering_kernels.reorder_generalized_vector_backend_to_user,
+        )
         if self._gravity_compensation_forces_ta is None:
             self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
         return self._gravity_compensation_forces_ta
@@ -1960,17 +1967,6 @@ class ArticulationData(BaseArticulationData):
         # Initialize ProxyArray wrappers
         self._pin_proxy_arrays()
 
-    def _make_jacobian_body_user_to_backend(self, body_ordering) -> wp.array:
-        """Build the compact user-to-backend row map for Jacobian body axes."""
-        body_user_to_backend = (
-            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
-        )
-        if self._jacobian_link_offset == 0:
-            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
-        else:
-            backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
-        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
-
     def _configure_ordering_buffers(self, had_joint_ordering: bool, had_body_ordering: bool) -> None:
         """Allocate, reorder, or release buffers owned only by nonidentity ordering."""
         if self._has_joint_ordering:
@@ -2126,14 +2122,8 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Refresh owned public-order buffers after articulation ordering maps are installed."""
-        had_joint_ordering = self._has_joint_ordering
-        had_body_ordering = self._has_body_ordering
-        joint_ordering = self.joint_ordering
-        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
-        self._joint_user_to_backend = joint_ordering.user_to_backend if self._has_joint_ordering else None
+        had_joint_ordering, had_body_ordering = self._install_ordering_flags()
         body_ordering = self.body_ordering
-        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
-        self._body_user_to_backend = body_ordering.user_to_backend if self._has_body_ordering else None
         self._configure_ordering_buffers(had_joint_ordering, had_body_ordering)
 
         if self._has_body_ordering:

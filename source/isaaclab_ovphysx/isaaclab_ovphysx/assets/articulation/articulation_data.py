@@ -870,38 +870,15 @@ class ArticulationData(BaseArticulationData):
             self._root_com_vel_w_ta = ProxyArray(self._root_com_vel_w.data)
         return self._root_com_vel_w_ta
 
-    def _ensure_body_com_pose_b_current(self) -> None:
-        """Refresh the static body COM pose cache when explicitly invalidated."""
-        if self._body_com_pose_b.timestamp >= 0.0:
-            return
-        if not self._has_body_ordering:
-            self._read_static_binding_into_buf(TT.BODY_COM_POSE, self._body_com_pose_b)
-            return
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBuffer) -> None:
+        """Read the current backend-order body COM pose from its binding when stale.
 
-        backend_staging = self._body_com_pose_b_backend
-        if backend_staging is None:
-            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
-        self._read_static_binding_into_buf(TT.BODY_COM_POSE, backend_staging)
-        wp.launch(
-            ordering_kernels.reorder_2d_backend_to_user,
-            dim=(self.num_instances, self.num_bodies),
-            inputs=[backend_staging.data, self._body_user_to_backend],
-            outputs=[self._body_com_pose_b.data],
-            device=self.device,
-        )
-        self._body_com_pose_b.timestamp = backend_staging.timestamp
-
-    @property
-    def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
-        """Backend-order body COM pose buffer for root-only computations."""
-        if not self._has_body_ordering:
-            self._ensure_body_com_pose_b_current()
-            return self._body_com_pose_b.data
-        backend_staging = self._body_com_pose_b_backend
-        if backend_staging is None:
-            raise RuntimeError("OVPhysX body COM ordering staging was not initialized.")
-        self._read_static_binding_into_buf(TT.BODY_COM_POSE, backend_staging)
-        return backend_staging.data
+        Backend fetch for the shared :meth:`_ensure_body_com_pose_b_current` /
+        :attr:`_backend_body_com_pose_b`. ``BODY_COM_POSE`` is a static binding, so this
+        stages it at most once per invalidation via
+        :meth:`_read_static_binding_into_buf`.
+        """
+        self._read_static_binding_into_buf(TT.BODY_COM_POSE, buf)
 
     @property
     def _backend_body_link_pose_w(self) -> wp.array(dtype=wp.transformf, ndim=2):
@@ -927,6 +904,53 @@ class ArticulationData(BaseArticulationData):
     Body state properties.
     """
 
+    def _refresh_reordered_body_buffer(
+        self,
+        buf: TimestampedBuffer,
+        backend_buffer: TimestampedBuffer | None,
+        tensor_type: int,
+        *,
+        component_count: int | None = None,
+    ) -> None:
+        """Refresh a body buffer from its binding, gathering into public order under body ordering.
+
+        Under identity body ordering the binding is read straight into the public buffer;
+        otherwise it is staged in backend order and gathered into public order when the
+        public buffer is stale for the current step.
+
+        Args:
+            buf: Owned public-order buffer to refresh in place.
+            backend_buffer: Backend-order staging buffer used under body ordering.
+            tensor_type: ``TensorType`` key of the source binding.
+            component_count: Trailing components per body for a three-dimensional buffer,
+                or ``None`` for a two-dimensional buffer.
+        """
+        if not self._has_body_ordering:
+            self._read_binding_into_buf(tensor_type, buf)
+            return
+        if backend_buffer is None:
+            raise RuntimeError("OVPhysX body ordering staging was not initialized.")
+        if buf.timestamp >= self._sim_timestamp:
+            return
+        self._read_binding_into_buf(tensor_type, backend_buffer)
+        if component_count is None:
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[backend_buffer.data, self._body_user_to_backend],
+                outputs=[buf.data],
+                device=self.device,
+            )
+        else:
+            wp.launch(
+                ordering_kernels.reorder_3d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies, component_count),
+                inputs=[backend_buffer.data, self._body_user_to_backend],
+                outputs=[buf.data],
+                device=self.device,
+            )
+        buf.timestamp = backend_buffer.timestamp
+
     @property
     def body_mass(self) -> ProxyArray:
         """Body masses [kg].
@@ -936,22 +960,7 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging because the underlying OVPhysX
         binding is CPU-only (``ARTICULATION_BODY_MASS``).
         """
-        if self._has_body_ordering:
-            backend_buffer = self._body_mass_backend
-            if backend_buffer is None:
-                raise RuntimeError("OVPhysX _has_body_ordering requires _body_mass_backend.")
-            if self._body_mass.timestamp < self._sim_timestamp:
-                self._read_scalar_binding(TT.BODY_MASS, backend_buffer)
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[backend_buffer.data, self._body_user_to_backend],
-                    outputs=[self._body_mass.data],
-                    device=self.device,
-                )
-                self._body_mass.timestamp = backend_buffer.timestamp
-        else:
-            self._read_scalar_binding(TT.BODY_MASS, self._body_mass)
+        self._refresh_reordered_body_buffer(self._body_mass, self._body_mass_backend, TT.BODY_MASS)
         if self._body_mass_ta is None:
             self._body_mass_ta = ProxyArray(self._body_mass.data)
         return self._body_mass_ta
@@ -966,22 +975,9 @@ class ArticulationData(BaseArticulationData):
         Routed through pinned-host staging (``ARTICULATION_BODY_INERTIA`` is
         a CPU-only binding).
         """
-        if self._has_body_ordering:
-            backend_buffer = self._body_inertia_backend
-            if backend_buffer is None:
-                raise RuntimeError("OVPhysX _has_body_ordering requires _body_inertia_backend.")
-            if self._body_inertia.timestamp < self._sim_timestamp:
-                self._read_scalar_binding(TT.BODY_INERTIA, backend_buffer)
-                wp.launch(
-                    ordering_kernels.reorder_3d_backend_to_user,
-                    dim=(self.num_instances, self.num_bodies, 9),
-                    inputs=[backend_buffer.data, self._body_user_to_backend],
-                    outputs=[self._body_inertia.data],
-                    device=self.device,
-                )
-                self._body_inertia.timestamp = backend_buffer.timestamp
-        else:
-            self._read_scalar_binding(TT.BODY_INERTIA, self._body_inertia)
+        self._refresh_reordered_body_buffer(
+            self._body_inertia, self._body_inertia_backend, TT.BODY_INERTIA, component_count=9
+        )
         if self._body_inertia_ta is None:
             self._body_inertia_ta = ProxyArray(self._body_inertia.data)
         return self._body_inertia_ta
@@ -997,22 +993,7 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         self._ensure_fk_fresh()
-        if self._has_body_ordering:
-            backend_buffer = self._body_link_pose_w_backend
-            if backend_buffer is None:
-                raise RuntimeError("OVPhysX _has_body_ordering requires _body_link_pose_w_backend.")
-            if self._body_link_pose_w.timestamp < self._sim_timestamp:
-                self._read_transform_binding(TT.LINK_POSE, backend_buffer)
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[backend_buffer.data, self._body_user_to_backend],
-                    outputs=[self._body_link_pose_w.data],
-                    device=self.device,
-                )
-                self._body_link_pose_w.timestamp = backend_buffer.timestamp
-        else:
-            self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
+        self._refresh_reordered_body_buffer(self._body_link_pose_w, self._body_link_pose_w_backend, TT.LINK_POSE)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
         return self._body_link_pose_w_ta
@@ -1025,22 +1006,7 @@ class ArticulationData(BaseArticulationData):
         In torch this resolves to (num_instances, num_bodies, 6).
         """
         self._ensure_fk_fresh()
-        if self._has_body_ordering:
-            backend_buffer = self._body_com_vel_w_backend
-            if backend_buffer is None:
-                raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_vel_w_backend.")
-            if self._body_com_vel_w.timestamp < self._sim_timestamp:
-                self._read_spatial_vector_binding(TT.LINK_VELOCITY, backend_buffer)
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[backend_buffer.data, self._body_user_to_backend],
-                    outputs=[self._body_com_vel_w.data],
-                    device=self.device,
-                )
-                self._body_com_vel_w.timestamp = backend_buffer.timestamp
-        else:
-            self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
+        self._refresh_reordered_body_buffer(self._body_com_vel_w, self._body_com_vel_w_backend, TT.LINK_VELOCITY)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
         return self._body_com_vel_w_ta
@@ -1112,22 +1078,7 @@ class ArticulationData(BaseArticulationData):
 
         All values are relative to the world.
         """
-        if self._has_body_ordering:
-            backend_buffer = self._body_com_acc_w_backend
-            if backend_buffer is None:
-                raise RuntimeError("OVPhysX _has_body_ordering requires _body_com_acc_w_backend.")
-            if self._body_com_acc_w.timestamp < self._sim_timestamp:
-                self._read_spatial_vector_binding(TT.LINK_ACCELERATION, backend_buffer)
-                wp.launch(
-                    ordering_kernels.reorder_2d_backend_to_user,
-                    dim=(self.num_instances, self.num_bodies),
-                    inputs=[backend_buffer.data, self._body_user_to_backend],
-                    outputs=[self._body_com_acc_w.data],
-                    device=self.device,
-                )
-                self._body_com_acc_w.timestamp = backend_buffer.timestamp
-        else:
-            self._read_spatial_vector_binding(TT.LINK_ACCELERATION, self._body_com_acc_w)
+        self._refresh_reordered_body_buffer(self._body_com_acc_w, self._body_com_acc_w_backend, TT.LINK_ACCELERATION)
         if self._body_com_acc_w_ta is None:
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
         return self._body_com_acc_w_ta
@@ -2205,14 +2156,7 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Refresh owned public-order buffers after articulation ordering maps are installed."""
-        had_joint_ordering = self._has_joint_ordering
-        had_body_ordering = self._has_body_ordering
-        joint_ordering = self.joint_ordering
-        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
-        self._joint_user_to_backend = joint_ordering.user_to_backend if self._has_joint_ordering else None
-        body_ordering = self.body_ordering
-        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
-        self._body_user_to_backend = body_ordering.user_to_backend if self._has_body_ordering else None
+        had_joint_ordering, had_body_ordering = self._install_ordering_flags()
         self._configure_ordering_buffers(had_joint_ordering, had_body_ordering)
 
     def _pin_proxy_arrays(self) -> None:

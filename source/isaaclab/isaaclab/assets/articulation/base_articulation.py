@@ -161,14 +161,16 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def joint_names(self) -> list[str]:
         """Joint names in public API order.
 
         The order follows :attr:`ArticulationCfg.joint_ordering` when configured
         and otherwise matches :attr:`backend_joint_names`.
         """
-        raise NotImplementedError()
+        ordering = getattr(getattr(self, "data", None), "joint_ordering", None)
+        if ordering is not None:
+            return list(ordering.user_names)
+        return list(self.backend_joint_names)
 
     @property
     @abstractmethod
@@ -183,14 +185,16 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     @property
-    @abstractmethod
     def body_names(self) -> list[str]:
         """Body names in public API order.
 
         The order follows :attr:`ArticulationCfg.body_ordering` when configured
         and otherwise matches :attr:`backend_body_names`.
         """
-        raise NotImplementedError()
+        ordering = getattr(getattr(self, "data", None), "body_ordering", None)
+        if ordering is not None:
+            return list(ordering.user_names)
+        return list(self.backend_body_names)
 
     @property
     def backend_joint_names(self) -> list[str]:
@@ -2342,14 +2346,29 @@ class BaseArticulation(AssetBase):
     Internal helpers -- Ordering.
     """
 
+    _ordering_joint_staging_names: tuple[str, ...] = ()
+    """Backend-order joint-target staging attributes managed by :meth:`_ordering_configure_backend_staging`.
+
+    Each named attribute is a 2-D ``(num_instances, num_joints)`` ``wp.float32``
+    staging buffer, allocated while a nonidentity joint ordering is active and set
+    to ``None`` otherwise. Backends override this tuple to declare their staging;
+    the default empty tuple keeps identity-only backends at a no-op.
+    """
+
     def _cache_ordering_maps(self) -> None:
         """Cache backend/public ordering maps on the articulation instance.
 
         Backends install ordering maps exactly once during initialization. There
         is no public runtime re-ordering API, so re-invoking this method after the
         maps are cached indicates a programming error and is rejected. A backend
-        that legitimately rebuilds its maps must reset :attr:`_ordering_maps_cached`
-        to ``False`` before calling again, mirroring the single initialization path.
+        that legitimately rebuilds its maps calls :meth:`_reset_and_cache_ordering_maps`
+        (which resets :attr:`_ordering_maps_cached` first), mirroring the single
+        initialization path.
+
+        The data container owns the canonical ordering flags; this method mirrors
+        them onto the asset as plain attributes so hot write paths read one value
+        without a per-step property hop, while the asset keeps its own device maps
+        (identity-order reads still need a valid ``_ALL_*_INDICES`` array).
 
         Raises:
             RuntimeError: If invoked again after the ordering maps were cached.
@@ -2364,36 +2383,54 @@ class BaseArticulation(AssetBase):
         if joint_ordering is None:
             self._joint_user_to_backend = self._ALL_JOINT_INDICES
             self._joint_backend_to_user = self._ALL_JOINT_INDICES
-            self._has_joint_ordering = False
         else:
             self._joint_user_to_backend = joint_ordering.user_to_backend
             self._joint_backend_to_user = joint_ordering.backend_to_user
-            self._has_joint_ordering = not joint_ordering.is_identity
+        self._has_joint_ordering = self.data._has_joint_ordering
 
         body_ordering = self.data.body_ordering
         if body_ordering is None:
             self._body_user_to_backend = self._ALL_BODY_INDICES
             self._body_backend_to_user = self._ALL_BODY_INDICES
-            self._has_body_ordering = False
         else:
             self._body_user_to_backend = body_ordering.user_to_backend
             self._body_backend_to_user = body_ordering.backend_to_user
-            self._has_body_ordering = not body_ordering.is_identity
+        self._has_body_ordering = self.data._has_body_ordering
 
         self._ordering_configure_backend_staging()
         self._ordering_maps_cached = True
 
-    def _ordering_configure_backend_staging(self) -> None:
-        """Configure backend-owned staging after ordering maps change."""
+    def _reset_and_cache_ordering_maps(self) -> None:
+        """Reset the cache guard and (re)cache the articulation ordering maps.
 
-    def _ordering_restore_backend_staging(self, joint_backend_snapshots: tuple[wp.array, ...]) -> None:
-        """Restore backend-owned staging from canonical joint snapshots.
-
-        Backend extension hook. The base implementation is a no-op; backends that
-        stage joint commands in backend order override it. Not exercised on the
-        single initialization path and reserved for backends that rebuild their
-        ordering maps.
+        Pairs the guard reset with :meth:`_cache_ordering_maps` so every backend
+        re-establishes its ordering maps through one structural entry point when it
+        (re)creates buffers, instead of resetting :attr:`_ordering_maps_cached`
+        ad hoc before each call.
         """
+        self._ordering_maps_cached = False
+        self._cache_ordering_maps()
+
+    def _ordering_configure_backend_staging(self) -> None:
+        """Allocate or release backend-order joint-target staging after ordering maps change.
+
+        Iterates :attr:`_ordering_joint_staging_names`, allocating each declared
+        staging buffer while a nonidentity joint ordering is active and clearing it
+        to ``None`` otherwise. Backends that also stage body-indexed buffers extend
+        this via ``super()`` before handling their own body staging.
+        """
+        for backend_name in self._ordering_joint_staging_names:
+            if not hasattr(self, backend_name):
+                continue
+            if self._has_joint_ordering:
+                if getattr(self, backend_name) is None:
+                    setattr(
+                        self,
+                        backend_name,
+                        wp.zeros((self.num_instances, self.num_joints), dtype=wp.float32, device=self.device),
+                    )
+            else:
+                setattr(self, backend_name, None)
 
     def _reorder_joint_buffer_to_backend(
         self,

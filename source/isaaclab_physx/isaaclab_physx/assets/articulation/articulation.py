@@ -47,7 +47,6 @@ if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-    from isaaclab.assets.articulation.ordering import ArticulationNameMap
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -168,14 +167,6 @@ class Articulation(BaseArticulation):
         return self.root_view.shared_metatype.link_count
 
     @property
-    def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        ordering = getattr(getattr(self, "_data", None), "joint_ordering", None)
-        if ordering is not None:
-            return list(ordering.user_names)
-        return list(self.backend_joint_names)
-
-    @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
         return self._fixed_tendon_names
@@ -186,14 +177,6 @@ class Articulation(BaseArticulation):
         return self._spatial_tendon_names
 
     @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        ordering = getattr(getattr(self, "_data", None), "body_ordering", None)
-        if ordering is not None:
-            return list(ordering.user_names)
-        return list(self.backend_body_names)
-
-    @property
     def backend_joint_names(self) -> list[str]:
         """Ordered names of joints as exposed by the active backend."""
         return self.root_view.shared_metatype.dof_names
@@ -202,16 +185,6 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.shared_metatype.link_names
-
-    @property
-    def joint_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public joint order."""
-        return self.data.joint_ordering
-
-    @property
-    def body_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public body order."""
-        return self.data.body_ordering
 
     @property
     def root_view(self) -> physx.ArticulationView:
@@ -4088,14 +4061,13 @@ class Articulation(BaseArticulation):
         self._permanent_wrench_composer = WrenchComposer(self)
 
         # asset named data
-        self._ordering_maps_cached = False
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
         self._joint_effort_target_backend: wp.array | None = None
         self._body_wrench_force_backend: wp.array | None = None
         self._body_wrench_torque_backend: wp.array | None = None
         self._resolve_and_install_ordering_maps()
-        self._cache_ordering_maps()
+        self._reset_and_cache_ordering_maps()
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
@@ -4171,30 +4143,15 @@ class Articulation(BaseArticulation):
     Internal helpers -- Ordering.
     """
 
+    _ordering_joint_staging_names: tuple[str, ...] = (
+        "_joint_pos_target_backend",
+        "_joint_vel_target_backend",
+        "_joint_effort_target_backend",
+    )
+
     def _ordering_configure_backend_staging(self) -> None:
         """Configure PhysX joint-target and body-wrench staging."""
-        joint_target_names = (
-            "_joint_pos_target_backend",
-            "_joint_vel_target_backend",
-            "_joint_effort_target_backend",
-        )
-        for backend_name in joint_target_names:
-            if not hasattr(self, backend_name):
-                continue
-            if self._has_joint_ordering:
-                if getattr(self, backend_name) is None:
-                    setattr(
-                        self,
-                        backend_name,
-                        wp.zeros(
-                            (self.num_instances, self.num_joints),
-                            dtype=wp.float32,
-                            device=self.device,
-                        ),
-                    )
-            else:
-                setattr(self, backend_name, None)
-
+        super()._ordering_configure_backend_staging()
         if self._has_body_ordering:
             shape = (self.num_instances, self.num_bodies)
             if getattr(self, "_body_wrench_force_backend", None) is None:
@@ -4204,25 +4161,6 @@ class Articulation(BaseArticulation):
         else:
             self._body_wrench_force_backend = None
             self._body_wrench_torque_backend = None
-
-    def _ordering_restore_backend_staging(self, joint_backend_snapshots: tuple[wp.array, ...]) -> None:
-        """Restore PhysX joint-target staging from canonical snapshots."""
-        if not self._has_joint_ordering:
-            return
-        joint_target_names = (
-            "_joint_pos_target_backend",
-            "_joint_vel_target_backend",
-            "_joint_effort_target_backend",
-        )
-        for backend_name, backend_snapshot in zip(
-            joint_target_names,
-            joint_backend_snapshots[:3],
-            strict=True,
-        ):
-            backend_buffer = getattr(self, backend_name)
-            if backend_buffer is None:
-                raise RuntimeError(f"PhysX _has_joint_ordering requires {backend_name}.")
-            backend_buffer.assign(backend_snapshot)
 
     def _get_user_ordered_joint_3d_buffer(
         self,

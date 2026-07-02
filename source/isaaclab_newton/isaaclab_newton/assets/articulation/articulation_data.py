@@ -1915,17 +1915,6 @@ class ArticulationData(BaseArticulationData):
             device=self.device,
         )
 
-    def _make_jacobian_body_user_to_backend(self, body_ordering) -> wp.array:
-        """Build the compact user-to-backend row map for Jacobian body axes."""
-        body_user_to_backend = (
-            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
-        )
-        if self._jacobian_link_offset == 0:
-            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
-        else:
-            backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
-        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
-
     def _validate_joint_ordering_buffers(self) -> None:
         """Validate buffers required while nonidentity joint ordering is active."""
         required_fields = (
@@ -2066,14 +2055,9 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure and re-pin public buffers after ordering maps are installed."""
-        joint_ordering = self.joint_ordering
-        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
-        self._joint_user_to_backend = joint_ordering.user_to_backend if self._has_joint_ordering else None
-        body_ordering = self.body_ordering
-        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
-        self._body_user_to_backend = body_ordering.user_to_backend if self._has_body_ordering else None
+        self._install_ordering_flags()
         self._jacobian_body_user_to_backend = (
-            self._make_jacobian_body_user_to_backend(body_ordering) if self._has_body_ordering else None
+            self._make_jacobian_body_user_to_backend(self.body_ordering) if self._has_body_ordering else None
         )
 
         self._configure_joint_ordering_buffers()

@@ -12,7 +12,7 @@ import logging
 import re
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
 import torch
@@ -42,9 +42,6 @@ from .kernels import (
     write_joint_friction_data_to_buffer_index,
     write_joint_friction_data_to_buffer_mask,
 )
-
-if TYPE_CHECKING:
-    from isaaclab.assets.articulation.ordering import ArticulationNameMap
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -132,14 +129,6 @@ class Articulation(BaseArticulation):
         return self._num_bodies
 
     @property
-    def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        ordering = getattr(getattr(self, "_data", None), "joint_ordering", None)
-        if ordering is not None:
-            return list(ordering.user_names)
-        return list(self.backend_joint_names)
-
-    @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
         return self._fixed_tendon_names
@@ -150,14 +139,6 @@ class Articulation(BaseArticulation):
         return self._spatial_tendon_names
 
     @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        ordering = getattr(getattr(self, "_data", None), "body_ordering", None)
-        if ordering is not None:
-            return list(ordering.user_names)
-        return list(self.backend_body_names)
-
-    @property
     def backend_joint_names(self) -> list[str]:
         """Ordered names of joints as exposed by the active backend."""
         return self._joint_names
@@ -166,16 +147,6 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self._body_names
-
-    @property
-    def joint_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public joint order."""
-        return self.data.joint_ordering
-
-    @property
-    def body_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public body order."""
-        return self.data.body_ordering
 
     @property
     def root_view(self) -> OvPhysxView:
@@ -3935,12 +3906,11 @@ class Articulation(BaseArticulation):
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(FT, dtype=np.int32), device=device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(np.arange(ST, dtype=np.int32), device=device)
 
-        self._ordering_maps_cached = False
         self._joint_pos_target_backend: wp.array | None = None
         self._joint_vel_target_backend: wp.array | None = None
         self._joint_effort_target_backend: wp.array | None = None
         self._applied_torque_backend: wp.array | None = None
-        self._cache_ordering_maps()
+        self._reset_and_cache_ordering_maps()
 
         # All-true masks.
         self._ALL_TRUE_ENV_MASK = wp.array(np.ones(N, dtype=bool), dtype=wp.bool, device=device)
@@ -4125,57 +4095,22 @@ class Articulation(BaseArticulation):
     Internal helpers -- Ordering.
     """
 
-    def _ordering_configure_backend_staging(self) -> None:
-        """Configure OVPhysX joint-target and applied-torque staging.
+    _ordering_joint_staging_names: tuple[str, ...] = (
+        "_joint_pos_target_backend",
+        "_joint_vel_target_backend",
+        "_joint_effort_target_backend",
+        "_applied_torque_backend",
+    )
+    """Backend-order joint staging buffers managed by :meth:`_ordering_configure_backend_staging`.
 
-        ``_joint_pos_target_backend`` / ``_joint_vel_target_backend`` / ``_joint_effort_target_backend``
-        are persistent backend-order mirrors of the corresponding user-order target buffers, kept
-        current by the partial :meth:`set_joint_position_target_index`-style setters.
-        ``_applied_torque_backend`` is separate, purely transient scratch: :meth:`write_data_to_sim`
-        fully overwrites it every step with the backend-order actuator output, so it must not alias
-        ``_joint_effort_target_backend`` (whose unselected rows a partial effort-target write relies
-        on to still hold the persisted target, not the last pushed applied torque).
-        """
-        for backend_name in (
-            "_joint_pos_target_backend",
-            "_joint_vel_target_backend",
-            "_joint_effort_target_backend",
-            "_applied_torque_backend",
-        ):
-            if not hasattr(self, backend_name):
-                continue
-            if self._has_joint_ordering:
-                if getattr(self, backend_name) is None:
-                    setattr(
-                        self,
-                        backend_name,
-                        wp.zeros(
-                            (self.num_instances, self.num_joints),
-                            dtype=wp.float32,
-                            device=self.device,
-                        ),
-                    )
-            else:
-                setattr(self, backend_name, None)
-
-    def _ordering_restore_backend_staging(self, joint_backend_snapshots: tuple[wp.array, ...]) -> None:
-        """Restore OVPhysX joint-target staging from canonical snapshots."""
-        if not self._has_joint_ordering:
-            return
-        joint_target_names = (
-            "_joint_pos_target_backend",
-            "_joint_vel_target_backend",
-            "_joint_effort_target_backend",
-        )
-        for backend_name, backend_snapshot in zip(
-            joint_target_names,
-            joint_backend_snapshots[:3],
-            strict=True,
-        ):
-            backend_buffer = getattr(self, backend_name)
-            if backend_buffer is None:
-                raise RuntimeError(f"OVPhysX _has_joint_ordering requires {backend_name}.")
-            backend_buffer.assign(backend_snapshot)
+    ``_joint_pos_target_backend`` / ``_joint_vel_target_backend`` / ``_joint_effort_target_backend``
+    are persistent backend-order mirrors of the corresponding user-order target buffers, kept
+    current by the partial :meth:`set_joint_position_target_index`-style setters.
+    ``_applied_torque_backend`` is separate, purely transient scratch: :meth:`write_data_to_sim`
+    fully overwrites it every step with the backend-order actuator output, so it must not alias
+    ``_joint_effort_target_backend`` (whose unselected rows a partial effort-target write relies
+    on to still hold the persisted target, not the last pushed applied torque).
+    """
 
     """
     Internal helpers -- Actuators.

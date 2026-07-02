@@ -47,7 +47,6 @@ from .articulation_data import ArticulationData
 
 if TYPE_CHECKING:
     from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-    from isaaclab.assets.articulation.ordering import ArticulationNameMap
 
 
 # import logger
@@ -193,14 +192,6 @@ class Articulation(BaseArticulation):
         return [backend_num_shapes_per_body[backend_id] for backend_id in self.body_ordering.user_to_backend_indices]
 
     @property
-    def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        ordering = getattr(getattr(self, "_data", None), "joint_ordering", None)
-        if ordering is not None:
-            return list(ordering.user_names)
-        return list(self.backend_joint_names)
-
-    @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
         return self.root_view.tendon_names
@@ -211,14 +202,6 @@ class Articulation(BaseArticulation):
         return []
 
     @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
-        ordering = getattr(getattr(self, "_data", None), "body_ordering", None)
-        if ordering is not None:
-            return list(ordering.user_names)
-        return list(self.backend_body_names)
-
-    @property
     def backend_joint_names(self) -> list[str]:
         """Ordered names of joints as exposed by the active backend."""
         return self.root_view.joint_dof_names
@@ -227,16 +210,6 @@ class Articulation(BaseArticulation):
     def backend_body_names(self) -> list[str]:
         """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.link_names
-
-    @property
-    def joint_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public joint order."""
-        return self.data.joint_ordering
-
-    @property
-    def body_ordering(self) -> ArticulationNameMap | None:
-        """Mapping between backend and public body order."""
-        return self.data.body_ordering
 
     @property
     def root_view(self) -> ArticulationView:
@@ -1689,7 +1662,7 @@ class Articulation(BaseArticulation):
         env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
         joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
         if self._has_joint_ordering:
-            joint_ids_backend = wp.to_torch(self._joint_user_to_backend)[joint_ids_backend].to(dtype=torch.long)
+            joint_ids_backend = self._joint_user_to_backend_torch[joint_ids_backend]
         joint_ids_backend = joint_ids_backend.unsqueeze(0)
 
         for act in adapter.actuators:
@@ -3508,7 +3481,12 @@ class Articulation(BaseArticulation):
 
         # asset named data
         self._resolve_and_install_ordering_maps()
-        self._cache_ordering_maps()
+        self._reset_and_cache_ordering_maps()
+        # Cache a torch ``long`` alias of the joint user-to-backend map so per-call actuator
+        # writes reuse it instead of re-wrapping and re-casting the Warp map every call.
+        self._joint_user_to_backend_torch = (
+            wp.to_torch(self._joint_user_to_backend).to(dtype=torch.long) if self._has_joint_ordering else None
+        )
         # Republish the Tier-1 backend->user state shadows inside the stepped
         # (and captured) region after the last solver substep. Registering only
         # when ordering is non-identity keeps identity-ordering scenes at zero
