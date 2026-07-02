@@ -268,10 +268,13 @@ class GroundPlaneCfg(SpawnerCfg):
     """The size of the ground plane. Defaults to 100 m x 100 m."""
 
     physics_material: (
-        materials.PhysicsMaterialCfg | materials.RigidBodyMaterialFragment | list[materials.RigidBodyMaterialFragment]
+        materials.RigidBodyMaterialBaseCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
     ) = materials.RigidBodyMaterialCfg()
     """Physics material properties. Defaults to the default rigid body material.
 
-    Accepts either a legacy material cfg or a list of single-namespace
-    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
+    The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a
+    legacy :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` or a list of
+    single-namespace :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
     """

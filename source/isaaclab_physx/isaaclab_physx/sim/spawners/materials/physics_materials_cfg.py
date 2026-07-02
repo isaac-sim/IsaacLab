@@ -183,6 +183,13 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
     to zero and rigid contacts are active. PhysX-only; not consumed by Newton.
     """
 
+    compliant_contact_acceleration_spring: bool | None = None
+    """Whether the compliant contact spring is formulated in acceleration (rather than force) units.
+
+    Only relevant when compliant contacts are enabled (:attr:`compliant_contact_stiffness` is
+    non-zero). PhysX-only; not consumed by Newton.
+    """
+
     friction_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """Determines the way friction will be combined during collisions.
 
@@ -195,6 +202,16 @@ class PhysxRigidBodyMaterialCfg(RigidBodyMaterialBaseCfg):
 
     restitution_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
     """Determines the way restitution coefficient will be combined during collisions.
+
+    .. attention::
+
+        When two physics materials with different combine modes collide, the combine mode with
+        the higher priority will be used. The priority order is provided `here
+        <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/structPxCombineMode.html>`__.
+    """
+
+    damping_combine_mode: Literal["average", "min", "multiply", "max"] | None = None
+    """Determines the way the (compliant-contact) damping coefficient is combined during collisions.
 
     .. attention::
 

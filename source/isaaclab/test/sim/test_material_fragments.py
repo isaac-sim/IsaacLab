@@ -276,3 +276,90 @@ def test_spawn_ground_plane_accepts_fragment_list_physics_material():
     binding_api = UsdShade.MaterialBindingAPI(collision_prim)
     bound_material, _ = binding_api.ComputeBoundMaterial(materialPurpose="physics")
     assert bound_material.GetPath() == material_prim.GetPath()
+
+
+# -------------------------------------------------------------------------------------
+# Regression: the mesh spawner's rigid-material guard must also accept legacy (non-fragment)
+# rigid-body material cfgs, not just the deprecated ``RigidBodyMaterialCfg`` alias.
+# -------------------------------------------------------------------------------------
+
+
+def test_spawn_mesh_with_rigid_props_accepts_legacy_physx_rigid_body_material():
+    """Regression test: the mesh guard used to check ``isinstance(cfg.physics_material,
+    RigidBodyMaterialCfg)`` -- the deprecated PhysX leaf alias -- which rejected the canonical
+    legacy :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` even though
+    :func:`~isaaclab.sim.spawners.materials.spawn_physics_material` accepts it."""
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+
+    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCuboidCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    cfg = MeshCuboidCfg(
+        size=(1.0, 1.0, 1.0),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        physics_material=PhysxRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55),
+    )
+    prim = cfg.func("/World/MeshCubeLegacyPhysx", cfg, stage=stage)
+    assert prim.IsValid()
+    material_prim = stage.GetPrimAtPath("/World/MeshCubeLegacyPhysx/geometry/material")
+    assert material_prim.IsValid()
+    assert bool(UsdPhysics.MaterialAPI(material_prim))
+    assert material_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.65)
+    binding_api = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/World/MeshCubeLegacyPhysx/geometry/mesh"))
+    bound_material, _ = binding_api.ComputeBoundMaterial(materialPurpose="physics")
+    assert bound_material.GetPath() == material_prim.GetPath()
+
+
+def test_spawn_mesh_with_rigid_props_accepts_legacy_newton_material():
+    """Same regression as above for Newton's legacy rigid-body material cfg, which also derives
+    from :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (not the deprecated
+    PhysX ``RigidBodyMaterialCfg`` alias) and must not be rejected by the mesh guard."""
+    from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
+
+    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCuboidCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    cfg = MeshCuboidCfg(
+        size=(1.0, 1.0, 1.0),
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+        collision_props=sim_utils.CollisionPropertiesCfg(),
+        physics_material=NewtonMaterialPropertiesCfg(torsional_friction=0.3, rolling_friction=0.001),
+    )
+    prim = cfg.func("/World/MeshCubeLegacyNewton", cfg, stage=stage)
+    assert prim.IsValid()
+    material_prim = stage.GetPrimAtPath("/World/MeshCubeLegacyNewton/geometry/material")
+    assert material_prim.IsValid()
+    assert bool(UsdPhysics.MaterialAPI(material_prim))
+    assert material_prim.GetAttribute("newton:torsionalFriction").Get() == pytest.approx(0.3)
+    assert material_prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
+    binding_api = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/World/MeshCubeLegacyNewton/geometry/mesh"))
+    bound_material, _ = binding_api.ComputeBoundMaterial(materialPurpose="physics")
+    assert bound_material.GetPath() == material_prim.GetPath()
+
+
+# -------------------------------------------------------------------------------------
+# PhysxRigidBodyMaterialCfg (legacy): damping-combine-mode + compliant-contact-acceleration-spring
+# -------------------------------------------------------------------------------------
+
+
+def test_legacy_physx_rigid_body_material_authors_damping_combine_mode_and_acceleration_spring():
+    """The legacy :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` must
+    author the same two ``physxMaterial:*`` attributes as the
+    :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg` fragment, since the legacy
+    spawner is metadata-driven off the same ``physxMaterial`` namespace."""
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = PhysxRigidBodyMaterialCfg(damping_combine_mode="min", compliant_contact_acceleration_spring=True)
+    prim = spawn_rigid_body_material("/World/MatLegacyPhysxExtra", cfg)
+    assert "PhysxMaterialAPI" in prim.GetAppliedSchemas()
+    assert prim.GetAttribute("physxMaterial:dampingCombineMode").Get() == "min"
+    assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True

@@ -189,6 +189,38 @@ def test_newton_material_fragment_composes_with_usd_physics_fragment(setup_sim):
     assert prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
 
 
+@pytest.mark.isaacsim_ci
+def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
+    """Regression test: Newton's USD material schema resolver (``SchemaResolverNewton``) reads six
+    ``newton:*`` material attributes -- the two friction knobs plus four contact-model attributes
+    (``contactStiffness``/``contactDamping``/``contactFrictionGain``/``contactAdhesion``) that
+    replace the deprecated per-shape ``ke``/``kd``/``kf``/``ka`` parameters. All six must round-trip
+    through :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, even though the
+    generated ``NewtonMaterialAPI`` schema currently only declares the two friction attributes."""
+    from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
+
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
+
+    prim = spawn_rigid_body_material_from_fragments(
+        "/World/newton_mat_contact",
+        NewtonMaterialCfg(
+            torsional_friction=0.3,
+            rolling_friction=0.001,
+            contact_stiffness=2500.0,
+            contact_damping=100.0,
+            contact_friction_gain=1000.0,
+            contact_adhesion=0.01,
+        ),
+    )
+    assert "NewtonMaterialAPI" in prim.GetAppliedSchemas()
+    assert prim.GetAttribute("newton:torsionalFriction").Get() == pytest.approx(0.3)
+    assert prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
+    assert prim.GetAttribute("newton:contactStiffness").Get() == pytest.approx(2500.0)
+    assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(100.0)
+    assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(1000.0)
+    assert prim.GetAttribute("newton:contactAdhesion").Get() == pytest.approx(0.01)
+
+
 # ---------------------------------------------------------------------------
 # Newton articulation root
 # ---------------------------------------------------------------------------

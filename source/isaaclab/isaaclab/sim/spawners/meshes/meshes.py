@@ -18,7 +18,7 @@ from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clon
 
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
-    RigidBodyMaterialCfg,
+    RigidBodyMaterialBaseCfg,
     RigidBodyMaterialFragment,
     SurfaceDeformableBodyMaterialBaseCfg,
 )
@@ -378,7 +378,7 @@ def _spawn_mesh_geom_from_mesh(
         physics_material_frags = (
             cfg.physics_material if isinstance(cfg.physics_material, (list, tuple)) else [cfg.physics_material]
         )
-        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialCfg) or all(
+        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or all(
             isinstance(frag, RigidBodyMaterialFragment) for frag in physics_material_frags
         )
         if not is_rigid_material:

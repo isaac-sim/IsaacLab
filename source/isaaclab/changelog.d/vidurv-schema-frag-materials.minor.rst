@@ -16,9 +16,11 @@ Changed
 ^^^^^^^
 
 * Widened the mesh spawner's rigid-vs-deformable physics-material guard in
-  :mod:`isaaclab.sim.spawners.meshes` to accept a
-  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or a list of them (previously
-  only the legacy rigid-body material cfg was accepted).
+  :mod:`isaaclab.sim.spawners.meshes` to accept any
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (legacy cfg) or
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` (or a list of the latter),
+  instead of only the deprecated ``RigidBodyMaterialCfg`` alias.
 * Widened :attr:`~isaaclab.sim.spawners.from_files.GroundPlaneCfg.physics_material` to accept a
-  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` or a list of them, matching
-  :attr:`~isaaclab.sim.spawners.from_files.FileCfg.physics_material`.
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` (legacy cfg) or a
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` (or a list of the latter),
+  since the ground plane only spawns a rigid collision plane.
