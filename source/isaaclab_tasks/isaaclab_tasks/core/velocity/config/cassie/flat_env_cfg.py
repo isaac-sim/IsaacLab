@@ -9,6 +9,7 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.core.velocity.velocity_env_cfg import make_feather_pgs_physics_cfg
 from isaaclab_tasks.utils import PresetCfg
 
 from .rough_env_cfg import CassieRoughEnvCfg
@@ -27,6 +28,9 @@ class PhysicsCfg(PresetCfg):
         ),
         num_substeps=1,
         debug_mode=False,
+    )
+    feather_pgs = make_feather_pgs_physics_cfg(
+        pgs_iterations=16, pgs_beta=0.02, pgs_cfm=1.0e-5, pgs_omega=0.8, angular_damping=0.2
     )
     physx = default
 

@@ -9,7 +9,8 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import make_feather_pgs_physics_cfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from .rough_env_cfg import UnitreeA1RoughEnvCfg
 
@@ -28,6 +29,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    feather_pgs = make_feather_pgs_physics_cfg(pgs_iterations=8, angular_damping=0.1)
     physx = default
 
 
@@ -39,6 +41,9 @@ class UnitreeA1FlatEnvCfg(UnitreeA1RoughEnvCfg):
         # post init of parent
         super().__post_init__()
 
+        self.scene.robot.actuators["base_legs"].armature = preset(
+            default=self.scene.robot.actuators["base_legs"].armature, feather_pgs=0.1
+        )
         # override rewards
         self.rewards.flat_orientation_l2.weight = -2.5
         self.rewards.feet_air_time.weight = 0.25

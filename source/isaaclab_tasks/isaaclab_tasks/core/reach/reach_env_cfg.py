@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -43,6 +43,19 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            pgs_iterations=8,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            dense_max_constraints=32,
+            mf_max_constraints=256,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+    )
 
     default = physx
 
@@ -75,6 +88,7 @@ class TableCfg(PresetCfg):
         actuators={},
         articulation_root_prim_path="",
     )
+    feather_pgs = newton_mjwarp
 
     default = physx
 

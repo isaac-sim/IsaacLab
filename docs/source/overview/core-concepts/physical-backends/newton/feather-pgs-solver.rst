@@ -81,9 +81,15 @@ emit solver-stage ranges when profiling.
 Current Limitations
 -------------------
 
-FeatherPGS support is experimental and is not selected by an Isaac Lab task
-preset yet. Task configurations should opt in explicitly and validate their
-time step, actuator, contact-capacity, and iteration settings.
+FeatherPGS support is experimental. Tasks with a validated FeatherPGS
+configuration expose the ``feather_pgs`` preset, which selects the task-specific
+time step, actuator, contact-capacity, and iteration settings:
+
+.. code-block:: bash
+
+    ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Velocity-Flat-G1 presets=feather_pgs
+
+Tasks that do not declare this preset have not been validated with FeatherPGS.
 
 The current Newton implementation also has these restrictions:
 
