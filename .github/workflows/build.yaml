@@ -290,7 +290,7 @@ jobs:
     - name: Build base image (linux/arm64)
       uses: ./.github/actions/docker-build
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
@@ -305,7 +305,7 @@ jobs:
         test-path: tools
         result-file: arm-ci-report.xml
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "ovrtx ovphysx==0.4.13"
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
@@ -316,12 +316,12 @@ jobs:
         test-path: source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py
         result-file: arm-ci-cartpole-smoke-report.xml
         container-name: isaac-lab-arm-ci-cartpole-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ env.CI_IMAGE_TAG }}-arm64
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         volume-mount-source: ${{ github.workspace }}
 
     - name: Upload test reports
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: arm-ci-reports
         path: reports/

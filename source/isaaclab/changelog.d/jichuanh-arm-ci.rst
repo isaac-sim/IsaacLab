@@ -9,8 +9,3 @@ Fixed
   ``KeyError: 'EXP_PATH'`` deep inside ``_resolve_experience_file``; now
   AppLauncher resolves the path from ``isaacsim.__file__`` and stores it back
   into the environment so subsequent code can rely on it.
-
-* Fixed :class:`~isaaclab.sim.converters.AssetConverterBase` hardcoding
-  ``/tmp`` for its default USD output directory. It now resolves the path under
-  ``tempfile.gettempdir()``, so it honors ``$TMPDIR`` on POSIX and works on
-  Windows (where the system temp dir is ``%TEMP%``).

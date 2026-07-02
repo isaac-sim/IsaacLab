@@ -118,6 +118,7 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
+        platform: ${{ inputs.platform }}
 
     - name: Check deps-tag locally
       id: local-deps
