@@ -159,6 +159,16 @@ steps-per-second number or fixed percentage overhead.
 Direct Backend-View Access
 --------------------------
 
+.. warning::
+    Arrays returned by the raw solver view (``root_view``) are always in
+    backend solver order, regardless of the configured ``joint_ordering`` or
+    ``body_ordering``. Indices from ``joint_names``, ``body_names``,
+    ``find_joints``, or ``find_bodies`` are in public order and must not be
+    used to index ``root_view`` arrays directly. Use the asset's ``data``
+    buffers and write APIs, which already operate in public order, or
+    translate indices through the asset's ``joint_ordering``/``body_ordering``
+    maps first.
+
 Prefer the high-level articulation API when possible; its data and writer
 contracts already use public order. Direct ``root_view`` access uses backend
 order even when ``joint_names`` or ``body_names`` uses another convention.
