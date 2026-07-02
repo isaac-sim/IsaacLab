@@ -136,6 +136,14 @@ def pytest_runtest_logreport(report: pytest.TestReport) -> None:
         sys.stdout.write("\n")
 
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool | None:
+    """Let item-level selection preserve smoke tests."""
+    if config.getoption("testmon_forceselect", default=False) and collection_path:
+        return False
+    return None
+
+
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> Generator[None, None, None]:
     """Map dynamic bug markers and deselect items with mismatched env markers.
