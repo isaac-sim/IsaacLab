@@ -586,7 +586,6 @@ class OVRTXRenderer(BaseRenderer):
         newton_state = NewtonManager.get_state()
         assert newton_state is not None, "Newton state should not be None"
 
-        # Developer: Would body_q ever be None?
         body_q = getattr(newton_state, "body_q", None)
         if body_q is None:
             return
