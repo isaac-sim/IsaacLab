@@ -806,53 +806,54 @@ def _discover_prebundle_dirs() -> set[Path]:
     return prebundle_dirs
 
 
-def _snapshot_prebundle_dists() -> dict[Path, set[str]]:
-    """Record which distributions each Isaac Sim prebundle currently contains.
+def _find_dangling_prebundle_symlinks() -> set[Path]:
+    """Find symlinks under Isaac Sim prebundles whose targets do not resolve.
 
-    ``*.dist-info`` directory names are what pip uses to consider a distribution
-    installed; one disappearing from a prebundle means a pip operation
-    uninstalled a package that Isaac Sim extensions load at runtime.
+    Isaac Sim deduplicates packages shared by several extensions as per-file
+    symlink farms between ``pip_prebundle`` directories. pip operations routinely
+    replace prebundled distributions with copies in ``site-packages`` — harmless
+    on its own — but deleting a copy that other prebundles link into leaves
+    dangling symlinks that break extension startup at runtime.
     """
-    snapshot: dict[Path, set[str]] = {}
+    dangling: set[Path] = set()
     for prebundle_dir in _discover_prebundle_dirs():
-        try:
-            snapshot[prebundle_dir] = {p.name for p in prebundle_dir.iterdir() if p.name.endswith(".dist-info")}
-        except OSError:
-            continue
-    return snapshot
+        for root, _dirs, files in os.walk(prebundle_dir):
+            for name in files:
+                path = Path(root) / name
+                if path.is_symlink() and not path.exists():
+                    dangling.add(path)
+    return dangling
 
 
-def _assert_prebundle_dists_intact(snapshot: dict[Path, set[str]]) -> None:
-    """Raise when the installation removed a distribution from an Isaac Sim prebundle.
+def _assert_no_new_dangling_prebundle_symlinks(before: set[Path]) -> None:
+    """Raise when the installation left new dangling symlinks in Isaac Sim prebundles.
 
-    Isaac Sim shares prebundled packages across extensions through symlink farms,
-    so deleting one copy silently breaks other extensions at startup (e.g. the
-    ``packaging`` removal cascade in nvbugs 6343978). Never let that state ship.
+    A new dangling symlink means a pip operation deleted a prebundled package
+    that other extensions reference through Isaac Sim's symlink farms — the
+    failure mode behind the ``packaging`` removal cascade in nvbugs 6343978
+    (14 extensions failing to start). Pre-existing dangling links are tolerated;
+    only links broken by this installation fail it.
 
     Args:
-        snapshot: Per-prebundle ``*.dist-info`` names from
-            :func:`_snapshot_prebundle_dists`, taken before the pip operations.
+        before: Dangling symlinks from :func:`_find_dangling_prebundle_symlinks`,
+            collected before the pip operations.
 
     Raises:
-        RuntimeError: If any distribution present in ``snapshot`` is gone.
+        RuntimeError: If the installation introduced new dangling symlinks.
     """
-    damaged: list[str] = []
-    for prebundle_dir, before in snapshot.items():
-        try:
-            after = {p.name for p in prebundle_dir.iterdir() if p.name.endswith(".dist-info")}
-        except OSError:
-            after = set()
-        missing = sorted(before - after)
-        if missing:
-            damaged.append(f"{prebundle_dir}: {', '.join(missing)}")
-    if damaged:
+    introduced = sorted(_find_dangling_prebundle_symlinks() - before)
+    if introduced:
+        shown = "\n  ".join(str(p) for p in introduced[:20])
+        extra = f"\n  ... and {len(introduced) - 20} more" if len(introduced) > 20 else ""
         raise RuntimeError(
-            "Installation removed pre-bundled distribution(s) from Isaac Sim:\n  "
-            + "\n  ".join(damaged)
-            + "\nIsaac Sim extensions load these prebundles at runtime; removing them breaks extension"
-            " startup (see nvbugs 6343978). This usually means a dependency pin forced pip to"
-            " downgrade/replace a prebundled package — fix that pin instead of shipping a broken"
-            " prebundle, and restore the Isaac Sim installation before retrying."
+            f"Installation left {len(introduced)} dangling symlink(s) in Isaac Sim prebundles:\n  "
+            + shown
+            + extra
+            + "\nA pip operation deleted a prebundled package that other Isaac Sim extensions share"
+            " via symlinks; extensions will fail to start at runtime (see nvbugs 6343978). This"
+            " usually means a dependency pin forced pip to downgrade/replace the prebundled copy —"
+            " fix that pin instead of shipping a broken prebundle, and restore the Isaac Sim"
+            " installation before retrying."
         )
 
 
@@ -1096,8 +1097,8 @@ def command_install(install_type: str = "all") -> None:
         probe_env["PYTHONPATH"] = saved_pythonpath
 
     # Baseline for the post-install integrity check: no pip operation below may
-    # remove a distribution from Isaac Sim's prebundles (nvbugs 6343978).
-    prebundle_dists_before = _snapshot_prebundle_dists()
+    # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
+    dangling_symlinks_before = _find_dangling_prebundle_symlinks()
 
     try:
         # Upgrade pip first to avoid compatibility issues (skip when using uv).
@@ -1150,10 +1151,11 @@ def command_install(install_type: str = "all") -> None:
         # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
         _repoint_prebundle_packages()
 
-        # Fail loud if any pip operation above deleted a distribution out of an
-        # Isaac Sim prebundle (repoint replaces package dirs with symlinks but
-        # keeps their dist-info, so it does not trip this check).
-        _assert_prebundle_dists_intact(prebundle_dists_before)
+        # Fail loud if any pip operation above broke Isaac Sim's cross-extension
+        # symlink farms. Prebundle deletions on their own are routine (pip
+        # replaces those packages in site-packages, which shadows the prebundle
+        # at runtime); only newly dangling symlinks break extension startup.
+        _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
 
     finally:
         # Restore LD_PRELOAD if we cleared it.

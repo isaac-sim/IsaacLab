@@ -16,8 +16,8 @@ from unittest import mock
 import pytest
 
 from isaaclab.cli.commands.install import (
-    _assert_prebundle_dists_intact,
-    _snapshot_prebundle_dists,
+    _assert_no_new_dangling_prebundle_symlinks,
+    _find_dangling_prebundle_symlinks,
     _torch_first_on_sys_path_is_prebundle,
     split_install_items,
 )
@@ -88,62 +88,60 @@ class TestTorchProbeScriptContent:
 
 
 # ---------------------------------------------------------------------------
-# prebundle dist integrity snapshot/assert
+# prebundle dangling-symlink integrity
 # ---------------------------------------------------------------------------
 
 
-class TestPrebundleDistsIntegrity:
-    """Tests for :func:`_snapshot_prebundle_dists` and :func:`_assert_prebundle_dists_intact`.
+class TestPrebundleSymlinkIntegrity:
+    """Tests for :func:`_find_dangling_prebundle_symlinks` and
+    :func:`_assert_no_new_dangling_prebundle_symlinks`.
 
-    Regression guard for nvbugs 6343978: a pip operation running with
-    pip_prebundle paths visible uninstalled ``packaging`` from Isaac Sim's
-    ``omni.isaac.core_archive`` prebundle, dangling the symlink farms other
-    extensions share and cascading into 14 extension startup failures.
+    Regression guard for nvbugs 6343978: a pip downgrade deleted ``packaging``
+    from the ``omni.isaac.core_archive`` prebundle, dangling the per-file
+    symlink farm ``omni.services.pip_archive`` shares with it and cascading
+    into 14 extension startup failures. Prebundle deletions by themselves are
+    routine (site-packages shadows them); only new dangling symlinks fail.
     """
 
-    def _make_prebundle(self, tmp_path):
-        prebundle = tmp_path / "exts" / "omni.isaac.core_archive" / "pip_prebundle"
-        (prebundle / "packaging-26.0.dist-info").mkdir(parents=True)
-        (prebundle / "packaging").mkdir()
-        (prebundle / "six-1.16.0.dist-info").mkdir()
-        return prebundle
+    def _make_prebundles(self, tmp_path):
+        core = tmp_path / "exts" / "omni.isaac.core_archive" / "pip_prebundle"
+        (core / "packaging").mkdir(parents=True)
+        (core / "packaging" / "__init__.py").write_text("")
+        services = tmp_path / "extscache" / "omni.services.pip_archive" / "pip_prebundle"
+        (services / "packaging").mkdir(parents=True)
+        (services / "packaging" / "__init__.py").symlink_to(core / "packaging" / "__init__.py")
+        return core, services
 
-    def test_snapshot_records_dist_info_names(self, tmp_path):
-        prebundle = self._make_prebundle(tmp_path)
-        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={prebundle}):
-            snapshot = _snapshot_prebundle_dists()
-        assert snapshot == {prebundle: {"packaging-26.0.dist-info", "six-1.16.0.dist-info"}}
+    def test_intact_farm_has_no_dangling_links(self, tmp_path):
+        core, services = self._make_prebundles(tmp_path)
+        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={core, services}):
+            assert _find_dangling_prebundle_symlinks() == set()
+            _assert_no_new_dangling_prebundle_symlinks(set())
 
-    def test_intact_when_unchanged(self, tmp_path):
-        prebundle = self._make_prebundle(tmp_path)
-        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={prebundle}):
-            snapshot = _snapshot_prebundle_dists()
-        _assert_prebundle_dists_intact(snapshot)
+    def test_raises_when_symlink_target_deleted(self, tmp_path):
+        """Deleting the shared copy must fail the install, naming the broken link."""
+        core, services = self._make_prebundles(tmp_path)
+        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={core, services}):
+            before = _find_dangling_prebundle_symlinks()
+            shutil.rmtree(core / "packaging")
+            with pytest.raises(RuntimeError, match="dangling symlink") as excinfo:
+                _assert_no_new_dangling_prebundle_symlinks(before)
+        assert str(services / "packaging" / "__init__.py") in str(excinfo.value)
 
-    def test_intact_when_dist_added(self, tmp_path):
-        """New distributions appearing in a prebundle are not a violation."""
-        prebundle = self._make_prebundle(tmp_path)
-        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={prebundle}):
-            snapshot = _snapshot_prebundle_dists()
-        (prebundle / "tomli-2.0.1.dist-info").mkdir()
-        _assert_prebundle_dists_intact(snapshot)
+    def test_preexisting_dangling_links_are_tolerated(self, tmp_path):
+        """Links already broken before the install do not fail it."""
+        core, services = self._make_prebundles(tmp_path)
+        (services / "stale.py").symlink_to(core / "does-not-exist.py")
+        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={core, services}):
+            before = _find_dangling_prebundle_symlinks()
+            assert before == {services / "stale.py"}
+            _assert_no_new_dangling_prebundle_symlinks(before)
 
-    def test_raises_when_dist_removed(self, tmp_path):
-        """Removing a prebundled distribution must fail the install loudly."""
-        prebundle = self._make_prebundle(tmp_path)
-        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={prebundle}):
-            snapshot = _snapshot_prebundle_dists()
-        shutil.rmtree(prebundle / "packaging-26.0.dist-info")
-        shutil.rmtree(prebundle / "packaging")
-        with pytest.raises(RuntimeError, match="packaging-26.0.dist-info") as excinfo:
-            _assert_prebundle_dists_intact(snapshot)
-        assert str(prebundle) in str(excinfo.value)
-
-    def test_raises_when_prebundle_dir_removed(self, tmp_path):
-        """A wholesale-deleted prebundle reports every distribution it held."""
-        prebundle = self._make_prebundle(tmp_path)
-        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={prebundle}):
-            snapshot = _snapshot_prebundle_dists()
-        shutil.rmtree(prebundle)
-        with pytest.raises(RuntimeError, match="six-1.16.0.dist-info"):
-            _assert_prebundle_dists_intact(snapshot)
+    def test_routine_dist_replacement_passes(self, tmp_path):
+        """Deleting a prebundled package nothing links into is not a violation."""
+        core, services = self._make_prebundles(tmp_path)
+        (core / "six.py").write_text("")
+        with mock.patch("isaaclab.cli.commands.install._discover_prebundle_dirs", return_value={core, services}):
+            before = _find_dangling_prebundle_symlinks()
+            (core / "six.py").unlink()
+            _assert_no_new_dangling_prebundle_symlinks(before)
