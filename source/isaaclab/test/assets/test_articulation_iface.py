@@ -748,6 +748,31 @@ class TestArticulationDataBodyState:
         for name, buffer in dependent_buffers:
             assert buffer.timestamp < art.data._sim_timestamp, name
 
+    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    def test_physx_identity_ordering_reuses_dynamics_proxy_array_across_refreshes(self):
+        """With identity ordering (the default), ``body_com_jacobian_w``, ``mass_matrix``, and
+        ``gravity_compensation_forces`` alias stable, pre-allocated PhysX buffers, so their
+        ``ProxyArray`` wrapper must be created once and reused on every subsequent refresh —
+        matching the pattern already used by, e.g., ``root_link_pose_w``. Rebuilding the wrapper
+        on every step forces a redundant ``.torch`` view rebuild even though the underlying
+        device pointer never changes.
+        """
+        art, _ = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
+
+        art.data.update(dt=0.01)
+        jacobian_wrapper_a = art.data.body_com_jacobian_w
+        mass_matrix_wrapper_a = art.data.mass_matrix
+        gravity_wrapper_a = art.data.gravity_compensation_forces
+
+        art.data.update(dt=0.01)
+        jacobian_wrapper_b = art.data.body_com_jacobian_w
+        mass_matrix_wrapper_b = art.data.mass_matrix
+        gravity_wrapper_b = art.data.gravity_compensation_forces
+
+        assert jacobian_wrapper_a is jacobian_wrapper_b
+        assert mass_matrix_wrapper_a is mass_matrix_wrapper_b
+        assert gravity_wrapper_a is gravity_wrapper_b
+
     @_backends
     @_default_dims
     @_default_devices

@@ -1055,7 +1055,6 @@ class ArticulationData(BaseArticulationData):
                 )
             else:
                 self._body_com_jacobian_w.data = backend_jacobian
-                self._body_com_jacobian_w_ta = None
             self._body_com_jacobian_w.timestamp = self._sim_timestamp
         if self._body_com_jacobian_w_ta is None:
             self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
@@ -1113,7 +1112,6 @@ class ArticulationData(BaseArticulationData):
                 )
             else:
                 self._mass_matrix.data = backend_mass_matrix
-                self._mass_matrix_ta = None
             self._mass_matrix.timestamp = self._sim_timestamp
         if self._mass_matrix_ta is None:
             self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
@@ -1150,7 +1148,6 @@ class ArticulationData(BaseArticulationData):
                 )
             else:
                 self._gravity_compensation_forces.data = backend_forces
-                self._gravity_compensation_forces_ta = None
             self._gravity_compensation_forces.timestamp = self._sim_timestamp
         if self._gravity_compensation_forces_ta is None:
             self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
