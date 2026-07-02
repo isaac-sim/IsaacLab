@@ -37,3 +37,5 @@ Fixed
 * Fixed benchmark metadata so Kit-full runs now report Kit and Isaac Sim
   versions while Kitless runs omit them.
 * Fixed benchmark metadata to report the installed OVPhysX runtime version.
+* Fixed benchmark metadata to preserve null values for unavailable Kit, Isaac Sim,
+  OVRTX, and OVPhysX runtimes.

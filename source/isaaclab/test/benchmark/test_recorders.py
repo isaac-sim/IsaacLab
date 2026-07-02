@@ -662,8 +662,8 @@ class TestVersionInfoRecorder:
 
         assert versions["isaacsim"] == "6.0.0-rc.59+main.0.test"
 
-    def test_omits_kit_versions_without_active_kit(self, monkeypatch):
-        """Test that Kit versions are omitted when no Kit runtime is active."""
+    def test_records_null_kit_versions_without_active_kit(self, monkeypatch):
+        """Test that Kit versions are null when no Kit runtime is active."""
         monkeypatch.delenv("ISAAC_PATH", raising=False)
 
         omni = types.ModuleType("omni")
@@ -683,10 +683,10 @@ class TestVersionInfoRecorder:
 
         versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
 
-        assert "kit" not in versions
-        assert "isaacsim" not in versions
+        assert versions["kit"] is None
+        assert versions["isaacsim"] is None
 
-    def test_omits_kit_versions_without_importing_kit(self, monkeypatch):
+    def test_records_null_kit_versions_without_importing_kit(self, monkeypatch):
         """Test that Kitless runs do not import the Kit application module."""
         monkeypatch.delenv("ISAAC_PATH", raising=False)
         for module_name in ("omni.kit.app", "omni.kit", "omni"):
@@ -706,15 +706,32 @@ class TestVersionInfoRecorder:
         versions = VersionInfoRecorder().get_initial_data()["version_metadata"]
 
         assert kit_imports == []
-        assert "kit" not in versions
-        assert "isaacsim" not in versions
+        assert versions["kit"] is None
+        assert versions["isaacsim"] is None
 
-    def test_version_values_are_strings(self, recorder):
-        """Test that version values are strings."""
+    def test_records_null_renderer_runtime_versions_when_unavailable(self, monkeypatch):
+        """Test that unavailable renderer runtime versions are null."""
+        monkeypatch.setattr(VersionInfoRecorder, "_get_pkg_version", lambda _self, _distribution: None)
+
+        recorder = VersionInfoRecorder()
+        versions = recorder.get_initial_data()["version_metadata"]
+        metadata = {entry.name: entry.data for entry in recorder.get_data().metadata}
+
+        assert versions["ovrtx"] is None
+        assert versions["ovphysx"] is None
+        assert metadata["ovrtx_version"] is None
+        assert metadata["ovphysx_version"] is None
+
+    def test_version_values_are_strings_or_null(self, recorder):
+        """Test that version values are strings or null for runtime packages."""
         data = recorder.get_initial_data()
-        for version in data["version_metadata"].values():
-            assert isinstance(version, str)
-            assert len(version) > 0
+        nullable_versions = {"kit", "isaacsim", "ovrtx", "ovphysx"}
+        for name, version in data["version_metadata"].items():
+            if name in nullable_versions:
+                assert version is None or isinstance(version, str)
+            else:
+                assert isinstance(version, str)
+                assert len(version) > 0
 
     def test_git_info_structure(self, recorder):
         """Test that git info has expected fields when available."""

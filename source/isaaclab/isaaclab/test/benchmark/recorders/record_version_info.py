@@ -17,7 +17,7 @@ _REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__fil
 
 class VersionInfoRecorder(MeasurementDataRecorder):
     def __init__(self):
-        self._version_info = {}
+        self._version_info: dict[str, str | None] = {}
         self._dev_info = {}
         self._get_version_info()
         self._get_git_info()
@@ -84,9 +84,9 @@ class VersionInfoRecorder(MeasurementDataRecorder):
             pass
         return self._get_pkg_version("isaacsim")
 
-    def _record(self, key: str, version: str | None) -> None:
-        """Store a version entry only if version is non-empty."""
-        if version:
+    def _record(self, key: str, version: str | None, *, nullable: bool = False) -> None:
+        """Store a version entry, preserving null for explicitly nullable keys."""
+        if version or nullable:
             self._version_info[key] = version
 
     def _get_version_info(self) -> None:
@@ -99,9 +99,8 @@ class VersionInfoRecorder(MeasurementDataRecorder):
 
         # Kit and Isaac Sim are meaningful only for an active Kit runtime.
         version = self._get_kit_version()
-        if version:
-            self._record("kit", version)
-            self._record("isaacsim", self._get_isaacsim_version())
+        self._record("kit", version, nullable=True)
+        self._record("isaacsim", self._get_isaacsim_version() if version else None, nullable=True)
 
         # torch
         self._record("torch", self._get_version("torch"))
@@ -117,8 +116,8 @@ class VersionInfoRecorder(MeasurementDataRecorder):
         self._record("isaaclab_rl", self._get_pkg_version("isaaclab_rl"))
 
         # Renderers & physics engines
-        self._record("ovrtx", self._get_pkg_version("ovrtx"))
-        self._record("ovphysx", self._get_pkg_version("isaaclab_ovphysx"))
+        self._record("ovrtx", self._get_pkg_version("ovrtx"), nullable=True)
+        self._record("ovphysx", self._get_pkg_version("isaaclab_ovphysx"), nullable=True)
         self._record("newton", self._get_pkg_version("newton"))
         self._record("mujoco", self._get_pkg_version("mujoco"))
         self._record("mujoco_warp", self._get_pkg_version("mujoco-warp"))
