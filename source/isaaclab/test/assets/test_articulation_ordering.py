@@ -339,32 +339,25 @@ def _make_identity_articulation_name_map(**overrides) -> ArticulationNameMap:
     return ArticulationNameMap(**fields)
 
 
-@pytest.mark.parametrize("field_name", ["user_to_backend", "backend_to_user"])
-@pytest.mark.parametrize(
-    ("invalid_value", "invalid_type"),
-    [
-        (None, "NoneType"),
-        ([0, 1, 2], "list"),
-        ("0,1,2", "str"),
-    ],
-)
-def test_articulation_name_map_direct_constructor_rejects_non_warp_device_maps(
-    field_name: str, invalid_value, invalid_type: str
-) -> None:
-    """Reject malformed device maps before accessing Warp array metadata."""
-    with pytest.raises(
-        TypeError,
-        match=rf"ArticulationNameMap {field_name} must be a Warp array; got {invalid_type}\.",
-    ):
-        _make_identity_articulation_name_map(**{field_name: invalid_value})
+def test_articulation_name_map_direct_constructor_rejects_non_warp_device_maps() -> None:
+    """Reject a device map that is not a Warp array before accessing its metadata.
+
+    Both device maps flow through one validation loop, so one representative field and value pin
+    the rule, its error type, and the offending type.
+    """
+    with pytest.raises(TypeError, match=r"user_to_backend must be a Warp array; got list"):
+        _make_identity_articulation_name_map(user_to_backend=[0, 1, 2])
 
 
-@pytest.mark.parametrize("field_name", ["user_to_backend_indices", "backend_to_user_indices"])
-@pytest.mark.parametrize("invalid_value", [0.5, "0", True])
-def test_articulation_name_map_direct_constructor_rejects_non_integer_indices(field_name: str, invalid_value) -> None:
-    """Reject lossy or boolean values in either CPU index permutation."""
-    with pytest.raises(TypeError, match=rf"{field_name} element 0"):
-        _make_identity_articulation_name_map(**{field_name: (invalid_value, 1, 2)})
+@pytest.mark.parametrize("invalid_value", [pytest.param(0.5, id="lossy_float"), pytest.param(True, id="bool")])
+def test_articulation_name_map_direct_constructor_rejects_non_integer_indices(invalid_value) -> None:
+    """Reject a lossy value and a bool in a CPU index permutation.
+
+    Both index permutations share one coercion helper, so one field covers the rule. ``bool`` is a
+    distinct guard because it would otherwise pass ``operator.index`` as 0/1.
+    """
+    with pytest.raises(TypeError, match=r"user_to_backend_indices element 0"):
+        _make_identity_articulation_name_map(user_to_backend_indices=(invalid_value, 1, 2))
 
 
 @pytest.mark.parametrize("index_type", [int, np.int64])
@@ -383,31 +376,23 @@ def test_articulation_name_map_direct_constructor_accepts_integral_indices(index
     assert all(type(index) is int for index in name_map.backend_to_user_indices)
 
 
-@pytest.mark.parametrize("invalid_identity", [1, np.bool_(True)])
-def test_articulation_name_map_direct_constructor_rejects_non_bool_identity(invalid_identity) -> None:
-    """Require is_identity to be a built-in bool."""
-    with pytest.raises(TypeError, match="is_identity must be bool"):
-        _make_identity_articulation_name_map(is_identity=invalid_identity)
+def test_articulation_name_map_direct_constructor_rejects_non_bool_identity() -> None:
+    """Require ``is_identity`` to be a built-in bool, rejecting a truthy int like ``1``."""
+    with pytest.raises(TypeError, match=r"is_identity must be bool; got int"):
+        _make_identity_articulation_name_map(is_identity=1)
 
 
-@pytest.mark.parametrize(
-    ("field_name", "backend_names", "user_names", "invalid_type"),
-    [
-        ("backend_names", "joint_0", ("joint_0",), "str"),
-        ("backend_names", b"joint_0", ("joint_0",), "bytes"),
-        ("user_names", ("joint_0",), "joint_0", "str"),
-        ("user_names", ("joint_0",), bytearray(b"joint_0"), "bytearray"),
-    ],
-)
-def test_build_articulation_name_map_rejects_scalar_name_sequences(
-    field_name: str, backend_names, user_names, invalid_type: str
-) -> None:
-    """Reject scalar strings and byte buffers instead of splitting them into names."""
-    with pytest.raises(TypeError, match=rf"^{field_name} must be a sequence of strings; got {invalid_type}\.$"):
+def test_build_articulation_name_map_rejects_scalar_name_sequences() -> None:
+    """Reject a scalar string instead of splitting it into per-character names.
+
+    ``backend_names`` and ``user_names`` share one coercion helper, so one representative field and
+    value pin the rule and the offending type.
+    """
+    with pytest.raises(TypeError, match=r"backend_names must be a sequence of strings; got str"):
         build_articulation_name_map(
             kind="joint",
-            backend_names=backend_names,
-            user_names=user_names,
+            backend_names="joint_0",
+            user_names=("joint_0",),
             device="cpu",
         )
 

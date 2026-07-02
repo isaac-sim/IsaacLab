@@ -1422,15 +1422,51 @@ class TestArticulationOrderingAllocation:
             assert _ordering_shadow_shape(shadow)[:2] == (num_instances, item_count)
         assert not unexpected_fields, f"newton {ordering_mode} unexpectedly allocated {unexpected_fields}"
 
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx", "newton"])
+    def test_identity_ordering_matches_none_behavior(self, backend: str) -> None:
+        """Treat an identity-configured ordering exactly like the default ``None`` ordering.
+
+        Every reorder-gated read/write branch keys off ``_has_*_ordering``, which is ``False`` for
+        both the ``None`` and identity configurations. This single boundary check stands in for
+        re-running the ``none``/``identity`` pair through every write/read cartesian: an identity
+        ordering resolves to a map (``is_identity`` set) yet still allocates no reorder-only shadow.
+        """
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        num_joints = 3
+        num_bodies = 4
+        art, _ = get_articulation(
+            backend,
+            num_instances=2,
+            num_joints=num_joints,
+            num_bodies=num_bodies,
+            device="cpu",
+            joint_ordering=_joint_ordering_for_mode("identity", num_joints),
+            body_ordering=_body_ordering_for_mode("identity", num_bodies),
+        )
+
+        assert art.joint_ordering is not None and art.joint_ordering.is_identity
+        assert art.body_ordering is not None and art.body_ordering.is_identity
+        assert art._has_joint_ordering is False
+        assert art._has_body_ordering is False
+        assert art.data._has_joint_ordering is False
+        assert art.data._has_body_ordering is False
+        # A cheap allocation assert mirroring the None branch of the shadows-only-for-nonidentity
+        # tests: identity ordering must not allocate a reorder-only shadow.
+        assert getattr(art.data, self._DATA_SHADOWS[backend][0]) is None
+
 
 class TestArticulationOrderingComWrites:
     """Test coherent partial COM writes and step-independent static COM caches."""
 
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     @pytest.mark.parametrize("selection", ["index", "mask"])
+    # ``one_env_one_item`` is dropped: env selection is always explicit for both index and mask
+    # writers, so it exercises the same branch as ``all_envs_one_item`` (both partial-body). The
+    # retained pair keeps one partial-body and one full-body write.
     @pytest.mark.parametrize(
         "coverage",
-        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
+        ["all_envs_one_item", "one_env_all_items"],
     )
     def test_ovphysx_partial_com_write_preserves_backend_rows(
         self,
@@ -1535,8 +1571,72 @@ class TestArticulationOrderingComWrites:
         assert first_payload is not None
         np.testing.assert_array_equal(backend_after[first_backend_cells], first_payload)
 
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    def test_newton_partial_com_write_routes_to_backend_bodies(self, ordering_mode: str, selection: str) -> None:
+        """Route partial Newton COM writes to backend bodies and preserve the untouched rows.
+
+        Newton stores the body COM as a position-only ``vec3`` and its ``set_coms`` deliberately
+        cannot set an orientation, so the 7-component COM parity harness used for PhysX/OVPhysX does
+        not apply. This test exercises the same reorder-routing and preservation contract natively in
+        ``vec3`` against ``_sim_bind_body_com_pos_b``.
+        """
+        if "newton" not in BACKENDS:
+            pytest.skip("Newton backend is not available")
+        num_instances = 2
+        num_bodies = 4
+        art, _ = get_articulation(
+            "newton",
+            num_instances=num_instances,
+            num_joints=1,
+            num_bodies=num_bodies,
+            device="cpu",
+            body_ordering=_body_ordering_for_mode(ordering_mode, num_bodies),
+        )
+        backend_seed = _make_backend_com_poses(num_instances, num_bodies)[..., :3].copy()
+        art.data._sim_bind_body_com_pos_b.assign(wp.array(backend_seed, dtype=wp.vec3f, device=art.device))
+        if art._has_body_ordering:
+            art.data._sync_user_ordered_body_property_buffers()
+
+        user_to_backend = _ordering_user_to_backend(art.body_ordering, num_bodies)
+        env_ids = list(range(num_instances))
+        public_body_ids = [0, 2]
+        omitted_public_body_ids = [1, 3]
+        payload = _make_selected_com_poses(env_ids, public_body_ids, 5000.0)[..., :3].copy()
+        if ordering_mode == "reversed":
+            assert all(user_to_backend[body_id] != body_id for body_id in public_body_ids)
+
+        if selection == "index":
+            art.set_coms_index(
+                coms=wp.array(payload, dtype=wp.vec3f, device=art.device),
+                env_ids=wp.array(env_ids, dtype=wp.int32, device=art.device),
+                body_ids=wp.array(public_body_ids, dtype=wp.int32, device=art.device),
+            )
+        else:
+            full_coms = np.zeros((num_instances, num_bodies, 3), dtype=np.float32)
+            full_coms[:, public_body_ids] = payload
+            art.set_coms_mask(
+                coms=wp.array(full_coms, dtype=wp.vec3f, device=art.device),
+                env_mask=wp.ones(num_instances, dtype=wp.bool, device=art.device),
+                body_mask=_make_item_mask(num_bodies, public_body_ids, art.device),
+            )
+
+        backend_body_ids = user_to_backend[np.asarray(public_body_ids, dtype=np.int64)]
+        expected_backend = backend_seed.copy()
+        expected_backend[np.ix_(env_ids, backend_body_ids)] = payload
+
+        backend_after = art.data._sim_bind_body_com_pos_b.numpy()
+        np.testing.assert_array_equal(backend_after, expected_backend)
+        omitted_backend_body_ids = user_to_backend[np.asarray(omitted_public_body_ids, dtype=np.int64)]
+        np.testing.assert_array_equal(
+            backend_after[:, omitted_backend_body_ids],
+            backend_seed[:, omitted_backend_body_ids],
+        )
+        public_after = art.data.body_com_pos_b.torch.detach().cpu().numpy()
+        np.testing.assert_array_equal(public_after, expected_backend[:, user_to_backend])
+
     @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     def test_duplicate_body_ids_preserve_omitted_backend_com(self, backend: str, ordering_mode: str) -> None:
         if backend not in BACKENDS:
             pytest.skip(f"{backend} backend is not available")
@@ -1584,7 +1684,7 @@ class TestArticulationOrderingComWrites:
         np.testing.assert_array_equal(public_after, expected_backend[:, user_to_backend])
 
     @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     def test_duplicate_env_ids_leave_global_com_cache_invalid(self, backend: str, ordering_mode: str) -> None:
         if backend not in BACKENDS:
             pytest.skip(f"{backend} backend is not available")
@@ -1634,7 +1734,7 @@ class TestArticulationOrderingComWrites:
         assert backend_cache_was_invalid
 
     @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     def test_static_com_cache_does_not_follow_sim_timestamp(self, backend: str, ordering_mode: str) -> None:
         if backend not in BACKENDS:
             pytest.skip(f"{backend} backend is not available")
@@ -1776,59 +1876,25 @@ class TestArticulationOrderingRootWriteParity:
 class TestArticulationOrderingWriteParity:
     """Test that partial joint writes preserve unselected backend state."""
 
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx", "newton"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     @pytest.mark.parametrize("selection", ["index", "mask"])
     @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
     @pytest.mark.parametrize(
         "coverage",
         ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
     )
-    def test_physx_partial_joint_write_preserves_backend_rows(
+    def test_partial_joint_write_preserves_backend_rows(
         self,
+        backend: str,
         ordering_mode: str,
         selection: str,
         operation: str,
         coverage: str,
     ) -> None:
-        if "physx" not in BACKENDS:
-            pytest.skip("PhysX backend is not available")
-        _exercise_partial_joint_write("physx", ordering_mode, selection, operation, coverage)
-
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
-    @pytest.mark.parametrize("selection", ["index", "mask"])
-    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
-    @pytest.mark.parametrize(
-        "coverage",
-        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
-    )
-    def test_ovphysx_partial_joint_write_preserves_backend_rows(
-        self,
-        ordering_mode: str,
-        selection: str,
-        operation: str,
-        coverage: str,
-    ) -> None:
-        if "ovphysx" not in BACKENDS:
-            pytest.skip("OVPhysX backend is not available")
-        _exercise_partial_joint_write("ovphysx", ordering_mode, selection, operation, coverage)
-
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
-    @pytest.mark.parametrize("selection", ["index", "mask"])
-    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
-    @pytest.mark.parametrize(
-        "coverage",
-        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
-    )
-    def test_newton_partial_joint_write_preserves_backend_columns(
-        self,
-        ordering_mode: str,
-        selection: str,
-        operation: str,
-        coverage: str,
-    ) -> None:
-        if "newton" not in BACKENDS:
-            pytest.skip("Newton backend is not available")
-        _exercise_partial_joint_write("newton", ordering_mode, selection, operation, coverage)
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        _exercise_partial_joint_write(backend, ordering_mode, selection, operation, coverage)
 
     @pytest.mark.parametrize(
         "operation, expected_position_reads, expected_velocity_reads",
@@ -1874,7 +1940,7 @@ class TestArticulationOrderingWriteParity:
         assert position_read.call_count == expected_position_reads
         assert velocity_read.call_count == expected_velocity_reads
         # One representative preservation check (exhaustive coverage lives in
-        # test_physx_partial_joint_write_preserves_backend_rows): the untouched rows keep
+        # test_partial_joint_write_preserves_backend_rows): the untouched rows keep
         # their seeded values while the selected cell takes the payload.
         user_to_backend = np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
         selected_cells = np.ix_(env_ids, user_to_backend[joint_ids])
@@ -1883,17 +1949,14 @@ class TestArticulationOrderingWriteParity:
         backend_position, _ = _read_backend_joint_state("physx", art, raw_backend)
         np.testing.assert_array_equal(backend_position, initial_position)
 
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
     @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
-    def test_physx_duplicate_full_length_joint_selector_preserves_newer_backend_rows(self, operation: str) -> None:
-        if "physx" not in BACKENDS:
-            pytest.skip("PhysX backend is not available")
-        _exercise_duplicate_full_length_joint_write("physx", operation)
-
-    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
-    def test_ovphysx_duplicate_full_length_joint_selector_preserves_newer_backend_rows(self, operation: str) -> None:
-        if "ovphysx" not in BACKENDS:
-            pytest.skip("OVPhysX backend is not available")
-        _exercise_duplicate_full_length_joint_write("ovphysx", operation)
+    def test_duplicate_full_length_joint_selector_preserves_newer_backend_rows(
+        self, backend: str, operation: str
+    ) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        _exercise_duplicate_full_length_joint_write(backend, operation)
 
     @pytest.mark.parametrize("selector", ["default_mask", "explicit_full_index"])
     @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
@@ -1942,17 +2005,17 @@ class TestArticulationOrderingWriteParity:
         assert position_read.call_count == int(should_read and operation in ("position", "state"))
         assert velocity_read.call_count == int(should_read and operation in ("velocity", "state"))
 
+    # Newton is intentionally absent from the backend list. Its partial joint writers (e.g.
+    # write_joint_position_to_sim_index) scatter the selected cells straight into the live sim-bound
+    # buffer instead of staging and rewriting a full backend row, so there is no stale full-row
+    # staging image that a later partial write could resurrect. The hazard this test guards against
+    # is structural to the PhysX/OVPhysX read-modify-write staging path and cannot occur on Newton.
+    @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
     @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
-    def test_physx_stale_partial_joint_write_preserves_newer_backend_rows(self, operation: str) -> None:
-        if "physx" not in BACKENDS:
-            pytest.skip("PhysX backend is not available")
-        _exercise_stale_partial_joint_write("physx", operation)
-
-    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
-    def test_ovphysx_stale_partial_joint_write_preserves_newer_backend_rows(self, operation: str) -> None:
-        if "ovphysx" not in BACKENDS:
-            pytest.skip("OVPhysX backend is not available")
-        _exercise_stale_partial_joint_write("ovphysx", operation)
+    def test_stale_partial_joint_write_preserves_newer_backend_rows(self, backend: str, operation: str) -> None:
+        if backend not in BACKENDS:
+            pytest.skip(f"{backend} backend is not available")
+        _exercise_stale_partial_joint_write(backend, operation)
 
     def test_ovphysx_partial_effort_target_write_preserves_unselected_backend_rows(self) -> None:
         """A partial effort-target write must not leak the last applied torque onto unselected joints.
@@ -2323,6 +2386,7 @@ class TestArticulationWritersJoint:
         selected_envs = np.arange(num_instances, dtype=np.int32)
         selected_joints = np.asarray([0, 2], dtype=np.int32)
         property_cases = [
+            ("write_joint_stiffness_to_sim", "stiffness", "stiffness"),
             ("write_joint_damping_to_sim", "damping", "damping"),
             ("write_joint_armature_to_sim", "armature", "armature"),
             ("write_joint_position_limit_to_sim", "limits", "position_limits"),
