@@ -233,3 +233,46 @@ cd ~/Stanley_ws/IsaacLab
     --enable_cameras
 ```
 
+# Run in Real-world
+
+```
+cd ~/openarm_can/setup
+```
+
+```
+sudo ./my_arm 
+```
+
+## OpenARM Motors Check
+
+```
+cd lerobot_openarm
+```
+
+```
+uv sync
+source .venv/bin/activate
+```
+
+You can change joint number and arm to different testing 
+
+```
+python safe_probe.py --side left --joint 1 --step 0.1 --max-kp 150 --skip-ctrl-mode
+```
+## OpenARM Teleoperation Mirror Test
+
+```
+./isaaclab.sh -p scripts/tools/record_demos_openarm.py \
+    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
+    --dataset_file logs/demos/pickup.hdf5 \
+    --enable_cameras --num_demos 10 --teleop_device keyboard \
+    --mirror_udp_port 9999
+```
+
+```
+python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can2 --left-port can3     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5
+```
+
+
+
+
