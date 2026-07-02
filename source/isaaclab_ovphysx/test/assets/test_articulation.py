@@ -71,7 +71,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
-from isaaclab.assets import ArticulationCfg, get_mjwarp_articulation_name_ordering  # noqa: E402
+from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit  # noqa: E402
 from isaaclab.managers import SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
@@ -645,8 +645,8 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     assert tuple(articulation.backend_body_names) == expected_physx_body_names
 
     # Cross-backend Newton discovery resolves the depth-first MJWarp order and reorders the public axis.
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == expected_mjwarp_joint_names
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == expected_mjwarp_body_names
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == expected_mjwarp_joint_names
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == expected_mjwarp_body_names
     assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
     assert tuple(articulation.body_names) == expected_mjwarp_body_names
     assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity

@@ -29,7 +29,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, apply_articulation_ordering_preset, get_mjwarp_articulation_name_ordering
+from isaaclab.assets import ArticulationCfg, apply_articulation_ordering_preset, get_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -595,8 +595,8 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
 
     assert tuple(articulation.backend_joint_names) == expected_physx_joint_names
     assert tuple(articulation.backend_body_names) == expected_physx_body_names
-    assert get_mjwarp_articulation_name_ordering(articulation, "joint") == expected_mjwarp_joint_names
-    assert get_mjwarp_articulation_name_ordering(articulation, "body") == expected_mjwarp_body_names
+    assert get_articulation_name_ordering(articulation, "mjwarp", "joint") == expected_mjwarp_joint_names
+    assert get_articulation_name_ordering(articulation, "mjwarp", "body") == expected_mjwarp_body_names
     assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
     assert tuple(articulation.body_names) == expected_mjwarp_body_names
     assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity

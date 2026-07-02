@@ -14,9 +14,7 @@ __all__ = [
     "apply_articulation_ordering_preset",
     "build_articulation_name_map",
     "parse_articulation_ordering_convention",
-    "get_mjwarp_articulation_name_ordering",
-    "get_physx_articulation_name_ordering",
-    "get_robot_schema_articulation_name_ordering",
+    "get_articulation_name_ordering",
     "AssetBase",
     "AssetBaseCfg",
     "BaseRigidObject",
@@ -47,9 +45,7 @@ from .articulation import (
     apply_articulation_ordering_preset,
     build_articulation_name_map,
     parse_articulation_ordering_convention,
-    get_mjwarp_articulation_name_ordering,
-    get_physx_articulation_name_ordering,
-    get_robot_schema_articulation_name_ordering,
+    get_articulation_name_ordering,
 )
 from .asset_base import AssetBase
 from .asset_base_cfg import AssetBaseCfg

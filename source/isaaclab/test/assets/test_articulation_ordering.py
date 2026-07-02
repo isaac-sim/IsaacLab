@@ -39,9 +39,7 @@ from isaaclab.assets.articulation.ordering import (
 from isaaclab.assets.articulation.ordering_resolvers import (
     _resolve_articulation_convention_name_ordering,
     _resolve_articulation_ordering_names,
-    get_mjwarp_articulation_name_ordering,
-    get_physx_articulation_name_ordering,
-    get_robot_schema_articulation_name_ordering,
+    get_articulation_name_ordering,
 )
 
 sim_stub = types.ModuleType("isaaclab.sim")
@@ -195,11 +193,11 @@ def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
                 kind="dof",  # type: ignore[arg-type]
             )
         elif entrypoint == "physx":
-            get_physx_articulation_name_ordering(articulation, kind="dof")  # type: ignore[arg-type]
+            get_articulation_name_ordering(articulation, "physx", kind="dof")  # type: ignore[arg-type]
         elif entrypoint == "mjwarp":
-            get_mjwarp_articulation_name_ordering(articulation, kind="dof")  # type: ignore[arg-type]
+            get_articulation_name_ordering(articulation, "mjwarp", kind="dof")  # type: ignore[arg-type]
         else:
-            get_robot_schema_articulation_name_ordering(articulation, kind="dof")  # type: ignore[arg-type]
+            get_articulation_name_ordering(articulation, "robot_schema", kind="dof")  # type: ignore[arg-type]
 
 
 def test_assets_package_reexports_public_ordering_symbols() -> None:
@@ -212,9 +210,7 @@ def test_assets_package_reexports_public_ordering_symbols() -> None:
         "apply_articulation_ordering_preset": apply_articulation_ordering_preset,
         "build_articulation_name_map": build_articulation_name_map,
         "parse_articulation_ordering_convention": parse_articulation_ordering_convention,
-        "get_mjwarp_articulation_name_ordering": get_mjwarp_articulation_name_ordering,
-        "get_physx_articulation_name_ordering": get_physx_articulation_name_ordering,
-        "get_robot_schema_articulation_name_ordering": get_robot_schema_articulation_name_ordering,
+        "get_articulation_name_ordering": get_articulation_name_ordering,
     }
     for name, expected_export in expected_exports.items():
         assert getattr(assets, name, None) is expected_export, name
@@ -235,9 +231,7 @@ def test_assets_api_page_defines_ordering_symbols() -> None:
         ".. autofunction:: apply_articulation_ordering_preset",
         ".. autofunction:: build_articulation_name_map",
         ".. autofunction:: parse_articulation_ordering_convention",
-        ".. autofunction:: get_mjwarp_articulation_name_ordering",
-        ".. autofunction:: get_physx_articulation_name_ordering",
-        ".. autofunction:: get_robot_schema_articulation_name_ordering",
+        ".. autofunction:: get_articulation_name_ordering",
     }
     missing_directives = expected_directives - actual_directives
     assert not missing_directives, f"Missing exact RST directives: {sorted(missing_directives)}"
@@ -500,8 +494,8 @@ def test_physx_ordering_helper_uses_same_backend_identity_without_discovery(
     )
 
     articulation = _Articulation()
-    assert get_physx_articulation_name_ordering(articulation, kind="joint") == articulation.backend_joint_names
-    assert get_physx_articulation_name_ordering(articulation, kind="body") == articulation.backend_body_names
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == articulation.backend_joint_names
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == articulation.backend_body_names
 
 
 def test_mjwarp_ordering_helper_uses_newton_identity_without_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -519,8 +513,8 @@ def test_mjwarp_ordering_helper_uses_newton_identity_without_discovery(monkeypat
     )
 
     articulation = _Articulation()
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == articulation.backend_joint_names
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == articulation.backend_body_names
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == articulation.backend_joint_names
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == articulation.backend_body_names
 
 
 @pytest.mark.parametrize(
@@ -546,7 +540,7 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
     monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", lambda _: None)
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_mjwarp_articulation_name_ordering(_Articulation(), kind=kind)  # type: ignore[arg-type]
+        get_articulation_name_ordering(_Articulation(), "mjwarp", kind=kind)  # type: ignore[arg-type]
 
     message = str(exc_info.value)
     assert f"Unable to resolve 'mjwarp' {kind} ordering" in message
@@ -572,7 +566,7 @@ def test_mjwarp_ordering_helper_reports_incomplete_usd_builder_names_reason(monk
     )
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint")
+        get_articulation_name_ordering(_Articulation(), "mjwarp", kind="joint")
 
     message = str(exc_info.value)
     assert "mjwarp_usd_builder: joint names are not a complete permutation" in message
@@ -599,7 +593,7 @@ def test_mjwarp_ordering_helper_surfaces_specific_usd_builder_unavailability_rea
     )
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint")
+        get_articulation_name_ordering(_Articulation(), "mjwarp", kind="joint")
 
     assert "mjwarp_usd_builder: no current USD stage is available" in str(exc_info.value)
 
@@ -748,12 +742,12 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
 
     articulation = _Articulation()
 
-    assert get_robot_schema_articulation_name_ordering(articulation, kind="joint") == (
+    assert get_articulation_name_ordering(articulation, "robot_schema", kind="joint") == (
         "joint_b",
         "joint_a",
         "joint_c",
     )
-    assert get_robot_schema_articulation_name_ordering(articulation, kind="body") == ("base", "thigh", "foot")
+    assert get_articulation_name_ordering(articulation, "robot_schema", kind="body") == ("base", "thigh", "foot")
     assert _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=articulation.backend_joint_names,
@@ -791,7 +785,7 @@ def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypat
             return ["joint_a", "joint_b", "joint_c"]
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
+        get_articulation_name_ordering(_Articulation(), "robot_schema", kind="joint")
 
     message = str(exc_info.value)
     assert "Unable to resolve 'robot_schema' joint ordering" in message
@@ -835,7 +829,7 @@ def test_robot_schema_ordering_helper_reports_unresolvable_relationship_target(
     caplog.set_level(logging.WARNING, logger="isaaclab.assets.articulation.ordering_resolvers")
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
+        get_articulation_name_ordering(_Articulation(), "robot_schema", kind="joint")
 
     message = str(exc_info.value)
     assert unresolved_target_path in message
@@ -881,7 +875,7 @@ def test_robot_schema_ordering_helper_rejects_duplicate_relationship_targets(
             return ["joint_a", "joint_b"]
 
     with pytest.raises(ValueError, match=f"Duplicate .* target '{duplicated_target_path}'"):
-        get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
+        get_articulation_name_ordering(_Articulation(), "robot_schema", kind="joint")
 
 
 def _install_newton_usd_builder_mocks(monkeypatch: pytest.MonkeyPatch, stage: Usd.Stage, calls: dict, view_names: dict):
@@ -972,8 +966,8 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
 
     articulation = _Articulation()
 
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == ("knee", "hip", "ankle")
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == ("base", "thigh", "foot")
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == ("knee", "hip", "ankle")
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == ("base", "thigh", "foot")
     assert calls["registered"] == 1
     assert len(calls["add_usd"]) == 1
     assert calls["add_usd"][0]["root_path"] == "/World/envs/env_0/Robot"
@@ -1021,13 +1015,13 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
 
     articulation = _Articulation()
 
-    assert get_physx_articulation_name_ordering(articulation, kind="joint") == (
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == (
         "hip",
         "shoulder",
         "knee",
         "elbow",
     )
-    assert get_physx_articulation_name_ordering(articulation, kind="body") == (
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == (
         "base",
         "upper_arm",
         "forearm",
@@ -1094,7 +1088,7 @@ def test_symbolic_resolver_skips_incomplete_cached_names(monkeypatch: pytest.Mon
         },
     )
 
-    assert get_mjwarp_articulation_name_ordering(_Articulation(), kind="joint") == ("joint_1", "joint_0")
+    assert get_articulation_name_ordering(_Articulation(), "mjwarp", kind="joint") == ("joint_1", "joint_0")
 
 
 def test_symbolic_resolver_does_not_cache_incomplete_builder_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1120,12 +1114,12 @@ def test_symbolic_resolver_does_not_cache_incomplete_builder_names(monkeypatch: 
     monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", _build_names)
 
     with pytest.raises(NotImplementedError, match="Unable to resolve 'mjwarp' joint ordering"):
-        get_mjwarp_articulation_name_ordering(articulation, kind="joint")
+        get_articulation_name_ordering(articulation, "mjwarp", kind="joint")
     assert articulation._ordering_convention_name_cache == {}
 
     builder_names["joint"] = ("joint_1", "joint_0")
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == ("joint_1", "joint_0")
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == ("body_1", "body_0")
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == ("joint_1", "joint_0")
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == ("body_1", "body_0")
     assert calls == [articulation, articulation]
 
 

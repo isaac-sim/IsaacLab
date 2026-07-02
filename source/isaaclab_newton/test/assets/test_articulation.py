@@ -37,10 +37,7 @@ import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
-from isaaclab.assets.articulation.ordering_resolvers import (
-    get_mjwarp_articulation_name_ordering,
-    get_physx_articulation_name_ordering,
-)
+from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -565,8 +562,8 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, grav
     """Compare the resolver's emulated MJWarp ordering against the live Newton backend view.
 
     The articulation below is already native to the Newton backend, so
-    :func:`~isaaclab.assets.articulation.ordering_resolvers.get_mjwarp_articulation_name_ordering`
-    takes the same-backend identity fast path and never exercises the
+    :func:`~isaaclab.assets.get_articulation_name_ordering` with the ``"mjwarp"``
+    convention takes the same-backend identity fast path and never exercises the
     temporary Newton USD builder used for cross-backend discovery (the path a
     PhysX-backed articulation would take). That fast path is checked below,
     but it is not sufficient by itself: it would pass even if the emulation's
@@ -614,8 +611,10 @@ def test_mjwarp_ordering_resolver_matches_newton_backend_names(sim, device, grav
     assert emulated_names["body"] == tuple(articulation.backend_body_names)
 
     # The public resolver still returns live names without discovery for a same-backend request.
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="joint") == tuple(articulation.backend_joint_names)
-    assert get_mjwarp_articulation_name_ordering(articulation, kind="body") == tuple(articulation.backend_body_names)
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == tuple(
+        articulation.backend_joint_names
+    )
+    assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == tuple(articulation.backend_body_names)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -667,8 +666,8 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     assert tuple(articulation.backend_body_names) == expected_mjwarp_body_names
 
     # Cross-backend discovery (bypassing the same-backend fast path) resolves the breadth-first PhysX order.
-    assert get_physx_articulation_name_ordering(articulation, kind="joint") == expected_physx_joint_names
-    assert get_physx_articulation_name_ordering(articulation, kind="body") == expected_physx_body_names
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == expected_physx_joint_names
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == expected_physx_body_names
 
     # The requested PhysX ordering reorders the public joint/body axes to the BFS convention.
     assert tuple(articulation.joint_names) == expected_physx_joint_names

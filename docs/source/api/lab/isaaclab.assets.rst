@@ -33,9 +33,7 @@
     apply_articulation_ordering_preset
     build_articulation_name_map
     parse_articulation_ordering_convention
-    get_mjwarp_articulation_name_ordering
-    get_physx_articulation_name_ordering
-    get_robot_schema_articulation_name_ordering
+    get_articulation_name_ordering
 
 .. currentmodule:: isaaclab.assets
 
@@ -155,8 +153,4 @@ Articulation Ordering
 
 .. autofunction:: parse_articulation_ordering_convention
 
-.. autofunction:: get_mjwarp_articulation_name_ordering
-
-.. autofunction:: get_physx_articulation_name_ordering
-
-.. autofunction:: get_robot_schema_articulation_name_ordering
+.. autofunction:: get_articulation_name_ordering

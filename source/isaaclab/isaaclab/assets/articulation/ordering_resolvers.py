@@ -492,7 +492,7 @@ def _get_mjwarp_names_from_newton_usd_builder(
     # add_usd (see instantiate_builder_from_stage) without passing
     # joint_ordering/bodies_follow_joint_ordering, so a live Newton backend's
     # native order matches this emulation only because both sides currently
-    # rely on the same Newton library defaults. get_mjwarp_articulation_name_ordering's
+    # rely on the same Newton library defaults. The "mjwarp" convention's
     # same-backend identity path (active backend "newton") returns that live
     # order directly, assuming it equals what these hardcoded constants would
     # produce. If NewtonManager ever passes explicit ordering arguments to
@@ -662,111 +662,60 @@ def _resolve_articulation_convention_name_ordering(
     )
 
 
-def get_physx_articulation_name_ordering(
+def get_articulation_name_ordering(
     articulation: BaseArticulation,
+    convention: str | ArticulationOrderingConvention,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...]:
-    """Return names in PhysX or OVPhysX articulation-view order.
+    """Return articulation names in the order defined by a naming convention.
 
-    PhysX and OVPhysX articulations return active-backend names without discovery.
-    Other backends require a source USD readable by the optional Newton and PXR
-    dependencies. The temporary Newton view uses breadth-first joint ordering; a
+    The supported conventions are:
+
+    * ``"physx"`` -- PhysX or OVPhysX articulation-view order. PhysX and OVPhysX
+      articulations return active-backend names without discovery; other backends
+      discover the order from a temporary Newton USD view using breadth-first
+      joint ordering.
+    * ``"mjwarp"`` -- Newton or MJWarp articulation-view order. Newton
+      articulations return active-backend names without discovery; other backends
+      discover the order from a temporary Newton USD view using depth-first joint
+      ordering.
+    * ``"robot_schema"`` -- authored robot-schema order. The source asset prim or
+      configured articulation-root prim must author ``isaac:physics:robotJoints``
+      for joints or ``isaac:physics:robotLinks`` for bodies. Nested robot targets
+      are expanded, name overrides are honored, unresolvable targets are logged
+      and skipped, and the remaining names must be a complete unique permutation
+      of active-backend names.
+
+    Cross-backend discovery through the temporary Newton USD view requires a
+    source USD readable by the optional Newton and PXR dependencies, and a
     complete joint-and-body result is cached per articulation.
 
     The result defines the public axis only; backend views remain in native order.
 
     Args:
-        articulation: Articulation whose PhysX names are resolved.
+        articulation: Articulation whose names are resolved.
+        convention: Convention alias (``"physx"``, ``"mjwarp"``, or
+            ``"robot_schema"``, matched case-insensitively) or
+            :class:`~isaaclab.assets.ArticulationOrderingConvention` member.
         kind: Element kind, either joint or body.
 
     Returns:
-        Names in PhysX or OVPhysX articulation-view order.
+        Names in the requested convention's order.
 
     Raises:
         TypeError: If backend or discovered names are malformed.
-        ValueError: If kind is invalid or the builder rejects the source asset.
-        NotImplementedError: If the source USD, builder dependencies, or complete
-            name permutation is unavailable. The message identifies the
-            corresponding configuration field, the explicit-name fallback, and
-            a short reason resolution did not produce a complete ordering.
+        ValueError: If kind or convention is invalid, the builder or USD
+            resolution rejects the source metadata, or an authored robot-schema
+            relationship targets the same prim more than once.
+        NotImplementedError: If the source USD, builder dependencies, authored
+            relationships, or a complete name permutation is unavailable. The
+            message identifies the corresponding configuration field, the
+            explicit-name fallback, and a short reason resolution did not produce
+            a complete ordering.
     """
     return _resolve_articulation_convention_name_ordering(
         articulation=articulation,
-        convention=ArticulationOrderingConvention.PHYSX,
-        kind=kind,
-    )
-
-
-def get_mjwarp_articulation_name_ordering(
-    articulation: BaseArticulation,
-    kind: Literal["joint", "body"],
-) -> tuple[str, ...]:
-    """Return names in Newton or MJWarp articulation-view order.
-
-    Newton articulations return active-backend names without discovery. Other
-    backends require a source USD readable by the optional Newton and PXR
-    dependencies. The temporary Newton view uses depth-first joint ordering; a
-    complete joint-and-body result is cached per articulation.
-
-    The result defines the public axis only; backend views remain in native order.
-
-    Args:
-        articulation: Articulation whose Newton or MJWarp names are resolved.
-        kind: Element kind, either joint or body.
-
-    Returns:
-        Names in Newton or MJWarp articulation-view order.
-
-    Raises:
-        TypeError: If backend or discovered names are malformed.
-        ValueError: If kind is invalid or the builder rejects the source asset.
-        NotImplementedError: If the source USD, builder dependencies, or complete
-            name permutation is unavailable. The message identifies the
-            corresponding configuration field, the explicit-name fallback, and
-            a short reason resolution did not produce a complete ordering.
-    """
-    return _resolve_articulation_convention_name_ordering(
-        articulation=articulation,
-        convention=ArticulationOrderingConvention.MJWARP,
-        kind=kind,
-    )
-
-
-def get_robot_schema_articulation_name_ordering(
-    articulation: BaseArticulation,
-    kind: Literal["joint", "body"],
-) -> tuple[str, ...]:
-    """Return names in authored robot-schema order.
-
-    The source asset prim or configured articulation-root prim must author
-    robotJoints for joints or robotLinks for bodies. Nested robot targets are
-    expanded, name overrides are honored, unresolvable targets are logged and
-    skipped, and the remaining names must be a complete unique permutation of
-    active-backend names. A successful result is cached for the requested
-    element kind.
-
-    The result defines the public axis only; backend views remain in native order.
-
-    Args:
-        articulation: Articulation whose source USD relationships are resolved.
-        kind: Element kind, either joint or body.
-
-    Returns:
-        Names in authored robot-schema relationship order.
-
-    Raises:
-        TypeError: If backend names are not a sequence of strings.
-        ValueError: If kind is invalid, USD resolution rejects the source
-            metadata, or a robot-schema relationship targets the same prim
-            more than once.
-        NotImplementedError: If the required relationships are unavailable or
-            incomplete. The message identifies the corresponding configuration
-            field, the explicit-name fallback, and a short reason resolution
-            did not produce a complete ordering.
-    """
-    return _resolve_articulation_convention_name_ordering(
-        articulation=articulation,
-        convention=ArticulationOrderingConvention.ROBOT_SCHEMA,
+        convention=convention,
         kind=kind,
     )
 
