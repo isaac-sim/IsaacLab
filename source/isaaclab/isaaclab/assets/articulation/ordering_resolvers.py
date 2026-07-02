@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Literal
 from .ordering import ArticulationOrderingConvention, _coerce_articulation_names, parse_articulation_ordering_convention
 
 if TYPE_CHECKING:
+    from pxr import Sdf, Usd
+
     from .base_articulation import BaseArticulation
 
 logger = logging.getLogger(__name__)
@@ -89,10 +91,9 @@ def _cache_convention_names(
         return
 
 
-def _get_prim_path_string(prim: object) -> str:
-    """Return a USD prim path string from a prim-like object."""
-    path = prim.GetPath()
-    return str(getattr(path, "pathString", path))
+def _get_prim_path_string(prim: Usd.Prim) -> str:
+    """Return a USD prim's path string."""
+    return prim.GetPath().pathString
 
 
 _ROBOT_SCHEMA_RELATIONSHIP_NAMES: dict[Literal["joint", "body"], str] = {
@@ -106,64 +107,36 @@ _ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS: dict[Literal["joint", "body"], tuple[str, ...
 }
 
 
-def _is_valid_prim(prim: object | None) -> bool:
-    """Return whether a prim-like object is present and valid."""
-    if prim is None:
-        return False
-    is_valid = getattr(prim, "IsValid", None)
-    if callable(is_valid):
-        return bool(is_valid())
-    return True
+def _get_stage_prim_at_path(stage: Usd.Stage, path: Sdf.Path | str) -> Usd.Prim | None:
+    """Return the stage prim at a path, or ``None`` when the path resolves to no prim.
+
+    ``Usd.Stage.GetPrimAtPath`` returns an invalid prim (it never raises) for a path that is not
+    present on the stage, so an unresolvable relationship target surfaces here as ``None``.
+    """
+    prim = stage.GetPrimAtPath(path)
+    return prim if prim.IsValid() else None
 
 
-def _get_stage_prim_at_path(stage: object | None, path: object) -> object | None:
-    """Return a stage prim at a path when the stage can resolve it."""
-    if stage is None:
-        return None
-    get_prim_at_path = getattr(stage, "GetPrimAtPath", None)
-    if not callable(get_prim_at_path):
-        return None
-    try:
-        prim = get_prim_at_path(path)
-    except (KeyError, TypeError):
-        return None
-    if not _is_valid_prim(prim):
-        return None
-    return prim
+def _get_prim_authored_string(prim: Usd.Prim, attr_names: Sequence[str]) -> str | None:
+    """Return the first non-empty authored string among candidate attributes.
 
-
-def _get_prim_authored_string(prim: object, attr_names: Sequence[str]) -> str | None:
-    """Return the first non-empty authored string among candidate attributes."""
-    get_attribute = getattr(prim, "GetAttribute", None)
-    if not callable(get_attribute):
-        return None
+    ``Usd.Prim.GetAttribute`` returns an invalid attribute (it never raises) for an unauthored
+    attribute, and ``Usd.Attribute.Get`` returns ``None`` for it.
+    """
     for attr_name in attr_names:
-        attr = get_attribute(attr_name)
-        if attr is None:
-            continue
-        get_value = getattr(attr, "Get", None)
-        if not callable(get_value):
-            continue
-        value = get_value()
+        value = prim.GetAttribute(attr_name).Get()
         if value is None or value == "":
             continue
-        if isinstance(value, str):
-            return value
-        return str(value)
+        return value if isinstance(value, str) else str(value)
     return None
 
 
-def _get_prim_name(prim: object) -> str:
-    """Return a prim-like object's name."""
-    get_name = getattr(prim, "GetName", None)
-    if callable(get_name):
-        name = get_name()
-        if isinstance(name, str) and name:
-            return name
-    return _get_prim_path_string(prim).rsplit("/", maxsplit=1)[-1]
+def _get_prim_name(prim: Usd.Prim) -> str:
+    """Return a prim's name."""
+    return prim.GetName()
 
 
-def _get_robot_schema_target_name(prim: object, kind: Literal["joint", "body"]) -> str:
+def _get_robot_schema_target_name(prim: Usd.Prim, kind: Literal["joint", "body"]) -> str:
     """Return the articulation name represented by a robot schema target prim."""
     name_override = _get_prim_authored_string(prim, _ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS[kind])
     if name_override is not None:
@@ -171,25 +144,17 @@ def _get_robot_schema_target_name(prim: object, kind: Literal["joint", "body"]) 
     return _get_prim_name(prim)
 
 
-def _get_relationship_targets(prim: object, relationship_name: str) -> tuple[object, ...]:
-    """Return relationship targets from a prim-like object."""
-    get_relationship = getattr(prim, "GetRelationship", None)
-    if not callable(get_relationship):
-        return ()
-    relationship = get_relationship(relationship_name)
-    if relationship is None:
-        return ()
-    get_targets = getattr(relationship, "GetTargets", None)
-    if not callable(get_targets):
-        return ()
-    targets = get_targets()
-    if targets is None:
-        return ()
-    return tuple(targets)
+def _get_relationship_targets(prim: Usd.Prim, relationship_name: str) -> tuple[Sdf.Path, ...]:
+    """Return relationship target paths, empty when the relationship is unauthored.
+
+    ``Usd.Prim.GetRelationship`` returns an invalid relationship (it never raises) for an unauthored
+    relationship, and its ``GetTargets`` returns an empty list.
+    """
+    return tuple(prim.GetRelationship(relationship_name).GetTargets())
 
 
 def _collect_robot_schema_relationship_names(
-    robot_prim: object,
+    robot_prim: Usd.Prim,
     kind: Literal["joint", "body"],
     visited_paths: set[str],
     unresolved_targets: list[str] | None = None,
@@ -224,11 +189,7 @@ def _collect_robot_schema_relationship_names(
     if not target_paths:
         return ()
 
-    stage = None
-    get_stage = getattr(robot_prim, "GetStage", None)
-    if callable(get_stage):
-        stage = get_stage()
-
+    stage = robot_prim.GetStage()
     robot_prim_path = _get_prim_path_string(robot_prim)
     names: list[str] = []
     for target_path in target_paths:
@@ -369,7 +330,7 @@ def _get_complete_convention_names_by_kind(
     return complete_names
 
 
-def _get_source_asset_prim(articulation: BaseArticulation) -> object | None:
+def _get_source_asset_prim(articulation: BaseArticulation) -> Usd.Prim | None:
     """Return the source asset prim for an articulation config when available."""
     prim_path = articulation.cfg.prim_path
     from isaaclab.sim.utils.queries import resolve_matching_prims_from_source  # noqa: PLC0415
@@ -380,7 +341,7 @@ def _get_source_asset_prim(articulation: BaseArticulation) -> object | None:
     return source_asset_matches[0][0]
 
 
-def _get_robot_schema_candidate_prims(articulation: BaseArticulation) -> tuple[object, ...]:
+def _get_robot_schema_candidate_prims(articulation: BaseArticulation) -> tuple[Usd.Prim, ...]:
     """Return candidate prims that may author robot schema ordering relationships."""
     source_asset_prim = _get_source_asset_prim(articulation)
     if source_asset_prim is None:
@@ -389,10 +350,8 @@ def _get_robot_schema_candidate_prims(articulation: BaseArticulation) -> tuple[o
     candidate_prims = [source_asset_prim]
     articulation_root_prim_path = articulation.cfg.articulation_root_prim_path
     if articulation_root_prim_path is not None:
-        get_stage = getattr(source_asset_prim, "GetStage", None)
-        stage = get_stage() if callable(get_stage) else None
         root_path = _get_prim_path_string(source_asset_prim) + articulation_root_prim_path
-        articulation_root_prim = _get_stage_prim_at_path(stage, root_path)
+        articulation_root_prim = _get_stage_prim_at_path(source_asset_prim.GetStage(), root_path)
         if articulation_root_prim is not None:
             candidate_prims.append(articulation_root_prim)
     return tuple(candidate_prims)

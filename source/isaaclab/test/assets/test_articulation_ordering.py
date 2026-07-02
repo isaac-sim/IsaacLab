@@ -15,6 +15,8 @@ import numpy as np
 import pytest
 import warp as wp
 
+from pxr import Sdf, Usd
+
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 
 _inserted_torch_stub = False
@@ -690,116 +692,58 @@ def test_describe_newton_usd_builder_unavailability_reports_missing_source_asset
     assert reason == "source asset prim matching '/World/envs/env_.*/Robot' was not found"
 
 
+def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matching_prims_from_source) -> None:
+    """Route ``resolve_matching_prims_from_source`` through a stubbed ``isaaclab.sim.utils.queries``.
+
+    The resolver imports the source-prim query lazily from ``isaaclab.sim.utils.queries``; the sim
+    package is otherwise unavailable in this unit-test env, so we install a minimal module tree that
+    exposes only the query the resolver calls.
+    """
+    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
+    queries_mod.resolve_matching_prims_from_source = resolve_matching_prims_from_source
+    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
+    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
+    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+
+def _author_robot_schema_relationship(prim: Usd.Prim, relationship_name: str, target_paths: list[str]) -> None:
+    """Author a robot-schema relationship on a real prim with the given target prim paths."""
+    prim.CreateRelationship(relationship_name).SetTargets([Sdf.Path(path) for path in target_paths])
+
+
 def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
     """Resolve explicit robot schema ordering from authored USD relationship targets."""
-
-    class _Path:
-        def __init__(self, value: str):
-            self.pathString = value
-
-        def __str__(self) -> str:
-            return self.pathString
-
-    class _Attribute:
-        def __init__(self, value: str):
-            self._value = value
-
-        def Get(self):
-            return self._value
-
-    class _Relationship:
-        def __init__(self, targets: list[str]):
-            self._targets = [_Path(target) for target in targets]
-
-        def GetTargets(self):
-            return self._targets
-
-    class _Prim:
-        def __init__(
-            self,
-            path: str,
-            *,
-            attrs: dict[str, str] | None = None,
-            relationships: dict[str, _Relationship] | None = None,
-        ):
-            self._path = _Path(path)
-            self._attrs = attrs or {}
-            self._relationships = relationships or {}
-            self._stage = None
-
-        def GetPath(self):
-            return self._path
-
-        def GetName(self) -> str:
-            return str(self._path).rsplit("/", maxsplit=1)[-1]
-
-        def GetAttribute(self, name: str):
-            if name not in self._attrs:
-                return None
-            return _Attribute(self._attrs[name])
-
-        def GetRelationship(self, name: str):
-            return self._relationships.get(name)
-
-        def GetStage(self):
-            return self._stage
-
-        def IsValid(self) -> bool:
-            return True
-
-    class _Stage:
-        def __init__(self, prims: list[_Prim]):
-            self._prims = {str(prim.GetPath()): prim for prim in prims}
-            for prim in prims:
-                prim._stage = self
-
-        def GetPrimAtPath(self, path):
-            return self._prims[str(path)]
-
-    robot_prim = _Prim(
-        "/World/envs/env_0/Robot",
-        relationships={
-            "isaac:physics:robotJoints": _Relationship(
-                [
-                    "/World/envs/env_0/Robot/joint_b",
-                    "/World/envs/env_0/Robot/joint_a_prim",
-                    "/World/envs/env_0/Robot/joint_c",
-                ]
-            ),
-            "isaac:physics:robotLinks": _Relationship(
-                [
-                    "/World/envs/env_0/Robot/base_prim",
-                    "/World/envs/env_0/Robot/tool_site",
-                    "/World/envs/env_0/Robot/thigh",
-                    "/World/envs/env_0/Robot/foot",
-                ]
-            ),
-        },
+    stage = Usd.Stage.CreateInMemory()
+    robot_path = "/World/envs/env_0/Robot"
+    robot_prim = stage.DefinePrim(robot_path, "Xform")
+    for child in ("joint_a_prim", "joint_b", "joint_c", "base_prim", "tool_site", "thigh", "foot"):
+        stage.DefinePrim(f"{robot_path}/{child}", "Xform")
+    _author_robot_schema_relationship(
+        robot_prim,
+        "isaac:physics:robotJoints",
+        [f"{robot_path}/joint_b", f"{robot_path}/joint_a_prim", f"{robot_path}/joint_c"],
     )
-    _Stage(
-        [
-            robot_prim,
-            _Prim("/World/envs/env_0/Robot/joint_a_prim", attrs={"isaac:NameOverride": "joint_a"}),
-            _Prim("/World/envs/env_0/Robot/joint_b"),
-            _Prim("/World/envs/env_0/Robot/joint_c"),
-            _Prim("/World/envs/env_0/Robot/base_prim", attrs={"isaac:nameOverride": "base"}),
-            _Prim("/World/envs/env_0/Robot/tool_site"),
-            _Prim("/World/envs/env_0/Robot/thigh"),
-            _Prim("/World/envs/env_0/Robot/foot"),
-        ]
+    _author_robot_schema_relationship(
+        robot_prim,
+        "isaac:physics:robotLinks",
+        [f"{robot_path}/base_prim", f"{robot_path}/tool_site", f"{robot_path}/thigh", f"{robot_path}/foot"],
+    )
+    # A name override renames the target prim, and a target absent from the backend names (tool_site)
+    # must be dropped by the complete-permutation filter.
+    stage.GetPrimAtPath(f"{robot_path}/joint_a_prim").CreateAttribute(
+        "isaac:NameOverride", Sdf.ValueTypeNames.String
+    ).Set("joint_a")
+    stage.GetPrimAtPath(f"{robot_path}/base_prim").CreateAttribute("isaac:nameOverride", Sdf.ValueTypeNames.String).Set(
+        "base"
     )
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
         assert path_expr == "/World/envs/env_.*/Robot"
         return [(robot_prim, "/World/envs/env_.*/Robot")]
 
-    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
-    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
-    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
-    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "newton"
@@ -832,83 +776,21 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
 
 def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reject robot schema relationships that are not complete backend-name permutations."""
-
-    class _Path:
-        def __init__(self, value: str):
-            self.pathString = value
-
-        def __str__(self) -> str:
-            return self.pathString
-
-    class _Relationship:
-        def __init__(self, targets: list[str]):
-            self._targets = [_Path(target) for target in targets]
-
-        def GetTargets(self):
-            return self._targets
-
-    class _Prim:
-        def __init__(self, path: str, relationships: dict[str, _Relationship] | None = None):
-            self._path = _Path(path)
-            self._relationships = relationships or {}
-            self._stage = None
-
-        def GetPath(self):
-            return self._path
-
-        def GetName(self) -> str:
-            return str(self._path).rsplit("/", maxsplit=1)[-1]
-
-        def GetAttribute(self, name: str):
-            return None
-
-        def GetRelationship(self, name: str):
-            return self._relationships.get(name)
-
-        def GetStage(self):
-            return self._stage
-
-        def IsValid(self) -> bool:
-            return True
-
-    class _Stage:
-        def __init__(self, prims: list[_Prim]):
-            self._prims = {str(prim.GetPath()): prim for prim in prims}
-            for prim in prims:
-                prim._stage = self
-
-        def GetPrimAtPath(self, path):
-            return self._prims[str(path)]
-
-    robot_prim = _Prim(
-        "/World/envs/env_0/Robot",
-        relationships={
-            "isaac:physics:robotJoints": _Relationship(
-                [
-                    "/World/envs/env_0/Robot/joint_b",
-                    "/World/envs/env_0/Robot/joint_a",
-                ]
-            )
-        },
-    )
-    _Stage(
-        [
-            robot_prim,
-            _Prim("/World/envs/env_0/Robot/joint_a"),
-            _Prim("/World/envs/env_0/Robot/joint_b"),
-        ]
+    stage = Usd.Stage.CreateInMemory()
+    robot_path = "/World/envs/env_0/Robot"
+    robot_prim = stage.DefinePrim(robot_path, "Xform")
+    for child in ("joint_a", "joint_b"):
+        stage.DefinePrim(f"{robot_path}/{child}", "Xform")
+    _author_robot_schema_relationship(
+        robot_prim,
+        "isaac:physics:robotJoints",
+        [f"{robot_path}/joint_b", f"{robot_path}/joint_a"],
     )
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
         return [(robot_prim, "/World/envs/env_.*/Robot")]
 
-    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
-    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
-    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
-    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "newton"
@@ -930,78 +812,23 @@ def test_robot_schema_ordering_helper_reports_unresolvable_relationship_target(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Name the unresolvable target in both the warning log and the terminal failure message."""
-
-    class _Path:
-        def __init__(self, value: str):
-            self.pathString = value
-
-        def __str__(self) -> str:
-            return self.pathString
-
-    class _Relationship:
-        def __init__(self, targets: list[str]):
-            self._targets = [_Path(target) for target in targets]
-
-        def GetTargets(self):
-            return self._targets
-
-    class _Prim:
-        def __init__(self, path: str, relationships: dict[str, _Relationship] | None = None):
-            self._path = _Path(path)
-            self._relationships = relationships or {}
-            self._stage = None
-
-        def GetPath(self):
-            return self._path
-
-        def GetName(self) -> str:
-            return str(self._path).rsplit("/", maxsplit=1)[-1]
-
-        def GetAttribute(self, name: str):
-            return None
-
-        def GetRelationship(self, name: str):
-            return self._relationships.get(name)
-
-        def GetStage(self):
-            return self._stage
-
-        def IsValid(self) -> bool:
-            return True
-
-    class _Stage:
-        def __init__(self, prims: list[_Prim]):
-            self._prims = {str(prim.GetPath()): prim for prim in prims}
-            for prim in prims:
-                prim._stage = self
-
-        def GetPrimAtPath(self, path):
-            return self._prims.get(str(path))
-
-    unresolved_target_path = "/World/envs/env_0/Robot/joint_typo"
-    robot_prim = _Prim(
-        "/World/envs/env_0/Robot",
-        relationships={
-            "isaac:physics:robotJoints": _Relationship(
-                [
-                    "/World/envs/env_0/Robot/joint_a",
-                    unresolved_target_path,
-                ]
-            )
-        },
+    stage = Usd.Stage.CreateInMemory()
+    robot_path = "/World/envs/env_0/Robot"
+    robot_prim = stage.DefinePrim(robot_path, "Xform")
+    stage.DefinePrim(f"{robot_path}/joint_a", "Xform")
+    # joint_typo is authored as a relationship target but never defined on the stage, so USD resolves
+    # it to an invalid prim.
+    unresolved_target_path = f"{robot_path}/joint_typo"
+    _author_robot_schema_relationship(
+        robot_prim,
+        "isaac:physics:robotJoints",
+        [f"{robot_path}/joint_a", unresolved_target_path],
     )
-    _Stage([robot_prim, _Prim("/World/envs/env_0/Robot/joint_a")])
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
         return [(robot_prim, "/World/envs/env_.*/Robot")]
 
-    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
-    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
-    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
-    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "newton"
@@ -1027,72 +854,31 @@ def test_robot_schema_ordering_helper_reports_unresolvable_relationship_target(
 def test_robot_schema_ordering_helper_rejects_duplicate_relationship_targets(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Raise instead of silently deduplicating a relationship target authored twice."""
+    """Raise instead of silently deduplicating a target reached twice through nested robots.
 
-    class _Path:
-        def __init__(self, value: str):
-            self.pathString = value
-
-        def __str__(self) -> str:
-            return self.pathString
-
-    class _Relationship:
-        def __init__(self, targets: list[str]):
-            self._targets = [_Path(target) for target in targets]
-
-        def GetTargets(self):
-            return self._targets
-
-    class _Prim:
-        def __init__(self, path: str, relationships: dict[str, _Relationship] | None = None):
-            self._path = _Path(path)
-            self._relationships = relationships or {}
-            self._stage = None
-
-        def GetPath(self):
-            return self._path
-
-        def GetName(self) -> str:
-            return str(self._path).rsplit("/", maxsplit=1)[-1]
-
-        def GetAttribute(self, name: str):
-            return None
-
-        def GetRelationship(self, name: str):
-            return self._relationships.get(name)
-
-        def GetStage(self):
-            return self._stage
-
-        def IsValid(self) -> bool:
-            return True
-
-    class _Stage:
-        def __init__(self, prims: list[_Prim]):
-            self._prims = {str(prim.GetPath()): prim for prim in prims}
-            for prim in prims:
-                prim._stage = self
-
-        def GetPrimAtPath(self, path):
-            return self._prims.get(str(path))
-
-    duplicated_target_path = "/World/envs/env_0/Robot/joint_a"
-    robot_prim = _Prim(
-        "/World/envs/env_0/Robot",
-        relationships={"isaac:physics:robotJoints": _Relationship([duplicated_target_path, duplicated_target_path])},
+    USD collapses a relationship that lists the same target path twice, so the duplicate a real
+    stage can express is the same leaf prim reached through two distinct nested robot-schema
+    relationships. That nested case is exactly what the resolver must reject rather than dedupe.
+    """
+    stage = Usd.Stage.CreateInMemory()
+    robot_path = "/World/envs/env_0/Robot"
+    robot_prim = stage.DefinePrim(robot_path, "Xform")
+    sub_a_prim = stage.DefinePrim(f"{robot_path}/sub_a", "Xform")
+    sub_b_prim = stage.DefinePrim(f"{robot_path}/sub_b", "Xform")
+    duplicated_target_path = f"{robot_path}/joint_a"
+    stage.DefinePrim(duplicated_target_path, "Xform")
+    _author_robot_schema_relationship(
+        robot_prim,
+        "isaac:physics:robotJoints",
+        [f"{robot_path}/sub_a", f"{robot_path}/sub_b"],
     )
-    _Stage([robot_prim, _Prim(duplicated_target_path)])
+    _author_robot_schema_relationship(sub_a_prim, "isaac:physics:robotJoints", [duplicated_target_path])
+    _author_robot_schema_relationship(sub_b_prim, "isaac:physics:robotJoints", [duplicated_target_path])
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
         return [(robot_prim, "/World/envs/env_.*/Robot")]
 
-    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
-    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
-    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
-    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "newton"
@@ -1106,35 +892,13 @@ def test_robot_schema_ordering_helper_rejects_duplicate_relationship_targets(
         get_robot_schema_articulation_name_ordering(_Articulation(), kind="joint")
 
 
-def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Resolve MJWarp ordering from Newton's USD builder path when no Newton root view exists."""
-    calls = {"add_usd": [], "finalize": [], "views": [], "registered": 0}
+def _install_newton_usd_builder_mocks(monkeypatch: pytest.MonkeyPatch, stage: Usd.Stage, calls: dict, view_names: dict):
+    """Install mocked Newton modules and a current-stage provider around a real in-memory stage.
 
-    class _Path:
-        def __init__(self, value: str):
-            self.pathString = value
-
-    class _Prim:
-        def __init__(self, path: str):
-            self._path = _Path(path)
-
-        def GetPath(self):
-            return self._path
-
-        def HasAPI(self, api) -> bool:
-            return api is _UsdPhysics.ArticulationRootAPI
-
-    class _Stage:
-        pass
-
-    class _UsdGeom:
-        @staticmethod
-        def GetStageUpAxis(stage):
-            return "Z"
-
-    class _UsdPhysics:
-        class ArticulationRootAPI:
-            pass
+    Only the optional Newton dependency (unavailable in this unit-test env) is mocked; ``pxr`` stays
+    real so the resolver reads real prims and a real stage. Returns nothing; records builder activity
+    into :paramref:`calls` and serves :paramref:`view_names` from the mocked articulation view.
+    """
 
     class _JointType:
         FREE = 0
@@ -1159,14 +923,8 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     class _ArticulationView:
         def __init__(self, model, pattern, **kwargs):
             calls["views"].append((pattern, kwargs))
-            self.joint_dof_names = ["knee", "hip", "ankle"]
-            self.link_names = ["base", "thigh", "foot"]
-
-    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
-        if predicate is None:
-            return [(_Prim("/World/envs/env_0/Robot"), "/World/envs/env_.*/Robot")]
-        return [(_Prim("/World/envs/env_0/Robot/base"), "/World/envs/env_.*/Robot/base")]
+            self.joint_dof_names = list(view_names["joint"])
+            self.link_names = list(view_names["body"])
 
     newton_mod = types.ModuleType("newton")
     newton_mod.JointType = _JointType
@@ -1177,25 +935,35 @@ def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: 
     schemas_mod = types.ModuleType("newton._src.usd.schemas")
     schemas_mod.SchemaResolverNewton = lambda: "newton_schema"
     schemas_mod.SchemaResolverPhysx = lambda: "physx_schema"
-    pxr_mod = types.ModuleType("pxr")
-    pxr_mod.UsdGeom = _UsdGeom
-    pxr_mod.UsdPhysics = _UsdPhysics
     stage_mod = types.ModuleType("isaaclab.sim.utils.stage")
-    stage_mod.get_current_stage = lambda: _Stage()
-    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
-    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
-    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
-    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
+    stage_mod.get_current_stage = lambda: stage
     monkeypatch.setitem(sys.modules, "newton", newton_mod)
     monkeypatch.setitem(sys.modules, "newton.selection", selection_mod)
     monkeypatch.setitem(sys.modules, "newton._src.usd.schemas", schemas_mod)
-    monkeypatch.setitem(sys.modules, "pxr", pxr_mod)
-    monkeypatch.setitem(sys.modules, "pxr.UsdGeom", _UsdGeom)
-    monkeypatch.setitem(sys.modules, "pxr.UsdPhysics", _UsdPhysics)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.stage", stage_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+
+
+def test_mjwarp_ordering_helper_builds_newton_view_from_usd_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resolve MJWarp ordering from Newton's USD builder path when no Newton root view exists."""
+    calls = {"add_usd": [], "finalize": [], "views": [], "registered": 0}
+
+    stage = Usd.Stage.CreateInMemory()
+    robot_prim = stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    root_prim = stage.DefinePrim("/World/envs/env_0/Robot/base", "Xform")
+
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        assert path_expr == "/World/envs/env_.*/Robot"
+        if predicate is None:
+            return [(robot_prim, "/World/envs/env_.*/Robot")]
+        return [(root_prim, "/World/envs/env_.*/Robot/base")]
+
+    _install_newton_usd_builder_mocks(
+        monkeypatch,
+        stage,
+        calls,
+        {"joint": ["knee", "hip", "ankle"], "body": ["base", "thigh", "foot"]},
+    )
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "physx"
@@ -1224,92 +992,26 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     """Resolve PhysX ordering from Newton's BFS USD builder path when no PhysX root view exists."""
     calls = {"add_usd": [], "finalize": [], "views": [], "registered": 0}
 
-    class _Path:
-        def __init__(self, value: str):
-            self.pathString = value
-
-    class _Prim:
-        def __init__(self, path: str):
-            self._path = _Path(path)
-
-        def GetPath(self):
-            return self._path
-
-        def HasAPI(self, api) -> bool:
-            return api is _UsdPhysics.ArticulationRootAPI
-
-    class _Stage:
-        pass
-
-    class _UsdGeom:
-        @staticmethod
-        def GetStageUpAxis(stage):
-            return "Z"
-
-    class _UsdPhysics:
-        class ArticulationRootAPI:
-            pass
-
-    class _JointType:
-        FREE = 0
-        FIXED = 1
-
-    class _SolverMuJoCo:
-        @staticmethod
-        def register_custom_attributes(builder) -> None:
-            calls["registered"] += 1
-
-    class _ModelBuilder:
-        def __init__(self, up_axis):
-            self.up_axis = up_axis
-
-        def add_usd(self, stage, **kwargs):
-            calls["add_usd"].append(kwargs)
-
-        def finalize(self, **kwargs):
-            calls["finalize"].append(kwargs)
-            return object()
-
-    class _ArticulationView:
-        def __init__(self, model, pattern, **kwargs):
-            calls["views"].append((pattern, kwargs))
-            self.joint_dof_names = ["hip", "shoulder", "knee", "elbow"]
-            self.link_names = ["base", "upper_arm", "forearm", "hand"]
+    stage = Usd.Stage.CreateInMemory()
+    robot_prim = stage.DefinePrim("/World/envs/env_0/Robot", "Xform")
+    root_prim = stage.DefinePrim("/World/envs/env_0/Robot/base", "Xform")
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
         assert path_expr == "/World/envs/env_.*/Robot"
         if predicate is None:
-            return [(_Prim("/World/envs/env_0/Robot"), "/World/envs/env_.*/Robot")]
-        return [(_Prim("/World/envs/env_0/Robot/base"), "/World/envs/env_.*/Robot/base")]
+            return [(robot_prim, "/World/envs/env_.*/Robot")]
+        return [(root_prim, "/World/envs/env_.*/Robot/base")]
 
-    newton_mod = types.ModuleType("newton")
-    newton_mod.JointType = _JointType
-    newton_mod.ModelBuilder = _ModelBuilder
-    newton_mod.solvers = types.SimpleNamespace(SolverMuJoCo=_SolverMuJoCo)
-    selection_mod = types.ModuleType("newton.selection")
-    selection_mod.ArticulationView = _ArticulationView
-    schemas_mod = types.ModuleType("newton._src.usd.schemas")
-    schemas_mod.SchemaResolverNewton = lambda: "newton_schema"
-    schemas_mod.SchemaResolverPhysx = lambda: "physx_schema"
-    pxr_mod = types.ModuleType("pxr")
-    pxr_mod.UsdGeom = _UsdGeom
-    pxr_mod.UsdPhysics = _UsdPhysics
-    stage_mod = types.ModuleType("isaaclab.sim.utils.stage")
-    stage_mod.get_current_stage = lambda: _Stage()
-    queries_mod = types.ModuleType("isaaclab.sim.utils.queries")
-    queries_mod.resolve_matching_prims_from_source = _resolve_matching_prims_from_source
-    sim_utils_mod = types.ModuleType("isaaclab.sim.utils")
-    monkeypatch.setattr(sim_stub, "__path__", [], raising=False)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim", sim_stub)
-    monkeypatch.setitem(sys.modules, "newton", newton_mod)
-    monkeypatch.setitem(sys.modules, "newton.selection", selection_mod)
-    monkeypatch.setitem(sys.modules, "newton._src.usd.schemas", schemas_mod)
-    monkeypatch.setitem(sys.modules, "pxr", pxr_mod)
-    monkeypatch.setitem(sys.modules, "pxr.UsdGeom", _UsdGeom)
-    monkeypatch.setitem(sys.modules, "pxr.UsdPhysics", _UsdPhysics)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils", sim_utils_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.stage", stage_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
+    _install_newton_usd_builder_mocks(
+        monkeypatch,
+        stage,
+        calls,
+        {
+            "joint": ["hip", "shoulder", "knee", "elbow"],
+            "body": ["base", "upper_arm", "forearm", "hand"],
+        },
+    )
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
 
     class _Articulation:
         __backend_name__ = "newton"
