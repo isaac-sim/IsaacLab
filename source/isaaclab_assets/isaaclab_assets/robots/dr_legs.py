@@ -76,30 +76,24 @@ DR_LEGS_PASSIVE_JOINTS: list[str] = [j for j in DR_LEGS_JOINT_ORDER if j not in 
 """The 18 closed-loop linkage DOFs that are not driven by an actuator on real hardware."""
 
 
-_DR_LEGS_SPAWN = sim_utils.UsdFileCfg(
-    usd_path=_DR_LEGS_USD_PATH,
-    activate_contact_sensors=True,
-    rigid_props=sim_utils.RigidBodyPropertiesCfg(
-        disable_gravity=False,
-        max_depenetration_velocity=10.0,
-        enable_gyroscopic_forces=True,
-    ),
-    articulation_props=sim_utils.NewtonArticulationRootPropertiesCfg(self_collision_enabled=True),
-    copy_from_source=False,
-)
-
-
-_DR_LEGS_INIT_STATE = ArticulationCfg.InitialStateCfg(
-    pos=(0.0, 0.0, 0.27),
-    # Closed-loop FK is only valid at the assembled reference (all joint coords zero).
-    joint_pos={".*": 0.0},
-    joint_vel={".*": 0.0},
-)
-
-
 DR_LEGS_IMPLICIT_PD_CFG = ArticulationCfg(
-    spawn=_DR_LEGS_SPAWN,
-    init_state=_DR_LEGS_INIT_STATE,
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=_DR_LEGS_USD_PATH,
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+            max_depenetration_velocity=10.0,
+            enable_gyroscopic_forces=True,
+        ),
+        articulation_props=sim_utils.NewtonArticulationRootPropertiesCfg(self_collision_enabled=True),
+        copy_from_source=False,
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(0.0, 0.0, 0.27),
+        # Closed-loop FK is only valid at the assembled reference (all joint coords zero).
+        joint_pos={".*": 0.0},
+        joint_vel={".*": 0.0},
+    ),
     articulation_root_prim_path="/pelvis",
     actuators={
         "driven_joints": ImplicitActuatorCfg(
