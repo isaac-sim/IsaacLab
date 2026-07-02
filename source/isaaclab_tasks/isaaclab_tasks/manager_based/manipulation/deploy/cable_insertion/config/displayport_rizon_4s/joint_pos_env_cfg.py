@@ -50,6 +50,55 @@ _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
     _GEOMETRY_POS, _SOCKET_ROT, z_clearance=_PLUG_CLEARANCE_Z,
 )
 
+# ---------------------------------------------------------------------------
+# Sim-to-real action model toggle (ported from IsaacLab_ashwin gear-assembly
+# ``sysid_physx_env_cfg.py``)
+# ---------------------------------------------------------------------------
+# Master switch. Flip to ``True`` to enable the sim-to-real action pipeline:
+#   1. Action latency  -> ``ShapedDelayedRelativeJointPositionActionCfg`` delays
+#      the applied joint target by ``USE_SIM2REAL_ACTION_LATENCY_S`` seconds,
+#      approximating the real robot's command loop lag.
+#   2. Command shaping -> per-step velocity / acceleration clamping of the arm
+#      joint targets (matches the collection-time command limits).
+#   3. SysID PD gains  -> replaces the stock arm PD (1320/600/216) with the
+#      PhysX SysID-tuned per-joint stiffness/damping for the Flexiv Rizon 4S.
+#
+# Leave ``False`` to keep the current behavior exactly (plain
+# ``RelativeJointPositionActionCfg`` + stock actuator PD gains). This single
+# flag is the only thing you need to change to revert.
+USE_SIM2REAL_ACTION_MODEL = True
+
+# Command latency in seconds. 20 ms = one 50 Hz collection sample in ashwin.
+# NOTE: this env runs ~30 Hz control (decimation 8 @ 240 Hz), so the delay
+# rounds to a minimum of one control step (~33 ms) unless you raise the value.
+USE_SIM2REAL_ACTION_LATENCY_S = 0.02
+# Command-target slew limits applied to the arm (rad/s and rad/s^2). Zero
+# disables the respective limit. Deployment values from ashwin gear assembly.
+USE_SIM2REAL_COMMAND_VELOCITY_LIMIT = 2.0
+USE_SIM2REAL_COMMAND_ACCELERATION_LIMIT = 3.0
+
+# PhysX SysID-tuned per-joint PD gains for the Flexiv Rizon 4S arm. Values from
+# IsaacLab_ashwin ``input/actuator_models/flexiv/manual/
+# flexiv_pd_only_gravityoff_high_cmdlimits_tuned_physx.yaml``.
+_SIM2REAL_ARM_STIFFNESS = {
+    "joint1": 6051.500977,
+    "joint2": 3004.328857,
+    "joint3": 7032.64209,
+    "joint4": 4346.786133,
+    "joint5": 6829.847656,
+    "joint6": 3769.23291,
+    "joint7": 6181.429199,
+}
+_SIM2REAL_ARM_DAMPING = {
+    "joint1": 121.620995,
+    "joint2": 220.929214,
+    "joint3": 162.582214,
+    "joint4": 186.334442,
+    "joint5": 199.962311,
+    "joint6": 118.462029,
+    "joint7": 152.861771,
+}
+
 ##
 # Pre-defined configs
 ##
@@ -289,12 +338,25 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
         )
 
         self.joint_action_scale = 0.025
-        self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"],
-            scale=self.joint_action_scale,
-            use_zero_offset=True,
-        )
+        _arm_joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
+        if USE_SIM2REAL_ACTION_MODEL:
+            # Delayed + velocity/acceleration-shaped relative joint action.
+            self.actions.arm_action = mdp.ShapedDelayedRelativeJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=_arm_joint_names,
+                scale=self.joint_action_scale,
+                use_zero_offset=True,
+                latency_s=USE_SIM2REAL_ACTION_LATENCY_S,
+                command_velocity_limit=USE_SIM2REAL_COMMAND_VELOCITY_LIMIT,
+                command_acceleration_limit=USE_SIM2REAL_COMMAND_ACCELERATION_LIMIT,
+            )
+        else:
+            self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+                asset_name="robot",
+                joint_names=_arm_joint_names,
+                scale=self.joint_action_scale,
+                use_zero_offset=True,
+            )
 
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
@@ -349,6 +411,22 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             stiffness=0.0,
             damping=0.0,
         )
+
+        if USE_SIM2REAL_ACTION_MODEL:
+            # Replace the stock arm PD (shoulder 1320 / elbow 600 / wrist 216)
+            # with the PhysX SysID-tuned per-joint gains. Values are keyed by
+            # joint name so each implicit actuator group picks up its own gains.
+            for _group, _joints in (
+                ("shoulder", ("joint1", "joint2")),
+                ("elbow", ("joint3", "joint4")),
+                ("wrist", ("joint5", "joint6", "joint7")),
+            ):
+                self.scene.robot.actuators[_group].stiffness = {
+                    _j: _SIM2REAL_ARM_STIFFNESS[_j] for _j in _joints
+                }
+                self.scene.robot.actuators[_group].damping = {
+                    _j: _SIM2REAL_ARM_DAMPING[_j] for _j in _joints
+                }
 
         self.scene.dp_socket.init_state = RigidObjectCfg.InitialStateCfg(
             pos=_SOCKET_ROOT,
