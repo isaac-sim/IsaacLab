@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
@@ -10,7 +11,6 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RoughPhysicsCfg,
-    make_feather_pgs_physics_cfg,
 )
 from isaaclab_tasks.utils import preset
 
@@ -22,8 +22,25 @@ from isaaclab_assets.robots.unitree import UNITREE_GO2_CFG  # isort: skip
 
 @configclass
 class PhysicsCfg(RoughPhysicsCfg):
-    feather_pgs = make_feather_pgs_physics_cfg(
-        pgs_iterations=16, pgs_beta=0.01, pgs_cfm=2.0e-5, pgs_omega=0.8, angular_damping=1.2
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=1.2,
+            update_mass_matrix_interval=1,
+            enable_joint_limits=True,
+            pgs_iterations=16,
+            pgs_beta=0.01,
+            pgs_cfm=2.0e-5,
+            pgs_omega=0.8,
+            dense_max_constraints=64,
+            pgs_warmstart=False,
+            pgs_mode="split",
+            mf_max_constraints=512,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
 
 
