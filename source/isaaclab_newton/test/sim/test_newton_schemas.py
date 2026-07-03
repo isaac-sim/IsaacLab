@@ -404,3 +404,16 @@ def test_newton_mesh_collision_mixed_namespace_write(setup_sim):
     applied = prim.GetAppliedSchemas()
     assert "NewtonCollisionAPI" in applied
     assert "NewtonMeshCollisionAPI" in applied
+
+
+@pytest.mark.isaacsim_ci
+def test_newton_legacy_cfg_authors_contact_attrs(setup_sim):
+    """The legacy Newton material cfg authors all newton:* attributes the fragment authors."""
+    mat_cfg = NewtonMaterialPropertiesCfg(
+        contact_stiffness=1.0e4, contact_damping=250.0, contact_friction_gain=40.0, contact_adhesion=0.02
+    )
+    prim = spawn_rigid_body_material("/World/newton_mat_contact", mat_cfg)
+    assert prim.GetAttribute("newton:contactStiffness").Get() == pytest.approx(1.0e4)
+    assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(250.0)
+    assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(40.0)
+    assert prim.GetAttribute("newton:contactAdhesion").Get() == pytest.approx(0.02)

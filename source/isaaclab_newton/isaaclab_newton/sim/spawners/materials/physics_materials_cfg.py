@@ -135,7 +135,7 @@ class NewtonMaterialCfg(RigidBodyMaterialFragment):
     """
 
     contact_friction_gain: float | None = None
-    """Friction-force stiffness gain used by the tangential (friction) contact response [N/m].
+    """Friction-force stiffness gain used by the tangential (friction) contact response [N·s/m].
 
     Writes ``newton:contactFrictionGain``. Replaces the deprecated per-shape ``kf`` contact
     parameter; used by the SemiImplicit and Featherstone solvers.
