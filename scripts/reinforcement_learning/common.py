@@ -64,7 +64,8 @@ class CaptureEnvSensors(gym.Wrapper):
         self.capture_num_envs = max(capture_num_envs, 0)
         self.interval = max(interval, 1)
         self._step_count = 0
-        self._run_count = 0
+        self._global_step_count = 0
+        self._episode_index = 0
         self.writer = None
 
         if output_format not in {"tensorboard", "file"}:
@@ -78,7 +79,7 @@ class CaptureEnvSensors(gym.Wrapper):
         """Reset the wrapped environment and capture the reset frame when scheduled."""
         result = self.env.reset(**kwargs)
         self._step_count = 0
-        self._run_count += 1
+        self._episode_index += 1
         self._save_frame()
         return result
 
@@ -86,6 +87,7 @@ class CaptureEnvSensors(gym.Wrapper):
         """Step the wrapped environment and capture the resulting frame when scheduled."""
         result = self.env.step(action)
         self._step_count += 1
+        self._global_step_count += 1
         self._save_frame()
         return result
 
@@ -119,16 +121,16 @@ class CaptureEnvSensors(gym.Wrapper):
                 normalized = normalize_camera_output_for_display(corrected, data_type)
                 grid = make_camera_output_grid(normalized)
                 ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
-                tag = f"{sensor_name}/{data_type}/run_{self._run_count:05d}"
+                tag = f"{sensor_name}/{data_type}/episode_{self._episode_index:05d}"
 
                 if self.writer is not None:
-                    self.writer.add_image(tag, ndarr, global_step=self._step_count, dataformats="HWC")
+                    self.writer.add_image(tag, ndarr, global_step=self._global_step_count, dataformats="HWC")
                 else:
                     file_path = os.path.join(
                         self.output_dir,
                         self._safe_path_name(sensor_name),
                         self._safe_path_name(data_type),
-                        f"run_{self._run_count:05d}_step_{self._step_count:08d}.png",
+                        f"episode_{self._episode_index:05d}_step_{self._step_count:08d}.png",
                     )
                     os.makedirs(os.path.dirname(file_path), exist_ok=True)
                     result_image = Image.fromarray(ndarr)

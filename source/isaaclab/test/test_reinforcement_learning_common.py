@@ -114,9 +114,9 @@ def test_capture_env_sensors_saves_file_outputs_on_scheduled_steps(
 
     relative_paths = [path.relative_to(tmp_path).as_posix() for path in saved_paths]
     assert relative_paths == [
-        "front_camera/rgb/run_00001_step_00000000.png",
-        "front_camera/rgb/run_00001_step_00000001.png",
-        "front_camera/rgb/run_00001_step_00000003.png",
+        "front_camera/rgb/episode_00001_step_00000000.png",
+        "front_camera/rgb/episode_00001_step_00000001.png",
+        "front_camera/rgb/episode_00001_step_00000003.png",
     ]
     assert all(image.shape == (1, 2, 4) for image in saved_images)
     assert all((image == rgb[0].numpy()).all() for image in saved_images)
