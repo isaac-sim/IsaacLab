@@ -15,6 +15,11 @@ How it fits together
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
 - **ovrtx_usd.py**: USD helpers for OVRTX: render var config, camera injection, etc.
+
+- **annotator_utils.py**: Decodes OVRTX's renderer-internal id/label AOVs (``SemanticIdMap``,
+  ``StableIdMap``, ``StableIdSemanticIdMap``, ``InstanceMap``) into the ``idToLabels``/
+  ``idToSemantics`` info dicts for ``semantic_segmentation``, ``instance_segmentation_fast``,
+  and ``instance_id_segmentation_fast``.
 """
 
 from __future__ import annotations
@@ -57,6 +62,11 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from .annotator_utils import (
+    resolve_instance_id_segmentation_labels,
+    resolve_instance_segmentation_labels,
+    resolve_semantic_segmentation_labels,
+)
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -217,6 +227,9 @@ class OVRTXRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        # idToLabels/idToSemantics info dicts for segmentation data types, populated
+        # each render() and copied into CameraData.info by read_output().
+        self.renderer_info: dict[str, dict] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -645,15 +658,17 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         camera_data: CameraData,
     ) -> None:
-        """No-op: outputs already live in the caller's torch storage.
+        """Copy segmentation info dicts collected during :meth:`render` into ``camera_data.info``.
 
-        :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
-        zero-copy warp array stored in ``render_data.warp_buffers``, and
-        :meth:`render` writes the rendered tiles directly into those warp
-        arrays. There is therefore nothing to copy here.
+        Pixel data already lives in the caller's torch storage: :meth:`set_outputs`
+        wraps each ``camera_data.output`` tensor as a zero-copy warp array stored in
+        ``render_data.warp_buffers``, and :meth:`render` writes the rendered tiles
+        directly into those warp arrays.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
         """
+        for output_name, info in render_data.renderer_info.items():
+            camera_data.info[output_name] = info
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
         """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.
@@ -677,6 +692,70 @@ class OVRTXRenderer(BaseRenderer):
             device=self._device,
         )
         return output_colors
+
+    def _map_render_var_cpu(self, frame, name: str) -> np.ndarray | None:
+        """Map render var ``name`` to CPU memory and copy it out as NumPy, or ``None`` if absent."""
+        if name not in frame.render_vars:
+            return None
+        with frame.render_vars[name].map(device=Device.CPU) as mapping:
+            return np.from_dlpack(mapping.tensor).copy()
+
+    def _update_segmentation_info(
+        self,
+        render_data: OVRTXRenderData,
+        frame,
+        buffer_key: str,
+        tiled_data: wp.array,
+    ) -> None:
+        """Populate ``render_data.renderer_info[buffer_key]`` with ``idToLabels``/``idToSemantics``.
+
+        Decodes OVRTX's renderer-internal id/label maps via
+        :mod:`isaaclab_ov.renderers.annotator_utils`. No-ops when the required
+        render vars were not authored on the render product (e.g. because
+        :func:`isaaclab_ov.renderers.ovrtx_usd.get_render_var_configs` was not
+        asked for this data type).
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            frame: OVRTX frame holding the mapped render vars.
+            buffer_key: Data type key, one of ``"semantic_segmentation"``,
+                ``"instance_segmentation_fast"``, ``"instance_id_segmentation_fast"``.
+            tiled_data: Raw (pre-colorize) uint32 tiled render var, used to find the
+                unique pixel ids on screen for the instance (id) segmentation joins.
+        """
+        if buffer_key == "semantic_segmentation":
+            semantic_id_map = self._map_render_var_cpu(frame, "SemanticIdMap")
+            if semantic_id_map is not None:
+                render_data.renderer_info[buffer_key] = {
+                    "idToLabels": resolve_semantic_segmentation_labels(semantic_id_map)
+                }
+            return
+
+        if buffer_key not in ("instance_segmentation_fast", "instance_id_segmentation_fast"):
+            return
+
+        stable_id_map = self._map_render_var_cpu(frame, "StableIdMap")
+        stable_id_semantic_id_map = self._map_render_var_cpu(frame, "StableIdSemanticIdMap")
+        if stable_id_map is None or stable_id_semantic_id_map is None:
+            return
+        pixel_ids = {int(v) for v in torch.unique(wp.to_torch(tiled_data)).tolist()}
+
+        if buffer_key == "instance_segmentation_fast":
+            semantic_id_map = self._map_render_var_cpu(frame, "SemanticIdMap")
+            if semantic_id_map is None:
+                return
+            id_to_labels, id_to_semantics = resolve_instance_segmentation_labels(
+                pixel_ids, stable_id_semantic_id_map, semantic_id_map, stable_id_map
+            )
+            render_data.renderer_info[buffer_key] = {"idToLabels": id_to_labels, "idToSemantics": id_to_semantics}
+        else:
+            instance_map = self._map_render_var_cpu(frame, "InstanceMap")
+            if instance_map is None:
+                return
+            id_to_labels = resolve_instance_id_segmentation_labels(
+                pixel_ids, instance_map, stable_id_semantic_id_map, stable_id_map
+            )
+            render_data.renderer_info[buffer_key] = {"idToLabels": id_to_labels}
 
     def _process_id_segmentation_render_var(
         self,
@@ -709,6 +788,8 @@ class OVRTXRenderer(BaseRenderer):
             if tiled_data.dtype != wp.uint32:
                 return
 
+            self._update_segmentation_info(render_data, frame, buffer_key, tiled_data)
+
             if colorize:
                 color_buffer = self._generate_random_colors_from_ids(
                     tiled_data, self._output_id_color_buffers.get(buffer_key)
@@ -724,9 +805,14 @@ class OVRTXRenderer(BaseRenderer):
                 self._extract_rgba_tiles(render_data, tiled_data, output_buffers, buffer_key)
             else:
                 # Non-colorized: ensure (TH, TW, 1) shape for the uint32 extraction kernel.
+                # Warp's torch interop does not support the torch.uint32 dtype directly
+                # (see warp._src.torch.dtype_from_torch), so bit-reinterpret through the
+                # compatible torch.int32 view before wrapping back up as wp.uint32.
                 data_torch = wp.to_torch(tiled_data)
                 if data_torch.dim() == 2:
                     data_torch = data_torch.unsqueeze(-1)
+                if data_torch.dtype == torch.uint32:
+                    data_torch = data_torch.view(torch.int32)
                 tiled_data = wp.from_torch(data_torch, dtype=wp.uint32)
                 wp.launch(
                     kernel=extract_all_uint32_tiles_kernel,

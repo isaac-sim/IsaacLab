@@ -58,6 +58,7 @@ def _make_ovrtx_render_data() -> OVRTXRenderData:
     rd.height = 8
     rd.num_envs = 2
     rd.warp_buffers = {}
+    rd.renderer_info = {}
     rd.ppisp_pipeline = None
     return rd
 
@@ -210,8 +211,8 @@ def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
     assert clone_calls == [(source, "cuda:0")]
 
 
-def test_ovrtx_read_output_is_a_no_op_after_consolidation():
-    """OVRTXRenderer.read_output is a no-op once set_outputs wires up zero-copy."""
+def test_ovrtx_read_output_does_not_touch_pixel_buffers():
+    """OVRTXRenderer.read_output only copies renderer_info; pixel data is already in place."""
     renderer = _make_ovrtx_renderer_without_backend()
     render_data = _make_ovrtx_render_data()
     camera_data = CameraData()
@@ -223,3 +224,17 @@ def test_ovrtx_read_output_is_a_no_op_after_consolidation():
     assert render_data.warp_buffers == {}
     assert camera_data.info == {}
     assert camera_data.output == {}
+
+
+def test_ovrtx_read_output_copies_renderer_info_into_camera_data():
+    """OVRTXRenderer.read_output propagates idToLabels/idToSemantics info dicts."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    render_data = _make_ovrtx_render_data()
+    render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {0: "BACKGROUND", 2: "class:cube"}}}
+    camera_data = CameraData()
+    camera_data.info = {}
+    camera_data._output = {}
+
+    renderer.read_output(render_data, camera_data)
+
+    assert camera_data.info == {"semantic_segmentation": {"idToLabels": {0: "BACKGROUND", 2: "class:cube"}}}

@@ -66,13 +66,35 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     plus ``HdrColor`` when both ``"rgb"`` (or ``"rgba"``) and ``"rgb_hdr"`` are
     in ``data_types`` so PPISP can consume the HDR AOV alongside the LDR
     destination on the same render product. Other multi-AOV combinations are
-    not supported.
+    not supported, except for the renderer-internal id/label maps below.
+
+    ``semantic_segmentation``, ``instance_segmentation_fast``, and
+    ``instance_id_segmentation_fast`` additionally pull in the renderer-internal
+    maps :mod:`isaaclab_ov.renderers.annotator_utils` decodes into the
+    ``idToLabels``/``idToSemantics`` info dicts for those data types.
     """
     data_types = data_types if data_types else ["rgb"]
     render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]
+    seen_names = {render_vars[0][1]}
+
+    def _add(name: str) -> None:
+        if name in seen_names:
+            return
+        seen_names.add(name)
+        render_vars.append((f"/Render/Vars/{name}", name, name))
+
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     if use_rgb and "rgb_hdr" in data_types:
-        render_vars.append(("/Render/Vars/HdrColor", "HdrColor", "HdrColor"))
+        _add("HdrColor")
+
+    if "semantic_segmentation" in data_types or "instance_segmentation_fast" in data_types:
+        _add("SemanticIdMap")
+    if "instance_segmentation_fast" in data_types or "instance_id_segmentation_fast" in data_types:
+        _add("StableIdMap")
+        _add("StableIdSemanticIdMap")
+    if "instance_id_segmentation_fast" in data_types:
+        _add("InstanceMap")
+
     return render_vars
 
 
