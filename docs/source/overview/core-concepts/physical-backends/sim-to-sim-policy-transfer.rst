@@ -97,9 +97,39 @@ Public and Backend Order
 ------------------------
 
 Set ``joint_ordering`` and ``body_ordering`` on
-:class:`~isaaclab.assets.ArticulationCfg`. Once initialized, the articulation
-and its :class:`~isaaclab.assets.ArticulationNameMap` objects establish this
-contract:
+:class:`~isaaclab.assets.ArticulationCfg`. Each field accepts one of:
+
+* ``None`` -- backend-native order and the zero-conversion default (see below).
+* ``"physx"`` -- PhysX or OVPhysX articulation-view order.
+* ``"mjwarp"`` -- Newton or MJWarp articulation-view order.
+* ``"robot_schema"`` -- the order authored on the asset's
+  ``isaac:physics:robotJoints`` (joints) or ``isaac:physics:robotLinks``
+  (bodies) relationships.
+* an explicit, complete name permutation -- a ``list`` or ``tuple`` naming every
+  joint or body exactly once.
+
+See :attr:`~isaaclab.assets.ArticulationCfg.joint_ordering` for the
+authoritative list of accepted values.
+
+For Python configs, prefer
+:func:`~isaaclab.assets.apply_articulation_ordering_preset` to set both fields
+to the same convention in a single call, which keeps joint and body order
+consistent:
+
+.. code-block:: python
+
+    from isaaclab.assets import apply_articulation_ordering_preset
+
+    robot_cfg = apply_articulation_ordering_preset(robot_cfg, "mjwarp")
+
+.. warning::
+    When overriding from the CLI or Hydra, set **both** ``joint_ordering`` and
+    ``body_ordering``. Setting only ``joint_ordering`` silently leaves bodies in
+    backend order, which mismatches a checkpoint whose body vectors follow the
+    source convention.
+
+Once initialized, the articulation and its
+:class:`~isaaclab.assets.ArticulationNameMap` objects establish this contract:
 
 .. list-table::
     :header-rows: 1
@@ -127,6 +157,13 @@ matches backend order still incurs one-time name resolution and identity-map
 construction. Its ``is_identity`` guard prevents the nonidentity
 gather/scatter paths from running.
 
+.. tip::
+    After configuring an ordering, confirm the resolved public axis by comparing
+    :attr:`~isaaclab.assets.Articulation.joint_names` with
+    :attr:`~isaaclab.assets.Articulation.backend_joint_names` (and ``body_names``
+    with ``backend_body_names``). Cross-backend conventions are resolved by
+    emulation, so spot-check the result against the order your checkpoint expects.
+
 High-Level MDP Terms
 ^^^^^^^^^^^^^^^^^^^^
 
@@ -150,6 +187,13 @@ work. For a nonidentity map, affected reads and writes can require persistent
 staging memory plus gather/scatter kernel launches. Identity maps avoid those
 ongoing conversion paths.
 
+On the Newton backend, a nonidentity ordering additionally records a fixed
+per-step reorder of the core state buffers -- joint positions and velocities,
+body poses and velocities -- inside the stepped and CUDA-graph-captured region.
+This publishes backend-order state into the public-order buffers every step, so
+a small baseline per-step cost exists independent of how often properties are
+accessed.
+
 The runtime and memory cost scales with environment count, joint or body count,
 and how often affected properties and writers are accessed. Measure the
 specific task and access pattern; there is no hardware-independent
@@ -172,6 +216,11 @@ Direct Backend-View Access
 Prefer the high-level articulation API when possible; its data and writer
 contracts already use public order. Direct ``root_view`` access uses backend
 order even when ``joint_names`` or ``body_names`` uses another convention.
+When a small set of indices needs to cross into a view array, translate them
+with :meth:`~isaaclab.assets.Articulation.map_joint_ids_to_backend` or
+:meth:`~isaaclab.assets.Articulation.map_body_ids_to_backend` instead of
+indexing the ordering maps by hand; both return the input unchanged under
+identity ordering.
 
 Torch Conversion
 ^^^^^^^^^^^^^^^^
@@ -245,8 +294,31 @@ one ``(environment, joint)`` array from backend order into public order:
 
 The caller owns output allocation, launch dimensions, data type, and every
 non-articulation axis. A public-to-backend gather uses
-``ordering.backend_to_user``. Treat both device maps as read-only, and do not
-deep-import internal ordering kernels.
+``ordering.backend_to_user``. Treat both device maps as read-only.
+
+The elementwise reorder kernels in
+``isaaclab.assets.articulation.ordering_kernels`` are public for exactly this
+task: translating a raw-view array between backend and public order. Rather than
+hand-writing the gather above, launch ``reorder_2d_backend_to_user`` with the
+asset's ``user_to_backend`` map (``backend_data`` and ``user_to_backend`` are
+its inputs, ``user_data`` is its output):
+
+.. code-block:: python
+
+    from isaaclab.assets.articulation.ordering_kernels import reorder_2d_backend_to_user
+
+    wp.launch(
+        reorder_2d_backend_to_user,
+        dim=(robot.num_instances, robot.num_joints),
+        inputs=[joint_pos_backend, ordering.user_to_backend],
+        outputs=[joint_pos_public],
+        device=robot.device,
+    )
+
+The ``reorder_2d`` and ``reorder_3d`` kernels, in both the ``*_backend_to_user``
+and ``*_user_to_backend`` directions, form this public elementwise family. All
+other kernels in ``isaaclab.assets.articulation.ordering_kernels`` are internal
+and may change without deprecation.
 
 Joint maps cover named joints, not floating-base generalized coordinates.
 When converting raw Jacobians or mass matrices, preserve the leading

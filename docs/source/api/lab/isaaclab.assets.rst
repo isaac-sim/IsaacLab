@@ -20,6 +20,8 @@
     DeformableObject
     DeformableObjectData
     DeformableObjectCfg
+    BaseArticulation
+    BaseArticulationData
     Articulation
     ArticulationData
     ArticulationCfg
@@ -126,7 +128,18 @@ Articulation
     :inherited-members:
     :show-inheritance:
 
+.. autoclass:: BaseArticulation
+    :members:
+    :inherited-members:
+    :show-inheritance:
+
 .. autoclass:: ArticulationData
+    :members:
+    :inherited-members:
+    :show-inheritance:
+    :exclude-members: __init__
+
+.. autoclass:: BaseArticulationData
     :members:
     :inherited-members:
     :show-inheritance:

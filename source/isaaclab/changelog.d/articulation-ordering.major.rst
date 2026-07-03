@@ -3,6 +3,13 @@ Added
 
 * Added articulation ordering utilities and optional :class:`~isaaclab.assets.ArticulationCfg`
   fields for public joint/body ordering presets.
+* Added :meth:`~isaaclab.assets.Articulation.map_body_ids_to_backend` and
+  :meth:`~isaaclab.assets.Articulation.map_joint_ids_to_backend` to translate
+  public-order body/joint indices into backend view order for raw-view interop.
+* Added the ``__backend_native_orderings__`` class attribute on
+  :class:`~isaaclab.assets.BaseArticulation` so backends declare which symbolic
+  ordering conventions their native order satisfies, enabling the identity
+  fast path without editing the core resolvers.
 
 Changed
 ^^^^^^^
