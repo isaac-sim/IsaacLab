@@ -1,0 +1,3 @@
+Test-only: add a ``smoke`` pytest marker and register it, then tag the
+install-CI smoke tests with it so quick installation smoke checks can be
+selected as a group.

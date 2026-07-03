@@ -58,6 +58,7 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
             pytest.skip("uv is not available")
 
     @pytest.mark.docker
+    @pytest.mark.smoke
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu

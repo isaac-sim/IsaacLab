@@ -19,6 +19,7 @@ import pytest
 from utils import run_cmd
 
 
+@pytest.mark.smoke
 class Test_Cli_Install_In_Globalenv_Smoke:
     """./isaaclab.sh -i with no uv/conda env active (system Python)."""
 

@@ -219,6 +219,7 @@ def generate_lateral_rigid_and_deformable_cubes(
     return rigid_cube, deformable_cube
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize(
     "sim",
     [("featherstone", "kinematic")],
