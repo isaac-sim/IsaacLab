@@ -526,7 +526,8 @@ class OVRTXRenderer(BaseRenderer):
         )
 
         if self._object_binding is None:
-            raise RuntimeError("Failed to create OVRTX object bindings for Newton")
+            raise RuntimeError("Failed to create OVRTX object bindings")
+
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
