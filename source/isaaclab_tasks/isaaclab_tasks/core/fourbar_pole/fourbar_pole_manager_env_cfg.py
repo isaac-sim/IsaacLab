@@ -83,19 +83,8 @@ class FourbarPoleSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
     )
 
-    # fourbar-pole; the pole starts hanging down (``coupler_to_pole`` = pi) for swing-up.
-    robot: ArticulationCfg = FOURBAR_POLE_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 1.5),
-            joint_pos={
-                "ground_to_crank": 0.0,
-                "crank_to_coupler": 0.0,
-                "coupler_to_rocker": 0.0,
-                "coupler_to_pole": 0.0,
-            },
-        ),
-    )
+    # fourbar-pole
+    robot: ArticulationCfg = FOURBAR_POLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
     dome_light = AssetBaseCfg(

@@ -35,7 +35,7 @@ FOURBAR_POLE_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.0),
+        pos=(0.0, 0.0, 1.5),
         joint_pos={
             "ground_to_crank": 0.0,
             "crank_to_coupler": 0.0,
@@ -50,7 +50,7 @@ FOURBAR_POLE_CFG = ArticulationCfg(
             stiffness=0.0,
             damping=10.0,
         ),
-        # Add an actuator to the pole eventhough it is not actuated by the user.
+        # Add an actuator to the pole even though it is not actuated by the user.
         # This makes the Kamino forward kinematics solver treat the pole as
         # an actuated joint and preserve its user-specified joint position on resets.
         "pole_actuator": ImplicitActuatorCfg(
