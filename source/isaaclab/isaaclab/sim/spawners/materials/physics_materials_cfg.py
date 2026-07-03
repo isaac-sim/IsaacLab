@@ -61,9 +61,9 @@ class PhysicsMaterialCfg:
 class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Solver-common physics-material parameters for rigid bodies.
 
-    Contains the friction and restitution fields from the `UsdPhysics.MaterialAPI`_ that are common
-    across all simulation backends. For PhysX-only material properties (compliant-contact spring,
-    combine modes), use :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    Contains the friction, restitution, and density fields from the `UsdPhysics.MaterialAPI`_ that
+    are common across all simulation backends. For PhysX-only material properties (compliant-contact
+    spring, combine modes), use :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
 
     See :meth:`spawn_rigid_body_material` for more information.
 

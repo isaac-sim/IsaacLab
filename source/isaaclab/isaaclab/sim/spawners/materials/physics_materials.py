@@ -141,10 +141,10 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
     PxMaterial <https://nvidia-omniverse.github.io/PhysX/physx/5.4.1/_api_build/classPxBaseMaterial.html>`_.
 
     The writer is metadata-driven: it always applies the standard ``UsdPhysics.MaterialAPI`` and
-    writes the friction/restitution fields, then reads ``_usd_applied_schema``, ``_usd_namespace``,
-    and ``_usd_attr_name_map`` from the cfg to author solver-specific attributes. The applied
-    schema (e.g. ``PhysxMaterialAPI``) is added only when at least one solver-specific field has a
-    non-``None`` value at the instance level.
+    writes the friction/restitution/density fields, then reads ``_usd_applied_schema``,
+    ``_usd_namespace``, and ``_usd_attr_name_map`` from the cfg to author solver-specific attributes.
+    The applied schema (e.g. ``PhysxMaterialAPI``) is added only when at least one solver-specific
+    field has a non-``None`` value at the instance level.
 
     .. note::
         This function is decorated with :func:`clone` that resolves prim path into list of paths

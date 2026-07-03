@@ -7,8 +7,8 @@ Added
   ``physics:*`` friction/restitution), plus the family writer
   :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments` and the slot
   dispatcher :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`. Spawner
-  ``physics_material`` slots now accept a list of single-namespace fragments in addition to the
-  legacy material cfg.
+  ``physics_material`` slots now accept a legacy rigid material cfg, a single fragment, or a list of
+  fragments.
 * Added :attr:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg.density` (writes
   ``physics:density``), completing the fragment's coverage of ``UsdPhysics.MaterialAPI``.
 * Added :attr:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg.density`, so the legacy
@@ -28,11 +28,19 @@ Changed
 * Changed the generated-terrain, simulation default-material, and compliant-contact material paths
   to spawn through :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`, so fragment
   lists work at every ``physics_material`` entry point.
-* Changed :func:`~isaaclab.sim.spawners.materials.spawn_physics_material` to raise ``ValueError``
-  when a legacy material cfg is given an explicit stage other than the current stage (previously
-  the stage was silently ignored and authored on the wrong stage). Callers that already pass the
-  current stage (or ``None``) are unaffected; callers that need an explicit non-current stage
-  should switch the material to the fragment-based API, which supports it.
+* **Breaking:** Changed :func:`~isaaclab.sim.spawners.materials.spawn_physics_material` to raise
+  ``ValueError`` when a legacy material cfg is given an explicit stage other than the current stage
+  (previously the stage was silently ignored and authored on the wrong stage). Callers that already
+  pass the current stage (or ``None``) are unaffected; callers that need an explicit non-current
+  stage should switch the material to the fragment-based API, which supports it.
+* **Breaking:** Changed the default value of :attr:`~isaaclab.sim.SimulationCfg.physics_material`,
+  :attr:`~isaaclab.terrains.TerrainImporterCfg.physics_material`, and
+  :attr:`~isaaclab.sim.spawners.GroundPlaneCfg.physics_material` from the deprecated
+  :class:`~isaaclab_physx.sim.spawners.materials.RigidBodyMaterialCfg` to
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`. The authored USD defaults are
+  identical, but PhysX-only fields (e.g. combine modes) no longer exist on the default object. If you
+  set PhysX-only fields on the default material in place, assign a
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` instance instead.
 
 Fixed
 ^^^^^
