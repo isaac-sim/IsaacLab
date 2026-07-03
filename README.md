@@ -273,6 +273,22 @@ python safe_probe.py --side left --joint 1 --step 0.1 --max-kp 150 --skip-ctrl-m
 python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can2 --left-port can3     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5
 ```
 
+# Replay Trajectory(sim-to-real & real-to-sim)
 
+sim-to-real
 
+```
+cd ~/lerobot_openarm
+python replay_hf_sim_episode.py     --repo-id ethanCSL/openarm_visuomotor_sim_real_check --episode 0     --calibration calibration.json --model-path model/openarm_description_leader.urdf     --max-joint-speed 10.0 --plot sim_vs_real_20260703.png
+```
+
+real-to-sim
+
+```
+cd ~/Stanley_ws/IsaacLab
+./isaaclab.sh -p scripts/tools/replay_real_dataset_in_sim.py \
+    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
+    --repo-id ethanCSL/0422_stanley_red_cube --episode 0 \
+    --calibration ~/lerobot_openarm/calibration.json --enable_cameras
+```
 
