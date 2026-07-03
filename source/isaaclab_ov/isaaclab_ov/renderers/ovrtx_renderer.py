@@ -370,7 +370,8 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Injecting camera definitions...")
 
-        assert self._exported_usd_string is not None, "Expected an exported USD string from stage"
+        if self._exported_usd_string is None:
+            raise RuntimeError("Expected an exported USD string from stage")
 
         render_product_string, render_product_path = build_render_product_as_string(
             width=width,
