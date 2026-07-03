@@ -14,7 +14,7 @@ Tests:
     - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
         -> verify state training completes
-    - ./isaaclab.sh train --rl_library rl_games --task Isaac-Cartpole-Camera-Direct
+    - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Camera-Direct
         --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
         --headless --enable_cameras
         -> verify camera rendering is valid and camera training completes

@@ -32,7 +32,7 @@ _STATE_TRAIN_CMD = [
 _CAMERA_TRAIN_CMD = [
     "train",
     "--rl_library",
-    "rl_games",
+    "rsl_rl",
     "--task",
     "Isaac-Cartpole-Camera-Direct",
     "--num_envs",
@@ -113,7 +113,7 @@ def test_render_cartpole_camera_produces_valid_observation_and_reward() -> None:
 
 
 def test_train_cartpole_camera_completes() -> None:
-    """Verify that camera-observation Cartpole completes short rl_games training."""
+    """Verify that camera-observation Cartpole completes short RSL-RL training."""
     # A cold camera run compiles shaders before training begins.
     _run_training(_CAMERA_TRAIN_CMD, timeout=1800)
 
