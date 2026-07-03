@@ -2139,12 +2139,17 @@ class ArticulationData(BaseArticulationData):
         Only sim-owned mirrors belong here: the solver is authoritative for these
         arrays, so re-gathering them on init and rebind is always correct. This
         includes the Tier-1 joint-state shadows (``_joint_pos_user`` /
-        ``_joint_vel_user``), which the solver owns. The Lab-owned actuator gain
-        records (``_actuator_stiffness`` / ``_actuator_damping``) are deliberately
-        excluded -- they are seeded once in :meth:`_configure_joint_ordering_buffers`
-        and would be clobbered here on every rebind.
+        ``_joint_vel_user``), which the solver owns; seeding them here at resolve
+        and rebind is what makes the first pre-step reads valid, since the
+        post-step publish in :meth:`_refresh_user_order_state` only runs inside a
+        sim step. The Lab-owned actuator gain records (``_actuator_stiffness`` /
+        ``_actuator_damping``) are deliberately excluded -- they are seeded once in
+        :meth:`_configure_joint_ordering_buffers` and would be clobbered here on
+        every rebind.
+
+        The required public-order buffers are allocated and validated by
+        :meth:`_configure_joint_ordering_buffers`, which always runs before this.
         """
-        self._validate_joint_ordering_buffers()
         for backend_data, user_data in (
             (self._sim_bind_joint_pos, self._joint_pos_user),
             (self._sim_bind_joint_vel, self._joint_vel_user),
@@ -2177,8 +2182,10 @@ class ArticulationData(BaseArticulationData):
         on: the user buffer must stay the public-order image of the sim-bound
         backend buffer, since the setters scatter only the selected cells into
         both. A divergent pair silently corrupts the unselected cells.
+
+        The required public-order buffers are allocated and validated by
+        :meth:`_configure_body_ordering_buffers`, which always runs before this.
         """
-        self._validate_body_ordering_buffers()
         self._refresh_user_order_body_state()
         wp.launch(
             ordering_kernels.reorder_2d_backend_to_user,
@@ -2207,12 +2214,10 @@ class ArticulationData(BaseArticulationData):
 
         Called from :meth:`_create_buffers` on first initialization and from
         :meth:`_create_simulation_bindings` after a full simulation reset when
-        the solver recreates its internal arrays.
+        the solver recreates its internal arrays. The public-order buffers this
+        pins are allocated and validated by the ``_configure_*_ordering_buffers``
+        methods, which run at ordering-resolve time before any pin or rebind.
         """
-        if self._has_joint_ordering:
-            self._validate_joint_ordering_buffers()
-        if self._has_body_ordering:
-            self._validate_body_ordering_buffers()
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
         if is_rebind and self._has_joint_ordering:
             self._sync_user_ordered_joint_property_buffers()
