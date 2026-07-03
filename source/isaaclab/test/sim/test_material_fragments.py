@@ -365,6 +365,35 @@ def test_legacy_physx_rigid_body_material_authors_damping_combine_mode_and_accel
     assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True
 
 
+# -------------------------------------------------------------------------------------
+# Generated-terrain routing: create_prim_from_mesh must accept a fragment-list physics_material
+# -------------------------------------------------------------------------------------
+
+
+def test_create_prim_from_mesh_accepts_fragment_list():
+    """Generated terrain routes its material through the dispatcher, so a fragment list works
+    end-to-end instead of crashing on the legacy-only spawn path."""
+    import trimesh
+    from isaaclab_newton.sim.spawners.materials.physics_materials_cfg import NewtonMaterialCfg
+
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+    from isaaclab.terrains.utils import create_prim_from_mesh
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    mesh = trimesh.creation.box(extents=(1.0, 1.0, 0.2))
+    create_prim_from_mesh(
+        "/World/terrainFrag",
+        mesh,
+        physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.9), NewtonMaterialCfg(rolling_friction=0.1)],
+    )
+    stage = sim_utils.get_current_stage()
+    mat = stage.GetPrimAtPath("/World/terrainFrag/physicsMaterial")
+    assert mat.IsValid()
+    assert mat.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.9)
+    assert mat.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.1)
+
+
 def test_legacy_base_cfg_authors_density():
     """The legacy rigid material base authors ``physics:density``, matching the USD fragment.
 
