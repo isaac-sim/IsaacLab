@@ -410,3 +410,46 @@ def test_legacy_base_cfg_authors_density():
     # None default -> unauthored (backward compatible)
     prim2 = spawn_rigid_body_material("/World/LegacyDensityNone", RigidBodyMaterialBaseCfg())
     assert not prim2.GetAttribute("physics:density").HasAuthoredValue()
+
+
+# -------------------------------------------------------------------------------------
+# Sim-wide default material: SimulationCfg.physics_material routed through the dispatcher
+# -------------------------------------------------------------------------------------
+
+
+def test_simulation_default_material_accepts_fragment_list():
+    """The sim-wide default material honors the fragment-list form of SimulationCfg.physics_material."""
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
+
+    sim_utils.create_new_stage()
+    # SimulationContext is a process-wide singleton; other tests in this module construct one
+    # without tearing it down, so force a real re-init here to exercise physics-manager configuration
+    # (including default-material spawning) against this test's own cfg and stage.
+    SimulationContext.clear_instance()
+    SimulationContext(SimulationCfg(dt=0.01, physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.8)]))
+    stage = sim_utils.get_current_stage()
+    mat = stage.GetPrimAtPath("/physicsScene/defaultMaterial")
+    assert mat.IsValid()
+    assert mat.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.8)
+
+
+def test_default_material_base_cfg_matches_deprecated_leaf():
+    """RigidBodyMaterialBaseCfg() authors byte-identical USD to the deprecated RigidBodyMaterialCfg()
+    default it replaces (the leaf's solver-specific fields default to None and author nothing)."""
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    old = spawn_rigid_body_material("/World/DefaultOld", RigidBodyMaterialCfg())
+    new = spawn_rigid_body_material("/World/DefaultNew", RigidBodyMaterialBaseCfg())
+
+    def authored(prim):
+        return (
+            {a.GetName(): a.Get() for a in prim.GetAttributes() if a.HasAuthoredValue()},
+            set(prim.GetAppliedSchemas()),
+        )
+
+    assert authored(old) == authored(new)

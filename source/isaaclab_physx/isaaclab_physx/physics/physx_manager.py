@@ -655,11 +655,13 @@ class PhysxManager(PhysicsManager):
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material
         if physics_material is None:
-            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+            from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 
-            physics_material = RigidBodyMaterialCfg()
+            physics_material = RigidBodyMaterialBaseCfg()
         mat_path = f"{sim_cfg.physics_prim_path}/defaultMaterial"
-        physics_material.func(mat_path, physics_material)
+        from isaaclab.sim.spawners.materials import spawn_physics_material
+
+        spawn_physics_material(mat_path, physics_material)
         sim_utils.bind_physics_material(sim_cfg.physics_prim_path, mat_path)
 
         # warnings
