@@ -763,7 +763,7 @@ def _resolve_articulation_ordering_names(
     *,
     kind: Literal["joint", "body"],
     backend_names: tuple[str, ...],
-    ordering: tuple[str, ...] | str | ArticulationOrderingConvention | None,
+    ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None,
     active_backend_name: str,
     articulation: BaseArticulation | None = None,
 ) -> tuple[str, ...]:
@@ -814,11 +814,12 @@ def _resolve_articulation_ordering_names(
         convention = ordering
     elif isinstance(ordering, str):
         convention = parse_articulation_ordering_convention(ordering)
-    elif type(ordering) is tuple:
+    elif type(ordering) in (list, tuple):
         return _validate_articulation_names(ordering, parameter_name=f"{kind}_ordering")
     else:
         raise TypeError(
-            f"{kind}_ordering must be a name tuple, convention string/enum, or None; got {type(ordering).__name__}."
+            f"{kind}_ordering must be a name list or tuple, convention string/enum, or None;"
+            f" got {type(ordering).__name__}."
         )
 
     if convention is None or _backend_matches_ordering_convention(articulation, convention):

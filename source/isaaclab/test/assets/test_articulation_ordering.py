@@ -386,7 +386,7 @@ def test_build_articulation_name_map_rejects_scalar_name_sequences() -> None:
     ``backend_names`` and ``user_names`` share one coercion helper, so one representative field and
     value pin the rule and the offending type.
     """
-    with pytest.raises(TypeError, match=r"backend_names must be a tuple of strings; got str"):
+    with pytest.raises(TypeError, match=r"backend_names must be a list or tuple of strings; got str"):
         build_articulation_name_map(
             kind="joint",
             backend_names="joint_0",
@@ -418,9 +418,31 @@ def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None
     assert user_names == ("joint_2", "joint_0", "joint_1")
 
 
+@pytest.mark.parametrize("sequence_type", [list, tuple])
+def test_resolve_articulation_ordering_names_accepts_list_and_tuple(sequence_type) -> None:
+    """Resolve explicit orderings from both plain sequence forms, normalized to a tuple."""
+    user_names = _resolve_articulation_ordering_names(
+        kind="joint",
+        backend_names=("joint_0", "joint_1", "joint_2"),
+        ordering=sequence_type(["joint_2", "joint_0", "joint_1"]),
+        active_backend_name="physx",
+    )
+
+    assert user_names == ("joint_2", "joint_0", "joint_1")
+    assert type(user_names) is tuple
+
+
+def test_articulation_name_map_direct_constructor_requires_tuple_fields() -> None:
+    """Keep the frozen map strict: directly constructed fields must be tuples, not lists."""
+    with pytest.raises(TypeError, match=r"ArticulationNameMap backend_names must be a tuple; got list"):
+        _make_identity_articulation_name_map(backend_names=["joint_0", "joint_1", "joint_2"])
+
+
 def test_resolve_articulation_ordering_names_rejects_generic_sequence() -> None:
-    """Reject explicit orderings that are not plain name tuples."""
-    with pytest.raises(TypeError, match=r"joint_ordering must be a name tuple, convention string/enum, or None"):
+    """Reject explicit orderings that are not plain lists or tuples."""
+    with pytest.raises(
+        TypeError, match=r"joint_ordering must be a name list or tuple, convention string/enum, or None"
+    ):
         _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0", "joint_1", "joint_2"),
@@ -446,7 +468,6 @@ def test_resolve_articulation_ordering_names_reports_non_string_element() -> Non
     ("ordering", "type_name"),
     [
         (7, "int"),
-        (["joint_0", "joint_1", "joint_2"], "list"),
         (b"", "bytes"),
         (b"joint_0", "bytes"),
         (bytearray(), "bytearray"),
@@ -464,7 +485,7 @@ def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, 
         )
 
     assert str(exc_info.value) == (
-        f"joint_ordering must be a name tuple, convention string/enum, or None; got {type_name}."
+        f"joint_ordering must be a name list or tuple, convention string/enum, or None; got {type_name}."
     )
 
 
