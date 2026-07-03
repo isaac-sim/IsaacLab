@@ -48,6 +48,7 @@ class SubprocessCoverageState:
     shim_path: Path | None
     created_shim: bool
     enabled: bool
+    prev_pythonpath: str | None = None
 
 
 def _python_lib_omit_patterns() -> list[str]:
@@ -124,9 +125,10 @@ def setup_subprocess_coverage(config: pytest.Config) -> SubprocessCoverageState 
     tmontmp.mkdir(exist_ok=True)
 
     tools_dir = rootdir / "tools"
+    prev_pythonpath = os.environ.get("PYTHONPATH")
     pythonpath_entries = [str(tools_dir)]
-    if existing := os.environ.get("PYTHONPATH"):
-        pythonpath_entries.append(existing)
+    if prev_pythonpath:
+        pythonpath_entries.append(prev_pythonpath)
     os.environ["PYTHONPATH"] = os.pathsep.join(pythonpath_entries)
 
     data_prefix = tmontmp / f"subprocess-{os.getpid()}"
@@ -149,7 +151,12 @@ def setup_subprocess_coverage(config: pytest.Config) -> SubprocessCoverageState 
     )
     os.environ[_COVERAGE_PROCESS_START] = str(rc_path.resolve())
     state = SubprocessCoverageState(
-        rc_path=rc_path, data_prefix=data_prefix, shim_path=shim_path, created_shim=created_shim, enabled=True
+        rc_path=rc_path,
+        data_prefix=data_prefix,
+        shim_path=shim_path,
+        created_shim=created_shim,
+        enabled=True,
+        prev_pythonpath=prev_pythonpath,
     )
     config.stash[_STATE_KEY] = state
     return state
@@ -181,20 +188,32 @@ def combine_subprocess_coverage(config: pytest.Config) -> None:
 
     from coverage import CoverageData
 
-    was_started = cov._started
+    # ``Coverage`` exposes no public "is running" flag, so fall back to assuming
+    # it was running (the normal case while testmon collects) if the private
+    # attribute is unavailable, avoiding an ``AttributeError`` that would
+    # silently disable merging on a future coverage release.
+    was_started = getattr(cov, "_started", True)
     if was_started:
         cov.stop()
-    target = cov.get_data()
-    for child_file in child_files:
-        child = CoverageData(basename=str(child_file))
-        try:
-            child.read()
-        except Exception:
-            continue
-        target.update(child)
-        child_file.unlink(missing_ok=True)
-    if was_started:
-        cov.start()
+    # Always restart coverage in ``finally`` so a merge failure cannot leave it
+    # stopped, which would silently record no dependencies for the rest of the
+    # session.
+    try:
+        target = cov.get_data()
+        for child_file in child_files:
+            child = CoverageData(basename=str(child_file))
+            try:
+                child.read()
+            except Exception:
+                continue
+            try:
+                target.update(child)
+            except Exception:
+                continue
+            child_file.unlink(missing_ok=True)
+    finally:
+        if was_started:
+            cov.start()
 
 
 def teardown_subprocess_coverage(config: pytest.Config) -> None:
@@ -205,6 +224,11 @@ def teardown_subprocess_coverage(config: pytest.Config) -> None:
 
     os.environ.pop(_COVERAGE_PROCESS_START, None)
     os.environ.pop(_COVERAGE_CONTEXT, None)
+    if state.enabled:
+        if state.prev_pythonpath is None:
+            os.environ.pop("PYTHONPATH", None)
+        else:
+            os.environ["PYTHONPATH"] = state.prev_pythonpath
     if state.enabled and state.rc_path.is_file():
         state.rc_path.unlink(missing_ok=True)
     if state.enabled:
@@ -229,11 +253,11 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
     os.environ.pop(_COVERAGE_CONTEXT, None)
 
 
-@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+@pytest.hookimpl(tryfirst=True, wrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     if call.when == "teardown":
         combine_subprocess_coverage(item.config)
-    yield
+    return (yield)
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
