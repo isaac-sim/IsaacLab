@@ -512,3 +512,70 @@ def test_compliant_contact_spawner_authors_material(tmp_path):
     mat = stage.GetPrimAtPath("/World/Compliant/base/compliant_material")
     assert mat.IsValid()
     assert mat.GetAttribute("physxMaterial:compliantContactStiffness").Get() == pytest.approx(1.0e5)
+
+
+# -------------------------------------------------------------------------------------
+# Structural enforcement: fragment/legacy field parity + slot-typing contract
+# -------------------------------------------------------------------------------------
+
+
+def test_fragment_legacy_field_parity():
+    """Structural parity: each backend's fragment authors exactly the fields its legacy cfg
+    authors (minus the inherited base for backend subclasses). Field drift fails here instead of
+    surfacing in review."""
+    import dataclasses
+
+    from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
+    from isaaclab_newton.sim.spawners.materials.physics_materials_cfg import NewtonMaterialCfg
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
+        PhysxMaterialCfg,
+        PhysxRigidBodyMaterialCfg,
+    )
+
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import (
+        RigidBodyMaterialBaseCfg,
+        UsdPhysicsRigidBodyMaterialCfg,
+    )
+
+    def fields(cls):
+        return {f.name for f in dataclasses.fields(cls) if f.name != "func"}
+
+    base = fields(RigidBodyMaterialBaseCfg)
+    assert fields(UsdPhysicsRigidBodyMaterialCfg) == base
+    assert fields(PhysxMaterialCfg) == fields(PhysxRigidBodyMaterialCfg) - base
+    assert fields(NewtonMaterialCfg) == fields(NewtonMaterialPropertiesCfg) - base
+
+
+def test_material_slot_unions_match_spawner_kind():
+    """Structural slot typing: rigid-only spawner slots admit the rigid base + fragments and
+    exclude the deformable-admitting root; mixed spawners keep the broad root. New slots added
+    to this list keep the contract enforced."""
+    import sys
+    import typing
+
+    from isaaclab.sim.simulation_cfg import SimulationCfg as _SimCfg
+    from isaaclab.sim.spawners.from_files.from_files_cfg import FileCfg, GroundPlaneCfg
+    from isaaclab.sim.spawners.materials import physics_materials_cfg as mats
+    from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCfg
+    from isaaclab.sim.spawners.shapes.shapes_cfg import ShapeCfg
+    from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
+
+    def union_args(cls):
+        # typing.get_type_hints(cls) resolves annotations across the whole MRO, including the
+        # inherited ``func: Callable[..., Usd.Prim]`` from ``SpawnerCfg``, whose ``Usd`` import is
+        # TYPE_CHECKING-only and unresolvable at runtime. Evaluate the ``physics_material``
+        # annotation directly against its declaring class's module globals instead -- each class
+        # in this list declares the field itself, so this never needs the base class's namespace.
+        annotation = cls.__dict__["__annotations__"]["physics_material"]
+        resolved = eval(annotation, vars(sys.modules[cls.__module__]))
+        return set(typing.get_args(resolved))
+
+    for cls in (ShapeCfg, GroundPlaneCfg, TerrainImporterCfg, _SimCfg):
+        args = union_args(cls)
+        assert mats.RigidBodyMaterialBaseCfg in args, f"{cls.__name__} must admit the rigid base"
+        assert mats.RigidBodyMaterialFragment in args, f"{cls.__name__} must admit fragments"
+        assert mats.PhysicsMaterialCfg not in args, f"{cls.__name__} is rigid-only"
+    for cls in (FileCfg, MeshCfg):
+        args = union_args(cls)
+        assert mats.PhysicsMaterialCfg in args, f"{cls.__name__} spawns deformables too"
+        assert mats.RigidBodyMaterialFragment in args
