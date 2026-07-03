@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from common import (
+    CHECKPOINT_SELECTORS,
     add_common_train_args,
     add_isaaclab_launcher_args,
     apply_env_overrides,
@@ -26,9 +27,11 @@ from common import (
     dump_train_configs,
     enable_cameras_for_video,
     import_local_module,
+    resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
     wrap_record_video,
+    write_run_manifest,
 )
 from packaging import version
 
@@ -143,6 +146,12 @@ def run(argv: list[str]) -> None:
         if agent_cfg.run_name:
             log_dir += f"_{agent_cfg.run_name}"
         log_dir = os.path.join(log_root_path, log_dir)
+        write_run_manifest(
+            log_dir,
+            library="rsl_rl",
+            task=args_cli.task,
+            metadata={"agent": args_cli.agent},
+        )
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
@@ -155,7 +164,17 @@ def run(argv: list[str]) -> None:
         )
 
         if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rsl_rl",
+                    task=args_cli.task,
+                    checkpoint_pattern=r"model_.*\.pt",
+                    metadata={"agent": args_cli.agent},
+                )
+            else:
+                resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
         env = wrap_record_video(env, log_dir, args_cli)
 

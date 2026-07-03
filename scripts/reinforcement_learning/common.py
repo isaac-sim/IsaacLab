@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import logging
 import os
+import re
 import runpy
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -23,6 +26,10 @@ from isaaclab.app import add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.io import dump_yaml
+
+RUN_MANIFEST_FILENAME = "run.json"
+RUN_MANIFEST_VERSION = 1
+CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 
 
 def dispatch_library_entrypoint(
@@ -278,3 +285,128 @@ def dump_train_configs(log_dir: str, env_cfg: Any, agent_cfg: Any) -> None:
     """
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
+
+
+def write_run_manifest(
+    log_dir: str,
+    *,
+    library: str,
+    task: str,
+    metadata: dict[str, str] | None = None,
+) -> None:
+    """Write metadata used to discover checkpoints from a training run.
+
+    Args:
+        log_dir: Training run directory.
+        library: Reinforcement learning library that owns the run.
+        task: Task used for training.
+        metadata: Additional fields used to distinguish compatible runs.
+    """
+    run_dir = Path(log_dir)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "version": RUN_MANIFEST_VERSION,
+        "library": library,
+        "task": _normalize_task_name(task),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "metadata": metadata or {},
+    }
+    manifest_path = run_dir / RUN_MANIFEST_FILENAME
+    temporary_path = run_dir / f".{RUN_MANIFEST_FILENAME}.{os.getpid()}.tmp"
+    temporary_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(temporary_path, manifest_path)
+
+
+def resolve_checkpoint_selector(
+    log_root_path: str,
+    selector: str,
+    *,
+    library: str,
+    task: str,
+    checkpoint_pattern: str,
+    other_dirs: list[str] | None = None,
+    preferred_checkpoint_pattern: str | None = None,
+    metadata: dict[str, str] | None = None,
+) -> str:
+    """Resolve a checkpoint selector using manifests from new training runs.
+
+    ``latest`` selects the naturally last checkpoint in the newest compatible
+    run. ``best`` prefers the backend's canonical best or final checkpoint and
+    falls back to the same checkpoint used by ``latest``.
+
+    Args:
+        log_root_path: Directory containing training run directories.
+        selector: Checkpoint selector, either ``"latest"`` or ``"best"``.
+        library: Reinforcement learning library expected in the run manifest.
+        task: Task expected in the run manifest.
+        checkpoint_pattern: Regular expression matching checkpoint filenames.
+        other_dirs: Intermediate directories below each run directory.
+        preferred_checkpoint_pattern: Regular expression for the backend's best or final checkpoint.
+        metadata: Additional manifest metadata required for compatibility.
+
+    Returns:
+        Absolute path to the selected checkpoint.
+
+    Raises:
+        ValueError: If the selector is invalid or no compatible manifested run has a checkpoint.
+    """
+    if selector not in CHECKPOINT_SELECTORS:
+        raise ValueError(f"Unknown checkpoint selector '{selector}'. Expected one of: {sorted(CHECKPOINT_SELECTORS)}.")
+
+    log_root = Path(log_root_path)
+    expected_task = _normalize_task_name(task)
+    expected_metadata = metadata or {}
+    runs: list[tuple[datetime, Path]] = []
+    if log_root.is_dir():
+        for run_dir in log_root.iterdir():
+            if not run_dir.is_dir():
+                continue
+            manifest_path = run_dir / RUN_MANIFEST_FILENAME
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                created_at = datetime.fromisoformat(manifest["created_at"])
+            except (FileNotFoundError, KeyError, TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if manifest.get("version") != RUN_MANIFEST_VERSION:
+                continue
+            if manifest.get("library") != library or manifest.get("task") != expected_task:
+                continue
+            manifest_metadata = manifest.get("metadata", {})
+            if not isinstance(manifest_metadata, dict):
+                continue
+            if any(manifest_metadata.get(key) != value for key, value in expected_metadata.items()):
+                continue
+            runs.append((created_at, run_dir))
+
+    for _, run_dir in sorted(runs, reverse=True):
+        checkpoint_dir = run_dir.joinpath(*(other_dirs or []))
+        if not checkpoint_dir.is_dir():
+            continue
+        checkpoints = [
+            path for path in checkpoint_dir.iterdir() if path.is_file() and re.fullmatch(checkpoint_pattern, path.name)
+        ]
+        if not checkpoints:
+            continue
+        if selector == "best" and preferred_checkpoint_pattern is not None:
+            preferred = [
+                path for path in checkpoints if re.fullmatch(preferred_checkpoint_pattern, path.name) is not None
+            ]
+            if preferred:
+                checkpoints = preferred
+        checkpoints.sort(key=lambda path: _natural_sort_key(path.name))
+        return str(checkpoints[-1].resolve())
+
+    raise ValueError(
+        f"No compatible manifested run with a checkpoint was found in '{log_root}'. "
+        f"Run training with the current unified training entrypoint before using '--checkpoint {selector}'."
+    )
+
+
+def _normalize_task_name(task: str) -> str:
+    """Normalize training and play variants to the same task name."""
+    return task.split(":")[-1].removesuffix("-Play")
+
+
+def _natural_sort_key(value: str) -> list[int | str]:
+    """Return a key that sorts numeric filename components by value."""
+    return [int(token) if token.isdigit() else token for token in re.split(r"(\d+)", value)]

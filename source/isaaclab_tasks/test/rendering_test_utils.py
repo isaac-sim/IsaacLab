@@ -59,7 +59,13 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
 # outputs where the per-pixel value distribution is highly non-uniform after normalisation (e.g. depth, where we
 # divide by the max value so tiny absolute differences near the far plane dominate windowed variance). For these
 # data types we still compute SSIM for reporting, but only the per-pixel L2 gate is used to decide pass/fail.
-_SSIM_DISABLED_DATA_TYPES: set[str] = {"depth", "distance_to_camera", "distance_to_image_plane"}
+_SSIM_DISABLED_DATA_TYPES: set[str] = {
+    "depth",
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
+}
 
 # Directory for comparison images saved during the test session.
 # Located under the pytest output root so it gets copied alongside test reports.
@@ -86,6 +92,8 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
+    "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
 )
 
 
@@ -594,10 +602,25 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Error opening golden image: {error}"
             continue
 
+        # Instance seg colors are non-stable across runs (NonStableInstanceSegmentation /
+        # InstanceSegmentationSD IDs vary). Compare only the alpha channel (instance mask shape)
+        # by zeroing RGB on both images.
+        result_image_for_comparison = result_image
+        golden_image_for_comparison = golden_image
+        if data_type in {"instance_segmentation_fast", "instance_id_segmentation_fast"}:
+
+            def _alpha_only(img: Image.Image) -> Image.Image:
+                r, g, b, a = img.split()
+                zero = r.point(lambda _: 0)
+                return Image.merge("RGBA", (zero, zero, zero, a))
+
+            result_image_for_comparison = _alpha_only(result_image)
+            golden_image_for_comparison = _alpha_only(golden_image)
+
         check_ssim = data_type not in _SSIM_DISABLED_DATA_TYPES
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
-            result_image,
-            golden_image,
+            result_image_for_comparison,
+            golden_image_for_comparison,
             max_different_pixels_percentage,
             check_ssim=check_ssim,
             ssim_threshold=ssim_threshold,
@@ -618,6 +641,9 @@ def validate_camera_outputs(
             "img_golden_path": None,
         }
 
+        # We want to keep the record in the test artifact so that we can have a chance to see whether
+        # test cases that appear successful is a false positive or not, e.g. image diff threshold is set
+        # 8%, if the result image is 7% different from the golden, it is considered a pass
         if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
             entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
@@ -659,6 +685,8 @@ def rendering_test_shadow_hand(
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
+        instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
 
     @configclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
@@ -712,6 +740,8 @@ def rendering_test_cartpole(
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
 
+    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
     @configclass
     class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
         distance_to_camera = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
@@ -719,17 +749,36 @@ def rendering_test_cartpole(
             data_types=["distance_to_image_plane"]
         )
         normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_segmentation_fast"]
+        )
+        instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_id_segmentation_fast"]
+        )
+
+    @configclass
+    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
+        robot_cfg = CARTPOLE_CFG.replace(
+            prim_path="/World/envs/env_.*/Robot",
+            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+        )
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
-        distance_to_camera = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        distance_to_image_plane = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        normals = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        normals = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -746,12 +795,26 @@ def rendering_test_cartpole(
 
     try:
         env = CartpoleCameraEnv(env_cfg)
+        camera_outputs = env._tiled_camera.data.output
+        if renderer == "ovrtx_renderer":
+            # The first output access creates the selected OVRTX render-variable mapping. Give
+            # it a few frames to compile and populate instead of validating its zeroed buffer.
+            for _ in range(10):
+                has_valid_outputs = all(
+                    torch.count_nonzero(output if isinstance(output, torch.Tensor) else output.torch).item() > 0
+                    for output in camera_outputs.values()
+                )
+                if has_valid_outputs:
+                    break
+                env.sim.render()
+                env.scene.update(dt=env.physics_dt)
+                camera_outputs = env._tiled_camera.data.output
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
-            env._tiled_camera.data.output,
+            camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
             comparison_scores=comparison_scores,
         )
@@ -807,6 +870,24 @@ def rendering_test_dexsuite_kuka(
         normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
         normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
         normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
+        instance_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=64, height=64
+        )
+        instance_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=128, height=128
+        )
+        instance_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=256, height=256
+        )
+        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        )
+        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        )
+        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=256, height=256
+        )
 
     @configclass
     class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):

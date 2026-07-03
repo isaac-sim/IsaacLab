@@ -11,9 +11,9 @@
 
 Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
-The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
-process restart.  Full coverage therefore requires two separate pytest
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance and cannot switch it without a process
+restart. Full coverage therefore requires two separate pytest
 invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
 ``_ovphysx_skip_other_device`` autouse fixture below preempts the manager's
 :exc:`RuntimeError` by ``pytest.skip``-ing on the unlocked device so
@@ -106,8 +106,9 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 _MATERIAL_GAP_REASON = (
     "Requires RIGID_BODY_MATERIAL TensorType (or a view-helper) on the ovphysx "
-    "wheel side.  RigidObjectCollection.root_view is a per-tensor-type bindings dict on "
-    "OVPhysX, so root_view.get_material_properties() / set_material_properties() "
+    "wheel side.  RigidObjectCollection.root_view is an OvPhysxView over fused "
+    "per-tensor-type bindings on OVPhysX, so root_view.get_material_properties() / "
+    "set_material_properties() "
     "are not available.  See "
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
