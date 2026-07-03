@@ -596,10 +596,7 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success' &&
-      (needs.config.outputs.ovphysx_wheelhouse_resource == '' ||
-       (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) ||
-       (github.event_name != 'pull_request' && github.ref_name == 'develop'))
+      needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -777,11 +774,7 @@ jobs:
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: >-
-      needs.build.result == 'success' &&
-      (needs.config.outputs.ovphysx_wheelhouse_resource == '' ||
-       (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) ||
-       (github.event_name != 'pull_request' && github.ref_name == 'develop'))
+    if: needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
