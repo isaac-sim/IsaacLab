@@ -2165,6 +2165,11 @@ class ArticulationData(BaseArticulationData):
         them. The Tier-1 body-state shadows (``_body_link_pose_w_user`` /
         ``_body_com_vel_w_user``) are republished via
         :meth:`_refresh_user_order_body_state`.
+
+        This sync also seeds the invariant the partial body-property setters rely
+        on: the user buffer must stay the public-order image of the sim-bound
+        backend buffer, since the setters scatter only the selected cells into
+        both. A divergent pair silently corrupts the unselected cells.
         """
         self._validate_body_ordering_buffers()
         self._refresh_user_order_body_state()

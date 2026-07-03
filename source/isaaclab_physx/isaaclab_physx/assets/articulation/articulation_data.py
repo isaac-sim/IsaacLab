@@ -2088,6 +2088,10 @@ class ArticulationData(BaseArticulationData):
         if self._has_body_ordering:
             if self._body_user_to_backend is None:
                 raise RuntimeError("PhysX _has_body_ordering requires _body_user_to_backend.")
+            # Invariant: from seeding onward, each backend staging must stay the backend-order
+            # image of its public buffer. Partial body-property setters scatter only the
+            # selected cells into both buffers and push full backend rows to the simulation,
+            # so a stale or divergent staging silently corrupts the unselected cells.
             if self._body_com_pose_b_backend is None:
                 self._body_com_pose_b_backend = TimestampedBuffer(
                     (self._num_instances, self._num_bodies), self.device, wp.transformf

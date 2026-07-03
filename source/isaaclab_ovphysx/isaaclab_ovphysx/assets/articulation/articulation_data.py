@@ -2098,6 +2098,10 @@ class ArticulationData(BaseArticulationData):
                         backend_name,
                         TimestampedBuffer((self.num_instances, self.num_bodies), self.device, dtype),
                     )
+            # Invariant: from seeding onward, each backend staging must stay the backend-order
+            # image of its public buffer. Partial body-property setters scatter only the
+            # selected cells into both buffers and push full backend rows to the simulation,
+            # so a stale or divergent staging silently corrupts the unselected cells.
             if self._body_mass_backend is None:
                 self._body_mass_backend = TimestampedBuffer(
                     (self.num_instances, self.num_bodies), self.device, wp.float32
