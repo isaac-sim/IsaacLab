@@ -83,6 +83,8 @@ def run(argv: list[str]) -> None:
     """
     import contextlib
     import math
+    import os
+    import re
     import time
 
     import gymnasium as gym
@@ -121,7 +123,21 @@ def run(argv: list[str]) -> None:
             agent_cfg["params"]["seed"] = args_cli.seed
         env_cfg.seed = agent_cfg["params"]["seed"]
 
-        resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task)
+        config_name = agent_cfg["params"]["config"]["name"]
+        log_root_path = os.path.abspath(os.path.join("logs", "rl_games", config_name))
+        if args_cli.checkpoint in _common.CHECKPOINT_SELECTORS:
+            resume_path = _common.resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="rl_games",
+                task=args_cli.task,
+                checkpoint_pattern=r".*\.pth",
+                other_dirs=["nn"],
+                preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+                metadata={"agent": args_cli.agent},
+            )
+        else:
+            resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "rl_games", args_cli.task)
 
         cfg = capture.run_config_from_presets(remaining_args)
         formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]

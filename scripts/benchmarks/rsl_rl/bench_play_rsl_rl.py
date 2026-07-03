@@ -123,7 +123,18 @@ def run(argv: list[str]) -> None:
         installed_rsl_rl = metadata.version("rsl-rl-lib")
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
 
-        resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task)
+        log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
+        if args.checkpoint in _common.CHECKPOINT_SELECTORS:
+            resume_path = _common.resolve_checkpoint_selector(
+                log_root_path,
+                args.checkpoint,
+                library="rsl_rl",
+                task=args.task,
+                checkpoint_pattern=r"model_.*\.pt",
+                metadata={"agent": args.agent},
+            )
+        else:
+            resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task)
 
         cfg = capture.run_config_from_presets(remaining)
         formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]

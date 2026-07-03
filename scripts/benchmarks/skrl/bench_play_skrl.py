@@ -149,7 +149,23 @@ def run(argv: list[str]) -> None:
         agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
         env_cfg.seed = agent_cfg["seed"]
 
-        resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task)
+        log_root_path = os.path.abspath(os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"]))
+        if args_cli.checkpoint in _common.CHECKPOINT_SELECTORS:
+            resume_path = _common.resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="skrl",
+                task=args_cli.task,
+                checkpoint_pattern=r".*",
+                other_dirs=["checkpoints"],
+                metadata={
+                    "agent": agent_cfg_entry_point,
+                    "algorithm": algorithm,
+                    "ml_framework": args_cli.ml_framework,
+                },
+            )
+        else:
+            resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task)
 
         cfg = capture.run_config_from_presets(remaining_args)
         formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]

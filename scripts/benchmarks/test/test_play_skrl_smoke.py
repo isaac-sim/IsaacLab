@@ -11,7 +11,6 @@ through the benchmark and asserts the emitted ``PlayBundle``.
 
 import json
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -39,29 +38,11 @@ def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
     pytest.fail(f"no bundle in {out_dir} contained keys {expected_keys}; found {[p.name for p in candidates]}")
 
 
-def _newest_checkpoint(pattern: str, since: float) -> Path:
-    """Return the newest file matching ``pattern`` under the repo created at or after ``since``.
-
-    Args:
-        pattern: ``Path.rglob`` glob, relative to the repo root, for the library.s
-            checkpoint files.
-        since: ``time.time()`` recorded before the training run; only files whose
-            mtime is at or after this are considered, so a stale checkpoint from a
-            prior run is never selected.
-    """
-    matches = [p for p in ROOT.rglob(pattern) if p.stat().st_mtime >= since]
-    if not matches:
-        found = [str(p) for p in ROOT.rglob(pattern)]
-        pytest.fail(f"no checkpoint matching {pattern!r} created since {since}; found existing: {found}")
-    return max(matches, key=lambda p: p.stat().st_mtime)
-
-
 def test_play_skrl_emits_play_bundle(tmp_path, require_isaacsim):
     sh = ROOT / "isaaclab.sh"
     train_out = tmp_path / "train"
     play_out = tmp_path / "play"
 
-    start = time.time()
     train_cmd = [
         str(sh),
         "-p",
@@ -85,8 +66,6 @@ def test_play_skrl_emits_play_bundle(tmp_path, require_isaacsim):
     if res.returncode != 0:
         pytest.fail(f"training.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
 
-    ckpt = _newest_checkpoint("logs/skrl/**/checkpoints/*.pt", start)
-
     play_cmd = [
         str(sh),
         "-p",
@@ -100,7 +79,7 @@ def test_play_skrl_emits_play_bundle(tmp_path, require_isaacsim):
         "--num_frames",
         "250",
         "--checkpoint",
-        str(ckpt),
+        "latest",
         "presets=newton_mjwarp",
         "--headless",
         "--benchmark_formatter",
