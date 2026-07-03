@@ -22,6 +22,7 @@ from prettytable import PrettyTable
 from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.cloner import queue_usd_replication
 from isaaclab.sim.utils.queries import find_first_matching_prim, resolve_matching_prims_from_source
@@ -105,6 +106,9 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
 
+    __backend_native_orderings__: tuple[str, ...] = ("physx",)
+    """PhysX tensor-view order already matches the ``"physx"`` convention."""
+
     actuators: dict
     """Dictionary of actuator instances for the articulation.
 
@@ -166,11 +170,6 @@ class Articulation(BaseArticulation):
         return self.root_view.shared_metatype.link_count
 
     @property
-    def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        return self.root_view.shared_metatype.dof_names
-
-    @property
     def fixed_tendon_names(self) -> list[str]:
         """Ordered names of fixed tendons in articulation."""
         return self._fixed_tendon_names
@@ -181,8 +180,13 @@ class Articulation(BaseArticulation):
         return self._spatial_tendon_names
 
     @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
+    def backend_joint_names(self) -> list[str]:
+        """Ordered names of joints as exposed by the active backend."""
+        return self.root_view.shared_metatype.dof_names
+
+    @property
+    def backend_body_names(self) -> list[str]:
+        """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.shared_metatype.link_names
 
     @property
@@ -263,9 +267,28 @@ class Articulation(BaseArticulation):
             else:
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
+            if self._has_body_ordering:
+                force_backend = self._body_wrench_force_backend
+                torque_backend = self._body_wrench_torque_backend
+                if force_backend is None or torque_backend is None:
+                    raise RuntimeError(
+                        "PhysX _has_body_ordering requires _body_wrench_force_backend and _body_wrench_torque_backend."
+                    )
+                wp.launch(
+                    ordering_kernels.reorder_body_wrench_user_to_backend,
+                    dim=(self.num_instances, self.num_bodies),
+                    inputs=[composer.out_force_b.warp, composer.out_torque_b.warp, self._body_backend_to_user],
+                    outputs=[force_backend, torque_backend],
+                    device=self.device,
+                )
+                force_data = force_backend
+                torque_data = torque_backend
+            else:
+                force_data = composer.out_force_b.warp
+                torque_data = composer.out_torque_b.warp
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=composer.out_force_b.warp.flatten().view(wp.float32),
-                torque_data=composer.out_torque_b.warp.flatten().view(wp.float32),
+                force_data=force_data.flatten().view(wp.float32),
+                torque_data=torque_data.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
                 is_global=False,
@@ -279,21 +302,54 @@ class Articulation(BaseArticulation):
             # (implicit DOFs) into ``w.joint_f_2d``, which is what we push
             # to PhysX as the actuation force.
             self._apply_actuator_model_newton()
-            self.root_view.set_dof_actuation_forces(
-                self._physx_actuator_wrapper.joint_f_2d,
-                self._ALL_INDICES,
-            )
-            if self._has_implicit_actuators:
-                self.root_view.set_dof_position_targets(self._data._joint_pos_target, self._ALL_INDICES)
-                self.root_view.set_dof_velocity_targets(self._data._joint_vel_target, self._ALL_INDICES)
+            user_effort = self._physx_actuator_wrapper.joint_f_2d
+            user_pos_target = self._data._joint_pos_target
+            user_vel_target = self._data._joint_vel_target
         else:
             # Standard Lab actuator path: per-group ``actuator.compute()`` may
             # transform targets, so we push the staging buffers PhysX-side.
             self._apply_actuator_model()
-            self.root_view.set_dof_actuation_forces(self._joint_effort_target_sim, self._ALL_INDICES)
-            if self._has_implicit_actuators:
-                self.root_view.set_dof_position_targets(self._joint_pos_target_sim, self._ALL_INDICES)
-                self.root_view.set_dof_velocity_targets(self._joint_vel_target_sim, self._ALL_INDICES)
+            user_effort = self._joint_effort_target_sim
+            user_pos_target = self._joint_pos_target_sim
+            user_vel_target = self._joint_vel_target_sim
+
+        if self._has_joint_ordering:
+            # One fused gather replaces the per-target reorder launches. The
+            # last output aliases the effort staging because PhysX has no
+            # direct-drive joint_act output (its flag is off, never indexed).
+            wp.launch(
+                ordering_kernels.reorder_joint_targets_user_to_backend,
+                dim=(self.num_instances, self.num_joints),
+                inputs=[
+                    user_effort,
+                    user_pos_target,
+                    user_vel_target,
+                    self._joint_backend_to_user,
+                    True,
+                    self._has_implicit_actuators,
+                    self._has_implicit_actuators,
+                    False,
+                ],
+                outputs=[
+                    self._joint_effort_target_backend,
+                    self._joint_pos_target_backend,
+                    self._joint_vel_target_backend,
+                    self._joint_effort_target_backend,
+                ],
+                device=self.device,
+            )
+            effort_target = self._joint_effort_target_backend
+            pos_target = self._joint_pos_target_backend
+            vel_target = self._joint_vel_target_backend
+        else:
+            effort_target = user_effort
+            pos_target = user_pos_target
+            vel_target = user_vel_target
+
+        self.root_view.set_dof_actuation_forces(effort_target, self._ALL_INDICES)
+        if self._has_implicit_actuators:
+            self.root_view.set_dof_position_targets(pos_target, self._ALL_INDICES)
+            self.root_view.set_dof_velocity_targets(vel_target, self._ALL_INDICES)
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -581,7 +637,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pose_b,
+                self.data._backend_body_com_pose_b,
                 env_ids,
                 full_data,
             ],
@@ -845,7 +901,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pose_b,
+                self.data._backend_body_com_pose_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,
@@ -934,6 +990,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
@@ -942,21 +999,27 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
+        joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
-            articulation_kernels.write_joint_state_data,
+            ordering_kernels.write_joint_state_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
                 velocity,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 full_data,
             ],
             outputs=[
-                self.data.joint_pos,
-                self.data.joint_vel,
+                self.data._joint_pos.data,
+                self.data._joint_vel.data,
                 self.data._previous_joint_vel,
-                self.data.joint_acc,
+                self.data._joint_acc.data,
+                joint_pos_backend,
+                joint_vel_backend,
             ],
             device=self.device,
         )
@@ -965,8 +1028,8 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
-        self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
+        self.root_view.set_dof_positions(joint_pos_backend, indices=env_ids)
+        self.root_view.set_dof_velocities(joint_vel_backend, indices=env_ids)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -996,7 +1059,7 @@ class Articulation(BaseArticulation):
         """
         # set into simulation
         env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
         self.write_joint_state_to_sim_index(
             position=position,
             velocity=velocity,
@@ -1036,6 +1099,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
@@ -1043,17 +1107,21 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 full_data,
             ],
             outputs=[
-                self.data.joint_pos,
+                self.data._joint_pos.data,
+                joint_pos_backend,
             ],
             device=self.device,
         )
@@ -1062,7 +1130,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_dof_positions(self.data._joint_pos.data, indices=env_ids)
+        self.root_view.set_dof_positions(joint_pos_backend, indices=env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1093,7 +1161,7 @@ class Articulation(BaseArticulation):
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_position_to_sim_index(
             position=position, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1129,6 +1197,7 @@ class Articulation(BaseArticulation):
                 must invalidate stale cached data before reading it back. Defaults to False.
         """
         # resolve all indices
+        joint_selection_is_partial = joint_ids is not None
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
         if full_data:
@@ -1136,26 +1205,30 @@ class Articulation(BaseArticulation):
         else:
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
         wp.launch(
-            articulation_kernels.write_joint_vel_data,
+            ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 velocity,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
                 full_data,
             ],
             outputs=[
-                self.data.joint_vel,
+                self.data._joint_vel.data,
                 self.data._previous_joint_vel,
-                self.data.joint_acc,
+                self.data._joint_acc.data,
+                joint_vel_backend,
             ],
             device=self.device,
         )
         if not skip_forward:
             self.data._reset_velocity()
         # set into simulation
-        self.root_view.set_dof_velocities(self.data._joint_vel.data, indices=env_ids)
+        self.root_view.set_dof_velocities(joint_vel_backend, indices=env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -1186,7 +1259,7 @@ class Articulation(BaseArticulation):
         """
         # resolve masks
         env_ids = self._resolve_env_mask(env_mask)
-        joint_ids = self._resolve_joint_mask(joint_mask)
+        joint_ids = None if joint_mask is None else self._resolve_joint_mask(joint_mask)
         # Set full data to True to ensure the the right code path is taken inside the kernel.
         self.write_joint_velocity_to_sim_index(
             velocity=velocity, joint_ids=joint_ids, env_ids=env_ids, full_data=True, skip_forward=skip_forward
@@ -1258,7 +1331,10 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_stiffnesses(wp.clone(self.data._joint_stiffness, device="cpu"), indices=cpu_env_ids)
+        joint_stiffness_backend = self._get_backend_ordered_joint_buffer(
+            self.data._joint_stiffness, self.data._joint_stiffness_backend
+        )
+        self.root_view.set_dof_stiffnesses(wp.clone(joint_stiffness_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1352,7 +1428,10 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_dampings(wp.clone(self.data._joint_damping, device="cpu"), indices=cpu_env_ids)
+        joint_damping_backend = self._get_backend_ordered_joint_buffer(
+            self.data._joint_damping, self.data._joint_damping_backend
+        )
+        self.root_view.set_dof_dampings(wp.clone(joint_damping_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_actuator_stiffness_to_sim(
         self,
@@ -1419,7 +1498,8 @@ class Articulation(BaseArticulation):
             dtype=torch.int32,
             device=self.device,
         )
-        joint_id_pos[joint_ids.to(self.device, dtype=torch.long)] = torch.arange(
+        joint_ids_local = joint_ids.to(self.device, dtype=torch.long)
+        joint_id_pos[joint_ids_local] = torch.arange(
             joint_ids.shape[0],
             dtype=torch.int32,
             device=self.device,
@@ -1549,7 +1629,10 @@ class Articulation(BaseArticulation):
                 logger.info(violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_limits(wp.clone(self.data._joint_pos_limits, device="cpu"), indices=cpu_env_ids)
+        joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
+            self.data._joint_pos_limits, self.data._joint_pos_limits_backend
+        )
+        self.root_view.set_dof_limits(wp.clone(joint_pos_limits_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1653,7 +1736,10 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_max_velocities(wp.clone(self.data._joint_vel_limits, device="cpu"), indices=cpu_env_ids)
+        joint_vel_limits_backend = self._get_backend_ordered_joint_buffer(
+            self.data._joint_vel_limits, self.data._joint_vel_limits_backend
+        )
+        self.root_view.set_dof_max_velocities(wp.clone(joint_vel_limits_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1754,7 +1840,10 @@ class Articulation(BaseArticulation):
             )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_max_forces(wp.clone(self.data._joint_effort_limits, device="cpu"), indices=cpu_env_ids)
+        joint_effort_limits_backend = self._get_backend_ordered_joint_buffer(
+            self.data._joint_effort_limits, self.data._joint_effort_limits_backend
+        )
+        self.root_view.set_dof_max_forces(wp.clone(joint_effort_limits_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1853,7 +1942,10 @@ class Articulation(BaseArticulation):
         if isinstance(env_ids, torch.Tensor):
             env_ids = wp.from_torch(env_ids, dtype=wp.int32)
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_armatures(wp.clone(self.data._joint_armature, device="cpu"), indices=cpu_env_ids)
+        joint_armature_backend = self._get_backend_ordered_joint_buffer(
+            self.data._joint_armature, self.data._joint_armature_backend
+        )
+        self.root_view.set_dof_armatures(wp.clone(joint_armature_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1968,7 +2060,10 @@ class Articulation(BaseArticulation):
                     "joint_viscous_friction_coeff",
                 )
         # Get the friction properties from the simulation.
-        friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        friction_props_backend = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        friction_props = self._get_user_ordered_joint_3d_buffer(
+            friction_props_backend, self.data._joint_friction_props_user, 3
+        )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
@@ -1992,7 +2087,10 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
+            friction_props, self.data._joint_friction_props_backend, 3
+        )
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -2088,7 +2186,10 @@ class Articulation(BaseArticulation):
                 "joint_dynamic_friction_coeff",
             )
         # Get the friction properties from the simulation.
-        friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        friction_props_backend = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        friction_props = self._get_user_ordered_joint_3d_buffer(
+            friction_props_backend, self.data._joint_friction_props_user, 3
+        )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
@@ -2109,7 +2210,10 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
+            friction_props, self.data._joint_friction_props_backend, 3
+        )
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -2188,7 +2292,10 @@ class Articulation(BaseArticulation):
                 "joint_viscous_friction_coeff",
             )
         # Get the friction properties from the simulation.
-        friction_props = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        friction_props_backend = wp.clone(self.root_view.get_dof_friction_properties(), device=self.device)
+        friction_props = self._get_user_ordered_joint_3d_buffer(
+            friction_props_backend, self.data._joint_friction_props_user, 3
+        )
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         wp.launch(
@@ -2209,7 +2316,10 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_dof_friction_properties(wp.clone(friction_props, device="cpu"), indices=cpu_env_ids)
+        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
+            friction_props, self.data._joint_friction_props_backend, 3
+        )
+        self.root_view.set_dof_friction_properties(wp.clone(friction_props_backend, device="cpu"), indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -2278,25 +2388,41 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(masses, (self.num_instances, self.num_bodies), wp.float32, "masses")
         else:
             self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
+        if self.data._body_mass.timestamp < self.data._sim_timestamp and (
+            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
+        ):
+            # Partial writes scatter into the full-image buffers, so refresh the untouched entries first.
+            self.data.body_mass
+        body_mass_backend = self.data._body_mass.data
+        if self._has_body_ordering:
+            body_mass_backend = self.data._body_mass_backend
+            if body_mass_backend is None:
+                raise RuntimeError("PhysX _has_body_ordering requires _body_mass_backend.")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
                 full_data,
             ],
             outputs=[
-                self.data._body_mass,
+                self.data._body_mass.data,
+                body_mass_backend,
             ],
             device=self.device,
         )
+        # The user buffer now matches the value pushed to the simulation this step; stamp it so the
+        # timestamp-lazy getter returns the written value without re-reading the tensor view.
+        self.data._body_mass.timestamp = self.data._sim_timestamp
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_masses(wp.clone(self.data._body_mass, device="cpu"), indices=cpu_env_ids)
+        self.root_view.set_masses(wp.clone(body_mass_backend, device="cpu"), indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -2350,6 +2476,8 @@ class Articulation(BaseArticulation):
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
             full_data: Whether to expect full data. Defaults to False.
         """
+        all_envs_selected = env_ids is None
+        all_bodies_selected = body_ids is None
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
@@ -2357,35 +2485,48 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
-        if self.data._body_com_pose_b.timestamp < 0.0 and (
-            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
-        ):
-            # Partial writes need the current model-property cache as a base for untouched entries.
-            self.data.body_com_pose_b
+        backend_staging = self.data._body_com_pose_b_backend
+        body_com_backend = self.data._body_com_pose_b.data
+        if self._has_body_ordering:
+            if backend_staging is None:
+                raise RuntimeError("PhysX _has_body_ordering requires _body_com_pose_b_backend.")
+            body_com_backend = backend_staging.data
+        if not all_bodies_selected:
+            self.data._ensure_body_com_pose_b_current()
+        cache_is_valid = (all_envs_selected and all_bodies_selected) or (
+            self.data._body_com_pose_b.timestamp >= 0.0
+            and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
+        )
+
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_pose_to_buffer,
+            ordering_kernels.write_2d_user_to_backend_with_indices_transform,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
                 full_data,
             ],
             outputs=[
                 self.data._body_com_pose_b.data,
+                body_com_backend,
             ],
             device=self.device,
         )
-        self.data._body_com_pose_b.timestamp = self.data._sim_timestamp
         self.data._reset_body_com_pose_b_dependents()
+        validity = 0.0 if cache_is_valid else -1.0
+        self.data._body_com_pose_b.timestamp = validity
+        if self._has_body_ordering:
+            backend_staging.timestamp = validity
+
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         # Convert from wp.transformf to flat (N, M, 7) array for PhysX
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         body_com_flat = (
-            wp.clone(self.data._body_com_pose_b.data, device="cpu")
-            .view(wp.float32)
-            .reshape((self.num_instances, self.num_bodies, 7))
+            wp.clone(body_com_backend, device="cpu").view(wp.float32).reshape((self.num_instances, self.num_bodies, 7))
         )
         self.root_view.set_coms(body_com_flat, indices=cpu_env_ids)
 
@@ -2411,9 +2552,11 @@ class Articulation(BaseArticulation):
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
+        all_envs_selected = env_mask is None
+        all_bodies_selected = body_mask is None
         # Resolve masks.
-        env_ids = self._resolve_env_mask(env_mask)
-        body_ids = self._resolve_body_mask(body_mask)
+        env_ids = None if all_envs_selected else self._resolve_env_mask(env_mask)
+        body_ids = None if all_bodies_selected else self._resolve_body_mask(body_mask)
         # Set full data to True to ensure the right code path is taken inside the kernel.
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids, full_data=True)
 
@@ -2448,24 +2591,40 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(inertias, (self.num_instances, self.num_bodies, 9), wp.float32, "inertias")
         else:
             self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
+        if self.data._body_inertia.timestamp < self.data._sim_timestamp and (
+            env_ids.shape[0] != self.num_instances or body_ids.shape[0] != self.num_bodies
+        ):
+            # Partial writes scatter into the full-image buffers, so refresh the untouched entries first.
+            self.data.body_inertia
+        body_inertia_backend = self.data._body_inertia.data
+        if self._has_body_ordering:
+            body_inertia_backend = self.data._body_inertia_backend
+            if body_inertia_backend is None:
+                raise RuntimeError("PhysX _has_body_ordering requires _body_inertia_backend.")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
+            ordering_kernels.write_3d_user_to_backend_with_indices_float,
+            dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[
                 inertias,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
                 full_data,
             ],
             outputs=[
-                self.data._body_inertia,
+                self.data._body_inertia.data,
+                body_inertia_backend,
             ],
             device=self.device,
         )
+        # The user buffer now matches the value pushed to the simulation this step; stamp it so the
+        # timestamp-lazy getter returns the written value without re-reading the tensor view.
+        self.data._body_inertia.timestamp = self.data._sim_timestamp
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        self.root_view.set_inertias(wp.clone(self.data._body_inertia, device="cpu"), indices=cpu_env_ids)
+        self.root_view.set_inertias(wp.clone(body_inertia_backend, device="cpu"), indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -3905,8 +4064,13 @@ class Articulation(BaseArticulation):
         self._permanent_wrench_composer = WrenchComposer(self)
 
         # asset named data
-        self.data.joint_names = self.joint_names
-        self.data.body_names = self.body_names
+        self._joint_pos_target_backend: wp.array | None = None
+        self._joint_vel_target_backend: wp.array | None = None
+        self._joint_effort_target_backend: wp.array | None = None
+        self._body_wrench_force_backend: wp.array | None = None
+        self._body_wrench_torque_backend: wp.array | None = None
+        self._resolve_and_install_ordering_maps()
+        self._reset_and_cache_ordering_maps()
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
@@ -3977,6 +4141,49 @@ class Articulation(BaseArticulation):
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None
+
+    """
+    Internal helpers -- Ordering.
+    """
+
+    _ordering_joint_staging_names: tuple[str, ...] = (
+        "_joint_pos_target_backend",
+        "_joint_vel_target_backend",
+        "_joint_effort_target_backend",
+    )
+
+    def _ordering_configure_backend_staging(self) -> None:
+        """Configure PhysX joint-target and body-wrench staging."""
+        super()._ordering_configure_backend_staging()
+        if self._has_body_ordering:
+            shape = (self.num_instances, self.num_bodies)
+            if getattr(self, "_body_wrench_force_backend", None) is None:
+                self._body_wrench_force_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+            if getattr(self, "_body_wrench_torque_backend", None) is None:
+                self._body_wrench_torque_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+        else:
+            self._body_wrench_force_backend = None
+            self._body_wrench_torque_backend = None
+
+    def _get_user_ordered_joint_3d_buffer(
+        self,
+        backend_buffer: wp.array,
+        user_buffer: wp.array | None,
+        component_count: int,
+    ) -> wp.array:
+        """Return a public-order view or copy of a backend-order 3-D joint buffer."""
+        if not self._has_joint_ordering:
+            return backend_buffer
+        if user_buffer is None:
+            raise RuntimeError("PhysX _has_joint_ordering requires 3-D joint user staging.")
+        wp.launch(
+            ordering_kernels.reorder_3d_backend_to_user,
+            dim=(self.num_instances, self.num_joints, component_count),
+            inputs=[backend_buffer, self._joint_user_to_backend],
+            outputs=[user_buffer],
+            device=self.device,
+        )
+        return user_buffer
 
     """
     Internal helpers -- Actuators.
@@ -4362,6 +4569,17 @@ class Articulation(BaseArticulation):
         w = self._physx_actuator_wrapper
         w.joint_f_2d.assign(self._data._joint_effort_target)
         if self.newton_actuator_adapter is not None:
+            if self._has_joint_ordering:
+                # ``w.joint_q``/``w.joint_qd`` were bound once (at actuator setup) to
+                # ``_data.joint_pos``/``_data.joint_vel``. With identity ordering those
+                # bindings alias PhysX-owned memory directly and are always current. With
+                # non-identity ordering they alias an owned shadow buffer that is only
+                # refreshed when the public ``joint_pos``/``joint_vel`` getters run -- which
+                # otherwise would not happen until the telemetry kernel below reads them,
+                # one step too late for the adapter. Force the refresh here so the adapter
+                # sees this step's state instead of a stale one-step-old shadow.
+                self._data._refresh_joint_pos()
+                self._data._refresh_joint_vel()
             self.newton_actuator_adapter.step(w, w, SimulationManager.get_physics_dt())
 
         wp.launch(
@@ -4401,7 +4619,7 @@ class Articulation(BaseArticulation):
             For instance, the actuator models may change the joint max velocity limits.
         """
         # check that the default values are within the limits
-        joint_pos_limits = wp.to_torch(wp.clone(self.root_view.get_dof_limits(), device=self.device))[0]
+        joint_pos_limits = self._data.joint_pos_limits.torch[0]
         out_of_range = self._data.default_joint_pos.torch[0] < joint_pos_limits[:, 0]
         out_of_range |= self._data.default_joint_pos.torch[0] > joint_pos_limits[:, 1]
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
@@ -4418,7 +4636,7 @@ class Articulation(BaseArticulation):
             raise ValueError(msg)
 
         # check that the default joint velocities are within the limits
-        joint_max_vel = wp.to_torch(wp.clone(self.root_view.get_dof_max_velocities(), device=self.device))[0]
+        joint_max_vel = self._data.joint_vel_limits.torch[0]
         out_of_range = torch.abs(self._data.default_joint_vel.torch[0]) > joint_max_vel
         violated_indices = torch.nonzero(out_of_range, as_tuple=False).squeeze(-1)
         if len(violated_indices) > 0:
