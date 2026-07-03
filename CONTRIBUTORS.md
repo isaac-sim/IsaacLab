@@ -44,6 +44,7 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
