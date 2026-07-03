@@ -89,13 +89,17 @@ def spawn_physics_material(
         prim_path: The prim path to spawn the material at.
         material: A :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` (or list of
             them), or a legacy material cfg carrying a :attr:`func`.
-        stage: The stage to spawn on. Defaults to None, in which case the current stage is used.
+        stage: The stage to spawn on. Defaults to None, in which case the current stage is used. A
+            legacy material cfg only supports the current stage (or None); passing a different
+            stage raises.
 
     Returns:
         The spawned material prim.
 
     Raises:
         ValueError: When ``material`` is an empty list.
+        ValueError: When ``material`` is a legacy material cfg and ``stage`` is neither ``None``
+            nor the current stage.
         TypeError: When ``material`` is a list containing anything other than
             :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
     """
@@ -114,9 +118,16 @@ def spawn_physics_material(
     if isinstance(material, physics_materials_cfg.RigidBodyMaterialFragment):
         return spawn_rigid_body_material_from_fragments(prim_path, [material], stage)
     # legacy single-cfg path (rigid or deformable material cfg with its own spawner ``func``).
-    # NOTE: legacy material funcs take only ``(prim_path, cfg)`` and resolve the stage internally via
-    # ``get_current_stage()``; they have no ``stage`` parameter, so ``stage`` is intentionally not
-    # forwarded here. This is invisible in single-stage workflows (the only ones materials are used in).
+    # Legacy material funcs take only ``(prim_path, cfg)`` and resolve the stage internally via
+    # ``get_current_stage()`` (their path matching is also current-stage-bound), so an explicit
+    # different stage cannot be honored on this path -- reject it loudly rather than authoring on
+    # the wrong stage. The fragment path above supports explicit stages.
+    if stage is not None and stage != get_current_stage():
+        raise ValueError(
+            f"Legacy material cfg '{type(material).__name__}' can only be spawned on the current"
+            " stage. Pass the current stage (or None), or use the fragment-based API for"
+            " explicit-stage authoring."
+        )
     return material.func(prim_path, material)
 
 

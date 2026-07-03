@@ -121,6 +121,28 @@ def test_spawn_physics_material_dispatches_fragments_and_legacy():
     assert legacy_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.9)
 
 
+def test_spawn_physics_material_rejects_non_current_stage_for_legacy():
+    """The legacy path is current-stage-bound; an explicit different stage raises instead of
+    silently authoring on the current stage. Passing the current stage explicitly stays valid
+    (the in-tree spawners do so unconditionally)."""
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+
+    from pxr import Usd
+
+    from isaaclab.sim.spawners.materials import spawn_physics_material
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    other = Usd.Stage.CreateInMemory()
+    with pytest.raises(ValueError, match="current stage"):
+        spawn_physics_material("/World/MatOther", PhysxRigidBodyMaterialCfg(), stage=other)
+    # nothing leaked onto the current stage
+    assert not sim_utils.get_current_stage().GetPrimAtPath("/World/MatOther").IsValid()
+    # explicit current stage remains supported
+    prim = spawn_physics_material("/World/MatCurrent", PhysxRigidBodyMaterialCfg(), stage=sim_utils.get_current_stage())
+    assert prim.IsValid()
+
+
 def test_spawn_physics_material_rejects_empty_and_mixed_lists():
     """A malformed fragment list surfaces a clear error rather than an opaque AttributeError."""
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
