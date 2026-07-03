@@ -3,6 +3,35 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Resolution of symbolic articulation ordering conventions into concrete names.
+
+A public joint or body axis can request a symbolic convention
+(:class:`~isaaclab.assets.ArticulationOrderingConvention`) instead of an
+explicit name permutation. Resolution walks the following chain and stops at the
+first source that yields a complete backend-name permutation:
+
+#. Same-backend native fast path. When the active backend already exposes the
+   requested convention -- declared through
+   :attr:`~isaaclab.assets.BaseArticulation.__backend_native_orderings__` --
+   backend names are returned without any discovery.
+#. Per-articulation convention cache. A convention resolved earlier for the same
+   articulation is reused (keyed by convention and element kind).
+#. Authored robot-schema USD relationships. The ``robot_schema`` convention
+   reads the ``isaac:physics:robotJoints``/``isaac:physics:robotLinks``
+   relationships on the source asset, expanding nested robot targets.
+#. Temporary Newton USD ``ModelBuilder`` emulation. The ``physx`` and ``mjwarp``
+   conventions build a throwaway Newton view from the source USD, differing only
+   in joint traversal: breadth-first reproduces PhysX order and depth-first
+   reproduces MJWarp order. The depth-first emulation is coupled to
+   isaaclab_newton's ``NewtonManager``, which calls ``ModelBuilder.add_usd`` with
+   Newton's default ordering; if that call ever passes explicit ordering
+   arguments, the emulation constants here must be updated in lockstep or MJWarp
+   resolution silently diverges from the live backend.
+
+:mod:`isaaclab.assets.articulation.ordering` owns the public name-map type and
+its validation; this module owns discovery.
+"""
+
 from __future__ import annotations
 
 import logging
@@ -20,16 +49,22 @@ logger = logging.getLogger(__name__)
 
 
 def _backend_matches_ordering_convention(
-    active_backend_name: str,
+    articulation: BaseArticulation | None,
     convention: ArticulationOrderingConvention,
 ) -> bool:
-    """Return whether a backend already exposes names in a convention's order."""
-    backend_name = active_backend_name.lower()
-    if convention is ArticulationOrderingConvention.PHYSX:
-        return backend_name in {"physx", "ovphysx"}
-    if convention is ArticulationOrderingConvention.MJWARP:
-        return backend_name == "newton"
-    return False
+    """Return whether an articulation's backend natively exposes a convention's order.
+
+    A backend declares the conventions its native solver-view order already
+    satisfies through
+    :attr:`~isaaclab.assets.BaseArticulation.__backend_native_orderings__`, so
+    a fourth backend self-declares instead of being added to a hardcoded name
+    set here. A convention listed there takes the identity fast path: requesting
+    it returns backend names without cross-backend discovery. Returns ``False``
+    when no articulation is available to consult.
+    """
+    if articulation is None:
+        return False
+    return convention.value in getattr(articulation, "__backend_native_orderings__", ())
 
 
 def _coerce_name_sequence(names: object) -> tuple[str, ...] | None:
@@ -602,7 +637,7 @@ def _resolve_articulation_convention_name_ordering(
         return _get_backend_names(articulation, kind)
 
     active_backend_name = articulation.__backend_name__
-    if _backend_matches_ordering_convention(active_backend_name, parsed_convention):
+    if _backend_matches_ordering_convention(articulation, parsed_convention):
         return _get_backend_names(articulation, kind)
 
     backend_names = _get_backend_names(articulation, kind)
@@ -782,7 +817,7 @@ def _resolve_articulation_ordering_names(
             f"{kind}_ordering must be a name sequence, convention string/enum, or None; got {type(ordering).__name__}."
         )
 
-    if convention is None or _backend_matches_ordering_convention(active_backend_name, convention):
+    if convention is None or _backend_matches_ordering_convention(articulation, convention):
         return backend_names
     if articulation is not None:
         convention_names = _resolve_articulation_convention_name_ordering(

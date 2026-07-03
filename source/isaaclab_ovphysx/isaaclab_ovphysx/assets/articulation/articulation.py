@@ -79,6 +79,9 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the articulation."""
 
+    __backend_native_orderings__: tuple[str, ...] = ("physx",)
+    """OVPhysX tensor-view order already matches the ``"physx"`` convention."""
+
     def __init__(self, cfg: ArticulationCfg):
         """Initialize the articulation.
 

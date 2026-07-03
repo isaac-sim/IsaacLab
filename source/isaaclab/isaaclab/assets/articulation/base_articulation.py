@@ -91,6 +91,16 @@ class BaseArticulation(AssetBase):
     __backend_name__: str = "base"
     """The name of the backend for the articulation."""
 
+    __backend_native_orderings__: tuple[str, ...] = ()
+    """Symbolic convention names this backend's native order already satisfies.
+
+    A convention listed here takes the identity fast path in ordering
+    resolution: requesting it returns backend names without any cross-backend
+    discovery. The base default is empty; concrete backends declare the
+    :class:`ArticulationOrderingConvention` values (e.g. ``("physx",)``) their
+    solver-view order matches.
+    """
+
     actuators: dict
     """Dictionary of actuator instances for the articulation.
 
@@ -253,6 +263,31 @@ class BaseArticulation(AssetBase):
         nonidentity map for any actual permutation.
         """
         return getattr(self.data, "body_ordering", None)
+
+    def map_joint_ids_to_backend(self, joint_ids: Sequence[int]) -> Sequence[int]:
+        """Translate public joint indices to active-backend joint indices.
+
+        Backend solver views expose joint metadata and joint-indexed arrays in
+        :attr:`backend_joint_names` order, which can differ from the public
+        :attr:`joint_names` order selected by :attr:`joint_ordering`. Consumers
+        that pick joints with public indices (for example event terms) must
+        convert those indices before addressing backend arrays.
+
+        When :attr:`joint_ordering` is ``None`` or an identity permutation, the
+        public and backend orders coincide and :paramref:`joint_ids` is returned
+        unchanged without any per-index lookup.
+
+        Args:
+            joint_ids: Joint indices in public :attr:`joint_names` order.
+
+        Returns:
+            The same joint indices expressed in :attr:`backend_joint_names`
+            order, or :paramref:`joint_ids` unchanged when the orders coincide.
+        """
+        ordering = self.joint_ordering
+        if ordering is None or ordering.is_identity:
+            return joint_ids
+        return [ordering.user_to_backend_indices[joint_id] for joint_id in joint_ids]
 
     def map_body_ids_to_backend(self, body_ids: Sequence[int]) -> Sequence[int]:
         """Translate public body indices to active-backend body indices.

@@ -3,6 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Public articulation ordering name-map type and its validation.
+
+This module owns the public ordering surface: the
+:class:`ArticulationOrderingConvention` enum, the frozen
+:class:`ArticulationNameMap` bidirectional descriptor, and the helpers that
+parse conventions and build validated maps between backend and public order.
+Discovering a convention's concrete names lives in
+:mod:`isaaclab.assets.articulation.ordering_resolvers`, and device-side axis
+conversion lives in :mod:`isaaclab.assets.articulation.ordering_kernels`.
+"""
+
 from __future__ import annotations
 
 import operator

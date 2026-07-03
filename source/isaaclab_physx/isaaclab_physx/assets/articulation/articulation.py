@@ -106,6 +106,9 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "physx"
     """The name of the backend for the articulation."""
 
+    __backend_native_orderings__: tuple[str, ...] = ("physx",)
+    """PhysX tensor-view order already matches the ``"physx"`` convention."""
+
     actuators: dict
     """Dictionary of actuator instances for the articulation.
 

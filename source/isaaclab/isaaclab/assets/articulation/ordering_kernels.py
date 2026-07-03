@@ -5,18 +5,32 @@
 
 """Shared Warp kernels for articulation ordering conversions.
 
-Axis 0 is always the environment axis. An articulation item axis is described
-as public or backend order at each argument. Direct joint and body permutations
-are validated, read-only maps owned by ArticulationNameMap. Derived Jacobian
-maps and identity/no-order ``_ALL_*_INDICES`` buffers are articulation- or
-data-owned. These kernels treat every map as read-only. Component, spatial, and
-floating-base DoF axes are preserved unless a kernel explicitly states otherwise.
+Visibility contract:
+    The elementwise ``reorder_2d_*``/``reorder_3d_*`` kernels listed in
+    ``__all__`` are public: they gather a single item axis between public and
+    backend order and can legitimately be launched on raw solver-view arrays for
+    advanced interop. Every other symbol in this module -- the fused joint-target
+    and body-wrench kernels, the Jacobian/mass-matrix/generalized-vector
+    specials, the ``write_*`` kernels, and their dtype-suffixed overloads -- is
+    an internal contract between isaaclab core and the backend packages. Those
+    symbols are not user API and may change without deprecation; the backend
+    packages launch them by name, so they stay non-underscored despite being
+    internal.
 
-Index-based writers require unique environment and public-item selectors;
-duplicate selectors issue concurrent writes with undefined winners. Mask-based
-writers do not have that precondition. When has_ordering is false, fused writers
-update only the public buffer and permit that public buffer to alias the backend
-output.
+Axis conventions and ownership:
+    Axis 0 is always the environment axis. An articulation item axis is
+    described as public or backend order at each argument. Direct joint and body
+    permutations are validated, read-only maps owned by ArticulationNameMap.
+    Derived Jacobian maps and identity/no-order ``_ALL_*_INDICES`` buffers are
+    articulation- or data-owned. These kernels treat every map as read-only.
+    Component, spatial, and floating-base DoF axes are preserved unless a kernel
+    explicitly states otherwise.
+
+    Index-based writers require unique environment and public-item selectors;
+    duplicate selectors issue concurrent writes with undefined winners.
+    Mask-based writers do not have that precondition. When has_ordering is
+    false, fused writers update only the public buffer and permit that public
+    buffer to alias the backend output.
 """
 
 from __future__ import annotations
@@ -24,6 +38,13 @@ from __future__ import annotations
 from typing import Any
 
 import warp as wp
+
+__all__ = [
+    "reorder_2d_backend_to_user",
+    "reorder_2d_user_to_backend",
+    "reorder_3d_backend_to_user",
+    "reorder_3d_user_to_backend",
+]
 
 
 @wp.kernel

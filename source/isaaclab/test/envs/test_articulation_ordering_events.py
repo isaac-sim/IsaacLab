@@ -263,3 +263,55 @@ def test_map_body_ids_to_backend_agrees_with_backend_body_names_index():
     body_ids = [1, 2]
     expected = [backend_body_names.index(user_body_names[body_id]) for body_id in body_ids]
     assert asset.map_body_ids_to_backend(body_ids) == expected
+
+
+class _MapJointIdsSurface:
+    """Minimal surface exercising the real joint-id translation method."""
+
+    map_joint_ids_to_backend = BaseArticulation.map_joint_ids_to_backend
+
+    def __init__(self, joint_ordering):
+        self.joint_ordering = joint_ordering
+
+
+def test_map_joint_ids_to_backend_returns_input_unchanged_for_default_ordering():
+    """A ``None`` (default) joint ordering returns the input object unchanged."""
+    asset = _MapJointIdsSurface(None)
+    joint_ids = [2, 0, 1]
+    assert asset.map_joint_ids_to_backend(joint_ids) is joint_ids
+
+
+def test_map_joint_ids_to_backend_returns_input_unchanged_for_identity_ordering():
+    """An identity joint ordering also returns the input object unchanged."""
+    identity_ordering = SimpleNamespace(
+        user_to_backend_indices=(0, 1, 2),
+        backend_to_user_indices=(0, 1, 2),
+        is_identity=True,
+    )
+    asset = _MapJointIdsSurface(identity_ordering)
+    joint_ids = [2, 0, 1]
+    assert asset.map_joint_ids_to_backend(joint_ids) is joint_ids
+
+
+def test_map_joint_ids_to_backend_permutes_ids_for_nonidentity_ordering():
+    """A nonidentity joint ordering gathers public IDs into backend order."""
+    asset = _MapJointIdsSurface(_NONIDENTITY_BODY_ORDERING)
+    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
+    assert asset.map_joint_ids_to_backend([1, 2]) == [2, 1]
+
+
+def test_map_joint_ids_to_backend_agrees_with_backend_joint_names_index():
+    """The permutation matches translating via ``backend_joint_names.index``."""
+    backend_joint_names = ("jointA", "jointB", "jointC")
+    user_joint_names = ("jointA", "jointC", "jointB")
+    ordering = SimpleNamespace(
+        backend_names=backend_joint_names,
+        user_names=user_joint_names,
+        user_to_backend_indices=tuple(backend_joint_names.index(name) for name in user_joint_names),
+        backend_to_user_indices=tuple(user_joint_names.index(name) for name in backend_joint_names),
+        is_identity=False,
+    )
+    asset = _MapJointIdsSurface(ordering)
+    joint_ids = [1, 2]
+    expected = [backend_joint_names.index(user_joint_names[joint_id]) for joint_id in joint_ids]
+    assert asset.map_joint_ids_to_backend(joint_ids) == expected

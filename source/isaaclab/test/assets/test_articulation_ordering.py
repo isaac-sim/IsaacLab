@@ -466,11 +466,17 @@ def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, 
 
 def test_resolve_articulation_ordering_names_keeps_matching_backend_preset_identity() -> None:
     """Resolve same-backend symbolic presets without requiring traversal helpers."""
+
+    class _Articulation:
+        __backend_name__ = "physx"
+        __backend_native_orderings__ = ("physx",)
+
     user_names = _resolve_articulation_ordering_names(
         kind="body",
         backend_names=("base", "left_foot", "right_foot"),
         ordering=ArticulationOrderingConvention.PHYSX,
         active_backend_name="physx",
+        articulation=_Articulation(),
     )
 
     assert user_names == ("base", "left_foot", "right_foot")
@@ -484,6 +490,7 @@ def test_physx_ordering_helper_uses_same_backend_identity_without_discovery(
 
     class _Articulation:
         __backend_name__ = backend_name
+        __backend_native_orderings__ = ("physx",)
         backend_joint_names = ("shoulder", "elbow", "wrist")
         backend_body_names = ("base", "arm", "hand")
 
@@ -503,6 +510,7 @@ def test_mjwarp_ordering_helper_uses_newton_identity_without_discovery(monkeypat
 
     class _Articulation:
         __backend_name__ = "newton"
+        __backend_native_orderings__ = ("mjwarp",)
         backend_joint_names = ("knee", "hip", "ankle")
         backend_body_names = ("base", "thigh", "foot")
 
@@ -515,6 +523,48 @@ def test_mjwarp_ordering_helper_uses_newton_identity_without_discovery(monkeypat
     articulation = _Articulation()
     assert get_articulation_name_ordering(articulation, "mjwarp", kind="joint") == articulation.backend_joint_names
     assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == articulation.backend_body_names
+
+
+def test_backend_native_orderings_declaration_drives_identity_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A backend self-declares the conventions its native order satisfies.
+
+    The resolver keys the same-backend identity fast path off
+    ``__backend_native_orderings__`` rather than a hardcoded backend-name set,
+    so a fourth backend opts into a convention purely by declaring it.
+    """
+
+    class _Articulation:
+        __backend_name__ = "fourth_backend"
+        __backend_native_orderings__ = ("physx",)
+        _ordering_convention_name_cache: dict = {}
+        backend_joint_names = ("shoulder", "elbow")
+        backend_body_names = ("base", "arm")
+
+    monkeypatch.setattr(
+        ordering_resolvers,
+        "_get_physx_names_from_newton_usd_builder",
+        lambda _: pytest.fail("a declared native convention must not invoke the USD builder"),
+    )
+
+    articulation = _Articulation()
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == articulation.backend_joint_names
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == articulation.backend_body_names
+
+
+def test_undeclared_convention_bypasses_identity_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A convention absent from ``__backend_native_orderings__`` falls through to discovery."""
+
+    class _Articulation:
+        __backend_name__ = "fourth_backend"
+        __backend_native_orderings__ = ("physx",)
+        _ordering_convention_name_cache: dict = {}
+        backend_joint_names = ("shoulder", "elbow")
+        backend_body_names = ("base", "arm")
+
+    monkeypatch.setattr(ordering_resolvers, "_get_mjwarp_names_from_newton_usd_builder", lambda _: None)
+
+    with pytest.raises(NotImplementedError, match="Unable to resolve 'mjwarp'"):
+        get_articulation_name_ordering(_Articulation(), "mjwarp", kind="joint")
 
 
 @pytest.mark.parametrize(
