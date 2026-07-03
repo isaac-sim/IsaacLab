@@ -84,6 +84,7 @@ def run(argv: list[str]) -> None:
     """
     import contextlib
     import importlib.metadata as metadata
+    import os
     import time
 
     import gymnasium as gym

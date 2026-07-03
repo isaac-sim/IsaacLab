@@ -90,6 +90,7 @@ def run(argv: list[str]) -> None:
             after the dispatcher has stripped ``--rl_library``).
     """
     import contextlib
+    import os
 
     import gymnasium as gym
     from stable_baselines3 import PPO
