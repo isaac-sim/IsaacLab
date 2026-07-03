@@ -206,8 +206,21 @@ def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
     """Load a single episode. Each call opens its own h5py handle (thread-safe)."""
     with h5py.File(hdf5_path, "r") as f:
         ep = f["data"][ep_name]
-        actions = ep["actions"][:, :7]   # left arm only: EEF pose (0:6) + gripper (6)
-        states  = ep["states/articulation/robot/joint_position"][:, :7]  # left arm joints only
+        actions = ep["actions"][:, :7]   # left arm only: EEF pose (0:6) + gripper (6) --
+        # correct: record_demos_openarm.py's task-defined action layout is genuinely
+        # blocked (non-interleaved): [0:6]=left IK delta, [6]=left gripper, [7:13]=right
+        # IK delta, [13]=right gripper -- see that script's own docstring.
+        #
+        # States are a DIFFERENT layout and [:, :7] here was wrong: joint_position comes
+        # from the physics articulation's own native joint order, which for this dual-arm
+        # robot is INTERLEAVED (left_joint1, right_joint1, left_joint2, right_joint2, ...),
+        # confirmed directly against this exact HDF5 on 2026-07-03 (odd columns 1,3,5,7,9,
+        # 11,13 read ~0 all episode -- the untouched right arm -- while even columns 0,2,4,
+        # 6,8,10,12 show the actual left-arm motion). The old [:, :7] slice took columns
+        # [0,1,2,3,4,5,6] -- a mix of real left-arm values and near-zero right-arm values,
+        # mislabeled sequentially as left_joint_1..7 -- and never even included the true
+        # left_joint_7 (column 12, the episode's single largest motion at up to 1.37 rad).
+        states = ep["states/articulation/robot/joint_position"][:, 0:14:2]  # left arm joints only
         T = min(len(actions), len(states))
         if T == 0:
             return None
