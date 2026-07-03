@@ -25,6 +25,7 @@ from prettytable import PrettyTable
 from pxr import UsdPhysics
 
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
+from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 
@@ -106,6 +107,9 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "newton"
     """The name of the backend for the articulation."""
 
+    __backend_native_orderings__: tuple[str, ...] = ("mjwarp",)
+    """Newton articulation-view order already matches the ``"mjwarp"`` convention."""
+
     actuators: dict
     """Dictionary of actuator instances for the articulation.
 
@@ -168,26 +172,40 @@ class Articulation(BaseArticulation):
         return self.root_view.link_count
 
     @property
-    def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in the articulation.
+    def _backend_num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes for each backend-order body."""
+        if not hasattr(self, "_num_shapes_per_body_backend"):
+            self._num_shapes_per_body_backend = [len(shapes) for shapes in self._root_view.body_shapes]
+        return self._num_shapes_per_body_backend
 
-        This property returns a list where each element represents the number of collision
-        shapes for the corresponding body in the articulation. This is cached for efficient
-        access during material property randomization and other operations.
+    @property
+    def num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes per body in public body-name order.
+
+        Each element corresponds to the body at the same index in
+        :attr:`body_names`. Backend-order counts are cached; a nonidentity body
+        ordering returns those counts gathered into public order.
 
         Returns:
             List of integers representing the number of shapes per body.
         """
-        if not hasattr(self, "_num_shapes_per_body"):
-            self._num_shapes_per_body = []
-            for shapes in self._root_view.body_shapes:
-                self._num_shapes_per_body.append(len(shapes))
-        return self._num_shapes_per_body
+        backend_num_shapes_per_body = self._backend_num_shapes_per_body
+        if self.body_ordering is None or self.body_ordering.is_identity:
+            return backend_num_shapes_per_body
+        return [backend_num_shapes_per_body[backend_id] for backend_id in self.body_ordering.user_to_backend_indices]
 
     @property
-    def joint_names(self) -> list[str]:
-        """Ordered names of joints in articulation."""
-        return self.root_view.joint_dof_names
+    def backend_num_shapes_per_body(self) -> list[int]:
+        """Number of collision shapes per body in active backend solver-view order.
+
+        Each element corresponds to the body at the same index in
+        :attr:`backend_body_names`, matching the shape axis of the backend
+        solver arrays. Use :attr:`num_shapes_per_body` for public body order.
+
+        Returns:
+            List of integers representing the number of shapes per backend-order body.
+        """
+        return self._backend_num_shapes_per_body
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -200,8 +218,13 @@ class Articulation(BaseArticulation):
         return []
 
     @property
-    def body_names(self) -> list[str]:
-        """Ordered names of bodies in articulation."""
+    def backend_joint_names(self) -> list[str]:
+        """Ordered names of joints as exposed by the active backend."""
+        return self.root_view.joint_dof_names
+
+    @property
+    def backend_body_names(self) -> list[str]:
+        """Ordered names of bodies as exposed by the active backend."""
         return self.root_view.link_names
 
     @property
@@ -286,12 +309,14 @@ class Articulation(BaseArticulation):
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
             wp.launch(
-                shared_kernels.update_wrench_array_with_force_and_torque,
+                articulation_kernels.update_wrench_array_with_force_and_torque_ordered,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
-                    composer.out_force_b,
-                    composer.out_torque_b,
+                    composer.out_force_b.warp,
+                    composer.out_torque_b.warp,
+                    self._body_user_to_backend,
+                    self._has_body_ordering,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,
@@ -308,17 +333,82 @@ class Articulation(BaseArticulation):
             # the user's effort target across all DOFs here; the adapter step
             # will zero it at explicit DOFs and overwrite them with each
             # actuator's computed effort, while implicit DOFs keep the FF.
-            self.data._sim_bind_joint_position_target.assign(self._data._joint_pos_target)
-            self.data._sim_bind_joint_velocity_target.assign(self._data._joint_vel_target)
-            self.data._sim_bind_joint_act.assign(self._data._joint_effort_target)
-            self.data._sim_bind_joint_effort.assign(self._data._joint_effort_target)
+            if self._has_joint_ordering:
+                # Fuse the four per-buffer reorders into one gather; the effort
+                # source is read once and feeds both joint_act and joint_effort.
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._data._joint_effort_target,
+                        self._data._joint_pos_target,
+                        self._data._joint_vel_target,
+                        self._joint_backend_to_user,
+                        True,
+                        True,
+                        True,
+                        True,
+                    ],
+                    outputs=[
+                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_position_target,
+                        self.data._sim_bind_joint_velocity_target,
+                        self.data._sim_bind_joint_act,
+                    ],
+                    device=self.device,
+                )
+            else:
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_position_target, self._data._joint_pos_target
+                )
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_velocity_target, self._data._joint_vel_target
+                )
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_act, self._data._joint_effort_target
+                )
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_effort, self._data._joint_effort_target
+                )
         else:
             # Standard Lab actuator path
             self._apply_actuator_model()
-            self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
-            if self._has_implicit_actuators:
-                self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
-                self.data._sim_bind_joint_velocity_target.assign(self._joint_vel_target_sim)
+            if self._has_joint_ordering:
+                # Fuse the effort reorder with the optional target reorders. The
+                # last output aliases the effort buffer because write_joint_act
+                # is off, so it is never indexed.
+                wp.launch(
+                    ordering_kernels.reorder_joint_targets_user_to_backend,
+                    dim=(self.num_instances, self.num_joints),
+                    inputs=[
+                        self._joint_effort_target_sim,
+                        self._joint_pos_target_sim,
+                        self._joint_vel_target_sim,
+                        self._joint_backend_to_user,
+                        True,
+                        self._has_implicit_actuators,
+                        self._has_implicit_actuators,
+                        False,
+                    ],
+                    outputs=[
+                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_position_target,
+                        self.data._sim_bind_joint_velocity_target,
+                        self.data._sim_bind_joint_effort,
+                    ],
+                    device=self.device,
+                )
+            else:
+                self._assign_backend_ordered_joint_buffer(
+                    self.data._sim_bind_joint_effort, self._joint_effort_target_sim
+                )
+                if self._has_implicit_actuators:
+                    self._assign_backend_ordered_joint_buffer(
+                        self.data._sim_bind_joint_position_target, self._joint_pos_target_sim
+                    )
+                    self._assign_backend_ordered_joint_buffer(
+                        self.data._sim_bind_joint_velocity_target, self._joint_vel_target_sim
+                    )
 
     def update(self, dt: float):
         """Updates the simulation data.
@@ -608,7 +698,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
                 env_ids,
             ],
             outputs=[
@@ -658,7 +748,7 @@ class Articulation(BaseArticulation):
             dim=root_pose.shape[0],
             inputs=[
                 root_pose,
-                self.data.body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
                 env_mask,
             ],
             outputs=[
@@ -884,7 +974,7 @@ class Articulation(BaseArticulation):
             dim=env_ids.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_ids,
                 self.data._num_bodies,
@@ -939,7 +1029,7 @@ class Articulation(BaseArticulation):
             dim=root_velocity.shape[0],
             inputs=[
                 root_velocity,
-                self.data.body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
                 self.data.root_link_pose_w,
                 env_mask,
                 self.data._num_bodies,
@@ -989,20 +1079,31 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user
+            joint_vel_user = self.data._joint_vel_user
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
-            articulation_kernels.write_joint_state_data_index,
+            ordering_kernels.write_joint_state_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
                 velocity,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
             ],
             outputs=[
-                self.data.joint_pos,
-                self.data.joint_vel,
+                joint_pos_user,
+                joint_vel_user,
                 self.data._previous_joint_vel,
-                self.data.joint_acc,
+                self.data._joint_acc.data,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_vel,
             ],
             device=self.device,
         )
@@ -1044,20 +1145,30 @@ class Articulation(BaseArticulation):
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user
+            joint_vel_user = self.data._joint_vel_user
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
-            articulation_kernels.write_joint_state_data_mask,
+            ordering_kernels.write_joint_state_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[
                 position,
                 velocity,
                 env_mask,
                 joint_mask,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
-                self.data.joint_pos,
-                self.data.joint_vel,
+                joint_pos_user,
+                joint_vel_user,
                 self.data._previous_joint_vel,
-                self.data.joint_acc,
+                self.data._joint_acc.data,
+                self.data._sim_bind_joint_pos,
+                self.data._sim_bind_joint_vel,
             ],
             device=self.device,
         )
@@ -1098,16 +1209,24 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 position,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
             ],
             outputs=[
-                self.data.joint_pos,
+                joint_pos_user,
+                self.data._sim_bind_joint_pos,
             ],
             device=self.device,
         )
@@ -1146,16 +1265,23 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
+        if self._has_joint_ordering:
+            joint_pos_user = self.data._joint_pos_user
+        else:
+            joint_pos_user = self.data._sim_bind_joint_pos
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            ordering_kernels.write_float_user_to_backend_with_mask_array,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[
                 position,
                 env_mask,
                 joint_mask,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
-                self.data.joint_pos,
+                joint_pos_user,
+                self.data._sim_bind_joint_pos,
             ],
             device=self.device,
         )
@@ -1196,18 +1322,26 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
+        if self._has_joint_ordering:
+            joint_vel_user = self.data._joint_vel_user
+        else:
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
-            articulation_kernels.write_joint_vel_data_index,
+            ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 velocity,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
             ],
             outputs=[
-                self.data.joint_vel,
+                joint_vel_user,
                 self.data._previous_joint_vel,
-                self.data.joint_acc,
+                self.data._joint_acc.data,
+                self.data._sim_bind_joint_vel,
             ],
             device=self.device,
         )
@@ -1245,18 +1379,25 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
+        if self._has_joint_ordering:
+            joint_vel_user = self.data._joint_vel_user
+        else:
+            joint_vel_user = self.data._sim_bind_joint_vel
         wp.launch(
-            articulation_kernels.write_joint_vel_data_mask,
+            ordering_kernels.write_joint_vel_user_to_backend_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[
                 velocity,
                 env_mask,
                 joint_mask,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
-                self.data.joint_vel,
+                joint_vel_user,
                 self.data._previous_joint_vel,
-                self.data.joint_acc,
+                self.data._joint_acc.data,
+                self.data._sim_bind_joint_vel,
             ],
             device=self.device,
         )
@@ -1267,6 +1408,91 @@ class Articulation(BaseArticulation):
     """
     Operations - Simulation Parameters Writers.
     """
+
+    def _write_joint_float_property_to_sim_index(
+        self,
+        value: torch.Tensor | wp.array | float,
+        *,
+        value_name: str,
+        user_buffer: wp.array2d(dtype=wp.float32),
+        backend_buffer: wp.array2d(dtype=wp.float32),
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+    ) -> None:
+        """Write a user-order float joint property into public and backend buffers using indices."""
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        if self._has_joint_ordering:
+            user_data = user_buffer
+        else:
+            user_data = backend_buffer
+
+        if isinstance(value, float):
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_indices
+        else:
+            self.assert_shape_and_dtype(value, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, value_name)
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_indices_array
+        wp.launch(
+            write_kernel,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[
+                value,
+                env_ids,
+                joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
+            ],
+            outputs=[
+                user_data,
+                backend_buffer,
+            ],
+            device=self.device,
+        )
+
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+
+    def _write_joint_float_property_to_sim_mask(
+        self,
+        value: torch.Tensor | wp.array | float,
+        *,
+        value_name: str,
+        user_buffer: wp.array2d(dtype=wp.float32),
+        backend_buffer: wp.array2d(dtype=wp.float32),
+        joint_mask: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Write a user-order float joint property into public and backend buffers using masks."""
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
+        if self._has_joint_ordering:
+            user_data = user_buffer
+        else:
+            user_data = backend_buffer
+
+        if isinstance(value, float):
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_mask
+        else:
+            self.assert_shape_and_dtype_mask(value, (env_mask, joint_mask), wp.float32, value_name)
+            write_kernel = ordering_kernels.write_float_user_to_backend_with_mask_array
+        wp.launch(
+            write_kernel,
+            dim=(env_mask.shape[0], joint_mask.shape[0]),
+            inputs=[
+                value,
+                env_mask,
+                joint_mask,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+            ],
+            outputs=[
+                user_data,
+                backend_buffer,
+            ],
+            device=self.device,
+        )
+
+        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_stiffness_to_sim_index(
         self,
@@ -1289,41 +1515,14 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_stiffness,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype(stiffness, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "stiffness")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_stiffness,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_index(
+            stiffness,
+            value_name="stiffness",
+            user_buffer=self.data._joint_stiffness_user,
+            backend_buffer=self.data._sim_bind_joint_stiffness_sim,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1346,39 +1545,14 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        if isinstance(stiffness, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_stiffness,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype_mask(stiffness, (env_mask, joint_mask), wp.float32, "stiffness")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    stiffness,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_stiffness,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_mask(
+            stiffness,
+            value_name="stiffness",
+            user_buffer=self.data._joint_stiffness_user,
+            backend_buffer=self.data._sim_bind_joint_stiffness_sim,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
 
     def write_joint_damping_to_sim_index(
         self,
@@ -1401,42 +1575,14 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Note This function isn't setting the values for actuator models. (#128)
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_damping,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype(damping, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "damping")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    damping,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_damping,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_index(
+            damping,
+            value_name="damping",
+            user_buffer=self.data._joint_damping_user,
+            backend_buffer=self.data._sim_bind_joint_damping_sim,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1459,39 +1605,14 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        if isinstance(damping, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    damping,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_damping,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype_mask(damping, (env_mask, joint_mask), wp.float32, "damping")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    damping,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_damping,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_mask(
+            damping,
+            value_name="damping",
+            user_buffer=self.data._joint_damping_user,
+            backend_buffer=self.data._sim_bind_joint_damping_sim,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
 
     def write_actuator_stiffness_to_sim(
         self,
@@ -1555,7 +1676,10 @@ class Articulation(BaseArticulation):
         )
 
         env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
-        joint_ids_long = joint_ids.to(self.device, dtype=torch.long).unsqueeze(0)
+        joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
+        if self._has_joint_ordering:
+            joint_ids_backend = self._joint_user_to_backend_torch[joint_ids_backend]
+        joint_ids_backend = joint_ids_backend.unsqueeze(0)
 
         for act in adapter.actuators:
             ctrl = act.controller
@@ -1563,7 +1687,7 @@ class Articulation(BaseArticulation):
                 continue
             cur_wp = self._root_view.get_actuator_parameter(act, ctrl, attr)
             cur_torch = wp.to_torch(cur_wp)
-            cur_torch[env_ids_long, joint_ids_long] = values.to(cur_torch.device, dtype=cur_torch.dtype)
+            cur_torch[env_ids_long, joint_ids_backend] = values.to(cur_torch.device, dtype=cur_torch.dtype)
             self._root_view.set_actuator_parameter(
                 actuator=act,
                 component=ctrl,
@@ -1596,27 +1720,35 @@ class Articulation(BaseArticulation):
             warn_limit_violation: Whether to use warning or info level logging when default joint positions
                 exceed the new limits. Defaults to True.
         """
-        # Note This function isn't setting the values for actuator models. (#128)
-        # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-
         clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
+
+        _ = self.data.joint_pos_limits
+        if self._has_joint_ordering:
+            joint_pos_limits_lower_user = self.data._joint_pos_limits_lower_user
+            joint_pos_limits_upper_user = self.data._joint_pos_limits_upper_user
+        else:
+            joint_pos_limits_lower_user = self.data._sim_bind_joint_pos_limits_lower
+            joint_pos_limits_upper_user = self.data._sim_bind_joint_pos_limits_upper
         wp.launch(
-            articulation_kernels.write_joint_limit_data_to_buffer_index,
+            articulation_kernels.write_joint_limit_data_to_user_and_backend_index,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[
                 limits,
                 self.cfg.soft_joint_pos_limit_factor,
                 env_ids,
                 joint_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
+                joint_pos_limits_lower_user,
+                joint_pos_limits_upper_user,
+                self.data._joint_pos_limits,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1625,7 +1757,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Log a warning if the default joint positions are outside of the new limits.
+        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -1635,7 +1767,6 @@ class Articulation(BaseArticulation):
                 logger.warning(violation_message)
             else:
                 logger.info(violation_message)
-        # tell the physics engine that some of the joint properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
@@ -1668,16 +1799,29 @@ class Articulation(BaseArticulation):
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
+
+        _ = self.data.joint_pos_limits
+        if self._has_joint_ordering:
+            joint_pos_limits_lower_user = self.data._joint_pos_limits_lower_user
+            joint_pos_limits_upper_user = self.data._joint_pos_limits_upper_user
+        else:
+            joint_pos_limits_lower_user = self.data._sim_bind_joint_pos_limits_lower
+            joint_pos_limits_upper_user = self.data._sim_bind_joint_pos_limits_upper
         wp.launch(
-            articulation_kernels.write_joint_limit_data_to_buffer_mask,
+            articulation_kernels.write_joint_limit_data_to_user_and_backend_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[
                 limits,
                 self.cfg.soft_joint_pos_limit_factor,
                 env_mask,
                 joint_mask,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
             ],
             outputs=[
+                joint_pos_limits_lower_user,
+                joint_pos_limits_upper_user,
+                self.data._joint_pos_limits,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1686,7 +1830,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        # Log a warning if the default joint positions are outside of the new limits.
+        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -1696,7 +1840,6 @@ class Articulation(BaseArticulation):
                 logger.warning(violation_message)
             else:
                 logger.info(violation_message)
-        # tell the physics engine that some of the joint properties have been updated
         SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
@@ -1724,41 +1867,14 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        if isinstance(limits, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_vel_limits,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_vel_limits,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_index(
+            limits,
+            value_name="limits",
+            user_buffer=self.data._joint_vel_limits_user,
+            backend_buffer=self.data._sim_bind_joint_vel_limits_sim,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1785,39 +1901,14 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        if isinstance(limits, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    limits,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_vel_limits,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.float32, "limits")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    limits,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_vel_limits,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_mask(
+            limits,
+            value_name="limits",
+            user_buffer=self.data._joint_vel_limits_user,
+            backend_buffer=self.data._sim_bind_joint_vel_limits_sim,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1843,42 +1934,14 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # Note This function isn't setting the values for actuator models. (#128)
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        if isinstance(limits, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_effort_limits,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "limits")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    limits,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_effort_limits,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_index(
+            limits,
+            value_name="limits",
+            user_buffer=self.data._joint_effort_limits_user,
+            backend_buffer=self.data._sim_bind_joint_effort_limits_sim,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1904,39 +1967,14 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        if isinstance(limits, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    limits,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_effort_limits,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.float32, "limits")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    limits,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_effort_limits,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_mask(
+            limits,
+            value_name="limits",
+            user_buffer=self.data._joint_effort_limits_user,
+            backend_buffer=self.data._sim_bind_joint_effort_limits_sim,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
 
     def write_joint_armature_to_sim_index(
         self,
@@ -1962,41 +2000,14 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        if isinstance(armature, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    armature,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_armature,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype(armature, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "armature")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    armature,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_armature,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_index(
+            armature,
+            value_name="armature",
+            user_buffer=self.data._joint_armature_user,
+            backend_buffer=self.data._sim_bind_joint_armature,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -2022,40 +2033,14 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        # resolve masks
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        if isinstance(armature, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    armature,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_armature,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype_mask(armature, (env_mask, joint_mask), wp.float32, "armature")
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    armature,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_armature,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_mask(
+            armature,
+            value_name="armature",
+            user_buffer=self.data._joint_armature_user,
+            backend_buffer=self.data._sim_bind_joint_armature,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
@@ -2091,43 +2076,14 @@ class Articulation(BaseArticulation):
             joint_ids: Joint indices. If None, then all joints are used.
             env_ids: Environment indices. If None, then all indices are used.
         """
-        # resolve all indices
-        env_ids = self._resolve_env_ids(env_ids)
-        joint_ids = self._resolve_joint_ids(joint_ids)
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        if isinstance(joint_friction_coeff, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    joint_friction_coeff,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype(
-                joint_friction_coeff, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "joint_friction_coeff"
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices,
-                dim=(env_ids.shape[0], joint_ids.shape[0]),
-                inputs=[
-                    joint_friction_coeff,
-                    env_ids,
-                    joint_ids,
-                ],
-                outputs=[
-                    self.data.joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_index(
+            joint_friction_coeff,
+            value_name="joint_friction_coeff",
+            user_buffer=self.data._joint_friction_coeff_user,
+            backend_buffer=self.data._sim_bind_joint_friction_coeff,
+            joint_ids=joint_ids,
+            env_ids=env_ids,
+        )
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -2163,41 +2119,14 @@ class Articulation(BaseArticulation):
             joint_mask: Joint mask. If None, then all joints are used. Shape is (num_joints,).
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        if isinstance(joint_friction_coeff, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    joint_friction_coeff,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-        else:
-            self.assert_shape_and_dtype_mask(
-                joint_friction_coeff, (env_mask, joint_mask), wp.float32, "joint_friction_coeff"
-            )
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_mask,
-                dim=(env_mask.shape[0], joint_mask.shape[0]),
-                inputs=[
-                    joint_friction_coeff,
-                    env_mask,
-                    joint_mask,
-                ],
-                outputs=[
-                    self.data.joint_friction_coeff,
-                ],
-                device=self.device,
-            )
-        # tell the physics engine that some of the joint properties have been updated
-        SimulationManager.add_model_change(SolverNotifyFlags.JOINT_DOF_PROPERTIES)
+        self._write_joint_float_property_to_sim_mask(
+            joint_friction_coeff,
+            value_name="joint_friction_coeff",
+            user_buffer=self.data._joint_friction_coeff_user,
+            backend_buffer=self.data._sim_bind_joint_friction_coeff,
+            joint_mask=joint_mask,
+            env_mask=env_mask,
+        )
 
     """
     Operations - Newton Actuator Parameter Writers.
@@ -2248,15 +2177,19 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 masses,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
+                False,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._body_mass_user if self._has_body_ordering else self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
             ],
             device=self.device,
         )
@@ -2289,15 +2222,18 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_mask,
+            ordering_kernels.write_float_user_to_backend_with_mask_array,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 masses,
                 env_mask,
                 body_mask,
+                self._body_user_to_backend,
+                self._has_body_ordering,
             ],
             outputs=[
-                self.data.body_mass,
+                self.data._body_mass_user if self._has_body_ordering else self.data._sim_bind_body_mass,
+                self.data._sim_bind_body_mass,
             ],
             device=self.device,
         )
@@ -2337,15 +2273,19 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_index,
+            ordering_kernels.write_2d_user_to_backend_with_indices_vec3,
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[
                 coms,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
+                False,
             ],
             outputs=[
-                self.data.body_com_pos_b,
+                self.data._body_com_pos_b_user if self._has_body_ordering else self.data._sim_bind_body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
             ],
             device=self.device,
         )
@@ -2385,15 +2325,18 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
-            shared_kernels.write_body_com_position_to_buffer_mask,
+            ordering_kernels.write_2d_user_to_backend_with_mask_vec3,
             dim=(env_mask.shape[0], body_mask.shape[0]),
             inputs=[
                 coms,
                 env_mask,
                 body_mask,
+                self._body_user_to_backend,
+                self._has_body_ordering,
             ],
             outputs=[
-                self.data.body_com_pos_b,
+                self.data._body_com_pos_b_user if self._has_body_ordering else self.data._sim_bind_body_com_pos_b,
+                self.data._sim_bind_body_com_pos_b,
             ],
             device=self.device,
         )
@@ -2428,15 +2371,19 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_index,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
+            ordering_kernels.write_3d_user_to_backend_with_indices_float,
+            dim=(env_ids.shape[0], body_ids.shape[0], 9),
             inputs=[
                 inertias,
                 env_ids,
                 body_ids,
+                self._body_user_to_backend,
+                self._has_body_ordering,
+                False,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._body_inertia_user if self._has_body_ordering else self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
             ],
             device=self.device,
         )
@@ -2469,15 +2416,18 @@ class Articulation(BaseArticulation):
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
         wp.launch(
-            shared_kernels.write_body_inertia_to_buffer_mask,
-            dim=(env_mask.shape[0], body_mask.shape[0]),
+            ordering_kernels.write_3d_user_to_backend_with_mask_float,
+            dim=(env_mask.shape[0], body_mask.shape[0], 9),
             inputs=[
                 inertias,
                 env_mask,
                 body_mask,
+                self._body_user_to_backend,
+                self._has_body_ordering,
             ],
             outputs=[
-                self.data.body_inertia,
+                self.data._body_inertia_user if self._has_body_ordering else self.data._sim_bind_body_inertia,
+                self.data._sim_bind_body_inertia,
             ],
             device=self.device,
         )
@@ -3526,6 +3476,13 @@ class Articulation(BaseArticulation):
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
+        # Remove the post-step republish hook registered in ``_create_buffers`` so the
+        # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
+        # this articulation is gone (registered only for non-identity ordering).
+        post_step_callback = getattr(self, "_post_step_callback", None)
+        if post_step_callback is not None:
+            SimulationManager.unregister_post_step_callback(post_step_callback)
+            self._post_step_callback = None
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
@@ -3546,8 +3503,25 @@ class Articulation(BaseArticulation):
         self._permanent_wrench_composer = WrenchComposer(self)
 
         # asset named data
-        self.data.joint_names = self.joint_names
-        self.data.body_names = self.body_names
+        self._resolve_and_install_ordering_maps()
+        self._reset_and_cache_ordering_maps()
+        # Cache a torch ``long`` alias of the joint user-to-backend map so per-call actuator
+        # writes reuse it instead of re-wrapping and re-casting the Warp map every call.
+        self._joint_user_to_backend_torch = (
+            wp.to_torch(self._joint_user_to_backend).to(dtype=torch.long) if self._has_joint_ordering else None
+        )
+        # Republish the Tier-1 backend->user state shadows inside the stepped
+        # (and captured) region after the last solver substep. Registering only
+        # when ordering is non-identity keeps identity-ordering scenes at zero
+        # overhead (empty callback list). The reorders are then recorded into
+        # every captured graph, so passthrough state getters never replay stale.
+        # The registered bound method is stored so ``_clear_callbacks`` can
+        # deregister exactly it (a fresh ``self._data._refresh_user_order_state``
+        # access would compare equal, but storing the handle is unambiguous).
+        self._post_step_callback = None
+        if self._has_joint_ordering or self._has_body_ordering:
+            self._post_step_callback = self._data._refresh_user_order_state
+            SimulationManager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
@@ -3618,6 +3592,23 @@ class Articulation(BaseArticulation):
         # call parent
         super()._invalidate_initialize_callback(event)
         self._root_view = None
+
+    """
+    Internal helpers -- Ordering.
+    """
+
+    def _assign_backend_ordered_joint_buffer(self, backend_buffer: wp.array, user_buffer: wp.array) -> None:
+        """Assign a public-order joint buffer into a backend-order simulation buffer."""
+        if not self._has_joint_ordering:
+            backend_buffer.assign(user_buffer)
+            return
+        wp.launch(
+            ordering_kernels.reorder_2d_user_to_backend,
+            dim=(self.num_instances, self.num_joints),
+            inputs=[user_buffer, self._joint_backend_to_user],
+            outputs=[backend_buffer],
+            device=self.device,
+        )
 
     """
     Internal helpers -- Actuators.
@@ -3747,6 +3738,9 @@ class Articulation(BaseArticulation):
                     dof_offset=arti_start,
                     env_stride=adapter.num_joints,
                     device=self.device,
+                    joint_user_to_backend_indices=(
+                        self.joint_ordering.user_to_backend_indices if self._has_joint_ordering else None
+                    ),
                 )
             else:
                 self._data._sim_bind_joint_computed_effort = wp.zeros(
@@ -3760,8 +3754,8 @@ class Articulation(BaseArticulation):
                     actuator_kernels.sync_torque_telemetry,
                     dim=(self.num_instances, self.num_joints),
                     inputs=[
-                        self._data.joint_pos.warp,
-                        self._data.joint_vel.warp,
+                        self._data._sim_bind_joint_pos,
+                        self._data._sim_bind_joint_vel,
                         self._data._joint_pos_target,
                         self._data._joint_vel_target,
                         self._data.joint_stiffness.warp,
@@ -3770,6 +3764,8 @@ class Articulation(BaseArticulation):
                         self._implicit_dof_mask,
                         self._data._sim_bind_joint_effort,
                         self._data._sim_bind_joint_computed_effort,
+                        self._joint_user_to_backend,
+                        self._has_joint_ordering,
                     ],
                     outputs=[
                         self._data._computed_torque,
@@ -3890,6 +3886,12 @@ class Articulation(BaseArticulation):
         j_ids = actuator.joint_indices
         if j_ids == slice(None):
             j_ids = self._ALL_JOINT_INDICES
+        if self._has_joint_ordering:
+            joint_armature_user = self.data._joint_armature_user
+            joint_friction_coeff_user = self.data._joint_friction_coeff_user
+        else:
+            joint_armature_user = self.data._sim_bind_joint_armature
+            joint_friction_coeff_user = self.data._sim_bind_joint_friction_coeff
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(self.num_instances, j_ids.shape[0]),
@@ -3905,17 +3907,37 @@ class Articulation(BaseArticulation):
             device=self.device,
         )
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(self.num_instances, j_ids.shape[0]),
-            inputs=[actuator.armature, self._ALL_INDICES, j_ids],
-            outputs=[self.data._sim_bind_joint_armature],
+            inputs=[
+                actuator.armature,
+                self._ALL_INDICES,
+                j_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
+            ],
+            outputs=[
+                joint_armature_user,
+                self.data._sim_bind_joint_armature,
+            ],
             device=self.device,
         )
         wp.launch(
-            shared_kernels.write_2d_data_to_buffer_with_indices,
+            ordering_kernels.write_float_user_to_backend_with_indices_array,
             dim=(self.num_instances, j_ids.shape[0]),
-            inputs=[actuator.friction, self._ALL_INDICES, j_ids],
-            outputs=[self.data._sim_bind_joint_friction_coeff],
+            inputs=[
+                actuator.friction,
+                self._ALL_INDICES,
+                j_ids,
+                self._joint_user_to_backend,
+                self._has_joint_ordering,
+                False,
+            ],
+            outputs=[
+                joint_friction_coeff_user,
+                self.data._sim_bind_joint_friction_coeff,
+            ],
             device=self.device,
         )
 

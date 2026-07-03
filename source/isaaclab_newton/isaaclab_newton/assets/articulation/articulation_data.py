@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 import warp as wp
 
+from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
 from isaaclab.utils.buffers import reset_timestamps
@@ -131,9 +132,15 @@ class ArticulationData(BaseArticulationData):
         ``_fk_timestamp`` is set to ``-1.0`` to force a refresh on the next read of any
         property that depends on body poses (``body_link_pose_w``, the Jacobian properties,
         ``mass_matrix``).
+
+        This out-of-band FK path also republishes the user-order body-state shadows via
+        :meth:`_refresh_user_order_body_state`: the post-step callback only fires inside a
+        sim step, so a manual write followed by an FK refresh would otherwise leave the
+        passthrough ``body_link_pose_w`` / ``body_com_vel_w`` shadows stale.
         """
         if self._fk_timestamp < self._sim_timestamp:
             SimulationManager.forward()
+            self._refresh_user_order_body_state()
             self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(
@@ -215,10 +222,10 @@ class ArticulationData(BaseArticulationData):
     """
 
     body_names: list[str] = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public order (configured ordering when set, otherwise backend order)."""
 
     joint_names: list[str] = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public order (configured ordering when set, otherwise backend order)."""
 
     fixed_tendon_names: list[str] = None
     """Fixed tendon names in the order parsed by the simulation view."""
@@ -462,18 +469,26 @@ class ArticulationData(BaseArticulationData):
                 (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
             )
             self._joint_pos_limits_ta = ProxyArray(self._joint_pos_limits)
-        wp.launch(
-            articulation_kernels.concat_joint_pos_limits_lower_and_upper,
-            dim=(self._num_instances, self._num_joints),
-            inputs=[
-                self._sim_bind_joint_pos_limits_lower,
-                self._sim_bind_joint_pos_limits_upper,
-            ],
-            outputs=[
-                self._joint_pos_limits,
-            ],
-            device=self.device,
-        )
+        if self._joint_pos_limits_timestamp < self._sim_timestamp:
+            joint_pos_limits_lower = (
+                self._joint_pos_limits_lower_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_lower
+            )
+            joint_pos_limits_upper = (
+                self._joint_pos_limits_upper_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_upper
+            )
+            wp.launch(
+                articulation_kernels.concat_joint_pos_limits_lower_and_upper,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[
+                    joint_pos_limits_lower,
+                    joint_pos_limits_upper,
+                ],
+                outputs=[
+                    self._joint_pos_limits,
+                ],
+                device=self.device,
+            )
+            self._joint_pos_limits_timestamp = self._sim_timestamp
         return self._joint_pos_limits_ta
 
     @property
@@ -669,7 +684,7 @@ class ArticulationData(BaseArticulationData):
                 inputs=[
                     self.root_com_vel_w.warp,
                     self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
+                    self._sim_bind_body_com_pos_b,
                 ],
                 outputs=[
                     self._root_link_vel_w.data,
@@ -697,7 +712,7 @@ class ArticulationData(BaseArticulationData):
                 dim=self._num_instances,
                 inputs=[
                     self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
+                    self._sim_bind_body_com_pos_b,
                 ],
                 outputs=[
                     self._root_com_pose_w.data,
@@ -728,6 +743,9 @@ class ArticulationData(BaseArticulationData):
         """Body mass ``wp.float32`` in the world frame.
 
         Shape is (num_instances, num_bodies), dtype = wp.float32. In torch this resolves to (num_instances, num_bodies).
+
+        With body ordering active, direct writes to the Newton model arrays bypass the public-order
+        buffers; use the asset setters instead.
         """
         return self._body_mass_ta
 
@@ -835,21 +853,19 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
             wp.launch(
-                shared_kernels.derive_body_acceleration_from_body_com_velocities,
+                articulation_kernels.get_body_com_acc_from_body_com_vel_ordered,
                 dim=(self._num_instances, self._num_bodies),
                 device=self.device,
                 inputs=[
                     self._sim_bind_body_com_vel_w,
-                    SimulationManager.get_dt(),
                     self._previous_body_com_vel,
+                    self._body_user_to_backend,
+                    self._has_body_ordering,
+                    SimulationManager.get_dt(),
                 ],
-                outputs=[
-                    self._body_com_acc_w.data,
-                ],
+                outputs=[self._body_com_acc_w.data],
             )
-            # set the buffer data and timestamp
             self._body_com_acc_w.timestamp = self._sim_timestamp
-            # update the previous velocity
         return self._body_com_acc_w_ta
 
     @property
@@ -925,7 +941,12 @@ class ArticulationData(BaseArticulationData):
             inputs=[
                 self._jacobian_buf,
                 self._jacobian_view_art_ids,
+                self._jacobian_body_user_to_backend,
+                self._joint_user_to_backend,
                 self._jacobian_link_offset,
+                self._num_base_dofs,
+                self._has_body_ordering,
+                self._has_joint_ordering,
             ],
             outputs=[self._body_com_jacobian_w_buf],
             device=self.device,
@@ -950,7 +971,7 @@ class ArticulationData(BaseArticulationData):
             dim=self._body_link_jacobian_w_buf.shape[:2] + (self._body_link_jacobian_w_buf.shape[3],),
             inputs=[
                 link_pose_w,
-                self._sim_bind_body_com_pos_b,
+                self.body_com_pos_b.warp,
                 self._jacobian_link_offset,
                 com_jac.warp,
             ],
@@ -992,6 +1013,9 @@ class ArticulationData(BaseArticulationData):
             inputs=[
                 self._mass_matrix_full_buf,
                 self._jacobian_view_art_ids,
+                self._joint_user_to_backend,
+                self._num_base_dofs,
+                self._has_joint_ordering,
             ],
             outputs=[self._mass_matrix_buf],
             device=self.device,
@@ -1640,6 +1664,18 @@ class ArticulationData(BaseArticulationData):
         # On first init, _create_buffers() handles this after all buffers exist.
         if hasattr(self, "_root_link_pose_w_ta"):
             self._pin_proxy_arrays()
+            if self._has_joint_ordering:
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=(self._num_instances, self._num_joints),
+                    inputs=[self._sim_bind_joint_vel, self._joint_user_to_backend],
+                    outputs=[self._previous_joint_vel],
+                    device=self.device,
+                )
+            else:
+                self._previous_joint_vel.assign(self._sim_bind_joint_vel)
+            self._previous_body_com_vel.assign(self._sim_bind_body_com_vel_w)
+            reset_timestamps([self._joint_acc, self._body_com_acc_w])
 
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
@@ -1734,6 +1770,11 @@ class ArticulationData(BaseArticulationData):
         self._body_link_vel_w = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
         )
+        self._body_link_pose_w_user: wp.array | None = None
+        self._body_com_vel_w_user: wp.array | None = None
+        self._body_mass_user: wp.array | None = None
+        self._body_inertia_user: wp.array | None = None
+        self._body_com_pos_b_user: wp.array | None = None
         # -- com frame w.r.t. link frame
         self._body_com_pose_b = TimestampedBuffer(
             shape=(self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device
@@ -1759,6 +1800,20 @@ class ArticulationData(BaseArticulationData):
         self._joint_acc = TimestampedBuffer(
             shape=(self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
         )
+        self._joint_pos_user: wp.array | None = None
+        self._joint_vel_user: wp.array | None = None
+        self._joint_stiffness_user: wp.array | None = None
+        self._joint_damping_user: wp.array | None = None
+        self._joint_armature_user: wp.array | None = None
+        self._joint_friction_coeff_user: wp.array | None = None
+        self._joint_pos_limits_lower_user: wp.array | None = None
+        self._joint_pos_limits_upper_user: wp.array | None = None
+        self._joint_vel_limits_user: wp.array | None = None
+        self._joint_effort_limits_user: wp.array | None = None
+        self._has_joint_ordering = False
+        self._has_body_ordering = False
+        self._joint_user_to_backend: wp.array | None = None
+        self._body_user_to_backend: wp.array | None = None
         # -- dynamics quantities for task-space controllers
         self._create_jacobian_buffers(SimulationManager.get_model())
         # Empty memory pre-allocations
@@ -1833,6 +1888,8 @@ class ArticulationData(BaseArticulationData):
         # Free-root DoF columns Newton fills for floating-base (0 fixed-base, 6 floating-base);
         # included in the DoF axis to match the cross-library industry convention.
         num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        self._num_base_dofs = num_base_dofs
+        self._jacobian_body_user_to_backend: wp.array | None = None
         # Flattened (num_worlds*num_per_view,) view-to-model index map for the gather kernels.
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
 
@@ -1865,6 +1922,286 @@ class ArticulationData(BaseArticulationData):
             device=self.device,
         )
 
+    def _validate_joint_ordering_buffers(self) -> None:
+        """Validate buffers required while nonidentity joint ordering is active."""
+        required_fields = (
+            "_joint_user_to_backend",
+            "_joint_pos_user",
+            "_joint_vel_user",
+            "_joint_stiffness_user",
+            "_joint_damping_user",
+            "_joint_armature_user",
+            "_joint_friction_coeff_user",
+            "_joint_pos_limits_lower_user",
+            "_joint_pos_limits_upper_user",
+            "_joint_vel_limits_user",
+            "_joint_effort_limits_user",
+        )
+        missing_fields = [name for name in required_fields if getattr(self, name) is None]
+        if missing_fields:
+            raise RuntimeError(
+                "Newton nonidentity joint ordering requires initialized public-order buffers; "
+                f"missing {', '.join(missing_fields)}."
+            )
+
+    def _validate_body_ordering_buffers(self) -> None:
+        """Validate buffers required while nonidentity body ordering is active."""
+        required_fields = (
+            "_body_user_to_backend",
+            "_jacobian_body_user_to_backend",
+            "_body_link_pose_w_user",
+            "_body_com_vel_w_user",
+            "_body_mass_user",
+            "_body_inertia_user",
+            "_body_com_pos_b_user",
+        )
+        missing_fields = [name for name in required_fields if getattr(self, name) is None]
+        if missing_fields:
+            raise RuntimeError(
+                "Newton nonidentity body ordering requires initialized public-order buffers; "
+                f"missing {', '.join(missing_fields)}."
+            )
+
+    def _configure_joint_ordering_buffers(self) -> None:
+        """Allocate or release buffers owned only by nonidentity joint ordering."""
+        if self._has_joint_ordering:
+            shape = (self._num_instances, self._num_joints)
+            if self._joint_pos_user is None:
+                self._joint_pos_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
+            if self._joint_vel_user is None:
+                self._joint_vel_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
+            for field_name in (
+                "_joint_stiffness_user",
+                "_joint_damping_user",
+                "_joint_armature_user",
+                "_joint_friction_coeff_user",
+                "_joint_pos_limits_lower_user",
+                "_joint_pos_limits_upper_user",
+                "_joint_vel_limits_user",
+                "_joint_effort_limits_user",
+            ):
+                if getattr(self, field_name) is None:
+                    setattr(self, field_name, wp.zeros(shape, dtype=wp.float32, device=self.device))
+            self._validate_joint_ordering_buffers()
+            # Seed the Lab-owned actuator gain records from the solver's initial
+            # gains at ordering-resolve time, before actuator processing overwrites
+            # the actuator-covered DOFs. These records are Lab-owned afterwards
+            # (sim gains are deliberately zeroed for explicit DOFs), so they must
+            # never be resynced from the solver on rebind -- unlike the sim-owned
+            # mirrors in :meth:`_sync_user_ordered_joint_property_buffers`.
+            for backend_data, user_data in (
+                (self._sim_bind_joint_stiffness_sim, self._actuator_stiffness),
+                (self._sim_bind_joint_damping_sim, self._actuator_damping),
+            ):
+                wp.launch(
+                    ordering_kernels.reorder_2d_backend_to_user,
+                    dim=shape,
+                    inputs=[backend_data, self._joint_user_to_backend],
+                    outputs=[user_data],
+                    device=self.device,
+                )
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=shape,
+                inputs=[self._sim_bind_joint_vel, self._joint_user_to_backend],
+                outputs=[self._previous_joint_vel],
+                device=self.device,
+            )
+        else:
+            self._joint_pos_user = None
+            self._joint_vel_user = None
+            self._joint_stiffness_user = None
+            self._joint_damping_user = None
+            self._joint_armature_user = None
+            self._joint_friction_coeff_user = None
+            self._joint_pos_limits_lower_user = None
+            self._joint_pos_limits_upper_user = None
+            self._joint_vel_limits_user = None
+            self._joint_effort_limits_user = None
+            self._previous_joint_vel.assign(self._sim_bind_joint_vel)
+            self._actuator_stiffness.assign(self._sim_bind_joint_stiffness_sim)
+            self._actuator_damping.assign(self._sim_bind_joint_damping_sim)
+        self._joint_pos_limits_timestamp = -1.0
+        reset_timestamps([self._joint_acc])
+
+    def _configure_body_ordering_buffers(self) -> None:
+        """Allocate or release buffers owned only by nonidentity body ordering."""
+        if self._has_body_ordering:
+            shape = (self._num_instances, self._num_bodies)
+            if self._body_link_pose_w_user is None:
+                self._body_link_pose_w_user = wp.zeros(shape, dtype=wp.transformf, device=self.device)
+            if self._body_com_vel_w_user is None:
+                self._body_com_vel_w_user = wp.zeros(shape, dtype=wp.spatial_vectorf, device=self.device)
+            if self._body_mass_user is None:
+                self._body_mass_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
+            if self._body_inertia_user is None:
+                self._body_inertia_user = wp.zeros(
+                    (self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self.device
+                )
+            if self._body_com_pos_b_user is None:
+                self._body_com_pos_b_user = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
+            self._validate_body_ordering_buffers()
+        else:
+            self._body_link_pose_w_user = None
+            self._body_com_vel_w_user = None
+            self._body_mass_user = None
+            self._body_inertia_user = None
+            self._body_com_pos_b_user = None
+
+        reset_timestamps(
+            [
+                self._body_link_vel_w,
+                self._body_com_pose_b,
+                self._body_com_pose_w,
+                self._body_com_acc_w,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
+        )
+
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Configure and re-pin public buffers after ordering maps are installed."""
+        self._install_ordering_flags()
+        self._jacobian_body_user_to_backend = (
+            self._make_jacobian_body_user_to_backend(self.body_ordering) if self._has_body_ordering else None
+        )
+
+        self._configure_joint_ordering_buffers()
+        if self._has_joint_ordering:
+            self._sync_user_ordered_joint_property_buffers()
+        self._configure_body_ordering_buffers()
+        if self._has_body_ordering:
+            self._sync_user_ordered_body_property_buffers()
+        self._pin_proxy_arrays()
+
+    def _refresh_user_order_joint_state(self) -> None:
+        """Reorder the live backend joint state into the user-order shadows.
+
+        Launches :func:`ordering_kernels.reorder_2d_backend_to_user` for
+        ``_sim_bind_joint_pos`` -> ``_joint_pos_user`` and ``_sim_bind_joint_vel``
+        -> ``_joint_vel_user``. No-op under identity ordering (the shadows are the
+        sim-bound arrays themselves).
+        """
+        if not self._has_joint_ordering:
+            return
+        for backend_data, user_data in (
+            (self._sim_bind_joint_pos, self._joint_pos_user),
+            (self._sim_bind_joint_vel, self._joint_vel_user),
+        ):
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[backend_data, self._joint_user_to_backend],
+                outputs=[user_data],
+                device=self.device,
+            )
+
+    def _refresh_user_order_body_state(self) -> None:
+        """Reorder the live backend body state into the user-order shadows.
+
+        Launches :func:`ordering_kernels.reorder_2d_backend_to_user` for
+        ``_sim_bind_body_link_pose_w`` -> ``_body_link_pose_w_user`` and
+        ``_sim_bind_body_com_vel_w`` -> ``_body_com_vel_w_user``. No-op under
+        identity ordering (the shadows are the sim-bound arrays themselves).
+        """
+        if not self._has_body_ordering:
+            return
+        for backend_data, user_data in (
+            (self._sim_bind_body_link_pose_w, self._body_link_pose_w_user),
+            (self._sim_bind_body_com_vel_w, self._body_com_vel_w_user),
+        ):
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_bodies),
+                inputs=[backend_data, self._body_user_to_backend],
+                outputs=[user_data],
+                device=self.device,
+            )
+
+    def _refresh_user_order_state(self) -> None:
+        """Republish all Tier-1 user-order state shadows from live backend state.
+
+        Registered as a post-step callback (see
+        :meth:`isaaclab_newton.physics.NewtonManager.register_post_step_callback`)
+        so the reorder launches land inside the stepped/captured region right after
+        the last solver substep. With no Python freshness guard the launches are
+        recorded into every captured graph and replayed on each tick, so the
+        passthrough ``joint_pos`` / ``joint_vel`` / ``body_link_pose_w`` /
+        ``body_com_vel_w`` shadows behave exactly like sim-bound memory.
+        """
+        self._refresh_user_order_joint_state()
+        self._refresh_user_order_body_state()
+
+    def _sync_user_ordered_joint_property_buffers(self) -> None:
+        """Refresh user-order joint property buffers from sim-bound backend-order arrays.
+
+        Only sim-owned mirrors belong here: the solver is authoritative for these
+        arrays, so re-gathering them on init and rebind is always correct. This
+        includes the Tier-1 joint-state shadows (``_joint_pos_user`` /
+        ``_joint_vel_user``), which the solver owns. The Lab-owned actuator gain
+        records (``_actuator_stiffness`` / ``_actuator_damping``) are deliberately
+        excluded -- they are seeded once in :meth:`_configure_joint_ordering_buffers`
+        and would be clobbered here on every rebind.
+        """
+        self._validate_joint_ordering_buffers()
+        for backend_data, user_data in (
+            (self._sim_bind_joint_pos, self._joint_pos_user),
+            (self._sim_bind_joint_vel, self._joint_vel_user),
+            (self._sim_bind_joint_stiffness_sim, self._joint_stiffness_user),
+            (self._sim_bind_joint_damping_sim, self._joint_damping_user),
+            (self._sim_bind_joint_armature, self._joint_armature_user),
+            (self._sim_bind_joint_friction_coeff, self._joint_friction_coeff_user),
+            (self._sim_bind_joint_pos_limits_lower, self._joint_pos_limits_lower_user),
+            (self._sim_bind_joint_pos_limits_upper, self._joint_pos_limits_upper_user),
+            (self._sim_bind_joint_vel_limits_sim, self._joint_vel_limits_user),
+            (self._sim_bind_joint_effort_limits_sim, self._joint_effort_limits_user),
+        ):
+            wp.launch(
+                ordering_kernels.reorder_2d_backend_to_user,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[backend_data, self._joint_user_to_backend],
+                outputs=[user_data],
+                device=self.device,
+            )
+
+    def _sync_user_ordered_body_property_buffers(self) -> None:
+        """Refresh user-order body property buffers from sim-bound backend-order arrays.
+
+        Only sim-owned mirrors belong here; the solver is authoritative for all of
+        them. The Tier-1 body-state shadows (``_body_link_pose_w_user`` /
+        ``_body_com_vel_w_user``) are republished via
+        :meth:`_refresh_user_order_body_state`.
+
+        This sync also seeds the invariant the partial body-property setters rely
+        on: the user buffer must stay the public-order image of the sim-bound
+        backend buffer, since the setters scatter only the selected cells into
+        both. A divergent pair silently corrupts the unselected cells.
+        """
+        self._validate_body_ordering_buffers()
+        self._refresh_user_order_body_state()
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[self._sim_bind_body_mass, self._body_user_to_backend],
+            outputs=[self._body_mass_user],
+            device=self.device,
+        )
+        wp.launch(
+            ordering_kernels.reorder_3d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies, 9),
+            inputs=[self._sim_bind_body_inertia, self._body_user_to_backend],
+            outputs=[self._body_inertia_user],
+            device=self.device,
+        )
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[self._sim_bind_body_com_pos_b, self._body_user_to_backend],
+            outputs=[self._body_com_pos_b_user],
+            device=self.device,
+        )
+
     def _pin_proxy_arrays(self) -> None:
         """Create or rebind all pinned ProxyArray wrappers.
 
@@ -1872,27 +2209,65 @@ class ArticulationData(BaseArticulationData):
         :meth:`_create_simulation_bindings` after a full simulation reset when
         the solver recreates its internal arrays.
         """
+        if self._has_joint_ordering:
+            self._validate_joint_ordering_buffers()
+        if self._has_body_ordering:
+            self._validate_body_ordering_buffers()
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
+        if is_rebind and self._has_joint_ordering:
+            self._sync_user_ordered_joint_property_buffers()
+        if is_rebind and self._has_body_ordering:
+            self._sync_user_ordered_body_property_buffers()
+        if is_rebind:
+            self._joint_pos_limits_timestamp = -1.0
+
+        joint_stiffness = self._joint_stiffness_user if self._has_joint_ordering else self._sim_bind_joint_stiffness_sim
+        joint_damping = self._joint_damping_user if self._has_joint_ordering else self._sim_bind_joint_damping_sim
+        joint_armature = self._joint_armature_user if self._has_joint_ordering else self._sim_bind_joint_armature
+        joint_friction_coeff = (
+            self._joint_friction_coeff_user if self._has_joint_ordering else self._sim_bind_joint_friction_coeff
+        )
+        joint_pos_limits_lower = (
+            self._joint_pos_limits_lower_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_lower
+        )
+        joint_pos_limits_upper = (
+            self._joint_pos_limits_upper_user if self._has_joint_ordering else self._sim_bind_joint_pos_limits_upper
+        )
+        joint_vel_limits = (
+            self._joint_vel_limits_user if self._has_joint_ordering else self._sim_bind_joint_vel_limits_sim
+        )
+        joint_effort_limits = (
+            self._joint_effort_limits_user if self._has_joint_ordering else self._sim_bind_joint_effort_limits_sim
+        )
 
         if is_rebind:
             # Rebind sim-bound ProxyArrays to new solver arrays
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
-            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
-            self._joint_pos_ta = ProxyArray(self._sim_bind_joint_pos)
-            self._joint_vel_ta = ProxyArray(self._sim_bind_joint_vel)
-            self._joint_stiffness_ta = ProxyArray(self._sim_bind_joint_stiffness_sim)
-            self._joint_damping_ta = ProxyArray(self._sim_bind_joint_damping_sim)
-            self._joint_armature_ta = ProxyArray(self._sim_bind_joint_armature)
-            self._joint_friction_coeff_ta = ProxyArray(self._sim_bind_joint_friction_coeff)
-            self._joint_pos_limits_lower_ta = ProxyArray(self._sim_bind_joint_pos_limits_lower)
-            self._joint_pos_limits_upper_ta = ProxyArray(self._sim_bind_joint_pos_limits_upper)
-            self._joint_vel_limits_ta = ProxyArray(self._sim_bind_joint_vel_limits_sim)
-            self._joint_effort_limits_ta = ProxyArray(self._sim_bind_joint_effort_limits_sim)
-            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
-            self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
-            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
+            body_link_pose_w = (
+                self._body_link_pose_w_user if self._has_body_ordering else self._sim_bind_body_link_pose_w
+            )
+            body_com_vel_w = self._body_com_vel_w_user if self._has_body_ordering else self._sim_bind_body_com_vel_w
+            joint_pos = self._joint_pos_user if self._has_joint_ordering else self._sim_bind_joint_pos
+            joint_vel = self._joint_vel_user if self._has_joint_ordering else self._sim_bind_joint_vel
+            self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
+            self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
+            self._joint_pos_ta = ProxyArray(joint_pos)
+            self._joint_vel_ta = ProxyArray(joint_vel)
+            self._joint_stiffness_ta = ProxyArray(joint_stiffness)
+            self._joint_damping_ta = ProxyArray(joint_damping)
+            self._joint_armature_ta = ProxyArray(joint_armature)
+            self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
+            self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
+            self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
+            self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
+            body_mass = self._body_mass_user if self._has_body_ordering else self._sim_bind_body_mass
+            body_inertia = self._body_inertia_user if self._has_body_ordering else self._sim_bind_body_inertia
+            body_com_pos_b = self._body_com_pos_b_user if self._has_body_ordering else self._sim_bind_body_com_pos_b
+            self._body_mass_ta = ProxyArray(body_mass)
+            self._body_inertia_ta = ProxyArray(body_inertia)
+            self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
         else:
             # First-time creation: pin ProxyArrays to current buffers
             # Category 1: sim-bound and pre-allocated buffers
@@ -1900,10 +2275,16 @@ class ArticulationData(BaseArticulationData):
             # calls rebind() on each ProxyArray to keep them in sync.
             self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
             self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
-            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
-            self._joint_pos_ta = ProxyArray(self._sim_bind_joint_pos)
-            self._joint_vel_ta = ProxyArray(self._sim_bind_joint_vel)
+            body_link_pose_w = (
+                self._body_link_pose_w_user if self._has_body_ordering else self._sim_bind_body_link_pose_w
+            )
+            body_com_vel_w = self._body_com_vel_w_user if self._has_body_ordering else self._sim_bind_body_com_vel_w
+            joint_pos = self._joint_pos_user if self._has_joint_ordering else self._sim_bind_joint_pos
+            joint_vel = self._joint_vel_user if self._has_joint_ordering else self._sim_bind_joint_vel
+            self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
+            self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
+            self._joint_pos_ta = ProxyArray(joint_pos)
+            self._joint_vel_ta = ProxyArray(joint_vel)
             self._default_root_pose_ta = ProxyArray(self._default_root_pose)
             self._default_root_vel_ta = ProxyArray(self._default_root_vel)
             self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
@@ -1913,20 +2294,23 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_target_ta = ProxyArray(self._joint_effort_target)
             self._computed_torque_ta = ProxyArray(self._computed_torque)
             self._applied_torque_ta = ProxyArray(self._applied_torque)
-            self._joint_stiffness_ta = ProxyArray(self._sim_bind_joint_stiffness_sim)
-            self._joint_damping_ta = ProxyArray(self._sim_bind_joint_damping_sim)
-            self._joint_armature_ta = ProxyArray(self._sim_bind_joint_armature)
-            self._joint_friction_coeff_ta = ProxyArray(self._sim_bind_joint_friction_coeff)
-            self._joint_pos_limits_lower_ta = ProxyArray(self._sim_bind_joint_pos_limits_lower)
-            self._joint_pos_limits_upper_ta = ProxyArray(self._sim_bind_joint_pos_limits_upper)
-            self._joint_vel_limits_ta = ProxyArray(self._sim_bind_joint_vel_limits_sim)
-            self._joint_effort_limits_ta = ProxyArray(self._sim_bind_joint_effort_limits_sim)
+            self._joint_stiffness_ta = ProxyArray(joint_stiffness)
+            self._joint_damping_ta = ProxyArray(joint_damping)
+            self._joint_armature_ta = ProxyArray(joint_armature)
+            self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+            self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
+            self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
+            self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
+            self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
             self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
             self._gear_ratio_ta = ProxyArray(self._gear_ratio)
-            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
-            self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
-            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
+            body_mass = self._body_mass_user if self._has_body_ordering else self._sim_bind_body_mass
+            body_inertia = self._body_inertia_user if self._has_body_ordering else self._sim_bind_body_inertia
+            body_com_pos_b = self._body_com_pos_b_user if self._has_body_ordering else self._sim_bind_body_com_pos_b
+            self._body_mass_ta = ProxyArray(body_mass)
+            self._body_inertia_ta = ProxyArray(body_inertia)
+            self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
             self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
             self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
 
@@ -1998,6 +2382,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_quat_b = None
         self._joint_pos_limits_ta: ProxyArray | None = None
         self._joint_pos_limits = None
+        self._joint_pos_limits_timestamp = -1.0
         self._root_link_lin_vel_b_ta: ProxyArray | None = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b_ta: ProxyArray | None = None
