@@ -453,3 +453,40 @@ def test_default_material_base_cfg_matches_deprecated_leaf():
         )
 
     assert authored(old) == authored(new)
+
+
+# -------------------------------------------------------------------------------------
+# Compliant-contact USD spawner: material spawn must route through the shared dispatcher
+# -------------------------------------------------------------------------------------
+
+
+def test_compliant_contact_spawner_authors_material(tmp_path):
+    """The compliant-contact USD spawner authors its PhysX material via the shared dispatcher."""
+    import os
+
+    from pxr import Usd, UsdGeom, UsdPhysics
+
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_with_compliant_contact_material
+    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileWithCompliantContactCfg
+
+    usd_path = os.path.join(tmp_path, "asset.usda")
+    asset_stage = Usd.Stage.CreateNew(usd_path)
+    robot = UsdGeom.Xform.Define(asset_stage, "/Robot")
+    base = UsdGeom.Xform.Define(asset_stage, "/Robot/base").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(base)
+    asset_stage.SetDefaultPrim(robot.GetPrim())
+    asset_stage.Save()
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    cfg = UsdFileWithCompliantContactCfg(
+        usd_path=usd_path,
+        physics_material_prim_path="base",
+        compliant_contact_stiffness=1.0e5,
+        compliant_contact_damping=200.0,
+    )
+    spawn_from_usd_with_compliant_contact_material("/World/Compliant", cfg)
+    stage = sim_utils.get_current_stage()
+    mat = stage.GetPrimAtPath("/World/Compliant/base/compliant_material")
+    assert mat.IsValid()
+    assert mat.GetAttribute("physxMaterial:compliantContactStiffness").Get() == pytest.approx(1.0e5)
