@@ -69,12 +69,12 @@ class ArticulationCfg(AssetBaseCfg):
     The soft joint position limits are accessible through the :attr:`ArticulationData.soft_joint_pos_limits` attribute.
     """
 
-    joint_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    joint_ordering: tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public joint-name ordering convention or complete explicit permutation.
 
     Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
-    corresponding :class:`ArticulationOrderingConvention` members, or a list or
-    tuple containing every backend joint name exactly once.
+    corresponding :class:`ArticulationOrderingConvention` members, or a tuple
+    containing every backend joint name exactly once.
 
     ``None`` is the default: public joint order follows active backend solver-view
     order and no ordering map is installed. An order that resolves to backend
@@ -83,12 +83,12 @@ class ArticulationCfg(AssetBaseCfg):
     articulation initialization only, not each step.
     """
 
-    body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
+    body_ordering: tuple[str, ...] | str | ArticulationOrderingConvention | None = None
     """Public body-name ordering convention or complete explicit permutation.
 
     Accepts ``"physx"``, ``"mjwarp"``, and ``"robot_schema"`` aliases, the
-    corresponding :class:`ArticulationOrderingConvention` members, or a list or
-    tuple containing every backend body name exactly once.
+    corresponding :class:`ArticulationOrderingConvention` members, or a tuple
+    containing every backend body name exactly once.
 
     ``None`` is the default: public body order follows active backend solver-view
     order and no ordering map is installed. An order that resolves to backend

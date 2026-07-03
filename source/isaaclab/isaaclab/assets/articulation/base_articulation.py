@@ -349,14 +349,14 @@ class BaseArticulation(AssetBase):
         else:
             joint_user_names = _resolve_articulation_ordering_names(
                 kind="joint",
-                backend_names=self.backend_joint_names,
+                backend_names=tuple(self.backend_joint_names),
                 ordering=self.cfg.joint_ordering,
                 active_backend_name=self.__backend_name__,
                 articulation=self,
             )
             joint_ordering = build_articulation_name_map(
                 kind="joint",
-                backend_names=self.backend_joint_names,
+                backend_names=tuple(self.backend_joint_names),
                 user_names=joint_user_names,
                 device=self.device,
             )
@@ -374,7 +374,7 @@ class BaseArticulation(AssetBase):
             self.data.body_ordering = None
             self.data.body_names = list(self.backend_body_names)
         else:
-            backend_body_names = self.backend_body_names
+            backend_body_names = tuple(self.backend_body_names)
             body_user_names = _resolve_articulation_ordering_names(
                 kind="body",
                 backend_names=backend_body_names,

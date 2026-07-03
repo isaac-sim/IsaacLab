@@ -386,7 +386,7 @@ def test_build_articulation_name_map_rejects_scalar_name_sequences() -> None:
     ``backend_names`` and ``user_names`` share one coercion helper, so one representative field and
     value pin the rule and the offending type.
     """
-    with pytest.raises(TypeError, match=r"backend_names must be a list or tuple of strings; got str"):
+    with pytest.raises(TypeError, match=r"backend_names must be a tuple of strings; got str"):
         build_articulation_name_map(
             kind="joint",
             backend_names="joint_0",
@@ -419,8 +419,8 @@ def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None
 
 
 def test_resolve_articulation_ordering_names_rejects_generic_sequence() -> None:
-    """Reject explicit orderings that are not plain lists or tuples."""
-    with pytest.raises(TypeError, match=r"joint_ordering must be a list or tuple of strings; got UserList"):
+    """Reject explicit orderings that are not plain name tuples."""
+    with pytest.raises(TypeError, match=r"joint_ordering must be a name tuple, convention string/enum, or None"):
         _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0", "joint_1", "joint_2"),
@@ -435,7 +435,7 @@ def test_resolve_articulation_ordering_names_reports_non_string_element() -> Non
         _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0", "joint_1", "joint_2"),
-            ordering=["joint_1", 7],
+            ordering=("joint_1", 7),
             active_backend_name="physx",
         )
 
@@ -446,6 +446,7 @@ def test_resolve_articulation_ordering_names_reports_non_string_element() -> Non
     ("ordering", "type_name"),
     [
         (7, "int"),
+        (["joint_0", "joint_1", "joint_2"], "list"),
         (b"", "bytes"),
         (b"joint_0", "bytes"),
         (bytearray(), "bytearray"),
@@ -463,7 +464,7 @@ def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, 
         )
 
     assert str(exc_info.value) == (
-        f"joint_ordering must be a name sequence, convention string/enum, or None; got {type_name}."
+        f"joint_ordering must be a name tuple, convention string/enum, or None; got {type_name}."
     )
 
 
@@ -803,7 +804,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
     assert get_articulation_name_ordering(articulation, "robot_schema", kind="body") == ("base", "thigh", "foot")
     assert _resolve_articulation_ordering_names(
         kind="joint",
-        backend_names=articulation.backend_joint_names,
+        backend_names=tuple(articulation.backend_joint_names),
         ordering="robot_schema",
         active_backend_name=articulation.__backend_name__,
         articulation=articulation,

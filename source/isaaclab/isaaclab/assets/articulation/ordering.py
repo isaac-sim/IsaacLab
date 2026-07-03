@@ -28,26 +28,26 @@ if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
 
-def _validate_articulation_names(names: list[str] | tuple[str, ...], *, parameter_name: str) -> tuple[str, ...]:
-    """Return the names as a tuple after a hard list-or-tuple-of-str check."""
-    if type(names) not in (list, tuple):
-        raise TypeError(f"{parameter_name} must be a list or tuple of strings; got {type(names).__name__}.")
+def _validate_articulation_names(names: tuple[str, ...], *, parameter_name: str) -> tuple[str, ...]:
+    """Return the names unchanged after a hard tuple-of-str check."""
+    if type(names) is not tuple:
+        raise TypeError(f"{parameter_name} must be a tuple of strings; got {type(names).__name__}.")
     for index, name in enumerate(names):
         if type(name) is not str:
             raise TypeError(f"{parameter_name} element {index} must be str; got {name!r} ({type(name).__name__}).")
-    return tuple(names)
+    return names
 
 
-def _validate_articulation_indices(indices: list[int] | tuple[int, ...], *, parameter_name: str) -> tuple[int, ...]:
-    """Return the indices as a tuple after a hard list-or-tuple-of-int check."""
-    if type(indices) not in (list, tuple):
-        raise TypeError(f"{parameter_name} must be a list or tuple of integers; got {type(indices).__name__}.")
+def _validate_articulation_indices(indices: tuple[int, ...], *, parameter_name: str) -> tuple[int, ...]:
+    """Return the indices unchanged after a hard tuple-of-int check."""
+    if type(indices) is not tuple:
+        raise TypeError(f"{parameter_name} must be a tuple of integers; got {type(indices).__name__}.")
     for element_index, value in enumerate(indices):
         if type(value) is not int:
             raise TypeError(
                 f"{parameter_name} element {element_index} must be int; got {value!r} ({type(value).__name__})."
             )
-    return tuple(indices)
+    return indices
 
 
 class ArticulationOrderingConvention(str, Enum):
@@ -168,17 +168,10 @@ class ArticulationNameMap:
         if type(self.is_identity) is not bool:
             raise TypeError(f"ArticulationNameMap is_identity must be bool; got {type(self.is_identity).__name__}.")
 
-        for field_name, names in (("backend_names", self.backend_names), ("user_names", self.user_names)):
-            if type(names) is not tuple:
-                raise TypeError(f"ArticulationNameMap {field_name} must be a tuple; got {type(names).__name__}.")
-            _validate_articulation_names(names, parameter_name=field_name)
-        for field_name, indices in (
-            ("user_to_backend_indices", self.user_to_backend_indices),
-            ("backend_to_user_indices", self.backend_to_user_indices),
-        ):
-            if type(indices) is not tuple:
-                raise TypeError(f"ArticulationNameMap {field_name} must be a tuple; got {type(indices).__name__}.")
-            _validate_articulation_indices(indices, parameter_name=field_name)
+        _validate_articulation_names(self.backend_names, parameter_name="backend_names")
+        _validate_articulation_names(self.user_names, parameter_name="user_names")
+        _validate_articulation_indices(self.user_to_backend_indices, parameter_name="user_to_backend_indices")
+        _validate_articulation_indices(self.backend_to_user_indices, parameter_name="backend_to_user_indices")
 
         num_names = len(self.backend_names)
         if len(self.user_names) != num_names:
