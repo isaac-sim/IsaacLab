@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import abc
-import warnings
 from typing import TYPE_CHECKING
 
 import warp as wp
@@ -229,13 +228,22 @@ class BaseFrameView(abc.ABC):
         ...
 
     # ------------------------------------------------------------------
-    # Deprecated pose setters -- route through the writer scope.
+    # Convenience pose/scale setters -- route through the writer scope.
+    #
+    # These are kept as first-class convenience APIs (not deprecated).  Each
+    # call opens its own single-statement writer scope internally, so writing
+    # poses and scales through two separate calls performs the opposite-space
+    # recompute + synchronize twice.  For the best performance when updating
+    # both poses and scales together, open one writer scope and issue both
+    # writes inside it::
+    #
+    #     with view.xform_world_space_writer() as w:
+    #         w.set_poses(...)
+    #         w.set_scales(...)
+    #
+    # Prefer the writer scope in hot loops; prefer these helpers when code
+    # simplicity matters more than shaving a redundant derive/sync.
     # ------------------------------------------------------------------
-
-    _set_world_poses_deprecated_warned: bool = False
-    _set_local_poses_deprecated_warned: bool = False
-    _set_scales_deprecated_warned: bool = False
-    _get_scales_deprecated_warned: bool = False
 
     def set_world_poses(
         self,
@@ -245,23 +253,16 @@ class BaseFrameView(abc.ABC):
     ) -> None:
         """Set world-space positions and/or orientations for prims in the view.
 
-        .. deprecated::
-            Use ``with view.xform_world_space_writer() as w: w.set_poses(...)`` instead.
-            This method opens a single-statement writer scope internally.
+        This convenience method opens a single-statement writer scope
+        internally.  To update poses and scales together without paying the
+        opposite-space derive/sync twice, prefer
+        ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``.
 
         Args:
             positions: World-space positions ``(M, 3)``. ``None`` leaves positions unchanged.
             orientations: World-space quaternions ``(M, 4)``. ``None`` leaves orientations unchanged.
             indices: Subset of prims to update.  ``None`` means all prims.
         """
-        if not BaseFrameView._set_world_poses_deprecated_warned:
-            BaseFrameView._set_world_poses_deprecated_warned = True
-            warnings.warn(
-                "set_world_poses() is deprecated. Use 'with view.xform_world_space_writer() as w:"
-                " w.set_poses(...)' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         with self.xform_world_space_writer() as writer:
             writer.set_poses(positions, orientations, indices)
 
@@ -273,37 +274,31 @@ class BaseFrameView(abc.ABC):
     ) -> None:
         """Set local-space translations and/or orientations for prims in the view.
 
-        .. deprecated::
-            Use ``with view.xform_local_space_writer() as w: w.set_poses(...)`` instead.
-            This method opens a single-statement writer scope internally.
+        This convenience method opens a single-statement writer scope
+        internally.  To update poses and scales together without paying the
+        opposite-space derive/sync twice, prefer
+        ``with view.xform_local_space_writer() as w: w.set_poses(...); w.set_scales(...)``.
 
         Args:
             translations: Local-space translations ``(M, 3)``. ``None`` leaves translations unchanged.
             orientations: Local-space quaternions ``(M, 4)``. ``None`` leaves orientations unchanged.
             indices: Subset of prims to update.  ``None`` means all prims.
         """
-        if not BaseFrameView._set_local_poses_deprecated_warned:
-            BaseFrameView._set_local_poses_deprecated_warned = True
-            warnings.warn(
-                "set_local_poses() is deprecated. Use 'with view.xform_local_space_writer() as w:"
-                " w.set_poses(...)' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         with self.xform_local_space_writer() as writer:
             writer.set_poses(translations, orientations, indices)
 
     # ------------------------------------------------------------------
-    # Deprecated -- use writer scope or get_local_scales / get_world_scales.
+    # Scale getter/setter convenience helpers.
     # ------------------------------------------------------------------
 
     def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
         """Get scales for prims in the view.
 
-        .. deprecated::
-            Use :meth:`get_local_scales` or :meth:`get_world_scales` instead.
-            This method delegates to :meth:`_get_scales_impl` which preserves
-            each backend's legacy behavior.
+        .. note::
+            Prefer the explicit :meth:`get_local_scales` or
+            :meth:`get_world_scales` when the space matters.  This method
+            delegates to :meth:`_get_scales_impl`, which preserves each
+            backend's legacy space (world for Fabric, local for USD).
 
         Args:
             indices: Subset of prims to query.  ``None`` means all prims.
@@ -314,45 +309,31 @@ class BaseFrameView(abc.ABC):
         Raises:
             RuntimeError: If a writer scope is active on this view.
         """
-        if not BaseFrameView._get_scales_deprecated_warned:
-            BaseFrameView._get_scales_deprecated_warned = True
-            warnings.warn(
-                "get_scales() is deprecated. Use get_local_scales() or get_world_scales() instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         self._assert_no_active_writer("get_scales")
         return self._get_scales_impl(indices)
 
     def set_scales(self, scales: wp.array, indices: wp.array | None = None) -> None:
         """Set scales for prims in the view.
 
-        .. deprecated::
-            Use ``with view.xform_world_space_writer() as w: w.set_scales(...)`` (or
-            :meth:`xform_local_space_writer`) instead.  This method delegates to
-            :meth:`_set_scales_impl` which opens the backend's legacy space
-            (world for Fabric, local for USD) and calls ``writer.set_scales``.
+        This convenience method delegates to :meth:`_set_scales_impl`, which
+        opens the backend's legacy space (world for Fabric, local for USD) and
+        calls ``writer.set_scales``.  To update poses and scales together
+        without paying the opposite-space derive/sync twice, prefer
+        ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+        (or :meth:`xform_local_space_writer`).
 
         Args:
             scales: Scales ``(M, 3)`` as ``wp.array``.
             indices: Subset of prims to update.  ``None`` means all prims.
         """
-        if not BaseFrameView._set_scales_deprecated_warned:
-            BaseFrameView._set_scales_deprecated_warned = True
-            warnings.warn(
-                "set_scales() is deprecated. Use 'with view.xform_world_space_writer() as w:"
-                " w.set_scales(...)' (or xform_local_space_writer()) instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
         self._set_scales_impl(scales, indices)
 
     @abc.abstractmethod
     def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
-        """Backend-specific implementation for deprecated :meth:`get_scales`."""
+        """Backend-specific implementation for :meth:`get_scales`."""
         ...
 
     @abc.abstractmethod
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """Backend-specific implementation for deprecated :meth:`set_scales`."""
+        """Backend-specific implementation for :meth:`set_scales`."""
         ...

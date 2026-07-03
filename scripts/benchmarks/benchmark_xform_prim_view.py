@@ -138,6 +138,17 @@ def benchmark_frame_view(  # noqa: C901
 
     is_newton = api == "isaaclab-newton-site"
 
+    # Synchronize around timed regions using Warp directly (rather than torch),
+    # since all backend kernels here are Warp launches and ``wp.synchronize()``
+    # covers CPU/CUDA Warp devices consistently.  We only need it for GPU runs,
+    # where kernel launches are asynchronous; guard on device to avoid paying
+    # it needlessly on CPU.
+    _needs_sync = str(device).startswith("cuda")
+
+    def _sync() -> None:
+        if _needs_sync:
+            wp.synchronize()
+
     def to_torch(a):
         if isinstance(a, wp.array):
             return wp.to_torch(a)
@@ -151,13 +162,11 @@ def benchmark_frame_view(  # noqa: C901
         xform_view.get_world_scales()
 
         # -- get_world_poses -----------------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             positions, orientations = xform_view.get_world_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         positions_t = to_torch(positions)
@@ -178,14 +187,12 @@ def benchmark_frame_view(  # noqa: C901
             new_positions = positions_t.clone()
             new_positions[:, 2] += 0.1
 
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             with xform_view.xform_world_space_writer() as w:
                 w.set_poses(new_positions, orientations)
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["set_world_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         pa, oa = xform_view.get_world_poses()
@@ -193,13 +200,11 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["world_orientations_after_set"] = to_torch(oa).clone()
 
         # -- get_local_poses -----------------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             translations, orientations_local = xform_view.get_local_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         translations_t = to_torch(translations)
@@ -215,14 +220,12 @@ def benchmark_frame_view(  # noqa: C901
             new_translations = translations_t.clone()
             new_translations[:, 2] += 0.1
 
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             with xform_view.xform_local_space_writer() as w:
                 w.set_poses(new_translations, orientations_local)
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["set_local_poses"] = (time.perf_counter() - start_time) / num_iterations
 
         ta, ola = xform_view.get_local_poses()
@@ -230,13 +233,11 @@ def benchmark_frame_view(  # noqa: C901
         computed_results["local_orientations_after_set"] = to_torch(ola).clone()
 
         # -- get_world_scales ----------------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             world_scales = xform_view.get_world_scales()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_world_scales"] = (time.perf_counter() - start_time) / num_iterations
 
         world_scales_t = to_torch(world_scales)
@@ -250,26 +251,22 @@ def benchmark_frame_view(  # noqa: C901
             new_world_scales = world_scales_t.clone()
             new_world_scales[:] = 1.1
 
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             with xform_view.xform_world_space_writer() as w:
                 w.set_scales(new_world_scales)
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["set_world_scales"] = (time.perf_counter() - start_time) / num_iterations
 
         computed_results["world_scales_after_set"] = to_torch(xform_view.get_world_scales()).clone()
 
         # -- get_local_scales ----------------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             local_scales = xform_view.get_local_scales()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_local_scales"] = (time.perf_counter() - start_time) / num_iterations
 
         local_scales_t = to_torch(local_scales)
@@ -283,39 +280,33 @@ def benchmark_frame_view(  # noqa: C901
             new_local_scales = local_scales_t.clone()
             new_local_scales[:] = 0.9
 
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             with xform_view.xform_local_space_writer() as w:
                 w.set_scales(new_local_scales)
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["set_local_scales"] = (time.perf_counter() - start_time) / num_iterations
 
         computed_results["local_scales_after_set"] = to_torch(xform_view.get_local_scales()).clone()
 
         # -- get_both (world + local) --------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             xform_view.get_world_poses()
             xform_view.get_local_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["get_both"] = (time.perf_counter() - start_time) / num_iterations
 
         # -- interleaved set -> get ----------------------------------------
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         start_time = time.perf_counter()
         for _ in range(num_iterations):
             with xform_view.xform_world_space_writer() as w:
                 w.set_poses(new_positions, orientations)
             xform_view.get_world_poses()
-        if is_newton:
-            torch.cuda.synchronize()
+        _sync()
         timing_results["interleaved_world_set_get"] = (time.perf_counter() - start_time) / num_iterations
 
     finally:

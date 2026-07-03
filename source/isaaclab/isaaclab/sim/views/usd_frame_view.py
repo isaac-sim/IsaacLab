@@ -370,11 +370,11 @@ class UsdFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
-        """USD legacy: deprecated get_scales returns local scales."""
+        """USD legacy: get_scales returns local scales."""
         return self._get_local_scales_impl(indices)
 
     def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
-        """USD legacy: deprecated set_scales writes local scales via a one-shot writer scope."""
+        """USD legacy: set_scales writes local scales via a one-shot writer scope."""
         with self.xform_local_space_writer() as writer:
             writer.set_scales(scales, indices)
 

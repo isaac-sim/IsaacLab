@@ -55,7 +55,7 @@ class FabricFrameView(BaseFrameView):
     All writes go through the writer-scope API
     (:meth:`xform_world_space_writer` / :meth:`xform_local_space_writer`,
     recommended) or the
-    deprecated :meth:`set_world_poses` / :meth:`set_local_poses` / etc. shims
+    convenience :meth:`set_world_poses` / :meth:`set_local_poses` / etc. helpers
     inherited from :class:`BaseFrameView`.
 
     Behavior (Fabric path):
@@ -154,7 +154,7 @@ class FabricFrameView(BaseFrameView):
       indexed arrays rebuild automatically and no manual refresh is required.
 
     Pose getters return :class:`~isaaclab.utils.warp.ProxyArray`; the
-    deprecated :meth:`set_world_poses` / :meth:`set_local_poses` shims accept
+    convenience :meth:`set_world_poses` / :meth:`set_local_poses` helpers accept
     :class:`wp.array`.  Inside a writer scope, the writer's
     :meth:`~FrameViewSpaceWriterBase.set_poses` / :meth:`~FrameViewSpaceWriterBase.set_scales`
     accept :class:`wp.array`.
@@ -405,11 +405,11 @@ class FabricFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _get_scales_impl(self, indices=None) -> ProxyArray:
-        """Fabric: deprecated get_scales returns world-space scales (legacy behavior)."""
+        """Fabric: get_scales returns world-space scales (legacy behavior)."""
         return self._get_world_scales_impl(indices)
 
     def _set_scales_impl(self, scales, indices=None) -> None:
-        """Fabric: deprecated set_scales writes world-space scales via a one-shot writer scope."""
+        """Fabric: set_scales writes world-space scales via a one-shot writer scope."""
         with self.xform_world_space_writer() as writer:
             writer.set_scales(scales, indices)
 

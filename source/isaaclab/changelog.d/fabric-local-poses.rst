@@ -16,15 +16,16 @@ Added
   writing Fabric ``Matrix4d`` attributes (``omni:fabric:worldMatrix`` /
   ``omni:fabric:localMatrix``).
 
-Deprecated
-^^^^^^^^^^
+Notes
+^^^^^
 
-* Deprecated :meth:`~isaaclab.sim.views.BaseFrameView.get_scales` and
-  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales`.  For reads, use
-  the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
-  ``get_world_scales`` (composed world-space scale).  For writes, use
-  ``with view.xform_world_space_writer() as w: w.set_scales(...)`` (or
-  ``xform_local_space_writer``).  The deprecated methods still work but
-  emit a ``DeprecationWarning``;
+* :meth:`~isaaclab.sim.views.BaseFrameView.get_scales` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales` remain supported as
+  convenience helpers (not deprecated).  For reads where the space matters,
+  prefer the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
+  ``get_world_scales`` (composed world-space scale).  For writes that also
+  update poses, prefer batching inside one scope:
+  ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+  (or ``xform_local_space_writer``).
   :class:`~isaaclab.sim.views.UsdFrameView` preserves prior behavior by
-  defaulting to local scales.
+  defaulting :meth:`get_scales` / :meth:`set_scales` to local scales.

@@ -18,13 +18,18 @@ Added
   :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
   :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`.
 
-Deprecated
-^^^^^^^^^^
+Notes
+^^^^^
 
-* Deprecated :meth:`~isaaclab.sim.views.BaseFrameView.set_world_poses` and
-  :meth:`~isaaclab.sim.views.BaseFrameView.set_local_poses`.  Use
-  ``with view.xform_world_space_writer() as w: w.set_poses(...)`` (or
-  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`)
-  instead.  The deprecated methods still work but emit a one-time
-  ``DeprecationWarning`` per class and open a single-statement writer scope
-  internally.
+* :meth:`~isaaclab.sim.views.BaseFrameView.set_world_poses`,
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_local_poses`, and
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales` remain supported as
+  convenience helpers (not deprecated).  Each opens a single-statement writer
+  scope internally, so updating poses and scales through separate calls derives
+  the opposite-space matrices and synchronizes twice.  For best performance,
+  update both inside one scope:
+  ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+  (or :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`).
+  The bundled examples use the writer scope to get this benefit; callers may
+  keep the convenience helpers when code simplicity matters more than shaving
+  a redundant derive/sync.
