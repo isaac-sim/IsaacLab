@@ -52,7 +52,9 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python
 # Install test runner dependencies into the system Python
 RUN pip install --break-system-packages \
     pytest>=8.0 \
-    pytest-timeout>=2.0
+    "pytest-testmon>=2.2,<3" \
+    pytest-timeout>=2.0 \
+    "coverage>=7.6.1"
 
 # Install uv system-wide so non-root users can invoke it without PATH trickery
 RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/usr/local/bin sh
