@@ -1,0 +1,1 @@
+Tests only: refactored rendering test utils to use shared camera image helpers.

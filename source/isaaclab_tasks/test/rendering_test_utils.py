@@ -14,6 +14,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
 # Directory containing golden images.
@@ -246,24 +247,6 @@ def _physics_preset_name(physics_backend: str) -> str:
     return "newton_mjwarp" if physics_backend == "newton" else physics_backend
 
 
-def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
-    """Convert camera output tensor to [0, 1] float32 for conversion to image."""
-    normalized = tensor.float()
-
-    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-        max_val = normalized.max()
-        if max_val > 0:
-            normalized = normalized / max_val
-    elif data_type in {"albedo"}:
-        normalized = normalized[..., :3] / 255.0
-    elif data_type in {"normals"}:
-        normalized = (normalized + 1.0) * 0.5
-    else:
-        normalized = normalized / 255.0
-
-    return normalized
-
-
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
     """Save a PIL image under the comparison images directory."""
     path = os.path.join(_COMPARISON_IMAGES_DIR, _COMPARISON_IMAGE_SUBDIR, filename)
@@ -473,13 +456,6 @@ def make_require_ovlibs_install_fixture():
     return _require_ovlibs_install
 
 
-def _make_grid(images: torch.Tensor) -> torch.Tensor:
-    """Make a grid of images from a tensor of shape (B, H, W, C)."""
-    from torchvision.utils import make_grid
-
-    return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
-
-
 def _ssim(img1: torch.Tensor, img2: torch.Tensor, window_size: int = 11) -> float:
     """Compute mean SSIM between two (1, C, H, W) float tensors in [0, 1]."""
     c1 = 0.01**2
@@ -585,8 +561,8 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
 
-        normalized = _normalize_tensor(corrected, data_type)
-        grid = _make_grid(normalized)
+        normalized = normalize_camera_output_for_display(corrected, data_type)
+        grid = make_camera_output_grid(normalized)
         ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
         result_image = Image.fromarray(ndarr)
 
