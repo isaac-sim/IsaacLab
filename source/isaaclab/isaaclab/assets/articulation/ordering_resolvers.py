@@ -38,7 +38,11 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Literal
 
-from .ordering import ArticulationOrderingConvention, _coerce_articulation_names, parse_articulation_ordering_convention
+from .ordering import (
+    ArticulationOrderingConvention,
+    _validate_articulation_names,
+    parse_articulation_ordering_convention,
+)
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd
@@ -803,7 +807,7 @@ def _resolve_articulation_ordering_names(
             all supported convention metadata is absent or incomplete.
     """
     kind = _validate_ordering_kind(kind)
-    backend_names = _coerce_articulation_names(backend_names, parameter_name="backend_names")
+    backend_names = _validate_articulation_names(backend_names, parameter_name="backend_names")
     if ordering is None:
         return backend_names
     if isinstance(ordering, ArticulationOrderingConvention):
@@ -811,7 +815,7 @@ def _resolve_articulation_ordering_names(
     elif isinstance(ordering, str):
         convention = parse_articulation_ordering_convention(ordering)
     elif isinstance(ordering, Sequence) and not isinstance(ordering, bytes | bytearray):
-        return _coerce_articulation_names(ordering, parameter_name=f"{kind}_ordering")
+        return _validate_articulation_names(ordering, parameter_name=f"{kind}_ordering")
     else:
         raise TypeError(
             f"{kind}_ordering must be a name sequence, convention string/enum, or None; got {type(ordering).__name__}."

@@ -16,7 +16,6 @@ conversion lives in :mod:`isaaclab.assets.articulation.ordering_kernels`.
 
 from __future__ import annotations
 
-import operator
 from collections.abc import Sequence
 from dataclasses import InitVar, dataclass
 from enum import Enum
@@ -29,40 +28,26 @@ if TYPE_CHECKING:
     from .articulation_cfg import ArticulationCfg
 
 
-def _coerce_articulation_names(names: object, *, parameter_name: str) -> tuple[str, ...]:
-    """Return a validated articulation name sequence."""
-    if isinstance(names, str | bytes | bytearray):
-        raise TypeError(f"{parameter_name} must be a sequence of strings; got {type(names).__name__}.")
-    try:
-        name_tuple = tuple(names)
-    except TypeError as exc:
-        raise TypeError(f"{parameter_name} must be a sequence of strings; got {type(names).__name__}.") from exc
-    for index, name in enumerate(name_tuple):
-        if not isinstance(name, str):
+def _validate_articulation_names(names: list[str] | tuple[str, ...], *, parameter_name: str) -> tuple[str, ...]:
+    """Return the names as a tuple after a hard list-or-tuple-of-str check."""
+    if type(names) not in (list, tuple):
+        raise TypeError(f"{parameter_name} must be a list or tuple of strings; got {type(names).__name__}.")
+    for index, name in enumerate(names):
+        if type(name) is not str:
             raise TypeError(f"{parameter_name} element {index} must be str; got {name!r} ({type(name).__name__}).")
-    return name_tuple
+    return tuple(names)
 
 
-def _coerce_articulation_indices(indices: object, *, parameter_name: str) -> tuple[int, ...]:
-    """Return a validated integer index sequence."""
-    if isinstance(indices, str | bytes | bytearray):
-        raise TypeError(f"{parameter_name} must be a sequence of integers; got {type(indices).__name__}.")
-    try:
-        index_tuple = tuple(indices)
-    except TypeError as exc:
-        raise TypeError(f"{parameter_name} must be a sequence of integers; got {type(indices).__name__}.") from exc
-
-    normalized_indices = []
-    for element_index, value in enumerate(index_tuple):
-        if isinstance(value, bool):
-            raise TypeError(f"{parameter_name} element {element_index} must be an integer; got {value!r} (bool).")
-        try:
-            normalized_indices.append(operator.index(value))
-        except TypeError as exc:
+def _validate_articulation_indices(indices: list[int] | tuple[int, ...], *, parameter_name: str) -> tuple[int, ...]:
+    """Return the indices as a tuple after a hard list-or-tuple-of-int check."""
+    if type(indices) not in (list, tuple):
+        raise TypeError(f"{parameter_name} must be a list or tuple of integers; got {type(indices).__name__}.")
+    for element_index, value in enumerate(indices):
+        if type(value) is not int:
             raise TypeError(
-                f"{parameter_name} element {element_index} must be an integer; got {value!r} ({type(value).__name__})."
-            ) from exc
-    return tuple(normalized_indices)
+                f"{parameter_name} element {element_index} must be int; got {value!r} ({type(value).__name__})."
+            )
+    return tuple(indices)
 
 
 class ArticulationOrderingConvention(str, Enum):
@@ -173,26 +158,27 @@ class ArticulationNameMap:
             self._validate()
 
     def _validate(self) -> None:
-        """Coerce name/index fields and enforce all CPU and device map invariants."""
+        """Enforce exact field types and all CPU and device map invariants.
+
+        Fields are required to already hold the annotated types; nothing is
+        coerced or reassigned. Directly constructed maps must pass tuples.
+        """
         if self.kind not in {"joint", "body"}:
             raise ValueError(f"ArticulationNameMap kind must be 'joint' or 'body'. Got {self.kind!r}.")
         if type(self.is_identity) is not bool:
             raise TypeError(f"ArticulationNameMap is_identity must be bool; got {type(self.is_identity).__name__}.")
 
-        object.__setattr__(
-            self, "backend_names", _coerce_articulation_names(self.backend_names, parameter_name="backend_names")
-        )
-        object.__setattr__(self, "user_names", _coerce_articulation_names(self.user_names, parameter_name="user_names"))
-        object.__setattr__(
-            self,
-            "user_to_backend_indices",
-            _coerce_articulation_indices(self.user_to_backend_indices, parameter_name="user_to_backend_indices"),
-        )
-        object.__setattr__(
-            self,
-            "backend_to_user_indices",
-            _coerce_articulation_indices(self.backend_to_user_indices, parameter_name="backend_to_user_indices"),
-        )
+        for field_name, names in (("backend_names", self.backend_names), ("user_names", self.user_names)):
+            if type(names) is not tuple:
+                raise TypeError(f"ArticulationNameMap {field_name} must be a tuple; got {type(names).__name__}.")
+            _validate_articulation_names(names, parameter_name=field_name)
+        for field_name, indices in (
+            ("user_to_backend_indices", self.user_to_backend_indices),
+            ("backend_to_user_indices", self.backend_to_user_indices),
+        ):
+            if type(indices) is not tuple:
+                raise TypeError(f"ArticulationNameMap {field_name} must be a tuple; got {type(indices).__name__}.")
+            _validate_articulation_indices(indices, parameter_name=field_name)
 
         num_names = len(self.backend_names)
         if len(self.user_names) != num_names:
@@ -339,9 +325,9 @@ def build_articulation_name_map(
             of :paramref:`backend_names`, or a name-map invariant is violated.
         TypeError: If either name input is not a sequence of strings.
     """
-    backend_names = _coerce_articulation_names(backend_names, parameter_name="backend_names")
+    backend_names = _validate_articulation_names(backend_names, parameter_name="backend_names")
     user_names = (
-        backend_names if user_names is None else _coerce_articulation_names(user_names, parameter_name="user_names")
+        backend_names if user_names is None else _validate_articulation_names(user_names, parameter_name="user_names")
     )
 
     if len(set(backend_names)) != len(backend_names):

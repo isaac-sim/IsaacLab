@@ -355,19 +355,23 @@ def test_articulation_name_map_direct_constructor_rejects_non_integer_indices(in
 
 
 @pytest.mark.parametrize("index_type", [int, np.int64])
-def test_articulation_name_map_direct_constructor_accepts_integral_indices(index_type) -> None:
-    """Accept Python and NumPy integral indices and normalize them to int."""
+def test_articulation_name_map_direct_constructor_requires_exact_int_indices(index_type) -> None:
+    """Accept built-in int indices and reject other integral types without coercion."""
     indices = tuple(index_type(index) for index in range(3))
 
-    name_map = _make_identity_articulation_name_map(
-        user_to_backend_indices=indices,
-        backend_to_user_indices=indices,
-    )
-
-    assert name_map.user_to_backend_indices == (0, 1, 2)
-    assert name_map.backend_to_user_indices == (0, 1, 2)
-    assert all(type(index) is int for index in name_map.user_to_backend_indices)
-    assert all(type(index) is int for index in name_map.backend_to_user_indices)
+    if index_type is int:
+        name_map = _make_identity_articulation_name_map(
+            user_to_backend_indices=indices,
+            backend_to_user_indices=indices,
+        )
+        assert name_map.user_to_backend_indices == (0, 1, 2)
+        assert name_map.backend_to_user_indices == (0, 1, 2)
+    else:
+        with pytest.raises(TypeError, match=r"user_to_backend_indices element 0 must be int"):
+            _make_identity_articulation_name_map(
+                user_to_backend_indices=indices,
+                backend_to_user_indices=indices,
+            )
 
 
 def test_articulation_name_map_direct_constructor_rejects_non_bool_identity() -> None:
@@ -382,7 +386,7 @@ def test_build_articulation_name_map_rejects_scalar_name_sequences() -> None:
     ``backend_names`` and ``user_names`` share one coercion helper, so one representative field and
     value pin the rule and the offending type.
     """
-    with pytest.raises(TypeError, match=r"backend_names must be a sequence of strings; got str"):
+    with pytest.raises(TypeError, match=r"backend_names must be a list or tuple of strings; got str"):
         build_articulation_name_map(
             kind="joint",
             backend_names="joint_0",
@@ -414,16 +418,15 @@ def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None
     assert user_names == ("joint_2", "joint_0", "joint_1")
 
 
-def test_resolve_articulation_ordering_names_accepts_generic_sequence() -> None:
-    """Resolve explicit public ordering names from a generic sequence."""
-    user_names = _resolve_articulation_ordering_names(
-        kind="joint",
-        backend_names=("joint_0", "joint_1", "joint_2"),
-        ordering=UserList(["joint_2", "joint_0", "joint_1"]),
-        active_backend_name="physx",
-    )
-
-    assert user_names == ("joint_2", "joint_0", "joint_1")
+def test_resolve_articulation_ordering_names_rejects_generic_sequence() -> None:
+    """Reject explicit orderings that are not plain lists or tuples."""
+    with pytest.raises(TypeError, match=r"joint_ordering must be a list or tuple of strings; got UserList"):
+        _resolve_articulation_ordering_names(
+            kind="joint",
+            backend_names=("joint_0", "joint_1", "joint_2"),
+            ordering=UserList(["joint_2", "joint_0", "joint_1"]),
+            active_backend_name="physx",
+        )
 
 
 def test_resolve_articulation_ordering_names_reports_non_string_element() -> None:
@@ -432,7 +435,7 @@ def test_resolve_articulation_ordering_names_reports_non_string_element() -> Non
         _resolve_articulation_ordering_names(
             kind="joint",
             backend_names=("joint_0", "joint_1", "joint_2"),
-            ordering=UserList(["joint_1", 7]),
+            ordering=["joint_1", 7],
             active_backend_name="physx",
         )
 
