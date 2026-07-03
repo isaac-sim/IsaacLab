@@ -77,9 +77,10 @@ class ArticulationCfg(AssetBaseCfg):
     tuple containing every backend joint name exactly once.
 
     ``None`` is the default: public joint order follows active backend solver-view
-    order and no ordering map is installed. An explicit order that matches backend
-    order installs a non-``None`` identity map. Symbolic resolution and map
-    construction occur during articulation initialization only, not each step.
+    order and no ordering map is installed. An order that resolves to backend
+    order is normalized to ``None`` as well, so an installed map always denotes
+    an actual permutation. Symbolic resolution and map construction occur during
+    articulation initialization only, not each step.
     """
 
     body_ordering: list[str] | tuple[str, ...] | str | ArticulationOrderingConvention | None = None
@@ -90,9 +91,10 @@ class ArticulationCfg(AssetBaseCfg):
     tuple containing every backend body name exactly once.
 
     ``None`` is the default: public body order follows active backend solver-view
-    order and no ordering map is installed. An explicit order that matches backend
-    order installs a non-``None`` identity map. Symbolic resolution and map
-    construction occur during articulation initialization only, not each step.
+    order and no ordering map is installed. An order that resolves to backend
+    order is normalized to ``None`` as well, so an installed map always denotes
+    an actual permutation. Symbolic resolution and map construction occur during
+    articulation initialization only, not each step.
 
     For fixed-base articulations, the backend root body must remain at public index
     zero; all remaining bodies may be permuted. Floating-base orders may relocate

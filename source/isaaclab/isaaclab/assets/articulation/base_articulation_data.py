@@ -118,28 +118,30 @@ class BaseArticulationData(ABC):
     joint_ordering: ArticulationNameMap | None = None
     """Bidirectional map between backend and public joint order.
 
-    This is ``None`` for default ordering, a non-``None`` identity map for an
-    explicit identity order, and a nonidentity map for an actual permutation.
+    This is ``None`` whenever public and backend orders coincide (default
+    ordering, or a configured ordering that resolved to backend order); a
+    non-``None`` map always denotes an actual permutation.
     """
 
     body_ordering: ArticulationNameMap | None = None
     """Bidirectional map between backend and public body order.
 
-    This is ``None`` for default ordering, a non-``None`` identity map for an
-    explicit identity order, and a nonidentity map for an actual permutation.
+    This is ``None`` whenever public and backend orders coincide (default
+    ordering, or a configured ordering that resolved to backend order); a
+    non-``None`` map always denotes an actual permutation.
     """
 
     _has_joint_ordering: bool = False
-    """Canonical flag for an active nonidentity joint ordering; set by :meth:`_install_ordering_flags`."""
+    """Canonical flag for an active joint ordering; set by :meth:`_install_ordering_flags`."""
 
     _has_body_ordering: bool = False
-    """Canonical flag for an active nonidentity body ordering; set by :meth:`_install_ordering_flags`."""
+    """Canonical flag for an active body ordering; set by :meth:`_install_ordering_flags`."""
 
     _joint_user_to_backend: wp.array | None = None
-    """Device joint public-to-backend permutation, or ``None`` under default or identity ordering."""
+    """Device joint public-to-backend permutation, or ``None`` when no ordering is active."""
 
     _body_user_to_backend: wp.array | None = None
-    """Device body public-to-backend permutation, or ``None`` under default or identity ordering."""
+    """Device body public-to-backend permutation, or ``None`` when no ordering is active."""
 
     fixed_tendon_names: list[str] | None = None
     """Fixed tendon names in active backend solver-view order."""
@@ -174,11 +176,13 @@ class BaseArticulationData(ABC):
         """
         had_joint_ordering = self._has_joint_ordering
         had_body_ordering = self._has_body_ordering
+        # Installed maps are normalized by the asset: identity orderings become
+        # ``None``, so presence alone decides whether reordering is active.
         joint_ordering = self.joint_ordering
-        self._has_joint_ordering = joint_ordering is not None and not joint_ordering.is_identity
+        self._has_joint_ordering = joint_ordering is not None
         self._joint_user_to_backend = joint_ordering.user_to_backend if self._has_joint_ordering else None
         body_ordering = self.body_ordering
-        self._has_body_ordering = body_ordering is not None and not body_ordering.is_identity
+        self._has_body_ordering = body_ordering is not None
         self._body_user_to_backend = body_ordering.user_to_backend if self._has_body_ordering else None
         return had_joint_ordering, had_body_ordering
 

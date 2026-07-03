@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
@@ -29,6 +30,8 @@ if TYPE_CHECKING:
 
     from .articulation_cfg import ArticulationCfg
     from .base_articulation_data import BaseArticulationData
+
+logger = logging.getLogger(__name__)
 
 
 class BaseArticulation(AssetBase):
@@ -248,9 +251,10 @@ class BaseArticulation(AssetBase):
     def joint_ordering(self) -> ArticulationNameMap | None:
         """Bidirectional map between backend and public joint order.
 
-        The map is ``None`` for the default ``None`` configuration, a non-``None``
-        identity map when an explicit order resolves to backend order, and a
-        nonidentity map for any actual permutation.
+        The map is ``None`` whenever the public and backend orders coincide:
+        either no ordering is configured, or the configured ordering resolved
+        to the backend's native order. A non-``None`` map always denotes an
+        actual permutation.
         """
         return getattr(self.data, "joint_ordering", None)
 
@@ -258,9 +262,10 @@ class BaseArticulation(AssetBase):
     def body_ordering(self) -> ArticulationNameMap | None:
         """Bidirectional map between backend and public body order.
 
-        The map is ``None`` for the default ``None`` configuration, a non-``None``
-        identity map when an explicit order resolves to backend order, and a
-        nonidentity map for any actual permutation.
+        The map is ``None`` whenever the public and backend orders coincide:
+        either no ordering is configured, or the configured ordering resolved
+        to the backend's native order. A non-``None`` map always denotes an
+        actual permutation.
         """
         return getattr(self.data, "body_ordering", None)
 
@@ -273,9 +278,9 @@ class BaseArticulation(AssetBase):
         that pick joints with public indices (for example event terms) must
         convert those indices before addressing backend arrays.
 
-        When :attr:`joint_ordering` is ``None`` or an identity permutation, the
-        public and backend orders coincide and :paramref:`joint_ids` is returned
-        unchanged without any per-index lookup.
+        When :attr:`joint_ordering` is ``None`` the public and backend orders
+        coincide and :paramref:`joint_ids` is returned unchanged without any
+        per-index lookup.
 
         Args:
             joint_ids: Joint indices in public :attr:`joint_names` order.
@@ -285,7 +290,7 @@ class BaseArticulation(AssetBase):
             order, or :paramref:`joint_ids` unchanged when the orders coincide.
         """
         ordering = self.joint_ordering
-        if ordering is None or ordering.is_identity:
+        if ordering is None:
             return joint_ids
         return [ordering.user_to_backend_indices[joint_id] for joint_id in joint_ids]
 
@@ -298,9 +303,9 @@ class BaseArticulation(AssetBase):
         that pick bodies with public indices (for example event terms) must
         convert those indices before addressing backend arrays.
 
-        When :attr:`body_ordering` is ``None`` or an identity permutation, the
-        public and backend orders coincide and :paramref:`body_ids` is returned
-        unchanged without any per-index lookup.
+        When :attr:`body_ordering` is ``None`` the public and backend orders
+        coincide and :paramref:`body_ids` is returned unchanged without any
+        per-index lookup.
 
         Args:
             body_ids: Body indices in public :attr:`body_names` order.
@@ -310,7 +315,7 @@ class BaseArticulation(AssetBase):
             or :paramref:`body_ids` unchanged when the orders coincide.
         """
         ordering = self.body_ordering
-        if ordering is None or ordering.is_identity:
+        if ordering is None:
             return body_ids
         return [ordering.user_to_backend_indices[body_id] for body_id in body_ids]
 
@@ -330,7 +335,12 @@ class BaseArticulation(AssetBase):
         raise NotImplementedError()
 
     def _resolve_and_install_ordering_maps(self) -> None:
-        """Resolve configured articulation name orderings and store maps on :attr:`data`."""
+        """Resolve configured articulation name orderings and store maps on :attr:`data`.
+
+        Orderings that resolve to the backend's native order are normalized to
+        ``None`` here, so an installed map always denotes an actual permutation
+        and ``is not None`` checks alone decide whether reordering is active.
+        """
         had_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
 
         if self.cfg.joint_ordering is None:
@@ -344,13 +354,21 @@ class BaseArticulation(AssetBase):
                 active_backend_name=self.__backend_name__,
                 articulation=self,
             )
-            self.data.joint_ordering = build_articulation_name_map(
+            joint_ordering = build_articulation_name_map(
                 kind="joint",
                 backend_names=self.backend_joint_names,
                 user_names=joint_user_names,
                 device=self.device,
             )
-            self.data.joint_names = list(self.data.joint_ordering.user_names)
+            if joint_ordering.is_identity:
+                logger.info(
+                    "Configured joint_ordering for '%s' resolves to the backend's native order; no reordering"
+                    " will be applied.",
+                    self.cfg.prim_path,
+                )
+                joint_ordering = None
+            self.data.joint_ordering = joint_ordering
+            self.data.joint_names = list(joint_user_names)
 
         if self.cfg.body_ordering is None:
             self.data.body_ordering = None
@@ -380,8 +398,15 @@ class BaseArticulation(AssetBase):
                         f"{requested_index}. Put '{root_body_name}' first; all remaining bodies may be reordered "
                         "freely."
                     )
+            if body_ordering.is_identity:
+                logger.info(
+                    "Configured body_ordering for '%s' resolves to the backend's native order; no reordering"
+                    " will be applied.",
+                    self.cfg.prim_path,
+                )
+                body_ordering = None
             self.data.body_ordering = body_ordering
-            self.data.body_names = list(body_ordering.user_names)
+            self.data.body_names = list(body_user_names)
 
         has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
         if had_ordering or has_ordering:

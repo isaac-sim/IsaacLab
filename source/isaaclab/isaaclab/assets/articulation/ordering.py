@@ -104,9 +104,14 @@ class ArticulationNameMap:
     initialization. Hot read and write paths reuse the validated device maps and
     do not synchronize them to the host.
 
-    An explicit ordering equal to backend order still produces a map with
-    :attr:`is_identity` set. The default ``None`` ordering is represented by no
-    map on the articulation instead.
+    Identity maps are legal values of this type: an explicit ordering equal to
+    backend order produces a map with :attr:`is_identity` set, and
+    :func:`build_articulation_name_map` always returns a map. Articulations,
+    however, normalize identity orderings away at install time — the
+    :attr:`~isaaclab.assets.Articulation.joint_ordering` and
+    :attr:`~isaaclab.assets.Articulation.body_ordering` properties are ``None``
+    whenever public and backend orders coincide, and a non-``None`` map on an
+    asset always denotes an actual permutation.
 
     Args:
         kind: Mapped articulation element kind.

@@ -1347,6 +1347,22 @@ def test_floating_base_body_ordering_accepts_root_relocation() -> None:
     assert articulation.data.body_names == ["foot", "base"]
 
 
+def test_explicit_backend_order_normalizes_to_none() -> None:
+    """Normalize orderings that resolve to backend order to ``None`` instead of identity maps."""
+    articulation = _make_ordering_resolution_articulation(
+        body_ordering=("base", "foot"),
+        is_fixed_base=True,
+    )
+    articulation.cfg.joint_ordering = ("joint",)
+
+    BaseArticulation._resolve_and_install_ordering_maps(articulation)
+
+    assert articulation.data.joint_ordering is None
+    assert articulation.data.body_ordering is None
+    assert articulation.data.joint_names == ["joint"]
+    assert articulation.data.body_names == ["base", "foot"]
+
+
 def test_base_articulation_data_defines_optional_ordering_maps() -> None:
     """Expose optional ordering maps on articulation data containers."""
     assert hasattr(BaseArticulationData, "joint_ordering")
