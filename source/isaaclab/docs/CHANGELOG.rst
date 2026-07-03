@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+8.0.3 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``latest`` and ``best`` checkpoint selectors to unified reinforcement learning training and play commands.
+
+Fixed
+^^^^^
+
+* Fixed depth-only RTX cameras disabling color rendering in the viewport by restoring GUI-state publication from
+  :class:`~isaaclab.app.AppLauncher`.
+
+
+8.0.2 (2026-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton training videos to reuse the active visualizer framebuffer, preserving selected
+  environments, the live camera, and markers without a second rendering pass.
+
+
 8.0.1 (2026-07-01)
 ~~~~~~~~~~~~~~~~~~
 

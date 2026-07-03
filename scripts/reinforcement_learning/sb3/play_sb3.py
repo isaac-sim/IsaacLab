@@ -15,6 +15,7 @@ from pathlib import Path
 
 import gymnasium as gym
 import torch
+from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import VecNormalize
 
@@ -48,7 +49,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--agent", type=str, default="sb3_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--use_pretrained_checkpoint",
@@ -97,6 +98,16 @@ def main():
             if not checkpoint_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            checkpoint_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="sb3",
+                task=train_task_name,
+                checkpoint_pattern=r"model(?:_.*)?\.zip",
+                preferred_checkpoint_pattern=r"model\.zip",
+                metadata={"agent": args_cli.agent},
+            )
         elif args_cli.checkpoint is None:
             # prefer the final model (``model.zip``); fall back to the latest periodic checkpoint when it has
             # not been written yet (e.g. short or interrupted runs)

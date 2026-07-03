@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+8.1.3 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``instance_segmentation_fast`` and ``instance_id_segmentation_fast`` rendering test
+  presets to the rendering test utilities for Cartpole, ShadowHand, and Dexsuite environments,
+  covering both the OVRTX and Isaac RTX renderers. Because instance IDs are non-stable across
+  runs, golden images are saved with full RGBA colors but comparison is restricted to the alpha
+  channel only, which encodes the instance mask shape reliably. SSIM is also disabled for these
+  data types; only the per-pixel L2 gate is used to decide pass/fail.
+* Added the ``ovphysx`` physics preset to the manager-based Cartpole tasks.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Aligned the direct and manager-based Cartpole MDPs, including state observations, reset distributions,
+  termination conditions, episode horizon, reward convention, camera frame stacking, and camera lighting. Retrain
+  policies previously trained on the Cartpole tasks.
+
+* Changed all Cartpole camera renderer variants to stack two frames by default, and reduced the RSL-RL camera CNN
+  size while retaining reliable convergence.
+
+
 8.1.2 (2026-07-01)
 ~~~~~~~~~~~~~~~~~~
 

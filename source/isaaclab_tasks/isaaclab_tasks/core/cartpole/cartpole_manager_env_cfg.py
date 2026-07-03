@@ -6,6 +6,7 @@
 import math
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -21,11 +22,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.core.cartpole.constants import (
-    CARTPOLE_DISTANT_LIGHT_COLOR,
-    CARTPOLE_DISTANT_LIGHT_INTENSITY,
-    CARTPOLE_DISTANT_LIGHT_ORIENTATION,
-)
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
@@ -75,6 +71,7 @@ class CartpolePhysicsCfg(PresetCfg):
         debug_mode=False,
         use_cuda_graph=True,
     )
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 ##
@@ -96,10 +93,13 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
+    # rot quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
     distant_light = AssetBaseCfg(
         prim_path="/World/DistantLight",
-        init_state=AssetBaseCfg.InitialStateCfg(rot=CARTPOLE_DISTANT_LIGHT_ORIENTATION),
-        spawn=sim_utils.DistantLightCfg(color=CARTPOLE_DISTANT_LIGHT_COLOR, intensity=CARTPOLE_DISTANT_LIGHT_INTENSITY),
+        init_state=AssetBaseCfg.InitialStateCfg(
+            rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+        ),
+        spawn=sim_utils.DistantLightCfg(color=(1.0, 1.0, 1.0), intensity=2000.0),
     )
 
 

@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_rl"
-version = "0.6.2"
+version = "0.7.0"
 description = "Extension containing reinforcement learning related utilities."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -46,7 +46,7 @@ rl-games = [
     "gym",
     "standard-distutils",
 ]
-rsl-rl = ["rsl-rl-lib==5.0.1", "onnxscript>=0.5"]
+rsl-rl = ["rsl-rl-lib==5.4.1", "onnxscript>=0.5"]
 all = [
     "stable-baselines3>=2.6", "tqdm", "rich",
     "skrl>=2.1.0",
@@ -54,7 +54,7 @@ all = [
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
     "gym",
     "standard-distutils",
-    "rsl-rl-lib==5.0.1",
+    "rsl-rl-lib==5.4.1",
     "onnxscript>=0.5",
 ]
 

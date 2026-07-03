@@ -191,6 +191,7 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      ovphysx_wheelhouse_resource: ${{ steps.load.outputs.ovphysx_wheelhouse_resource }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
     steps:
     - uses: actions/checkout@v6
@@ -205,6 +206,7 @@ jobs:
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$f")" >> "$GITHUB_OUTPUT"
     - id: image_tag
       shell: bash
       env:
@@ -594,7 +596,12 @@ jobs:
     needs: [build, config]
     if: >-
       github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      (needs.config.outputs.ovphysx_wheelhouse_resource == '' ||
+       (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) ||
+       (github.event_name != 'pull_request' && github.ref_name == 'develop'))
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -606,7 +613,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        extra-pip-packages: "ovrtx ovphysx"
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -768,7 +777,13 @@ jobs:
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      needs.build.result == 'success' &&
+      (needs.config.outputs.ovphysx_wheelhouse_resource == '' ||
+       (github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) ||
+       (github.event_name != 'pull_request' && github.ref_name == 'develop'))
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -780,7 +795,9 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx ovphysx==0.4.13"
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
           test_rendering_dexsuite_kuka_homo_kitless.py,

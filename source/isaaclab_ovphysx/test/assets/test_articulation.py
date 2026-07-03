@@ -31,9 +31,9 @@ Reads use the data-class properties (``cube_object.data.body_mass``,
 Process-global device lock
 --------------------------
 
-The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` call and cannot release/swap it without a
-process restart.  :class:`~isaaclab_ovphysx.physics.OvPhysxManager` tracks
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance and cannot switch it without a process
+restart. :class:`~isaaclab_ovphysx.physics.OvPhysxManager` tracks
 this on ``_locked_device`` and raises :exc:`RuntimeError` if a later
 :class:`SimulationContext` requests a different device.  The
 ``_ovphysx_skip_other_device`` autouse fixture below preempts that error in
@@ -127,10 +127,10 @@ _LOCKED_DEVICE: list[str | None] = [None]
 def _ovphysx_skip_other_device(request):
     """Skip tests whose ``device`` parameter mismatches the session-locked device.
 
-    The OVPhysX runtime locks the process-global device mode on the first
-    ``ovphysx.PhysX(device=...)`` call, so any test parametrized to a different
-    device after the first ``sim.reset()`` would hit
-    :exc:`ovphysx.types.PhysXDeviceError`.  We detect the locked device on the
+    The OVPhysX runtime locks process-global device mode when the process
+    creates its first ``ovphysx.PhysX`` instance, so any test parametrized to a
+    different device after the first ``sim.reset()`` would hit the manager's
+    :exc:`RuntimeError`. We detect the locked device on the
     first encounter and skip subsequent tests on the other device with a clear
     message so the run finishes cleanly rather than producing spurious failures.
     """
