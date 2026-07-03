@@ -692,10 +692,16 @@ def write_3d_user_to_backend_with_mask(
 
 
 # Concrete, dtype-suffixed overloads of the generic ``write_*`` kernels above.
-# They exist to give torch-tensor inputs (adapted through Warp) a concrete
-# dtype signature at launch time, and are the public entry points that the
-# backend packages launch by name (the ``_vec3``/``_transform``/``_float``
-# suffix names the input/output element dtype).
+# These exist because Warp cannot infer generic (``dtype=Any``) kernel
+# parameters from torch tensors: launching a generic kernel with a torch input
+# raises "Unable to infer the type of argument" even for an unambiguous
+# float32 tensor, while a concrete overload adapts the tensor to the declared
+# dtype, including trailing-dimension folding for vector and transform
+# element types. Kernels launched exclusively with Warp arrays need no
+# explicit overload (implicit instantiation handles them); every kernel whose
+# call sites accept ``torch.Tensor`` inputs does. The backend packages launch
+# these by name (the ``_vec3``/``_transform``/``_float`` suffix names the
+# input/output element dtype).
 write_2d_user_to_backend_with_indices_vec3 = wp.overload(
     write_2d_user_to_backend_with_indices,
     {
@@ -850,10 +856,12 @@ def write_float_user_to_backend_with_mask(
         backend_data[env_id, backend_id] = value
 
 
-# Concrete array overloads of the ``write_float_*`` kernels above. They give an
-# adapted torch-tensor (rather than scalar) input a concrete 2-D float dtype
-# signature at launch time, and are the public entry points that the backend
-# packages launch by name (the ``_array`` suffix marks the array input form).
+# Concrete array overloads of the ``write_float_*`` kernels above, for the
+# array (rather than scalar) input form. Same rationale as the block above:
+# their call sites accept torch tensors, which Warp cannot adapt to a generic
+# parameter, so the 2-D float32 signature must be declared explicitly. The
+# backend packages launch these by name (the ``_array`` suffix marks the
+# array input form).
 write_float_user_to_backend_with_indices_array = wp.overload(
     write_float_user_to_backend_with_indices, {"input_data": wp.array2d(dtype=wp.float32)}
 )
