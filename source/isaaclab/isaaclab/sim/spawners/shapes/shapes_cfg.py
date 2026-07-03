@@ -38,16 +38,16 @@ class ShapeCfg(RigidObjectSpawnerCfg):
     This parameter is ignored if `physics_material` is not None.
     """
     physics_material: (
-        materials.PhysicsMaterialCfg
+        materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
         | None
     ) = None
     """Physics material properties.
 
-    Accepts either a legacy material cfg (e.g.
-    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`) or a list of
-    single-namespace :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
+    Since shapes are rigid-only spawners, this slot accepts the rigid material base class or
+    rigid-material fragments (single-namespace :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`
+    instances or lists thereof).
 
     Note:
         If None, then no physics material will be added.
