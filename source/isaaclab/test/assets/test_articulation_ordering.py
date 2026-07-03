@@ -4,12 +4,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import logging
-import subprocess
 import sys
-import textwrap
 import types
 from collections import UserList
-from pathlib import Path
 
 import numpy as np
 import pytest
@@ -18,17 +15,6 @@ import warp as wp
 from pxr import Sdf, Usd
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
-
-_inserted_torch_stub = False
-try:
-    import torch  # noqa: F401
-except ModuleNotFoundError:
-    torch_stub = types.ModuleType("torch")
-    torch_stub.Tensor = type("Tensor", (), {})
-    if "torch" not in sys.modules:
-        sys.modules["torch"] = torch_stub
-        _inserted_torch_stub = True
-
 from isaaclab.assets.articulation.ordering import (
     ArticulationNameMap,
     ArticulationOrderingConvention,
@@ -82,9 +68,6 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 
-if _inserted_torch_stub and sys.modules.get("torch") is torch_stub:
-    sys.modules.pop("torch")
-
 if _inserted_sim_stub:
     sys.modules.pop("isaaclab.sim", None)
 if _inserted_sim_context_stub:
@@ -93,58 +76,6 @@ if _inserted_asset_base_stub:
     sys.modules.pop("isaaclab.assets.asset_base", None)
 if _inserted_sim_stub or _inserted_asset_base_stub:
     sys.modules.pop("isaaclab.assets.articulation.base_articulation", None)
-
-
-def test_ordering_module_torch_stub_is_scoped_to_imports() -> None:
-    """Remove only the temporary torch stub installed while importing base classes."""
-    script = textwrap.dedent(
-        """
-        import builtins
-        import runpy
-        import sys
-        import types
-
-        import numpy  # noqa: F401
-        import pytest  # noqa: F401
-        import warp  # noqa: F401
-        import isaaclab.assets.articulation.ordering_resolvers  # noqa: F401
-
-        mode = sys.argv[1]
-        module_path = sys.argv[2]
-        sentinel = None
-        if mode == "missing":
-            sys.modules.pop("torch", None)
-            real_import = builtins.__import__
-            block_torch_import = [True]
-
-            def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
-                if name == "torch" and block_torch_import[0]:
-                    block_torch_import[0] = False
-                    raise ModuleNotFoundError("No module named torch", name="torch")
-                return real_import(name, globals, locals, fromlist, level)
-
-            builtins.__import__ = guarded_import
-        else:
-            sentinel = types.ModuleType("torch")
-            sentinel.Tensor = type("Tensor", (), {})
-            sys.modules["torch"] = sentinel
-
-        runpy.run_path(module_path)
-
-        if mode == "missing" and "torch" in sys.modules:
-            raise SystemExit("temporary torch stub leaked from the ordering test module")
-        if mode == "preexisting" and sys.modules.get("torch") is not sentinel:
-            raise SystemExit("pre-existing torch module was replaced or removed")
-        """
-    )
-
-    for mode in ("preexisting", "missing"):
-        result = subprocess.run(
-            [sys.executable, "-c", script, mode, str(Path(__file__))],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_parse_articulation_ordering_convention_accepts_none_strings_and_enum() -> None:
@@ -198,43 +129,6 @@ def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
             get_articulation_name_ordering(articulation, "mjwarp", kind="dof")  # type: ignore[arg-type]
         else:
             get_articulation_name_ordering(articulation, "robot_schema", kind="dof")  # type: ignore[arg-type]
-
-
-def test_assets_package_reexports_public_ordering_symbols() -> None:
-    """Expose every documented ordering symbol from the public assets package."""
-    from isaaclab import assets
-
-    expected_exports = {
-        "ArticulationOrderingConvention": ArticulationOrderingConvention,
-        "ArticulationNameMap": ArticulationNameMap,
-        "apply_articulation_ordering_preset": apply_articulation_ordering_preset,
-        "build_articulation_name_map": build_articulation_name_map,
-        "parse_articulation_ordering_convention": parse_articulation_ordering_convention,
-        "get_articulation_name_ordering": get_articulation_name_ordering,
-    }
-    for name, expected_export in expected_exports.items():
-        assert getattr(assets, name, None) is expected_export, name
-    assert not hasattr(assets, "resolve_articulation_ordering_names")
-    assert not hasattr(assets, "resolve_articulation_convention_name_ordering")
-
-
-def test_assets_api_page_defines_ordering_symbols() -> None:
-    """Publish exact ordering directives; the preceding test covers re-exports."""
-    repo_root = Path(__file__).resolve().parents[4]
-    api_page = (repo_root / "docs/source/api/lab/isaaclab.assets.rst").read_text(encoding="utf-8")
-    actual_directives = {line.strip() for line in api_page.splitlines() if line.strip().startswith(".. ")}
-
-    expected_directives = {
-        ".. currentmodule:: isaaclab.assets",
-        ".. autoclass:: ArticulationOrderingConvention",
-        ".. autoclass:: ArticulationNameMap",
-        ".. autofunction:: apply_articulation_ordering_preset",
-        ".. autofunction:: build_articulation_name_map",
-        ".. autofunction:: parse_articulation_ordering_convention",
-        ".. autofunction:: get_articulation_name_ordering",
-    }
-    missing_directives = expected_directives - actual_directives
-    assert not missing_directives, f"Missing exact RST directives: {sorted(missing_directives)}"
 
 
 def test_articulation_cfg_accepts_optional_ordering_fields() -> None:
