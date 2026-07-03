@@ -23,26 +23,20 @@ This script never touches real hardware -- sim only, read-only trajectory
 playback via direct joint-position targets (bypassing the task's IK action
 manager entirely, same approach as probe_joint_sign.py).
 
-Usage:
-  1. Extract a real dataset episode's action trajectory to JSON first, in the
-     lerobot_openarm venv (needs `lerobot` to read the HF dataset):
-       python3 -c "
-       import json
-       from lerobot.datasets.lerobot_dataset import LeRobotDataset
-       from lerobot.utils.constants import ACTION
-       dataset = LeRobotDataset('ethanCSL/0422_stanley_red_cube', episodes=[0], revision='main')
-       names = dataset.features[ACTION]['names']
-       actions = dataset.select_columns(ACTION)
-       traj = [{n: float(actions[i][ACTION][j]) for j, n in enumerate(names)} for i in range(dataset.num_frames)]
-       json.dump(traj, open('real_episode_0.json', 'w'))
-       "
-  2. ./isaaclab.sh -p scripts/tools/replay_real_dataset_in_sim.py \\
-         --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \\
-         --trajectory real_episode_0.json --calibration calibration.json
+Usage (one command, extraction happens automatically):
+  ./isaaclab.sh -p scripts/tools/replay_real_dataset_in_sim.py \\
+      --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \\
+      --repo-id ethanCSL/0422_stanley_red_cube --episode 0 --calibration calibration.json
+
+Or, with a JSON file already extracted some other way:
+  ./isaaclab.sh -p scripts/tools/replay_real_dataset_in_sim.py \\
+      --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \\
+      --trajectory real_episode_0.json --calibration calibration.json
 """
 
 import argparse
 import json
+import os
 
 from isaaclab.app import AppLauncher
 
@@ -51,8 +45,21 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument("--task", type=str, required=True, help="Name of the task.")
 parser.add_argument(
-    "--trajectory", type=str, required=True,
-    help="Path to a JSON list of {'LJ1.pos': rad, ...} frames extracted from a real dataset.",
+    "--trajectory", type=str, default=None,
+    help="Path to a JSON list of {'LJ1.pos': rad, ...} frames already extracted from a real dataset."
+    " Alternative to --repo-id/--episode below.",
+)
+parser.add_argument(
+    "--repo-id", type=str, default=None,
+    help="HF dataset repo id to extract and replay directly (e.g. ethanCSL/0422_stanley_red_cube)."
+    " Alternative to --trajectory -- this IsaacLab environment doesn't have `lerobot` installed, so"
+    " the extraction runs as a one-off subprocess using lerobot_openarm's own venv instead, giving"
+    " you a single command rather than a separate manual extraction step.",
+)
+parser.add_argument("--episode", type=int, default=0, help="Episode index within --repo-id.")
+parser.add_argument(
+    "--lerobot-venv-python", type=str, default=os.path.expanduser("~/lerobot_openarm/.venv/bin/python3"),
+    help="Path to the python executable with `lerobot` installed. Only used when --repo-id is given.",
 )
 parser.add_argument(
     "--calibration", type=str, required=True,
@@ -63,6 +70,38 @@ parser.add_argument("--max-steps", type=int, default=None, help="Only replay the
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
+
+if not args_cli.trajectory and not args_cli.repo_id:
+    parser.error("Provide either --trajectory or --repo-id.")
+
+_extracted_tmp_path = None
+if args_cli.repo_id:
+    import subprocess
+    import tempfile
+
+    fd, _extracted_tmp_path = tempfile.mkstemp(suffix=".json", prefix="real_episode_")
+    os.close(fd)
+    extract_code = (
+        "import json\n"
+        "from lerobot.datasets.lerobot_dataset import LeRobotDataset\n"
+        "from lerobot.utils.constants import ACTION\n"
+        f"dataset = LeRobotDataset({args_cli.repo_id!r}, episodes=[{args_cli.episode}], revision='main')\n"
+        "names = dataset.features[ACTION]['names']\n"
+        "actions = dataset.select_columns(ACTION)\n"
+        "traj = [{n: float(actions[i][ACTION][j]) for j, n in enumerate(names)} for i in range(dataset.num_frames)]\n"
+        f"json.dump(traj, open({_extracted_tmp_path!r}, 'w'))\n"
+        "print(f'Extracted {len(traj)} frames')\n"
+    )
+    print(f"Extracting {args_cli.repo_id} episode {args_cli.episode} via {args_cli.lerobot_venv_python}...")
+    result = subprocess.run([args_cli.lerobot_venv_python, "-c", extract_code], capture_output=True, text=True)
+    print(result.stdout, end="")
+    if result.returncode != 0:
+        print(result.stderr)
+        raise SystemExit(
+            f"Failed to extract dataset via {args_cli.lerobot_venv_python} -- see error above. Does that"
+            " path exist and have `lerobot` installed? Override with --lerobot-venv-python if it's elsewhere."
+        )
+    args_cli.trajectory = _extracted_tmp_path
 
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
@@ -186,5 +225,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        if _extracted_tmp_path is not None:
+            try:
+                os.remove(_extracted_tmp_path)
+            except OSError:
+                pass
     simulation_app.close()
