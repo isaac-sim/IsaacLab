@@ -699,6 +699,16 @@ def save_sim_vs_real_plot(mirror_broadcaster, feedback_receiver) -> None:
               " empty) -- skipping. Did mirror_bridge.py have --feedback-port set to match?")
         return
 
+    # Minimum y-axis half-range per joint category -- prevents matplotlib's auto-scaling
+    # from zooming into sensor noise or a small steady-state offset and making it look
+    # like a large sim-vs-real gap. Chosen relative to each category's own meaningful
+    # scale, not one-size-fits-all: 0.1 rad matches the arm joints' own handshake
+    # tolerance elsewhere in this pipeline (the threshold already established as "worth
+    # taking seriously"), while the gripper's entire physical range is only ~0.044 rad,
+    # so it gets a proportionally smaller floor rather than being flattened by the arm's.
+    ARM_AXIS_TOLERANCE = 0.1
+    GRIPPER_AXIS_TOLERANCE = 0.005
+
     t0 = sim_history[0][0]
     joint_names = list(sim_history[0][1].keys())
     ncols = 4
@@ -717,6 +727,14 @@ def save_sim_vs_real_plot(mirror_broadcaster, feedback_receiver) -> None:
         ax.legend(fontsize=7)
         ax.set_xlabel("s", fontsize=7)
         ax.set_ylabel("rad", fontsize=7)
+
+        all_v = sim_v + real_v
+        if all_v:
+            tolerance = GRIPPER_AXIS_TOLERANCE if "finger" in name else ARM_AXIS_TOLERANCE
+            data_min, data_max = min(all_v), max(all_v)
+            center = (data_min + data_max) / 2
+            half_range = max((data_max - data_min) / 2 * 1.1, tolerance)
+            ax.set_ylim(center - half_range, center + half_range)
 
     for idx in range(len(joint_names), nrows * ncols):
         axes[idx // ncols][idx % ncols].axis("off")
