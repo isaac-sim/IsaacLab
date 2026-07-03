@@ -180,7 +180,7 @@ class BaseArticulation(AssetBase):
         The order follows :attr:`ArticulationCfg.joint_ordering` when configured
         and otherwise matches :attr:`backend_joint_names`.
         """
-        ordering = getattr(getattr(self, "data", None), "joint_ordering", None)
+        ordering = self.data.joint_ordering
         if ordering is not None:
             return list(ordering.user_names)
         return list(self.backend_joint_names)
@@ -204,7 +204,7 @@ class BaseArticulation(AssetBase):
         The order follows :attr:`ArticulationCfg.body_ordering` when configured
         and otherwise matches :attr:`backend_body_names`.
         """
-        ordering = getattr(getattr(self, "data", None), "body_ordering", None)
+        ordering = self.data.body_ordering
         if ordering is not None:
             return list(ordering.user_names)
         return list(self.backend_body_names)
@@ -256,7 +256,7 @@ class BaseArticulation(AssetBase):
         to the backend's native order. A non-``None`` map always denotes an
         actual permutation.
         """
-        return getattr(self.data, "joint_ordering", None)
+        return self.data.joint_ordering
 
     @property
     def body_ordering(self) -> ArticulationNameMap | None:
@@ -267,7 +267,7 @@ class BaseArticulation(AssetBase):
         to the backend's native order. A non-``None`` map always denotes an
         actual permutation.
         """
-        return getattr(self.data, "body_ordering", None)
+        return self.data.body_ordering
 
     def map_joint_ids_to_backend(self, joint_ids: Sequence[int]) -> Sequence[int]:
         """Translate public joint indices to active-backend joint indices.
@@ -2530,6 +2530,13 @@ class BaseArticulation(AssetBase):
         two-dimensional (per joint); otherwise it is treated as three-dimensional
         with that many trailing components per joint.
 
+        Avoid this modify-then-reorder helper on per-step hot paths: it costs a
+        full extra kernel launch over the buffer. Prefer the fused
+        ``write_*_user_to_backend`` kernels from
+        :mod:`isaaclab.assets.articulation.ordering_kernels`, which write the
+        public and backend buffers in a single launch. This helper exists for
+        infrequent property writers where the extra launch is irrelevant.
+
         Args:
             user_buffer: Public-order joint buffer to reorder.
             backend_buffer: Backend-order staging destination, either a raw Warp
@@ -2575,7 +2582,21 @@ class BaseArticulation(AssetBase):
         user_buffer: wp.array,
         backend_buffer: wp.array | TimestampedBufferWarp | None,
     ) -> wp.array:
-        """Return a backend-order view or copy of a public-order joint buffer."""
+        """Return a backend-order view or copy of a public-order 2-D joint buffer.
+
+        Thin wrapper over :meth:`_reorder_joint_buffer_to_backend` for buffers
+        with one value per joint; see that method for the argument contract,
+        the identity fast path, and the hot-path guidance.
+
+        Args:
+            user_buffer: Public-order joint buffer to reorder.
+            backend_buffer: Backend-order staging destination. Required when a
+                non-identity joint ordering is active.
+
+        Returns:
+            :paramref:`user_buffer` under identity ordering; otherwise the
+            populated backend-order staging array.
+        """
         return self._reorder_joint_buffer_to_backend(user_buffer, backend_buffer)
 
     def _get_backend_ordered_joint_3d_buffer(
@@ -2584,7 +2605,23 @@ class BaseArticulation(AssetBase):
         backend_buffer: wp.array | TimestampedBufferWarp | None,
         component_count: int,
     ) -> wp.array:
-        """Return a backend-order view or copy of a public-order 3-D joint buffer."""
+        """Return a backend-order view or copy of a public-order 3-D joint buffer.
+
+        Thin wrapper over :meth:`_reorder_joint_buffer_to_backend` for buffers
+        with :paramref:`component_count` trailing components per joint; see that
+        method for the argument contract, the identity fast path, and the
+        hot-path guidance.
+
+        Args:
+            user_buffer: Public-order joint buffer to reorder.
+            backend_buffer: Backend-order staging destination. Required when a
+                non-identity joint ordering is active.
+            component_count: Number of trailing components per joint.
+
+        Returns:
+            :paramref:`user_buffer` under identity ordering; otherwise the
+            populated backend-order staging array.
+        """
         return self._reorder_joint_buffer_to_backend(user_buffer, backend_buffer, component_count=component_count)
 
     """

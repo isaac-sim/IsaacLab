@@ -71,19 +71,6 @@ def _backend_matches_ordering_convention(
     return convention.value in getattr(articulation, "__backend_native_orderings__", ())
 
 
-def _coerce_name_sequence(names: object) -> tuple[str, ...] | None:
-    """Return names as a tuple when they look like an articulation name sequence."""
-    if names is None or isinstance(names, str | bytes | bytearray):
-        return None
-    try:
-        name_tuple = tuple(names)
-    except TypeError:
-        return None
-    if not all(isinstance(name, str) for name in name_tuple):
-        return None
-    return name_tuple
-
-
 def _validate_ordering_kind(kind: object) -> Literal["joint", "body"]:
     """Return a supported articulation element kind."""
     if kind == "joint" or kind == "body":
@@ -94,10 +81,7 @@ def _validate_ordering_kind(kind: object) -> Literal["joint", "body"]:
 def _get_backend_names(articulation: BaseArticulation, kind: Literal["joint", "body"]) -> tuple[str, ...]:
     """Return active backend names from an articulation."""
     attr_name = "backend_joint_names" if kind == "joint" else "backend_body_names"
-    names = _coerce_name_sequence(getattr(articulation, attr_name))
-    if names is None:
-        raise TypeError(f"Articulation {attr_name} must be a sequence of strings.")
-    return names
+    return _validate_articulation_names(getattr(articulation, attr_name), parameter_name=f"Articulation {attr_name}")
 
 
 def _get_cached_convention_names(
@@ -105,8 +89,12 @@ def _get_cached_convention_names(
     convention: ArticulationOrderingConvention,
     kind: Literal["joint", "body"],
 ) -> tuple[str, ...] | None:
-    """Return cached convention names for an articulation, if present."""
-    return _coerce_name_sequence(articulation._ordering_convention_name_cache.get((convention, kind)))
+    """Return cached convention names for an articulation, if present.
+
+    The cache is written only by :func:`_cache_convention_names` with already
+    validated tuples, so entries are returned without re-validation.
+    """
+    return articulation._ordering_convention_name_cache.get((convention, kind))
 
 
 def _cache_convention_names(
@@ -323,13 +311,18 @@ def _match_backend_name_spellings(
 def _get_complete_convention_names(
     *,
     kind: Literal["joint", "body"],
-    names: object,
+    names: tuple[str, ...] | None,
     backend_names: Sequence[str],
 ) -> tuple[str, ...] | None:
-    """Return a convention candidate when it is a complete backend-name permutation."""
-    candidate_names = _coerce_name_sequence(names)
-    if candidate_names is None:
+    """Return a convention candidate when it is a complete backend-name permutation.
+
+    Providers contractually return validated name tuples or ``None``; a missing
+    candidate short-circuits to ``None`` so resolution falls through to the next
+    strategy.
+    """
+    if names is None:
         return None
+    candidate_names = names
     candidate_names = _match_backend_name_spellings(
         kind=kind,
         names=candidate_names,
