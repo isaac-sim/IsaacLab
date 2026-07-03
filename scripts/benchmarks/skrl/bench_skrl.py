@@ -281,6 +281,12 @@ def run(argv: list[str]) -> None:
         agent_cfg["agent"]["experiment"]["directory"] = log_root_path
         agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir_name
         log_dir = os.path.join(log_root_path, log_dir_name)
+        _common.write_run_manifest(
+            log_dir,
+            library="skrl",
+            task=args_cli.task,
+            metadata={"agent": agent_cfg_entry_point, "algorithm": algorithm, "ml_framework": args_cli.ml_framework},
+        )
 
         cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
         formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]

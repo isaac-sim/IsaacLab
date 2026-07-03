@@ -195,6 +195,7 @@ def run(argv: list[str]) -> None:
         if agent_cfg.run_name:
             log_dir += f"_{agent_cfg.run_name}"
         log_dir = os.path.join(log_root_path, log_dir)
+        _common.write_run_manifest(log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent})
         env_cfg.log_dir = log_dir
 
         env_t0 = time.perf_counter_ns()

@@ -188,6 +188,9 @@ def run(argv: list[str]) -> None:
         agent_cfg["params"]["config"]["train_dir"] = log_root_path
         agent_cfg["params"]["config"]["full_experiment_name"] = log_dir
         run_log_dir = os.path.join(log_root_path, log_dir)
+        _common.write_run_manifest(
+            run_log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent}
+        )
         env_cfg.log_dir = run_log_dir
 
         rl_device = agent_cfg["params"]["config"]["device"]

@@ -6,6 +6,8 @@ Added
   ``skrl``, or ``sb3``) and emits :class:`~isaaclab.test.benchmark.TrainingBundle` output through
   ``--benchmark_formatter``. The RSL-RL and RL-Games adapters support optional success-metric
   early stopping; physics and rendering backends are selected with ``presets=`` Hydra tokens.
+* Added ``run.json`` manifests to benchmark training logs, enabling compatible
+  runs to be selected through ``--checkpoint latest`` or ``--checkpoint best``.
 
 Fixed
 ^^^^^

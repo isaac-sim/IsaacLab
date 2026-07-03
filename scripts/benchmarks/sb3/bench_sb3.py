@@ -250,6 +250,7 @@ def run(argv: list[str]) -> None:
         run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
         log_dir = os.path.join(log_root_path, run_info)
+        _common.write_run_manifest(log_dir, library="sb3", task=args_cli.task, metadata={"agent": args_cli.agent})
         env_cfg.log_dir = log_dir
 
         agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
