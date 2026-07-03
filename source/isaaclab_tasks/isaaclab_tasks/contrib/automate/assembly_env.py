@@ -87,7 +87,7 @@ class AssemblyEnv(DirectRLEnv):
         # ``data.body_inertia`` stays coherent and the update is ordering-safe by construction.
         inertias = self._robot.data.body_inertia.torch.clone()
         inertias[:, :, [0, 4, 8]] += 0.01
-        self._robot.set_inertias_index(inertias=inertias, full_data=True)
+        self._robot.set_inertias_index(inertias=inertias)
 
     def _set_default_dynamics_parameters(self):
         """Set parameters defining dynamic interactions."""

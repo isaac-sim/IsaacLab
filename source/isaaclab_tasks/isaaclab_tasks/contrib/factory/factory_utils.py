@@ -46,7 +46,7 @@ def set_body_inertias(robot, num_envs):
     # ``data.body_inertia`` stays coherent and the update is ordering-safe by construction.
     inertias = robot.data.body_inertia.torch.clone()
     inertias[:, :, [0, 4, 8]] += 0.01
-    robot.set_inertias_index(inertias=inertias, full_data=True)
+    robot.set_inertias_index(inertias=inertias)
 
 
 def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):
