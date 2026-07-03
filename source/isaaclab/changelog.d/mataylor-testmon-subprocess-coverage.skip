@@ -1,0 +1,3 @@
+Test/tooling only: add Testmon subprocess coverage tracking so tests that
+spawn child Python processes get reselected when their subprocess-only
+dependencies change.
