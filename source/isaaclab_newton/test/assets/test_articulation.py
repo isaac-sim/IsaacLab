@@ -1129,6 +1129,51 @@ def test_newton_post_step_hook_publishes_ordered_state_inside_step(
     np.testing.assert_allclose(data._body_com_vel_w_user.numpy(), data._sim_bind_body_com_vel_w.numpy()[:, body_u2b])
 
 
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_newton_clear_callbacks_deregisters_post_step_hook(
+    sim, num_articulations, device, gravity_enabled, articulation_type
+):
+    """Deregister the ordered post-step republish hook so it does not leak on the manager.
+
+    ``_create_buffers`` registers the backend-to-user state republish on
+    ``NewtonManager._post_step_callbacks`` for non-identity ordering. Without a
+    matching deregistration the bound method lingers on the class-level list
+    after the articulation is gone. ``_clear_callbacks`` must remove exactly that
+    callback and leave any other registered callback untouched.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type).replace(
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=tuple(reversed(_ANYMAL_C_PHYSX_JOINT_NAMES)),
+        body_ordering=_ANYMAL_C_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+    )
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.data._has_joint_ordering
+    assert articulation.data._has_body_ordering
+
+    # The republish hook is registered on the manager for non-identity ordering.
+    registered_callback = articulation._post_step_callback
+    assert registered_callback is not None
+    assert registered_callback in SimulationManager._post_step_callbacks
+
+    # A second, independent callback stands in for another articulation's hook.
+    def _other_callback() -> None:
+        return None
+
+    SimulationManager.register_post_step_callback(_other_callback)
+
+    articulation._clear_callbacks()
+
+    # The articulation's own hook is gone; the unrelated callback survives.
+    assert articulation._post_step_callback is None
+    assert registered_callback not in SimulationManager._post_step_callbacks
+    assert _other_callback in SimulationManager._post_step_callbacks
+
+
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])

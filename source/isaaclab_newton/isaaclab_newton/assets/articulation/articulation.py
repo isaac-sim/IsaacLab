@@ -107,6 +107,9 @@ class Articulation(BaseArticulation):
     __backend_name__: str = "newton"
     """The name of the backend for the articulation."""
 
+    __backend_native_orderings__: tuple[str, ...] = ("mjwarp",)
+    """Newton articulation-view order already matches the ``"mjwarp"`` convention."""
+
     actuators: dict
     """Dictionary of actuator instances for the articulation.
 
@@ -3473,6 +3476,13 @@ class Articulation(BaseArticulation):
         if hasattr(self, "_physics_ready_handle") and self._physics_ready_handle is not None:
             self._physics_ready_handle.deregister()
             self._physics_ready_handle = None
+        # Remove the post-step republish hook registered in ``_create_buffers`` so the
+        # bound method does not linger on ``NewtonManager._post_step_callbacks`` after
+        # this articulation is gone (registered only for non-identity ordering).
+        post_step_callback = getattr(self, "_post_step_callback", None)
+        if post_step_callback is not None:
+            SimulationManager.unregister_post_step_callback(post_step_callback)
+            self._post_step_callback = None
 
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
@@ -3505,8 +3515,13 @@ class Articulation(BaseArticulation):
         # when ordering is non-identity keeps identity-ordering scenes at zero
         # overhead (empty callback list). The reorders are then recorded into
         # every captured graph, so passthrough state getters never replay stale.
+        # The registered bound method is stored so ``_clear_callbacks`` can
+        # deregister exactly it (a fresh ``self._data._refresh_user_order_state``
+        # access would compare equal, but storing the handle is unambiguous).
+        self._post_step_callback = None
         if self._has_joint_ordering or self._has_body_ordering:
-            SimulationManager.register_post_step_callback(self._data._refresh_user_order_state)
+            self._post_step_callback = self._data._refresh_user_order_state
+            SimulationManager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
