@@ -363,3 +363,21 @@ def test_legacy_physx_rigid_body_material_authors_damping_combine_mode_and_accel
     assert "PhysxMaterialAPI" in prim.GetAppliedSchemas()
     assert prim.GetAttribute("physxMaterial:dampingCombineMode").Get() == "min"
     assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True
+
+
+def test_legacy_base_cfg_authors_density():
+    """The legacy rigid material base authors ``physics:density``, matching the USD fragment.
+
+    ``UsdPhysics.MaterialAPI`` defines four properties; the legacy base must author all four so
+    fragment and legacy paths stay interchangeable (Newton's importer reads material density).
+    """
+    from isaaclab.sim.spawners.materials import spawn_rigid_body_material
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    prim = spawn_rigid_body_material("/World/LegacyDensity", RigidBodyMaterialBaseCfg(density=800.0))
+    assert prim.GetAttribute("physics:density").Get() == pytest.approx(800.0)
+    # None default -> unauthored (backward compatible)
+    prim2 = spawn_rigid_body_material("/World/LegacyDensityNone", RigidBodyMaterialBaseCfg())
+    assert not prim2.GetAttribute("physics:density").HasAuthoredValue()

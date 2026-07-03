@@ -89,6 +89,13 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     restitution: float = 0.0
     """The restitution coefficient. Defaults to 0.0."""
 
+    density: float | None = None
+    """The material density [kg/m^3]. Defaults to None, in which case it is not authored.
+
+    Writes ``physics:density``. When authored, this overrides body-level density for computing
+    the mass of collision shapes bound to this material.
+    """
+
 
 @configclass
 class RigidBodyMaterialFragment(SchemaFragment):
