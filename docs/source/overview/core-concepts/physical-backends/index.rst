@@ -18,6 +18,7 @@ backend-specific configuration, installation, and limitations.
     newton/index
     ovphysx/index
     solver-comparison
+    sim-to-sim-policy-transfer
 
 
 Choosing a Backend
