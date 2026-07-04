@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 
 import warp as wp
-from newton import Model, eval_fk
+from newton import Model, ModelBuilder, eval_fk
 from newton.solvers import SolverKamino
 
 from isaaclab.physics import PhysicsManager
@@ -56,6 +56,11 @@ class NewtonKaminoManager(NewtonManager):
 
     # Annotate the concrete solver type.
     _solver: SolverKamino
+
+    @classmethod
+    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+        """Register Kamino state/config attributes before model finalization."""
+        SolverKamino.register_custom_attributes(builder)
 
     @classmethod
     def _get_kamino_solver_cfg(cls) -> KaminoSolverCfg:
@@ -108,12 +113,10 @@ class NewtonKaminoManager(NewtonManager):
         when ``use_collision_detector=False`` (Kamino's internal detector
         handles contacts otherwise).
 
-        Sets :attr:`NewtonManager._needs_fk_before_step` because Kamino treats body state as
-        authoritative: reset worlds (written via joint coordinates) must be reconciled before each
-        step. The shared :attr:`NewtonManager._world_reset_mask` and
-        :attr:`NewtonManager._fk_reset_mask` restrict that pre-step reconcile and
-        :meth:`NewtonManager.forward` to reset worlds, so non-reset worlds keep their live,
-        authoritative body state through Kamino's :meth:`_eval_fk_impl` overwrite.
+        Kamino treats body state as authoritative, so task-authored joint state
+        is reconciled through its mandatory reset before any step or coherent
+        read boundary. The shared masks restrict that transaction to dirty
+        worlds, preserving live body state elsewhere.
 
         Raises:
             RuntimeError: If the model has more than one articulation per environment. The Kamino
@@ -144,4 +147,3 @@ class NewtonKaminoManager(NewtonManager):
         NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector
-        NewtonManager._needs_fk_before_step = True

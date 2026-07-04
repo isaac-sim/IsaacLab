@@ -1331,13 +1331,13 @@ def test_body_link_pose_w_fresh_after_root_pose_write(device, writer):
     (Newton ``body_q``) is stale until forward kinematics is re-evaluated. The getter must call
     :meth:`SimulationManager.forward` so the returned tensor matches the written pose. Without the fix,
     the getter returns the pre-write value. The write must also dirty the simulator-side
-    ``_fk_reset_mask`` so collision queries (which read ``body_q`` directly, not via the property)
+    the authored-state FK mask so collision queries (which read ``body_q`` directly, not via the property)
     re-run FK before the next step.
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        assert SimulationManager._state_writes is not None
+        return bool(wp.to_torch(SimulationManager._state_writes.fk_mask).any().item())
 
     num_cubes = 2
     with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:

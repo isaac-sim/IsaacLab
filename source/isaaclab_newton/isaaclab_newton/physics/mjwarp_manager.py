@@ -11,6 +11,7 @@ import inspect
 import logging
 
 import numpy as np
+import warp as wp
 from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
@@ -41,6 +42,10 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
+        cfg = PhysicsManager._cfg
+        if solver_cfg.use_mujoco_cpu and model.world_count > 1:
+            raise ValueError("CPU MuJoCo supports only one Newton world. Use MJWarp or run a single world.")
+
         ignored = {"class_type", "solver_type", "ls_parallel"}
         valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"} - ignored
         kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
@@ -48,7 +53,6 @@ class NewtonMJWarpManager(NewtonManager):
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
 
-        cfg = PhysicsManager._cfg
         # Cross-config validation that needs both halves.
         if solver_cfg.use_mujoco_contacts and cfg.collision_cfg is not None:
             raise ValueError(
@@ -56,6 +60,33 @@ class NewtonMJWarpManager(NewtonManager):
                 "solver_cfg.use_mujoco_contacts=True. Either set "
                 "use_mujoco_contacts=False or remove collision_cfg."
             )
+
+    @classmethod
+    def _state_write_graph_safe(cls) -> bool:
+        """CPU MuJoCo performs host transfers and cannot enter a CUDA graph."""
+        return not cls._solver.use_mujoco_cpu
+
+    @classmethod
+    def _supports_cuda_graph_capture(cls) -> bool:
+        """Require a fully device-side MuJoCo step with fixed per-step state handoff."""
+        return not cls._solver.use_mujoco_cpu and cls._solver.update_data_interval <= 1
+
+    @classmethod
+    def _synchronize_solver_state(
+        cls,
+        solver: SolverMuJoCo,
+        world_reset_mask: wp.array,
+        fk_mask: wp.array,
+    ) -> None:
+        """Push authored coordinates into MuJoCo when per-step updates are sparse."""
+        # With the default interval, the next step always copies Newton state
+        # into qpos/qvel. Sparse or disabled updates need an immediate handoff;
+        # SolverMuJoCo currently exposes that operation only through its
+        # internal state-conversion helper.
+        if solver.update_data_interval != 1:
+            data = solver.mj_data if solver.use_mujoco_cpu else solver.mjw_data
+            if data is not None:
+                solver._update_mjc_data(data, cls._model, cls._state_0)
 
     @classmethod
     def _initialize_contacts(cls) -> None:

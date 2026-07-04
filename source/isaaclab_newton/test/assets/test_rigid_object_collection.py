@@ -942,14 +942,14 @@ def test_body_pose_write_marks_fk_reset_mask(device, writer):
     buffer, so the property read is not what becomes stale — the simulator's internal ``body_q`` used by
     collision detection is. The write methods must therefore call :meth:`SimulationManager.invalidate_fk`
     so downstream consumers re-run forward kinematics before the next step. Without the fix,
-    ``_fk_reset_mask`` remains unset after an explicit pose write. The buffer-aliasing invariant is
+    the authored-state FK mask remains unset after an explicit pose write. The buffer-aliasing invariant is
     also pinned: a refactor that decouples ``_sim_bind_body_link_pose_w`` from the write target would
     silently make the property stale, so we check the post-write pose matches the written value.
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        assert SimulationManager._state_writes is not None
+        return bool(wp.to_torch(SimulationManager._state_writes.fk_mask).any().item())
 
     num_envs = 2
     num_cubes = 2
