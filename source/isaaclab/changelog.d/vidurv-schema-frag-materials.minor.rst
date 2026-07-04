@@ -4,11 +4,13 @@ Added
 * Added the rigid-body physics-material "fragment" classes
   :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` (marker base) and
   :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg` (solver-common
-  ``physics:*`` friction/restitution), plus the family writer
+  ``physics:*`` friction/restitution/density), plus the family writer
   :func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments` and the slot
-  dispatcher :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`. Spawner
-  ``physics_material`` slots now accept a legacy rigid material cfg, a single fragment, or a list of
-  fragments.
+  dispatcher :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`. Relevant
+  ``physics_material`` slots now accept a single fragment or list alongside their legacy cfg form.
+  Legacy material cfgs are current-stage-only: the dispatcher raises ``ValueError`` for an explicit
+  non-current stage, while fragment-based materials support explicit-stage authoring.
+
 * Added :attr:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg.density` (writes
   ``physics:density``), completing the fragment's coverage of ``UsdPhysics.MaterialAPI``.
 * Added :attr:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg.density`, so the legacy
@@ -17,30 +19,18 @@ Added
 Changed
 ^^^^^^^
 
-* Changed rigid-only ``physics_material`` slots
-  (:class:`~isaaclab.sim.spawners.ShapeCfg`, :class:`~isaaclab.sim.spawners.GroundPlaneCfg`,
-  :class:`~isaaclab.terrains.TerrainImporterCfg`, :class:`~isaaclab.sim.SimulationCfg`) to accept
-  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` or a list of
-  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances, and no longer
-  advertise deformable material configs on rigid-only spawners. Deformable materials remain
-  accepted where deformables can spawn (:class:`~isaaclab.sim.spawners.FileCfg`,
-  :class:`~isaaclab.sim.spawners.MeshCfg`).
-* Changed the generated-terrain, simulation default-material, and compliant-contact material paths
-  to spawn through :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`, so fragment
-  lists work at every ``physics_material`` entry point.
-* **Breaking:** Changed :func:`~isaaclab.sim.spawners.materials.spawn_physics_material` to raise
-  ``ValueError`` when a legacy material cfg is given an explicit stage other than the current stage
-  (previously the stage was silently ignored and authored on the wrong stage). Callers that already
-  pass the current stage (or ``None``) are unaffected; callers that need an explicit non-current
-  stage should switch the material to the fragment-based API, which supports it.
-* **Breaking:** Changed the default value of :attr:`~isaaclab.sim.SimulationCfg.physics_material`,
-  :attr:`~isaaclab.terrains.TerrainImporterCfg.physics_material`, and
-  :attr:`~isaaclab.sim.spawners.GroundPlaneCfg.physics_material` from the deprecated
-  :class:`~isaaclab_physx.sim.spawners.materials.RigidBodyMaterialCfg` to
-  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`. The authored USD defaults are
-  identical, but PhysX-only fields (e.g. combine modes) no longer exist on the default object. If you
-  set PhysX-only fields on the default material in place, assign a
-  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` instance instead.
+* Narrowed :attr:`~isaaclab.sim.spawners.ShapeCfg.physics_material` from the broad
+  :class:`~isaaclab.sim.spawners.materials.PhysicsMaterialCfg` to the rigid material base, a single
+  rigid-material fragment, or a list of fragments.
+* Extended the already rigid-only :attr:`~isaaclab.sim.spawners.GroundPlaneCfg.physics_material`
+  and :attr:`~isaaclab.terrains.TerrainImporterCfg.physics_material` slots from the legacy
+  :class:`~isaaclab_physx.sim.spawners.materials.RigidBodyMaterialCfg` type to
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, a single
+  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of fragments.
+  Deformable materials remain accepted where deformables can spawn
+  (:class:`~isaaclab.sim.spawners.FileCfg` and :class:`~isaaclab.sim.spawners.MeshCfg`).
+* Changed the generated-terrain material path to use
+  :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`, enabling fragment lists there.
 
 Fixed
 ^^^^^
@@ -51,3 +41,8 @@ Fixed
   :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg` instances raised
   ``ValueError`` on rigid meshes. The check now accepts any
   :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`.
+* Fixed rigid-only shape, ground-plane, and generated-terrain material slots accepting legacy
+  deformable-material configs at runtime. The dispatcher now rejects those configs before creating
+  a material prim.
+* Fixed malformed fragment inputs reaching an opaque legacy ``func`` call. Direct and dispatched
+  fragment calls now reject empty, mixed, and non-fragment inputs before creating a material prim.

@@ -82,7 +82,7 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         orientation: The orientation of the terrain. Defaults to None.
         visual_material: The visual material to apply. Defaults to None.
         physics_material: The physics material to apply. Defaults to None. Accepts a legacy rigid
-            material cfg or a list of rigid-material fragments.
+            material cfg, a single rigid-material fragment, or a list of fragments.
     """
     # create parent prim
     sim_utils.create_prim(prim_path, "Xform")
@@ -126,7 +126,7 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     # create physics material
     physics_material = kwargs.get("physics_material")
     if physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", physics_material)
+        spawn_physics_material(f"{prim_path}/physicsMaterial", physics_material, require_rigid=True)
         sim_utils.bind_physics_material(prim.GetPrimPath(), f"{prim_path}/physicsMaterial")
 
 

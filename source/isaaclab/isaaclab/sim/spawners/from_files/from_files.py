@@ -212,7 +212,7 @@ def spawn_ground_plane(
 
     # Create physics material
     if cfg.physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
+        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage, require_rigid=True)
         # Apply physics material to ground plane
         collision_prim = get_first_matching_child_prim(
             prim_path,
@@ -548,7 +548,7 @@ def spawn_from_usd_with_compliant_contact_material(
             material_path = f"{rigid_body_prim_path}/compliant_material"
 
             # spawn physics material
-            spawn_physics_material(material_path, material_cfg)
+            material_cfg.func(material_path, material_cfg)
 
             bind_physics_material(
                 rigid_body_prim_path,

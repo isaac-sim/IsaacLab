@@ -10,12 +10,3 @@ Added
   (writes ``physxMaterial:compliantContactAccelerationSpring``), completing the fragment's coverage
   of ``PhysxMaterialAPI``. Also added the same two fields to the legacy
   :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
-
-Changed
-^^^^^^^
-
-* Changed the default physics-material spawn in the PhysX backend to go through
-  :func:`~isaaclab.sim.spawners.materials.spawn_physics_material`, so a list of
-  :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances assigned to
-  :attr:`~isaaclab.sim.SimulationCfg.physics_material` now works when PhysX is the active backend
-  (previously only a legacy single cfg was accepted there).

@@ -198,6 +198,8 @@ def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
     through :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, even though the
     generated ``NewtonMaterialAPI`` schema currently only declares the two friction attributes."""
     from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
+    from newton._src.usd.schema_resolver import PrimType
+    from newton._src.usd.schemas import SchemaResolverNewton
 
     from isaaclab.sim.spawners.materials import spawn_rigid_body_material_from_fragments
 
@@ -212,13 +214,20 @@ def test_newton_material_fragment_authors_all_six_newton_attrs(setup_sim):
             contact_adhesion=0.01,
         ),
     )
+    expected = {
+        "mu_torsional": 0.3,
+        "mu_rolling": 0.001,
+        "ke": 2500.0,
+        "kd": 100.0,
+        "kf": 1000.0,
+        "ka": 0.01,
+    }
+
     assert "NewtonMaterialAPI" in prim.GetAppliedSchemas()
-    assert prim.GetAttribute("newton:torsionalFriction").Get() == pytest.approx(0.3)
-    assert prim.GetAttribute("newton:rollingFriction").Get() == pytest.approx(0.001)
-    assert prim.GetAttribute("newton:contactStiffness").Get() == pytest.approx(2500.0)
-    assert prim.GetAttribute("newton:contactDamping").Get() == pytest.approx(100.0)
-    assert prim.GetAttribute("newton:contactFrictionGain").Get() == pytest.approx(1000.0)
-    assert prim.GetAttribute("newton:contactAdhesion").Get() == pytest.approx(0.01)
+    resolver = SchemaResolverNewton()
+    assert set(resolver.mapping[PrimType.MATERIAL]) == set(expected)
+    for key, value in expected.items():
+        assert resolver.get_value(prim, PrimType.MATERIAL, key) == pytest.approx(value)
 
 
 # ---------------------------------------------------------------------------

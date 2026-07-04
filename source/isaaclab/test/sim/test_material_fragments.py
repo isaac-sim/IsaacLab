@@ -100,8 +100,8 @@ def test_spawn_rigid_body_material_from_fragments_accepts_single_fragment():
 
 
 def test_spawn_physics_material_dispatches_fragments_and_legacy():
-    """The shared slot dispatcher handles both forms a spawner ``physics_material`` slot accepts: a
-    rigid-body fragment list, and a legacy material cfg carrying its own ``func``."""
+    """The shared dispatcher handles both a rigid-body fragment collection and a legacy material
+    cfg carrying its own ``func``."""
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
     from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
@@ -110,8 +110,8 @@ def test_spawn_physics_material_dispatches_fragments_and_legacy():
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
 
-    # fragment-list form
-    frag_prim = spawn_physics_material("/World/MaterialA", [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4)])
+    # tuple form is accepted by the low-level dispatcher alongside the list form used by cfg slots
+    frag_prim = spawn_physics_material("/World/MaterialA", (UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4),))
     assert bool(UsdPhysics.MaterialAPI(frag_prim))
     assert frag_prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.4)
 
@@ -143,24 +143,40 @@ def test_spawn_physics_material_rejects_non_current_stage_for_legacy():
     assert prim.IsValid()
 
 
-def test_spawn_physics_material_rejects_empty_and_mixed_lists():
-    """A malformed fragment list surfaces a clear error rather than an opaque AttributeError."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
+def test_fragment_writer_validates_inputs_before_authoring():
+    """Direct and dispatched fragment calls share one validation contract and do not leave prims."""
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
+        PhysxDeformableBodyMaterialCfg,
+        PhysxRigidBodyMaterialCfg,
+    )
 
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
+    from isaaclab.sim.spawners.materials.physics_materials import (
+        spawn_physics_material,
+        spawn_rigid_body_material_from_fragments,
+    )
     from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
 
     with pytest.raises(ValueError):
-        spawn_physics_material("/World/MatEmpty", [])
+        spawn_rigid_body_material_from_fragments("/World/MatEmpty", [], stage)
     # a list mixing a fragment with a legacy cfg is not a valid fragment list
     with pytest.raises(TypeError):
         spawn_physics_material(
             "/World/MatMixed",
             [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.4), PhysxRigidBodyMaterialCfg(static_friction=0.9)],
         )
+    with pytest.raises(TypeError):
+        spawn_rigid_body_material_from_fragments("/World/MatLegacy", PhysxRigidBodyMaterialCfg(), stage)
+    with pytest.raises(TypeError):
+        spawn_physics_material("/World/MatInvalid", object())
+    with pytest.raises(ValueError, match="rigid-only"):
+        spawn_physics_material("/World/MatDeformable", PhysxDeformableBodyMaterialCfg(), require_rigid=True)
+
+    for path in ("MatEmpty", "MatMixed", "MatLegacy", "MatInvalid", "MatDeformable"):
+        assert not stage.GetPrimAtPath(f"/World/{path}").IsValid()
 
 
 def test_spawn_rigid_body_material_from_fragments_leaves_none_fields_unwritten():
@@ -419,8 +435,8 @@ def test_create_prim_from_mesh_accepts_fragment_list():
 def test_legacy_base_cfg_authors_density():
     """The legacy rigid material base authors ``physics:density``, matching the USD fragment.
 
-    ``UsdPhysics.MaterialAPI`` defines four properties; the legacy base must author all four so
-    fragment and legacy paths stay interchangeable (Newton's importer reads material density).
+    ``UsdPhysics.MaterialAPI`` defines four properties; explicitly set values must be available
+    through both interfaces, including material density read by Newton's importer.
     """
     from isaaclab.sim.spawners.materials import spawn_rigid_body_material
     from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
@@ -434,116 +450,49 @@ def test_legacy_base_cfg_authors_density():
     assert not prim2.GetAttribute("physics:density").HasAuthoredValue()
 
 
-# -------------------------------------------------------------------------------------
-# Sim-wide default material: SimulationCfg.physics_material routed through the dispatcher
-# -------------------------------------------------------------------------------------
-
-
-def test_simulation_default_material_accepts_fragment_list():
-    """The sim-wide default material honors the fragment-list form of SimulationCfg.physics_material."""
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-
-    sim_utils.create_new_stage()
-    # SimulationContext is a process-wide singleton; other tests in this module construct one
-    # without tearing it down, so force a real re-init here to exercise physics-manager configuration
-    # (including default-material spawning) against this test's own cfg and stage.
-    SimulationContext.clear_instance()
-    SimulationContext(SimulationCfg(dt=0.01, physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.8)]))
-    stage = sim_utils.get_current_stage()
-    mat = stage.GetPrimAtPath("/physicsScene/defaultMaterial")
-    assert mat.IsValid()
-    assert mat.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.8)
-
-
-def test_default_material_base_cfg_matches_deprecated_leaf():
-    """RigidBodyMaterialBaseCfg() authors byte-identical USD to the deprecated RigidBodyMaterialCfg()
-    default it replaces (the leaf's solver-specific fields default to None and author nothing)."""
+def test_public_default_material_types_remain_backward_compatible():
+    """Fragment support must not silently replace the released default config objects."""
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 
-    from isaaclab.sim.spawners.materials import spawn_rigid_body_material
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+    from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+    from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    old = spawn_rigid_body_material("/World/DefaultOld", RigidBodyMaterialCfg())
-    new = spawn_rigid_body_material("/World/DefaultNew", RigidBodyMaterialBaseCfg())
-
-    def authored(prim):
-        return (
-            {a.GetName(): a.Get() for a in prim.GetAttributes() if a.HasAuthoredValue()},
-            set(prim.GetAppliedSchemas()),
-        )
-
-    assert authored(old) == authored(new)
-
-
-# -------------------------------------------------------------------------------------
-# Compliant-contact USD spawner: material spawn must route through the shared dispatcher
-# -------------------------------------------------------------------------------------
-
-
-def test_compliant_contact_spawner_authors_material(tmp_path):
-    """The compliant-contact USD spawner authors its PhysX material via the shared dispatcher."""
-    import os
-
-    from pxr import Usd, UsdGeom, UsdPhysics
-
-    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_with_compliant_contact_material
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileWithCompliantContactCfg
-
-    usd_path = os.path.join(tmp_path, "asset.usda")
-    asset_stage = Usd.Stage.CreateNew(usd_path)
-    robot = UsdGeom.Xform.Define(asset_stage, "/Robot")
-    base = UsdGeom.Xform.Define(asset_stage, "/Robot/base").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(base)
-    asset_stage.SetDefaultPrim(robot.GetPrim())
-    asset_stage.Save()
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    cfg = UsdFileWithCompliantContactCfg(
-        usd_path=usd_path,
-        physics_material_prim_path="base",
-        compliant_contact_stiffness=1.0e5,
-        compliant_contact_damping=200.0,
+    defaults = (
+        SimulationCfg().physics_material,
+        GroundPlaneCfg().physics_material,
+        TerrainImporterCfg(prim_path="/World/terrain").physics_material,
     )
-    spawn_from_usd_with_compliant_contact_material("/World/Compliant", cfg)
-    stage = sim_utils.get_current_stage()
-    mat = stage.GetPrimAtPath("/World/Compliant/base/compliant_material")
-    assert mat.IsValid()
-    assert mat.GetAttribute("physxMaterial:compliantContactStiffness").Get() == pytest.approx(1.0e5)
+    assert all(type(material) is RigidBodyMaterialCfg for material in defaults)
 
 
-# -------------------------------------------------------------------------------------
-# Structural enforcement: fragment/legacy field parity + slot-typing contract
-# -------------------------------------------------------------------------------------
-
-
-def test_fragment_legacy_field_parity():
-    """Structural parity: each backend's fragment authors exactly the fields its legacy cfg
-    authors (minus the inherited base for backend subclasses). Field drift fails here instead of
-    surfacing in review."""
+def test_physx_fragment_and_legacy_cfg_match_material_api_schema():
+    """Both PhysX interfaces cover the properties declared by ``PhysxMaterialAPI``."""
     import dataclasses
 
-    from isaaclab_newton.sim.schemas import NewtonMaterialPropertiesCfg
-    from isaaclab_newton.sim.spawners.materials.physics_materials_cfg import NewtonMaterialCfg
     from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
         PhysxMaterialCfg,
         PhysxRigidBodyMaterialCfg,
     )
 
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import (
-        RigidBodyMaterialBaseCfg,
-        UsdPhysicsRigidBodyMaterialCfg,
-    )
+    from pxr import PhysxSchema
+
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+    from isaaclab.utils.string import to_camel_case
 
     def fields(cls):
         return {f.name for f in dataclasses.fields(cls) if f.name != "func"}
 
     base = fields(RigidBodyMaterialBaseCfg)
-    assert fields(UsdPhysicsRigidBodyMaterialCfg) == base
-    assert fields(PhysxMaterialCfg) == fields(PhysxRigidBodyMaterialCfg) - base
-    assert fields(NewtonMaterialCfg) == fields(NewtonMaterialPropertiesCfg) - base
+    schema_attrs = {name.split(":", 1)[1] for name in PhysxSchema.PhysxMaterialAPI.GetSchemaAttributeNames()}
+    fragment_attrs = {to_camel_case(name, "cC") for name in fields(PhysxMaterialCfg)}
+    legacy_attrs = {to_camel_case(name, "cC") for name in fields(PhysxRigidBodyMaterialCfg) - base}
+    assert fragment_attrs == schema_attrs
+    assert legacy_attrs == schema_attrs
+
+
+# -------------------------------------------------------------------------------------
+# Slot-typing contract
+# -------------------------------------------------------------------------------------
 
 
 def test_material_slot_unions_match_spawner_kind():
@@ -553,7 +502,6 @@ def test_material_slot_unions_match_spawner_kind():
     import sys
     import typing
 
-    from isaaclab.sim.simulation_cfg import SimulationCfg as _SimCfg
     from isaaclab.sim.spawners.from_files.from_files_cfg import FileCfg, GroundPlaneCfg
     from isaaclab.sim.spawners.materials import physics_materials_cfg as mats
     from isaaclab.sim.spawners.meshes.meshes_cfg import MeshCfg
@@ -570,7 +518,7 @@ def test_material_slot_unions_match_spawner_kind():
         resolved = eval(annotation, vars(sys.modules[cls.__module__]))
         return set(typing.get_args(resolved))
 
-    for cls in (ShapeCfg, GroundPlaneCfg, TerrainImporterCfg, _SimCfg):
+    for cls in (ShapeCfg, GroundPlaneCfg, TerrainImporterCfg):
         args = union_args(cls)
         assert mats.RigidBodyMaterialBaseCfg in args, f"{cls.__name__} must admit the rigid base"
         assert mats.RigidBodyMaterialFragment in args, f"{cls.__name__} must admit fragments"

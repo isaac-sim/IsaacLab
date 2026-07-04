@@ -114,8 +114,9 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     ) = None
     """Physics material properties.
 
-    Accepts either a legacy material cfg or a list of single-namespace
-    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
+    Accepts either a legacy material cfg, a single
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
+    single-namespace fragments.
 
     Note:
         If None, then no custom physics material will be added.
@@ -271,10 +272,11 @@ class GroundPlaneCfg(SpawnerCfg):
         materials.RigidBodyMaterialBaseCfg
         | materials.RigidBodyMaterialFragment
         | list[materials.RigidBodyMaterialFragment]
-    ) = materials.RigidBodyMaterialBaseCfg()
+    ) = materials.RigidBodyMaterialCfg()
     """Physics material properties. Defaults to the default rigid body material.
 
     The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a
-    legacy :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg` or a list of
-    single-namespace :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
+    legacy :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, a single
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
+    single-namespace fragments.
     """

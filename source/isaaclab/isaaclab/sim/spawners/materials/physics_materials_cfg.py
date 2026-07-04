@@ -62,8 +62,9 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     """Solver-common physics-material parameters for rigid bodies.
 
     Contains the friction, restitution, and density fields from the `UsdPhysics.MaterialAPI`_ that
-    are common across all simulation backends. For PhysX-only material properties (compliant-contact
-    spring, combine modes), use :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+    are common across all simulation backends. For properties in the ``physxMaterial`` namespace
+    (compliant-contact spring and combine modes), use
+    :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
 
     See :meth:`spawn_rigid_body_material` for more information.
 
@@ -92,8 +93,8 @@ class RigidBodyMaterialBaseCfg(PhysicsMaterialCfg):
     density: float | None = None
     """The material density [kg/m^3]. Defaults to None, in which case it is not authored.
 
-    Writes ``physics:density``. When authored, this overrides body-level density for computing
-    the mass of collision shapes bound to this material.
+    Writes ``physics:density``. It is a fallback for collision shapes bound to this material;
+    explicitly authored rigid-body mass or density takes precedence.
     """
 
 
@@ -102,9 +103,10 @@ class RigidBodyMaterialFragment(SchemaFragment):
     """Marker base for rigid-body physics-material fragments; types the ``physics_material`` slot.
 
     A rigid-body physics material is a single ``UsdShade.Material`` prim that carries one or more
-    physics-material schemas. The fragments author single namespaces onto that prim: the solver-common
-    ``physics:*`` friction/restitution (:class:`UsdPhysicsRigidBodyMaterialCfg`) and any backend-specific
-    namespace (e.g. PhysX ``physxMaterial:*`` via :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`).
+    physics-material schemas. The fragments author single namespaces onto that prim: the
+    solver-common ``physics:*`` friction/restitution/density
+    (:class:`UsdPhysicsRigidBodyMaterialCfg`) and any backend-specific namespace (e.g. PhysX
+    ``physxMaterial:*`` via :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`).
     The defining ``UsdPhysics.MaterialAPI`` anchor is applied by the family writer
     (:func:`~isaaclab.sim.spawners.materials.spawn_rigid_body_material_from_fragments`).
     """
@@ -138,8 +140,8 @@ class UsdPhysicsRigidBodyMaterialCfg(RigidBodyMaterialFragment):
     density: float | None = None
     """The material density [kg/m^3]. Writes ``physics:density``.
 
-    Participates in mass computation via material binding when the owning rigid body does not
-    define an explicit mass.
+    Participates in mass computation via material binding when no explicit rigid-body mass or
+    density takes precedence.
     """
 
 
