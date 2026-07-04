@@ -397,19 +397,24 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _reset_solver_from_authored_writes(cls) -> None:
         """Clear solver-owned state selected by the current authored-write mask."""
-        cfg = PhysicsManager._cfg
-        world_mask = cls._world_reset_mask
-        solver = cls._solver
-        if cfg is None or not cfg.solver_reset or world_mask is None or solver is None:
+        if (
+            PhysicsManager._cfg is None
+            or not PhysicsManager._cfg.solver_reset
+            or cls._world_reset_mask is None
+            or cls._solver is None
+        ):
             return
 
         # Kamino's FK delegate already performs its mandatory masked reset. CPU MuJoCo owns
         # one global MjData, so avoid clearing it on clean forward and step boundaries.
-        if isinstance(solver, SolverKamino):
+        if isinstance(cls._solver, SolverKamino):
             return
-        if isinstance(solver, SolverMuJoCo) and solver.use_mujoco_cpu and not bool(world_mask.numpy().any()):
-            return
-        solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        if isinstance(cls._solver, SolverMuJoCo) and cls._solver.use_mujoco_cpu:
+            if cls._world_reset_mask.shape[0] != 1:
+                raise RuntimeError("CPU MuJoCo solver reset requires exactly one world.")
+            if not bool(cls._world_reset_mask.numpy()[0]):
+                return
+        cls._solver.reset(cls._state_0, world_mask=cls._world_reset_mask, flags=0)
 
     @classmethod
     def forward(cls) -> None:
