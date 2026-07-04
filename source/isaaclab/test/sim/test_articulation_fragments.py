@@ -157,6 +157,61 @@ def test_apply_articulation_root_properties_tunes_existing_child_root():
     assert len(roots) == 1 and roots[0] == child
 
 
+def test_apply_articulation_root_properties_processes_siblings_and_aggregates_results():
+    """Every non-nested sibling root is visited and a failing applier makes the family result False."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    for path in ("/World/A", "/World/B", "/World/A/Nested"):
+        root = _make_xform(stage, path)
+        UsdPhysics.ArticulationRootAPI.Apply(root)
+
+    visited = []
+
+    def record_result(_cfg, path, _stage):
+        visited.append(path)
+        return path != "/World/B"
+
+    result = apply_articulation_root_properties("/World", [PhysxArticulationCfg(func=record_result)], stage)
+
+    assert visited == ["/World/A", "/World/B"]
+    assert result is False
+
+
+def test_apply_articulation_root_properties_does_not_duplicate_instance_proxy_root(caplog):
+    """A root hidden in an instance suppresses define-fresh but is skipped because proxies are read-only."""
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    source = _make_xform(stage, "/World/Source")
+    source_base = _make_xform(stage, "/World/Source/base")
+    UsdPhysics.ArticulationRootAPI.Apply(source_base)
+    instance = _make_xform(stage, "/World/Asset")
+    instance.GetReferences().AddInternalReference(source.GetPath())
+    instance.SetInstanceable(True)
+    proxy_root = stage.GetPrimAtPath("/World/Asset/base")
+    assert proxy_root.IsInstanceProxy() and proxy_root.HasAPI(UsdPhysics.ArticulationRootAPI)
+
+    with caplog.at_level("WARNING"):
+        result = apply_articulation_root_properties(
+            "/World/Asset", [PhysxArticulationCfg(solver_position_iteration_count=4)], stage
+        )
+
+    assert result is False
+    assert not instance.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert proxy_root.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not proxy_root.GetAttribute("physxArticulation:solverPositionIterationCount").HasAuthoredValue()
+    assert "/World/Asset/base" in caplog.text
+
+
 # -------------------------------------------------------------------------------------
 # fix_root_link spawner-level flag: toggles an existing fixed joint
 # -------------------------------------------------------------------------------------
@@ -186,6 +241,30 @@ def test_apply_articulation_root_properties_toggles_existing_fixed_joint():
         fix_root_link=False,
     )
     assert joint.GetJointEnabledAttr().Get() is False
+
+
+def test_apply_articulation_root_properties_enables_existing_joint_and_relocates_root():
+    """An existing joint is enabled, but PhysX root placement is still normalized through the manager."""
+    from isaaclab.sim.schemas import apply_articulation_root_properties
+
+    sim_utils.create_new_stage()
+    SimulationContext(SimulationCfg(dt=0.01))
+    stage = sim_utils.get_current_stage()
+    parent = _make_xform(stage, "/World/ExistingJointRobot")
+    root = _make_xform(stage, "/World/ExistingJointRobot/base")
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/ExistingJointRobot/base/FixedJoint")
+    joint.CreateBody1Rel().SetTargets([root.GetPath()])
+    joint.CreateJointEnabledAttr(False)
+
+    apply_articulation_root_properties("/World/ExistingJointRobot", [], stage, fix_root_link=True)
+
+    joints = [prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.FixedJoint)]
+    assert joints == [joint.GetPrim()]
+    assert joint.GetJointEnabledAttr().Get() is True
+    assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not root.HasAPI(UsdPhysics.ArticulationRootAPI)
 
 
 # -------------------------------------------------------------------------------------
@@ -348,10 +427,8 @@ def test_physx_fix_root_link_migrates_preauthored_newton_root_api():
     assert not child.HasAPI(UsdPhysics.ArticulationRootAPI)
 
 
-def test_physx_fix_root_link_migrates_preauthored_physx_attrs():
-    """Asset-authored ``PhysxArticulationAPI`` attributes move to the relocated root (legacy parity):
-    the legacy writer copied ``physxArticulation:*`` values to the parent, so the fragment path must
-    not silently drop them on the former root link where the PhysX parser ignores them."""
+def test_physx_fix_root_link_preserves_complete_authored_property_spec():
+    """Relocation preserves sampled, metadata, and connection opinions rather than one default value."""
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
     sim_utils.create_new_stage()
@@ -360,17 +437,34 @@ def test_physx_fix_root_link_migrates_preauthored_physx_attrs():
     _make_xform(stage, "/World/UsdBot")
     child = _make_xform(stage, "/World/UsdBot/base")
     UsdPhysics.RigidBodyAPI.Apply(child)
+    UsdPhysics.MassAPI.Apply(child)
     UsdPhysics.ArticulationRootAPI.Apply(child)
-    # the asset ships with PhysX articulation solver settings authored on the root link
     child.AddAppliedSchema("PhysxArticulationAPI")
-    child.CreateAttribute("physxArticulation:solverVelocityIterationCount", Sdf.ValueTypeNames.Int).Set(4)
+    driver = _make_xform(stage, "/World/Driver")
+    driver_attr = driver.CreateAttribute("output", Sdf.ValueTypeNames.Float)
+    driver_attr.Set(0.5)
+    source_attr = child.GetAttribute("physxArticulation:sleepThreshold")
+    source_attr.Set(0.1, Usd.TimeCode(1.0))
+    source_attr.Set(0.2, Usd.TimeCode(2.0))
+    source_attr.SetMetadata("documentation", "sampled sleep threshold")
+    source_attr.AddConnection(driver_attr.GetPath())
 
     apply_articulation_root_properties("/World/UsdBot", [], stage, fix_root_link=True)
 
     parent = stage.GetPrimAtPath("/World/UsdBot")
     assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
-    assert "PhysxArticulationAPI" in parent.GetAppliedSchemas()
-    assert parent.GetAttribute("physxArticulation:solverVelocityIterationCount").Get() == 4
+    assert "PhysxArticulationAPI" in parent.GetPrimTypeInfo().GetAppliedAPISchemas()
+    assert not child.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert "PhysxArticulationAPI" not in child.GetPrimTypeInfo().GetAppliedAPISchemas()
+    moved_attr = parent.GetAttribute("physxArticulation:sleepThreshold")
+    assert not stage.GetRootLayer().GetAttributeAtPath(moved_attr.GetPath()).HasInfo("default")
+    assert moved_attr.GetTimeSamples() == [1.0, 2.0]
+    assert moved_attr.Get(Usd.TimeCode(1.0)) == pytest.approx(0.1)
+    assert moved_attr.Get(Usd.TimeCode(2.0)) == pytest.approx(0.2)
+    assert moved_attr.GetMetadata("documentation") == "sampled sleep threshold"
+    assert moved_attr.GetConnections() == [driver_attr.GetPath()]
+    assert child.HasAPI(UsdPhysics.RigidBodyAPI) and child.HasAPI(UsdPhysics.MassAPI)
+    assert not parent.HasAPI(UsdPhysics.RigidBodyAPI) and not parent.HasAPI(UsdPhysics.MassAPI)
 
 
 def test_apply_articulation_root_properties_rejects_non_fragment_items():
@@ -411,87 +505,39 @@ def test_apply_articulation_root_properties_topology_only_does_not_stamp_root():
 
 
 def test_apply_articulation_root_properties_honors_explicit_stage():
-    """The writer authors to the explicitly supplied stage even when it is not the current stage --
-    every lookup (root resolution, fixed-joint search) is scoped to that stage."""
+    """Fragment writes and fixed-joint lookup both stay on the explicitly supplied stage."""
     from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
     from isaaclab.sim.schemas import apply_articulation_root_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
-    # an in-memory stage that is deliberately NOT the current stage
+    current_stage = sim_utils.get_current_stage()
+    current_root = _make_xform(current_stage, "/World/AltStageRoot")
+    UsdPhysics.ArticulationRootAPI.Apply(current_root)
+    current_joint = UsdPhysics.FixedJoint.Define(current_stage, "/World/AltStageRoot/FixedJoint")
+    current_joint.CreateBody1Rel().SetTargets([current_root.GetPath()])
+    current_joint.CreateJointEnabledAttr(True)
+
     other_stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(other_stage, "/World")
-    root = UsdGeom.Xform.Define(other_stage, "/World/AltStageRoot").GetPrim()
-    UsdPhysics.ArticulationRootAPI.Apply(root)
+    other_root = UsdGeom.Xform.Define(other_stage, "/World/AltStageRoot").GetPrim()
+    UsdPhysics.ArticulationRootAPI.Apply(other_root)
+    other_joint = UsdPhysics.FixedJoint.Define(other_stage, "/World/AltStageRoot/FixedJoint")
+    other_joint.CreateBody1Rel().SetTargets([other_root.GetPath()])
+    other_joint.CreateJointEnabledAttr(True)
 
     apply_articulation_root_properties(
         "/World/AltStageRoot",
         [PhysxArticulationCfg(solver_position_iteration_count=4)],
         other_stage,
+        fix_root_link=False,
     )
 
-    # authored on the supplied stage ...
-    assert root.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 4
-    # ... and not leaked onto the current stage
-    assert not sim_utils.get_current_stage().GetPrimAtPath("/World/AltStageRoot").IsValid()
-
-
-# -------------------------------------------------------------------------------------
-# create_fixed_root_joint -- backend-neutral, pure-USD world<->prim fixed joint
-# -------------------------------------------------------------------------------------
-
-
-def test_create_fixed_root_joint_authors_world_anchored_joint():
-    """create_fixed_root_joint authors a world<->prim ``UsdPhysics.FixedJoint``: ``body1`` targets the
-    prim, ``body0`` is left empty (the world frame), and the body1-side local frame is identity."""
-    from isaaclab.sim.utils import create_fixed_root_joint
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    prim = _make_xform(stage, "/World/Fix1")
-    joint_prim = create_fixed_root_joint(prim, stage)
-
-    assert joint_prim.IsA(UsdPhysics.FixedJoint)
-    joint = UsdPhysics.FixedJoint(joint_prim)
-    assert list(joint.GetBody1Rel().GetTargets()) == [prim.GetPath()]
-    # body0 left empty -> the world frame
-    body0_rel = joint.GetBody0Rel()
-    assert not body0_rel or list(body0_rel.GetTargets()) == []
-    # the body1-side local frame is identity
-    assert joint_prim.GetAttribute("physics:localPos1").Get() == Gf.Vec3f(0.0)
-    assert joint_prim.GetAttribute("physics:localRot1").Get() == Gf.Quatf(1.0)
-
-
-def test_create_fixed_root_joint_pins_prim_at_current_world_pose():
-    """The world-side local frame is set to the prim's current world transform, so the constraint pins
-    the body where it is rather than teleporting it to the world origin."""
-    from isaaclab.sim.utils import create_fixed_root_joint
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    prim = _make_xform(stage, "/World/Fix2")
-    UsdGeom.Xform(prim).AddTranslateOp().Set(Gf.Vec3d(1.0, 2.0, 3.0))
-
-    joint_prim = create_fixed_root_joint(prim, stage)
-    pos0 = joint_prim.GetAttribute("physics:localPos0").Get()
-    assert (pos0[0], pos0[1], pos0[2]) == pytest.approx((1.0, 2.0, 3.0))
-
-
-def test_create_fixed_root_joint_uses_unique_names():
-    """Repeated calls author distinct joint prims (no path collision)."""
-    from isaaclab.sim.utils import create_fixed_root_joint
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    prim = _make_xform(stage, "/World/Fix3")
-    first = create_fixed_root_joint(prim, stage)
-    second = create_fixed_root_joint(prim, stage)
-    assert first.GetPath() != second.GetPath()
-    assert first.IsA(UsdPhysics.FixedJoint) and second.IsA(UsdPhysics.FixedJoint)
+    assert other_root.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 4
+    assert other_joint.GetJointEnabledAttr().Get() is False
+    assert not current_root.GetAttribute("physxArticulation:solverPositionIterationCount").HasAuthoredValue()
+    assert current_joint.GetJointEnabledAttr().Get() is True
 
 
 # -------------------------------------------------------------------------------------
@@ -499,13 +545,8 @@ def test_create_fixed_root_joint_uses_unique_names():
 # -------------------------------------------------------------------------------------
 
 
-def test_base_manager_fix_articulation_root_authors_joint_without_reparenting():
-    """The base :class:`~isaaclab.physics.PhysicsManager` capability authors a ``UsdPhysics.FixedJoint``
-    and leaves the articulation root in place, returning the same prim.
-
-    This is the default inherited by backends whose parser reads a fixed joint directly (e.g. Newton,
-    OVPhysx) and by any manager subclass that does not override it -- no PhysX-style relocation.
-    """
+def test_base_manager_fix_articulation_root_is_world_anchored_and_idempotent():
+    """The neutral capability pins the current pose and enables rather than duplicates an existing joint."""
     from isaaclab.physics import PhysicsManager
 
     sim_utils.create_new_stage()
@@ -513,16 +554,22 @@ def test_base_manager_fix_articulation_root_authors_joint_without_reparenting():
     stage = sim_utils.get_current_stage()
     _make_xform(stage, "/World/BaseRobot")
     root = _make_xform(stage, "/World/BaseRobot/base")
+    UsdGeom.Xform(root).AddTranslateOp().Set(Gf.Vec3d(1.0, 2.0, 3.0))
     UsdPhysics.RigidBodyAPI.Apply(root)
     UsdPhysics.ArticulationRootAPI.Apply(root)
 
     result = PhysicsManager.fix_articulation_root(root, stage)
-
-    assert any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
-    # base default returns the same prim and does NOT relocate the root to the parent
-    assert result == root
-    assert root.HasAPI(UsdPhysics.ArticulationRootAPI)
+    joints = [prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.FixedJoint)]
+    assert result == root and len(joints) == 1
+    joint = UsdPhysics.FixedJoint(joints[0])
+    assert list(joint.GetBody1Rel().GetTargets()) == [root.GetPath()]
+    assert joint.GetPrim().GetAttribute("physics:localPos0").Get() == Gf.Vec3f(1.0, 2.0, 3.0)
     assert not stage.GetPrimAtPath("/World/BaseRobot").HasAPI(UsdPhysics.ArticulationRootAPI)
+
+    joint.CreateJointEnabledAttr(False)
+    assert PhysicsManager.fix_articulation_root(root, stage) == root
+    assert joint.GetJointEnabledAttr().Get() is True
+    assert len([prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.FixedJoint)]) == 1
 
 
 def test_base_manager_fix_articulation_root_requires_rigid_body():
@@ -538,56 +585,60 @@ def test_base_manager_fix_articulation_root_requires_rigid_body():
         PhysicsManager.fix_articulation_root(root, stage)
 
 
-def test_fix_articulation_root_capability_inherited_by_manager_subclass():
-    """A backend manager subclass inherits its parent backend's ``fix_articulation_root`` through the
-    normal method-resolution order.
+def test_articulation_fragment_and_legacy_cfg_match_physx_schema():
+    """Both interfaces cover exactly all six attributes registered by PhysxArticulationAPI."""
+    import dataclasses
 
-    This is what makes the capability robust where the previous cfg-type registry was not: manager
-    dispatch is resolved from ``cfg.physics.class_type``, so a subclassed cfg (e.g. an in-tree
-    ``DeformableNewtonCfg(NewtonCfg)``) whose ``class_type`` is an unchanged or subclassed manager
-    inherits the correct behaviour, rather than missing an exact-type registry key.
-    """
-    from isaaclab.physics import PhysicsManager
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxArticulationRootPropertiesCfg
+
+    from pxr import PhysxSchema
+
+    from isaaclab.utils.string import to_camel_case
+
+    def fields(cls):
+        return {field.name for field in dataclasses.fields(cls) if field.name != "func"}
+
+    schema_attrs = {name.split(":", 1)[1] for name in PhysxSchema.PhysxArticulationAPI.GetSchemaAttributeNames()}
+    fragment_attrs = {to_camel_case(name, "cC") for name in fields(PhysxArticulationCfg)}
+    legacy_attrs = {
+        to_camel_case(name, "cC") for name in fields(PhysxArticulationRootPropertiesCfg) - {"fix_root_link"}
+    }
+    assert fragment_attrs == schema_attrs
+    assert legacy_attrs == schema_attrs
+
+
+def test_newton_legacy_cfg_matches_equivalent_fragment_composition():
+    """A Newton legacy subclass still routes its inherited articulation_enabled base field."""
+    from isaaclab_newton.sim.schemas import NewtonArticulationCfg, NewtonArticulationRootPropertiesCfg
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+    from isaaclab.sim.schemas import apply_articulation_root_properties, modify_articulation_root_properties
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
-
-    # a minimal concrete backend that OVERRIDES the capability (as PhysX does, relocating the root) ...
-    class _BackendLike(PhysicsManager):
-        @classmethod
-        def fix_articulation_root(cls, articulation_prim, stage=None):
-            from isaaclab.sim.utils import create_fixed_root_joint
-
-            cls._require_rigid_body_root(articulation_prim)
-            create_fixed_root_joint(articulation_prim, stage)
-            parent = articulation_prim.GetParent()
-            UsdPhysics.ArticulationRootAPI.Apply(parent)
-            articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-            return parent
-
-    # ... and a subclass that does not override it (stand-in for a subclassed cfg's class_type)
-    class _SubBackend(_BackendLike):
-        pass
-
     stage = sim_utils.get_current_stage()
-    _make_xform(stage, "/World/SubRobot")
-    root = _make_xform(stage, "/World/SubRobot/base")
-    UsdPhysics.RigidBodyAPI.Apply(root)
-    UsdPhysics.ArticulationRootAPI.Apply(root)
+    legacy = _make_xform(stage, "/World/LegacyNewton")
+    fragments = _make_xform(stage, "/World/FragmentNewton")
+    UsdPhysics.ArticulationRootAPI.Apply(legacy)
+    UsdPhysics.ArticulationRootAPI.Apply(fragments)
 
-    result = _SubBackend.fix_articulation_root(root, stage)
+    modify_articulation_root_properties(
+        legacy.GetPath(),
+        NewtonArticulationRootPropertiesCfg(articulation_enabled=False, self_collision_enabled=True),
+        stage,
+    )
+    apply_articulation_root_properties(
+        fragments.GetPath(),
+        [
+            PhysxArticulationCfg(articulation_enabled=False),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
+        stage,
+    )
 
-    parent = stage.GetPrimAtPath("/World/SubRobot")
-    # the subclass inherited the overriding backend's behaviour through the MRO
-    assert any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
-    assert result == parent
-    assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
-    assert not root.HasAPI(UsdPhysics.ArticulationRootAPI)
-
-    # and the real active backend (PhysX) genuinely overrides the base -- so backends specialise via
-    # this same inheritance mechanism rather than a parallel registry
-    active_manager = SimulationContext.instance().physics_manager
-    assert active_manager.fix_articulation_root.__func__ is not PhysicsManager.fix_articulation_root.__func__
+    for prim in (legacy, fragments):
+        assert prim.GetAttribute("physxArticulation:articulationEnabled").Get() is False
+        assert prim.GetAttribute("newton:selfCollisionEnabled").Get() is True
 
 
 # -------------------------------------------------------------------------------------
@@ -606,13 +657,9 @@ def _author_articulation_usd(path: str) -> None:
     asset_stage.Save()
 
 
-def test_spawn_from_usd_file_empty_articulation_props_with_fix_root_link(tmp_path):
-    """An empty ``articulation_props=[]`` on a USD spawn is a valid (topology-only) fragment collection:
-    it must route to the fragment writer and honor ``fix_root_link`` -- not crash in the legacy writer.
-
-    Regression: the legacy path called ``dataclasses.fields([])`` on the empty list and raised
-    ``TypeError``, so the direct-writer and spawner entry points disagreed on whether ``[]`` was valid.
-    """
+@pytest.mark.parametrize("articulation_props", [None, []], ids=["none", "empty"])
+def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articulation_props):
+    """None and an empty fragment collection both honor the independent topology flag."""
     from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
@@ -621,33 +668,44 @@ def test_spawn_from_usd_file_empty_articulation_props_with_fix_root_link(tmp_pat
     usd_path = os.path.join(tmp_path, "articulation.usda")
     _author_articulation_usd(usd_path)
 
-    cfg = UsdFileCfg(usd_path=usd_path, articulation_props=[], fix_root_link=True)
-    _spawn_from_usd_file("/World/FromUsdA", usd_path, cfg)
+    cfg = UsdFileCfg(usd_path=usd_path, articulation_props=articulation_props, fix_root_link=True)
+    _spawn_from_usd_file("/World/FromUsdTopology", usd_path, cfg)
 
     stage = sim_utils.get_current_stage()
-    # the topology flag was honored: a fixed joint was created and the root relocated to the parent
-    assert any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
-    parent = stage.GetPrimAtPath("/World/FromUsdA")
-    assert parent.HasAPI(UsdPhysics.ArticulationRootAPI)
-    assert not stage.GetPrimAtPath("/World/FromUsdA/base").HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert any(prim.IsA(UsdPhysics.FixedJoint) for prim in stage.Traverse())
+    assert stage.GetPrimAtPath("/World/FromUsdTopology").HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not stage.GetPrimAtPath("/World/FromUsdTopology/base").HasAPI(UsdPhysics.ArticulationRootAPI)
 
 
-def test_spawn_from_usd_file_none_articulation_props_honors_fix_root_link(tmp_path):
-    """``fix_root_link`` is a spawner-level flag processed independently of ``articulation_props``:
-    with ``articulation_props=None`` it must still fix the base (previously it was silently ignored)."""
+def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
+    """The real FileCfg transition bridge composes backend fragments on the relocated root."""
+    from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+    from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
     from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
-    usd_path = os.path.join(tmp_path, "articulation.usda")
+    usd_path = os.path.join(tmp_path, "fragment_articulation.usda")
     _author_articulation_usd(usd_path)
+    cfg = UsdFileCfg(
+        usd_path=usd_path,
+        articulation_props=[
+            PhysxArticulationCfg(solver_position_iteration_count=8),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
+        fix_root_link=True,
+    )
 
-    cfg = UsdFileCfg(usd_path=usd_path, articulation_props=None, fix_root_link=True)
-    _spawn_from_usd_file("/World/FromUsdB", usd_path, cfg)
+    _spawn_from_usd_file("/World/FromUsdFragments", usd_path, cfg)
 
     stage = sim_utils.get_current_stage()
-    assert any(p.IsA(UsdPhysics.FixedJoint) for p in stage.Traverse())
+    root = stage.GetPrimAtPath("/World/FromUsdFragments")
+    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == [root]
+    assert root.GetAttribute("physxArticulation:solverPositionIterationCount").Get() == 8
+    assert root.GetAttribute("newton:selfCollisionEnabled").Get() is True
 
 
 # -------------------------------------------------------------------------------------
@@ -664,4 +722,3 @@ def test_public_imports():
         SchemaFragment,
         apply_articulation_root_properties,
     )
-    from isaaclab.sim.utils import create_fixed_root_joint  # noqa: F401

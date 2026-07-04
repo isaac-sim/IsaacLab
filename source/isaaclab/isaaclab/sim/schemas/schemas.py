@@ -24,7 +24,6 @@ from ..utils import (
     create_prim,
     find_global_fixed_joint_prim,
     get_all_matching_child_prims,
-    get_first_matching_child_prim,
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
@@ -278,127 +277,131 @@ Articulation root properties.
 
 def apply_articulation_root_properties(
     prim_path: str,
-    fragments,
+    fragments: Iterable[schemas_cfg.ArticulationRootFragment],
     stage: Usd.Stage | None = None,
     fix_root_link: bool | None = None,
 ) -> bool:
-    """Apply a list of articulation-root fragments to a prim.
+    """Apply articulation-root fragments to every top-level articulation under a prim.
 
-    Resolves the articulation root before writing: USD assets author
-    ``UsdPhysics.ArticulationRootAPI`` on a child prim (the root link / fixed joint), so this
-    writer descends the subtree under ``prim_path`` and tunes the existing root in place (matching
-    the legacy :func:`modify_articulation_root_properties` writer). Only when no prim in the
-    subtree carries the root does it apply ``UsdPhysics.ArticulationRootAPI`` on ``prim_path``
-    itself (define-fresh, e.g. for primitive or programmatic spawns). This guarantees exactly one
-    articulation root rather than stamping a duplicate on the input prim.
+    Existing articulation roots may live on descendant root links, and a USD file may contain
+    several sibling articulations. This writer discovers every top-level (non-nested) root and
+    dispatches each fragment to each root, matching the traversal semantics of the legacy
+    :func:`modify_articulation_root_properties` writer. Only when no root exists and fragments are
+    present does it apply ``UsdPhysics.ArticulationRootAPI`` to ``prim_path`` as a fresh anchor.
 
-    When ``fix_root_link`` is not ``None`` the base is fixed to the world *before* any fragment is
-    written: an existing world-to-root fixed joint is enabled/disabled, otherwise (when True) one is
-    created via the active backend's
-    :meth:`~isaaclab.physics.PhysicsManager.fix_articulation_root` capability. That capability returns
-    the resulting root prim (some backends relocate it, e.g. PhysX moves the root to the parent), and
-    every fragment is then dispatched to *that* root via its
-    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Writing fragments after the (possibly
-    relocating) fix keeps all backend schemas on the single resulting root -- so composing e.g. a
-    PhysX and a Newton fragment with ``fix_root_link=True`` never leaves a stray second root behind.
-    Backend fragments carry backend-specific funcs, so core never imports a backend.
+    Instance proxies are traversed for discovery so a hidden root suppresses that define-fresh
+    fallback, but they are never authored through. Skipped instance roots make the operation return
+    ``False`` with a warning, matching the legacy nested writer.
+
+    When ``fix_root_link`` is ``True``, each writable root is normalized by the active backend's
+    :meth:`~isaaclab.physics.PhysicsManager.fix_articulation_root` capability before fragments are
+    written. The capability creates or enables the world joint and returns the final root prim;
+    PhysX-based parsers may relocate it to the parent. ``False`` disables an existing world joint
+    without creating one. Backend fragments carry backend-specific funcs, so core imports no backend.
 
     Args:
-        prim_path: The prim path to search for the articulation root under (the root may be on a
-            descendant); the schemas are applied to the resolved root prim.
+        prim_path: The prim path whose subtree is searched for articulation roots.
         fragments: An iterable of :class:`~isaaclab.sim.schemas.ArticulationRootFragment` instances.
-        stage: The stage where to find the prim. Defaults to None, in which case the current
-            stage is used.
-        fix_root_link: Whether to fix the root link of the articulation. This is a non-USD,
-            spawner-level behaviour flag (it is not a fragment field). See
-            :attr:`~isaaclab.sim.spawners.UsdFileCfg.fix_root_link` for the semantics. Defaults
-            to None, in which case the root link is not modified.
+        stage: The stage where to find the prim. Defaults to the current stage.
+        fix_root_link: Whether to fix the root link. This is spawner topology state, not a fragment
+            field. ``None`` leaves the topology unchanged.
 
     Returns:
-        True if the properties were successfully set.
+        True when every fragment/root operation succeeds. False when any fragment reports failure or
+        an articulation root is skipped because it is instanced.
 
     Raises:
         TypeError: When an item in ``fragments`` is not an
-            :class:`~isaaclab.sim.schemas.ArticulationRootFragment` (e.g. a legacy single cfg, which
-            goes through :func:`modify_articulation_root_properties` instead).
-        ValueError: When the prim path is not valid.
-        RuntimeError: When ``fix_root_link`` is True and a fixed joint must be created but there is no
-            active :class:`~isaaclab.sim.SimulationContext` to resolve the physics backend from.
-        NotImplementedError: Propagated from the backend capability when it cannot create the fixed
-            joint (e.g. the resolved root prim is not a rigid body).
+            :class:`~isaaclab.sim.schemas.ArticulationRootFragment`.
+        ValueError: When ``prim_path`` is not valid.
+        RuntimeError: When fixing requires a backend but no active
+            :class:`~isaaclab.sim.SimulationContext` exists, or relocation would merge roots.
+        NotImplementedError: Propagated when a backend cannot fix the resolved root.
     """
-    # validate early: a clear error beats an ``AttributeError`` deep inside fragment dispatch
     fragments = list(fragments)
-    for frag in fragments:
-        if not isinstance(frag, schemas_cfg.ArticulationRootFragment):
+    for fragment in fragments:
+        if not isinstance(fragment, schemas_cfg.ArticulationRootFragment):
             raise TypeError(
                 "apply_articulation_root_properties: expected ArticulationRootFragment instances in"
-                f" 'fragments', got '{type(frag).__name__}'. Pass a legacy single cfg to"
+                f" 'fragments', got '{type(fragment).__name__}'. Pass a legacy single cfg to"
                 " modify_articulation_root_properties instead."
             )
     if stage is None:
         stage = get_current_stage()
-    # resolve the existing root (it may live on a child prim in USD assets); instance proxies can't be
-    # authored on, so don't traverse them
-    articulation_prim = get_first_matching_child_prim(
+
+    # Discover proxies as well as writable prims so a root hidden inside an instance cannot trigger a
+    # second anchor on the instance root. Keep only top-level matches; nested articulations are pruned.
+    matches = get_all_matching_child_prims(
         prim_path,
         lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
-        stage,
-        traverse_instance_prims=False,
+        stage=stage,
+        traverse_instance_prims=True,
     )
-    # No existing root in the subtree: define one on the input prim -- but only when fragments are
-    # supplied (the anchor is presence-gated). A topology-only call (empty fragments, just
-    # ``fix_root_link``) must not stamp an articulation root as a side effect.
-    if articulation_prim is None and fragments:
-        articulation_prim = stage.GetPrimAtPath(prim_path)
-        UsdPhysics.ArticulationRootAPI.Apply(articulation_prim)
+    top_level_roots = []
+    for candidate in matches:
+        if not any(candidate.GetPath().HasPrefix(root.GetPath()) for root in top_level_roots):
+            top_level_roots.append(candidate)
 
-    # Fix the root link BEFORE writing fragments. Some backends relocate the root when fixing (PhysX
-    # moves the ``ArticulationRootAPI`` to the parent), so resolving the final root first lets every
-    # fragment land on that single root -- otherwise a relocation would strand fragment schemas on the
-    # former child and leave two articulation roots.
-    final_root = articulation_prim
-    if fix_root_link is not None:
-        if articulation_prim is None:
-            logger.warning(
-                f"No articulation root found under '{prim_path}': ignoring fix_root_link={fix_root_link}."
-                " The flag only applies to articulations."
-            )
+    writable_roots = []
+    skipped_roots = []
+    for root in top_level_roots:
+        if root.IsInstance() or root.IsInstanceProxy() or root.IsInPrototype():
+            skipped_roots.append(root)
         else:
-            root_path = articulation_prim.GetPath().pathString
-            # honor an explicit stage so the lookup does not fall back to the global current stage
-            existing_fixed_joint_prim = find_global_fixed_joint_prim(root_path, stage=stage)
-            if existing_fixed_joint_prim is not None:
-                # a joint already exists: just enable/disable it in place (no relocation)
-                logger.info(
-                    f"Found an existing fixed joint for the articulation: '{root_path}'. Setting it to:"
-                    f" {fix_root_link}."
-                )
-                existing_fixed_joint_prim.GetJointEnabledAttr().Set(fix_root_link)
-            elif fix_root_link:
-                logger.info(f"Creating a fixed joint for the articulation: '{root_path}'.")
-                # Creating (and possibly relocating) the root is backend-specific. Delegate to the
-                # active backend's manager capability so core carries no backend logic; the capability
-                # returns the resulting root prim.
-                from isaaclab.sim import SimulationContext
+            writable_roots.append(root)
 
-                sim = SimulationContext.instance()
-                if sim is None:
-                    raise RuntimeError(
-                        f"Cannot fix the articulation root '{root_path}': no active SimulationContext"
-                        " to resolve the physics backend from. A simulation must be running to fix a"
-                        " base."
-                    )
-                final_root = sim.physics_manager.fix_articulation_root(articulation_prim, stage)
+    if not top_level_roots and fragments:
+        input_prim = stage.GetPrimAtPath(prim_path)
+        if input_prim.IsInstance() or input_prim.IsInstanceProxy() or input_prim.IsInPrototype():
+            skipped_roots.append(input_prim)
+        else:
+            UsdPhysics.ArticulationRootAPI.Apply(input_prim)
+            writable_roots.append(input_prim)
 
-    # dispatch each fragment to the resolved (possibly relocated) root via its own applier
-    if fragments:
+    success = not skipped_roots
+    if skipped_roots:
+        logger.warning(
+            "Skipping articulation-root updates on instanced prims: %s.",
+            [root.GetPath().pathString for root in skipped_roots],
+        )
+    if not writable_roots:
+        if fix_root_link is not None and not skipped_roots:
+            logger.warning(
+                "No articulation root found under '%s': ignoring fix_root_link=%s.", prim_path, fix_root_link
+            )
+            success = False
+        return success
+
+    physics_manager = None
+    if fix_root_link:
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            raise RuntimeError(
+                f"Cannot fix articulation roots under '{prim_path}': no active SimulationContext to"
+                " resolve the physics backend from. A simulation must be running to fix a base."
+            )
+        physics_manager = sim.physics_manager
+
+    for articulation_prim in writable_roots:
+        final_root = articulation_prim
+        root_path = articulation_prim.GetPath().pathString
+        if fix_root_link:
+            logger.info("Ensuring a fixed root for articulation: '%s'.", root_path)
+            final_root = physics_manager.fix_articulation_root(articulation_prim, stage)
+        elif fix_root_link is False:
+            existing_joint = find_global_fixed_joint_prim(root_path, stage=stage)
+            if existing_joint is not None:
+                logger.info("Disabling the existing fixed joint for articulation: '%s'.", root_path)
+                existing_joint.GetJointEnabledAttr().Set(False)
+
         final_root_path = final_root.GetPath().pathString
-        for cfg in fragments:
-            func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-            func(cfg, final_root_path, stage)
+        for fragment in fragments:
+            func = fragment.func if callable(fragment.func) else string_to_callable(fragment.func)
+            success = bool(func(fragment, final_root_path, stage)) and success
 
-    return True
+    return success
 
 
 def define_articulation_root_properties(

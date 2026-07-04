@@ -372,7 +372,7 @@ def _spawn_from_usd_file(
     # ``fix_root_link`` is a spawner-level topology flag (not a schema property); it is honored on the
     # fragment path independently of whether any articulation schema properties were supplied.
     articulation_props = cfg.articulation_props
-    articulation_fix_root_link = getattr(cfg, "fix_root_link", None)
+    articulation_fix_root_link = cfg.fix_root_link
     # transition shim, remove later: route a legacy single cfg (a dataclass, not a fragment) to the
     # legacy writer -- it owns its own ``fix_root_link`` field; everything else goes to the fragment
     # writer, routing by type so an empty list is still a valid (topology-only) fragment collection

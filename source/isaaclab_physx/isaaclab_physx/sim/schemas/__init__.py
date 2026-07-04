@@ -10,11 +10,6 @@ from isaaclab.utils.module import lazy_export
 
 lazy_export()
 
-# Fixing an articulation base is a backend capability on the physics manager
-# (:meth:`~isaaclab_physx.physics.PhysxManager.fix_articulation_root`): PhysX authors the fixed joint
-# and relocates the articulation root to the parent prim (its parser does not treat a fixed joint on a
-# rigid body as a fixed-base articulation). That PhysX-specific logic lives on the manager, so this
-# schema package no longer registers a creator.
 
 
 def _is_physx_tendon_child(prim) -> bool:

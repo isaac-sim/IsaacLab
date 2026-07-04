@@ -53,8 +53,9 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     """Whether to fix the root link of the articulation. Defaults to None.
 
     This is a non-USD, spawner-level behaviour flag consumed by
-    :func:`~isaaclab.sim.schemas.apply_articulation_root_properties` when
-    :attr:`articulation_props` is given as a fragment list:
+    :func:`~isaaclab.sim.schemas.apply_articulation_root_properties` on the fragment/topology path,
+    including when :attr:`articulation_props` is ``None`` or an empty fragment collection. It is handled
+    independently of whether any schema properties are supplied:
 
     * If set to None, the root link is not modified.
     * If the articulation already has a fixed root link, this flag enables or disables the fixed joint.

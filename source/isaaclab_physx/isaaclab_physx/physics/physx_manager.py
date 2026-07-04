@@ -306,18 +306,15 @@ class PhysxManager(PhysicsManager):
         """Fix an articulation base for the PhysX parser and return the relocated root prim.
 
         The PhysX parser does not treat a fixed joint on a rigid body as a fixed-base articulation --
-        it folds it into the maximal-coordinate tree. To work around that, this authors the
-        world<->root fixed joint and then relocates the ``UsdPhysics.ArticulationRootAPI`` anchor from
-        the root link to its parent prim, returning the parent as the new root. Articulation-root
-        fragments are applied by the caller *after* this call, so they land on the returned root.
+        it folds it into the maximal-coordinate tree. The base manager first creates or enables the
+        world-to-root joint, then this override relocates the complete articulation-root schema family
+        from the rigid root link to its parent. Articulation-root fragments are applied by the caller
+        after this call, so they land on the returned root.
 
         Asset-authored root schemas move with the root: any API schema directly authored on the former
-        root that composes ``PhysicsArticulationRootAPI`` (e.g. Newton's root API on URDF/MJCF-imported
-        assets) is migrated to the parent together with its authored attributes -- removing only the
-        directly applied anchor would leave such a schema behind and the former root would remain a
-        second articulation root through schema composition. The ``PhysxArticulationAPI`` companion
-        and its ``physxArticulation:*`` attributes are migrated the same way, matching the legacy
-        writer's relocation.
+        root that composes ``PhysicsArticulationRootAPI`` is migrated without naming another backend.
+        The ``PhysxArticulationAPI`` companion moves with it. Property migration preserves complete
+        authored USD state, including time samples, metadata, connections, and referenced opinions.
 
         Args:
             articulation_prim: The resolved articulation-root prim to fix to the world frame.
@@ -330,63 +327,15 @@ class PhysxManager(PhysicsManager):
         Raises:
             NotImplementedError: When the root prim is not a rigid body.
         """
-        from isaaclab.sim.utils import create_fixed_root_joint
-
-        cls._require_rigid_body_root(articulation_prim)
-        create_fixed_root_joint(articulation_prim, stage)
-        # Relocate the articulation root to the parent so the PhysX parser recognises a fixed base.
-        parent_prim = articulation_prim.GetParent()
-        UsdPhysics.ArticulationRootAPI.Apply(parent_prim)
-        articulation_prim.RemoveAPI(UsdPhysics.ArticulationRootAPI)
-        cls._migrate_authored_root_schemas(articulation_prim, parent_prim)
-        return parent_prim
-
-    @staticmethod
-    def _migrate_authored_root_schemas(old_root: Usd.Prim, new_root: Usd.Prim) -> None:
-        """Move asset-authored articulation-root API schemas from the former root to the new root.
-
-        Detection is backend-agnostic: a directly authored API schema is migrated when the USD schema
-        registry reports that it composes ``PhysicsArticulationRootAPI`` (so e.g. Newton's root API is
-        recognised without naming it). The PhysX ``PhysxArticulationAPI`` companion is migrated too --
-        it does not compose the root API but carries the root's solver attributes. For each migrated
-        schema, its authored attributes are copied to the new root (attribute values already authored
-        on the new root are not overwritten by schema defaults; only authored values are copied).
-
-        Args:
-            old_root: The former articulation-root prim (the root link being fixed).
-            new_root: The prim taking over the articulation-root role (the parent).
-        """
-        registry = Usd.SchemaRegistry()
-        new_root_applied = set(new_root.GetPrimTypeInfo().GetAppliedAPISchemas())
-        for schema_name in list(old_root.GetPrimTypeInfo().GetAppliedAPISchemas()):
-            # multi-apply instances carry an ":instance" suffix; the registry keys on the base name
-            base_name = schema_name.split(":", 1)[0]
-            prim_def = registry.FindAppliedAPIPrimDefinition(base_name)
-            composes_root = prim_def is not None and "PhysicsArticulationRootAPI" in prim_def.GetAppliedAPISchemas()
-            if not composes_root and base_name != "PhysxArticulationAPI":
-                continue
-            # move the applied schema to the new root
-            old_root.RemoveAppliedSchema(schema_name)
-            if schema_name not in new_root_applied:
-                new_root.AddAppliedSchema(schema_name)
-                new_root_applied.add(schema_name)
-            # copy the schema's authored attributes (property names come from the schema definition;
-            # fall back to the namespace prefix when the schema is not registered)
-            if prim_def is not None:
-                prop_names = list(prim_def.GetPropertyNames())
-            else:
-                prefix = "physxArticulation:" if base_name == "PhysxArticulationAPI" else None
-                prop_names = [
-                    a.GetName() for a in old_root.GetAttributes() if prefix and a.GetName().startswith(prefix)
-                ]
-            for prop_name in prop_names:
-                attr = old_root.GetAttribute(prop_name)
-                if not attr or not attr.HasAuthoredValue():
-                    continue
-                new_attr = new_root.GetAttribute(prop_name)
-                if not new_attr:
-                    new_attr = new_root.CreateAttribute(prop_name, attr.GetTypeName())
-                new_attr.Set(attr.Get())
+        fixed_root = super().fix_articulation_root(articulation_prim, stage)
+        # A previously relocated root is already a non-rigid parent; the manager call above only
+        # re-enables its existing joint, so there is nothing further to normalize.
+        if not fixed_root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return fixed_root
+        return cls._relocate_articulation_root(
+            fixed_root,
+            companion_schema_namespaces={"PhysxArticulationAPI": "physxArticulation"},
+        )
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:

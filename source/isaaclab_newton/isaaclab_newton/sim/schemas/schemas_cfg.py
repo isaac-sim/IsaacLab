@@ -575,7 +575,6 @@ class NewtonArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
 
     _usd_namespace: ClassVar[str | None] = "newton"
     _usd_applied_schema: ClassVar[str | None] = "NewtonArticulationRootAPI"
-    _usd_field_exceptions: ClassVar[dict] = {}
 
     self_collision_enabled: bool | None = None
     """Whether self-collisions between bodies in this articulation are enabled.

@@ -72,7 +72,6 @@ __all__ = [
     "UsdPhysicsMeshCollisionCfg",
     "UsdPhysicsRigidBodyCfg",
     "apply_articulation_root_properties",
-    "create_fixed_root_joint",
     "apply_collision_properties",
     "apply_fixed_tendon_properties",
     "apply_mass_properties",
@@ -375,7 +374,6 @@ from .spawners import (
     spawn_sphere,
 )
 from .utils import (
-    create_fixed_root_joint,
     add_labels,
     add_reference_to_stage,
     add_usd_reference,
