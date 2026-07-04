@@ -26,7 +26,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
-from newton.solvers import SolverNotifyFlags
+from newton.solvers import SolverMuJoCo, SolverNotifyFlags
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -2568,6 +2568,63 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
         assert diff < 0.01, (
             f"body_q was stale when collide() ran: diff={diff:.4f}m, jq={jq_root.tolist()}, bq={bq_root.tolist()}"
         )
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+def test_opt_in_solver_reset_clears_selected_mjwarp_history(device):
+    """An authored write clears selected MuJoCo history without changing the authored state."""
+    sim_cfg = SimulationCfg(
+        dt=1 / 120,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=20,
+                nconmax=20,
+                integrator="implicitfast",
+            ),
+            solver_reset=True,
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+    with build_simulation_context(sim_cfg=sim_cfg, device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        articulation, _ = generate_articulation(
+            generate_articulation_cfg(articulation_type="single_joint_explicit"),
+            num_articulations=2,
+            device=device,
+        )
+        sim.reset()
+
+        solver = SimulationManager._solver
+        assert isinstance(solver, SolverMuJoCo)
+        warm_start = wp.to_torch(solver.mjw_data.qacc_warmstart)
+        assert warm_start.shape[0] == 2
+        assert warm_start.shape[1] > 0
+
+        env_ids = torch.tensor([0], dtype=torch.int32, device=device)
+        joint_pos = articulation.data.default_joint_pos.torch[:1].clone() + 0.25
+        joint_vel = torch.full_like(articulation.data.default_joint_vel.torch[:1], 0.5)
+        articulation.write_joint_state_to_sim_index(
+            position=joint_pos,
+            velocity=joint_vel,
+            env_ids=env_ids,
+        )
+
+        state = SimulationManager._state_0
+        joint_q_before = wp.to_torch(state.joint_q).clone()
+        joint_qd_before = wp.to_torch(state.joint_qd).clone()
+        warm_start[0].fill_(13.0)
+        warm_start[1].fill_(17.0)
+        wp.synchronize_device(device)
+
+        # Public, non-integrating state access consumes the authored-write mask.
+        SimulationManager.get_state()
+        wp.synchronize_device(device)
+
+        torch.testing.assert_close(wp.to_torch(state.joint_q), joint_q_before)
+        torch.testing.assert_close(wp.to_torch(state.joint_qd), joint_qd_before)
+        assert torch.count_nonzero(warm_start[0]).item() == 0
+        torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 17.0))
 
 
 @pytest.mark.parametrize("add_ground_plane", [True])

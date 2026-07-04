@@ -149,6 +149,12 @@ def test_newton_cfg_post_init_propagates_class_type(
     assert cfg.class_type.__name__ == expected_manager.__name__
 
 
+def test_newton_cfg_solver_reset_is_opt_in():
+    """Solver-owned state clearing is disabled unless explicitly requested."""
+    assert NewtonCfg().solver_reset is False
+    assert NewtonCfg(solver_reset=True).solver_reset is True
+
+
 @pytest.mark.parametrize(
     "num_substeps, collision_decimation, should_warn",
     [

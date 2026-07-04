@@ -34,7 +34,7 @@ from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverKamino, SolverNotifyFlags
+from newton.solvers import SolverBase, SolverKamino, SolverMuJoCo, SolverNotifyFlags
 
 from pxr import UsdGeom
 
@@ -402,14 +402,27 @@ class NewtonManager(PhysicsManager):
         (:attr:`_eval_fk`, bound to the active subclass's :meth:`_eval_fk_impl` in
         :meth:`initialize_solver`). Only the articulations flagged dirty in
         :attr:`_fk_reset_mask` and :attr:`_world_reset_mask` (see :meth:`invalidate_fk`) are
-        updated. The masks are consumed (zeroed) afterwards so the next :meth:`step` does not
-        redundantly re-solve them.
+        updated. When :attr:`~isaaclab_newton.physics.NewtonCfg.solver_reset` is enabled,
+        solver-owned state is also cleared for the selected worlds without changing authored
+        positions or velocities. The masks are consumed (zeroed) afterwards so the next
+        :meth:`step` does not redundantly process them.
 
         The delegate (rather than a direct ``cls._eval_fk_impl`` call) is required because the
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
+
+        cfg = PhysicsManager._cfg
+        world_mask = cls._world_reset_mask
+        solver = cls._solver
+        if cfg is not None and cfg.solver_reset and world_mask is not None and solver is not None:
+            # Kamino's FK delegate already performs its mandatory masked reset. CPU MuJoCo owns
+            # one global MjData, so avoid clearing it on clean forward/read/render boundaries.
+            is_cpu_mujoco = isinstance(solver, SolverMuJoCo) and solver.use_mujoco_cpu
+            if not isinstance(solver, SolverKamino) and (not is_cpu_mujoco or bool(world_mask.numpy().any())):
+                solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:

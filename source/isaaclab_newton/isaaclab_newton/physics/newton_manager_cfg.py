@@ -97,6 +97,14 @@ class NewtonCfg(PhysicsCfg):
     Users normally do not set this directly.
     """
 
+    solver_reset: bool = False
+    """Whether to clear solver-owned state after task-authored joint or root writes.
+
+    Isaac Lab preserves the authored positions and velocities. Solvers whose reset hook is a
+    no-op are unaffected. Kamino's mandatory state synchronization remains independent of this
+    option.
+    """
+
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
 
