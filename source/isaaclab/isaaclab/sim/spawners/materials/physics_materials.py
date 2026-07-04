@@ -96,8 +96,6 @@ def spawn_physics_material(
     | list[physics_materials_cfg.RigidBodyMaterialFragment]
     | tuple[physics_materials_cfg.RigidBodyMaterialFragment, ...],
     stage: Usd.Stage | None = None,
-    *,
-    require_rigid: bool = False,
 ) -> Usd.Prim:
     """Spawn a physics material from a spawner ``physics_material`` slot value.
 
@@ -113,9 +111,6 @@ def spawn_physics_material(
         stage: The stage to spawn on. Defaults to None, in which case the current stage is used. A
             legacy material cfg only supports the current stage (or None); passing a different
             stage raises.
-        require_rigid: Whether to reject legacy deformable-material configs. Fragment inputs are
-            always rigid-body materials. Defaults to False for mixed rigid/deformable slots.
-
     Returns:
         The spawned material prim.
 
@@ -123,7 +118,6 @@ def spawn_physics_material(
         ValueError: When ``material`` is an empty fragment collection.
         ValueError: When ``material`` is a legacy material cfg and ``stage`` is neither ``None``
             nor the current stage.
-        ValueError: When ``require_rigid`` is True and ``material`` is a deformable-material cfg.
         TypeError: When ``material`` is a fragment collection containing anything other than
             :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment` instances.
         TypeError: When ``material`` is neither a physics-material cfg nor a rigid-body fragment.
@@ -136,8 +130,6 @@ def spawn_physics_material(
             "A physics material must be a PhysicsMaterialCfg or rigid-body material fragment; got"
             f" '{type(material).__name__}'."
         )
-    if require_rigid and not isinstance(material, physics_materials_cfg.RigidBodyMaterialBaseCfg):
-        raise ValueError(f"A rigid-only material slot cannot use '{type(material).__name__}'.")
     # legacy single-cfg path (rigid or deformable material cfg with its own spawner ``func``).
     # Legacy material funcs take only ``(prim_path, cfg)`` and resolve the stage internally via
     # ``get_current_stage()`` (their path matching is also current-stage-bound), so an explicit

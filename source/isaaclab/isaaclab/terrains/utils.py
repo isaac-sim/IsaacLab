@@ -126,7 +126,7 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
     # create physics material
     physics_material = kwargs.get("physics_material")
     if physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", physics_material, require_rigid=True)
+        spawn_physics_material(f"{prim_path}/physicsMaterial", physics_material)
         sim_utils.bind_physics_material(prim.GetPrimPath(), f"{prim_path}/physicsMaterial")
 
 

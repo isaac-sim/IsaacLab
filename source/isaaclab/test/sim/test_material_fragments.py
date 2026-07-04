@@ -145,10 +145,7 @@ def test_spawn_physics_material_rejects_non_current_stage_for_legacy():
 
 def test_fragment_writer_validates_inputs_before_authoring():
     """Direct and dispatched fragment calls share one validation contract and do not leave prims."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import (
-        PhysxDeformableBodyMaterialCfg,
-        PhysxRigidBodyMaterialCfg,
-    )
+    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
 
     from isaaclab.sim.spawners.materials.physics_materials import (
         spawn_physics_material,
@@ -172,10 +169,7 @@ def test_fragment_writer_validates_inputs_before_authoring():
         spawn_rigid_body_material_from_fragments("/World/MatLegacy", PhysxRigidBodyMaterialCfg(), stage)
     with pytest.raises(TypeError):
         spawn_physics_material("/World/MatInvalid", object())
-    with pytest.raises(ValueError, match="rigid-only"):
-        spawn_physics_material("/World/MatDeformable", PhysxDeformableBodyMaterialCfg(), require_rigid=True)
-
-    for path in ("MatEmpty", "MatMixed", "MatLegacy", "MatInvalid", "MatDeformable"):
+    for path in ("MatEmpty", "MatMixed", "MatLegacy", "MatInvalid"):
         assert not stage.GetPrimAtPath(f"/World/{path}").IsValid()
 
 

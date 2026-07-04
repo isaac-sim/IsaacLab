@@ -212,7 +212,7 @@ def spawn_ground_plane(
 
     # Create physics material
     if cfg.physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage, require_rigid=True)
+        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
         # Apply physics material to ground plane
         collision_prim = get_first_matching_child_prim(
             prim_path,

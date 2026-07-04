@@ -41,8 +41,5 @@ Fixed
   :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg` instances raised
   ``ValueError`` on rigid meshes. The check now accepts any
   :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`.
-* Fixed rigid-only shape, ground-plane, and generated-terrain material slots accepting legacy
-  deformable-material configs at runtime. The dispatcher now rejects those configs before creating
-  a material prim.
 * Fixed malformed fragment inputs reaching an opaque legacy ``func`` call. Direct and dispatched
   fragment calls now reject empty, mixed, and non-fragment inputs before creating a material prim.

@@ -318,7 +318,7 @@ def _spawn_geom_from_prim_type(
         else:
             material_path = cfg.physics_material_path
         # create material (accepts a legacy material cfg or rigid-body fragment(s))
-        spawn_physics_material(material_path, cfg.physics_material, stage=stage, require_rigid=True)
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
