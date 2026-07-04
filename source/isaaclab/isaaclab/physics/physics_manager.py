@@ -101,175 +101,98 @@ class PhysicsManager(ABC):
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
-        """Fix an articulation base to the world frame and return the resulting root prim.
+        """Ensure that an articulation root has one enabled world fixed joint.
 
-        Ensures that a world-to-root fixed joint exists and is enabled. The operation is idempotent:
-        an existing disabled joint is enabled rather than duplicated. The base implementation leaves
-        ``articulation_prim`` unchanged, which is sufficient for backends whose parser reads a fixed
-        joint on the root directly (e.g. Newton). Backends whose parser requires the articulation-root
-        schema on the root link's parent override this method, call ``super()``, then relocate the root
-        and return the resulting prim.
-
-        This is a backend capability rather than a registry keyed by cfg type: the active backend's
-        manager class is resolved from ``cfg.physics.class_type``, so subclassed cfgs and every
-        supported backend inherit the correct behaviour through the normal method-resolution order.
+        The base implementation leaves the root in place. Backends whose parser requires a different
+        root topology may relocate it and return the resulting root prim.
 
         Args:
-            articulation_prim: The resolved articulation-root prim to fix to the world frame.
-            stage: The stage the prim lives on. Defaults to None, in which case the current stage is
-                used.
+            articulation_prim: The articulation-root prim to fix.
+            stage: The stage containing the prim. Defaults to the current stage.
 
         Returns:
-            The articulation-root prim after fixing. May differ from ``articulation_prim`` when the
-            backend relocates the root (e.g. PhysX moves it to the parent prim).
+            The articulation-root prim after backend normalization.
 
         Raises:
-            NotImplementedError: When the root prim is not a rigid body and the first rigid-body link
-                cannot be determined to anchor the fixed joint.
+            NotImplementedError: If a new joint is needed and the root is not a rigid body.
         """
+        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
 
         from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
         from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
 
         if stage is None:
             stage = get_current_stage()
-        existing_joint = find_global_fixed_joint_prim(articulation_prim.GetPath().pathString, stage=stage)
-        if existing_joint is not None:
-            existing_joint.GetJointEnabledAttr().Set(True)
-            return articulation_prim
-
-        cls._create_fixed_root_joint(articulation_prim, stage)
-        return articulation_prim
-
-    @staticmethod
-    def _create_fixed_root_joint(articulation_prim: Any, stage: Any) -> Any:
-        """Author a world-to-root fixed joint at the articulation's current world pose."""
-        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
-
         root_path = articulation_prim.GetPath().pathString
+        joint = find_global_fixed_joint_prim(root_path, stage=stage)
+        if joint is not None:
+            joint.GetJointEnabledAttr().Set(True)
+            return articulation_prim
         if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            raise NotImplementedError(
-                f"The articulation prim '{root_path}' does not have the"
-                " RigidBodyAPI applied. To create a fixed joint, we need to determine the first rigid"
-                " body link in the articulation tree. However, this is not implemented yet."
-            )
+            raise NotImplementedError(f"Cannot fix non-rigid articulation root '{root_path}'.")
 
-        joint_parent = articulation_prim
-        while joint_parent != stage.GetPseudoRoot():
-            if joint_parent.IsInPrototype() or joint_parent.IsInstanceProxy() or joint_parent.IsInstanceable():
-                joint_parent = joint_parent.GetParent()
-            else:
-                break
-        parent_path = joint_parent.GetPath().pathString
-        if parent_path == "/":
-            parent_path = ""
-        joint_name = "FixedJoint"
-        if stage.GetPrimAtPath(f"{parent_path}/{joint_name}").IsValid():
-            index = 0
-            while stage.GetPrimAtPath(f"{parent_path}/{joint_name}{index}").IsValid():
-                index += 1
-            joint_name = f"{joint_name}{index}"
+        joint_path = f"{root_path}/FixedJoint"
+        index = 0
+        while stage.GetPrimAtPath(joint_path).IsValid():
+            index += 1
+            joint_path = f"{root_path}/FixedJoint{index}"
 
         world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
-        joint = UsdPhysics.FixedJoint.Define(stage, f"{parent_path}/{joint_name}")
+        joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
         joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
         joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_xform.ExtractTranslation()))
         joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
-        joint.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
-        joint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
-        max_float = 3.40282347e38
-        joint.CreateBreakForceAttr().Set(max_float)
-        joint.CreateBreakTorqueAttr().Set(max_float)
-        return joint.GetPrim()
+        return articulation_prim
 
     @staticmethod
     def _relocate_articulation_root(
         articulation_prim: Any,
-        companion_schema_namespaces: dict[str, str] | None = None,
+        companion_schema: str,
+        companion_namespace: str,
     ) -> Any:
-        """Move an articulation-root schema family to the root link's parent.
-
-        The pure-USD operation is shared by backends whose parser requires parent-root topology.
-        Every applied API that composes ``PhysicsArticulationRootAPI`` is moved, together with any
-        backend companion schemas named by ``companion_schema_namespaces``. Authored properties are
-        flattened before the old schemas are removed, preserving defaults, time samples, metadata,
-        connections, and relationship targets even when opinions come through a referenced asset.
-        """
+        """Move root-bearing schemas and authored properties to the root link's parent."""
         from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
-        companion_schema_namespaces = companion_schema_namespaces or {}
-        if not articulation_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-            raise ValueError(
-                f"Prim '{articulation_prim.GetPath()}' is not an articulation root and cannot be relocated."
-            )
         new_root = articulation_prim.GetParent()
         if new_root.HasAPI(UsdPhysics.ArticulationRootAPI):
             raise RuntimeError(
-                f"Cannot relocate articulation root '{articulation_prim.GetPath()}' to"
-                f" '{new_root.GetPath()}': the destination is already an articulation root."
-                " Relocation would merge distinct articulations."
+                f"Cannot relocate '{articulation_prim.GetPath()}' to existing articulation root '{new_root.GetPath()}'."
             )
+
         registry = Usd.SchemaRegistry()
-        root_schema_name = UsdPhysics.Tokens.PhysicsArticulationRootAPI
-
-        schemas_to_move: list[tuple[str, list[Any]]] = []
-        has_root_schema = False
+        root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
+        schemas_to_move = []
         for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
-            base_name, instance_name = registry.GetTypeNameAndInstance(schema_name)
-            prim_def = registry.FindAppliedAPIPrimDefinition(base_name)
-            is_root_anchor = base_name == root_schema_name
-            composes_root = prim_def is not None and root_schema_name in prim_def.GetAppliedAPISchemas()
-            if not is_root_anchor and not composes_root and base_name not in companion_schema_namespaces:
+            definition = registry.FindAppliedAPIPrimDefinition(schema_name)
+            if schema_name == companion_schema:
+                properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
+            elif schema_name == root_schema or (
+                definition is not None and root_schema in definition.GetAppliedAPISchemas()
+            ):
+                properties = []
+                if definition is not None:
+                    for property_name in definition.GetPropertyNames():
+                        prop = articulation_prim.GetProperty(property_name)
+                        if prop and prop.IsAuthored():
+                            properties.append(prop)
+            else:
                 continue
-            if is_root_anchor or composes_root:
-                has_root_schema = True
-
-            property_names = list(prim_def.GetPropertyNames()) if prim_def is not None else []
-            if instance_name:
-                property_names = [
-                    registry.MakeMultipleApplyNameInstance(name, instance_name) for name in property_names
-                ]
-            fallback_namespace = companion_schema_namespaces.get(base_name)
-            if fallback_namespace is not None:
-                property_names.extend(
-                    prop.GetName() for prop in articulation_prim.GetAuthoredPropertiesInNamespace(fallback_namespace)
-                )
-            properties = []
-            for property_name in dict.fromkeys(property_names):
-                prop = articulation_prim.GetProperty(property_name)
-                if prop and prop.IsAuthored():
-                    properties.append(prop)
             schemas_to_move.append((schema_name, properties))
-        if not has_root_schema:
-            raise RuntimeError(
-                f"Cannot relocate articulation root '{articulation_prim.GetPath()}': its root API is"
-                " built in or auto-applied, so there is no movable root-schema opinion."
-            )
 
-        new_root_schemas = set(new_root.GetPrimTypeInfo().GetAppliedAPISchemas())
         for schema_name, properties in schemas_to_move:
-            if schema_name not in new_root_schemas:
-                if not new_root.AddAppliedSchema(schema_name):
-                    raise RuntimeError(f"Failed to apply schema '{schema_name}' to '{new_root.GetPath()}'.")
-                new_root_schemas.add(schema_name)
+            if not new_root.AddAppliedSchema(schema_name):
+                raise RuntimeError(f"Failed to apply '{schema_name}' to '{new_root.GetPath()}'.")
             for prop in properties:
                 if not prop.FlattenTo(new_root):
-                    raise RuntimeError(
-                        f"Failed to move property '{prop.GetPath()}' to articulation root '{new_root.GetPath()}'."
-                    )
-
+                    raise RuntimeError(f"Failed to move '{prop.GetPath()}' to '{new_root.GetPath()}'.")
         for schema_name, _ in schemas_to_move:
             if not articulation_prim.RemoveAppliedSchema(schema_name):
-                raise RuntimeError(
-                    f"Failed to remove schema '{schema_name}' from old articulation root"
-                    f" '{articulation_prim.GetPath()}'."
-                )
-        if not new_root.HasAPI(UsdPhysics.ArticulationRootAPI) or articulation_prim.HasAPI(
+                raise RuntimeError(f"Failed to remove '{schema_name}' from '{articulation_prim.GetPath()}'.")
+        if articulation_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or not new_root.HasAPI(
             UsdPhysics.ArticulationRootAPI
         ):
             raise RuntimeError(
-                f"Relocating articulation root '{articulation_prim.GetPath()}' to '{new_root.GetPath()}'"
-                " did not produce exactly one root at the destination."
+                f"Failed to relocate articulation root '{articulation_prim.GetPath()}' to '{new_root.GetPath()}'."
             )
         return new_root
 

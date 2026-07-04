@@ -230,31 +230,15 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
-        """Fix an articulation base using the parent-root topology required by OVPhysX.
-
-        OVPhysX uses the PhysX articulation parser, so a world joint on a rigid root link is not by
-        itself classified as a fixed-base articulation. The base manager creates or enables the
-        joint; this override then relocates the complete articulation-root schema family to the root
-        link's parent, preserving authored property specifications.
-
-        Args:
-            articulation_prim: The resolved articulation-root prim to fix to the world frame.
-            stage: The stage the prim lives on. Defaults to None, in which case the current stage is
-                used.
-
-        Returns:
-            The parent prim, which becomes the articulation root after relocation.
-
-        Raises:
-            NotImplementedError: When the root prim is not a rigid body.
-        """
-        fixed_root = super().fix_articulation_root(articulation_prim, stage)
-        if not fixed_root.HasAPI(UsdPhysics.RigidBodyAPI):
-            return fixed_root
-        return cls._relocate_articulation_root(
-            fixed_root,
-            companion_schema_namespaces={"PhysxArticulationAPI": "physxArticulation"},
-        )
+        """Fix and normalize an articulation root for the OVPhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
 
     @classmethod
     def register_clone(

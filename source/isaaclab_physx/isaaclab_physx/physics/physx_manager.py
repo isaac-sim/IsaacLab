@@ -303,39 +303,15 @@ class PhysxManager(PhysicsManager):
 
     @classmethod
     def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
-        """Fix an articulation base for the PhysX parser and return the relocated root prim.
-
-        The PhysX parser does not treat a fixed joint on a rigid body as a fixed-base articulation --
-        it folds it into the maximal-coordinate tree. The base manager first creates or enables the
-        world-to-root joint, then this override relocates the complete articulation-root schema family
-        from the rigid root link to its parent. Articulation-root fragments are applied by the caller
-        after this call, so they land on the returned root.
-
-        Asset-authored root schemas move with the root: any API schema directly authored on the former
-        root that composes ``PhysicsArticulationRootAPI`` is migrated without naming another backend.
-        The ``PhysxArticulationAPI`` companion moves with it. Property migration preserves complete
-        authored USD state, including time samples, metadata, connections, and referenced opinions.
-
-        Args:
-            articulation_prim: The resolved articulation-root prim to fix to the world frame.
-            stage: The stage the prim lives on. Defaults to None, in which case the current stage is
-                used.
-
-        Returns:
-            The parent prim, which becomes the articulation root after relocation.
-
-        Raises:
-            NotImplementedError: When the root prim is not a rigid body.
-        """
-        fixed_root = super().fix_articulation_root(articulation_prim, stage)
-        # A previously relocated root is already a non-rigid parent; the manager call above only
-        # re-enables its existing joint, so there is nothing further to normalize.
-        if not fixed_root.HasAPI(UsdPhysics.RigidBodyAPI):
-            return fixed_root
-        return cls._relocate_articulation_root(
-            fixed_root,
-            companion_schema_namespaces={"PhysxArticulationAPI": "physxArticulation"},
-        )
+        """Fix and normalize an articulation root for the PhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
