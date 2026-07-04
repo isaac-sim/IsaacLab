@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 from pxr import Usd
 
 from isaaclab.sim import schemas
+from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
@@ -316,8 +317,8 @@ def _spawn_geom_from_prim_type(
             material_path = f"{geom_prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        # create material
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 

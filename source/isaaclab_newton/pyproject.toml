@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_newton"
-version = "1.5.0"
+version = "1.5.1"
 description = "Extension providing IsaacLab with Newton specific abstractions."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
@@ -27,7 +27,7 @@ all = [
     "prettytable>=3.3.0",
     "PyOpenGL-accelerate>=3.1.0",
     "pyglet>=2.1.6,<3",
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@79e95bf5571d70a0a46c8eaedc80644531d27368",
+    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
 ]
 
 [tool.setuptools]

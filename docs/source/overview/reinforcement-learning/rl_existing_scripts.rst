@@ -67,6 +67,10 @@ Other available presets for this environment: ``albedo``,
 ``simple_shading_full_mdl``.  The ``depth`` preset is intended for
 benchmarking only (see the environment's config for details).
 
+During training, image-like scene sensor outputs from camera tasks can be saved with
+``--capture_env_sensors``. See :doc:`/source/how-to/capture_sensor_frames` for the full capture
+schedule and output format details.
+
 
 RL-Games
 --------
@@ -397,6 +401,18 @@ All the commands above log the training progress to `Tensorboard`_ in the ``logs
 the repository. The logs directory follows the pattern ``logs/<library>/<task>/<date-time>``, where ``<library>``
 is the name of the learning framework, ``<task>`` is the task name, and ``<date-time>`` is the timestamp at
 which the training command was executed.
+
+New training runs also store a ``run.json`` manifest in their run directory. This manifest allows the unified
+``train`` and ``play`` commands to resolve a checkpoint without copying its path manually. Pass
+``--checkpoint latest`` to select the highest-step checkpoint from the newest compatible run:
+
+.. code:: bash
+
+   ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint latest
+
+Pass ``--checkpoint best`` to prefer the library-specific best or final checkpoint. For libraries without a
+distinct best checkpoint, ``best`` resolves to the same checkpoint as ``latest``. These selectors are supported
+by RL-Games, RSL-RL, skrl, and Stable-Baselines3. RSL-RL training resume continues to require ``--resume``.
 
 To view the logs, run:
 

@@ -14,6 +14,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
 # Directory containing golden images.
@@ -59,7 +60,13 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
 # outputs where the per-pixel value distribution is highly non-uniform after normalisation (e.g. depth, where we
 # divide by the max value so tiny absolute differences near the far plane dominate windowed variance). For these
 # data types we still compute SSIM for reporting, but only the per-pixel L2 gate is used to decide pass/fail.
-_SSIM_DISABLED_DATA_TYPES: set[str] = {"depth", "distance_to_camera", "distance_to_image_plane"}
+_SSIM_DISABLED_DATA_TYPES: set[str] = {
+    "depth",
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
+}
 
 # Directory for comparison images saved during the test session.
 # Located under the pytest output root so it gets copied alongside test reports.
@@ -86,6 +93,8 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
+    "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
 )
 
 
@@ -236,24 +245,6 @@ def _physics_preset_name(physics_backend: str) -> str:
     ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
     """
     return "newton_mjwarp" if physics_backend == "newton" else physics_backend
-
-
-def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
-    """Convert camera output tensor to [0, 1] float32 for conversion to image."""
-    normalized = tensor.float()
-
-    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-        max_val = normalized.max()
-        if max_val > 0:
-            normalized = normalized / max_val
-    elif data_type in {"albedo"}:
-        normalized = normalized[..., :3] / 255.0
-    elif data_type in {"normals"}:
-        normalized = (normalized + 1.0) * 0.5
-    else:
-        normalized = normalized / 255.0
-
-    return normalized
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
@@ -432,12 +423,13 @@ def make_require_ovlibs_install_fixture():
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovlibs_install(request):
+    def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
 
         if callspec.params.get("renderer") == "ovrtx_renderer":
+            monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "0")
             try:
                 import ovrtx
 
@@ -462,13 +454,6 @@ def make_require_ovlibs_install_fixture():
                 )
 
     return _require_ovlibs_install
-
-
-def _make_grid(images: torch.Tensor) -> torch.Tensor:
-    """Make a grid of images from a tensor of shape (B, H, W, C)."""
-    from torchvision.utils import make_grid
-
-    return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
 
 
 def _ssim(img1: torch.Tensor, img2: torch.Tensor, window_size: int = 11) -> float:
@@ -576,8 +561,8 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
 
-        normalized = _normalize_tensor(corrected, data_type)
-        grid = _make_grid(normalized)
+        normalized = normalize_camera_output_for_display(corrected, data_type)
+        grid = make_camera_output_grid(normalized)
         ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
         result_image = Image.fromarray(ndarr)
 
@@ -593,10 +578,25 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Error opening golden image: {error}"
             continue
 
+        # Instance seg colors are non-stable across runs (NonStableInstanceSegmentation /
+        # InstanceSegmentationSD IDs vary). Compare only the alpha channel (instance mask shape)
+        # by zeroing RGB on both images.
+        result_image_for_comparison = result_image
+        golden_image_for_comparison = golden_image
+        if data_type in {"instance_segmentation_fast", "instance_id_segmentation_fast"}:
+
+            def _alpha_only(img: Image.Image) -> Image.Image:
+                r, g, b, a = img.split()
+                zero = r.point(lambda _: 0)
+                return Image.merge("RGBA", (zero, zero, zero, a))
+
+            result_image_for_comparison = _alpha_only(result_image)
+            golden_image_for_comparison = _alpha_only(golden_image)
+
         check_ssim = data_type not in _SSIM_DISABLED_DATA_TYPES
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
-            result_image,
-            golden_image,
+            result_image_for_comparison,
+            golden_image_for_comparison,
             max_different_pixels_percentage,
             check_ssim=check_ssim,
             ssim_threshold=ssim_threshold,
@@ -617,6 +617,9 @@ def validate_camera_outputs(
             "img_golden_path": None,
         }
 
+        # We want to keep the record in the test artifact so that we can have a chance to see whether
+        # test cases that appear successful is a false positive or not, e.g. image diff threshold is set
+        # 8%, if the result image is 7% different from the golden, it is considered a pass
         if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
             entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
@@ -658,6 +661,8 @@ def rendering_test_shadow_hand(
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
+        instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
 
     @configclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
@@ -711,6 +716,8 @@ def rendering_test_cartpole(
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
 
+    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
+
     @configclass
     class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
         distance_to_camera = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["distance_to_camera"])
@@ -718,17 +725,36 @@ def rendering_test_cartpole(
             data_types=["distance_to_image_plane"]
         )
         normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_segmentation_fast"]
+        )
+        instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_id_segmentation_fast"]
+        )
+
+    @configclass
+    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
+        robot_cfg = CARTPOLE_CFG.replace(
+            prim_path="/World/envs/env_.*/Robot",
+            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+        )
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
-        distance_to_camera = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        distance_to_image_plane = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        normals = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        normals = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -745,12 +771,26 @@ def rendering_test_cartpole(
 
     try:
         env = CartpoleCameraEnv(env_cfg)
+        camera_outputs = env._tiled_camera.data.output
+        if renderer == "ovrtx_renderer":
+            # The first output access creates the selected OVRTX render-variable mapping. Give
+            # it a few frames to compile and populate instead of validating its zeroed buffer.
+            for _ in range(10):
+                has_valid_outputs = all(
+                    torch.count_nonzero(output if isinstance(output, torch.Tensor) else output.torch).item() > 0
+                    for output in camera_outputs.values()
+                )
+                if has_valid_outputs:
+                    break
+                env.sim.render()
+                env.scene.update(dt=env.physics_dt)
+                camera_outputs = env._tiled_camera.data.output
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
-            env._tiled_camera.data.output,
+            camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
             comparison_scores=comparison_scores,
         )
@@ -806,6 +846,24 @@ def rendering_test_dexsuite_kuka(
         normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
         normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
         normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
+        instance_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=64, height=64
+        )
+        instance_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=128, height=128
+        )
+        instance_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=256, height=256
+        )
+        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        )
+        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        )
+        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=256, height=256
+        )
 
     @configclass
     class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):

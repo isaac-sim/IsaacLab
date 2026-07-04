@@ -19,6 +19,7 @@ import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import numpy as np
 import pytest
 import torch
+import warp as wp
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import NewtonVisualizerCfg
@@ -498,8 +499,22 @@ class _FakeNewtonMarkerMesh:
     uvs = np.zeros((0, 2), dtype=np.float32)
 
 
+_NEWTON_MARKER_SPECS = {
+    "arrow": newton_markers._NewtonMarkerSpec(
+        renderer="mesh",
+        mesh_type="box",
+        mesh_params={"size": (1.0, 1.0, 1.0)},
+        color=(1.0, 1.0, 1.0),
+        texture=np.zeros((2, 2, 3), dtype=np.uint8),
+    ),
+    "sphere": newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="sphere", mesh_params={"radius": 1.0}),
+    "frame": newton_markers._NewtonMarkerSpec(renderer="frame"),
+}
+
+
 class _FakeNewtonMarkerViewer:
-    def __init__(self):
+    def __init__(self, world_offsets):
+        self.world_offsets = world_offsets
         self.meshes = []
         self.instances = []
         self.lines = []
@@ -552,53 +567,218 @@ def _make_newton_marker_for_render(
     marker.count = translations.shape[0]
     marker._registered_meshes = set()
     marker._warned_unsupported = set()
+    marker._marker_specs = {name: _NEWTON_MARKER_SPECS[name] for name in marker_names}
     return marker
 
 
-def _patch_newton_marker_render_deps(monkeypatch: pytest.MonkeyPatch) -> None:
-    specs = {
-        "arrow": newton_markers._NewtonMarkerSpec(
-            renderer="mesh",
-            mesh_type="box",
-            mesh_params={"size": (1.0, 1.0, 1.0)},
-            color=(1.0, 1.0, 1.0),
-            texture=np.zeros((2, 2, 3), dtype=np.uint8),
-        ),
-        "sphere": newton_markers._NewtonMarkerSpec(renderer="mesh", mesh_type="sphere", mesh_params={"radius": 1.0}),
-        "frame": newton_markers._NewtonMarkerSpec(renderer="frame"),
-    }
+def _patch_newton_marker_render_deps(
+    monkeypatch: pytest.MonkeyPatch, world_offsets: np.ndarray | None = None, world_offsets_device: str = "cpu"
+):
+    if world_offsets is None:
+        world_offsets = np.zeros((4, 3), dtype=np.float32)
+    warp_world_offsets = wp.array(world_offsets, dtype=wp.vec3, device=world_offsets_device)
 
     monkeypatch.setattr(newton_markers, "_create_mesh", lambda cfg: _FakeNewtonMarkerMesh())
     monkeypatch.setattr(newton_markers.wp, "array", lambda value, dtype=None: value)
-    monkeypatch.setattr(newton_markers, "_resolve_newton_marker_cfg", lambda name, marker_cfg, cfg: specs[name])
+    return warp_world_offsets
+
+
+def test_newton_marker_partial_update_preserves_prototype_indices():
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow", "sphere"],
+        translations=torch.zeros((4, 3), dtype=torch.float32),
+        marker_indices=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
+    )
+    expected_indices = marker.marker_indices
+
+    marker.visualize(
+        translations=torch.ones((4, 3), dtype=torch.float32),
+        orientations=None,
+        scales=None,
+        marker_indices=None,
+    )
+
+    assert marker.marker_indices is expected_indices
 
 
 def test_newton_marker_render_filters_visible_envs(monkeypatch: pytest.MonkeyPatch):
-    _patch_newton_marker_render_deps(monkeypatch)
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch)
     translations = torch.arange(8, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
     marker = _make_newton_marker_for_render(
         marker_names=["arrow"],
         translations=translations,
         marker_indices=torch.zeros(8, dtype=torch.int32),
     )
-    viewer = _FakeNewtonMarkerViewer()
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
 
     marker.render(viewer, visible_env_ids=[1, 3], num_envs=4)
 
     assert len(viewer.instances) == 1
     assert viewer.instances[0]["hidden"] is False
-    assert viewer.instances[0]["xforms"][:, 0].tolist() == [1.0, 3.0, 5.0, 7.0]
+    assert viewer.instances[0]["xforms"][:, 0].tolist() == [2.0, 3.0, 6.0, 7.0]
+
+
+@pytest.mark.parametrize(
+    ("visible_env_ids", "expected"),
+    [
+        ([1, 3], [12.0, 13.0, 36.0, 37.0]),
+        (None, [0.0, 1.0, 12.0, 13.0, 24.0, 25.0, 36.0, 37.0]),
+    ],
+)
+def test_newton_marker_render_applies_world_offsets(
+    monkeypatch: pytest.MonkeyPatch, visible_env_ids: list[int] | None, expected: list[float]
+):
+    world_offsets_device = "cuda:0" if wp.is_cuda_available() else "cpu"
+    world_offsets = _patch_newton_marker_render_deps(
+        monkeypatch,
+        np.array(
+            [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]],
+            dtype=np.float32,
+        ),
+        world_offsets_device=world_offsets_device,
+    )
+    translations = torch.arange(8, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=translations,
+        marker_indices=torch.zeros(8, dtype=torch.int32),
+    )
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=4)
+
+    assert viewer.instances[0]["xforms"][:, 0].tolist() == expected
+
+
+def test_newton_marker_render_preserves_reordered_env_state(monkeypatch: pytest.MonkeyPatch):
+    offsets = np.array(
+        [
+            [0.0, 0.0, 0.0],
+            [100.0, 200.0, 300.0],
+            [200.0, 400.0, 600.0],
+            [300.0, 600.0, 900.0],
+        ],
+        dtype=np.float32,
+    )
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch, offsets)
+    translations = torch.arange(24, dtype=torch.float32).reshape(3, 8).T
+    orientations = torch.arange(32, dtype=torch.float32).reshape(4, 8).T
+    scales = torch.arange(1, 25, dtype=torch.float32).reshape(3, 8).T
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=translations,
+        marker_indices=torch.zeros(8, dtype=torch.int32),
+    )
+    marker.orientations = orientations
+    marker.scales = scales
+    source_state = (
+        marker.translations,
+        marker.orientations,
+        marker.scales,
+        marker.marker_indices,
+    )
+    source_values = tuple(value.clone() for value in source_state)
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    selections = (
+        ([3, 1], torch.tensor([6, 7, 2, 3])),
+        ([1, 3], torch.tensor([2, 3, 6, 7])),
+    )
+
+    monkeypatch.setattr(
+        newton_markers.torch,
+        "arange",
+        lambda *args, **kwargs: pytest.fail("render should not construct environment index tensors"),
+    )
+
+    for visible_env_ids, expected_indices in selections:
+        selected_offsets = torch.from_numpy(offsets[np.repeat(visible_env_ids, 2)])
+        expected_positions = translations[expected_indices] + selected_offsets
+        expected_xforms = torch.cat((expected_positions, orientations[expected_indices]), dim=1)
+        expected_scales = scales[expected_indices]
+        marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=4)
+        call = viewer.instances[-1]
+        assert call["hidden"] is False
+        np.testing.assert_allclose(call["xforms"], expected_xforms.numpy(), rtol=0.0, atol=0.0)
+        np.testing.assert_allclose(call["scales"], expected_scales.numpy(), rtol=0.0, atol=0.0)
+
+    current_state = (
+        marker.translations,
+        marker.orientations,
+        marker.scales,
+        marker.marker_indices,
+    )
+    for current, source, expected in zip(current_state, source_state, source_values):
+        assert current is source
+        assert torch.equal(current, expected)
+    assert len(viewer.instances) == 2
+
+
+def test_newton_marker_render_hides_empty_env_selection(monkeypatch: pytest.MonkeyPatch):
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=torch.zeros((8, 3), dtype=torch.float32),
+    )
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker.render(viewer, visible_env_ids=[], num_envs=4)
+
+    assert len(viewer.instances) == 1
+    assert viewer.instances[0]["hidden"] is True
+
+
+def test_newton_marker_render_defaults_to_first_prototype(monkeypatch: pytest.MonkeyPatch):
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow", "sphere"],
+        translations=torch.zeros((4, 3), dtype=torch.float32),
+    )
+    marker.orientations = None
+    marker.scales = None
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker.render(viewer, visible_env_ids=None, num_envs=4)
+
+    visible_instances = [call for call in viewer.instances if not call["hidden"]]
+    assert len(visible_instances) == 1
+    assert visible_instances[0]["batch_name"] == "/Visuals/marker::test/arrow"
+    assert visible_instances[0]["xforms"][:, 3:].tolist() == [[0.0, 0.0, 0.0, 1.0]] * 4
+    assert visible_instances[0]["scales"].tolist() == [[1.0, 1.0, 1.0]] * 4
+    hidden_batches = [call["batch_name"] for call in viewer.instances if call["hidden"]]
+    assert hidden_batches == ["/Visuals/marker::test/sphere"]
+
+
+def test_newton_marker_render_keeps_global_batch_unmodified(monkeypatch: pytest.MonkeyPatch):
+    world_offsets = _patch_newton_marker_render_deps(
+        monkeypatch,
+        np.array(
+            [[0.0, 0.0, 0.0], [10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [30.0, 0.0, 0.0]],
+            dtype=np.float32,
+        ),
+    )
+    translations = torch.arange(3, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
+    marker = _make_newton_marker_for_render(
+        marker_names=["arrow"],
+        translations=translations,
+        marker_indices=torch.zeros(3, dtype=torch.int32),
+    )
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
+
+    marker.render(viewer, visible_env_ids=[1, 3], num_envs=4)
+
+    assert viewer.instances[0]["xforms"][:, 0].tolist() == [0.0, 1.0, 2.0]
 
 
 def test_newton_marker_render_routes_instances_by_prototype(monkeypatch: pytest.MonkeyPatch):
-    _patch_newton_marker_render_deps(monkeypatch)
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch)
     translations = torch.arange(4, dtype=torch.float32).unsqueeze(1).repeat(1, 3)
     marker = _make_newton_marker_for_render(
         marker_names=["arrow", "sphere"],
         translations=translations,
         marker_indices=torch.tensor([0, 1, 0, 1], dtype=torch.int32),
     )
-    viewer = _FakeNewtonMarkerViewer()
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
 
     marker.render(viewer, visible_env_ids=None, num_envs=4)
 
@@ -613,13 +793,13 @@ def test_newton_marker_render_routes_instances_by_prototype(monkeypatch: pytest.
 
 
 def test_newton_marker_render_hides_unselected_prototypes(monkeypatch: pytest.MonkeyPatch):
-    _patch_newton_marker_render_deps(monkeypatch)
+    world_offsets = _patch_newton_marker_render_deps(monkeypatch)
     marker = _make_newton_marker_for_render(
         marker_names=["arrow", "sphere", "frame"],
         translations=torch.zeros((3, 3), dtype=torch.float32),
         marker_indices=torch.zeros(3, dtype=torch.int32),
     )
-    viewer = _FakeNewtonMarkerViewer()
+    viewer = _FakeNewtonMarkerViewer(world_offsets)
 
     marker.render(viewer, visible_env_ids=None, num_envs=3)
 

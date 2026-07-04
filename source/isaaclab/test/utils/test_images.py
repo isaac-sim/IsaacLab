@@ -180,3 +180,42 @@ class TestNormalizeCameraImagePassthrough:
         src = torch.ones((2, 4, 4, 3), device=device)
         out = normalize_camera_image(src, data_type)
         assert out is src
+
+
+class TestNormalizeCameraOutputForDisplay:
+    """Display normalization for capture and golden-image workflows."""
+
+    def test_rgb_scales_to_unit_range(self, device):
+        from isaaclab.utils.images import normalize_camera_output_for_display
+
+        src = torch.tensor([[[[0.0, 127.0, 255.0]]]], device=device)
+        out = normalize_camera_output_for_display(src, "rgb")
+        expected = torch.tensor([[[[0.0, 127.0 / 255.0, 1.0]]]], device=device)
+        torch.testing.assert_close(out, expected)
+
+    def test_depth_scales_by_max(self, device):
+        from isaaclab.utils.images import normalize_camera_output_for_display
+
+        src = torch.tensor([[[[0.0], [2.0], [4.0]]]], device=device)
+        out = normalize_camera_output_for_display(src, "distance_to_camera")
+        expected = torch.tensor([[[[0.0], [0.5], [1.0]]]], device=device)
+        torch.testing.assert_close(out, expected)
+
+    def test_albedo_keeps_rgb_channels(self, device):
+        from isaaclab.utils.images import normalize_camera_output_for_display
+
+        src = torch.tensor([[[[255.0, 128.0, 64.0, 9.0]]]], device=device)
+        out = normalize_camera_output_for_display(src, "albedo")
+        expected = torch.tensor([[[[1.0, 128.0 / 255.0, 64.0 / 255.0]]]], device=device)
+        torch.testing.assert_close(out, expected)
+
+
+class TestMakeCameraOutputGrid:
+    """Grid composition for multi-env camera capture."""
+
+    def test_single_batch_produces_channel_first_grid(self, device):
+        from isaaclab.utils.images import make_camera_output_grid
+
+        images = torch.ones((1, 2, 3, 3), device=device)
+        grid = make_camera_output_grid(images)
+        assert grid.shape == (3, 2, 3)

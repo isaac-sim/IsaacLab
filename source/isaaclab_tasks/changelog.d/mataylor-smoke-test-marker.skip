@@ -1,0 +1,2 @@
+Test-only: tag the contrib environments smoke test with the shared ``smoke``
+pytest marker.
