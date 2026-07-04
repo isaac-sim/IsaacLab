@@ -1,2 +1,0 @@
-Test-only: tag the rigid/deformable coupling smoke test with the shared
-``smoke`` pytest marker.
