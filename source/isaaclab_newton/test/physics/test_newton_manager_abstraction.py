@@ -427,6 +427,31 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Manager state-refresh boundaries (no SimulationContext required)
+# ---------------------------------------------------------------------------
+
+
+def test_forward_consumes_existing_reset_masks(monkeypatch):
+    """The existing device masks are the complete input to masked FK."""
+    world_mask = wp.array([False, True], dtype=wp.bool, device="cpu")
+    fk_mask = wp.array([True, False], dtype=wp.bool, device="cpu")
+    observed: list[tuple[list[bool], list[bool]]] = []
+
+    def record_fk(worlds, articulations):
+        observed.append((worlds.numpy().tolist(), articulations.numpy().tolist()))
+
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
+    monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
+
+    NewtonManager.forward()
+
+    assert observed == [([False, True], [True, False])]
+    assert world_mask.numpy().tolist() == [False, False]
+    assert fk_mask.numpy().tolist() == [False, False]
+
+
+# ---------------------------------------------------------------------------
 # Manager class hierarchy and factory contracts
 # ---------------------------------------------------------------------------
 
