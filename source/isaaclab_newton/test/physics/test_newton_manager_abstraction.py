@@ -651,3 +651,72 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 
         # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
         assert calls["n"] == 1 + expected_mid_loop_collides
+
+
+# ---------------------------------------------------------------------------
+# Regression: an env reset written through the data layer must land in the
+# manager's canonical _state_0 after an odd number of steps when CUDA graphs
+# are disabled (the use_cuda_graph state-swap gating bug).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("num_steps", [1, 3])
+def test_reset_lands_in_state_0_after_odd_kamino_steps_without_cuda_graph(num_steps):
+    """An env reset written through the data-layer binding lands in ``_state_0``.
+
+    Kamino is double-buffered (``_use_single_state=False``), so each substep
+    ping-pongs ``_state_0`` / ``_state_1``. With a single substep the loop must
+    copy the result back into ``_state_0`` instead of swapping, otherwise after
+    an *odd* number of steps the canonical ``_state_0`` ends up on the other
+    buffer. This copy-on-last was previously gated on ``use_cuda_graph``, so with
+    CUDA graphs disabled ``_state_0`` flipped buffers and env-reset writes landed
+    in the stale buffer.
+
+    :class:`~isaaclab_newton.assets.ArticulationData` binds its joint-state write
+    target to ``_state_0.joint_q`` once at setup (``_sim_bind_joint_pos``) and
+    never re-binds on env resets, so a flipped ``_state_0`` makes reset writes
+    miss the live state. This test reproduces that contract without a full USD
+    articulation: it caches the same ``_state_0.joint_q`` binding, steps Kamino an
+    odd number of times, writes a sentinel through the cached binding (mimicking
+    the reset write), and asserts the manager's ``_state_0`` observes it.
+
+    Without the fix the swap-on-last flips ``_state_0`` for odd ``num_steps`` and
+    the sentinel lands in ``_state_1`` instead, so the final assertion fails.
+    """
+    sentinel = 1.2345
+    sim_cfg = SimulationCfg(
+        dt=1.0 / 120.0,
+        device="cuda:0",
+        gravity=(0.0, 0.0, -9.81),
+        physics=NewtonCfg(
+            solver_cfg=KaminoSolverCfg(),
+            num_substeps=1,
+            use_cuda_graph=False,
+        ),
+    )
+
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        builder = NewtonManager.create_builder()
+        body = builder.add_body(mass=1.0)
+        builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
+        NewtonManager.set_builder(builder)
+        sim.reset()
+
+        # Kamino keeps separate input/output states; the bug only exists there.
+        assert NewtonManager._use_single_state is False
+        # The data layer binds its joint-state write target to _state_0 at setup.
+        reset_target = NewtonManager._state_0.joint_q
+        assert reset_target.shape[0] > 0  # guard against a vacuous assertion
+
+        for _ in range(num_steps):
+            sim.step(render=False)
+
+        # An env reset writes joint state through the (still bound) target.
+        reset_target.fill_(sentinel)
+
+        # The reset must be visible in the manager's canonical _state_0; if the
+        # buffer flipped it landed in _state_1 instead.
+        canonical_joint_q = NewtonManager._state_0.joint_q.numpy()
+        assert np.allclose(canonical_joint_q, sentinel), (
+            f"reset write did not land in _state_0 after {num_steps} steps: {canonical_joint_q}"
+        )

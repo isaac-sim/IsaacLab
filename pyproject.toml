@@ -208,6 +208,7 @@ markers = [
     "training: test runs reinforcement-learning training end-to-end",
     "performance: test measures runtime performance (startup, load, throughput)",
     "benchmark: test lives in a benchmark suite and reports KPIs",
+    "smoke: tests for core installation, task, and RL functionality",
 ]
 
 # Add pypi.nvidia.com so that `uv pip install isaaclab[isaacsim]` works without --extra-index-url.

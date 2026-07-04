@@ -1263,6 +1263,10 @@ class AppLauncher:
             logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
 
+        # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
+        # SimulationContext and renderers consume this setting during their initialization.
+        settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
+
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
 

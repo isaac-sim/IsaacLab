@@ -29,7 +29,7 @@ from common import (
     enable_cameras_for_video,
     resolve_checkpoint_selector,
     set_hydra_args,
-    wrap_record_video,
+    wrap_training_capture,
     write_run_manifest,
 )
 
@@ -140,7 +140,7 @@ def run(argv: list[str]) -> None:
             args_cli,
             convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
         )
-        env = wrap_record_video(env, log_dir, args_cli)
+        env = wrap_training_capture(env, log_dir, args_cli)
 
         start_time = time.time()
         env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)

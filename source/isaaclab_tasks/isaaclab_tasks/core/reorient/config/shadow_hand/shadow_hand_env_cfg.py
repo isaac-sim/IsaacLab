@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -135,6 +135,7 @@ class ShadowHandEventCfg(PresetCfg):
     physx = PhysxEventCfg()
     newton_mjwarp = NewtonEventCfg()
     default = physx
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -207,6 +208,7 @@ class ShadowHandRobotCfg(PresetCfg):
         soft_joint_pos_limit_factor=1.0,
     )
     default = physx
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -246,6 +248,7 @@ class ObjectCfg(PresetCfg):
         articulation_root_prim_path="",
     )
     default = physx
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -263,6 +266,7 @@ class ShadowHandSceneCfg(PresetCfg):
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
     default: InteractiveSceneCfg = physx
+    newton_kamino = newton_mjwarp
 
 
 @configclass
@@ -287,6 +291,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     default = physx
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128), num_substeps=2)
 
 
 @configclass
