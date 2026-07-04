@@ -100,6 +100,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "smoke: tests for core installation, task, and RL functionality")
     config.addinivalue_line("markers", "bug: bug-regression tests (use bug id as argument)")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
     config.addinivalue_line("markers", "docker: tests that only run inside Docker")
