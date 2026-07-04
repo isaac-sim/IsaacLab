@@ -186,6 +186,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 f"Joint wrench sensor '{self.cfg.prim_path}': not initialized."
                 " Access sensor data only after sim.reset() has been called."
             )
+        NewtonManager.forward()
         wp.launch(
             joint_wrench_to_incoming_joint_frame_kernel,
             dim=(self._num_envs, self._num_joints),

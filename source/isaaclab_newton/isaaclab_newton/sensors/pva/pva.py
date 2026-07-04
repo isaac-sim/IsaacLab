@@ -166,6 +166,7 @@ class Pva(BasePva):
                 f"Pva '{self.cfg.prim_path}': sensor not initialized. "
                 "Access sensor data only after sim.reset() has been called."
             )
+        NewtonManager.forward()
         state = NewtonManager._state_0
 
         wp.launch(

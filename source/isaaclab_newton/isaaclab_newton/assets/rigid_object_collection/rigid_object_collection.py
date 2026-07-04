@@ -457,8 +457,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         # Invalidate dependent timestamps
-        if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids)
+        self.data._reset_pose(env_ids=env_ids, body_ids=body_ids, invalidate_cache=not skip_forward)
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -557,8 +556,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         # Invalidate dependent timestamps. The com poses were just written, so they must not be invalidated.
-        if not skip_forward:
-            self.data._reset_pose(env_ids=env_ids, from_link=False)
+        self.data._reset_pose(env_ids=env_ids, body_ids=body_ids, from_link=False, invalidate_cache=not skip_forward)
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -664,8 +662,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         # Invalidate dependent timestamps
-        if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids)
+        self.data._reset_velocity(env_ids=env_ids, body_ids=body_ids, invalidate_cache=not skip_forward)
 
     def write_body_com_velocity_to_sim_mask(
         self,
@@ -781,8 +778,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             device=self.device,
         )
         # Invalidate dependent timestamps.
-        if not skip_forward:
-            self.data._reset_velocity(env_ids=env_ids, from_com=False)
+        self.data._reset_velocity(env_ids=env_ids, body_ids=body_ids, from_com=False, invalidate_cache=not skip_forward)
 
     def write_body_link_velocity_to_sim_mask(
         self,

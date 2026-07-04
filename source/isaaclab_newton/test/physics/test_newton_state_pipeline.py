@@ -128,8 +128,8 @@ def test_invalidate_fk_preserves_selected_articulation_columns(monkeypatch):
     assert transaction.fk_mask.numpy().tolist() == [False, False, True, False]
 
 
-def test_invalidate_fk_marks_world_without_articulations(monkeypatch):
-    """Rigid-only worlds still request solver-owned state clearing."""
+def test_empty_articulation_selection_is_noop(monkeypatch):
+    """An empty view selection cannot publish work for an unchanged world."""
     transaction = AuthoredStateTransaction(1, 0, "cpu", lambda worlds, articulations: None)
     env_mask = wp.array([True], dtype=wp.bool, device="cpu")
     articulation_ids = wp.empty((1, 0), dtype=wp.int32, device="cpu")
@@ -137,8 +137,8 @@ def test_invalidate_fk_marks_world_without_articulations(monkeypatch):
 
     NewtonManager.invalidate_fk(env_mask=env_mask, articulation_ids=articulation_ids)
 
-    assert transaction.world_mask.numpy().tolist() == [True]
-    assert transaction._pending.numpy().tolist() == [1]
+    assert transaction.world_mask.numpy().tolist() == [False]
+    assert transaction._pending.numpy().tolist() == [0]
 
 
 def test_invalidate_fk_without_topology_conservatively_marks_all_articulations(monkeypatch):

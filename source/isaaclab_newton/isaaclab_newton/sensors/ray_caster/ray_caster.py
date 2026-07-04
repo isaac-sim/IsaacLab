@@ -287,6 +287,7 @@ class _NewtonRayCasterMixin:
         quat_buf: wp.array,
     ) -> None:
         """Launch the Newton site pose kernel into caller-provided buffers."""
+        NewtonManager.forward()
         model = NewtonManager._model
         state = NewtonManager._state_0
         if model is None or state is None:

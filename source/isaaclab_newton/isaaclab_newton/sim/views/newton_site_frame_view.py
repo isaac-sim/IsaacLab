@@ -424,6 +424,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         """Get world-space positions and orientations."""
+        NewtonManager.forward()
         state = NewtonManager.get_state_0()
         site_indices = self._site_indices if indices is None else indices
         n = self.count if indices is None else len(indices)
@@ -451,6 +452,7 @@ class NewtonSiteFrameView(BaseFrameView):
         if positions is None and orientations is None:
             return
 
+        NewtonManager.forward()
         state = NewtonManager.get_state_0()
         if positions is None or orientations is None:
             cur_pos_ta, cur_quat_ta = self.get_world_poses(indices)

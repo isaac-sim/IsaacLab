@@ -28,9 +28,9 @@ def _mark_from_mask(
 ):
     """Accumulate selected worlds and their articulations."""
     world = wp.tid()
-    if env_mask[world]:
+    count = articulation_selection.shape[0] if use_selection else articulation_ids.shape[1]
+    if env_mask[world] and count > 0:
         world_mask[world] = True
-        count = articulation_selection.shape[0] if use_selection else articulation_ids.shape[1]
         for index in range(count):
             column = articulation_selection[index] if use_selection else index
             fk_mask[articulation_ids[world, column]] = True
@@ -49,13 +49,14 @@ def _mark_from_ids(
 ):
     """Accumulate sparse world indices and their articulations."""
     index = wp.tid()
-    world = env_ids[index]
-    world_mask[world] = True
     count = articulation_selection.shape[0] if use_selection else articulation_ids.shape[1]
-    for selection_index in range(count):
-        column = articulation_selection[selection_index] if use_selection else selection_index
-        fk_mask[articulation_ids[world, column]] = True
-    wp.atomic_max(pending, 0, 1)
+    if count > 0:
+        world = env_ids[index]
+        world_mask[world] = True
+        for selection_index in range(count):
+            column = articulation_selection[selection_index] if use_selection else selection_index
+            fk_mask[articulation_ids[world, column]] = True
+        wp.atomic_max(pending, 0, 1)
 
 
 class _CaptureState(Enum):

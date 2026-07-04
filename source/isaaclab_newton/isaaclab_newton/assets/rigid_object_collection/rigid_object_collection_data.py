@@ -137,29 +137,38 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         *,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
+        body_ids: wp.array | None = None,
+        invalidate_cache: bool = True,
     ) -> None:
         """Reset pose-dependent cached rigid object collection properties.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            body_ids: Body columns modified by the write. If None, then all bodies are updated.
             from_link: Set ``True`` when the body link poses were written so the derived body
                 center-of-mass poses (:attr:`body_com_pose_w`) are also invalidated; set ``False`` when
                 the center-of-mass poses were written directly so they are not clobbered. Defaults to True.
+            invalidate_cache: Whether to invalidate derived asset data. Solver synchronization is
+                published regardless. Defaults to True.
         """
-        # Invalidate the derived body com poses only when they were not the quantity just written.
-        reset_timestamps(
-            [
-                self._body_com_pose_w if from_link else None,
-                # body com states
-                self._body_state_w,
-                self._body_link_state_w,
-                self._body_com_state_w,
-            ]
-        )
-        self._fk_timestamp = -1.0
+        if invalidate_cache:
+            # Invalidate the derived body com poses only when they were not the quantity just written.
+            reset_timestamps(
+                [
+                    self._body_com_pose_w if from_link else None,
+                    # body com states
+                    self._body_state_w,
+                    self._body_link_state_w,
+                    self._body_com_state_w,
+                ]
+            )
+            self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+            env_mask=env_mask,
+            env_ids=env_ids,
+            articulation_ids=self._root_view.articulation_ids,
+            articulation_selection=body_ids,
         )
 
     def _reset_velocity(
@@ -168,29 +177,38 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         *,
         env_ids: wp.array | None = None,
         env_mask: wp.array | None = None,
+        body_ids: wp.array | None = None,
+        invalidate_cache: bool = True,
     ) -> None:
         """Reset velocity-dependent cached rigid object collection properties.
 
         Args:
             env_ids: Environment indices. If None, then all indices are used.
             env_mask: Environment mask. If None, then all instances are updated. Shape is (num_instances,).
+            body_ids: Body columns modified by the write. If None, then all bodies are updated.
             from_com: Set ``True`` when the body center-of-mass velocities were written so the derived body
                 link velocities (:attr:`body_link_vel_w`) are also invalidated; set ``False`` when the link
                 velocities were written directly so they are not clobbered. Defaults to True.
+            invalidate_cache: Whether to invalidate derived asset data. Solver synchronization is
+                published regardless. Defaults to True.
         """
-        # Invalidate the derived body link velocities only when they were not the quantity just written.
-        reset_timestamps(
-            [
-                self._body_link_vel_w if from_com else None,
-                # body com states
-                self._body_state_w,
-                self._body_link_state_w,
-                self._body_com_state_w,
-            ]
-        )
-        self._fk_timestamp = -1.0
+        if invalidate_cache:
+            # Invalidate the derived body link velocities only when they were not the quantity just written.
+            reset_timestamps(
+                [
+                    self._body_link_vel_w if from_com else None,
+                    # body com states
+                    self._body_state_w,
+                    self._body_link_state_w,
+                    self._body_com_state_w,
+                ]
+            )
+            self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
-            env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+            env_mask=env_mask,
+            env_ids=env_ids,
+            articulation_ids=self._root_view.articulation_ids,
+            articulation_selection=body_ids,
         )
 
     """
