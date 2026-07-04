@@ -501,6 +501,35 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
     Range: [0, inf).
     """
 
+    contact_stiffness: float | None = None
+    """Contact normal-force stiffness [N/m].
+
+    Writes ``newton:contactStiffness``. Replaces the deprecated per-shape ``ke`` contact parameter;
+    used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
+    """
+
+    contact_damping: float | None = None
+    """Contact normal-force damping coefficient [N·s/m].
+
+    Writes ``newton:contactDamping``. Replaces the deprecated per-shape ``kd`` contact parameter;
+    used by the SemiImplicit, Featherstone, MuJoCo, and VBD solvers.
+    """
+
+    contact_friction_gain: float | None = None
+    """Friction-force stiffness gain used by the tangential (friction) contact response [N·s/m].
+
+    Writes ``newton:contactFrictionGain``. Replaces the deprecated per-shape ``kf`` contact
+    parameter; used by the SemiImplicit and Featherstone solvers.
+    """
+
+    contact_adhesion: float | None = None
+    """Contact adhesion distance: shapes closer than this threshold experience an attractive
+    (adhesive) force [m].
+
+    Writes ``newton:contactAdhesion``. Replaces the deprecated per-shape ``ka`` contact parameter;
+    used by the SemiImplicit and Featherstone solvers.
+    """
+
 
 @configclass
 class MujocoFixedTendonCfg(FixedTendonFragment):

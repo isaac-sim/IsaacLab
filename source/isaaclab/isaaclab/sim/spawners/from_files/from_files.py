@@ -16,6 +16,7 @@ from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 from isaaclab.sim import converters, schemas
 from isaaclab.sim.spawners.materials import SurfaceDeformableBodyMaterialBaseCfg
+from isaaclab.sim.spawners.materials.physics_materials import spawn_physics_material
 from isaaclab.sim.utils import (
     add_labels,
     bind_physics_material,
@@ -211,7 +212,7 @@ def spawn_ground_plane(
 
     # Create physics material
     if cfg.physics_material is not None:
-        cfg.physics_material.func(f"{prim_path}/physicsMaterial", cfg.physics_material)
+        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
         # Apply physics material to ground plane
         collision_prim = get_first_matching_child_prim(
             prim_path,
@@ -478,8 +479,8 @@ def _spawn_from_usd_file(
             material_path = f"{prim_path}/{cfg.physics_material_path}"
         else:
             material_path = cfg.physics_material_path
-        # create material
-        cfg.physics_material.func(material_path, cfg.physics_material)
+        # create material (accepts a legacy material cfg or rigid-body fragment(s))
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         # apply material
         bind_physics_material(prim_path, material_path, stage=stage)
 
