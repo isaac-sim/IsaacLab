@@ -19,6 +19,7 @@ from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
 from isaaclab.sim.utils.stage import get_current_stage
 
+from ._state_sync import rebase_rigid_body_history
 from .deformable_object import (
     add_deformable_entry_to_builder,
     clear_deformable_builder_hooks,
@@ -42,8 +43,8 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
 
-    _rigid_solver: SolverMuJoCo
-    _soft_solver: SolverVBD
+    _rigid_solver: SolverMuJoCo | None = None
+    _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
 
     @classmethod
@@ -66,27 +67,17 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
         super().initialize(sim_context)
 
     @classmethod
-    def step(cls) -> None:
-        """Step the physics simulation."""
-        from isaaclab.physics import PhysicsManager
-
-        sim = PhysicsManager._sim
-        if sim is None or not sim.is_playing():
-            return
-
-        # Notify solver of model changes
-        if cls._model_changes:
-            with wp.ScopedDevice(PhysicsManager._device):
-                for change in cls._model_changes:
-                    cls._rigid_solver.notify_model_changed(change)
-                    cls._soft_solver.notify_model_changed(change)
-                NewtonManager._model_changes = set()
-        super().step()
+    def _owned_solvers(cls) -> tuple[SolverBase, ...]:
+        """Return the initialized rigid and soft solvers."""
+        return tuple(solver for solver in (cls._rigid_solver, cls._soft_solver) if solver is not None)
 
     @classmethod
     def _solver_specific_clear(cls):
         """Clear VBD-specific state."""
         clear_deformable_builder_hooks()
+        cls._rigid_solver = None
+        cls._soft_solver = None
+        cls._coupling_mode = None
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
@@ -272,6 +263,9 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
         """
         cls._coupling_mode = solver_cfg.coupling_mode
 
+        if solver_cfg.rigid_solver_cfg.use_mujoco_cpu and model.world_count > 1:
+            raise ValueError("CPU MuJoCo supports only one Newton world. Use MJWarp or run a single world.")
+
         valid = set(inspect.signature(SolverMuJoCo.__init__).parameters) - {"self", "model"}
         kwargs = {k: v for k, v in solver_cfg.rigid_solver_cfg.to_dict().items() if k in valid}
         cls._rigid_solver = SolverMuJoCo(model, **kwargs)
@@ -280,11 +274,41 @@ class NewtonCoupledMJWarpVBDManager(NewtonManager):
         kwargs = {k: v for k, v in solver_cfg.soft_solver_cfg.to_dict().items() if k in valid}
         cls._soft_solver = SolverVBD(model, **kwargs)
 
-        # Dummy solver for the newtonmanager
+        # Keep the base lifecycle's required primary slot as a placeholder.
+        # _owned_solvers() exposes the real solvers for model/state work.
         NewtonManager._solver = SolverBase(model)
 
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
+
+    @classmethod
+    def _state_write_graph_safe(cls) -> bool:
+        """CPU MuJoCo performs host transfers and cannot enter a CUDA graph."""
+        return cls._rigid_solver is None or not cls._rigid_solver.use_mujoco_cpu
+
+    @classmethod
+    def _supports_cuda_graph_capture(cls) -> bool:
+        """Require a fully device-side MuJoCo step with fixed per-step state handoff."""
+        return (
+            cls._rigid_solver is not None
+            and not cls._rigid_solver.use_mujoco_cpu
+            and cls._rigid_solver.update_data_interval <= 1
+        )
+
+    @classmethod
+    def _synchronize_solver_state(
+        cls,
+        solver: SolverBase,
+        world_reset_mask: wp.array,
+        fk_mask: wp.array,
+    ) -> None:
+        """Push authored state into the coupled MuJoCo solver when needed."""
+        if solver is cls._rigid_solver:
+            rebase_rigid_body_history(cls._model, cls._state_0, cls._state_1, fk_mask)
+            if cls._rigid_solver.update_data_interval != 1:
+                data = cls._rigid_solver.mj_data if cls._rigid_solver.use_mujoco_cpu else cls._rigid_solver.mjw_data
+                if data is not None:
+                    cls._rigid_solver._update_mjc_data(data, cls._model, cls._state_0)
 
     @classmethod
     def _step_solver(

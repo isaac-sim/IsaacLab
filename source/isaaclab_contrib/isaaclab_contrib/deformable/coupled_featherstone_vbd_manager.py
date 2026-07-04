@@ -19,6 +19,7 @@ from newton.solvers import SolverBase, SolverFeatherstone, SolverVBD
 
 from isaaclab.sim.utils.stage import get_current_stage
 
+from ._state_sync import rebase_rigid_body_history
 from .deformable_object import (
     add_deformable_entry_to_builder,
     clear_deformable_builder_hooks,
@@ -42,9 +43,15 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
     Always uses Newton's :class:`CollisionPipeline` for contact handling.
     """
 
-    _rigid_solver: SolverFeatherstone
-    _soft_solver: SolverVBD
+    _rigid_solver: SolverFeatherstone | None = None
+    _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
+    _gravity_zero: wp.array | None = None
+    _gravity_saved: wp.array | None = None
+    _ke_saved: wp.array | None = None
+    _kd_saved: wp.array | None = None
+    _ke_zero: wp.array | None = None
+    _kd_zero: wp.array | None = None
 
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
@@ -66,27 +73,23 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
         super().initialize(sim_context)
 
     @classmethod
-    def step(cls) -> None:
-        """Step the physics simulation."""
-        from isaaclab.physics import PhysicsManager
-
-        sim = PhysicsManager._sim
-        if sim is None or not sim.is_playing():
-            return
-
-        # Notify solver of model changes
-        if cls._model_changes:
-            with wp.ScopedDevice(PhysicsManager._device):
-                for change in cls._model_changes:
-                    cls._rigid_solver.notify_model_changed(change)
-                    cls._soft_solver.notify_model_changed(change)
-                NewtonManager._model_changes = set()
-        super().step()
+    def _owned_solvers(cls) -> tuple[SolverBase, ...]:
+        """Return the initialized rigid and soft solvers."""
+        return tuple(solver for solver in (cls._rigid_solver, cls._soft_solver) if solver is not None)
 
     @classmethod
     def _solver_specific_clear(cls):
         """Clear VBD-specific state."""
         clear_deformable_builder_hooks()
+        cls._rigid_solver = None
+        cls._soft_solver = None
+        cls._coupling_mode = None
+        cls._gravity_zero = None
+        cls._gravity_saved = None
+        cls._ke_saved = None
+        cls._kd_saved = None
+        cls._ke_zero = None
+        cls._kd_zero = None
 
     @classmethod
     def _get_deformable_ignore_paths(cls) -> list[str]:
@@ -107,6 +110,17 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
             paths.append(entry.sim_mesh_prim_path)
             paths.append(entry.vis_mesh_prim_path)
         return paths
+
+    @classmethod
+    def _synchronize_solver_state(
+        cls,
+        solver: SolverBase,
+        world_reset_mask: wp.array,
+        fk_mask: wp.array,
+    ) -> None:
+        """Rebase coupled rigid history after authored pose or velocity writes."""
+        if solver is cls._rigid_solver:
+            rebase_rigid_body_history(cls._model, cls._state_0, cls._state_1, fk_mask)
 
     @classmethod
     def start_simulation(cls) -> None:
@@ -280,7 +294,8 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonManager):
         kwargs = {k: v for k, v in solver_cfg.soft_solver_cfg.to_dict().items() if k in valid}
         cls._soft_solver = SolverVBD(model, **kwargs)
 
-        # Dummy solver for the newtonmanager
+        # Keep the base lifecycle's required primary slot as a placeholder.
+        # _owned_solvers() exposes the real solvers for model/state work.
         NewtonManager._solver = SolverBase(model)
 
         NewtonManager._use_single_state = False
