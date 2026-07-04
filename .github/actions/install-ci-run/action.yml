@@ -14,6 +14,14 @@ inputs:
     description: 'Docker base image for the test container'
     required: false
     default: 'ubuntu:24.04'
+  testmon-data-dir:
+    description: 'Host directory for the persisted Testmon dependency database'
+    required: false
+    default: ''
+  testmon-mode:
+    description: 'Testmon mode: select affected tests, collect a full baseline, or off'
+    required: false
+    default: 'off'
   test-filter:
     description: 'pytest -k expression (empty = run everything)'
     required: false
@@ -33,12 +41,28 @@ runs:
       shell: bash
       env:
         BASE_IMAGE: ${{ inputs.base-image }}
+        TESTMON_DATA_DIR: ${{ inputs.testmon-data-dir }}
+        TESTMON_MODE: ${{ inputs.testmon-mode }}
         TEST_FILTER: ${{ inputs.test-filter }}
       run: |
         args=(docker --gpu --base-image "$BASE_IMAGE"
               --build-wheel
+              --testmon-data-dir "$TESTMON_DATA_DIR"
               --results-dir "${{ github.workspace }}/results"
               -- --tb=short -sv)
+        case "$TESTMON_MODE" in
+          select)
+            if [ -s "$TESTMON_DATA_DIR/.testmondata" ]; then
+              args+=(--testmon --testmon-forceselect)
+            else
+              echo "::warning::Testmon data is missing; collecting a full baseline"
+              args+=(--testmon --testmon-noselect)
+            fi
+            ;;
+          collect) args+=(--testmon --testmon-noselect) ;;
+          off) ;;
+          *) echo "Unknown Testmon mode: $TESTMON_MODE"; exit 1 ;;
+        esac
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         # Make `python3` resolve to the uv-managed 3.12 for build.sh's gen_pyproject.py.
         # --seed installs pip/setuptools/wheel into the venv so build.sh's `python3 -m pip install`

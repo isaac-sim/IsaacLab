@@ -317,6 +317,16 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     if not args.no_uv_cache:
         docker_run_cmd.extend(["-v", "isaaclab-install-ci-uv-cache:/home/isaaclab/.cache/uv"])
 
+    if args.testmon_data_dir:
+        testmon_data_dir = Path(args.testmon_data_dir).resolve()
+        testmon_data_dir.mkdir(parents=True, exist_ok=True)
+        testmon_data_file = testmon_data_dir / ".testmondata"
+        testmon_data_dir.chmod(0o777)
+        if testmon_data_file.exists():
+            testmon_data_file.chmod(0o666)
+        docker_run_cmd.extend(["-v", f"{testmon_data_dir}:/tmp/testmon"])
+        docker_run_cmd.extend(["-e", "TESTMON_DATAFILE=/tmp/testmon/.testmondata"])
+
     # Pass environment variables
     docker_run_cmd.extend(["-e", "OMNI_KIT_ACCEPT_EULA=Y"])
     docker_run_cmd.extend(["-e", "ACCEPT_EULA=Y"])
@@ -408,6 +418,8 @@ docker options:
   --no-pip-cache       Disable persistent pip cache volume
   --no-uv-cache        Disable persistent uv cache volume
   --results-dir DIR    Host directory for test results (auto-adds --junitxml)
+  --testmon-data-dir DIR
+                       Host directory persisted as the Testmon dependency database
   --wheel PATH         Path to pre-built isaaclab wheel file
   --build-wheel        Build the isaaclab wheel and pass it to tests (mutually exclusive with --wheel)
   --debug              Stream wheel-build output live (default: quiet, only dumped on failure)
@@ -452,6 +464,9 @@ pytest arguments:
     docker_p.add_argument("--no-uv-cache", action="store_true", help="Disable persistent uv cache volume")
     docker_p.add_argument(
         "--results-dir", type=str, default=None, help="Host directory for test results (auto-adds --junitxml)"
+    )
+    docker_p.add_argument(
+        "--testmon-data-dir", type=str, default=None, help="Host directory for the Testmon dependency database"
     )
     docker_p.add_argument("--wheel", type=str, default=None, help="Path to pre-built isaaclab wheel file")
     docker_p.add_argument(

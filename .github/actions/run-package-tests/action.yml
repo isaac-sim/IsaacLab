@@ -69,6 +69,10 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  testmon-mode:
+    description: 'Override Testmon mode with select, collect, or off'
+    default: ''
+    required: false
   container-name:
     description: 'Docker container name prefix (run-id is appended automatically)'
     required: true
@@ -133,6 +137,34 @@ runs:
         printf "🔵 Image pull took %dm %ds\n" $((elapsed/60)) $((elapsed%60))
         echo "🔵 Docker Image Pulled in ${elapsed}s" >> "$GITHUB_STEP_SUMMARY"
 
+    - name: Select Testmon Mode
+      id: testmon-mode
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REPO: ${{ github.repository }}
+        REQUESTED_MODE: ${{ inputs.testmon-mode }}
+      run: |
+        mode="${REQUESTED_MODE:-collect}"
+        if [ -z "$REQUESTED_MODE" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
+          if changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
+            mode="$(printf '%s\n' "$changed_files" | python3 .github/actions/run-package-tests/select_testmon_mode.py)"
+          else
+            echo "::warning::Could not list changed files; running the full test suite"
+          fi
+        fi
+        echo "mode=$mode" >> "$GITHUB_OUTPUT"
+        echo "Testmon mode: $mode" >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Restore Testmon Data
+      if: steps.testmon-mode.outputs.mode != 'off'
+      uses: actions/cache@v4
+      with:
+        path: .testmon/${{ inputs.container-name }}
+        key: testmon-${{ runner.arch }}-${{ inputs.container-name }}-${{ hashFiles('tools/conftest.py', 'tools/test_settings.py', '.github/actions/run-tests/action.yml', 'docker/Dockerfile.base', 'docker/Dockerfile.curobo', '.github/workflows/config.yaml') }}-${{ github.sha }}
+        restore-keys: testmon-${{ runner.arch }}-${{ inputs.container-name }}-${{ hashFiles('tools/conftest.py', 'tools/test_settings.py', '.github/actions/run-tests/action.yml', 'docker/Dockerfile.base', 'docker/Dockerfile.curobo', '.github/workflows/config.yaml') }}-
+
     - name: Run Tests
       uses: ./.github/actions/run-tests
       with:
@@ -150,6 +182,8 @@ runs:
         include-files: ${{ inputs.include-files }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
+        testmon-data-dir: .testmon/${{ inputs.container-name }}
+        testmon-mode: ${{ steps.testmon-mode.outputs.mode }}
 
     - name: Check Test Results
       if: always()

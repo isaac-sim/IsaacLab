@@ -36,7 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
+      testmon_mode: ${{ steps.detect.outputs.testmon_mode }}
     steps:
+      - uses: actions/checkout@v6
       - id: detect
         env:
           GH_TOKEN: ${{ github.token }}
@@ -52,14 +54,18 @@ jobs:
           # filter (a not-triggered required check would block the PR forever).
           patterns=(
             $'^apps/\tStandalone apps'
+            $'^docker/\tContainer build inputs'
+            $'^scripts/\tStandalone scripts'
             $'^tools/\tBuild tooling'
             $'^source/\tLibrary source code'
             $'^\\.github/actions/run-package-tests/\tTest action'
             $'^\\.github/actions/install-ci-(collect|run)/\tInstall-ci composite actions'
             $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
+            $'^\\.gitmodules$\tGit submodule config'
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'(^|/)environment\\.ya?ml$\tConda environment file'
+            $'^[^/]+\\.(toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$\tRoot configuration and scripts'
           )
 
           render_table() {
@@ -93,9 +99,10 @@ jobs:
           }
 
           decide() {
-            local decision="$1" reason="$2" files="${3:-}"
+            local decision="$1" reason="$2" files="${3:-}" testmon_mode="${4:-collect}"
             echo "Decision: run_install_tests=$decision ($reason)"
             echo "run_install_tests=$decision" >> "$GITHUB_OUTPUT"
+            echo "testmon_mode=$testmon_mode" >> "$GITHUB_OUTPUT"
             {
               if [ -n "$files" ]; then
                 render_table "$files"
@@ -118,7 +125,8 @@ jobs:
           printf '%s\n' "$changed_files"
 
           if any_match "$changed_files"; then
-            decide true "relevant paths changed" "$changed_files"
+            testmon_mode="$(printf '%s\n' "$changed_files" | python3 .github/actions/run-package-tests/select_testmon_mode.py)"
+            decide true "relevant paths changed" "$changed_files" "$testmon_mode"
           else
             decide false "no relevant paths changed" "$changed_files"
           fi
@@ -132,6 +140,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Restore Testmon Data
+        uses: actions/cache@v4
+        with:
+          path: .testmon/${{ runner.arch }}
+          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
+          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
@@ -140,6 +154,8 @@ jobs:
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          testmon-data-dir: ${{ github.workspace }}/.testmon/${{ runner.arch }}
+          testmon-mode: ${{ needs.changes.outputs.testmon_mode }}
           test-filter: ${{ inputs.test_filter }}
 
   install-tests-arm:
@@ -151,6 +167,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Restore Testmon Data
+        uses: actions/cache@v4
+        with:
+          path: .testmon/${{ runner.arch }}
+          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
+          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
@@ -159,4 +181,6 @@ jobs:
         uses: ./.github/actions/install-ci-run
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
+          testmon-data-dir: ${{ github.workspace }}/.testmon/${{ runner.arch }}
+          testmon-mode: ${{ needs.changes.outputs.testmon_mode }}
           test-filter: ${{ inputs.test_filter }}

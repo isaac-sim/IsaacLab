@@ -69,6 +69,14 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  testmon-data-dir:
+    description: 'Workspace-relative directory for the Testmon dependency database'
+    default: ''
+    required: false
+  testmon-mode:
+    description: 'Testmon mode: select affected tests, collect a full baseline, or off'
+    default: 'off'
+    required: false
 
 runs:
   using: composite
@@ -93,6 +101,8 @@ runs:
           local shard_count="${13}"
           local volume_mount_source="${14}"
           local extra_pip_packages="${15}"
+          local testmon_data_dir="${16}"
+          local testmon_mode="${17}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -117,6 +127,9 @@ runs:
           fi
           if [ -n "$extra_pip_packages" ]; then
             echo "With extra pip packages: $extra_pip_packages"
+          fi
+          if [ "$testmon_mode" != "off" ]; then
+            echo "Testmon mode: $testmon_mode"
           fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
@@ -204,6 +217,25 @@ runs:
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
           fi
 
+          testmon_options=""
+          if [ -n "$testmon_data_dir" ]; then
+            mkdir -p "$testmon_data_dir"
+            docker_env_vars="$docker_env_vars -e TESTMON_DATAFILE=/workspace/isaaclab/$testmon_data_dir/.testmondata"
+            case "$testmon_mode" in
+              select)
+                if [ -s "$testmon_data_dir/.testmondata" ]; then
+                  testmon_options="--testmon --testmon-forceselect"
+                else
+                  echo "::warning::Testmon data is missing; collecting a full baseline"
+                  testmon_options="--testmon --testmon-noselect"
+                fi
+                ;;
+              collect) testmon_options="--testmon --testmon-noselect" ;;
+              off) ;;
+              *) echo "Unknown Testmon mode: $testmon_mode"; return 1 ;;
+            esac
+          fi
+
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
           # source code over /workspace/isaaclab instead of baking it into the image.
           docker_volume_args=""
@@ -283,7 +315,7 @@ runs:
               # set this detect-only flag, which makes cold asset downloads
               # fall back to slow repeated retries.
               unset HUB__ARGS__DETECT_ONLY
-              ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky \"coverage>=7.6.1\"
+              ./isaaclab.sh -p -m pip install pytest pytest-mock \"pytest-testmon>=2.2,<3\" junitparser flatdict flaky \"coverage>=7.6.1\"
               if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
                 echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
                 ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
@@ -295,7 +327,7 @@ runs:
                 esac
               fi
               echo 'Starting pytest with path: $test_path'
-              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
+              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options $testmon_options -v --junitxml=tests/$result_file
             "
 
           # Stream container logs in background.
@@ -392,7 +424,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.testmon-data-dir }}" "${{ inputs.testmon-mode }}"
 
     - name: Kill container on cancellation
       if: cancelled()

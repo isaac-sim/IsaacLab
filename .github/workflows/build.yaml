@@ -100,6 +100,8 @@ jobs:
           $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
+          $'^\\.gitmodules$\tGit submodule config'
+          $'^[^/]+\\.(toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$\tRoot configuration and scripts'
         )
         triggered_jobs="Docker build jobs + all test-* matrix jobs"
 
