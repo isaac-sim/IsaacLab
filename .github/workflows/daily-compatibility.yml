@@ -21,7 +21,7 @@ on:
 # Concurrency control to prevent parallel runs
 concurrency:
   group: compatibility-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

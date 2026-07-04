@@ -81,7 +81,7 @@ python train.py
 python train.py --config_name isaaclab_ppo_gr00t_assemble_trocar
 
 # Training with task override
-python train.py --task Isaac-Assemble-Trocar-G129-Dex3-v0
+python train.py --task IsaacContrib-Assemble-Trocar-G129-Dex3
 
 # Training with custom settings
 python train.py --num_envs 64 --max_epochs 1000
@@ -94,13 +94,13 @@ python train.py --list_tasks
 
 ```bash
 # Evaluate a trained checkpoint
-python play.py --task Isaac-Assemble-Trocar-G129-Dex3-Eval-v0 --model_path /path/to/checkpoint
+python play.py --task IsaacContrib-Assemble-Trocar-G129-Dex3-Eval --model_path /path/to/checkpoint
 
 # Evaluate with video recording
-python play.py --task Isaac-Assemble-Trocar-G129-Dex3-Eval-v0 --model_path /path/to/checkpoint --video
+python play.py --task IsaacContrib-Assemble-Trocar-G129-Dex3-Eval --model_path /path/to/checkpoint --video
 
 # Evaluate with specific number of environments
-python play.py --task Isaac-Assemble-Trocar-G129-Dex3-Eval-v0 --model_path /path/to/checkpoint --num_envs 8
+python play.py --task IsaacContrib-Assemble-Trocar-G129-Dex3-Eval --model_path /path/to/checkpoint --num_envs 8
 ```
 
 ## Configuration
@@ -132,7 +132,7 @@ env:
     total_num_envs: 4
     max_episode_steps: 256
     init_params:
-      id: "Isaac-Assemble-Trocar-G129-Dex3-v0"
+      id: "IsaacContrib-Assemble-Trocar-G129-Dex3"
     isaaclab: &isaaclab_config                # IsaacLab ↔ RLinf mapping (see below)
       ...
   eval:

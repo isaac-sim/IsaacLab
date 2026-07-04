@@ -82,9 +82,12 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL,
         RenderBufferKind.SIMPLE_SHADING_FULL_MDL,
         RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+        RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST,
         RenderBufferKind.DEPTH,
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.DISTANCE_TO_CAMERA,
+        RenderBufferKind.NORMALS,
     }
     assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, wp.uint8)
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
@@ -205,6 +208,39 @@ def test_ovrtx_ppisp_hdr_source_is_cloned_to_output_device(monkeypatch):
 
     assert renderer._prepare_ppisp_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is cloned
     assert clone_calls == [(source, "cuda:0")]
+
+
+class _FakeArray:
+    def __init__(self, shape):
+        self.shape = shape
+
+
+def test_launch_extract_all_tiles_rejects_wider_output_channels():
+    """An output wider than the tiled input would read out of bounds, so it must raise before launching."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    render_data = _make_ovrtx_render_data()
+
+    with pytest.raises(ValueError, match="out of bounds"):
+        renderer._launch_extract_all_tiles(render_data, _FakeArray((8, 16, 3)), _FakeArray((2, 8, 16, 4)))
+
+
+def test_launch_extract_all_tiles_launches_kernel_when_channels_are_compatible(monkeypatch):
+    """Equal or narrower output channel counts pass validation and reach the kernel launch."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
+    render_data = _make_ovrtx_render_data()
+    render_data.num_cols = 2
+
+    launch_calls = []
+    monkeypatch.setattr(wp, "launch", lambda **kwargs: launch_calls.append(kwargs))
+
+    tiled_buffer = _FakeArray((8, 16, 4))
+    output_buffer = _FakeArray((2, 8, 16, 3))
+    renderer._launch_extract_all_tiles(render_data, tiled_buffer, output_buffer)
+
+    assert len(launch_calls) == 1
+    assert launch_calls[0]["inputs"][:2] == [tiled_buffer, output_buffer]
 
 
 def test_ovrtx_read_output_is_a_no_op_after_consolidation():

@@ -22,7 +22,8 @@ ROS will add direct support for running LEAPP-exported policies in a future rele
 Prerequisites
 -------------
 
-LEAPP requires Python >= 3.8 and PyTorch >= 2.6. Install it with:
+This export flow requires ``leapp>=0.5.2``, Python >= 3.8, and PyTorch >= 2.6. Install
+LEAPP with:
 
 .. tab-set::
    :sync-group: os
@@ -64,7 +65,7 @@ consumers can run the policy without reconstructing observation ordering, comman
 targets, or policy feedback loops themselves.
 
 For a detailed description of LEAPP's generated artifacts and APIs, refer to the
-`LEAPP documentation <https://github.com/nvidia-isaac/leapp/tree/main/docs>`__.
+`LEAPP documentation <https://nvidia-isaac.github.io/leapp/>`_.
 
 
 Exporting a Policy
@@ -278,6 +279,34 @@ Isaac Lab provides :class:`~envs.LeappDeploymentEnv` for running exported polici
 simulation without the training infrastructure. This is the Isaac Lab deployment path for
 LEAPP-exported policies and is useful for validating that the packaged policy still behaves
 correctly when driven through the deployment stack instead of the training stack.
+
+Run the deployment script with the task name and the exported LEAPP ``.yaml`` file.
+
+By default, Isaac Lab launches headless when no visualization option is selected. If you expect
+to see the policy running in a viewport, pass a visualization option such as ``--viz kit``:
+
+.. tab-set::
+   :sync-group: os
+
+   .. tab-item:: :icon:`fa-brands fa-linux` Linux
+      :sync: linux
+
+      .. code-block:: bash
+
+         ./isaaclab.sh -p scripts/reinforcement_learning/leapp/deploy.py \
+             --task <TASK_NAME> \
+             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> \
+             --viz kit
+
+   .. tab-item:: :icon:`fa-brands fa-windows` Windows
+      :sync: windows
+
+      .. code-block:: batch
+
+         isaaclab.bat -p scripts\reinforcement_learning\leapp\deploy.py ^
+             --task <TASK_NAME> ^
+             --leapp_model <PATH_TO_EXPORTED_LEAPP_YAML> ^
+             --viz kit
 
 For Direct workflow policies, see the
 :doc:`Direct workflow LEAPP export tutorial </source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp>`.

@@ -12,7 +12,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Deploy-Reach-Rizon4s-v0",
+    id="IsaacContrib-Deploy-Reach-Rizon4s",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -22,7 +22,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Deploy-Reach-Rizon4s-Play-v0",
+    id="IsaacContrib-Deploy-Reach-Rizon4s-Play",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={
@@ -32,7 +32,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Deploy-Reach-Rizon4s-ROS-Inference-v0",
+    id="IsaacContrib-Deploy-Reach-Rizon4s-ROS-Inference",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     disable_env_checker=True,
     kwargs={

@@ -105,6 +105,10 @@ in the workflow and pass ``--video`` to record the agent behavior.
 The videos are saved to the ``logs/sb3/Isaac-Cartpole/<run-dir>/videos/train`` directory. You can open these videos
 using any video player.
 
+For tasks with on-scene cameras, you can also save the sensor image outputs directly during training
+with ``--capture_env_sensors``. See :doc:`/source/how-to/capture_sensor_frames` for the available
+options and output formats.
+
 Interactive execution
 """""""""""""""""""""
 
@@ -142,7 +146,7 @@ Once the training is complete, you can visualize the trained agent by executing 
 .. code:: bash
 
    # execute from the root directory of the repository
-   ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --use_last_checkpoint --viz kit
+   ./isaaclab.sh play --rl_library sb3 --task Isaac-Cartpole --num_envs 32 --viz kit
 
 The above command will load the latest checkpoint from the ``logs/sb3/Isaac-Cartpole``
 directory. You can also specify a specific checkpoint by passing the ``--checkpoint`` flag.

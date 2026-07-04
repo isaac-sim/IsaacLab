@@ -5,6 +5,15 @@ Installation using Isaac Sim Pre-built Binaries
 
 The following steps first installs Isaac Sim from its pre-built binaries, then Isaac Lab from source code.
 
+.. caution::
+
+   Combining an Isaac Sim **binary** installation with a conda, uv, or venv virtual environment
+   is **no longer supported**. Use Isaac Sim's bundled Python via ``./isaaclab.sh -p`` (or
+   ``isaaclab.bat -p`` on Windows) instead.
+
+   If you need a dedicated virtual environment, install Isaac Sim via pip and follow the
+   :doc:`pip_installation` guide.
+
 Installing Isaac Sim
 --------------------
 

@@ -22,7 +22,15 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
-from isaaclab_tasks.contrib.stack.stack_env_cfg import ObservationsCfg, StackEnvCfg
+from isaaclab_tasks.contrib.stack.stack_env_cfg import (
+    ObservationsCfg,
+    StackEnvCfg,
+    raise_if_surface_gripper_on_newton,
+)
+
+# Marker consumed by ``env_test_utils._is_teleop_env`` to bucket teleop
+# environments in the test suite.
+_TELEOP_AVAILABLE = True
 
 ##
 # Pre-defined configs
@@ -237,6 +245,10 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
         # MDP settings
 
+        # set viewer to see the robot and objects on the table
+        self.viewer.eye = [1.8, 0.0, 1.8]
+        self.viewer.lookat = [0.3, 0.0, 0.8]
+
         # Set events
         self.events = EventCfg()
         self.observations.policy = ObservationGalbotLeftArmGripperCfg().PolicyCfg()
@@ -333,6 +345,10 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
 
 @configclass
 class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
+    def validate_config(self):
+        # The right-arm suction cup uses a PhysX-only surface gripper.
+        raise_if_surface_gripper_on_newton(self)
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()

@@ -5,16 +5,12 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.devices import DevicesCfg
-from isaaclab.devices.gamepad import Se3GamepadCfg
-from isaaclab.devices.keyboard import Se3KeyboardCfg
-from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import ActionTermCfg as ActionTerm
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
@@ -47,6 +43,10 @@ class ReachPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    newton_kamino: NewtonCfg = NewtonCfg(
+        solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
+        num_substeps=2,
+    )
 
     default = physx
 
@@ -69,7 +69,7 @@ class TableCfg(PresetCfg):
     newton_mjwarp: ArticulationCfg = ArticulationCfg(
         prim_path="/World/envs/env_.*/Table",
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.5, 0.15, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
+            pos=(0.5, 0, -0.5), rot=(0, 0, 0.707, 0.707), joint_pos={}, joint_vel={}
         ),
         spawn=sim_utils.CuboidCfg(
             size=(0.9, 1.3, 1.00),
@@ -80,6 +80,7 @@ class TableCfg(PresetCfg):
         articulation_root_prim_path="",
     )
 
+    newton_kamino = newton_mjwarp
     default = physx
 
 
@@ -257,20 +258,3 @@ class ReachEnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 1.0 / 60.0
         self.sim.physics = ReachPhysicsCfg()
-
-        self.teleop_devices = DevicesCfg(
-            devices={
-                "keyboard": Se3KeyboardCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-                "gamepad": Se3GamepadCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-                "spacemouse": Se3SpaceMouseCfg(
-                    gripper_term=False,
-                    sim_device=self.sim.device,
-                ),
-            },
-        )

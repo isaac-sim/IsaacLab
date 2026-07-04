@@ -15,6 +15,8 @@ from .base_joint_wrench_sensor_data import BaseJointWrenchSensorData
 if TYPE_CHECKING:
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensor as NewtonJointWrenchSensor
     from isaaclab_newton.sensors.joint_wrench import JointWrenchSensorData as NewtonJointWrenchSensorData
+    from isaaclab_ovphysx.sensors.joint_wrench import JointWrenchSensor as OvPhysxJointWrenchSensor
+    from isaaclab_ovphysx.sensors.joint_wrench import JointWrenchSensorData as OvPhysxJointWrenchSensorData
     from isaaclab_physx.sensors.joint_wrench import JointWrenchSensor as PhysXJointWrenchSensor
     from isaaclab_physx.sensors.joint_wrench import JointWrenchSensorData as PhysXJointWrenchSensorData
 
@@ -22,8 +24,15 @@ if TYPE_CHECKING:
 class JointWrenchSensor(FactoryBase, BaseJointWrenchSensor):
     """Factory for creating joint-wrench sensor instances."""
 
-    data: BaseJointWrenchSensorData | PhysXJointWrenchSensorData | NewtonJointWrenchSensorData
+    data: (
+        BaseJointWrenchSensorData
+        | PhysXJointWrenchSensorData
+        | NewtonJointWrenchSensorData
+        | OvPhysxJointWrenchSensorData
+    )
 
-    def __new__(cls, *args, **kwargs) -> BaseJointWrenchSensor | PhysXJointWrenchSensor | NewtonJointWrenchSensor:
+    def __new__(
+        cls, *args, **kwargs
+    ) -> BaseJointWrenchSensor | PhysXJointWrenchSensor | NewtonJointWrenchSensor | OvPhysxJointWrenchSensor:
         """Create a new instance of a joint-wrench sensor based on the backend."""
         return super().__new__(cls, *args, **kwargs)

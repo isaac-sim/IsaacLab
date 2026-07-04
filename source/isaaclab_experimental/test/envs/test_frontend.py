@@ -14,6 +14,8 @@ Pure-Python unit tests; no app launch. Covers:
 * :func:`_promote_scene_entity_cfgs` walks ``term.params`` dicts.
 * :func:`_swap_mdp` swaps ``func`` *and* ``class_type``; raises with a path
   list when twins are missing.
+* :func:`_warp_mdp_module_name` routes stable task modules to the current
+  experimental manager-based package layout.
 * :func:`_resolve_warp_twin` rejects stable-origin re-exports.
 * :func:`_assert_direct_warp_registration` accepts warp-rooted entry
   points and rejects stable ones.
@@ -24,6 +26,7 @@ from __future__ import annotations
 import types
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 import gymnasium as gym
 from isaaclab_experimental.envs.frontend import (
@@ -37,11 +40,14 @@ from isaaclab_experimental.envs.frontend import (
     _resolve_warp_twin,
     _swap_mdp,
     _walk_terms,
+    _warp_mdp_module_name,
+    build,
 )
 from isaaclab_experimental.managers.scene_entity_cfg import SceneEntityCfg as WarpSceneEntityCfg
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers.manager_term_cfg import EventTermCfg, ObservationTermCfg, RewardTermCfg
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg as StableSceneEntityCfg
 from isaaclab.utils.configclass import configclass
@@ -65,6 +71,32 @@ class TestEnums(unittest.TestCase):
     def test_workflow_values(self):
         self.assertEqual(Workflow.MANAGER_BASED, "manager_based")
         self.assertEqual(Workflow.DIRECT, "direct")
+
+
+class TestBuild(unittest.TestCase):
+    def test_warp_manager_build_adapts_cfg_before_construction(self):
+        import isaaclab_experimental.envs as envs
+        import isaaclab_experimental.envs.frontend as frontend_module
+
+        cfg = object.__new__(ManagerBasedRLEnvCfg)
+        expected_env = object()
+        calls: list[tuple[str, Any]] = []
+
+        def fake_adapt(received_cfg: Any) -> None:
+            calls.append(("adapt", received_cfg))
+
+        def fake_env(*, cfg: Any, **kwargs: Any) -> Any:
+            calls.append(("construct", cfg))
+            return expected_env
+
+        with (
+            patch.object(frontend_module, "adapt_cfg_for_warp", fake_adapt),
+            patch.object(envs, "ManagerBasedRLEnvWarp", fake_env),
+        ):
+            env = build("warp", cfg, "Isaac-Test")
+
+        self.assertIs(env, expected_env)
+        self.assertEqual(calls, [("adapt", cfg), ("construct", cfg)])
 
 
 # ======================================================================
@@ -401,8 +433,28 @@ class TestSwapMdp(unittest.TestCase):
 
 
 # ======================================================================
-# Twin resolution
+# Twin module routing and resolution
 # ======================================================================
+
+
+class TestWarpMdpModuleName(unittest.TestCase):
+    def test_routes_task_submodule_to_current_experimental_layout(self):
+        self.assertEqual(
+            _warp_mdp_module_name("isaaclab_tasks.core.cartpole.mdp.rewards"),
+            "isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp.rewards",
+        )
+
+    def test_routes_exact_task_mdp_package(self):
+        self.assertEqual(
+            _warp_mdp_module_name("isaaclab_tasks.core.velocity.mdp"),
+            "isaaclab_tasks_experimental.manager_based.locomotion.velocity.mdp",
+        )
+
+    def test_rejects_unregistered_task_module(self):
+        self.assertIsNone(_warp_mdp_module_name("isaaclab_tasks.core.unknown.mdp"))
+
+    def test_rejects_non_task_module(self):
+        self.assertIsNone(_warp_mdp_module_name("isaaclab.envs.mdp.rewards"))
 
 
 class TestResolveWarpTwin(unittest.TestCase):

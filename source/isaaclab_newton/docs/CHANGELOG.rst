@@ -1,6 +1,330 @@
 Changelog
 ---------
 
+1.6.0 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, a single-namespace
+  ``newton`` rigid-body physics-material fragment (torsional and rolling friction) backing
+  ``NewtonMaterialAPI``. Composes with other rigid-body material fragments (e.g.
+  :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in a fragment list.
+* Added :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_adhesion` (writing
+  ``newton:contactStiffness``, ``newton:contactDamping``, ``newton:contactFrictionGain``, and
+  ``newton:contactAdhesion``), matching the per-material contact attributes Newton's USD schema
+  resolver reads in place of the deprecated per-shape ``ke``/``kd``/``kf``/``ka`` parameters.
+* Added the contact attributes
+  (:attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_adhesion`) to
+  :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`, matching
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonKaminoManager` to require exactly
+  one articulation per environment. :meth:`~isaaclab_newton.physics.NewtonKaminoManager._build_solver`
+  raises a ``RuntimeError`` at solver initialization when an environment contains multiple
+  articulations. Multiple articulations per environment are not yet supported in IsaacLab's Kamino integration.
+
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to route forward kinematics through a
+  solver-specialized hook bound during solver initialization. Kamino overrides this hook to call
+  :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints` when
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` is enabled. Environment resets
+  now share a single per-articulation mask for both :meth:`~isaaclab_newton.physics.NewtonManager.forward`
+  and pre-step reconcile, replacing the separate per-world Kamino reset mask.
+
+Fixed
+^^^^^
+
+* Fixed environment resets writing updated state into the wrong double-buffered simulation
+  state when ``use_cuda_graph`` was disabled. With an odd number of substeps the canonical input
+  state buffer flipped each step while asset write paths kept targeting the original binding, so
+  reset environments stayed inconsistent for solvers with separate input/output states (e.g.
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager`).
+
+* Fixed Kamino forward kinematics on environment resets leaving incorrect body poses for
+  closed-loop systems. Reset environments are now always updated through Kamino's loop-closure FK
+  solver instead of Newton's articulated ``eval_fk``.
+
+
+1.5.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.physics.NewtonKaminoManager` reset
+  compatibility with Newton's ``SolverKamino.ResetConfig`` API.
+
+
+1.5.0 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton mesh-collision cooking fragments:
+  :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` (``newton:maxHullVertices`` via
+  ``NewtonMeshCollisionAPI``) and :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+  (Newton SDF generation and hydroelastic-contact attributes via ``NewtonSDFCollisionAPI``). Each is
+  a single-namespace :class:`~isaaclab.sim.schemas.MeshCollisionFragment` dispatched via
+  :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+* Added the :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg` joint-drive fragment
+  (``mjc:*`` / ``MjcJointAPI``), carrying joint-level ``actuatorgravcomp``. Applied alongside
+  :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` via
+  :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. The from-files spawn site continues
+  to auto-enable body-level gravcomp for the fragment path.
+
+
+1.4.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg` and its applier
+  :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon` for tuning ``mjc:*``
+  fixed-tendon attributes on ``MjcTendon`` prims,
+  splitting the Mujoco tune path out of the PhysX fixed-tendon applier.
+
+
+1.3.0 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`, the ``newton:*``
+  single-namespace collision fragment (``newton:contactMargin``, ``newton:contactGap`` via
+  ``NewtonCollisionAPI``). It composes with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` in a ``collision_props`` fragment list.
+
+
+1.2.0 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`, the ``mjc:*`` single-namespace
+  rigid-body fragment (``mjc:gravcomp``) for Newton's MuJoCo solver. It composes with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` in a ``rigid_props`` fragment list.
+
+
+1.1.0 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Overrode :meth:`provides_implicit_damping` on :class:`NewtonManager` to return ``False`` (its
+  symplectic integrator has no implicit damping) and :meth:`provides_temporal_camera_data` on
+  :class:`NewtonWarpRenderer` to return ``False`` (the rasterizer accumulates no temporal data),
+  so camera tasks can auto-enable frame stacking for the Newton combos that need it.
+
+Fixed
+^^^^^
+
+* Fixed the ``newton[sim]`` dependency pin to use Newton commit
+  ``79e95bf5571d70a0a46c8eaedc80644531d27368``, including the
+  RenderContext triangle-mesh construction fix from `newton-physics/newton#3199
+  <https://github.com/newton-physics/newton/pull/3199>`_.
+
+
+1.0.4 (2026-06-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed missing USD prim population in :class:`~isaaclab_newton.assets.Articulation`,
+  :class:`~isaaclab_newton.assets.RigidObject`, and
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` when using the Isaac Sim RTX
+  renderer by calling :func:`~isaaclab.cloner.queue_usd_replication` (guarded by
+  :func:`~isaaclab.utils.version.has_kit` so it is skipped in kitless mode) before
+  ``queue_newton_physics_replication``.
+
+
+1.0.3 (2026-06-17)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``skip_forward`` argument to the root, body, and joint state writers (e.g.
+  ``write_root_link_pose_to_sim_index``) to defer cached-buffer invalidation when several
+  writes are batched before a single forward pass.
+
+Changed
+^^^^^^^
+
+* Moved Newton shape color propagation from post-finalize (on the model) to pre-clone (on the
+  builder) in :class:`~isaaclab_newton.physics.NewtonManager` and the cloner utilities. Colors are
+  now set via :func:`~isaaclab.sim.utils.newton_model_utils.replace_newton_builder_shape_colors`
+  before ``ModelBuilder`` replication, so all cloned environments automatically inherit the correct
+  USD material colors without an extra GPU scatter pass after finalization.
+
+Fixed
+^^^^^
+
+* Fixed stale cached asset pose and velocity state after simulation state writes.
+
+
+1.0.2 (2026-06-16)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton camera renderer support for PPISP controller parameters.
+
+Changed
+^^^^^^^
+
+* Reused shared path-expression helpers when deriving Newton schema-root view expressions and deletion invalidation matches.
+
+Fixed
+^^^^^
+
+* Fixed Newton renderer shadow-model initialization to read clone plans from the active :class:`~isaaclab.sim.SimulationContext`.
+
+
+1.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added an explicit ``pyglet>=2.1.6,<3`` dependency for Newton GL video
+  recording support.
+
+
+1.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.ik.NewtonIKSolver` and
+  :class:`~isaaclab_newton.envs.mdp.actions.NewtonInverseKinematicsAction`
+  for Newton-backed inverse kinematics, including named pose objectives and
+  custom Newton objective passthrough.
+* Added persistent IK seeds and helpers to initialize pose-objective targets
+  from live Newton body transforms.
+
+Fixed
+^^^^^
+
+* Fixed the ``newton[sim]`` dependency pin to use Newton commit
+  ``811968bfb7cc7ff4e37b9260a2ba56930a3e605e``.
+
+
+0.16.0 (2026-06-12)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.physics.MPMSolverCfg` and
+  :class:`~isaaclab_newton.physics.NewtonMPMManager` for Newton implicit MPM
+  simulations.
+* Added :class:`~isaaclab_newton.assets.MPMObject` (with
+  :class:`~isaaclab_newton.assets.MPMObjectCfg` and
+  :class:`~isaaclab_newton.assets.MPMObjectData`) exposing Newton MPM particles
+  through the deformable-object interface, together with the declarative
+  particle spawner configs :class:`~isaaclab_newton.sim.MPMGridCfg`,
+  :class:`~isaaclab_newton.sim.MPMPointsCfg`, and
+  :class:`~isaaclab_newton.sim.MPMParticleMaterialCfg`.
+* Added the :class:`~isaaclab_newton.physics.NewtonManager` subclass hooks
+  ``_register_builder_attributes`` (register a solver's Newton custom builder
+  attributes), ``_prepare_builder_for_finalize`` (normalize imported builder
+  data before finalization), and ``_supports_cuda_graph_capture`` (opt a solver
+  out of CUDA graph capture).
+* Added :attr:`~isaaclab_newton.physics.MPMSolverCfg.project_outside_colliders`
+  (default ``False``): when set,
+  :class:`~isaaclab_newton.physics.NewtonMPMManager` runs
+  ``SolverImplicitMPM.project_outside`` after each substep to push particles out
+  of collider interiors.
+* Added :attr:`~isaaclab_newton.physics.NewtonCfg.simplify_meshes` to control
+  whether Newton replication approximates mesh colliders with convex hulls.
+  Disable it for thin or hollow MPM colliders that need exact triangle meshes.
+* Added ``visual_update_frequency`` to MPM particle spawner configs so Kit USD
+  point-cloud visualization can be throttled independently from physics.
+
+Changed
+^^^^^^^
+
+* :meth:`~isaaclab_newton.physics.NewtonManager.sync_particles_to_usd` now also
+  writes registered ``UsdGeom.Points`` prims (used for MPM particle clouds) in
+  addition to the existing Fabric mesh-points sync for deformable visuals.
+* :meth:`~isaaclab_newton.physics.NewtonManager.create_builder` and the model
+  build path now invoke the active manager's solver-specific builder hooks so
+  MPM custom attributes (``mpm:young_modulus``, ...) are registered on the
+  builder before particles are added or the model is finalized.
+* CUDA graph capture is skipped when the active solver reports it is
+  unsupported, so sparse/dense-grid MPM falls back to eager execution.
+
+Fixed
+^^^^^
+
+* Fixed Newton visualizers on PhysX simulations when a Newton body label points
+  at a USD joint prim by resolving the label through the joint's rigid-body target.
+* Fixed Newton visualization model construction for heterogeneous ClonePlans so PhysX-backed Newton renderers use each destination asset's selected source and transform.
+
+
+0.15.6 (2026-06-11)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton replication to apply per-source world transforms when adding
+  prototypes to cloned worlds, instead of always offsetting from ``env_0``.
+* Fixed ``IndexError`` in Newton heterogeneous replication when resolving
+  source-world indices for inactive clone-plan rows with no assigned
+  environment.
+
+
+0.15.5 (2026-06-10)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton rigid-object deprecated root state writers to call keyword-only
+  pose and velocity helpers correctly.
+* Fixed Newton RTX/Fabric body binding to derive per-body Fabric bindings from
+  clone-plan source rows while labels are rewritten, avoiding invalid Fabric
+  attribute writes without cloning USD specs for each environment.
+
+
+0.15.4 (2026-06-09)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed Newton package resolution so ``isaaclab_ppisp`` is only required when camera ``isp_cfg`` is set.
+* Fixed incorrect camera pose in :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`.
+
+
 0.15.3 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~~
 

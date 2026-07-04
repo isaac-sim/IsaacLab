@@ -11,9 +11,9 @@
 
 Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
 
-The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
-process restart.  Full coverage therefore requires two separate pytest
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance and cannot switch it without a process
+restart. Full coverage therefore requires two separate pytest
 invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
 ``_ovphysx_skip_other_device`` autouse fixture below preempts the manager's
 :exc:`RuntimeError` by ``pytest.skip``-ing on the unlocked device so
@@ -28,9 +28,8 @@ import pytest
 import torch
 import warp as wp
 
-# The CI isaaclab_ov* pattern unintentionally collects isaaclab_ovphysx tests,
-# but the ovphysx wheel is not installed in that environment. Skip gracefully
-# so the isaaclab_ov CI pipeline is not blocked by an unrelated dependency.
+# The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
+# CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ovphysx.assets import RigidObjectCollection  # noqa: E402
@@ -52,6 +51,8 @@ from isaaclab.utils.math import (  # noqa: E402
 )
 
 wp.init()
+
+pytestmark = pytest.mark.device_split
 
 
 _LOCKED_DEVICE: list[str | None] = [None]
@@ -105,8 +106,9 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 _MATERIAL_GAP_REASON = (
     "Requires RIGID_BODY_MATERIAL TensorType (or a view-helper) on the ovphysx "
-    "wheel side.  RigidObjectCollection.root_view is a per-tensor-type bindings dict on "
-    "OVPhysX, so root_view.get_material_properties() / set_material_properties() "
+    "wheel side.  RigidObjectCollection.root_view is an OvPhysxView over fused "
+    "per-tensor-type bindings on OVPhysX, so root_view.get_material_properties() / "
+    "set_material_properties() "
     "are not available.  See "
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
@@ -172,7 +174,6 @@ def generate_cubes_scene(
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 3])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_initialization(num_envs, num_cubes, device):
     """Test initialization for prim with rigid body API at the provided prim path."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
@@ -201,7 +202,6 @@ def test_initialization(num_envs, num_cubes, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_id_conversion(device):
     """Test environment and object index conversion to physics view indices."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
@@ -241,7 +241,6 @@ def test_id_conversion(device):
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 3])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_initialization_with_kinematic_enabled(num_envs, num_cubes, device):
     """Test that initialization for prim with kinematic flag enabled."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
@@ -277,7 +276,6 @@ def test_initialization_with_kinematic_enabled(num_envs, num_cubes, device):
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_initialization_with_no_rigid_body(num_cubes, device):
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
@@ -292,7 +290,6 @@ def test_initialization_with_no_rigid_body(num_cubes, device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_external_force_buffer(device):
     """Test if external force buffer correctly updates in the force value is zero case."""
     num_envs = 2
@@ -348,7 +345,6 @@ def test_external_force_buffer(device):
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(num_envs, num_cubes, device):
     """Test application of external force on the base of the object."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
@@ -410,7 +406,6 @@ def test_external_force_on_single_body(num_envs, num_cubes, device):
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_cubes", [1, 4])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
     """Test application of external force on the base of the object at a specific position.
 
@@ -494,7 +489,6 @@ def test_external_force_on_single_body_at_position(num_envs, num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
 def test_set_object_state(num_envs, num_cubes, device, gravity_enabled):
     """Test setting the state of the object.
 
@@ -566,7 +560,6 @@ def test_set_object_state(num_envs, num_cubes, device, gravity_enabled):
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
 def test_object_state_properties(num_envs, num_cubes, device, with_offset, gravity_enabled):
     """Test the object_com_state_w and object_link_state_w properties."""
     with _ovphysx_sim_context(device=device, gravity_enabled=gravity_enabled, auto_add_lighting=True) as sim:
@@ -667,7 +660,6 @@ def test_object_state_properties(num_envs, num_cubes, device, with_offset, gravi
 @pytest.mark.parametrize("with_offset", [True, False])
 @pytest.mark.parametrize("state_location", ["com", "link"])
 @pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
 def test_write_object_state(num_envs, num_cubes, device, with_offset, state_location, gravity_enabled):
     """Test the setters for object_state using both the link frame and center of mass as reference frame."""
     with _ovphysx_sim_context(device=device, gravity_enabled=gravity_enabled, auto_add_lighting=True) as sim:
@@ -743,7 +735,6 @@ def test_write_object_state(num_envs, num_cubes, device, with_offset, state_loca
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_reset_object_collection(num_envs, num_cubes, device):
     """Test resetting the state of the rigid object."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
@@ -779,7 +770,6 @@ def test_reset_object_collection(num_envs, num_cubes, device):
 @pytest.mark.parametrize("num_envs", [1, 3])
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.isaacsim_ci
 def test_set_material_properties(num_envs, num_cubes, device):
     """Test getting and setting material properties of rigid object."""
     raise NotImplementedError(_MATERIAL_GAP_REASON)
@@ -789,7 +779,6 @@ def test_set_material_properties(num_envs, num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("gravity_enabled", [True, False])
-@pytest.mark.isaacsim_ci
 def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
     """Test that gravity vector direction is set correctly for the rigid object."""
     with _ovphysx_sim_context(device=device, gravity_enabled=gravity_enabled, auto_add_lighting=True) as sim:
@@ -826,7 +815,6 @@ def test_gravity_vec_w(num_envs, num_cubes, device, gravity_enabled):
 @pytest.mark.parametrize("with_offset", [True])
 @pytest.mark.parametrize("state_location", ["com", "link", "root"])
 @pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
 def test_write_object_state_functions_data_consistency(
     num_envs, num_cubes, device, with_offset, state_location, gravity_enabled
 ):

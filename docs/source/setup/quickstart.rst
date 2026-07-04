@@ -118,7 +118,7 @@ Use the reinforcement learning training command with a **task name** and
            --num_envs=4096 ^
            physics=physx
 
-Add ``--headless`` to disable the GUI. Use ``--help`` on any script to see task-specific
+For commands that do not configure a visualizer, omit ``--visualizer`` / ``--viz`` to run without a viewer. Use ``--help`` on any script to see task-specific
 ``physics=``, ``renderer=``, and ``presets=`` options.
 
 .. seealso::

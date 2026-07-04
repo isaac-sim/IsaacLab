@@ -116,7 +116,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit \
        --xr
 
@@ -139,7 +139,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
 .. tip::
 
-   The ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` task above uses **hand tracking** as its
+   The ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` task above uses **hand tracking** as its
    input mode. Make sure your XR device has hand tracking enabled (optical hand tracking on
    Quest 3, or the built-in hand tracking on Apple Vision Pro). Different tasks require
    different input modes (motion controllers vs hand tracking) -- see the
@@ -151,7 +151,7 @@ use the ``--cloudxr_env`` flag:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit \
        --xr \
        --cloudxr_env avp
@@ -274,7 +274,7 @@ choose the tab that matches your hardware.
          .. code-block:: bash
 
             ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env avp
 
@@ -407,7 +407,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
       sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
       ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+          --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
           --visualizer kit --xr \
           --cloudxr_env ~/manus.env
 
@@ -448,20 +448,55 @@ components run inside one container with Isaac Lab in this release.
 The CloudXR runtime auto-launches when a teleop script is started, so no separate
 runtime command is needed.
 
+.. attention::
+
+   Recent Isaac Lab Docker images (3.0.0-beta2 and later) run as a **non-root** user
+   (uid/gid 1000). Persistent named volumes or host directories that were created by an
+   earlier root-based image are owned by ``root`` and are **not writable** by the runtime
+   user. The XR teleop workflow trips on this first, because it writes the extension
+   registry cache under the runtime home. The failure looks like::
+
+      [Error] [carb.scripting-python.plugin] PermissionError: [Errno 13] Permission denied: '/root/.local/share/ov/data/exts'
+
+   followed by a cascade of extension-registry errors that abort the app *before* the XR
+   session can start::
+
+      [Error] [omni.ext.plugin] Syncing with extension registry unavailable.
+      [Error] [omni.ext.plugin] Failed to resolve extension dependencies. Failure hints:
+        * No versions of omni.kit.xr.bundle.generic that satisfies: isaaclab.python.xr.openxr-3.0.0 ...
+      [Error] [omni.kit.app.plugin] Exiting app because of dependency solver failure...
+
+   The XR bundle is not actually missing -- the registry never synced because its cache
+   directory could not be created. To fix it, make the persistent storage writable by
+   uid/gid 1000 before relaunching:
+
+   * **Docker Compose:** recreate the named volumes, e.g.
+
+     .. code-block:: bash
+
+        docker compose --file docker-compose.yaml --profile base --env-file .env.base down --volumes
+
+     See :ref:`deployment-docker` for details. To preserve cached data instead of
+     deleting it, ``chown`` the volume: ``docker run --rm -v docker_isaac-data:/data alpine
+     chown -R 1000:1000 /data``.
+   * **Single container with bind mounts:** pre-create the host directories and
+     ``sudo chown -R 1000:1000`` them before launching, so the non-root user can write to
+     them.
+
 Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-     --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+     --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
      --num_demos 5 \
      --dataset_file ./datasets/dataset.hdf5 \
      --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` and the XR
-teleop session will run automatically.
+For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
+``--viz none`` and the XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 

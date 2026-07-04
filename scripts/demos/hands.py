@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates different dexterous hands.
+"""This script demonstrates different dexterous hands.
 
 .. code-block:: bash
 
@@ -51,14 +50,14 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG  # isort:skip
-from isaaclab_tasks.core.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg  # isort:skip
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg  # isort:skip
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
 
 
 def define_origins(num_origins: int, spacing: float) -> list[list[float]]:
-    """Defines the origins of the the scene."""
+    """Defines the origins of the scene."""
     # create tensor based on number of environments
     env_origins = torch.zeros(num_origins, 3)
     # create a grid of origins

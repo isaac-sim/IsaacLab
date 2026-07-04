@@ -76,6 +76,30 @@ class FrontendIncompatibleError(RuntimeError):
 # the warp packages. Used by the direct-workflow guard.
 _WARP_ROOT_PREFIXES: tuple[str, ...] = ("isaaclab_experimental", "isaaclab_tasks_experimental")
 
+# Stable task MDP packages and their Warp-first counterparts. The stable task
+# package is organized by public task domain while the experimental package
+# separates manager-based workflows by family, so the module trees are not
+# one-to-one. Keep the routing at the package boundary and preserve any
+# submodule suffix (for example, ``.rewards``).
+_WARP_MDP_MODULE_ROUTES: tuple[tuple[str, str], ...] = (
+    (
+        "isaaclab_tasks.core.cartpole.mdp",
+        "isaaclab_tasks_experimental.manager_based.classic.cartpole.mdp",
+    ),
+    (
+        "isaaclab_tasks.core.locomotion.humanoid.mdp",
+        "isaaclab_tasks_experimental.manager_based.classic.humanoid.mdp",
+    ),
+    (
+        "isaaclab_tasks.core.velocity.mdp",
+        "isaaclab_tasks_experimental.manager_based.locomotion.velocity.mdp",
+    ),
+    (
+        "isaaclab_tasks.core.reach.mdp",
+        "isaaclab_tasks_experimental.manager_based.manipulation.reach.mdp",
+    ),
+)
+
 # Top-level cfg groups whose managers run warp-first. Only terms under these are
 # adapted (SceneEntityCfg promotion + MDP twin swap). The event manager is
 # warp-first too — it invokes term funcs with a Warp env-mask, so a stable event
@@ -122,12 +146,12 @@ def build(
         return gym.make(task_id, cfg=env_cfg, **construct_kwargs)
 
     # Imported lazily so that ``--frontend=torch`` callers don't pay the
-    # ``isaaclab_experimental.envs`` import cost. The warp env adapts the stable
-    # cfg in its own ``__init__`` (see :func:`adapt_cfg_for_warp`), so a task
-    # registered directly as ``*-Warp-v0`` (constructed straight from the stable
-    # cfg) goes through the exact same adaptation as ``--frontend=warp``.
+    # ``isaaclab_experimental.envs`` import cost. Registered ``*-Warp-v0`` tasks
+    # already provide Warp-native configs; the frontend path adapts stable configs
+    # immediately before constructing the Warp environment.
     from isaaclab_experimental.envs import ManagerBasedRLEnvWarp
 
+    adapt_cfg_for_warp(env_cfg)
     return ManagerBasedRLEnvWarp(cfg=env_cfg, **construct_kwargs)
 
 
@@ -139,11 +163,9 @@ def build(
 def adapt_cfg_for_warp(cfg: Any) -> None:
     """Mutate a stable manager-based ``cfg`` in place so warp managers can consume it.
 
-    Called from :meth:`ManagerBasedEnvWarp.__init__`, so it runs identically
-    whether the env is built via ``--frontend=warp`` on a stable task id or by
-    constructing a ``*-Warp-v0`` registration straight from the stable cfg.
-    Idempotent: re-running on an already-adapted cfg is a no-op (the steps below
-    skip warp-origin symbols / already-promoted entities).
+    Called by :func:`build` for ``--frontend=warp`` on a stable manager-based
+    task. Idempotent: re-running on an already-adapted cfg is a no-op (the steps
+    below skip Warp-origin symbols and already-promoted entities).
 
     Three steps, each independently testable:
 
@@ -320,24 +342,22 @@ def _warp_mdp_modules(symbol_module: str) -> list[ModuleType]:
 
     The lookup is keyed off the *stable symbol's own module*
     (``func.__module__`` / ``class_type.__module__``), e.g.
-    ``isaaclab_tasks.core.manager_humanoid.mdp.rewards``. We mirror that path
-    into the experimental package and walk up to the nearest importable module,
-    then append the shared fallback. Keying off the symbol's module — not the
-    cfg's — resolves the right twins even when a task borrows another task's MDP
-    (``manager_ant`` reuses ``manager_humanoid.mdp``), so the experimental
-    package can mirror the stable ``core/`` layout one-to-one without per-task
-    re-export shims.
+    ``isaaclab_tasks.core.locomotion.humanoid.mdp.rewards``. The stable module
+    is routed to its manager-based experimental counterpart, then walked up to
+    the nearest importable module. Keying off the symbol's module — not the
+    cfg's — resolves the right twins even when a task borrows another task's
+    MDP (the Ant task reuses Humanoid MDP terms).
 
     Order of preference:
 
-    1. The warp mirror of ``symbol_module`` (or its nearest importable ancestor,
+    1. The routed Warp counterpart of ``symbol_module`` (or its nearest importable ancestor,
        e.g. the ``...mdp`` package when the exact submodule isn't mirrored).
     2. The shared :mod:`isaaclab_experimental.envs.mdp` fallback (where
        generic warp twins live).
     """
     modules: list[ModuleType] = []
-    if isinstance(symbol_module, str) and symbol_module.startswith("isaaclab_tasks."):
-        warp_mod = symbol_module.replace("isaaclab_tasks", "isaaclab_tasks_experimental", 1)
+    warp_mod = _warp_mdp_module_name(symbol_module)
+    if warp_mod is not None:
         parts = warp_mod.split(".")
         for depth in range(len(parts), 0, -1):
             target = ".".join(parts[:depth])
@@ -361,6 +381,18 @@ def _warp_mdp_modules(symbol_module: str) -> list[ModuleType]:
         else:
             raise
     return modules
+
+
+def _warp_mdp_module_name(symbol_module: str) -> str | None:
+    """Return the routed experimental MDP module for a stable task symbol."""
+    if not isinstance(symbol_module, str):
+        return None
+    for stable_prefix, warp_prefix in _WARP_MDP_MODULE_ROUTES:
+        if symbol_module == stable_prefix:
+            return warp_prefix
+        if symbol_module.startswith(f"{stable_prefix}."):
+            return f"{warp_prefix}{symbol_module[len(stable_prefix) :]}"
+    return None
 
 
 def _resolve_warp_twin(name: str, modules: Iterable[ModuleType]) -> Any | None:

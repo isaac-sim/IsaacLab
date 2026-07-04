@@ -73,14 +73,6 @@ class ManagerBasedEnvWarp:
             RuntimeError: If a simulation context already exists. The environment must always create one
                 since it configures the simulation context and controls the simulation.
         """
-        # Adapt a stable manager-based cfg to the warp runtime in place: assert
-        # Newton physics, promote SceneEntityCfg to the warp variant, and swap
-        # every MDP func/class to its warp twin. Idempotent, so an already-warp
-        # cfg passes through untouched. This lets a ``*-Warp-v0`` task point its
-        # env_cfg_entry_point at the stable cfg rather than carry a drifting copy.
-        from isaaclab_experimental.envs.frontend import adapt_cfg_for_warp
-
-        adapt_cfg_for_warp(cfg)
         # check that the config is valid
         cfg.validate()
         # store inputs to class
@@ -166,11 +158,13 @@ class ManagerBasedEnvWarp:
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
 
-        # set up camera viewport controller — mirror stable env (PR #5297 changed
-        # the visualizer API; this branch was missed). ViewportCameraController
-        # uses omni.kit; skip it in kitless Newton-only runs.
-        has_visualizers = self.sim.has_active_visualizers()
-        if (self.sim.has_gui or has_visualizers) and has_kit():
+        # set up camera viewport controller
+        # viewport is not available in other rendering modes so the function will throw a warning
+        # FIXME: This needs to be fixed in the future when we unify the UI functionalities even for
+        # non-rendering modes.
+        # Initialize when a Kit viewport exists. ViewportCameraController uses omni.kit (renderer camera);
+        # skip in kitless Newton-only runs (e.g. --viz rerun) where no Kit app is running.
+        if (self.sim.has_gui or self.sim.has_active_visualizers()) and has_kit():
             self.viewport_camera_controller = ViewportCameraController(self, self.cfg.viewer)
         else:
             self.viewport_camera_controller = None
@@ -544,10 +538,8 @@ class ManagerBasedEnvWarp:
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: checked here once to avoid multiple checks within the loop
-        is_rendering = bool(self.sim.settings.get("/isaaclab/visualizer")) or self.sim.settings.get(
-            "/isaaclab/render/rtx_sensors"
-        )
+        # note: hoisted out of the decimation loop; is_rendering does live settings lookups
+        is_rendering = self.sim.is_rendering
 
         # perform physics stepping
         for _ in range(self.cfg.decimation):

@@ -1,6 +1,48 @@
 Changelog
 ---------
 
+0.7.0 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Bumped the ``rsl-rl-lib`` dependency to ``5.4.1``, which natively supports image-only policies
+  (observation sets with no 1D groups).
+* Changed :attr:`~isaaclab_rl.rsl_rl.RslRlCNNModelCfg.class_name` to default to rsl-rl's
+  ``CNNModel`` now that it supports image-only observations out of the box.
+
+Removed
+^^^^^^^
+
+* Removed the Isaac Lab ``CNNModel`` override of rsl-rl's ``CNNModel`` that previously added
+  image-only observation support. Use rsl-rl's ``CNNModel`` (the new default of
+  :attr:`~isaaclab_rl.rsl_rl.RslRlCNNModelCfg.class_name`) instead.
+
+
+0.6.2 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Updated ``Sb3VecEnvWrapper`` to use Isaac Lab Same-Step ``extras["final_obs"]``
+  as SB3 ``terminal_observation`` when it is available.
+
+
+0.6.1 (2026-06-09)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_rl.skrl.SkrlVecEnvWrapper` failing to import the JAX wrapper on recent JAX
+  versions by preloading the ``jax.experimental.multihost_utils`` submodule that skrl's distributed
+  models reference without importing.
+* Fixed LEAPP export of RSL-RL recurrent policies to preserve actor hidden
+  state across supported RSL-RL policy APIs.
+
+
 0.6.0 (2026-06-04)
 ~~~~~~~~~~~~~~~~~~
 

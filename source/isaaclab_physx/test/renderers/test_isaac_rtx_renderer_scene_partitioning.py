@@ -17,6 +17,12 @@ first articulation scene the app builds. The CI harness launches every
 ``isaacsim_ci`` test file in its own app, so keeping these tests isolated here gives them
 a clean renderer and exercises the real single-scene use case.
 
+Per-env scene partitioning is gated behind the
+``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION`` environment variable and is off
+by default. Tests that verify partitioning is *active* use the ``enable_scene_partition``
+fixture, which sets the variable for the duration of the test and restores the previous
+state afterwards.
+
 Launch Isaac Sim Simulator first.
 """
 
@@ -32,6 +38,7 @@ import os
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer, IsaacRtxRendererCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
@@ -42,9 +49,42 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots.kuka_allegro import KUKA_ALLEGRO_CFG
 
+_ENV_VAR = "ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION"
+
+
+@pytest.fixture()
+def enable_scene_partition(monkeypatch):
+    """Set ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1`` for the duration of one test."""
+    monkeypatch.setenv(_ENV_VAR, "1")
+
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_isolates_rigid_object():
+def test_partitioning_disabled_by_default(monkeypatch):
+    """``primvars:omni:scenePartition`` must NOT be authored when the env var is absent.
+
+    The feature is off by default; this test confirms that :meth:`IsaacRtxRenderer.prepare_stage`
+    is a no-op without ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``.
+    """
+    from pxr import Usd
+
+    monkeypatch.delenv(_ENV_VAR, raising=False)
+
+    stage = Usd.Stage.CreateInMemory()
+    world = stage.DefinePrim("/World", "Xform")  # noqa: F841
+    env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
+
+    renderer = object.__new__(IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    renderer.prepare_stage(stage, num_envs=1)
+
+    prim = stage.GetPrimAtPath("/World/envs/env_0")
+    assert not prim.HasAttribute("primvars:omni:scenePartition"), (
+        "primvars:omni:scenePartition must not be authored when partitioning is disabled."
+    )
+
+
+@pytest.mark.isaacsim_ci
+def test_partitioning_isolates_rigid_object(enable_scene_partition):
     """Per-env :class:`~isaaclab.assets.RigidObject` instances at unique world positions render
     as visibly different per-env tiles when RTX honors ``primvars:omni:scenePartition``."""
 
@@ -111,7 +151,7 @@ def test_partitioning_isolates_rigid_object():
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_isolates_articulation():
+def test_partitioning_isolates_articulation(enable_scene_partition):
     """Per-env :class:`~isaaclab.assets.Articulation` instances driven to wildly different joint
     poses render as visibly different per-env tiles when RTX honors top-level scene partitions."""
 

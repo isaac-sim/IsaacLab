@@ -14,7 +14,7 @@ import gymnasium as gym
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-IK-Abs-v0",
+    id="IsaacContrib-Reach-Franka-IK-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_abs_env_cfg:FrankaReachEnvCfg",
@@ -27,7 +27,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Reach-Franka-IK-Rel-v0",
+    id="IsaacContrib-Reach-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaReachEnvCfg",
