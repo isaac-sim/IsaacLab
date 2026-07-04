@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.sim.utils.joints import find_global_fixed_joint_prim
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
@@ -121,6 +120,10 @@ class PhysicsManager(ABC):
         Raises:
             NotImplementedError: If a new joint is needed and the root is not a rigid body.
         """
+        # Keep this import local to avoid the SimulationContext -> PhysicsManager ->
+        # sim.utils.queries -> SimulationContext import cycle.
+        from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
+
         if stage is None:
             stage = get_current_stage()
         root_path = articulation_prim.GetPath().pathString
