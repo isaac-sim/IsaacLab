@@ -106,6 +106,11 @@ class NewtonKaminoManager(NewtonManager):
             )
 
     @classmethod
+    def _reset_solver_state(cls, solver: SolverKamino, world_reset_mask: wp.array) -> None:
+        """Skip the generic optional reset already performed by Kamino synchronization."""
+        pass
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: KaminoSolverCfg) -> None:
         """Construct :class:`SolverKamino` and populate the base-class slots.
 

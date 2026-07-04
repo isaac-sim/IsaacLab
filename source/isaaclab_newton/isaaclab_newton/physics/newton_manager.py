@@ -358,7 +358,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _owned_solvers(cls) -> tuple[SolverBase, ...]:
-        """Return solvers that receive model and authored-state updates."""
+        """Return solvers that receive model, authored-state, and reset updates."""
         return () if cls._solver is None else (cls._solver,)
 
     @classmethod
@@ -371,12 +371,16 @@ class NewtonManager(PhysicsManager):
 
         Subclasses with a solver-specific state representation may override
         this as one atomic policy. The default updates derived body state first,
-        then pushes it into every owned solver's private representation.
+        pushes it into every owned solver's private representation, then
+        optionally clears solver-owned state without changing authored values.
         """
         cls._eval_fk_impl(world_reset_mask, fk_mask)
 
+        cfg = PhysicsManager._cfg
         for solver in cls._owned_solvers():
             cls._synchronize_solver_state(solver, world_reset_mask, fk_mask)
+            if cfg is not None and cfg.solver_reset:
+                cls._reset_solver_state(solver, world_reset_mask)
 
     @classmethod
     def _synchronize_solver_state(
@@ -389,13 +393,19 @@ class NewtonManager(PhysicsManager):
         pass
 
     @classmethod
+    def _reset_solver_state(cls, solver: SolverBase, world_reset_mask: wp.array) -> None:
+        """Clear one solver's derived state without changing authored state."""
+        solver.reset(cls._state_0, world_mask=world_reset_mask, flags=0)
+
+    @classmethod
     def _state_write_graph_safe(cls) -> bool:
         """Return whether authored-state reconciliation can be CUDA-captured."""
         return True
 
     @classmethod
     def _flush_pending_changes(cls) -> None:
-        """Apply pending authored state before a coherent boundary."""
+        """Apply pending model and authored-state changes before a coherent boundary."""
+        cls._notify_solver_model_changes()
         if NewtonManager._state_writes is not None:
             NewtonManager._state_writes.flush()
 
@@ -678,11 +688,6 @@ class NewtonManager(PhysicsManager):
 
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-
-        # Model-property notifications remain step-owned for compatibility
-        # with existing coupled managers, which fan them out to sub-solvers
-        # before delegating here.
-        cls._notify_solver_model_changes()
 
         # RTX-active initialization defers this tiny conditional graph to the
         # first safe inter-frame window, just like the simulation graph below.

@@ -97,6 +97,15 @@ class NewtonCfg(PhysicsCfg):
     Users normally do not set this directly.
     """
 
+    solver_reset: bool = False
+    """Whether to clear solver-owned state after task-authored environment writes.
+
+    This cross-cutting behavior is opt-in. Isaac Lab passes ``flags=0`` so
+    task-authored positions and velocities remain unchanged. Kamino's mandatory
+    state synchronization is independent of this option, and solvers that
+    inherit Newton's no-op reset hook are unaffected.
+    """
+
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
 
@@ -155,6 +164,9 @@ class NewtonCfg(PhysicsCfg):
     """
 
     def __post_init__(self):
+        if not isinstance(self.solver_reset, bool):
+            raise TypeError("NewtonCfg.solver_reset must be a bool.")
+
         # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
         # Refuse a user-set value: setting both is ambiguous and was
         # previously silently overwritten.
