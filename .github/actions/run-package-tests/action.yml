@@ -41,6 +41,12 @@ inputs:
       skipped. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
+  test-k-expr:
+    description: >-
+      Global pytest -k expression applied inside every per-file pytest run
+      spawned by tools/conftest.py (combined with device-split selectors).
+    default: ''
+    required: false
   shard-index:
     description: 'Zero-based shard index'
     default: ''
@@ -286,6 +292,7 @@ runs:
         pytest-options: ${{ inputs.pytest-options }}
         filter-pattern: ${{ inputs.filter-pattern }}
         exclude-pattern: ${{ inputs.exclude-pattern }}
+        test-k-expr: ${{ inputs.test-k-expr }}
         shard-index: ${{ inputs.shard-index }}
         shard-count: ${{ inputs.shard-count }}
         curobo-only: ${{ inputs.curobo-only }}

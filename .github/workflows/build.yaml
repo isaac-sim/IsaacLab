@@ -795,7 +795,7 @@ jobs:
         # ovphysx-backed test params require ovphysx >= 0.5.1, which is only available
         # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
         # index and keep the newton/ovrtx kitless rendering coverage.
-        pytest-options: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || '-k "not ovphysx"' }}
+        test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
         extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
         wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
         wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
