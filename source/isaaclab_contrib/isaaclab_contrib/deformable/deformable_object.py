@@ -392,6 +392,10 @@ class DeformableObject(BaseDeformableObject):
                 ],
                 device=self.device,
             )
+        self._invalidate_nodal_state_cache()
+        # Kinematic targets are applied as controls every step, not authored
+        # reset state, but rendering still needs to observe their device writes.
+        SimulationManager._mark_particles_dirty()
 
     def update(self, dt: float):
         self._data.update(dt)
@@ -437,6 +441,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         self._invalidate_nodal_pos_cache()
+        SimulationManager.invalidate_particles(env_ids=env_ids)
 
     def write_nodal_velocity_to_sim_index(
         self,
@@ -475,6 +480,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         self._invalidate_nodal_vel_cache()
+        SimulationManager.invalidate_particles(env_ids=env_ids)
 
     def write_nodal_kinematic_target_to_sim_index(
         self,
@@ -551,6 +557,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         self._invalidate_nodal_state_cache()
+        SimulationManager.invalidate_particles(env_mask=env_mask)
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -582,6 +589,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         self._invalidate_nodal_pos_cache()
+        SimulationManager.invalidate_particles(env_mask=env_mask)
 
     def write_nodal_velocity_to_sim_mask(
         self,
@@ -613,6 +621,7 @@ class DeformableObject(BaseDeformableObject):
             )
 
         self._invalidate_nodal_vel_cache()
+        SimulationManager.invalidate_particles(env_mask=env_mask)
 
     def write_nodal_kinematic_target_to_sim_mask(
         self,

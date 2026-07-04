@@ -59,6 +59,31 @@ def _mark_from_ids(
         wp.atomic_max(pending, 0, 1)
 
 
+@wp.kernel(enable_backward=False)
+def _mark_worlds_from_mask(
+    env_mask: wp.array(dtype=wp.bool),
+    world_mask: wp.array(dtype=wp.bool),
+    pending: wp.array(dtype=wp.int32),
+):
+    """Accumulate selected worlds without requesting articulation FK."""
+    world = wp.tid()
+    if env_mask[world]:
+        world_mask[world] = True
+        wp.atomic_max(pending, 0, 1)
+
+
+@wp.kernel(enable_backward=False)
+def _mark_worlds_from_ids(
+    env_ids: wp.array(dtype=int),
+    world_mask: wp.array(dtype=wp.bool),
+    pending: wp.array(dtype=wp.int32),
+):
+    """Accumulate sparse world indices without requesting articulation FK."""
+    world = env_ids[wp.tid()]
+    world_mask[world] = True
+    wp.atomic_max(pending, 0, 1)
+
+
 class _CaptureState(Enum):
     """Conditional-graph lifecycle."""
 
@@ -77,6 +102,7 @@ class AuthoredStateTransaction:
     """
 
     RENDER_TRANSFORMS = 1
+    RENDER_PARTICLES = 2
 
     def __init__(
         self,
@@ -137,9 +163,7 @@ class AuthoredStateTransaction:
         articulation_selection: wp.array | None = None,
     ) -> None:
         """Accumulate rigid worlds and articulations modified by an asset write."""
-        self._host_pending = True
-        if self._device.is_cuda and self._device.stream.is_capturing:
-            self._writes_may_replay = True
+        self._begin_mark()
 
         # Preserve the pre-transaction conservative fallback: without view
         # topology, a rigid write cannot safely map a world selection to
@@ -150,7 +174,7 @@ class AuthoredStateTransaction:
             self._pending.fill_(1)
             return
 
-        if articulation_ids is not None and env_mask is not None:
+        if env_mask is not None:
             selection = self._empty_selection if articulation_selection is None else articulation_selection
             wp.launch(
                 _mark_from_mask,
@@ -159,7 +183,7 @@ class AuthoredStateTransaction:
                 outputs=[self._world_mask, self._fk_mask, self._pending],
                 device=self._device,
             )
-        elif articulation_ids is not None and env_ids is not None:
+        elif env_ids is not None:
             selection = self._empty_selection if articulation_selection is None else articulation_selection
             wp.launch(
                 _mark_from_ids,
@@ -173,6 +197,41 @@ class AuthoredStateTransaction:
             self._world_mask.fill_(True)
             self._fk_mask.fill_(True)
             self._pending.fill_(1)
+
+    def mark_particles(
+        self,
+        *,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+    ) -> None:
+        """Accumulate particle worlds without requesting articulation FK."""
+        self._begin_mark()
+
+        if env_mask is not None:
+            wp.launch(
+                _mark_worlds_from_mask,
+                dim=env_mask.shape[0],
+                inputs=[env_mask],
+                outputs=[self._world_mask, self._pending],
+                device=self._device,
+            )
+        elif env_ids is not None:
+            wp.launch(
+                _mark_worlds_from_ids,
+                dim=env_ids.shape[0],
+                inputs=[env_ids],
+                outputs=[self._world_mask, self._pending],
+                device=self._device,
+            )
+        else:
+            self._world_mask.fill_(True)
+            self._pending.fill_(1)
+
+    def _begin_mark(self) -> None:
+        """Record host and graph-replay state shared by every authored write."""
+        self._host_pending = True
+        if self._device.is_cuda and self._device.stream.is_capturing:
+            self._writes_may_replay = True
 
     def configure_capture(self, graph_safe: bool, defer: bool = False, enabled: bool = True) -> None:
         """Configure the reusable conditional graph for the active backend."""

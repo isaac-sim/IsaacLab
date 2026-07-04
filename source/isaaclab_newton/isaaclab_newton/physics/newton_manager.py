@@ -425,6 +425,8 @@ class NewtonManager(PhysicsManager):
         if transaction is not None:
             if transaction.replay_render_domains & transaction.RENDER_TRANSFORMS:
                 NewtonManager._transforms_dirty = True
+            if transaction.replay_render_domains & transaction.RENDER_PARTICLES:
+                NewtonManager._particles_dirty = True
         cls.sync_transforms_to_usd()
         cls.sync_particles_to_usd()
 
@@ -622,6 +624,8 @@ class NewtonManager(PhysicsManager):
         which runs at render cadence via :meth:`pre_render`.
         """
         NewtonManager._particles_dirty = True
+        if NewtonManager._state_writes is not None:
+            NewtonManager._state_writes.note_render_write(AuthoredStateTransaction.RENDER_PARTICLES)
 
     @classmethod
     def _mark_state_dirty(cls) -> None:
@@ -1120,6 +1124,21 @@ class NewtonManager(PhysicsManager):
                 articulation_ids=articulation_ids,
                 articulation_selection=articulation_selection,
             )
+
+    @classmethod
+    def invalidate_particles(
+        cls,
+        env_mask: wp.array | None = None,
+        env_ids: wp.array | None = None,
+    ) -> None:
+        """Mark worlds whose task-authored particle state changed.
+
+        Particle writes share the solver transaction and dirty-world mask with
+        rigid writes, but they do not request articulation forward kinematics.
+        """
+        cls._mark_particles_dirty()
+        if NewtonManager._state_writes is not None:
+            NewtonManager._state_writes.mark_particles(env_mask=env_mask, env_ids=env_ids)
 
     @classmethod
     def start_simulation(cls) -> None:

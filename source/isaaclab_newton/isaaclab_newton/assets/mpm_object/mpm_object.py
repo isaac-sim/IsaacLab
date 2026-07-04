@@ -148,7 +148,7 @@ class MPMObject(BaseDeformableObject):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
-        self._scatter_to_sim_index(
+        env_ids = self._scatter_to_sim_index(
             nodal_state,
             env_ids,
             full_data,
@@ -157,7 +157,7 @@ class MPMObject(BaseDeformableObject):
             ("particle_q", "particle_qd"),
             "nodal_state",
         )
-        self._invalidate_caches(pos=True, vel=True)
+        self._invalidate_caches(pos=True, vel=True, env_ids=env_ids)
 
     def write_nodal_pos_to_sim_index(
         self,
@@ -165,10 +165,10 @@ class MPMObject(BaseDeformableObject):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
-        self._scatter_to_sim_index(
+        env_ids = self._scatter_to_sim_index(
             nodal_pos, env_ids, full_data, wp.vec3f, scatter_particles_vec3f_index, ("particle_q",), "nodal_pos"
         )
-        self._invalidate_caches(pos=True)
+        self._invalidate_caches(pos=True, env_ids=env_ids)
 
     def write_nodal_velocity_to_sim_index(
         self,
@@ -176,10 +176,10 @@ class MPMObject(BaseDeformableObject):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
     ) -> None:
-        self._scatter_to_sim_index(
+        env_ids = self._scatter_to_sim_index(
             nodal_vel, env_ids, full_data, wp.vec3f, scatter_particles_vec3f_index, ("particle_qd",), "nodal_vel"
         )
-        self._invalidate_caches(vel=True)
+        self._invalidate_caches(vel=True, env_ids=env_ids)
 
     def write_nodal_kinematic_target_to_sim_index(
         self,
@@ -194,7 +194,7 @@ class MPMObject(BaseDeformableObject):
         nodal_state: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | torch.Tensor | None = None,
     ) -> None:
-        self._scatter_to_sim_mask(
+        env_mask = self._scatter_to_sim_mask(
             nodal_state,
             env_mask,
             vec6f,
@@ -202,27 +202,27 @@ class MPMObject(BaseDeformableObject):
             ("particle_q", "particle_qd"),
             "nodal_state",
         )
-        self._invalidate_caches(pos=True, vel=True)
+        self._invalidate_caches(pos=True, vel=True, env_mask=env_mask)
 
     def write_nodal_pos_to_sim_mask(
         self,
         nodal_pos: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | torch.Tensor | None = None,
     ) -> None:
-        self._scatter_to_sim_mask(
+        env_mask = self._scatter_to_sim_mask(
             nodal_pos, env_mask, wp.vec3f, scatter_particles_vec3f_mask, ("particle_q",), "nodal_pos"
         )
-        self._invalidate_caches(pos=True)
+        self._invalidate_caches(pos=True, env_mask=env_mask)
 
     def write_nodal_velocity_to_sim_mask(
         self,
         nodal_vel: torch.Tensor | wp.array | ProxyArray,
         env_mask: wp.array | torch.Tensor | None = None,
     ) -> None:
-        self._scatter_to_sim_mask(
+        env_mask = self._scatter_to_sim_mask(
             nodal_vel, env_mask, wp.vec3f, scatter_particles_vec3f_mask, ("particle_qd",), "nodal_vel"
         )
-        self._invalidate_caches(vel=True)
+        self._invalidate_caches(vel=True, env_mask=env_mask)
 
     def write_nodal_kinematic_target_to_sim_mask(
         self,
@@ -238,7 +238,7 @@ class MPMObject(BaseDeformableObject):
     write_particle_pos_to_sim_mask = write_nodal_pos_to_sim_mask
     write_particle_velocity_to_sim_mask = write_nodal_velocity_to_sim_mask
 
-    def _scatter_to_sim_index(self, data, env_ids, full_data: bool, dtype, kernel, targets, name: str) -> None:
+    def _scatter_to_sim_index(self, data, env_ids, full_data: bool, dtype, kernel, targets, name: str) -> wp.array:
         """Scatter per-environment particle data into the Newton state arrays in ``targets``."""
         env_ids = self._resolve_env_ids(env_ids)
         num_rows = self.num_instances if full_data else env_ids.shape[0]
@@ -251,8 +251,9 @@ class MPMObject(BaseDeformableObject):
                 outputs=[getattr(state, target) for target in targets],
                 device=self.device,
             )
+        return env_ids
 
-    def _scatter_to_sim_mask(self, data, env_mask, dtype, kernel, targets, name: str) -> None:
+    def _scatter_to_sim_mask(self, data, env_mask, dtype, kernel, targets, name: str) -> wp.array:
         """Scatter masked per-environment particle data into the Newton state arrays in ``targets``."""
         env_mask = self._resolve_mask(env_mask)
         data = self._as_warp(data, dtype, (env_mask.shape[0], self._particles_per_object), name)
@@ -264,6 +265,7 @@ class MPMObject(BaseDeformableObject):
                 outputs=[getattr(state, target) for target in targets],
                 device=self.device,
             )
+        return env_mask
 
     def _as_warp(self, data, dtype, shape: tuple[int, int], name: str) -> wp.array:
         """Validate user data and return it as a Warp array of ``dtype``."""
@@ -401,8 +403,15 @@ class MPMObject(BaseDeformableObject):
         if state_1 is not None and state_1 is not state_0:
             yield state_1
 
-    def _invalidate_caches(self, pos: bool = False, vel: bool = False) -> None:
-        """Invalidate gathered data buffers after a particle write and flag the render sync."""
+    def _invalidate_caches(
+        self,
+        pos: bool = False,
+        vel: bool = False,
+        *,
+        env_ids: wp.array | None = None,
+        env_mask: wp.array | None = None,
+    ) -> None:
+        """Invalidate gathered data and publish the selected particle-state write."""
         if pos:
             self._data._particle_pos_w.timestamp = -1.0
             self._data._root_pos_w.timestamp = -1.0
@@ -410,7 +419,7 @@ class MPMObject(BaseDeformableObject):
             self._data._particle_vel_w.timestamp = -1.0
             self._data._root_vel_w.timestamp = -1.0
         self._data._particle_state_w.timestamp = -1.0
-        SimulationManager._mark_particles_dirty()
+        SimulationManager.invalidate_particles(env_ids=env_ids, env_mask=env_mask)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         raise NotImplementedError("Debug visualization is not implemented for MPMObject.")
