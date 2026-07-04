@@ -30,12 +30,20 @@ therefore the single location discovered for all of them. ``tools/changelog`` an
 
 from __future__ import annotations
 
+import re
+
 # Directory names (as path segments) whose tests exercise isolated logic and do not launch the
 # simulator. Tests under these directories get the ``unit`` level marker instead of ``integration``.
 _UNIT_DIR_SEGMENTS = frozenset({"utils", "cli", "deps", "test_mock_interfaces"})
 
 # Filename substrings that mark rendering / camera / visualizer pipeline tests.
 _RENDERING_TOKENS = ("render", "camera", "tiled", "rtx", "visualizer", "ppisp")
+
+# Matches ``train`` as a standalone token (start-of-name or after a ``_``/``-``/``.`` separator),
+# so it catches ``train``/``training``/``trains`` but not embeddings like ``constraint``. A plain
+# ``re.search(r"\btrain", ...)`` would not work here: ``_`` is a regex word character, so ``\b``
+# would fail to match the common ``test_train...`` / ``..._training`` filenames.
+_TRAINING_RE = re.compile(r"(?<![a-z])train")
 
 
 def _intent_markers(path: str) -> set[str]:
@@ -57,7 +65,7 @@ def _intent_markers(path: str) -> set[str]:
     # -- flavor markers (a test may carry several) --
     if any(token in name for token in _RENDERING_TOKENS):
         markers.add("rendering")
-    if "train" in name:  # matches "train" and "training"
+    if _TRAINING_RE.search(name):  # matches "train"/"training"/"trains" but not "constraint"
         markers.add("training")
     if "performance" in segments or "perf" in name:
         markers.add("performance")
