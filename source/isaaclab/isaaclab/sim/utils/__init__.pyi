@@ -89,6 +89,7 @@ from .prims import (
     get_usd_references,
     select_usd_variants,
 )
+from .joints import find_global_fixed_joint_prim
 from .queries import (
     get_next_free_prim_path,
     get_first_matching_ancestor_prim,
@@ -99,7 +100,6 @@ from .queries import (
     matches_path_expr_prefix,
     resolve_matching_prims_from_source,
     find_matching_prim_paths,
-    find_global_fixed_joint_prim,
 )
 from .semantics import (
     add_labels,

@@ -14,6 +14,11 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
+
+from isaaclab.sim.utils.joints import find_global_fixed_joint_prim
+from isaaclab.sim.utils.stage import get_current_stage
+
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
@@ -116,11 +121,6 @@ class PhysicsManager(ABC):
         Raises:
             NotImplementedError: If a new joint is needed and the root is not a rigid body.
         """
-        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
-
-        from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
-        from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
-
         if stage is None:
             stage = get_current_stage()
         root_path = articulation_prim.GetPath().pathString
@@ -151,8 +151,6 @@ class PhysicsManager(ABC):
         companion_namespace: str,
     ) -> Any:
         """Move root-bearing schemas and authored properties to the root link's parent."""
-        from pxr import Usd, UsdPhysics  # noqa: PLC0415
-
         new_root = articulation_prim.GetParent()
         if new_root.HasAPI(UsdPhysics.ArticulationRootAPI):
             raise RuntimeError(
