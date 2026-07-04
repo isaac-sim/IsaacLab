@@ -395,6 +395,23 @@ class NewtonManager(PhysicsManager):
         eval_fk(cls._model, cls._state_0.joint_q, cls._state_0.joint_qd, cls._state_0, fk_mask)
 
     @classmethod
+    def _reset_solver_from_authored_writes(cls) -> None:
+        """Clear solver-owned state selected by the current authored-write mask."""
+        cfg = PhysicsManager._cfg
+        world_mask = cls._world_reset_mask
+        solver = cls._solver
+        if cfg is None or not cfg.solver_reset or world_mask is None or solver is None:
+            return
+
+        # Kamino's FK delegate already performs its mandatory masked reset. CPU MuJoCo owns
+        # one global MjData, so avoid clearing it on clean forward and step boundaries.
+        if isinstance(solver, SolverKamino):
+            return
+        if isinstance(solver, SolverMuJoCo) and solver.use_mujoco_cpu and not bool(world_mask.numpy().any()):
+            return
+        solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+
+    @classmethod
     def forward(cls) -> None:
         """Update articulation kinematics without stepping physics.
 
@@ -412,17 +429,7 @@ class NewtonManager(PhysicsManager):
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
-
-        cfg = PhysicsManager._cfg
-        world_mask = cls._world_reset_mask
-        solver = cls._solver
-        if cfg is not None and cfg.solver_reset and world_mask is not None and solver is not None:
-            # Kamino's FK delegate already performs its mandatory masked reset. CPU MuJoCo owns
-            # one global MjData, so avoid clearing it on clean forward/read/render boundaries.
-            is_cpu_mujoco = isinstance(solver, SolverMuJoCo) and solver.use_mujoco_cpu
-            if not isinstance(solver, SolverKamino) and (not is_cpu_mujoco or bool(world_mask.numpy().any())):
-                solver.reset(cls._state_0, world_mask=world_mask, flags=0)
-
+        cls._reset_solver_from_authored_writes()
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
@@ -723,6 +730,8 @@ class NewtonManager(PhysicsManager):
         # Only runs FK for dirtied articulations via the accumulated mask.
         if cls._needs_collision_pipeline or cls._needs_fk_before_step:
             cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
+
+        cls._reset_solver_from_authored_writes()
 
         # Zero both masks after consumption
         NewtonManager._world_reset_mask.zero_()

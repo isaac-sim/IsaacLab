@@ -2573,6 +2573,8 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
 @pytest.mark.parametrize("device", ["cuda:0"])
 def test_opt_in_solver_reset_clears_selected_mjwarp_history(device):
     """An authored write clears selected MuJoCo history without changing the authored state."""
+    from unittest.mock import patch
+
     sim_cfg = SimulationCfg(
         dt=1 / 120,
         physics=NewtonCfg(
@@ -2617,14 +2619,36 @@ def test_opt_in_solver_reset_clears_selected_mjwarp_history(device):
         warm_start[1].fill_(17.0)
         wp.synchronize_device(device)
 
-        # Public, non-integrating state access consumes the authored-write mask.
-        SimulationManager.get_state()
+        # The public, non-integrating forward boundary consumes the authored-write mask.
+        sim.forward()
         wp.synchronize_device(device)
 
         torch.testing.assert_close(wp.to_torch(state.joint_q), joint_q_before)
         torch.testing.assert_close(wp.to_torch(state.joint_qd), joint_qd_before)
         assert torch.count_nonzero(warm_start[0]).item() == 0
         torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 17.0))
+
+        # The physics-step boundary also resets when no forward boundary consumed the mask first.
+        articulation.write_joint_state_to_sim_index(
+            position=joint_pos,
+            velocity=joint_vel,
+            env_ids=env_ids,
+        )
+        warm_start[0].fill_(23.0)
+        warm_start[1].fill_(29.0)
+        wp.synchronize_device(device)
+
+        with (
+            patch.object(SimulationManager, "_simulate_full", classmethod(lambda cls: None)),
+            patch.object(SimulationManager, "_simulate_physics_only", classmethod(lambda cls: None)),
+        ):
+            sim.step(render=False)
+        wp.synchronize_device(device)
+
+        torch.testing.assert_close(wp.to_torch(state.joint_q), joint_q_before)
+        torch.testing.assert_close(wp.to_torch(state.joint_qd), joint_qd_before)
+        assert torch.count_nonzero(warm_start[0]).item() == 0
+        torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 29.0))
 
 
 @pytest.mark.parametrize("add_ground_plane", [True])
