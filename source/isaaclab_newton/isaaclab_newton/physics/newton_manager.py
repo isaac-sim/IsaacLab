@@ -397,12 +397,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _reset_solver_from_authored_writes(cls) -> None:
         """Clear solver-owned state selected by the current authored-write mask."""
-        if (
-            PhysicsManager._cfg is None
-            or not PhysicsManager._cfg.solver_reset
-            or cls._world_reset_mask is None
-            or cls._solver is None
-        ):
+        if not PhysicsManager._cfg.solver_reset:
             return
 
         # Kamino's FK delegate already performs its mandatory masked reset. CPU MuJoCo owns
