@@ -265,7 +265,7 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
-        dt=1/150,
+        dt=1 / 150,
         render_interval=3,
         physics=DrLegsPhysicsCfg(),
         physics_material=_PHYSICS_MATERIAL,
