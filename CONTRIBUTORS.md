@@ -56,6 +56,7 @@ Guidelines for modifications:
 * Anton Bjørndahl Mortensen
 * Antonin Raffin
 * Arjun Bhardwaj
+* Asier Arranz
 * Ashwin Varghese Kuruttukulam
 * Bikram Pandit
 * Bingjie Tang
