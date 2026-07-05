@@ -53,20 +53,38 @@ class RenderData:
     # Maps each supported RenderBufferKind to (CameraOutputs field name, Newton warp dtype).
     # Newton reinterprets the allocated buffer memory: e.g. RGBA is allocated as (N,H,W,4) uint8
     # but the Newton sensor API consumes it as (world_count,1,H,W) uint32 (same bytes, packed view).
+    #
+    # The depth family (``distance_to_camera`` / ``distance_to_image_plane`` / ``depth``) is handled
+    # separately in :meth:`set_outputs` rather than through this map, because Newton emits a single
+    # ray-hit-distance buffer that must be reused as the source for the planar-depth conversion.
     _OUTPUT_MAP: dict[str, tuple[str, type]] = {
         str(RenderBufferKind.RGBA): ("color_image", wp.uint32),
         str(RenderBufferKind.RGB_HDR): ("hdr_color_image", wp.vec3f),
         str(RenderBufferKind.ALBEDO): ("albedo_image", wp.uint32),
-        str(RenderBufferKind.DEPTH): ("depth_image", wp.float32),
         str(RenderBufferKind.NORMALS): ("normals_image", wp.vec3f),
         str(RenderBufferKind.INSTANCE_SEGMENTATION_FAST): ("instance_segmentation_image", wp.uint32),
     }
+
+    # Newton's native ``depth_image`` is the ray-hit (euclidean) distance from the camera optical
+    # center, which is Isaac Lab's ``distance_to_camera``.
+    _RAY_DEPTH_KIND: str = str(RenderBufferKind.DISTANCE_TO_CAMERA)
+    # Planar-depth outputs (distance along the camera's forward axis). ``depth`` is Isaac Lab's alias
+    # for ``distance_to_image_plane``. Both are derived from the ray depth via
+    # ``convert_ray_depth_to_forward_depth``.
+    _PLANE_DEPTH_KINDS: frozenset[str] = frozenset(
+        {
+            str(RenderBufferKind.DEPTH),
+            str(RenderBufferKind.DISTANCE_TO_IMAGE_PLANE),
+        }
+    )
 
     @dataclass
     class CameraOutputs:
         color_image: wp.array(dtype=wp.uint32, ndim=4) = None
         hdr_color_image: wp.array(dtype=wp.vec3f, ndim=4) = None
         albedo_image: wp.array(dtype=wp.uint32, ndim=4) = None
+        # Buffer Newton fills with ray-hit (euclidean) distance. Bound either to the caller's
+        # ``distance_to_camera`` output or to an internal scratch buffer (see :meth:`set_outputs`).
         depth_image: wp.array(dtype=wp.float32, ndim=4) = None
         normals_image: wp.array(dtype=wp.vec3f, ndim=4) = None
         instance_segmentation_image: wp.array(dtype=wp.uint32, ndim=4) = None
@@ -79,6 +97,12 @@ class RenderData:
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self.outputs = RenderData.CameraOutputs()
+        # Requested depth-family destination views keyed by data-type name. Each view aliases the
+        # caller's output buffer as ``(world_count, 1, H, W)`` float32.
+        self._depth_dests: dict[str, wp.array] = {}
+        # Internal ray-depth buffer allocated only when a planar-depth output is requested without
+        # ``distance_to_camera``; gives ``convert_ray_depth_to_forward_depth`` a source to read from.
+        self._ray_depth_scratch: wp.array | None = None
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
@@ -103,21 +127,46 @@ class RenderData:
         """PPISP LDR destination bound once in :meth:`set_outputs` from the
         caller's ``rgba`` output."""
 
+    def _view(self, proxy: ProxyArray, dtype: type, shape: tuple[int, ...]) -> wp.array:
+        """Alias the caller's output buffer as a ``(world_count, 1, H, W)`` warp array of ``dtype``.
+
+        Newton reinterprets the backing memory in place (no copy), so the sensor writes directly
+        into the camera's output buffer.
+        """
+        wp_arr = proxy.warp
+        return wp.array(ptr=wp_arr.ptr, dtype=dtype, shape=shape, device=wp_arr.device, copy=False)
+
     def set_outputs(self, output_data: dict[str, ProxyArray]):
         shape = (self.newton_sensor.model.world_count, self.num_cameras, self.height, self.width)
+        self._depth_dests = {}
+        self._ray_depth_scratch = None
+        ray_depth_dest: wp.array | None = None
         for output_name, proxy in output_data.items():
+            # Depth family: bind each requested output to a float32 destination view. Newton fills
+            # only the ray-hit distance; planar outputs are derived from it in :meth:`convert_plane_depth`.
+            if output_name == self._RAY_DEPTH_KIND or output_name in self._PLANE_DEPTH_KINDS:
+                dest = self._view(proxy, wp.float32, shape)
+                self._depth_dests[output_name] = dest
+                if output_name == self._RAY_DEPTH_KIND:
+                    ray_depth_dest = dest
+                continue
             mapping = self._OUTPUT_MAP.get(output_name)
             if mapping is None:
                 if output_name != str(RenderBufferKind.RGB):
                     logger.warning(f"NewtonWarpRenderer - output type {output_name} is not yet supported")
                 continue
             field_name, dtype = mapping
-            wp_arr = proxy.warp
-            setattr(
-                self.outputs,
-                field_name,
-                wp.array(ptr=wp_arr.ptr, dtype=dtype, shape=shape, device=wp_arr.device, copy=False),
-            )
+            setattr(self.outputs, field_name, self._view(proxy, dtype, shape))
+        # Bind the buffer Newton fills with ray-hit distance. Write straight into the
+        # ``distance_to_camera`` output when requested; otherwise allocate an internal scratch so the
+        # planar-depth conversion has a source to read from.
+        if ray_depth_dest is not None:
+            self.outputs.depth_image = ray_depth_dest
+        elif any(name in self._PLANE_DEPTH_KINDS for name in self._depth_dests):
+            self._ray_depth_scratch = wp.zeros(shape, dtype=wp.float32, device=self.newton_sensor.model.device)
+            self.outputs.depth_image = self._ray_depth_scratch
+        else:
+            self.outputs.depth_image = None
         # When PPISP is composed but the user did not request the raw HDR AOV,
         # allocate an internal HDR scratch buffer and route a vec3f-shaped view
         # of it as the Newton sensor's ``hdr_color_image`` so the renderer
@@ -149,19 +198,38 @@ class RenderData:
             self._ppisp_rgba_dest = output_data[str(RenderBufferKind.RGBA)].warp
 
     def get_output(self, output_name: str) -> wp.array:
-        if output_name == RenderBufferKind.RGBA:
+        if output_name in self._depth_dests:
+            return self._depth_dests[output_name]
+        elif output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
         elif output_name == RenderBufferKind.RGB_HDR:
             return self.outputs.hdr_color_image
         elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image
-        elif output_name == RenderBufferKind.DEPTH:
-            return self.outputs.depth_image
         elif output_name == RenderBufferKind.NORMALS:
             return self.outputs.normals_image
         elif output_name == RenderBufferKind.INSTANCE_SEGMENTATION_FAST:
             return self.outputs.instance_segmentation_image
         return None
+
+    def convert_plane_depth(self):
+        """Fill any planar-depth outputs from the ray-hit distance Newton just rendered.
+
+        Newton emits ``distance_to_camera`` (euclidean ray distance). ``depth`` and
+        ``distance_to_image_plane`` are the projection of that distance onto the camera's forward
+        axis, computed by :meth:`newton.sensors.SensorTiledCamera.Utils.convert_ray_depth_to_forward_depth`.
+        No-op when only ``distance_to_camera`` (or no depth output) was requested.
+        """
+        if self.outputs.depth_image is None:
+            return
+        for output_name, dest in self._depth_dests.items():
+            if output_name in self._PLANE_DEPTH_KINDS:
+                self.newton_sensor.utils.convert_ray_depth_to_forward_depth(
+                    self.outputs.depth_image,
+                    self.camera_transforms,
+                    self.camera_rays,
+                    out_depth=dest,
+                )
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
         converted_wp = wp.empty_like(orientations)
@@ -272,6 +340,8 @@ class NewtonWarpRenderer(BaseRenderer):
             RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: seg_spec,
         }
@@ -348,6 +418,9 @@ class NewtonWarpRenderer(BaseRenderer):
             # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
             clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
         )
+
+        # Derive planar depth (``depth`` / ``distance_to_image_plane``) from Newton's ray-hit distance.
+        render_data.convert_plane_depth()
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
