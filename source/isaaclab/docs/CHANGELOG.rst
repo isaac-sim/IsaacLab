@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+8.1.1 (2026-07-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed contact sensor activation for rigid bodies nested below other rigid bodies.
+
+
 8.1.0 (2026-07-04)
 ~~~~~~~~~~~~~~~~~~
 
