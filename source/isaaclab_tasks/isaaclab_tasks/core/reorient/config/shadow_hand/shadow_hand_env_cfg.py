@@ -291,7 +291,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     default = physx
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128), num_substeps=2)
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
 
 
 @configclass
