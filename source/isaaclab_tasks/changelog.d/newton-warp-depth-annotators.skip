@@ -1,0 +1,5 @@
+Test-only: extended the rendering correctness tests to cover the Newton Warp renderer's
+distance_to_camera and distance_to_image_plane camera data types.
+
+Also updated the Newton Warp supported-data-type sets in the dexsuite and shadow_hand camera
+env configs' validate_config checks to accept distance_to_camera and distance_to_image_plane.

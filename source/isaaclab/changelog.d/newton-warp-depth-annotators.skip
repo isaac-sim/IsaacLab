@@ -1,0 +1,2 @@
+Test-only: extended the Newton Warp renderer camera output contract test to expect
+DISTANCE_TO_CAMERA and DISTANCE_TO_IMAGE_PLANE in the supported render buffer key set.
