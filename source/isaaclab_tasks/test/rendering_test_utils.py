@@ -1127,40 +1127,14 @@ def rendering_test_franka_cloth(
     try:
         env = ManagerBasedRLEnv(env_cfg)
 
-        # #region agent log (TEMP: instancing A/B confirmation)
+        # TEMP: instancing A/B confirmation
         if os.environ.get("ISAAC_LAB_DISABLE_INSTANCING") == "1":
-            import json as _json
-            import time as _time
-
-            from pxr import Usd
-
             from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
 
-            _stage = get_current_stage()
-            _before = sum(1 for p in _stage.Traverse(Usd.TraverseInstanceProxies()) if p.IsInstance())
-            make_uninstanceable("/World", _stage)
-            _after = sum(1 for p in _stage.Traverse(Usd.TraverseInstanceProxies()) if p.IsInstance())
+            make_uninstanceable("/World", get_current_stage())
+
             # Pump a render so FSD/RTX picks up the topology (de-instancing) change.
             env.sim.render()
-            with open("/home/huidongc/git/isaac/IsaacLab/.cursor/debug-881e7c.log", "a") as _f:
-                _f.write(
-                    _json.dumps({
-                        "sessionId": "881e7c",
-                        "hypothesisId": "INSTANCING",
-                        "location": "rendering_test_utils.py:rendering_test_franka_cloth",
-                        "message": "de-instanced /World before stepping",
-                        "data": {
-                            "backend": physics_backend,
-                            "renderer": renderer,
-                            "data_type": data_type,
-                            "instances_before": _before,
-                            "instances_after": _after,
-                        },
-                        "timestamp": int(_time.time() * 1000),
-                    })
-                    + "\n"
-                )
-        # #endregion
 
         # After 15 steps, the cloth should have fallen down on top of the cube and deformed.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
