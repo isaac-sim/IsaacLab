@@ -139,6 +139,17 @@ Generate augmented dataset
     --generation_num_trials 50 --num_envs 4 --enable_cameras
 ```
 
+Generate augemented dataset w domain randomization
+
+```
+./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
+    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-Mimic-v0 \
+    --input_file logs/demos/pickup_annotated.hdf5 \
+    --output_file logs/demos/pickup_generated.hdf5 \
+    --generation_num_trials 50 --num_envs 4 --enable_cameras \
+    --enable_domain_randomization
+```
+
 ## Generate augmented dataset(Cosmos-transfer)
 
 ```
