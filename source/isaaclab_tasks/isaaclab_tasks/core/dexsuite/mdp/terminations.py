@@ -62,9 +62,42 @@ class out_of_bound(ManagerTermBase):
 
 
 def abnormal_robot_state(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Terminating environment when violation of velocity limits detects, this usually indicates unstable physics caused
-    by very bad, or aggressive action"""
+    """Terminate environments with non-finite robot state or violated velocity limits."""
     robot: Articulation = env.scene[asset_cfg.name]
+    joint_pos = robot.data.joint_pos.torch
     joint_vel = robot.data.joint_vel.torch
     joint_vel_limits = robot.data.joint_vel_limits.torch
-    return (joint_vel.abs() > (joint_vel_limits * 2)).any(dim=1)
+    finite = torch.isfinite(joint_pos).all(dim=1) & torch.isfinite(joint_vel).all(dim=1)
+    safe_joint_vel = torch.where(finite[:, None], joint_vel, torch.zeros_like(joint_vel))
+    return (~finite) | (safe_joint_vel.abs() > (joint_vel_limits * 2)).any(dim=1)
+
+
+def abnormal_object_velocity(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    max_ang_vel: float = 1000.0,
+) -> torch.Tensor:
+    """Terminate environments with non-finite or excessive object angular velocity.
+
+    Args:
+        env: Environment instance.
+        asset_cfg: Scene entity for the manipulated object.
+        max_ang_vel: Maximum allowed object angular speed [rad/s].
+
+    Returns:
+        Boolean tensor indicating environments that should terminate.
+    """
+    obj: RigidObject = env.scene[asset_cfg.name]
+    pos = obj.data.root_pos_w.torch
+    quat = obj.data.root_quat_w.torch
+    lin_vel = obj.data.root_lin_vel_w.torch
+    ang_vel = obj.data.root_ang_vel_w.torch
+    finite = (
+        torch.isfinite(pos).all(dim=1)
+        & torch.isfinite(quat).all(dim=1)
+        & torch.isfinite(lin_vel).all(dim=1)
+        & torch.isfinite(ang_vel).all(dim=1)
+    )
+    safe_ang_vel = torch.where(finite[:, None], ang_vel, torch.zeros_like(ang_vel))
+    ang_speed = torch.linalg.norm(safe_ang_vel, dim=1)
+    return (~finite) | (ang_speed > max_ang_vel)

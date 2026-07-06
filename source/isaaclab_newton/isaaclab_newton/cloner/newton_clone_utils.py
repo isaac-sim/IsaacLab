@@ -12,7 +12,7 @@ import torch
 import warp as wp
 from newton import ModelBuilder, solvers
 
-from pxr import Usd
+from pxr import Usd, UsdPhysics
 
 from isaaclab.cloner.cloner_utils import replace_path_prefix
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
@@ -30,16 +30,32 @@ def build_source_builders(
     """Build one Newton builder for each clone source prim path."""
     builders: dict[str, ModelBuilder] = {}
     for source in sources:
+        source_prim = stage.GetPrimAtPath(source)
+        root_path = source
+        source_ignore_paths = list(ignore_paths) if ignore_paths is not None else []
+
+        # The Newton USD importer walks children below root_path. For a clone row
+        # whose source is itself a standalone rigid body, root at the parent and
+        # ignore sibling assets so the rigid-body prim is included in the builder.
+        if source_prim.IsValid() and source_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            parent_prim = source_prim.GetParent()
+            root_path = parent_prim.GetPath().pathString
+            for sibling in parent_prim.GetChildren():
+                sibling_path = sibling.GetPath().pathString
+                if sibling_path != source:
+                    source_ignore_paths.append(sibling_path)
+
         builder = create_builder()
         solvers.SolverMuJoCo.register_custom_attributes(builder)
         solvers.SolverKamino.register_custom_attributes(builder)
+        solvers.SolverFeatherPGS.register_custom_attributes(builder)
         builder.add_usd(
             stage,
-            root_path=source,
+            root_path=root_path,
             load_visual_shapes=True,
             skip_mesh_approximation=True,
             schema_resolvers=schema_resolvers,
-            ignore_paths=ignore_paths,
+            ignore_paths=source_ignore_paths or None,
         )
         if simplify_meshes:
             builder.approximate_meshes("convex_hull", keep_visual_shapes=True)

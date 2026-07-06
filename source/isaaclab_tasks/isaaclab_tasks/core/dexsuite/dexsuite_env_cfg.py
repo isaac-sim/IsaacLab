@@ -5,7 +5,13 @@
 
 from dataclasses import MISSING
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
+from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+)
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -444,7 +450,11 @@ class RewardsCfg:
         },
     )
 
-    early_termination = RewTerm(func=mdp.is_terminated_term, weight=-50, params={"term_keys": ["abnormal_robot"]})
+    early_termination = RewTerm(
+        func=mdp.is_terminated_term,
+        weight=-50,
+        params={"term_keys": ["abnormal_robot", "abnormal_object_velocity"]},
+    )
 
 
 @configclass
@@ -462,6 +472,14 @@ class TerminationsCfg:
     )
 
     abnormal_robot = DoneTerm(func=mdp.joint_vel_out_of_limit)
+
+    abnormal_object_velocity = DoneTerm(
+        func=mdp.abnormal_object_velocity,
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "max_ang_vel": 1000.0,
+        },
+    )
 
 
 @configclass
@@ -489,6 +507,29 @@ class PhysicsCfg(PresetCfg):
         default_shape_cfg=NewtonShapeCfg(),
         num_substeps=2,
         debug_mode=False,
+    )
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            update_mass_matrix_interval=1,
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            velocity_limit_activation_fraction=0.5,
+            pgs_iterations=12,
+            pgs_velocity_iterations=6,
+            pgs_beta=0.02,
+            pgs_cfm=1.0e-5,
+            pgs_omega=0.8,
+            pgs_velocity_drive_mode="freeze",
+            dense_max_constraints=64,
+            pgs_mode="matrix_free",
+            mf_max_constraints=512,
+            serial_kernel_block_dim=64,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(),
+        default_shape_cfg=NewtonShapeCfg(),
+        num_substeps=12,
+        debug_mode=False,
+        use_cuda_graph=False,
     )
     physx = default
 
