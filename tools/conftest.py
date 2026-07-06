@@ -13,7 +13,6 @@ import time
 from dataclasses import dataclass
 
 import pytest
-import tomllib
 from junitparser import Error, JUnitXml, TestCase, TestSuite
 from prettytable import PrettyTable
 
@@ -878,37 +877,9 @@ def _collect_test_files(
     return test_files
 
 
-def _load_test_node_ids_from_toml(workspace_root: str) -> list[str]:
-    """Load exact pytest node IDs from a TOML file configured in the environment."""
-    node_ids_file = os.environ.get("TEST_NODE_IDS_FILE")
-    node_ids_key = os.environ.get("TEST_NODE_IDS_KEY")
-    if not (node_ids_file or node_ids_key):
-        return []
-    if not (node_ids_file and node_ids_key):
-        pytest.exit("Both TEST_NODE_IDS_FILE and TEST_NODE_IDS_KEY must be set together", returncode=1)
-
-    path = node_ids_file if os.path.isabs(node_ids_file) else os.path.join(workspace_root, node_ids_file)
-
-    try:
-        with open(os.path.normpath(path), "rb") as stream:
-            node_ids = tomllib.load(stream).get(node_ids_key)
-    except OSError as exc:
-        pytest.exit(f"Could not read TEST_NODE_IDS_FILE {node_ids_file!r}: {exc}", returncode=1)
-    except tomllib.TOMLDecodeError as exc:
-        pytest.exit(f"{node_ids_file}: invalid TOML: {exc}", returncode=1)
-
-    if not node_ids:
-        pytest.exit(f"{node_ids_key!r} not found or empty in {node_ids_file}", returncode=1)
-    if not isinstance(node_ids, list) or not all(isinstance(node_id, str) for node_id in node_ids):
-        pytest.exit(f"{node_ids_key!r} must be a TOML array of strings in {node_ids_file}", returncode=1)
-
-    return node_ids
-
-
 def _collect_test_node_ids_by_file(workspace_root: str) -> dict[str, list[str]]:
     """Group exact pytest node IDs by absolute test file path."""
     node_ids = [line.strip() for line in os.environ.get("TEST_NODE_IDS", "").splitlines() if line.strip()]
-    node_ids.extend(_load_test_node_ids_from_toml(workspace_root))
     if len(node_ids) != len(set(node_ids)):
         pytest.exit("Configured test node IDs contain duplicates", returncode=1)
 
@@ -989,8 +960,6 @@ def pytest_sessionstart(session):
     print(f"TEST_EXCLUDE_PATTERN env var: '{os.environ.get('TEST_EXCLUDE_PATTERN', 'NOT_SET')}'")
     print(f"TEST_INCLUDE_FILES env var: '{os.environ.get('TEST_INCLUDE_FILES', 'NOT_SET')}'")
     print(f"TEST_NODE_IDS env var: '{'SET' if os.environ.get('TEST_NODE_IDS') else 'NOT_SET'}'")
-    print(f"TEST_NODE_IDS_FILE env var: '{os.environ.get('TEST_NODE_IDS_FILE', 'NOT_SET')}'")
-    print(f"TEST_NODE_IDS_KEY env var: '{os.environ.get('TEST_NODE_IDS_KEY', 'NOT_SET')}'")
     print(f"TEST_QUARANTINED_ONLY env var: '{os.environ.get('TEST_QUARANTINED_ONLY', 'NOT_SET')}'")
     print(f"TEST_CUROBO_ONLY env var: '{os.environ.get('TEST_CUROBO_ONLY', 'NOT_SET')}'")
     print("=" * 50)

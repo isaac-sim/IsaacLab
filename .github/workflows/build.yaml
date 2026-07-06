@@ -105,7 +105,6 @@ jobs:
           $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
-          $'^\\.github/test-subsets/\tCI test subset config'
         )
         if [ "$EVENT_NAME" = "push" ]; then
           triggered_jobs="Docker build jobs + all test-* matrix jobs (full suite via Testmon collect)"
