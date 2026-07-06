@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 _TASK = "Isaac-Cartpole-Direct"
 
 
-def test_runtime_writes_all_requested_formats(tmp_path, require_isaacsim):
+def test_runtime_writes_all_requested_formats(tmp_path):
     """The runtime entry point writes schema and OmniPerf data in one run."""
     sh = ROOT / "isaaclab.sh"
     cmd = [

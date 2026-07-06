@@ -18,7 +18,7 @@ _TASK = "Isaac-Cartpole-Direct"
 _EXPECTED_PHASES = {"app_launch", "python_imports", "task_config", "env_creation", "first_step"}
 
 
-def test_startup_writes_startup_bundle(tmp_path, require_isaacsim):
+def test_startup_writes_startup_bundle(tmp_path):
     """The startup entry point profiles imports and writes both requested formats."""
     whitelist = tmp_path / "whitelist.yaml"
     whitelist.write_text('python_imports:\n  - "*isaaclab_tasks*importer:_walk_packages"\n')
