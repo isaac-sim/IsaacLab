@@ -45,7 +45,6 @@ else:
         sys.modules.setdefault(_mod, MagicMock())
 
 import numpy as np
-import torch
 import warp as wp
 
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
