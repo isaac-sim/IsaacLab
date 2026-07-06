@@ -8,7 +8,7 @@
 Collects the markers applied to each test and records them in the JUnit XML report so that CI
 can carry them into the uploaded test artifact.
 
-Level markers (``unit`` / ``integration``) are applied per file via a module-level ``pytestmark``
+Level markers (``unit`` / ``integration`` / ``benchmark``) are applied per file via a module-level ``pytestmark``
 and registered in the repo-root ``pyproject.toml``. Select them with the standard ``-m`` syntax,
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
 """
@@ -25,7 +25,7 @@ def pytest_collection_modifyitems(config, items):
     action reads that property and carries the markers into the uploaded test artifact.
 
     Only markers registered in the repo-root ``pyproject.toml`` (e.g. ``unit``,
-    ``integration``, ``rendering``) are recorded; pytest's built-in structural marks
+    ``integration``, ``benchmark``, ``rendering``) are recorded; pytest's built-in structural marks
     (``parametrize``, ``skip``, ``usefixtures``, ...) are excluded so they do not leak
     into the artifact's ``test_type`` field.
     """

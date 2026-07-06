@@ -201,6 +201,7 @@ markers = [
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
     "unit: test exercises isolated logic and does not launch the simulator",
     "integration: test drives the simulator/scene/environment end-to-end",
+    "benchmark: test covers the Isaac Lab benchmark framework and infrastructure",
     "rendering: test exercises the rendering / camera / visualizer pipeline",
     "smoke: tests for core installation, task, and RL functionality",
 ]

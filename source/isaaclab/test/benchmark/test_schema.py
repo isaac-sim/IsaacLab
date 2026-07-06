@@ -33,7 +33,7 @@ from isaaclab.test.benchmark.schema import (
 )
 from isaaclab.test.benchmark.serialize import write_bundle_file
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.benchmark
 
 
 def _versions() -> Versions:

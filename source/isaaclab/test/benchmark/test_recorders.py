@@ -17,7 +17,7 @@ from isaaclab.test.benchmark.recorders.record_gpu_info import GPUInfoRecorder
 from isaaclab.test.benchmark.recorders.record_memory_info import MemoryInfoRecorder
 from isaaclab.test.benchmark.recorders.record_version_info import VersionInfoRecorder
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.benchmark
 
 # ==============================================================================
 # CPUInfoRecorder Tests
