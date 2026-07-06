@@ -199,15 +199,9 @@ markers = [
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
     "windows_ci: mark test to run on Windows platforms in CI",
     "arm_ci: mark test to run on ARM platforms in CI (e.g. NVIDIA DGX Spark)",
-    # Intent markers (test kind). Auto-applied by path in the repo-root conftest.py
-    # (pytest_collection_modifyitems), so no per-file decorators are required. Use
-    # them to target tests locally, e.g. `pytest -m rendering` or `pytest -m 'unit and not performance'`.
     "unit: test exercises isolated logic and does not launch the simulator",
     "integration: test drives the simulator/scene/environment end-to-end",
     "rendering: test exercises the rendering / camera / visualizer pipeline",
-    "training: test runs reinforcement-learning training end-to-end",
-    "performance: test measures runtime performance (startup, load, throughput)",
-    "benchmark: test lives in a benchmark suite and reports KPIs",
     "smoke: tests for core installation, task, and RL functionality",
 ]
 

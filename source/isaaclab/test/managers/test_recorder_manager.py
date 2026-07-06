@@ -33,6 +33,8 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.configclass import configclass
 
+pytestmark = pytest.mark.integration
+
 if TYPE_CHECKING:
     import numpy as np
 

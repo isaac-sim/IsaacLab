@@ -30,6 +30,8 @@ from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("env_spacing", [1.0, 4.325, 8.0])

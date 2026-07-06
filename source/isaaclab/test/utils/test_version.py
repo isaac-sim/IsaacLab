@@ -19,6 +19,8 @@ from packaging.version import Version
 
 from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
+pytestmark = pytest.mark.unit
+
 
 def test_get_isaac_sim_version():
     """Test that get_isaac_sim_version returns cached Version object."""

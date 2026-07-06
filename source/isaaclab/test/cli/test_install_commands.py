@@ -26,6 +26,8 @@ from isaaclab.cli.commands.install import (
     _torch_first_on_sys_path_is_prebundle,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

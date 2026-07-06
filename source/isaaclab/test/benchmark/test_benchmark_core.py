@@ -15,6 +15,8 @@ from isaaclab.test.benchmark import backends
 from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata
 
+pytestmark = pytest.mark.integration
+
 # ==============================================================================
 # BaseIsaacLabBenchmark Tests
 # ==============================================================================

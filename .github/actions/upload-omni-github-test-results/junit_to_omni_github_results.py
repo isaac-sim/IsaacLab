@@ -107,7 +107,6 @@ def _convert_testcase(
         "test_id": _test_id(testcase),
         "passed": failure_or_error is None and skipped is None,
         "duration": _duration_seconds(testcase),
-        "test_type": test_type,
         "group_id": group_id,
         "retries": retries,
         "log_paths": log_paths,
@@ -132,7 +131,9 @@ def _convert_testcase(
 
     markers = _testcase_markers(testcase)
     if markers:
-        row["custom"] = {"isaaclab": {"markers": markers}}
+        row["test_type"] = f"{test_type}{', '.join(markers)}"
+    else:
+        row["test_type"] = test_type
 
     return row
 
