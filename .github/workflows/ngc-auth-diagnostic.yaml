@@ -161,7 +161,7 @@ jobs:
           default_docker_config_exists=true
           if [ "$python3_available" = true ] &&
             python3 -c \
-              'import json, sys; config = json.load(open(sys.argv[1], encoding="utf-8")); auths = config.get("auths") or {}; helpers = config.get("credHelpers") or {}; raise SystemExit(0 if "nvcr.io" in auths or "nvcr.io" in helpers else 1)' \
+              'import json, sys; config = json.load(open(sys.argv[1], encoding="utf-8")); root_is_dict = isinstance(config, dict); auths = config.get("auths", {}) if root_is_dict else None; helpers = config.get("credHelpers", {}) if root_is_dict else None; entries_are_dicts = isinstance(auths, dict) and isinstance(helpers, dict); raise SystemExit(0 if root_is_dict and entries_are_dicts and ("nvcr.io" in auths or "nvcr.io" in helpers) else 1)' \
               "$default_docker_config" >/dev/null 2>&1; then
             default_docker_config_names_nvcr=true
           fi
