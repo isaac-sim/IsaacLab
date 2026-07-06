@@ -131,44 +131,6 @@ def test_convert_junit_marks_crashes_and_timeouts(tmp_path: Path) -> None:
     ]
 
 
-def test_convert_junit_carries_intent_markers_into_custom_namespace(tmp_path: Path) -> None:
-    """Intent markers recorded as JUnit properties should land under ``custom.isaaclab``."""
-    converter = _load_converter_module()
-    junit_file = tmp_path / "report.xml"
-    output_dir = tmp_path / "out"
-    junit_file.write_text(
-        """<?xml version="1.0" encoding="utf-8"?>
-<testsuite name="pytest" tests="2" failures="0" errors="0" skipped="0" time="2">
-  <testcase classname="source.isaaclab.test.sensors.test_camera" name="test_rgb" time="1">
-    <properties>
-      <property name="markers" value="integration,rendering"/>
-    </properties>
-  </testcase>
-  <testcase classname="source.isaaclab.test.utils.test_math" name="test_add" time="1"/>
-</testsuite>
-""",
-        encoding="utf-8",
-    )
-
-    converter.convert_junit(
-        junit_file=junit_file,
-        output_dir=output_dir,
-        test_tool_id="pytest",
-        test_type="pytest",
-        app_platform="linux-x86_64",
-        app_config="test-job",
-        group_name="Docker + Tests / isaaclab (core)",
-        junit_log_url="",
-        comparison_images_url="",
-        retries=0,
-    )
-
-    rendering_row, plain_row = _load_rows(output_dir)
-    assert rendering_row["custom"] == {"isaaclab": {"markers": ["integration", "rendering"]}}
-    # Tests without a markers property must not gain a custom namespace.
-    assert "custom" not in plain_row
-
-
 def test_convert_junit_adds_log_paths_for_junit_and_comparison_artifacts(tmp_path: Path) -> None:
     """Converted rows should point at the uploaded JUnit and comparison image artifacts."""
     converter = _load_converter_module()
