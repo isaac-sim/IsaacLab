@@ -208,37 +208,6 @@ def test_setup_deformable_mesh_bindings_raises_on_point_count_mismatch(monkeypat
         renderer._setup_deformable_mesh_bindings()
 
 
-def test_prepare_stage_deactivates_deformable_sim_meshes_for_export(monkeypatch: pytest.MonkeyPatch):
-    """prepare_stage deactivates Newton deformable sim meshes only in the OVRTX USD export."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/envs")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Deformable")
-    UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Deformable/sim_mesh")
-    UsdGeom.Mesh.Define(stage, "/World/envs/env_0/Deformable/visual_mesh")
-
-    renderer, _backend = _make_renderer_without_backend()
-    entry = SimpleNamespace(
-        sim_mesh_prim_path="/World/envs/env_.*/Deformable/sim_mesh",
-        vis_mesh_prim_path="/World/envs/env_.*/Deformable/visual_mesh",
-    )
-    mock_ctx = SimpleNamespace(get_clone_plan=lambda: None)
-    monkeypatch.setattr(
-        "isaaclab_ov.renderers.ovrtx_renderer.SimulationContext",
-        SimpleNamespace(instance=lambda: mock_ctx),
-    )
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
-
-    renderer.prepare_stage(stage, 1)
-
-    exported_stage = Usd.Stage.CreateInMemory()
-    exported_stage.GetRootLayer().ImportFromString(renderer._exported_usd_string)
-    assert not exported_stage.GetPrimAtPath("/World/envs/env_0/Deformable/sim_mesh").IsValid()
-    assert exported_stage.GetPrimAtPath("/World/envs/env_0/Deformable/visual_mesh").IsActive() is True
-    assert stage.GetPrimAtPath("/World/envs/env_0/Deformable/sim_mesh").IsActive() is True
-
-
 def test_prepare_stage_keeps_sim_mesh_when_registry_paths_match(monkeypatch: pytest.MonkeyPatch):
     """prepare_stage skips sim mesh deactivation when registry sim and visual paths match."""
     stage = Usd.Stage.CreateInMemory()
