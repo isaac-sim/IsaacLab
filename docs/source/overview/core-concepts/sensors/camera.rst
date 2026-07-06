@@ -239,7 +239,7 @@ is :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, and ``Newton Warp`` is
      - ✅
    * - ``motion_vectors``
      - ✅
-     - ❌
+     - ✅
      - ❌
    * - ``semantic_segmentation``
      - ✅

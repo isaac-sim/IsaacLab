@@ -8,12 +8,33 @@ import os
 import time
 from collections.abc import Sequence
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from . import backends
-from .backends import get_default_output_filename
-from .interfaces import MeasurementDataRecorder
-from .measurements import DictMetadata, FloatMetadata, IntMetadata, Measurement, MetadataBase, StringMetadata, TestPhase
-from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from isaaclab.test.benchmark import formatters
+from isaaclab.test.benchmark.formatters import get_default_output_filename
+from isaaclab.test.benchmark.interfaces import MeasurementDataRecorder
+from isaaclab.test.benchmark.measurements import (
+    DictMetadata,
+    FloatMetadata,
+    IntMetadata,
+    ListMeasurement,
+    Measurement,
+    MetadataBase,
+    SingleMeasurement,
+    StringMetadata,
+    TestPhase,
+)
+from isaaclab.test.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+
+if TYPE_CHECKING:
+    from isaaclab.test.benchmark.schema import (
+        LearningCurve,
+        MeanStd,
+        Runtime,
+        RuntimeBundle,
+        StartupBundle,
+        TrainingBundle,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -39,33 +60,136 @@ def _is_metadata_type(obj: object) -> bool:
     return type(obj).__name__ in _METADATA_CLASS_NAMES
 
 
+def _stat_measurements(name: str, stats: "MeanStd", unit: str, scale: float = 1.0) -> list[Measurement]:
+    """Convert a schema aggregate to flat scalar measurements."""
+    measurements: list[Measurement] = [
+        SingleMeasurement(name=f"Mean {name}", value=stats.mean * scale, unit=unit),
+        SingleMeasurement(name=f"Std {name}", value=stats.std * scale, unit=unit),
+    ]
+    if stats.peak is not None:
+        measurements.append(SingleMeasurement(name=f"Max {name}", value=stats.peak * scale, unit=unit))
+    return measurements
+
+
+def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
+    """Convert schema runtime metrics to startup and runtime phases."""
+    startup_fields = (
+        ("app_launch", "App Launch Time"),
+        ("python_imports", "Python Imports Time"),
+        ("task_config", "Task Creation and Start Time"),
+        ("env_creation", "Scene Creation Time"),
+        ("first_step", "Simulation Start Time"),
+    )
+    startup = [
+        SingleMeasurement(name=label, value=value * 1000.0, unit="ms")
+        for field, label in startup_fields
+        if (value := getattr(runtime.startup_time_s, field)) is not None
+    ]
+    if startup:
+        startup.append(
+            SingleMeasurement(
+                name="Total Start Time (Launch to Train)",
+                value=sum(float(measurement.value) for measurement in startup),
+                unit="ms",
+            )
+        )
+
+    runtime_metrics: list[Measurement] = [
+        SingleMeasurement(name="Iterations Completed", value=runtime.iterations_completed, unit="count"),
+        SingleMeasurement(name="Total Wall Time", value=runtime.total_wall_time_s, unit="s"),
+        SingleMeasurement(name="Steps per Iteration", value=runtime.steps_per_iteration, unit="frames"),
+    ]
+    runtime_metrics.extend(_stat_measurements("Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
+    runtime_metrics.extend(_stat_measurements("Collection FPS", runtime.collection_fps, "FPS"))
+    runtime_metrics.extend(_stat_measurements("Total FPS", runtime.total_fps, "FPS"))
+    runtime_metrics.extend(_stat_measurements("Iterations per Second", runtime.iterations_per_s, "iterations/s"))
+    return {"startup": startup, "runtime": runtime_metrics}
+
+
+def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) -> list[Measurement]:
+    """Convert one training curve to scalar and optional series measurements."""
+    measurements: list[Measurement] = [
+        SingleMeasurement(name=f"Last {label}", value=curve.final_raw, unit="float"),
+        SingleMeasurement(name=f"EMA {ema_alpha:g} {label}", value=curve.final_ema, unit="float"),
+    ]
+    if curve.series_per_iter is not None:
+        plural = "Rewards" if label == "Reward" else "Episode Lengths"
+        measurements.append(ListMeasurement(name=plural, value=curve.series_per_iter))
+        if curve.series_per_iter:
+            measurements.append(SingleMeasurement(name=f"Max {plural}", value=max(curve.series_per_iter), unit="float"))
+    return measurements
+
+
+def _measurements_from_bundle(
+    bundle: "RuntimeBundle | TrainingBundle | StartupBundle",
+) -> dict[str, list[Measurement]]:
+    """Project a typed bundle into flat phases for non-schema formatters."""
+    from isaaclab.test.benchmark.schema import StartupBundle, TrainingBundle
+
+    if isinstance(bundle, StartupBundle):
+        projected: dict[str, list[Measurement]] = {}
+        for phase_name, phase in bundle.phases.items():
+            measurements: list[Measurement] = [
+                SingleMeasurement(name="Wall Clock Time", value=phase.total_time_s, unit="s")
+            ]
+            for function in phase.top_functions:
+                measurements.extend(
+                    [
+                        SingleMeasurement(name=f"{function.name} Own Time", value=function.own_time_s, unit="s"),
+                        SingleMeasurement(name=f"{function.name} Cumulative Time", value=function.cum_time_s, unit="s"),
+                        SingleMeasurement(name=f"{function.name} Calls", value=function.calls, unit="count"),
+                    ]
+                )
+            projected[phase_name] = measurements
+        return projected
+
+    projected = _runtime_measurements(bundle.runtime)
+    if isinstance(bundle, TrainingBundle):
+        train = _curve_measurements("Reward", bundle.learning.reward, bundle.learning.ema_alpha)
+        train.extend(_curve_measurements("Episode Length", bundle.learning.ep_length, bundle.learning.ema_alpha))
+        if bundle.success_rate is not None:
+            train.append(SingleMeasurement(name="success_rate", value=bundle.success_rate, unit="float"))
+        projected["train"] = train
+    return projected
+
+
 class BaseIsaacLabBenchmark:
     """Base benchmark class for IsaacLab's benchmarks."""
 
     def __init__(
         self,
         benchmark_name: str,
-        backend_type: str,
-        output_path: str,
+        formatter_type: str | list[str] | None = None,
+        output_path: str | None = None,
         use_recorders: bool = True,
         output_prefix: str | None = None,
         workflow_metadata: dict | None = None,
         frametime_recorders: bool = False,
+        backend_type: str | list[str] | None = None,
     ):
         """Initialize common benchmark state and recorders.
 
         Args:
             benchmark_name: Name of benchmark to use in outputs.
-            backend_type: Type of backend used to collect and print metrics.
+            formatter_type: Formatter(s) used to collect and print metrics. Accepts a single
+                type name, a list of type names, or a comma-separated string (e.g.
+                ``"schema,omniperf"``); each selected formatter writes its own output file.
             output_path: Path to output directory.
             use_recorders: Whether to use recorders to collect metrics. Defaults to True.
-            output_filename: Filename to use for the output file, defaults to None.
+            output_prefix: Prefix used to generate the output filename. Defaults to ``None``.
             workflow_metadata: Metadata describing benchmark, defaults to None.
-            frametime_recorders: Whether to use frametime recorders to collect metrics. Defaults to True.
+            frametime_recorders: Whether to use frametime recorders to collect metrics. Defaults to ``False``.
+            backend_type: Alias for :paramref:`formatter_type`.
         """
+        if formatter_type is None:
+            formatter_type = backend_type or "omniperf"
+        elif backend_type is not None and backend_type != formatter_type:
+            raise ValueError("Specify either formatter_type or backend_type, not both.")
+        if output_path is None:
+            raise ValueError("output_path must be provided.")
+
         self.benchmark_name = benchmark_name
 
-        # Resolve output path
         if not os.path.exists(output_path):
             try:
                 os.makedirs(output_path)
@@ -77,9 +201,12 @@ class BaseIsaacLabBenchmark:
             logger.warning("No output prefix provided, using default prefix: benchmark")
         self.output_prefix = get_default_output_filename(output_prefix)
 
-        # Get metrics backend
-        logger.info("Using metrics backend = %s", backend_type)
-        self._metrics = backends.MetricsBackend.get_instance(instance_type=backend_type)
+        if isinstance(formatter_type, str):
+            formatter_type = [t.strip() for t in formatter_type.split(",") if t.strip()] or ["omniperf"]
+        formatter_type = list(dict.fromkeys(formatter_type))
+        logger.info("Using metrics formatters = %s", formatter_type)
+        self._metrics = [(t, formatters.MetricsFormatter.get_instance(instance_type=t)) for t in formatter_type]
+        self._bundle = None
         self._phases: dict[str, TestPhase] = {}
 
         # Generate workflow-level metadata
@@ -214,6 +341,17 @@ class BaseIsaacLabBenchmark:
                     metadata.append(curr_meta)
         return metadata
 
+    def attach_bundle(self, bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None") -> None:
+        """Attach a typed bundle for schema serialization and flat-formatter projection.
+
+        Args:
+            bundle: Runtime, training, or startup benchmark bundle.
+        """
+        self._bundle = bundle
+        if bundle is not None:
+            for phase_name, measurements in _measurements_from_bundle(bundle).items():
+                self.add_measurement(phase_name, measurement=measurements)
+
     def update_manual_recorders(self) -> None:
         """Update manual recorders that don't depend on the kit timeline."""
 
@@ -239,32 +377,28 @@ class BaseIsaacLabBenchmark:
         """
         if phase_name not in self._phases:
             self._phases[phase_name] = TestPhase(phase_name=phase_name)
-            # Add required phase metadata for backends
+            # Add required phase metadata for formatters
             phase_metadata = StringMetadata(name="phase", data=phase_name)
             workflow_metadata = StringMetadata(name="workflow_name", data=self.benchmark_name)
             self._phases[phase_name].metadata.extend([phase_metadata, workflow_metadata])
 
         if measurement:
             if isinstance(measurement, Sequence):
-                # Check that all the elements are of type Measurement
                 for m in measurement:
                     if not _is_measurement_type(m):
                         raise ValueError(f"Measurement element {m} is not of type Measurement")
                 self._phases[phase_name].measurements.extend(measurement)
             else:
-                # Check that the element is of type Measurement
                 if not _is_measurement_type(measurement):
                     raise ValueError(f"Measurement element {measurement} is not of type Measurement")
                 self._phases[phase_name].measurements.append(measurement)
         if metadata:
             if isinstance(metadata, Sequence):
-                # Check that all the elements are of type MetadataBase
                 for m in metadata:
                     if not _is_metadata_type(m):
                         raise ValueError(f"Metadata element {m} is not of type MetadataBase")
                 self._phases[phase_name].metadata.extend(metadata)
             else:
-                # Check that the element is of type MetadataBase
                 if not _is_metadata_type(metadata):
                     raise ValueError(f"Metadata element {metadata} is not of type MetadataBase")
                 self._phases[phase_name].metadata.append(metadata)
@@ -293,15 +427,18 @@ class BaseIsaacLabBenchmark:
                 if data.measurements:
                     self.add_measurement("frametime", measurement=data.measurements)
 
-        # Check that there are phases to write.
         if not self._phases:
             logger.warning("No phases collected.No metrics will be written.")
             return
 
-        # Add the phases to the metrics backend.
-        for phase in self._phases.values():
-            self._metrics.add_metrics(phase)
-
-        self._metrics.finalize(self.output_path, self.output_prefix)
+        # Add the phases to each metrics formatter and write its output file. When more than one
+        # formatter is selected, suffix the filename with the formatter key so they don't collide on
+        # the shared ".json" extension.
+        multi = len(self._metrics) > 1
+        for formatter_key, metrics in self._metrics:
+            for phase in self._phases.values():
+                metrics.add_metrics(phase)
+            filename = f"{self.output_prefix}_{formatter_key}" if multi else self.output_prefix
+            metrics.finalize(self.output_path, filename, bundle=self._bundle)
         self._manual_recorders = None
         self._frametime_recorders = None

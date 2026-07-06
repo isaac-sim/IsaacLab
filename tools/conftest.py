@@ -739,6 +739,9 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
     xml_reports = []
     cold_cache_applied = False
     test_node_ids_by_file = test_node_ids_by_file or {}
+    global_k_expr = os.environ.get("TEST_K_EXPR", "").strip() or None
+    if global_k_expr is not None:
+        print(f"Applying global pytest -k expression to every test file: '{global_k_expr}'")
 
     for test_file in test_files:
         print(f"\n\n🚀 Running {test_file} independently...\n")
@@ -787,6 +790,8 @@ def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by
 
         merged_status: dict | None = None
         for suffix, k_expr in passes:
+            if global_k_expr is not None:
+                k_expr = f"({k_expr}) and ({global_k_expr})" if k_expr else global_k_expr
             report, status, was_failure = _run_one_pass(ctx, k_expr=k_expr, suffix=suffix)
             if report is not None:
                 xml_reports.append(report)

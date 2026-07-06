@@ -9,6 +9,7 @@ from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
 import isaaclab.sim as sim_utils
+from isaaclab.sim.spawners import materials
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
@@ -87,13 +88,20 @@ class TerrainImporterCfg:
       to the grid color of the imported ground plane.
     """
 
-    physics_material: sim_utils.RigidBodyMaterialCfg = sim_utils.RigidBodyMaterialCfg()
+    physics_material: (
+        materials.RigidBodyMaterialBaseCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
+    ) = materials.RigidBodyMaterialCfg()
     """The physics material of the terrain. Defaults to a default physics material.
 
     The material is created at the path: ``{prim_path}/physicsMaterial``.
 
     .. note::
         This parameter is used only when the ``terrain_type`` is "generator" or "plane".
+
+    Accepts a legacy rigid material cfg, a single rigid-material fragment, or a list of
+    rigid-material fragments.
     """
 
     max_init_terrain_level: int | None = None

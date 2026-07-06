@@ -67,6 +67,10 @@ Other available presets for this environment: ``albedo``,
 ``simple_shading_full_mdl``.  The ``depth`` preset is intended for
 benchmarking only (see the environment's config for details).
 
+During training, image-like scene sensor outputs from camera tasks can be saved with
+``--capture_env_sensors``. See :doc:`/source/how-to/capture_sensor_frames` for the full capture
+schedule and output format details.
+
 
 RL-Games
 --------

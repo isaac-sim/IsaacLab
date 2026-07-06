@@ -94,8 +94,8 @@ class Hardware:
 class Versions:
     """Software versions captured at run time.
 
-    Framework-specific fields (``rsl_rl``, ``rl_games``, ``skrl``, ``sb3``) are
-    ``None`` when the corresponding framework is not used by the run.
+    Version fields are ``None`` when the corresponding runtime or package is
+    unavailable.
     """
 
     isaaclab: str
@@ -112,6 +112,18 @@ class Versions:
     git_commit: str | None
     git_branch: str | None
     git_dirty: bool
+    numpy: str | None = None
+    isaaclab_newton: str | None = None
+    isaaclab_physx: str | None = None
+    isaaclab_ov: str | None = None
+    isaaclab_tasks: str | None = None
+    isaaclab_rl: str | None = None
+    ovrtx: str | None = None
+    ovphysx: str | None = None
+    mujoco: str | None = None
+    cuda_bindings: str | None = None
+    usd_core: str | None = None
+    isaaclab_release: str | None = None
 
 
 @dataclass(frozen=True)

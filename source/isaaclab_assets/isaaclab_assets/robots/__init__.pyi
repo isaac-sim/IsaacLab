@@ -24,6 +24,7 @@ __all__ = [
     "FRANKA_PANDA_CFG",
     "FRANKA_PANDA_HIGH_PD_CFG",
     "FRANKA_ROBOTIQ_GRIPPER_CFG",
+    "FOURBAR_POLE_CFG",
     "GALBOT_ONE_CHARLIE_CFG",
     "HUMANOID_CFG",
     "HUMANOID_28_CFG",
@@ -77,6 +78,7 @@ from .cartpole import CARTPOLE_CFG
 from .cassie import CASSIE_CFG
 from .fourier import GR1T2_CFG, GR1T2_HIGH_PD_CFG
 from .franka import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG, FRANKA_ROBOTIQ_GRIPPER_CFG
+from .fourbar_pole import FOURBAR_POLE_CFG
 from .galbot import GALBOT_ONE_CHARLIE_CFG
 from .humanoid import HUMANOID_CFG
 from .humanoid_28 import HUMANOID_28_CFG
