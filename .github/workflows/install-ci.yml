@@ -39,6 +39,7 @@ jobs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
       testmon_mode: ${{ steps.detect.outputs.testmon_mode }}
     steps:
+      - uses: actions/checkout@v6
       - id: detect
         env:
           GH_TOKEN: ${{ github.token }}
