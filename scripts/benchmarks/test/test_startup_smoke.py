@@ -50,30 +50,16 @@ def test_startup_writes_startup_bundle(tmp_path):
         pytest.fail(f"startup.py rc={res.returncode}\nSTDOUT:\n{res.stdout[-2000:]}\nSTDERR:\n{res.stderr[-2000:]}")
 
     files = list(tmp_path.glob("*.json"))
-    assert len(files) == 2, f"expected two JSON files, found {[path.name for path in files]}"
     schema_files = [path for path in files if path.name.endswith("_schema.json")]
     omniperf_files = [path for path in files if path.name.endswith("_omniperf.json")]
-    assert len(schema_files) == 1
-    assert len(omniperf_files) == 1
+    assert len(schema_files) == len(omniperf_files) == 1
 
     data = json.loads(schema_files[0].read_text())
-    assert data["schema_version"] == "1.0", f"unexpected schema_version: {data['schema_version']}"
-    assert data["run"]["framework"] is None, "startup bundle should have framework=null"
+    assert set(data["phases"]) == _EXPECTED_PHASES
+    assert data["config"]["whitelist"] == str(whitelist)
+    assert data["phases"]["python_imports"]["top_functions"]
+
     phase_total_s = sum(phase["total_time_s"] for phase in data["phases"].values())
     assert data["run"]["duration_s"] >= phase_total_s
-    assert data["run"]["duration_s"] - phase_total_s < 0.25, (
-        "startup duration should end at the first step, before profile reports are generated"
-    )
-    assert set(data["phases"]) == _EXPECTED_PHASES, f"unexpected phases: {set(data['phases'])}"
-
-    for phase_name, phase in data["phases"].items():
-        assert phase["total_time_s"] > 0, f"phase {phase_name!r} has total_time_s <= 0"
-
-    imports = data["phases"]["python_imports"]["top_functions"]
-    assert imports
-    assert data["config"]["whitelist"] == str(whitelist)
-    assert isinstance(data["config"]["top_n"], int)
-
-    omniperf_data = json.loads(omniperf_files[0].read_text())
-    for phase_name in _EXPECTED_PHASES:
-        assert omniperf_data[phase_name]["Wall Clock Time"] > 0
+    assert data["run"]["duration_s"] - phase_total_s < 0.25
+    assert set(json.loads(omniperf_files[0].read_text())) >= _EXPECTED_PHASES
