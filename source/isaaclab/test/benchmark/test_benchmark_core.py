@@ -3,321 +3,269 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for BaseIsaacLabBenchmark class."""
+"""Tests for BaseIsaacLabBenchmark."""
 
 import json
 import os
-import tempfile
+from dataclasses import replace
 
 import pytest
 
-from isaaclab.test.benchmark import backends
+from isaaclab.test.benchmark import formatters
 from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata
 
-# ==============================================================================
-# BaseIsaacLabBenchmark Tests
-# ==============================================================================
+
+@pytest.fixture(autouse=True)
+def reset_formatters():
+    formatters.MetricsFormatter.reset_instances()
+    yield
+    formatters.MetricsFormatter.reset_instances()
 
 
-class TestBaseIsaacLabBenchmark:
-    """Tests for BaseIsaacLabBenchmark."""
+def _minimal_runtime_bundle():
+    from isaaclab.test.benchmark.schema import (
+        GpuDeviceInfo,
+        Hardware,
+        MeanStd,
+        Resources,
+        RunConfig,
+        RunIdentity,
+        Runtime,
+        RuntimeBundle,
+        StartupTime,
+        Versions,
+    )
 
-    @pytest.fixture
-    def temp_output_dir(self):
-        """Create a temporary output directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield tmpdir
+    return RuntimeBundle(
+        run=RunIdentity(
+            run_id="runtime_newton_mjwarp_Isaac-Ant-Direct-v0_20260422-131500_seed42",
+            framework=None,
+            config=RunConfig(physics_backend="newton_mjwarp", rendering_backend="none"),
+            task="Isaac-Ant-Direct-v0",
+            seed=42,
+            start_time_utc="2026-04-22T13:15:00Z",
+            end_time_utc="2026-04-22T13:15:10Z",
+            duration_s=10.0,
+            status="completed",
+            num_envs=16,
+        ),
+        versions=Versions(
+            isaaclab="4.6.8",
+            isaacsim=None,
+            kit=None,
+            newton=None,
+            warp=None,
+            mjwarp=None,
+            torch="2.5.1",
+            rsl_rl=None,
+            rl_games=None,
+            skrl=None,
+            sb3=None,
+            git_commit=None,
+            git_branch=None,
+            git_dirty=False,
+        ),
+        hardware=Hardware(
+            hostname="benchmark-host",
+            gpu_devices=[GpuDeviceInfo(name="NVIDIA H100 80GB", mem_gb=80.0, compute_cap="9.0")],
+            cpu_name="AMD EPYC 7763",
+            cpu_count=64,
+            ram_gb=512.0,
+        ),
+        runtime=Runtime(
+            startup_time_s=StartupTime(app_launch=1.0, env_creation=2.0, first_step=0.5),
+            iterations_completed=1,
+            total_wall_time_s=4.0,
+            steps_per_iteration=24,
+            iteration_time_s=MeanStd(mean=1.0, std=0.0),
+            collection_fps=MeanStd(mean=100.0, std=0.0),
+            total_fps=MeanStd(mean=100.0, std=0.0),
+            iterations_per_s=MeanStd(mean=1.0, std=0.0),
+        ),
+        resources=Resources(
+            gpu_util_pct=MeanStd(mean=80.0, std=5.0),
+            gpu_mem_gb=MeanStd(mean=10.0, std=0.5, peak=12.0),
+            cpu_util_pct=MeanStd(mean=30.0, std=4.0),
+            ram_gb=MeanStd(mean=20.0, std=1.0, peak=24.0),
+        ),
+    )
 
-    @pytest.fixture(autouse=True)
-    def reset_backends(self):
-        """Reset backend instances before each test."""
-        backends.MetricsBackend.reset_instances()
-        yield
-        backends.MetricsBackend.reset_instances()
 
-    def test_initialization(self, temp_output_dir):
-        """Test benchmark initializes correctly."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-            output_prefix="test",
-        )
-        assert benchmark.benchmark_name == "test_benchmark"
-        assert benchmark.output_path == temp_output_dir
-        assert "test_" in benchmark.output_prefix
+def _minimal_training_bundle():
+    from isaaclab.test.benchmark.schema import Learning, LearningCurve, TrainingBundle
 
-    def test_initialization_creates_output_dir(self):
-        """Test that initialization creates output directory if it doesn't exist."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = os.path.join(tmpdir, "nested", "output")
-            _benchmark = BaseIsaacLabBenchmark(  # noqa: F841
-                benchmark_name="test_benchmark",
-                backend_type="omniperf",
-                output_path=output_path,
-                use_recorders=False,
+    bundle = _minimal_runtime_bundle()
+    return TrainingBundle(
+        run=replace(bundle.run, framework="rsl_rl", max_iterations=1),
+        versions=bundle.versions,
+        hardware=bundle.hardware,
+        runtime=bundle.runtime,
+        resources=bundle.resources,
+        learning=Learning(
+            ema_alpha=0.95,
+            reward=LearningCurve(final_raw=3.0, final_ema=2.5, series_per_iter=[1.0, 3.0]),
+            ep_length=LearningCurve(final_raw=20.0, final_ema=18.0, series_per_iter=[10.0, 20.0]),
+        ),
+        success_rate=0.75,
+    )
+
+
+def _minimal_startup_bundle():
+    from isaaclab.test.benchmark.schema import CProfileFunction, StartupBundle, StartupConfig, StartupPhase
+
+    bundle = _minimal_runtime_bundle()
+    return StartupBundle(
+        run=replace(bundle.run, num_envs=None),
+        versions=bundle.versions,
+        hardware=bundle.hardware,
+        phases={
+            "python_imports": StartupPhase(
+                total_time_s=0.25,
+                top_functions=[
+                    CProfileFunction(
+                        name="isaaclab_tasks.utils:import_packages", own_time_s=0.1, cum_time_s=0.2, calls=2
+                    )
+                ],
             )
-            assert os.path.exists(output_path)
+        },
+        config=StartupConfig(top_n=1, whitelist=None),
+    )
 
-    def test_initialization_with_recorders(self, temp_output_dir):
-        """Test benchmark initializes with recorders enabled."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=True,
-        )
-        assert benchmark._use_recorders is True
-        assert "CPUInfo" in benchmark._manual_recorders
-        assert "GPUInfo" in benchmark._manual_recorders
-        assert "MemoryInfo" in benchmark._manual_recorders
-        assert "VersionInfo" in benchmark._manual_recorders
 
-    def test_initialization_without_recorders(self, temp_output_dir):
-        """Test benchmark initializes with recorders disabled."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-        )
-        assert benchmark._use_recorders is False
-        assert not hasattr(benchmark, "_manual_recorders") or benchmark._manual_recorders is None
+def _formatter_keys(benchmark: BaseIsaacLabBenchmark) -> list[str]:
+    return [key for key, _ in benchmark._metrics]
 
-    def test_add_measurement(self, temp_output_dir):
-        """Test adding measurements to phases."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-        )
-        measurement = SingleMeasurement(name="test_metric", value=42.0, unit="ms")
-        benchmark.add_measurement("test_phase", measurement=measurement)
-        assert "test_phase" in benchmark._phases
-        assert len(benchmark._phases["test_phase"].measurements) == 1
-        assert benchmark._phases["test_phase"].measurements[0].name == "test_metric"
 
-    def test_add_multiple_measurements(self, temp_output_dir):
-        """Test adding multiple measurements to a phase."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-        )
-        measurements = [
+def test_benchmark_collects_metadata_measurements_and_writes_json(tmp_path):
+    output_path = tmp_path / "nested" / "output"
+    benchmark = BaseIsaacLabBenchmark(
+        benchmark_name="my_workflow",
+        formatter_type="omniperf",
+        output_path=str(output_path),
+        use_recorders=False,
+        output_prefix="test",
+    )
+
+    benchmark.add_measurement(
+        "runtime",
+        measurement=[
             SingleMeasurement(name="metric1", value=10.0, unit="ms"),
             SingleMeasurement(name="metric2", value=20.0, unit="ms"),
-        ]
-        benchmark.add_measurement("test_phase", measurement=measurements)
-        assert len(benchmark._phases["test_phase"].measurements) == 2
+        ],
+    )
+    benchmark.add_measurement("runtime", metadata=StringMetadata(name="custom", data="value"))
+    benchmark._finalize_impl()
 
-    def test_add_metadata(self, temp_output_dir):
-        """Test adding metadata to phases."""
+    with open(benchmark.output_file_path) as f:
+        data = json.load(f)
+
+    assert output_path.exists()
+    assert benchmark.benchmark_name == "my_workflow"
+    assert benchmark._use_recorders is False
+    assert not hasattr(benchmark, "_manual_recorders") or benchmark._manual_recorders is None
+    assert data["benchmark_info"]["workflow_name"] == "my_workflow"
+    assert "timestamp" in data["benchmark_info"]
+    assert data["runtime"]["metric1"] == 10.0
+    assert data["runtime"]["metric2"] == 20.0
+    assert data["runtime"]["custom"] == "value"
+
+
+def test_benchmark_updates_recorders_and_cleans_up(tmp_path):
+    benchmark = BaseIsaacLabBenchmark(
+        benchmark_name="test_benchmark",
+        formatter_type="omniperf",
+        output_path=str(tmp_path),
+        use_recorders=True,
+        output_prefix="test",
+    )
+
+    benchmark.add_measurement("runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms"))
+    benchmark.update_manual_recorders()
+    assert benchmark._manual_recorders["CPUInfo"]._n >= 1
+    assert benchmark._manual_recorders["MemoryInfo"]._rss_n >= 1
+
+    benchmark._finalize_impl()
+    assert os.path.exists(benchmark.output_file_path)
+    assert benchmark._manual_recorders is None
+    assert benchmark._frametime_recorders is None
+
+
+def test_formatter_selection_and_output_filenames(tmp_path):
+    default_benchmark = BaseIsaacLabBenchmark(
+        "default", formatter_type="   ", output_path=str(tmp_path), use_recorders=False
+    )
+    assert _formatter_keys(default_benchmark) == ["omniperf"]
+
+    single = BaseIsaacLabBenchmark("single", formatter_type="json", output_path=str(tmp_path), use_recorders=False)
+    single.add_measurement("runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms"))
+    single._finalize_impl()
+    assert os.path.exists(os.path.join(str(tmp_path), f"{single.output_prefix}.json"))
+    assert not os.path.exists(os.path.join(str(tmp_path), f"{single.output_prefix}_json.json"))
+
+    multi = BaseIsaacLabBenchmark(
+        "multi",
+        formatter_type="schema,json,json",
+        output_path=str(tmp_path),
+        use_recorders=False,
+        output_prefix="test",
+    )
+    assert _formatter_keys(multi) == ["schema", "json"]
+    multi.attach_bundle(_minimal_runtime_bundle())
+    multi.add_measurement("runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms"))
+    multi._finalize_impl()
+
+    schema_path = os.path.join(str(tmp_path), f"{multi.output_prefix}_schema.json")
+    json_path = os.path.join(str(tmp_path), f"{multi.output_prefix}_json.json")
+    assert os.path.exists(schema_path)
+    assert os.path.exists(json_path)
+
+    with open(schema_path) as f:
+        schema_data = json.load(f)
+    with open(json_path) as f:
+        json_data = json.load(f)
+    assert schema_data != json_data
+    assert schema_data["run"]["task"] == "Isaac-Ant-Direct-v0"
+
+
+def test_attached_bundles_are_projected_to_flat_formatters(tmp_path):
+    cases = [
+        (_minimal_runtime_bundle(), "runtime", "Mean Total FPS", 100.0),
+        (_minimal_training_bundle(), "train", "Last Reward", 3.0),
+        (_minimal_startup_bundle(), "python_imports", "Wall Clock Time", 0.25),
+    ]
+
+    for index, (bundle, phase, metric, expected) in enumerate(cases):
         benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
+            f"bundle_{index}",
+            formatter_type="omniperf",
+            output_path=str(tmp_path),
             use_recorders=False,
+            output_prefix=f"bundle_{index}",
         )
-        metadata = StringMetadata(name="test_key", data="test_value")
-        benchmark.add_measurement("test_phase", metadata=metadata)
-        assert "test_phase" in benchmark._phases
-        # Phase metadata includes automatic "phase" and "workflow_name" entries plus our custom one
-        assert len(benchmark._phases["test_phase"].metadata) == 3
-        metadata_names = [m.name for m in benchmark._phases["test_phase"].metadata]
-        assert "test_key" in metadata_names
-        assert "phase" in metadata_names
-        assert "workflow_name" in metadata_names
-
-    def test_update_manual_recorders(self, temp_output_dir):
-        """Test updating manual recorders."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=True,
-        )
-        # Should not raise
-        benchmark.update_manual_recorders()
-        # Check recorders were updated - CPUInfoRecorder has _n attribute
-        assert benchmark._manual_recorders["CPUInfo"]._n >= 1
-        assert benchmark._manual_recorders["MemoryInfo"]._rss_n >= 1
-
-    def test_update_manual_recorders_disabled(self, temp_output_dir):
-        """Test that update_manual_recorders is a no-op when recorders are disabled."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-        )
-        # Should not raise
-        benchmark.update_manual_recorders()
-
-    def test_finalize_generates_output(self, temp_output_dir):
-        """Test that finalize creates output file."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=True,
-            output_prefix="test",
-        )
-        benchmark.add_measurement(
-            "runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms")
-        )
-        benchmark.update_manual_recorders()
-        benchmark._finalize_impl()
-
-        # Check output file exists
-        assert os.path.exists(benchmark.output_file_path)
-
-    def test_finalize_output_contains_measurements(self, temp_output_dir):
-        """Test that finalized output contains added measurements."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-            output_prefix="test",
-        )
-        benchmark.add_measurement(
-            "runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms")
-        )
-        benchmark._finalize_impl()
-
-        # Read and verify output
-        with open(benchmark.output_file_path) as f:
-            data = json.load(f)
-
-        # Check that runtime phase is present with our measurement
-        assert "runtime" in data
-        assert "execution_time" in data["runtime"]
-        assert data["runtime"]["execution_time"] == 100.5
-
-    def test_finalize_cleans_up_recorders(self, temp_output_dir):
-        """Test that finalize cleans up recorders."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="test_benchmark",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=True,
-            output_prefix="test",
-        )
-        benchmark.add_measurement(
-            "runtime", measurement=SingleMeasurement(name="execution_time", value=100.5, unit="ms")
-        )
-        benchmark.update_manual_recorders()
-        benchmark._finalize_impl()
-
-        # Recorders should be set to None
-        assert benchmark._manual_recorders is None
-        assert benchmark._frametime_recorders is None
-
-    def test_workflow_metadata_in_output(self, temp_output_dir):
-        """Test that workflow name and timestamp metadata are in output."""
-        benchmark = BaseIsaacLabBenchmark(
-            benchmark_name="my_workflow",
-            backend_type="omniperf",
-            output_path=temp_output_dir,
-            use_recorders=False,
-            output_prefix="test",
-        )
+        benchmark.attach_bundle(bundle)
         benchmark._finalize_impl()
 
         with open(benchmark.output_file_path) as f:
             data = json.load(f)
-
-        # Check benchmark_info phase has workflow metadata
-        assert "benchmark_info" in data
-        assert "workflow_name" in data["benchmark_info"]
-        assert data["benchmark_info"]["workflow_name"] == "my_workflow"
-        assert "timestamp" in data["benchmark_info"]
+        assert data[phase][metric] == expected
 
 
-# ==============================================================================
-# MetricsBackend Factory Tests
-# ==============================================================================
+def test_metrics_formatter_factory_registration_cache_and_errors():
+    expected = {
+        "json": formatters.JSONFileMetrics,
+        "osmo": formatters.OsmoKPIFile,
+        "omniperf": formatters.OmniPerfKPIFile,
+        "summary": formatters.SummaryMetrics,
+        "schema": formatters.SchemaBundleFile,
+    }
+    for key, cls in expected.items():
+        assert isinstance(formatters.MetricsFormatter.get_instance(key), cls)
 
+    formatter = formatters.MetricsFormatter.get_instance("omniperf")
+    assert formatter is formatters.MetricsFormatter.get_instance("omniperf")
+    formatters.MetricsFormatter.reset_instances()
+    assert formatter is not formatters.MetricsFormatter.get_instance("omniperf")
 
-class TestMetricsBackendFactory:
-    """Tests for MetricsBackend factory class."""
-
-    @pytest.fixture
-    def temp_output_dir(self):
-        """Create a temporary output directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            yield tmpdir
-
-    @pytest.fixture(autouse=True)
-    def reset_backends(self):
-        """Reset backend instances before each test."""
-        backends.MetricsBackend.reset_instances()
-        yield
-        backends.MetricsBackend.reset_instances()
-
-    def test_get_json_backend(self):
-        """Test getting JSON backend instance."""
-        backend = backends.MetricsBackend.get_instance("json")
-        assert isinstance(backend, backends.JSONFileMetrics)
-
-    def test_get_osmo_backend(self):
-        """Test getting Osmo backend instance."""
-        backend = backends.MetricsBackend.get_instance("osmo")
-        assert isinstance(backend, backends.OsmoKPIFile)
-
-    def test_get_omniperf_backend(self):
-        """Test getting OmniPerf backend instance."""
-        backend = backends.MetricsBackend.get_instance("omniperf")
-        assert isinstance(backend, backends.OmniPerfKPIFile)
-
-    def test_get_summary_backend(self):
-        """Test getting Summary backend instance."""
-        backend = backends.MetricsBackend.get_instance("summary")
-        assert isinstance(backend, backends.SummaryMetrics)
-
-    def test_summary_backend_finalize_writes_json(self, temp_output_dir):
-        """Test that SummaryMetrics finalize writes JSON output (and does not raise)."""
-        backend = backends.MetricsBackend.get_instance("summary")
-        from isaaclab.test.benchmark.measurements import StringMetadata, TestPhase
-
-        phase = TestPhase(phase_name="runtime")
-        phase.measurements.append(SingleMeasurement(name="Test FPS", value=60.0, unit="FPS"))
-        phase.metadata.append(StringMetadata(name="runtime workflow_name", data="summary_test"))
-        phase.metadata.append(StringMetadata(name="runtime phase", data="runtime"))
-        backend.add_metrics(phase)
-        output_path = temp_output_dir
-        output_filename = "summary_test"
-        backend.finalize(output_path, output_filename)
-        expected_path = os.path.join(output_path, f"{output_filename}.json")
-        assert os.path.exists(expected_path)
-        with open(expected_path) as f:
-            data = json.load(f)
-        assert isinstance(data, list) and len(data) >= 1
-        assert any(p.get("phase_name") == "runtime" for p in data)
-
-    def test_invalid_backend_type_raises_error(self):
-        """Test that invalid backend type raises ValueError."""
-        with pytest.raises(ValueError, match="Unknown backend type"):
-            backends.MetricsBackend.get_instance("invalid_type")
-
-    def test_backend_instance_is_cached(self):
-        """Test that backend instances are cached and reused."""
-        backend1 = backends.MetricsBackend.get_instance("omniperf")
-        backend2 = backends.MetricsBackend.get_instance("omniperf")
-        assert backend1 is backend2
-
-    def test_reset_instances(self):
-        """Test that reset_instances clears the cache."""
-        backend1 = backends.MetricsBackend.get_instance("omniperf")
-        backends.MetricsBackend.reset_instances()
-        backend2 = backends.MetricsBackend.get_instance("omniperf")
-        assert backend1 is not backend2
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--maxfail=1"])
+    with pytest.raises(ValueError, match="Unknown formatter type"):
+        formatters.MetricsFormatter.get_instance("invalid_type")
