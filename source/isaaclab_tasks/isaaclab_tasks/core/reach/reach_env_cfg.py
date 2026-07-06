@@ -45,7 +45,6 @@ class ReachPhysicsCfg(PresetCfg):
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(max_contacts_per_world=32),
-        num_substeps=2,
     )
 
     default = physx
