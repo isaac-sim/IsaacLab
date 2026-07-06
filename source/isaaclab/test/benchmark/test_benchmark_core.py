@@ -21,6 +21,7 @@ pytestmark = pytest.mark.integration
 # BaseIsaacLabBenchmark Tests
 # ==============================================================================
 
+
 @pytest.fixture(autouse=True)
 def reset_formatters():
     formatters.MetricsFormatter.reset_instances()
