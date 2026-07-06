@@ -485,6 +485,60 @@ def test_env_ids_propagation(setup_sim):
     scene.update(sim.get_physics_dt())
 
 
+@configclass
+class _StaleResetSceneCfg(InteractiveSceneCfg):
+    """Minimal scene for the post-reset staleness regression test."""
+
+    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
+    cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/cube",
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+        spawn=sim_utils.CuboidCfg(
+            size=(0.25, 0.25, 0.25),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+    )
+    imu_cube: ImuCfg = ImuCfg(prim_path="{ENV_REGEX_NS}/cube")
+
+
+def test_no_stale_data_after_scene_reset():
+    """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values.
+
+    Mirrors the ``ManagerBasedRLEnv._reset_idx`` flow where reset runs inside a step
+    without a subsequent physics step. The IMU sensor's lazy ``data`` accessor must not
+    refetch from the PhysX rigid-body view here (the velocity buffer reflects the previous
+    physics step and would produce a spurious finite-difference acceleration).
+    """
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
+    with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _StaleResetSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+        scene.reset()
+
+        sensor: Imu = scene["imu_cube"]
+
+        # Let the cube fall so PhysX accumulates a non-zero rigid-body velocity.
+        for _ in range(30):
+            scene.write_data_to_sim()
+            sim.step(render=False)
+            scene.update(dt=sim.get_physics_dt())
+
+        # Reset the scene without writing fresh velocity/transform. The PhysX velocity
+        # buffer therefore still holds the pre-reset (falling) value.
+        scene.reset(env_ids=torch.tensor([0], device=sensor.device))
+
+        # The public ``data`` accessor must not refetch a stale PhysX buffer; ``reset()``
+        # zeroes ``_ang_vel_b`` and ``_lin_acc_b`` and those must be what comes out here.
+        post_reset_lin_acc = sensor.data.lin_acc_b.torch
+        post_reset_ang_vel = sensor.data.ang_vel_b.torch
+        torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
+        torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
+
+
 @pytest.mark.isaacsim_ci
 def test_sensor_print(setup_sim):
     """Test sensor print is working correctly."""

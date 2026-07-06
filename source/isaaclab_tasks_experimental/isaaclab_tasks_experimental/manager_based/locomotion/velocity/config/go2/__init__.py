@@ -6,14 +6,14 @@
 import gymnasium as gym
 
 # Reuse agent configs from the stable task package.
-from isaaclab_tasks.manager_based.locomotion.velocity.config.go2 import agents
+from isaaclab_tasks.core.velocity.config.go2 import agents
 
 ##
 # Register Gym environments.
 ##
 
 gym.register(
-    id="Isaac-Velocity-Flat-Unitree-Go2-Warp-v0",
+    id="Isaac-Velocity-Flat-UnitreeGo2-Warp-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={
@@ -24,7 +24,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Velocity-Flat-Unitree-Go2-Warp-Play-v0",
+    id="Isaac-Velocity-Flat-UnitreeGo2-Warp-Play-v0",
     entry_point="isaaclab_experimental.envs:ManagerBasedRLEnvWarp",
     disable_env_checker=True,
     kwargs={

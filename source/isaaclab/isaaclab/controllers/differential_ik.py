@@ -69,6 +69,20 @@ class DifferentialIKController:
         self.ee_quat_des = torch.zeros(self.num_envs, 4, device=self._device)
         # -- input command
         self._command = torch.zeros(self.num_envs, self.action_dim, device=self._device)
+        # -- optional per-axis orientation task weights (used for "pose" command types only)
+        if self.cfg.orientation_weight is None:
+            self._orientation_weight = None
+        else:
+            ori_weight = self.cfg.orientation_weight
+            weight_tuple = (
+                (float(ori_weight),) * 3
+                if isinstance(ori_weight, (int, float))
+                else tuple(float(value) for value in ori_weight)
+            )
+            self._orientation_weight = torch.tensor(weight_tuple, device=self._device)
+        # -- optional joint position limits for null-space joint-limit avoidance (set externally)
+        self._joint_pos_lower = None
+        self._joint_pos_upper = None
 
     """
     Properties.
@@ -144,7 +158,24 @@ class DifferentialIKController:
                 self.ee_pos_des, self.ee_quat_des = apply_delta_pose(ee_pos, ee_quat, self._command)
             else:
                 self.ee_pos_des = self._command[:, 0:3]
-                self.ee_quat_des = self._command[:, 3:7]
+                # renormalize the commanded quaternion (callers may pass a slightly non-unit quat)
+                quat = self._command[:, 3:7]
+                self.ee_quat_des = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+
+    def set_joint_pos_limits(self, lower: torch.Tensor, upper: torch.Tensor) -> None:
+        """Provide the controlled joints' position limits for null-space joint-limit avoidance.
+
+        Only used when
+        :attr:`~isaaclab.controllers.differential_ik_cfg.DifferentialIKControllerCfg.joint_limit_avoidance_gain`
+        is positive. The IK action term injects these automatically on its first step; call this
+        manually only when using the controller standalone.
+
+        Args:
+            lower: Lower joint-position limits in shape (num_joints,).
+            upper: Upper joint-position limits in shape (num_joints,).
+        """
+        self._joint_pos_lower = lower.to(self._device)
+        self._joint_pos_upper = upper.to(self._device)
 
     def compute(
         self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor, joint_pos: torch.Tensor
@@ -160,17 +191,16 @@ class DifferentialIKController:
         Returns:
             The target joint positions commands in shape (N, num_joints).
         """
-        # compute the delta in joint-space
+        # assemble the task Jacobian and task-space error
         if "position" in self.cfg.command_type:
-            position_error = self.ee_pos_des - ee_pos
-            jacobian_pos = jacobian[:, 0:3]
-            delta_joint_pos = self._compute_delta_joint_pos(delta_pose=position_error, jacobian=jacobian_pos)
+            task_jacobian = jacobian[:, 0:3]
+            task_error = self.ee_pos_des - ee_pos
         else:
-            position_error, axis_angle_error = compute_pose_error(
-                ee_pos, ee_quat, self.ee_pos_des, self.ee_quat_des, rot_error_type="axis_angle"
-            )
-            pose_error = torch.cat((position_error, axis_angle_error), dim=1)
-            delta_joint_pos = self._compute_delta_joint_pos(delta_pose=pose_error, jacobian=jacobian)
+            task_jacobian, task_error = self._compute_pose_task(ee_pos, ee_quat, jacobian)
+        # compute the delta in joint-space
+        delta_joint_pos = self._compute_delta_joint_pos(delta_pose=task_error, jacobian=task_jacobian)
+        # add an optional null-space joint-limit-avoidance bias (a no-op when joint_limit_avoidance_gain == 0)
+        delta_joint_pos = delta_joint_pos + self._joint_limit_avoidance(joint_pos, task_jacobian)
         # return the desired joint positions
         return joint_pos + delta_joint_pos
 
@@ -235,7 +265,87 @@ class DifferentialIKController:
                 jacobian_T @ torch.inverse(jacobian @ jacobian_T + lambda_matrix) @ delta_pose.unsqueeze(-1)
             )
             delta_joint_pos = delta_joint_pos.squeeze(-1)
+        elif self.cfg.ik_method == "adaptive_dls":  # manipulability-aware damped least squares
+            # parameters
+            lambda_min = self.cfg.ik_params["lambda_min"]
+            lambda_max = self.cfg.ik_params["lambda_max"]
+            sigma_thresh = self.cfg.ik_params["sigma_thresh"]
+            # per-environment squared damping: lambda_min^2 away from singularities, ramping
+            # quadratically up to lambda_max^2 as the smallest task-Jacobian singular value -> 0
+            # (Maciejewski-Klein). Keying off the full task Jacobian damps both position and
+            # orientation rank-loss configurations.
+            sigma_min = torch.linalg.svdvals(jacobian)[:, -1]  # (N,)
+            ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
+            lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
+            jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
+            lambda_matrix = lambda_sq.view(-1, 1, 1) * torch.eye(n=jacobian.shape[1], device=self._device)
+            delta_joint_pos = torch.bmm(
+                jacobian_T,
+                torch.linalg.solve(torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)),
+            ).squeeze(-1)
         else:
             raise ValueError(f"Unsupported inverse-kinematics method: {self.cfg.ik_method}")
 
         return delta_joint_pos
+
+    def _compute_pose_task(
+        self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Assemble the (optionally orientation-weighted) pose task Jacobian and error.
+
+        The orientation error is the axis-angle of ``q_des * q_cur^-1`` from
+        :func:`~isaaclab.utils.math.compute_pose_error`. When
+        :attr:`~isaaclab.controllers.differential_ik_cfg.DifferentialIKControllerCfg.orientation_weight`
+        is set, the 3 orientation rows of both the Jacobian and the error are scaled per
+        base-frame axis (a weight of 0 drops that axis from the solve). Subclasses may override
+        this to further shape the task (e.g. masking which joints serve orientation).
+
+        Args:
+            ee_pos: Current end-effector position in shape (N, 3).
+            ee_quat: Current end-effector orientation (x, y, z, w) in shape (N, 4).
+            jacobian: The geometric Jacobian in shape (N, 6, num_joints).
+
+        Returns:
+            A tuple ``(task_jacobian, task_error)`` with the (N, 6, num_joints) task Jacobian and
+            the (N, 6) task-space error.
+        """
+        position_error, axis_angle_error = compute_pose_error(
+            ee_pos, ee_quat, self.ee_pos_des, self.ee_quat_des, rot_error_type="axis_angle"
+        )
+        task_jacobian = jacobian
+        if self._orientation_weight is not None:
+            weight = self._orientation_weight
+            task_jacobian = torch.cat([jacobian[:, 0:3, :], jacobian[:, 3:6, :] * weight.view(1, 3, 1)], dim=1)
+            axis_angle_error = axis_angle_error * weight.view(1, 3)
+        task_error = torch.cat((position_error, axis_angle_error), dim=1)
+        return task_jacobian, task_error
+
+    def _joint_limit_avoidance(self, joint_pos: torch.Tensor, task_jacobian: torch.Tensor) -> torch.Tensor:
+        """Null-space joint-centering bias that keeps joints off their position limits.
+
+        Projects a center-seeking joint velocity (active only within
+        :attr:`~isaaclab.controllers.differential_ik_cfg.DifferentialIKControllerCfg.joint_limit_avoidance_margin`
+        of a limit) into the null space of the position (linear) task rows, so it never perturbs
+        the commanded end-effector position. Returns zeros when disabled (``joint_limit_avoidance_gain == 0``) or
+        before joint limits are provided via :meth:`set_joint_pos_limits`.
+
+        Args:
+            joint_pos: Current joint positions in shape (N, num_joints).
+            task_jacobian: The task Jacobian in shape (N, T, num_joints); rows 0-2 are the
+                position (linear) rows.
+
+        Returns:
+            The joint-space correction in shape (N, num_joints).
+        """
+        if self.cfg.joint_limit_avoidance_gain <= 0.0 or self._joint_pos_lower is None:
+            return torch.zeros_like(joint_pos)
+        lower, upper = self._joint_pos_lower, self._joint_pos_upper
+        q_mid = 0.5 * (lower + upper)
+        dist = torch.minimum(joint_pos - lower, upper - joint_pos)  # margin to nearest limit
+        activation = 1.0 - (dist / self.cfg.joint_limit_avoidance_margin).clamp(0.0, 1.0)  # 1 at the limit, 0 mid-range
+        dq_center = -self.cfg.joint_limit_avoidance_gain * activation * (joint_pos - q_mid)  # toward the joint center
+        j_pos = task_jacobian[:, :3, :]
+        j_pos_pinv = torch.linalg.pinv(j_pos)
+        num_joints = task_jacobian.shape[2]
+        null_proj = torch.eye(num_joints, device=self._device) - torch.bmm(j_pos_pinv, j_pos)
+        return torch.bmm(null_proj, dq_center.unsqueeze(-1)).squeeze(-1)

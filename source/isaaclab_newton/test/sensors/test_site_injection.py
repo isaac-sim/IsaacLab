@@ -86,7 +86,7 @@ class TestFallbackGlobalSite:
 
     def test_global_site_entry_is_int_none_tuple(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {(None, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_pending_sites = {(None, False, tuple(xform)): ("ft_0", xform)}
         NewtonManager._cl_inject_sites_fallback()
 
         entry = NewtonManager._cl_site_index_map["ft_0"]
@@ -96,7 +96,7 @@ class TestFallbackGlobalSite:
 
     def test_global_site_pending_cleared(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {(None, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_pending_sites = {(None, False, tuple(xform)): ("ft_0", xform)}
         NewtonManager._cl_inject_sites_fallback()
 
         assert len(NewtonManager._cl_pending_sites) == 0
@@ -111,7 +111,7 @@ class TestFallbackLocalSingleBody:
 
     def test_single_body_entry_shape(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/base", tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_pending_sites = {("Robot/base", False, tuple(xform)): ("ft_0", xform)}
         NewtonManager._cl_inject_sites_fallback()
 
         entry = NewtonManager._cl_site_index_map["ft_0"]
@@ -132,7 +132,7 @@ class TestFallbackLocalWildcard:
 
     def test_wildcard_entry_shape(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/.*_foot", tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_pending_sites = {("Robot/.*_foot", False, tuple(xform)): ("ft_0", xform)}
         NewtonManager._cl_inject_sites_fallback()
 
         entry = NewtonManager._cl_site_index_map["ft_0"]
@@ -143,9 +143,45 @@ class TestFallbackLocalWildcard:
 
     def test_no_match_raises(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/nonexistent", tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_pending_sites = {("Robot/nonexistent", False, tuple(xform)): ("ft_0", xform)}
         with pytest.raises(ValueError):
             NewtonManager._cl_inject_sites_fallback()
+
+
+class TestWorldSite:
+    """World-local sites are per-world, not global."""
+
+    def setup_method(self):
+        NewtonManager.clear()
+        NewtonManager._builder = MockBuilder([])
+
+    def test_world_site_reuses_label(self):
+        xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
+        label_0 = NewtonManager.cl_register_site(None, xform, per_world=True)
+        label_1 = NewtonManager.cl_register_site(None, xform, per_world=True)
+
+        assert label_0 == label_1
+
+    def test_world_site_fallback_entry_is_local(self):
+        xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
+        label = NewtonManager.cl_register_site(None, xform, per_world=True)
+        NewtonManager._cl_inject_sites_fallback()
+
+        global_idx, per_world = NewtonManager._cl_site_index_map[label]
+        assert global_idx is None
+        assert isinstance(per_world, list)
+        assert len(per_world) == 1
+        assert len(per_world[0]) == 1
+
+    def test_inject_sites_returns_world_sites(self):
+        xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
+        label = NewtonManager.cl_register_site(None, xform, per_world=True)
+        global_sites, proto_sites, world_sites = NewtonManager._cl_inject_sites(MockBuilder([]), {})
+
+        assert global_sites == {}
+        assert proto_sites == {}
+        assert world_sites[label] == xform
+        assert NewtonManager._cl_pending_sites == {}
 
 
 # ---------------------------------------------------------------------------

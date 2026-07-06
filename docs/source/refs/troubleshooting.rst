@@ -26,7 +26,7 @@ You are running a script that requires Isaac Sim, but it is not installed.
 Either:
 
 - Install Isaac Sim: ``./isaaclab.sh -i isaacsim``, or
-- Use a Newton-based task with ``presets=newton_mjwarp --visualizer newton`` (Kit-less path)
+- Use a Newton-based task with ``physics=newton_mjwarp --visualizer newton`` (Kit-less path)
 
 ``ModuleNotFoundError: No module named 'isaaclab_physx'`` or ``'isaaclab_ov'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,6 +41,24 @@ packages.
 Include ``assets`` in your install command, or use ``./isaaclab.sh -i`` to install
 everything.
 
+``<package> requires <version>, but <other-package> requires <version>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+During pip or uv installs, the package manager may print dependency warnings
+where an Isaac Lab package, Isaac Sim package, or third-party package declares
+an incompatible dependency constraint. Common examples include ``coverage``,
+``packaging``, ``numpy``, or ``Pillow`` constraints reported between
+``isaaclab``, ``isaacsim-kernel``, ``isaacsim-core``, ``nvidia-srl-usd``, and
+``moviepy``.
+
+These messages are generally benign when the install command completes
+successfully. They usually reflect package metadata that is stricter or older
+than the versions bundled and tested with Isaac Sim. Prefer starting from a
+fresh virtual environment and using the installation commands in the Isaac Lab
+docs. If the resolver aborts with ``No solution found`` or installation leaves
+missing modules at runtime, recreate the environment and install the documented
+Isaac Sim version before installing Isaac Lab.
+
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -53,8 +71,8 @@ Crash in ``libusd_tf`` / USD Symbol Collision with OVRTX
 If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
-1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` (see the
-   :ref:`OVRTX section <installation-ovrtx>` of the installation guide)
+1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
+   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`installation-selective-install`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 
@@ -104,7 +122,7 @@ To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the co
 
 .. code:: bash
 
-    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true" --headless
+    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
 Joints actuate in PhysX but not in a Newton-based backend
@@ -200,7 +218,7 @@ For instance, to run a standalone script with verbose logging, you can use the f
 .. code-block:: bash
 
     # Run the standalone script with info logging
-    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless --info
+    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

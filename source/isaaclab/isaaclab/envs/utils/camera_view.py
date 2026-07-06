@@ -14,8 +14,11 @@ from typing import Any
 import torch
 import warp as wp
 
+from pxr import Sdf, UsdGeom
+
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.sim.views import FrameView
 
 _GENERATED_CAMERA_NAME = "VisualizerCamera"
 VISUALIZER_TILED_CAMERA_MAX_TILES = 100
@@ -89,7 +92,20 @@ def find_camera_by_prim_path(camera_sensors: dict[str, Camera], cam_prim_path: s
             f"cam_prim_path={cam_prim_path!r} matched USD camera prims, but no Isaac Lab Camera sensor owns them. "
             "Add the camera to scene.sensors or leave tiled_cam_prim_path unset to use generated tiled cameras."
         )
-    raise RuntimeError(f"No Isaac Lab Camera sensor matched cam_prim_path={cam_prim_path!r}.")
+    if not camera_sensors:
+        raise RuntimeError(
+            f"No Isaac Lab Camera sensors are registered in the scene, so tiled_cam_prim_path={cam_prim_path!r} "
+            "cannot be used. Use an environment that defines Camera sensors, or leave tiled_cam_prim_path unset "
+            "to use generated tiled cameras."
+        )
+    available_paths = {
+        getattr(camera.cfg, "prim_path", None) for camera in camera_sensors.values() if getattr(camera, "cfg", None)
+    }
+    raise RuntimeError(
+        f"No Isaac Lab Camera sensor matched cam_prim_path={cam_prim_path!r}. "
+        f"Available Camera sensor prim paths: {sorted(path for path in available_paths if path)}. "
+        "Leave tiled_cam_prim_path unset to use generated tiled cameras."
+    )
 
 
 def ensure_camera_initialized(camera: Camera) -> None:
@@ -117,6 +133,14 @@ def create_visualizer_camera(
     for path in generated_paths:
         if len(sim_utils.find_matching_prims(path)) == 0:
             spawn.func(path, spawn, translation=(0.0, 0.0, 0.0), orientation=(0.0, 0.0, 0.0, 1.0))
+
+    stage = sim_utils.get_current_stage()
+    for path in generated_paths:
+        cam_prim = stage.GetPrimAtPath(path)
+        attr = cam_prim.GetAttribute("omni:scenePartition")
+        if not attr.IsValid():
+            attr = cam_prim.CreateAttribute("omni:scenePartition", Sdf.ValueTypeNames.Token)
+        attr.Set(path.split("/")[-2])
     cfg = CameraCfg(
         prim_path=f"/World/envs/env_.*/{camera_name}",
         update_period=0.0,
@@ -212,36 +236,37 @@ def prim_world_positions(
 ) -> torch.Tensor:
     """Return world-space translations for concrete prim paths resolved from env ids.
 
-    Uses ``FrameView`` first so PhysX/Fabric-backed transforms are current; falls
-    back to USD only if the backend view cannot be constructed.
+    Uses scene articulation state first when the target is an asset/body path,
+    then falls back to ``FrameView`` and USD for arbitrary prim paths.
     """
-    from pxr import UsdGeom
-
-    from isaaclab.sim.views import FrameView
-
     if scene is not None:
-        positions = _scene_articulation_positions(scene, prim_path_template, env_indices)
-        if positions is not None:
-            return positions
+        positions_tensor = _scene_articulation_positions(scene, prim_path_template, env_indices)
+        if positions_tensor is not None:
+            return positions_tensor
 
     xform_cache = UsdGeom.XformCache()
     positions = []
-    for env_id in env_indices:
-        prim_path = env_path_from_template(prim_path_template, env_id)
-        try:
+    try:
+        for env_id in env_indices:
+            prim_path = env_path_from_template(prim_path_template, env_id)
             view = FrameView(prim_path, device="cpu", stage=stage)
             if view.count != 1:
                 raise RuntimeError(f"expected one prim, got {view.count}")
             pos_w, _ = view.get_world_poses()
             pos = pos_w.torch[0].detach().cpu()
             positions.append((float(pos[0]), float(pos[1]), float(pos[2])))
-        except Exception:
-            prim = stage.GetPrimAtPath(prim_path)
-            if not prim.IsValid():
-                raise RuntimeError(f"tiled_cam_target_prim_path resolved to missing prim: {prim_path!r}.")
-            transform = xform_cache.GetLocalToWorldTransform(prim)
-            translation = transform.ExtractTranslation()
-            positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
+        return torch.tensor(positions, dtype=torch.float32)
+    except Exception:
+        positions.clear()
+
+    for env_id in env_indices:
+        prim_path = env_path_from_template(prim_path_template, env_id)
+        prim = stage.GetPrimAtPath(prim_path)
+        if not prim.IsValid():
+            raise RuntimeError(f"tiled_cam_target_prim_path resolved to missing prim: {prim_path!r}.")
+        transform = xform_cache.GetLocalToWorldTransform(prim)
+        translation = transform.ExtractTranslation()
+        positions.append((float(translation[0]), float(translation[1]), float(translation[2])))
     return torch.tensor(positions, dtype=torch.float32)
 
 

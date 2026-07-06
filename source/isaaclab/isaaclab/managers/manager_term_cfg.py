@@ -293,6 +293,25 @@ class EventTermCfg(ManagerTermBaseCfg):
         This is only used if the mode is ``"interval"``.
     """
 
+    resample_interval_on_reset: bool = True
+    """Whether to resample the interval time when an environment is reset. Defaults to True.
+
+    If True, the time left until the next application of the term is resampled whenever the
+    corresponding environment instance is reset, so the interval counter restarts with the
+    episode.
+
+    If False, the interval counter is preserved across resets and keeps counting down using
+    simulation time. This allows modeling events whose interval is independent of (and may
+    exceed) the episode length.
+
+    This flag is orthogonal to :attr:`is_global_time` and only has an effect when
+    :attr:`is_global_time` is False, since global-time terms use a single shared timer that
+    already ignores resets.
+
+    Note:
+        This is only used if the mode is ``"interval"``.
+    """
+
     min_step_count_between_reset: int = 0
     """The number of environment steps after which the term is applied since its last application. Defaults to 0.
 

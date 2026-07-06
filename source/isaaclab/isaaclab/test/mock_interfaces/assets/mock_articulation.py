@@ -1016,6 +1016,14 @@ class MockArticulationData(BaseArticulationData):
         """Update data (no-op for mock)."""
         pass
 
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Invalidate pose-dependent caches (no-op for mock)."""
+        pass
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Invalidate velocity-dependent caches (no-op for mock)."""
+        pass
+
     # -- Internal helper --
 
     def _identity_quat_np(self, *shape: int) -> np.ndarray:

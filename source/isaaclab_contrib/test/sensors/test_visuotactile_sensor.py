@@ -20,6 +20,11 @@ import math
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import (
+    PhysxArticulationRootPropertiesCfg,
+    PhysxCollisionPropertiesCfg,
+    PhysxRigidBodyPropertiesCfg,
+)
 
 import omni.replicator.core as rep
 
@@ -140,7 +145,7 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Robot",
         spawn=sim_utils.UsdFileWithCompliantContactCfg(
             usd_path=usd_file_path,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
+            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=True),
             compliant_contact_stiffness=10.0,
             compliant_contact_damping=1.0,
             physics_material_prim_path="elastomer",
@@ -158,8 +163,8 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyPropertiesCfg(),
+            collision_props=PhysxCollisionPropertiesCfg(),
         ),
     )
     # Nut
@@ -167,8 +172,8 @@ def setup(sensor_type: str = "cube"):
         prim_path="/World/Nut",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Factory/factory_nut_m16.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(articulation_enabled=False),
+            rigid_props=PhysxRigidBodyPropertiesCfg(disable_gravity=False),
+            articulation_props=PhysxArticulationRootPropertiesCfg(articulation_enabled=False),
             mass_props=sim_utils.MassPropertiesCfg(mass=0.1),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(

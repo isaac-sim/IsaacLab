@@ -62,9 +62,9 @@ Known Caveats
 * PhysX requires Isaac Sim and Omniverse Kit to be installed.
 * GPU buffer sizes are static and must be tuned per task — see
   :doc:`configuration`.
-* ``enable_stabilization`` can corrupt contact-force readings reported through
-  the contact sensor; disable it if you rely on the contact sensor for
-  force-magnitude observations.
+* ``enable_stabilization`` can make contact-force magnitudes reported through
+  the contact sensor inaccurate; disable it if you rely on the contact sensor
+  for force observations.
 * The PhysX TGS solver behaviour can differ from Newton's MJWarp solver on
   stiff contact stacks; if you are porting a task to Newton, expect to retune
   contact-handling parameters.

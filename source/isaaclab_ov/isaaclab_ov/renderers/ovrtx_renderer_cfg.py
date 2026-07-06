@@ -5,6 +5,9 @@
 
 """Configuration for OVRTX Renderer."""
 
+import os
+import tempfile
+
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 
@@ -24,21 +27,29 @@ class OVRTXRendererCfg(RendererCfg):
     """Type identifier for OVRTX renderer."""
 
     temp_usd_dir: str | None = None
-    """Directory for temporary combined USD files (scene + injected cameras).
-    Used by the OVRTX renderer when building the render scope; must be writable.
-    """
+    """Directory for temporary USD debug dumps written during OVRTX stage preparation.
 
-    use_ovrtx_cloning: bool = True
-    """When True, export only env_0 and use OVRTX ``clone_usd``. When False, export full multi-environment stage.
-
-    OVRTX cloning is only supported in OVRTX 0.3.0 or newer.
-
-    If the simulation uses a heterogeneous env setup, the renderer disables this path and exports the full
-    multi-environment stage instead (same effect as setting this to ``False`` for that run).
+    When set, the renderer writes ``pre_ovrtx_renderer_stage.usda`` (raw stage before
+    partition attributes and export trimming) and ``ovrtx_renderer_stage.usda`` (exported
+    stage plus injected render products) under this directory. Must be writable.
     """
 
     log_level: str = "verbose"
     """OVRTX carb log level: "verbose", "info", "warn", "error"."""
 
-    log_file_path: str = "/tmp/ovrtx_renderer.log"
-    """Path for OVRTX log file."""
+    log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
+    """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
+
+    colorize_instance_segmentation: bool = True
+    """Whether to colorize instance segmentation output. Defaults to True.
+
+    If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
+    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    """
+
+    colorize_instance_id_segmentation: bool = True
+    """Whether to colorize instance ID segmentation output. Defaults to True.
+
+    If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
+    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    """

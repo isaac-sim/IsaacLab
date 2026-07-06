@@ -53,7 +53,7 @@ Ensure pip is up to date:
 
 .. code-block:: bash
 
-    uv pip install "isaacsim[all,extscache]==6.0.0" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+    uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
 
 Install the correct version of torch and torchvision:
 
@@ -75,4 +75,4 @@ To verify that the installation was successful, run the following command from t
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct-v0 --num_envs 128 --viz newton presets=newton_mjwarp
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz newton physics=newton_mjwarp

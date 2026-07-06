@@ -1,6 +1,84 @@
 Changelog
 ---------
 
+0.5.3 (2026-06-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_teleop.IsaacTeleopCfg` requiring the optional ``isaacteleop``
+  package at import and construction time. Environments that reference it (e.g. the GR1T2
+  and Unitree G1 pick-place and locomanipulation tasks) failed to parse with
+  ``No module named 'isaacteleop'`` on systems where ``isaacteleop`` is not installed
+  (e.g. DGX Spark). The ``isaacteleop`` import is now deferred, and
+  :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` defaults to ``None`` and is
+  resolved to IsaacTeleop's pipelined, deadline-paced default when a teleop session starts.
+
+
+0.5.2 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``teleop_replay_agent.py``'s ``cpu_frame_time_ms`` and ``fps``
+  percentiles, which previously projected per-``env.step`` CPU samples
+  onto per-render units by dividing by ``decimation / render_interval``.
+  Because each ``env.step`` folds multiple physics substeps and rendered
+  frames into a single measurement, those sums are CLT-smoothed and
+  underreport per-frame hitches the headset wearer / spectator actually
+  sees. The agent now wraps
+  :meth:`~isaaclab.sim.SimulationContext.render` and records the
+  wall-clock interval between successive calls produced from inside
+  ``env.step`` during the active window; that per-rendered-frame series
+  is the new source for ``cpu_frame_time_ms`` and ``fps``. The run
+  dict's ``active_iterations`` field is backed by a dedicated counter.
+  Each interval is the wall-clock delta between successive
+  ``env.sim.render`` calls, so at least two calls are required per
+  run; runs that stepped the env but produced 0 or 1 renders during
+  the active window raise ``RuntimeError`` from
+  ``_run_single_replay`` (the agent aborts the batch without writing
+  a stdout summary or JSON report, so "no JSON output" is an
+  unambiguous measurement-failure signal for CI).
+* Fixed the shipped CloudXR ``.env`` profiles to disable pose wait by default,
+  preventing CloudXR frame pacing from throttling teleoperation sessions after
+  frame-time spikes.
+
+
+0.5.1 (2026-05-22)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added an ``env_cfg`` block to ``teleop_replay_agent.py``'s stats output
+  capturing the performance- and frame-timing-relevant env config inputs
+  (``sim.dt``, ``sim.render_interval``, ``decimation``, ``episode_length_s``,
+  ``scene.num_envs``, ``sim.device``, ``sim.use_fabric``,
+  ``sim.render.antialiasing_mode``) along with precomputed ``policy_dt_s``,
+  ``render_dt_s``, ``renders_per_step``, ``target_policy_hz``, and
+  ``target_render_hz`` rates. The same fields are echoed in a compact
+  ``Env timing:`` line in the stdout summary so the measured
+  ``cpu_frame_time_ms`` / ``fps`` numbers are self-interpreting across
+  machines and configs without cross-referencing the env definition.
+
+Changed
+^^^^^^^
+
+* Changed ``teleop_replay_agent.py``'s ``cpu_frame_time_ms`` and ``fps``
+  blocks (both per-run and aggregate) to report on a **per-render** basis
+  rather than per-``env.step``: each captured ``env.step`` CPU sample is
+  divided by ``decimation / render_interval`` (the number of Kit renders
+  per ``env.step``) before stats are computed. ``cpu_frame_time_ms.mean``
+  now reads as the wall time between rendered frames and ``fps.mean``
+  reads as the render rate -- the same number Kit's HUD shows, which is
+  what the headset wearer / spectator actually perceives during real-time
+  teleop. Field shapes and ``schema_version`` are unchanged. Falls back
+  to the raw per-``env.step`` units when ``decimation`` or
+  ``render_interval`` are unavailable from the env config.
+
+
 0.5.0 (2026-05-20)
 ~~~~~~~~~~~~~~~~~~
 

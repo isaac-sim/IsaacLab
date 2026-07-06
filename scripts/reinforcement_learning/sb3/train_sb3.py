@@ -19,6 +19,7 @@ from datetime import datetime
 from pathlib import Path
 
 from common import (
+    CHECKPOINT_SELECTORS,
     add_common_train_args,
     add_isaaclab_launcher_args,
     apply_env_overrides,
@@ -26,8 +27,10 @@ from common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    resolve_checkpoint_selector,
     set_hydra_args,
-    wrap_record_video,
+    wrap_training_capture,
+    write_run_manifest,
 )
 
 import isaaclab_tasks  # noqa: F401
@@ -60,21 +63,21 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         include_distributed=False,
     )
     parser.add_argument("--log_interval", type=int, default=100_000, help="Log data every n timesteps.")
-    parser.add_argument("--checkpoint", type=str, default=None, help="Continue the training from checkpoint.")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
     parser.add_argument(
         "--keep_all_info",
         action="store_true",
         default=False,
         help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
-    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+    from isaaclab_tasks.utils import setup_preset_cli
 
     add_isaaclab_launcher_args(parser)
-    # setup_preset_cli registers preset-selection help text + runs parse_known_args;
-    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse.
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
-    set_hydra_args(fold_preset_tokens(hydra_args))
+    set_hydra_args(hydra_args)
     return args_cli
 
 
@@ -85,11 +88,12 @@ def run(argv: list[str]) -> None:
     from stable_baselines3.common.callbacks import CheckpointCallback, LogEveryNTimesteps
     from stable_baselines3.common.vec_env import VecNormalize
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
 
     from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import resolve_task_config
 
     signal.signal(signal.SIGINT, _cleanup_pbar)
 
@@ -112,6 +116,12 @@ def run(argv: list[str]) -> None:
         print(f"[INFO] Logging experiment in directory: {log_root_path}")
         print(f"Exact experiment name requested from command line: {run_info}")
         log_dir = os.path.join(log_root_path, run_info)
+        write_run_manifest(
+            log_dir,
+            library="sb3",
+            task=args_cli.task,
+            metadata={"agent": args_cli.agent},
+        )
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
         command = " ".join(sys.orig_argv)
@@ -130,7 +140,7 @@ def run(argv: list[str]) -> None:
             args_cli,
             convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
         )
-        env = wrap_record_video(env, log_dir, args_cli)
+        env = wrap_training_capture(env, log_dir, args_cli)
 
         start_time = time.time()
         env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
@@ -154,7 +164,18 @@ def run(argv: list[str]) -> None:
             )
 
         agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
-        if args_cli.checkpoint is not None:
+        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            checkpoint_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="sb3",
+                task=args_cli.task,
+                checkpoint_pattern=r"model(?:_.*)?\.zip",
+                preferred_checkpoint_pattern=r"model\.zip",
+                metadata={"agent": args_cli.agent},
+            )
+            agent = agent.load(checkpoint_path, env, print_system_info=True)
+        elif args_cli.checkpoint is not None:
             agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
 
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)

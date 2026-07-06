@@ -8,6 +8,9 @@ __all__ = [
     "ArticulationData",
     "DeformableObject",
     "DeformableObjectData",
+    "MPMObject",
+    "MPMObjectCfg",
+    "MPMObjectData",
     "RigidObject",
     "RigidObjectData",
     "RigidObjectCollection",
@@ -18,3 +21,4 @@ from .articulation import Articulation, ArticulationData
 from .rigid_object import RigidObject, RigidObjectData
 from .rigid_object_collection import RigidObjectCollection, RigidObjectCollectionData
 from .deformable_object import DeformableObject, DeformableObjectData
+from .mpm_object import MPMObject, MPMObjectCfg, MPMObjectData

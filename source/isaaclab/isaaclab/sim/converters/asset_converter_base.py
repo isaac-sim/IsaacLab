@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import random
+import tempfile
 from datetime import datetime
 
 from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
@@ -34,9 +35,10 @@ class AssetConverterBase(abc.ABC):
     can be set to True.
 
     When no output directory is defined, lazy conversion is deactivated and the generated USD file is
-    stored in folder ``/tmp/IsaacLab/usd_{date}_{time}_{random}``, where the parameters in braces are generated
-    at runtime. The random identifiers help avoid a race condition where two simultaneously triggered conversions
-    try to use the same directory for reading/writing the generated files.
+    stored in folder ``<tempdir>/IsaacLab/usd_{date}_{time}_{random}``, where ``<tempdir>`` is the system
+    temporary directory (e.g. ``/tmp`` on POSIX, ``%TEMP%`` on Windows) and the parameters in braces are
+    generated at runtime. The random identifiers help avoid a race condition where two simultaneously
+    triggered conversions try to use the same directory for reading/writing the generated files.
 
     .. note::
         Changes to the parameters :obj:`AssetConverterBaseCfg.asset_path`, :obj:`AssetConverterBaseCfg.usd_dir`, and
@@ -64,9 +66,9 @@ class AssetConverterBase(abc.ABC):
 
         # resolve USD directory name
         if cfg.usd_dir is None:
-            # a folder in "/tmp/IsaacLab" by the name: usd_{date}_{time}_{random}
+            # a folder in the system temp dir by the name: IsaacLab/usd_{date}_{time}_{random}
             time_tag = datetime.now().strftime("%Y%m%d_%H%M%S")
-            self._usd_dir = f"/tmp/IsaacLab/usd_{time_tag}_{random.randrange(10000)}"
+            self._usd_dir = os.path.join(tempfile.gettempdir(), "IsaacLab", f"usd_{time_tag}_{random.randrange(10000)}")
         else:
             self._usd_dir = cfg.usd_dir
 

@@ -173,9 +173,10 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
 
-        Discovers rigid body prims by traversing the USD stage and converts
-        per-environment paths (``/World/envs/env_N/...``) into wildcard
-        patterns so a single PhysX view covers every environment instance.
+        Discovers exact rigid body prims by traversing USD, then compacts cloned
+        environment paths into wildcard patterns. If a rigid body name is also
+        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
+        the wildcard to the non-rigid prim.
         """
         if self._rigid_body_view is not None:
             return self._rigid_body_view
@@ -187,15 +188,31 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if stage is None:
             return None
 
-        patterns: set[str] = set()
+        rigid_body_paths: list[str] = []
+        non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
+            if prim.IsA(UsdPhysics.Joint):
+                continue
+            prim_path = prim.GetPath().pathString
             if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
+                rigid_body_paths.append(prim_path)
+            elif re.search(r"/World/envs/env_\d+/", prim_path):
+                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
 
-        if not patterns:
+        patterns: set[str] = set()
+        exact_paths: list[str] = []
+        for prim_path in rigid_body_paths:
+            body_name = prim_path.rsplit("/", 1)[-1]
+            if body_name in non_rigid_body_names:
+                exact_paths.append(prim_path)
+            else:
+                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
+
+        body_paths = [*sorted(patterns), *exact_paths]
+        if not body_paths:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(list(patterns))
+        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
 
     @property
@@ -230,8 +247,6 @@ class PhysxManager(PhysicsManager):
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
-    _physx: ClassVar[omni.physx.IPhysx] = omni.physx.get_physx_interface()
-    _physx_sim: ClassVar[omni.physx.IPhysxSimulation] = omni.physx.get_physx_simulation_interface()
     _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
 
     _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
@@ -334,8 +349,9 @@ class PhysxManager(PhysicsManager):
             omni.kit.app.get_app().shutdown()
             return
 
-        cls._physx_sim.simulate(sim.cfg.dt, 0.0)
-        cls._physx_sim.fetch_results()
+        physx_sim = omni.physx.get_physx_simulation_interface()
+        physx_sim.simulate(sim.cfg.dt, 0.0)
+        physx_sim.fetch_results()
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -398,8 +414,8 @@ class PhysxManager(PhysicsManager):
         """Clean up physics resources."""
         # Detach PhysX from the stage FIRST to prevent shape/actor cleanup errors
         # This disconnects PhysX from USD before any deletion events are fired
-        if cls._physx_sim is not None:
-            cls._physx_sim.detach_stage()
+        if physx_sim := omni.physx.get_physx_simulation_interface():
+            physx_sim.detach_stage()
             # Pump the app to flush pending PhysX cleanup operations
             omni.kit.app.get_app().update()
 
@@ -509,9 +525,13 @@ class PhysxManager(PhysicsManager):
         ):
             return cls._event_bus.observe_event(event_name=event.value, order=order, on_event=callback)
         elif event == IsaacEvents.POST_PHYSICS_STEP:
-            return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=False, order=order)
+            return omni.physx.get_physx_interface().subscribe_physics_on_step_events(
+                guarded(callback), pre_step=False, order=order
+            )
         elif event == IsaacEvents.PRE_PHYSICS_STEP:
-            return cls._physx.subscribe_physics_on_step_events(guarded(callback), pre_step=True, order=order)
+            return omni.physx.get_physx_interface().subscribe_physics_on_step_events(
+                guarded(callback), pre_step=True, order=order
+            )
         elif event == IsaacEvents.TIMELINE_STOP:
             return cls._timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
                 int(omni.timeline.TimelineEventType.STOP), callback, order=order, name=name
@@ -737,19 +757,22 @@ class PhysxManager(PhysicsManager):
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 
+        physx = omni.physx.get_physx_interface()
+        physx_sim = omni.physx.get_physx_simulation_interface()
+
         # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
         # For CPU, the old SimulationManager never called attach_stage() explicitly.
         # Calling attach_stage() + force_load_physics_from_usd() together causes a
         # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
         # causing objects to fall through surfaces non-deterministically.
         if is_gpu:
-            cls._physx_sim.attach_stage(stage_id)
+            physx_sim.attach_stage(stage_id)
 
         # warmup physx
-        cls._physx.force_load_physics_from_usd()
-        cls._physx.start_simulation()
-        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
-        cls._physx_sim.fetch_results()
+        physx.force_load_physics_from_usd()
+        physx.start_simulation()
+        physx.update_simulation(cls.get_physics_dt(), 0.0)
+        physx_sim.fetch_results()
         cls._event_bus.dispatch_event(IsaacEvents.PHYSICS_WARMUP.value, payload={})
         cls._warmup_needed = False
 
@@ -766,7 +789,7 @@ class PhysxManager(PhysicsManager):
             cls._view_warp.set_subspace_roots("/")
 
         # Final update after view creation
-        cls._physx.update_simulation(cls.get_physics_dt(), 0.0)
+        physx.update_simulation(cls.get_physics_dt(), 0.0)
         cls._view_created = True
         cls._scene_data_backend.simulation_view = cls._view
 

@@ -21,7 +21,7 @@ on:
 # Concurrency control to prevent parallel runs
 concurrency:
   group: compatibility-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -111,7 +111,7 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         pytest-options: ""
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx"
+        extra-pip-packages: "ovrtx ovphysx==0.5.2+head.f62c22207c"
 
     - name: Copy All Test Results from IsaacLab Tasks Container
       run: |

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from isaaclab.physics import PhysicsCfg
@@ -16,6 +17,8 @@ from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
+
+logger = logging.getLogger(__name__)
 
 
 @configclass
@@ -97,6 +100,9 @@ class NewtonCfg(PhysicsCfg):
     num_substeps: int = 1
     """Number of substeps to use for the solver."""
 
+    collision_decimation: int = 0
+    """Re-collide every N solver substeps within a physics tick (``0`` = once per tick)."""
+
     debug_mode: bool = False
     """Whether to enable debug mode for the solver."""
 
@@ -120,6 +126,9 @@ class NewtonCfg(PhysicsCfg):
     - :class:`XPBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
+    :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
+    implicit MPM treats rigid geometry as colliders internally.
+
     If ``None`` (default), a pipeline with ``broad_phase="explicit"`` is created
     automatically.  Set this to a :class:`NewtonCollisionPipelineCfg` to customize
     parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
@@ -138,6 +147,13 @@ class NewtonCfg(PhysicsCfg):
     :class:`NewtonShapeCfg` for the declared fields.
     """
 
+    simplify_meshes: bool = True
+    """Whether Newton replication simplifies mesh colliders to convex hulls.
+
+    Keep this enabled for most rigid-body scenes. Disable it when exact triangle
+    meshes are intentional, for example thin or hollow MPM colliders.
+    """
+
     def __post_init__(self):
         # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
         # Refuse a user-set value: setting both is ambiguous and was
@@ -149,3 +165,12 @@ class NewtonCfg(PhysicsCfg):
 
             self.solver_cfg = MJWarpSolverCfg()
         self.class_type = self.solver_cfg.class_type
+
+        # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.
+        if self.collision_decimation > 0 and self.collision_decimation >= self.num_substeps:
+            logger.warning(
+                "NewtonCfg.collision_decimation=%d is >= num_substeps=%d; mid-tick re-collide is disabled. "
+                "Set 0 < collision_decimation < num_substeps to enable.",
+                self.collision_decimation,
+                self.num_substeps,
+            )

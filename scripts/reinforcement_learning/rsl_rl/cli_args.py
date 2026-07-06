@@ -29,7 +29,7 @@ def add_rsl_rl_args(parser: argparse.ArgumentParser):
     # -- load arguments
     arg_group.add_argument("--resume", action="store_true", default=False, help="Whether to resume from a checkpoint.")
     arg_group.add_argument("--load_run", type=str, default=None, help="Name of the run folder to resume from.")
-    arg_group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint file to resume from.")
+    arg_group.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
     # -- logger arguments
     arg_group.add_argument(
         "--logger", type=str, default=None, choices={"wandb", "tensorboard", "neptune"}, help="Logger module to use."

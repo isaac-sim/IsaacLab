@@ -85,6 +85,21 @@ class PhysicsManager(ABC):
     _callback_id: ClassVar[int] = 0
 
     @classmethod
+    def provides_implicit_damping(cls) -> bool:
+        """Whether this backend's integrator has implicit numerical damping.
+
+        With implicit damping (PhysX, OV-PhysX) a camera policy can infer velocity from a
+        single frame. Without it (Newton's symplectic integrator) the policy needs a temporal
+        cue in the observation (e.g. frame stacking).
+
+        The base default is ``True``; backends without implicit damping override to ``False``.
+
+        Returns:
+            Whether the backend's integrator has implicit numerical damping.
+        """
+        return True
+
+    @classmethod
     def register_callback(
         cls,
         callback: Callable[[Any], None],
@@ -311,12 +326,16 @@ class PhysicsManager(ABC):
 
         Subclasses should call super().close() after backend-specific cleanup.
         """
-        cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
+        sim = PhysicsManager._sim
+        is_active_manager = sim is not None and sim.physics_manager is cls
+        if is_active_manager:
+            cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
+
         cls.clear_callbacks()
-        # Reset on PhysicsManager explicitly (matches initialize())
-        PhysicsManager._sim = None
-        PhysicsManager._cfg = None
-        PhysicsManager._sim_time = 0.0
+        if is_active_manager:
+            PhysicsManager._sim = None
+            PhysicsManager._cfg = None
+            PhysicsManager._sim_time = 0.0
 
     @classmethod
     def get_physics_dt(cls) -> float:

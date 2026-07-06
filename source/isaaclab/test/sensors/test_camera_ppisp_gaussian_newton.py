@@ -3,17 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate the camera ISP wrapper applied to a 3D Gaussian (NuRec /
+"""Validate the camera PPISP wrapper applied to a 3D Gaussian (NuRec /
 ParticleField) scene through the Newton (warp) renderer.
 
 The scene is synthesised at test time by :mod:`generate_synthetic_gaussian_asset`
 and rendered via :func:`generate_synthetic_gaussian_asset.render_synthetic_gaussian_scene`.
-The aggressive wrapper ISP cfg
+The aggressive wrapper PPISP cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) engages every
-ISP feature past its subtle-correction defaults so the integration test can
-check semantic invariants — vignetting darkens corners, exposure increases
-mean, CRF clamps output to [0, 255] — without needing to do a fidelity
-comparison against a baked-SH reference.
+PPISP feature past its subtle-correction defaults so the integration test can
+check semantic invariants — Newton produces HDR, PPISP maps it to a
+non-degenerate LDR range, vignetting darkens corners, and output stays bounded
+in [0, 255] — without needing to do a fidelity comparison against a baked-SH
+reference.
 
 Newton's Warp ray tracer is not physically based, so absolute brightness for
 the same scene differs from RTX-backed renderers, but the ISP-side signatures
@@ -51,10 +52,14 @@ if not _MISSING_MODULES:
 
     from generate_synthetic_gaussian_asset import (  # noqa: E402
         SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
+        assert_ppisp_controller_matches_static,
         assert_ppisp_invariants,
         assert_ppisp_lifts_exposure,
+        make_aggressive_ppisp_cfg,
         make_synthetic_gaussian_usd,
         render_synthetic_gaussian_scene,
+        render_synthetic_gaussian_scene_with_controller_ppisp_attrs,
+        render_synthetic_gaussian_scene_with_static_ppisp_attrs,
     )
     from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg  # noqa: E402
     from isaaclab_newton.physics.newton_manager_cfg import NewtonCfg  # noqa: E402
@@ -64,10 +69,14 @@ if not _MISSING_MODULES:
 else:
     tempfile = None
     SYNTHETIC_GAUSSIAN_CAMERA_REGEX = None
+    assert_ppisp_controller_matches_static = None
     assert_ppisp_invariants = None
     assert_ppisp_lifts_exposure = None
+    make_aggressive_ppisp_cfg = None
     make_synthetic_gaussian_usd = None
     render_synthetic_gaussian_scene = None
+    render_synthetic_gaussian_scene_with_controller_ppisp_attrs = None
+    render_synthetic_gaussian_scene_with_static_ppisp_attrs = None
     SimulationCfg = None
     MJWarpSolverCfg = None
     NewtonCfg = None
@@ -89,12 +98,12 @@ def _newton_sim_cfg(device: str) -> SimulationCfg:
 @pytest.mark.isaacsim_ci
 @_SKIP_MISSING_NEWTON
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
-    """Wrapper ISP via ``newton_warp`` must show every ISP-feature signature.
+    """Wrapper PPISP via ``newton_warp`` must show the PPISP signatures.
 
     Renders a synthetic RGBW gaussian grid through Newton's Warp ray tracer
-    plus the aggressive wrapper ISP cfg and asserts the same semantic
-    invariants (via :func:`assert_ppisp_invariants`) as the ovrtx counterpart:
-    vignetting falloff, exposure-boosted center, output bounded in [0, 255].
+    plus the aggressive wrapper PPISP cfg. The test checks that Newton produces
+    a valid HDR source, that PPISP maps it into a useful non-saturated LDR
+    center range, and that vignetting and bounded-output invariants hold.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
@@ -116,14 +125,45 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
 @_SKIP_MISSING_NEWTON
+def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_newton(device):
+    """Newton Warp renderer controller output must match the equivalent static PPISP cfg."""
+    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
+        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")
+        ppisp_cfg = make_aggressive_ppisp_cfg(responsivity=50.0)
+
+        static = render_synthetic_gaussian_scene_with_static_ppisp_attrs(
+            asset_path,
+            sim_cfg=_newton_sim_cfg(device),
+            renderer_cfg=NewtonWarpRendererCfg(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+        controller = render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
+            asset_path,
+            sim_cfg=_newton_sim_cfg(device),
+            renderer_cfg=NewtonWarpRendererCfg(),
+            ppisp_cfg=ppisp_cfg,
+            data_types=["rgb", "rgb_hdr"],
+            sim_dt=SIM_DT,
+        )
+
+    assert_ppisp_controller_matches_static(static["rgb"][0], controller["rgb"][0], label="newton_warp controller")
+    assert_ppisp_invariants(controller["rgb"][0], label="newton_warp controller")
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.isaacsim_ci
+@_SKIP_MISSING_NEWTON
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile(device):
-    """Multi-tile wrapper ISP via ``newton_warp`` must hold the same invariants
+    """Multi-tile wrapper PPISP via ``newton_warp`` must hold the same invariants
     independently for every tile.
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so
-    the camera regex resolves to one camera per env;
-    :attr:`Camera.data.output["rgb"]` then carries one frame per matched
-    camera and each is asserted independently.
+    the camera regex resolves to one camera per env. Both ``rgb`` and
+    ``rgb_hdr`` are batched over the matched cameras, and each tile is checked
+    independently for HDR presence, useful PPISP LDR mapping, vignetting, and
+    bounded output.
     """
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
         asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda")

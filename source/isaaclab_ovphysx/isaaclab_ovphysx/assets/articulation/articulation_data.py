@@ -14,6 +14,7 @@ import warp as wp
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ovphysx import tensor_types as TT
@@ -31,6 +32,7 @@ from isaaclab_ovphysx.assets.kernels import (
     vec13f,
 )
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .kernels import _fd_joint_acc
 
@@ -71,30 +73,28 @@ class ArticulationData(BaseArticulationData):
     __backend_name__: str = "ovphysx"
     """The name of the backend for the articulation data."""
 
-    def __init__(self, bindings: dict[int, Any], device: str) -> None:
+    def __init__(self, view: OvPhysxView, device: str) -> None:
         """Initialize the articulation data container.
 
         Args:
-            bindings: Dictionary of OVPhysX :class:`TensorBinding` objects keyed
-                by :class:`isaaclab_ovphysx.tensor_types.TensorType`. All counts
-                (instances, bodies, DOFs, fixed/spatial tendons) are derived
-                from the binding metadata. Name lists are assigned by
-                :meth:`~isaaclab_ovphysx.assets.Articulation._initialize_impl`
-                after construction.
+            view: The :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager
+                for this articulation. All counts (instances, bodies, DOFs,
+                fixed/spatial tendons) are derived from the view metadata. Name lists
+                are assigned by
+                :meth:`~isaaclab_ovphysx.assets.Articulation._initialize_impl` after
+                construction.
             device: Simulation device string (e.g., ``"cuda:0"`` or ``"cpu"``).
         """
         super().__init__(root_view=None, device=device)
-        self._bindings = bindings
+        self._view = view
 
-        # Every OVPhysX TensorBinding carries the articulation metadata
-        # (instance count, dof_count, body_count, fixed/spatial tendon counts);
-        # any binding will do for the read.
-        sample = next(iter(bindings.values()))
-        self.num_instances = sample.count
-        self.num_bodies = sample.body_count
-        self.num_joints = sample.dof_count
-        self.num_fixed_tendons = getattr(sample, "fixed_tendon_count", 0)
-        self.num_spatial_tendons = getattr(sample, "spatial_tendon_count", 0)
+        # The view exposes the articulation metadata (instance count, dof_count,
+        # body_count, fixed/spatial tendon counts) read from any instantiated binding.
+        self.num_instances = view.count
+        self.num_bodies = view.body_count
+        self.num_joints = view.dof_count
+        self.num_fixed_tendons = view.fixed_tendon_count
+        self.num_spatial_tendons = view.spatial_tendon_count
         # private aliases used throughout _create_buffers and property bodies
         self._num_instances = self.num_instances
         self._num_bodies = self.num_bodies
@@ -104,11 +104,10 @@ class ArticulationData(BaseArticulationData):
 
         # Set initial time stamp
         self._sim_timestamp: float = 0.0
+        self._fk_timestamp: float = 0.0
         self._is_primed: bool = False
         # pinned-host staging buffers for CPU-only bindings (keyed by tensor_type)
         self._cpu_staging_buffers: dict[int, wp.array] = {}
-        # scratch buffers for _get_read_view cache (keyed by (tensor_type, ptr))
-        self._read_scratch: dict = {}
 
         # obtain gravity from the simulation configuration (fall back to standard
         # gravity when the simulation has not been configured yet, e.g. in unit tests)
@@ -162,22 +161,112 @@ class ArticulationData(BaseArticulationData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
+        # FK is current after a sim step. Keep fk_timestamp in sync unless it was explicitly invalidated.
+        if self._fk_timestamp >= 0.0:
+            self._fk_timestamp = self._sim_timestamp
         if not self._is_primed:
             return
-        # trigger an update of the joint acceleration buffer via finite differencing
-        if dt > 0.0 and self._previous_joint_vel is not None:
-            cur_vel_buf = self._joint_vel_buf
-            # ensure joint vel buffer is fresh before differencing
-            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
-            wp.launch(
-                _fd_joint_acc,
-                dim=(self._num_instances, self._num_joints),
-                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / dt],
-                outputs=[self._joint_acc.data],
-                device=self.device,
-            )
-            self._joint_acc.timestamp = self._sim_timestamp
-            wp.copy(self._previous_joint_vel, cur_vel_buf.data)
+        # Trigger a finite-difference refresh of the joint acceleration at step frequency. The
+        # property recomputes lazily when stale; reading it here keeps the FD cadence at one step.
+        self.joint_acc
+
+    def _ensure_fk_fresh(self) -> None:
+        """Run forward kinematics if the joint / body state has changed since the last FK update.
+
+        Isaac Sim's articulation link transforms and velocities are recomputed by
+        ``update_articulations_kinematic``. After a manual joint or root write that bypassed the sim
+        step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to ``-1.0`` to force a refresh on the
+        next read of any property that depends on body poses or velocities. The physics instance is
+        absent under the mocked-interface tests, in which case the refresh is skipped.
+        """
+        if self._fk_timestamp < self._sim_timestamp:
+            physx_instance = OvPhysxManager.get_physx_instance()
+            if physx_instance is not None:
+                physx_instance.update_articulations_kinematic()
+            self._fk_timestamp = self._sim_timestamp
+
+    def _reset_pose(self, from_link: bool = True) -> None:
+        """Reset pose-dependent cached articulation properties.
+
+        Writing a root or joint pose moves the body kinematic chain, so every buffer derived from
+        body poses (the world-frame body poses and the composite root/body state buffers) goes stale.
+
+        Args:
+            from_link: Set ``True`` when the root link pose was written so the derived root
+                center-of-mass pose (:attr:`root_com_pose_w`) is also invalidated; set ``False`` when
+                the center-of-mass pose was written directly so it is not clobbered. Defaults to True.
+        """
+        # The root com pose is derived from the root link pose, so only invalidate it when the link
+        # pose was the quantity written (otherwise we would clobber the freshly-written com pose).
+        # Body poses and the composite state buffers always go stale on a pose write.
+        reset_timestamps(
+            [
+                self._root_com_pose_w if from_link else None,
+                self._body_link_pose_w,
+                self._body_com_pose_w,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
+
+    def _reset_velocity(self, from_com: bool = True) -> None:
+        """Reset velocity-dependent cached articulation properties.
+
+        Writing a root or joint velocity changes the body velocities, so every buffer derived from
+        them (the body velocities and the composite root/body state buffers) goes stale.
+
+        Args:
+            from_com: Set ``True`` when the root center-of-mass velocity was written so the derived root
+                link velocity (:attr:`root_link_vel_w`) is also invalidated; set ``False`` when the link
+                velocity was written directly so it is not clobbered. Defaults to True.
+        """
+        # The root link velocity is derived from the root com velocity, so only invalidate it when the
+        # com velocity was the quantity written (otherwise we would clobber the freshly-written value).
+        # Body velocities and the composite state buffers always go stale on a velocity write.
+        reset_timestamps(
+            [
+                self._root_link_vel_w if from_com else None,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
+        # Force a kinematic refresh on the next FK-dependent read.
+        self._fk_timestamp = -1.0
+
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets."""
+        reset_timestamps(
+            [
+                self._root_com_pose_w,
+                self._root_com_vel_w,
+                self._root_link_vel_w,
+                self._body_com_pose_w,
+                self._body_com_vel_w,
+                self._body_link_vel_w,
+                self._root_link_lin_vel_b,
+                self._root_link_ang_vel_b,
+                self._root_com_lin_vel_b,
+                self._root_com_ang_vel_b,
+                self._root_state_w_buf,
+                self._root_link_state_w_buf,
+                self._root_com_state_w_buf,
+                self._body_state_w_buf,
+                self._body_link_state_w_buf,
+                self._body_com_state_w_buf,
+            ]
+        )
 
     """
     Names.
@@ -807,12 +896,7 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation links' actor frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        if self._body_link_pose_w.timestamp < self._sim_timestamp:
-            # perform forward kinematics (shouldn't cause overhead if it happened already);
-            # skip when no physics instance is bound (mocked iface tests)
-            physx_instance = OvPhysxManager.get_physx_instance()
-            if physx_instance is not None:
-                physx_instance.update_articulations_kinematic()
+        self._ensure_fk_fresh()
         self._read_transform_binding(TT.LINK_POSE, self._body_link_pose_w)
         if self._body_link_pose_w_ta is None:
             self._body_link_pose_w_ta = ProxyArray(self._body_link_pose_w.data)
@@ -825,6 +909,7 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
         In torch this resolves to (num_instances, num_bodies, 6).
         """
+        self._ensure_fk_fresh()
         self._read_spatial_vector_binding(TT.LINK_VELOCITY, self._body_com_vel_w)
         if self._body_com_vel_w_ta is None:
             self._body_com_vel_w_ta = ProxyArray(self._body_com_vel_w.data)
@@ -912,27 +997,11 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the center of mass frame of the rigid body relative to the body's link frame.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
+        if self._body_com_pose_b.timestamp < 0.0:
+            self._read_transform_binding(TT.BODY_COM_POSE, self._body_com_pose_b)
         if self._body_com_pose_b_ta is None:
             self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         return self._body_com_pose_b_ta
-
-    @property
-    def body_incoming_joint_wrench_b(self) -> ProxyArray:
-        """Incoming joint wrenches on each body in the body frame [N, N*m].
-
-        Shape is (num_instances, num_bodies), dtype = wp.spatial_vectorf.
-        In torch this resolves to (num_instances, num_bodies, 6).
-
-        All body reaction wrenches are provided including the root body to the world of an articulation.
-        """
-        self._read_spatial_vector_binding(
-            TT.LINK_INCOMING_JOINT_FORCE,
-            self._body_incoming_joint_wrench_buf,
-        )
-        if self._body_incoming_joint_wrench_b_ta is None:
-            self._body_incoming_joint_wrench_b_ta = ProxyArray(self._body_incoming_joint_wrench_buf.data)
-        return self._body_incoming_joint_wrench_b_ta
 
     """
     Joint state properties.
@@ -967,8 +1036,25 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances, num_joints), dtype = wp.float32.
 
         .. note::
-            This quantity is computed via finite differencing of joint velocities.
+            This quantity is computed via finite differencing of joint velocities. It is recomputed
+            lazily: a read after one or more :meth:`update` steps refreshes it, while a read after a
+            manual joint-velocity write returns ``0`` until the next step, because the write resets
+            the finite-difference baseline.
         """
+        if self._joint_acc.timestamp < self._sim_timestamp:
+            # Finite-difference the joint velocities. ``_fd_joint_acc`` also advances
+            # ``_previous_joint_vel`` in place, so no separate copy is needed.
+            time_elapsed = self._sim_timestamp - self._joint_acc.timestamp
+            cur_vel_buf = self._joint_vel_buf
+            self._read_binding_into_buf(TT.DOF_VELOCITY, cur_vel_buf)
+            wp.launch(
+                _fd_joint_acc,
+                dim=(self._num_instances, self._num_joints),
+                inputs=[cur_vel_buf.data, self._previous_joint_vel, 1.0 / time_elapsed],
+                outputs=[self._joint_acc.data],
+                device=self.device,
+            )
+            self._joint_acc.timestamp = self._sim_timestamp
         if self._joint_acc_ta is None:
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
         return self._joint_acc_ta
@@ -1368,12 +1454,13 @@ class ArticulationData(BaseArticulationData):
         self._body_com_pose_w = TimestampedBuffer((N, L), dev, wp.transformf)
         self._body_com_vel_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         self._body_com_acc_w = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
-        self._body_incoming_joint_wrench_buf = TimestampedBuffer((N, L), dev, wp.spatial_vectorf)
         # -- Joint state buffers
         self._joint_pos_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_vel_buf = TimestampedBuffer((N, D), dev, wp.float32)
         self._joint_acc = TimestampedBuffer((N, D), dev, wp.float32)
         self._previous_joint_vel = wp.zeros((N, D), dtype=wp.float32, device=dev)
+        # Read-only zeros source used to clear the joint-acceleration cache on velocity writes.
+        self._joint_acc_zeros = wp.zeros((N, D), dtype=wp.float32, device=dev)
 
         # -- Joint properties (CPU-only; timestamped so they can be re-read after writes)
         self._joint_stiffness = TimestampedBuffer((N, D), dev, wp.float32)
@@ -1487,35 +1574,37 @@ class ArticulationData(BaseArticulationData):
         # Initialize ProxyArray wrappers (lazily created on first property access).
         self._pin_proxy_arrays()
 
-    def _binding_read(self, tensor_type: int, binding: Any, dst: wp.array) -> None:
-        """Read *binding* into *dst*, staging through a pinned-host buffer for CPU-only bindings.
+    def _binding_read(self, tensor_type: int, dst: wp.array) -> None:
+        """Refresh *dst* from the binding via the view, staging for CPU-only bindings.
 
-        For GPU-resident state bindings (pose, velocity, etc.) the read goes directly
-        into the destination array.  For CPU-only property bindings (mass, COM, limits,
-        stiffness, …) the wheel writes into a pinned-host staging buffer first, then
-        :func:`wp.copy` moves the data to the simulation device asynchronously.
+        GPU-resident state bindings (pose, velocity, …) fill *dst* directly through
+        :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into`, which reinterprets a
+        structured *dst* and reuses that reinterpret across calls so the wheel's read cache
+        stays warm.  CPU-only property bindings (mass, COM, limits, stiffness, …) are read
+        into a pinned-host staging buffer first (the view does not stage across devices),
+        then :func:`wp.copy` moves the data to the simulation device.
 
         Args:
             tensor_type: TensorType key identifying the binding.
-            binding: OVPhysX TensorBinding whose ``read`` method is called.
             dst: Destination :class:`wp.array` on the simulation device.
         """
         if tensor_type not in TT._CPU_ONLY_TYPES or self.device == "cpu":
-            binding.read(dst)
+            self._view.read_into(tensor_type, dst)
             return
-        # Route through a lazily-allocated pinned-host staging buffer.
+        # Route through a lazily-allocated pinned-host staging buffer (read_into refuses to
+        # cross devices), then copy to the simulation device.
         staging = self._cpu_staging_buffers.get(tensor_type)
         if staging is None:
-            staging = wp.zeros(binding.shape, dtype=wp.float32, device="cpu", pinned=True)
+            staging = wp.zeros(self._view.binding_for(tensor_type).shape, dtype=wp.float32, device="cpu", pinned=True)
             self._cpu_staging_buffers[tensor_type] = staging
-        binding.read(staging)
-        # Build a flat float32 view of dst matching the binding's flat shape.
+        self._view.read_into(tensor_type, staging)
+        # Build a flat float32 view of dst matching the staging's flat shape.
         if dst.dtype == wp.float32:
             view = dst
         else:
             view = wp.array(
                 ptr=dst.ptr,
-                shape=binding.shape,
+                shape=staging.shape,
                 dtype=wp.float32,
                 device=str(dst.device),
                 copy=False,
@@ -1559,6 +1648,7 @@ class ArticulationData(BaseArticulationData):
                 copy=False,
             )
         wp.copy(staging, src_view)
+        wp.synchronize_stream(src.device)
         binding.write(staging, indices=indices, mask=mask)
 
     def _stage_to_pinned_cpu(self, tensor_type: int, role: str, src: wp.array) -> wp.array:
@@ -1592,6 +1682,7 @@ class ArticulationData(BaseArticulationData):
         else:
             flat_src = wp.array(ptr=src.ptr, shape=staging.shape, dtype=wp.float32, device=str(src.device), copy=False)
             wp.copy(staging, flat_src)
+        wp.synchronize_stream(src.device)
         return staging
 
     def _read_initial_properties(self) -> None:
@@ -1675,11 +1766,11 @@ class ArticulationData(BaseArticulationData):
             ]:
                 binding = self._get_binding(tt)
                 if binding is not None:
-                    self._binding_read(tt, binding, buf.data)
+                    self._binding_read(tt, buf.data)
                     buf.timestamp = self._sim_timestamp
             binding = self._get_binding(TT.FIXED_TENDON_LIMIT)
             if binding is not None:
-                self._binding_read(TT.FIXED_TENDON_LIMIT, binding, self._fixed_tendon_pos_limits.data)
+                self._binding_read(TT.FIXED_TENDON_LIMIT, self._fixed_tendon_pos_limits.data)
                 self._fixed_tendon_pos_limits.timestamp = self._sim_timestamp
 
         # Spatial tendon properties (sim-device, see fixed-tendon comment above).
@@ -1693,7 +1784,7 @@ class ArticulationData(BaseArticulationData):
             ]:
                 binding = self._get_binding(tt)
                 if binding is not None:
-                    self._binding_read(tt, binding, buf.data)
+                    self._binding_read(tt, buf.data)
                     buf.timestamp = self._sim_timestamp
 
     def _pin_proxy_arrays(self) -> None:
@@ -1752,7 +1843,6 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w_ta: ProxyArray | None = None
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
-        self._body_incoming_joint_wrench_b_ta: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
@@ -1855,64 +1945,29 @@ class ArticulationData(BaseArticulationData):
                     val.timestamp = -1.0
 
     def _get_binding(self, tensor_type: int):
-        """Return the cached binding for :paramref:`tensor_type`, or ``None`` if absent.
+        """Return the binding for :paramref:`tensor_type`, or ``None`` if unavailable.
+
+        Delegates to :attr:`root_view`'s
+        :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.try_binding_for`, which returns the
+        cached binding (creating it on first access) or ``None`` for tensor types that do
+        not apply to these prims.
 
         Args:
             tensor_type: TensorType key.
 
         Returns:
-            The TensorBinding, or ``None`` if not present in the binding dict.
+            The TensorBinding, or ``None`` if not available for these prims.
         """
-        return self._bindings.get(tensor_type)
-
-    def _get_read_view(self, tensor_type: int, wp_array: wp.array, floats_per_elem: int = 0) -> wp.array | None:
-        """Return a stable float32 view of a warp buffer for reading from a binding.
-
-        For structured-dtype buffers (transformf, spatial_vectorf), the view
-        reinterprets the same GPU memory as a flat float32 array matching the
-        binding's shape.  For plain float32 buffers, returns the array as-is.
-
-        The returned view is cached so that ``binding.read(view)`` sees the
-        same object on every call, enabling the binding's internal read cache.
-
-        Args:
-            tensor_type: TensorType key.
-            wp_array: Destination warp array.
-            floats_per_elem: Number of float32 elements per logical element
-                (e.g. 7 for transformf, 6 for spatial_vectorf).  Pass 0 to
-                return the array as-is.
-
-        Returns:
-            Float32 view suitable for ``binding.read()``, or ``None``.
-        """
-        if not hasattr(self, "_read_view_cache"):
-            self._read_view_cache = {}
-        cache_key = (tensor_type, wp_array.ptr)
-        cached = self._read_view_cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            self._read_view_cache[cache_key] = None
-            return None
-
-        if floats_per_elem > 0:
-            view = wp.array(
-                ptr=wp_array.ptr,
-                shape=binding.shape,
-                dtype=wp.float32,
-                device=str(wp_array.device),
-                copy=False,
-            )
-        else:
-            view = wp_array
-
-        self._read_view_cache[cache_key] = view
-        return view
+        return self._view.try_binding_for(tensor_type)
 
     def _read_binding_into_buf(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Read from an ovphysx binding into a :class:`TimestampedBuffer`, skipping if fresh.
+        """Refresh *buf* from the matching binding via the view, skipping if fresh or absent.
+
+        Reads route through :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into`, which
+        derives the structured reinterpret from the binding shape (so transform, spatial-vector,
+        and scalar buffers all use the same path) and reuses that reinterpret across calls;
+        CPU-only property bindings are staged onto the simulation device inside
+        :meth:`_binding_read`.
 
         Args:
             tensor_type: TensorType key.
@@ -1920,70 +1975,17 @@ class ArticulationData(BaseArticulationData):
         """
         if buf.timestamp >= self._sim_timestamp:
             return
-        view = self._get_read_view(tensor_type, buf.data)
-        if view is None:
+        if self._get_binding(tensor_type) is None:
             return
-        self._get_binding(tensor_type).read(view)
+        self._binding_read(tensor_type, buf.data)
         buf.timestamp = self._sim_timestamp
 
-    def _read_transform_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Read a pose binding (float32 view of transformf buffer), skipping if fresh.
-
-        CPU-only bindings (e.g. ``BODY_COM_POSE``) are routed through a
-        pinned-host staging buffer via :meth:`_binding_read` so the wheel's
-        device-match requirement is satisfied even on a GPU sim.
-
-        Args:
-            tensor_type: TensorType key.
-            buf: Timestamped :class:`wp.transformf` buffer to refresh.
-        """
-        if buf.timestamp >= self._sim_timestamp:
-            return
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            return
-        view = self._get_read_view(tensor_type, buf.data, 7)
-        if view is None:
-            return
-        self._binding_read(tensor_type, binding, view)
-        buf.timestamp = self._sim_timestamp
-
-    def _read_spatial_vector_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Read a velocity binding (float32 view of spatial_vectorf buffer), skipping if fresh.
-
-        Args:
-            tensor_type: TensorType key.
-            buf: Timestamped :class:`wp.spatial_vectorf` buffer to refresh.
-        """
-        if buf.timestamp >= self._sim_timestamp:
-            return
-        view = self._get_read_view(tensor_type, buf.data, 6)
-        if view is None:
-            return
-        self._get_binding(tensor_type).read(view)
-        buf.timestamp = self._sim_timestamp
-
-    def _read_scalar_binding(self, tensor_type: int, buf: TimestampedBuffer) -> None:
-        """Refresh a scalar or flat float32 buffer from the matching binding if stale.
-
-        Identical timestamp-gating contract as :meth:`_read_transform_binding`
-        but without a structured-dtype reinterpret cast.  CPU-only bindings
-        (e.g. ``DOF_STIFFNESS``, ``DOF_LIMIT``) are routed through a
-        pre-allocated pinned-host staging buffer via :meth:`_binding_read` so
-        the wheel's device-match requirement is satisfied even on a GPU sim.
-
-        Args:
-            tensor_type: TensorType key identifying the binding.
-            buf: Timestamped buffer whose :attr:`~TimestampedBuffer.data` field
-                will be refreshed.
-        """
-        if buf.timestamp >= self._sim_timestamp:
-            return
-        binding = self._get_binding(tensor_type)
-        if binding is None:
-            return
-        self._binding_read(tensor_type, binding, buf.data)
-        buf.timestamp = self._sim_timestamp
+    # ``read_into`` derives the reinterpret from the binding shape and ``_binding_read`` handles
+    # CPU-only staging, so the transform / spatial-vector / scalar read paths are now identical;
+    # keep the distinct names as aliases for call-site readability.
+    _read_transform_binding = _read_binding_into_buf
+    _read_spatial_vector_binding = _read_binding_into_buf
+    _read_scalar_binding = _read_binding_into_buf
 
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Return a position view aliased into a transform array.

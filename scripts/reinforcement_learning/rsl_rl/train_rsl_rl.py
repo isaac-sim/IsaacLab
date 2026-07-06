@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from common import (
+    CHECKPOINT_SELECTORS,
     add_common_train_args,
     add_isaaclab_launcher_args,
     apply_env_overrides,
@@ -26,9 +27,11 @@ from common import (
     dump_train_configs,
     enable_cameras_for_video,
     import_local_module,
+    resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
-    wrap_record_video,
+    wrap_training_capture,
+    write_run_manifest,
 )
 from packaging import version
 
@@ -66,7 +69,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     """Parse RSL-RL training arguments."""
     from isaaclab.utils.string import list_intersection, string_to_callable
 
-    from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+    from isaaclab_tasks.utils import setup_preset_cli
 
     parser = argparse.ArgumentParser(description="Train an RL agent with RSL-RL.")
     add_common_train_args(
@@ -90,8 +93,8 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
         remaining_args_env_registration = external_callback_function()
 
-    # fold_preset_tokens rewrites typed selectors (physics=, renderer=, presets=) post-argparse
-    set_hydra_args(fold_preset_tokens(list_intersection(remaining_args, remaining_args_env_registration)))
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later
+    set_hydra_args(list_intersection(remaining_args, remaining_args_env_registration))
     return args_cli
 
 
@@ -100,11 +103,12 @@ def run(argv: list[str]) -> None:
     import torch
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
 
     from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 
-    from isaaclab_tasks.utils import get_checkpoint_path, launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
 
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
@@ -142,6 +146,12 @@ def run(argv: list[str]) -> None:
         if agent_cfg.run_name:
             log_dir += f"_{agent_cfg.run_name}"
         log_dir = os.path.join(log_root_path, log_dir)
+        write_run_manifest(
+            log_dir,
+            library="rsl_rl",
+            task=args_cli.task,
+            metadata={"agent": args_cli.agent},
+        )
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
@@ -154,9 +164,19 @@ def run(argv: list[str]) -> None:
         )
 
         if agent_cfg.resume or agent_cfg.algorithm.class_name == "Distillation":
-            resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+                resume_path = resolve_checkpoint_selector(
+                    log_root_path,
+                    args_cli.checkpoint,
+                    library="rsl_rl",
+                    task=args_cli.task,
+                    checkpoint_pattern=r"model_.*\.pt",
+                    metadata={"agent": args_cli.agent},
+                )
+            else:
+                resume_path = get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
 
-        env = wrap_record_video(env, log_dir, args_cli)
+        env = wrap_training_capture(env, log_dir, args_cli)
 
         start_time = time.time()
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)

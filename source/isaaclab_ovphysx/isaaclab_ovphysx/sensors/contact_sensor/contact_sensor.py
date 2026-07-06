@@ -16,12 +16,13 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
-import isaaclab.sim as sim_utils
 from isaaclab.sensors.contact_sensor import BaseContactSensor
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .contact_sensor_data import ContactSensorData
 from .kernels import (
@@ -92,6 +93,9 @@ class ContactSensor(BaseContactSensor):
         self._physx_instance: Any = None
         self._contact_binding: Any = None
         self._pose_binding: Any = None
+        # The pose binding (track_pose only) is managed by an OvPhysxView; the ContactBinding
+        # is a separate wheel API the view does not wrap.
+        self._root_view: OvPhysxView | None = None
         # Pre-allocated read buffers, populated in _create_buffers.
         self._net_forces_flat_buf: wp.array | None = None
         self._force_matrix_flat_buf: wp.array | None = None
@@ -179,23 +183,28 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError("OvPhysxManager has not been initialized yet.")
         self._physx_instance = physx_instance
 
-        # Discover sensor bodies. Mirror the PhysX discovery path but use
-        # ``GetPrimTypeInfo().GetAppliedAPISchemas()`` (raw apiSchemas listOp)
-        # rather than ``GetAppliedSchemas()`` (filtered by USD's plugin
-        # registry).  Under the kitless ovphysx flow the ``PhysxSchema`` USD
-        # plugin is registered by :meth:`OvPhysxManager.initialize` so the
-        # wheel-side schema check passes, but the Python-side filtered API
-        # still hides ``PhysxContactReportAPI`` because the schema TYPE
-        # registration only happens when the C++ plugin library is loaded by
-        # ``omni.physx``.  The unfiltered API matches what the underlying
-        # USD apiSchemas listOp actually carries (verified against
+        # Discover sensor bodies.  We use ``GetPrimTypeInfo().GetAppliedAPISchemas()``
+        # (raw apiSchemas listOp) instead of ``GetAppliedSchemas()`` so that codeless
+        # USDs without ``omni.physx``'s plugin loaded still report
+        # ``PhysxContactReportAPI``.  Under the kitless ovphysx flow the
+        # ``PhysxSchema`` USD plugin is registered by
+        # :meth:`OvPhysxManager.initialize` so the wheel-side schema check passes,
+        # but the Python-side filtered API still hides ``PhysxContactReportAPI``
+        # because the schema TYPE registration only happens when the C++ plugin
+        # library is loaded by ``omni.physx``.  The unfiltered API matches what
+        # the underlying USD apiSchemas listOp actually carries (verified against
         # :class:`pxr.Sdf.PrimSpec.GetInfo("apiSchemas")`).
-        leaf_pattern = self.cfg.prim_path.rsplit("/", 1)[-1]
-        template_prim_path = self._parent_prims[0].GetPath().pathString
-        body_names: list[str] = []
-        for prim in sim_utils.find_matching_prims(template_prim_path + "/" + leaf_pattern):
-            if "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
-                body_names.append(prim.GetPath().pathString.rsplit("/", 1)[-1])
+        parent_expr, leaf_pattern = self.cfg.prim_path.rsplit("/", 1)
+        name_pattern = re.compile(leaf_pattern)
+
+        def has_contact_report(prim) -> bool:
+            return bool(name_pattern.fullmatch(prim.GetName())) and (
+                "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+            )
+
+        resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+        body_matches = resolve_matching_prims_from_source(parent_expr, has_contact_report, **resolve_kwargs)
+        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim, _ in body_matches]
         if not body_names:
             raise RuntimeError(
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
@@ -206,8 +215,9 @@ class ContactSensor(BaseContactSensor):
 
         # Build glob patterns: one per (env, sensor body).
         # IsaacLab path forms map to ovphysx fnmatch globs the same way Articulation does.
-        base_glob = self.cfg.prim_path.rsplit("/", 1)[0]
-        base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", base_glob)
+        _, body_path_expr = body_matches[0]
+        body_parent = body_path_expr.rsplit("/", 1)[0]
+        base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", body_parent)
         base_glob = re.sub(r"\.\*", "*", base_glob)
         sensor_patterns = [f"{base_glob}/{name}" for name in body_names]
 
@@ -275,10 +285,8 @@ class ContactSensor(BaseContactSensor):
                     "per body."
                 )
             single_pose_pattern = f"{base_glob}/{body_names[0]}"
-            self._pose_binding = physx_instance.create_tensor_binding(
-                pattern=single_pose_pattern,
-                tensor_type=TT.RIGID_BODY_POSE,
-            )
+            self._root_view = OvPhysxView(physx_instance, pattern=single_pose_pattern, device=self._device)
+            self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
             if self._pose_binding.count != self._contact_binding.sensor_count:
                 raise RuntimeError(
                     "RIGID_BODY_POSE binding count mismatch."
@@ -372,7 +380,7 @@ class ContactSensor(BaseContactSensor):
 
         if self.cfg.track_pose:
             # Read pose into [num_envs * num_sensors, 7] float32 -> view as transformf.
-            self._pose_binding.read(self._poses_flat_buf)
+            self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
             poses_flat = self._poses_flat_buf.view(wp.transformf)
             wp.launch(
                 split_flat_pose_to_pos_quat,
@@ -512,4 +520,7 @@ class ContactSensor(BaseContactSensor):
             with contextlib.suppress(Exception):
                 self._pose_binding.destroy()
         self._pose_binding = None
+        # Drop the view too: it caches the same (now-destroyed) pose binding, so leaving it set
+        # would keep a destroyed handle reachable. _initialize_impl rebuilds a fresh view on play.
+        self._root_view = None
         self._physx_instance = None

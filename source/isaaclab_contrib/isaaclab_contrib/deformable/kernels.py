@@ -300,6 +300,7 @@ def _kernel_body_particle_reaction(
     body_com: wp.array(dtype=wp.vec3),
     shape_body: wp.array(dtype=wp.int32),
     shape_material_mu: wp.array(dtype=wp.float32),
+    shape_margin: wp.array(dtype=wp.float32),
     soft_contact_ke: float,
     soft_contact_kd: float,
     soft_contact_mu: float,
@@ -359,6 +360,7 @@ def _kernel_body_particle_reaction(
         contact_body_pos,
         contact_body_vel,
         contact_normal,
+        shape_margin,
         dt,
     )
 

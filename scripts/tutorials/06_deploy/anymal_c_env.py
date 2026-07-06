@@ -12,6 +12,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sensors import ContactSensor, RayCaster
@@ -63,7 +64,10 @@ class AnymalCEnv(DirectRLEnv):
         self.cfg.terrain.num_envs = self.scene.cfg.num_envs
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        self.scene.clone_environments(copy_from_source=False)
+        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
+        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
+        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        cloner.replicate(plan, stage=self.scene.stage)
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
@@ -90,7 +94,6 @@ class AnymalCEnv(DirectRLEnv):
                 - 0.5
             ).clip(-1.0, 1.0)
         # start LEAPP annotations for inputs
-        # NOTE: height data is not used by the flat policy. not needed for this example
         root_lin_vel_b = annotate.input_tensors(self.spec.id, {"root_lin_vel_b": self._robot.data.root_lin_vel_b.torch})
         root_ang_vel_b = annotate.input_tensors(self.spec.id, {"root_ang_vel_b": self._robot.data.root_ang_vel_b.torch})
         projected_gravity_b = annotate.input_tensors(
@@ -102,6 +105,8 @@ class AnymalCEnv(DirectRLEnv):
             self.spec.id, {"default_joint_pos": self._robot.data.default_joint_pos.torch}
         )
         joint_vel = annotate.input_tensors(self.spec.id, {"joint_vel": self._robot.data.joint_vel.torch})
+        if height_data is not None:
+            height_data = annotate.input_tensors(self.spec.id, {"height_data": height_data})
         previous_actions = annotate.state_tensors(self.spec.id, {"previous_actions": self._actions})
         # end LEAPP annotations for inputs
 

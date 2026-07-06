@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+2.0.1 (2026-06-14)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``nvidia-srl-usd-to-urdf`` dependency now that Pink IK conversion uses Isaac Sim's URDF exporter.
+
+
+2.0.0 (2026-06-13)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed the registered Mimic/Skillgen environment IDs to use the ``IsaacContrib-``
+  prefix instead of ``Isaac-`` and dropped the trailing ``-v0`` version suffix, matching the
+  contributed task naming convention. Update ``gym.make`` / ``--task`` calls accordingly, for example
+  ``Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0`` → ``IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic``.
+
+
+1.3.1 (2026-06-02)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Declared ``isaaclab_teleop`` as a required extension of
+  ``isaaclab_mimic`` in ``install.py``. ``./isaaclab.sh -i mimic``
+  now installs ``isaaclab_teleop`` alongside ``isaaclab_mimic``.
+* Updated imports to the new :mod:`isaaclab_tasks.core` / :mod:`isaaclab_tasks.contrib`
+  task layout. No behavior change.
+
+
 1.3.0 (2026-05-18)
 ~~~~~~~~~~~~~~~~~~
 

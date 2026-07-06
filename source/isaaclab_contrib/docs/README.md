@@ -424,9 +424,11 @@ The RGB tactile rendering follows this pipeline:
 For accurate tactile sensing, configure PhysX parameters:
 
 ```python
+from isaaclab_physx.physics import PhysxCfg
+
 sim_cfg = sim_utils.SimulationCfg(
     dt=0.005,  # 5ms timestep for stable contact simulation
-    physx=sim_utils.PhysxCfg(
+    physics=PhysxCfg(
         gpu_collision_stack_size=2**30,  # Increase for contact-rich scenarios
     ),
 )

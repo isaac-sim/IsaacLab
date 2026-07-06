@@ -59,5 +59,11 @@ def add_rlinf_args(parser: argparse.ArgumentParser) -> None:
     )
     arg_group.add_argument("--resume_dir", type=str, default=None, help="Directory to resume training from.")
     arg_group.add_argument(
+        "--rl_model_path",
+        type=str,
+        default=None,
+        help="Path to an RLinf checkpoint directory containing full_weights.pt.",
+    )
+    arg_group.add_argument(
         "--only_eval", action="store_true", default=False, help="Only run evaluation without training."
     )

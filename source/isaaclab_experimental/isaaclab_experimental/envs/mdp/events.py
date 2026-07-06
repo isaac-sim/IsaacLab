@@ -24,12 +24,15 @@ Notes:
 
 from __future__ import annotations
 
-import warp as wp
+from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation
+import warp as wp
 
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp import WarpCapturable
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass

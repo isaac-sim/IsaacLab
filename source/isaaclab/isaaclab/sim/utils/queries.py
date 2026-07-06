@@ -10,10 +10,14 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
-from pxr import Sdf, Usd, UsdPhysics
+from isaaclab.sim.simulation_context import SimulationContext
 
 from .stage import get_current_stage
+
+if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdPhysics  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -43,6 +47,8 @@ def get_next_free_prim_path(path: str, stage: Usd.Stage | None = None) -> str:
         >>> sim_utils.get_next_free_prim_path("/World/Cube")
         /World/Cube_02
     """
+    from pxr import Sdf  # noqa: PLC0415
+
     # get current stage
     stage = get_current_stage() if stage is None else stage
 
@@ -160,6 +166,8 @@ def get_first_matching_child_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -196,6 +204,7 @@ def get_all_matching_child_prims(
     depth: int | None = None,
     stage: Usd.Stage | None = None,
     traverse_instance_prims: bool = True,
+    expected_num_matches: int | None = None,
 ) -> list[Usd.Prim]:
     """Performs a search starting from the root and returns all the prims matching the predicate.
 
@@ -220,13 +229,19 @@ def get_all_matching_child_prims(
             Defaults to None (i.e: traversal happens till the end of the tree).
         stage: The stage where the prim exists. Defaults to None, in which case the current stage is used.
         traverse_instance_prims: Whether to traverse instance prims. Defaults to True.
+        expected_num_matches: Expected number of matching prims. If specified, a :class:`RuntimeError` is raised when
+            the number of matches differs. Defaults to None, which disables count validation.
 
     Returns:
         A list containing all the prims matching the predicate.
 
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
+        ValueError: If :attr:`expected_num_matches` is negative.
+        RuntimeError: If :attr:`expected_num_matches` is specified and the number of matches differs.
     """
+    from pxr import Usd  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()
@@ -244,6 +259,8 @@ def get_all_matching_child_prims(
     # check if depth is valid
     if depth is not None and depth <= 0:
         raise ValueError(f"Depth must be bigger than zero, got {depth}.")
+    if expected_num_matches is not None and expected_num_matches < 0:
+        raise ValueError(f"Expected number of matches must be non-negative, got {expected_num_matches}.")
 
     # iterate over all prims under prim-path
     # list of tuples (prim, current_depth)
@@ -265,6 +282,17 @@ def get_all_matching_child_prims(
             # add children to list
             all_prims_queue += [(child, current_depth + 1) for child in children]
 
+    if expected_num_matches is not None and len(output_prims) != expected_num_matches:
+        matched = [prim.GetPath().pathString for prim in output_prims]
+        predicate_name = getattr(predicate, "__name__", None)
+        predicate_msg = ""
+        if predicate_name is not None and predicate_name != "<lambda>":
+            predicate_msg = f" matching predicate '{predicate_name}'"
+        actual_num_matches = len(output_prims)
+        raise RuntimeError(
+            f"Expected {expected_num_matches} prims under '{prim_path}'{predicate_msg}, "
+            f"found {actual_num_matches}: {matched}."
+        )
     return output_prims
 
 
@@ -313,6 +341,12 @@ def _normalize_legacy_wildcard_pattern(prim_path_regex: str) -> str:
     return fixed_regex
 
 
+def matches_path_expr_prefix(path_expr: str, prim_path: str) -> bool:
+    """Return whether ``prim_path`` matches ``path_expr`` up to ``prim_path`` depth."""
+    prefix_expr = "/".join(path_expr.split("/")[: prim_path.count("/") + 1])
+    return re.match(f"^{_normalize_legacy_wildcard_pattern(prefix_expr)}$", prim_path) is not None
+
+
 def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[Usd.Prim]:
     """Find all the matching prims in the stage based on input regex expression.
 
@@ -352,6 +386,99 @@ def find_matching_prims(prim_path_regex: str, stage: Usd.Stage | None = None) ->
             all_prims = output_prims
             output_prims = []
     return output_prims
+
+
+def resolve_matching_prims_from_source(
+    path_expr: str,
+    predicate: Callable[[Usd.Prim], bool] | None = None,
+    expected_num_matches: int | None = None,
+    env_regex_ns: str = "/World/envs/env_.*",
+    raise_if_no_matches: bool = True,
+    traverse_instance_prims: bool = True,
+) -> list[tuple[Usd.Prim, str]]:
+    """Resolve matching prims from a single(source) instance when multiple instances are present.
+
+    The returned prims come from the stage source instance, while each destination expression
+    keeps the multi-instance pattern that callers can pass to simulation views.
+
+    Args:
+        path_expr: Prim path expression to resolve. It may contain regex wildcards.
+        predicate: Optional descendant filter; returned expressions include the matching descendant suffix.
+        expected_num_matches: Optional exact result count.
+        env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
+        raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
+        traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
+
+    Returns:
+        A list of ``(source_prim, destination_expr)`` pairs. Empty only when
+        ``raise_if_no_matches`` is False.
+
+    Raises:
+        RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
+    """
+    plan = SimulationContext.instance().get_clone_plan()
+    from isaaclab.cloner.cloner_utils import resolve_clone_plan_source  # noqa: PLC0415
+
+    resolved = resolve_clone_plan_source(path_expr, plan) if plan is not None else None
+    if resolved is not None:
+        source_path, dest_glob, asset_suffix = resolved
+        walk_root = source_path + asset_suffix
+        results = [
+            (prim, dest_glob + prim.GetPath().pathString[len(source_path) :]) for prim in find_matching_prims(walk_root)
+        ]
+    else:
+        # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage
+        # in two phases (mirroring the clone-plan branch above): (1) locate ONE instance root to
+        # search from, (2) collect the bodies of interest within just that instance and map each
+        # back to the multi-instance pattern. Phase 1 stops at the first match and phase 2 walks
+        # under a concrete instance prefix, so only a single instance subtree is traversed.
+        segments = path_expr.strip("/").split("/")
+        ns_segments = env_regex_ns.strip("/").split("/")
+        # Instance ("env") boundary. Assume the standard namespace ``env_regex_ns`` and put the
+        # boundary at its depth when ``path_expr`` sits under it -- literal ns segments must
+        # match, wildcard ns segments (e.g. ``env_.*``) accept any segment. Otherwise fall back
+        # to the first regex segment of ``path_expr`` (treat the first ``.*`` as the env id),
+        # covering ad-hoc roots like ``/World/Table_.*/Object``. A layout the fallback would
+        # mis-split (e.g. multiple wildcard levels) must pass ``env_regex_ns``.
+        under_ns = len(segments) >= len(ns_segments) and all(
+            ns_seg == seg or not ns_seg.isidentifier() for ns_seg, seg in zip(ns_segments, segments)
+        )
+        if under_ns:
+            instance_seg = len(ns_segments) - 1
+        else:
+            instance_seg = next((i for i, seg in enumerate(segments) if not seg.isidentifier()), None)
+        first = find_first_matching_prim(path_expr)
+        if first is None:
+            results = []
+        elif instance_seg is None:
+            # Fully concrete path: a single instance, mapped to itself.
+            results = [(first, first.GetPath().pathString)]
+        else:
+            instance_expr = "/" + "/".join(segments[: instance_seg + 1])
+            match_segments = first.GetPath().pathString.strip("/").split("/")
+            instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
+            trailing = segments[instance_seg + 1 :]
+            walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
+            results = [
+                (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
+                for prim in find_matching_prims(walk_root)
+                if prim.GetPath().pathString == instance_root
+                or prim.GetPath().pathString.startswith(instance_root + "/")
+            ]
+    if predicate is not None:
+        results = [
+            (child, dest + child.GetPath().pathString[len(source.GetPath().pathString) :])
+            for source, dest in results
+            for child in get_all_matching_child_prims(
+                source.GetPath(), predicate, traverse_instance_prims=traverse_instance_prims
+            )
+        ]
+
+    if expected_num_matches is not None and len(results) != expected_num_matches:
+        raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")
+    if raise_if_no_matches and not results:
+        raise RuntimeError(f"No prim found at '{path_expr}'.")
+    return results
 
 
 def find_matching_prim_paths(prim_path_regex: str, stage: Usd.Stage | None = None) -> list[str]:
@@ -401,6 +528,8 @@ def find_global_fixed_joint_prim(
         ValueError: If the prim path is not global (i.e: does not start with '/').
         ValueError: If the prim path does not exist on the stage.
     """
+    from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
     # get stage handle
     if stage is None:
         stage = get_current_stage()

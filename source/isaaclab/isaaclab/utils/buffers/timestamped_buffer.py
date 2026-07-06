@@ -3,9 +3,37 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Protocol
 
 import torch
+
+
+class _Timestamped(Protocol):
+    """Structural type for any buffer exposing a writable :attr:`timestamp`.
+
+    Matches both :class:`TimestampedBuffer` and ``TimestampedBufferWarp`` so the shared
+    invalidation helper does not depend on the (optional) Warp buffer module.
+    """
+
+    timestamp: float
+
+
+def reset_timestamps(buffers: Iterable[_Timestamped | None]) -> None:
+    """Mark each non-``None`` timestamped buffer as stale so its next read recomputes.
+
+    Each buffer is named exactly once at the call site, which avoids the
+    "check one property but reset another" class of typos that arises when invalidating many
+    buffers by hand. ``None`` entries are skipped so callers can inline conditional invalidations,
+    e.g. ``reset_timestamps([buf_a if from_link else None, buf_b])``.
+
+    Args:
+        buffers: Timestamped buffers to invalidate. ``None`` entries are ignored.
+    """
+    for buffer in buffers:
+        if buffer is not None:
+            buffer.timestamp = -1.0
 
 
 @dataclass

@@ -8,6 +8,15 @@
    .. autosummary::
 
       AppLauncher
+      Scan
+
+   .. rubric:: Functions
+
+   .. autosummary::
+
+      launch_simulation
+      make_physics_cfg
+      scan
 
 
 Environment variables
@@ -108,6 +117,19 @@ Simulation App Launcher
 -----------------------
 
 .. autoclass:: AppLauncher
+   :members:
+
+
+Simulation Launcher
+-------------------
+
+.. autofunction:: launch_simulation
+
+.. autofunction:: make_physics_cfg
+
+.. autofunction:: scan
+
+.. autoclass:: Scan
    :members:
 
 

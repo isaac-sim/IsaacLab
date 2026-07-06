@@ -84,6 +84,20 @@ class DirectMARLEnvCfg:
         wrappers to determine what type of done signal to send to the corresponding learning agent.
     """
 
+    compute_final_obs: bool = False
+    """Whether to capture the per-agent terminal observation before a Same-Step autoreset and expose it.
+
+    Under Same-Step autoreset (see :attr:`~isaaclab.envs.DirectMARLEnv.metadata`), an agent whose
+    environment terminates is reset within the same :meth:`~isaaclab.envs.DirectMARLEnv.step` call, so
+    the returned observation belongs to the *new* episode. When this flag is True, the observation is
+    computed once more *before* the reset and stored per agent under ``extras[agent]["final_obs"]``
+    (with the same observation noise as the returned observation applied), so wrappers can report it as
+    the true terminal observation for value bootstrapping.
+
+    Defaults to False, which preserves the previous behavior: no terminal observation is captured,
+    ``extras[agent]["final_obs"]`` is not populated, and the extra observation computation is skipped.
+    """
+
     episode_length_s: float = MISSING
     """Duration of an episode (in seconds).
 

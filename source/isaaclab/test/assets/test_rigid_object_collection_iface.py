@@ -346,7 +346,20 @@ def collection_iface(request):
     num_instances = request.getfixturevalue("num_instances")
     num_bodies = request.getfixturevalue("num_bodies")
     device = request.getfixturevalue("device")
-    return get_rigid_object_collection(backend, num_instances, num_bodies, device)
+    result = get_rigid_object_collection(backend, num_instances, num_bodies, device)
+    if backend != "newton":
+        yield result
+        return
+    # The Newton collection's ``body_link_pose_w`` triggers ``_ensure_fk_fresh()`` ->
+    # ``NewtonManager.forward()``, which runs ``eval_fk`` against a live simulation state. The mocked
+    # interface has no such state (``_state_0`` is ``None``), so stub ``forward()`` to a no-op for the
+    # test body; the mock view supplies the cached pose data directly.
+    from unittest.mock import patch
+
+    from isaaclab_newton.physics import NewtonManager
+
+    with patch.object(NewtonManager, "forward"):
+        yield result
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +386,9 @@ _default_bodies = pytest.mark.parametrize("num_bodies", [1, 3])
 _default_devices = pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 _index_resolution_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
+)
+_reshape_3d_backends = pytest.mark.parametrize(
+    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
 
 
@@ -483,6 +499,79 @@ class TestCollectionIndexResolution:
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+
+
+# ---------------------------------------------------------------------------
+# Tests: View reshape helpers
+# ---------------------------------------------------------------------------
+
+
+class TestCollectionViewReshape:
+    """Test backend-specific view reshape helpers."""
+
+    @_reshape_3d_backends
+    @_default_devices
+    @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+    def test_reshape_data_to_view_3d_accepts_torch_tensor(self, backend, device, dtype):
+        if device.startswith("cuda") and not torch.cuda.is_available():
+            pytest.skip("CUDA is not available")
+
+        num_instances = 2
+        num_bodies = 3
+        data_dim = 4
+        obj, _ = get_rigid_object_collection(backend, num_instances=num_instances, num_bodies=num_bodies, device=device)
+        data = torch.arange(num_instances * num_bodies * data_dim, dtype=dtype, device=device).reshape(
+            num_instances, num_bodies, data_dim
+        )
+
+        view = obj.reshape_data_to_view_3d(data, data_dim, device=device)
+
+        assert isinstance(view, torch.Tensor)
+        assert view.dtype == dtype
+        assert view.device == data.device
+        assert view.is_contiguous()
+        torch.testing.assert_close(view, data.permute(1, 0, 2).reshape(num_bodies * num_instances, data_dim))
+
+    @_reshape_3d_backends
+    @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+    def test_reshape_data_to_view_3d_moves_torch_tensor_to_requested_device(self, backend):
+        num_instances = 2
+        num_bodies = 3
+        data_dim = 4
+        obj, _ = get_rigid_object_collection(
+            backend, num_instances=num_instances, num_bodies=num_bodies, device="cuda:0"
+        )
+        data = torch.arange(num_instances * num_bodies * data_dim, dtype=torch.float32, device="cuda:0").reshape(
+            num_instances, num_bodies, data_dim
+        )
+
+        view = obj.reshape_data_to_view_3d(data, data_dim, device="cpu")
+
+        assert view.device.type == "cpu"
+        torch.testing.assert_close(view, data.permute(1, 0, 2).reshape(num_bodies * num_instances, data_dim).cpu())
+
+    @_reshape_3d_backends
+    @_default_devices
+    def test_reshape_data_to_view_3d_keeps_warp_array_behavior(self, backend, device):
+        if device.startswith("cuda") and not torch.cuda.is_available():
+            pytest.skip("CUDA is not available")
+
+        num_instances = 2
+        num_bodies = 3
+        data_dim = 4
+        obj, _ = get_rigid_object_collection(backend, num_instances=num_instances, num_bodies=num_bodies, device=device)
+        data = torch.arange(num_instances * num_bodies * data_dim, dtype=torch.float32, device=device).reshape(
+            num_instances, num_bodies, data_dim
+        )
+
+        torch_view = obj.reshape_data_to_view_3d(data, data_dim, device=device)
+        warp_view = obj.reshape_data_to_view_3d(wp.from_torch(data, dtype=wp.float32), data_dim, device=device)
+
+        assert isinstance(warp_view, wp.array)
+        assert warp_view.shape == (num_bodies * num_instances, data_dim)
+        assert warp_view.dtype == wp.float32
+        assert str(warp_view.device) == device
+        torch.testing.assert_close(wp.to_torch(warp_view), torch_view)
 
 
 # ---------------------------------------------------------------------------

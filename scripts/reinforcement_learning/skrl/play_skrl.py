@@ -20,8 +20,10 @@ import time
 import gymnasium as gym
 import skrl
 import torch
+from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from packaging import version
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.utils.dict import print_dict
 
@@ -29,10 +31,7 @@ from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_che
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
     get_checkpoint_path,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -41,7 +40,7 @@ from isaaclab_tasks.utils import (
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
-SKRL_VERSION = "2.0.0"
+SKRL_VERSION = "2.1.0"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
@@ -61,7 +60,7 @@ parser.add_argument(
         "--algorithm is used to determine the default agent configuration entry point."
     ),
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--use_pretrained_checkpoint",
@@ -89,7 +88,7 @@ args_cli, hydra_args = setup_preset_cli(parser)
 if args_cli.video:
     args_cli.enable_cameras = True
 
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 # -- check skrl version ------------------------------------------------------
 if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
@@ -149,6 +148,20 @@ def main():
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="skrl",
+                task=train_task_name,
+                checkpoint_pattern=r".*",
+                other_dirs=["checkpoints"],
+                metadata={
+                    "agent": agent_cfg_entry_point,
+                    "algorithm": algorithm,
+                    "ml_framework": args_cli.ml_framework,
+                },
+            )
         elif args_cli.checkpoint:
             resume_path = os.path.abspath(args_cli.checkpoint)
         else:

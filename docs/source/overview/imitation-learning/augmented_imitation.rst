@@ -25,7 +25,7 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
 .. code:: bash
 
     ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
-    --device cpu --enable_cameras --headless --num_envs 10 --generation_num_trials 1000 \
+    --device cpu --enable_cameras --num_envs 10 --generation_num_trials 1000 \
     --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
     --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0 \
     --rendering_mode performance
@@ -302,12 +302,12 @@ To install the robomimic framework, use the following commands:
 Training an agent
 ^^^^^^^^^^^^^^^^^
 
-Using the generated data, we can now train a visuomotor BC agent for ``Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0``:
+Using the generated data, we can now train a visuomotor BC agent for ``IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos``:
 
 .. code:: bash
 
     ./isaaclab.sh -p scripts/imitation_learning/robomimic/train.py \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 --algo bc \
+    --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos --algo bc \
     --dataset ./datasets/mimic_cosmos_dataset.hdf5 \
     --name bc_rnn_image_franka_stack_mimic_cosmos
 
@@ -386,14 +386,17 @@ Example usage for the cube stacking task:
 .. code:: bash
 
     ./isaaclab.sh -p scripts/imitation_learning/robomimic/robust_eval.py \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0 \
-    --input_dir logs/robomimic/Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
+    --task IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos \
+    --input_dir logs/robomimic/IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos/bc_rnn_image_franka_stack_mimic_cosmos/*/models \
     --log_dir robust_results/bc_rnn_image_franka_stack_mimic_cosmos \
     --log_file result \
     --enable_cameras \
     --seeds 0 \
     --num_rollouts 15 \
     --rendering_mode performance
+
+.. tip::
+   Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.
 
 .. note::
    This script can take over a day or even longer to run (depending on the hardware being used). This behavior is expected.

@@ -15,11 +15,14 @@ transforms in a consistent way across different USD assets.
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+if TYPE_CHECKING:
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
+
 
 _INVALID_XFORM_OPS = [
     "xformOp:rotateX",
@@ -124,6 +127,8 @@ def standardize_xform_ops(
         >>> for prim in prims_to_standardize:
         ...     sim_utils.standardize_xform_ops(prim)  # Each call uses Sdf.ChangeBlock
     """
+    from pxr import Gf, Sdf, UsdGeom  # noqa: PLC0415
+
     # Validate prim
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath()}' is not valid.")
@@ -240,6 +245,8 @@ def validate_standard_xform_ops(prim: Usd.Prim) -> bool:
     Args:
         prim: The USD prim to validate.
     """
+    from pxr import UsdGeom  # noqa: PLC0415
+
     # check if prim is valid
     if not prim.IsValid():
         logger.error(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
@@ -310,6 +317,8 @@ def resolve_prim_pose(
         >>> print(f"Position: {pos}")
         >>> print(f"Orientation: {quat}")
     """
+    from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
+
     # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
@@ -371,6 +380,8 @@ def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
         >>> scale = sim_utils.resolve_prim_scale(prim)
         >>> print(f"Scale: {scale}")
     """
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
     # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
@@ -431,6 +442,8 @@ def convert_world_pose_to_local(
         >>> print(f"Local position: {local_pos}")
         >>> print(f"Local orientation: {local_quat}")
     """
+    from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: PLC0415
+
     # Check if prim is valid
     if not ref_prim.IsValid():
         raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not valid.")

@@ -23,7 +23,7 @@ Usage::
 
     ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py
     ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --iterations 20
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --tasks Isaac-Velocity-Flat-Anymal-D-v0
+    ./isaaclab.sh -p scripts/benchmarks/benchmark_lazy_export.py --tasks Isaac-Velocity-Flat-AnymalD
 """
 
 from __future__ import annotations
@@ -46,14 +46,14 @@ with warnings.catch_warnings():
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 _REPRESENTATIVE_TASKS = [
-    "Isaac-Cartpole-v0",
-    "Isaac-Humanoid-v0",
-    "Isaac-Velocity-Flat-Anymal-D-v0",
-    "Isaac-Reach-Franka-v0",
-    "Isaac-Lift-Cube-Franka-v0",
-    "Isaac-Dexsuite-Kuka-Allegro-Reorient-v0",
-    "Isaac-Navigation-Flat-Anymal-C-v0",
-    "Isaac-Stack-Cube-Franka-v0",
+    "Isaac-Cartpole",
+    "Isaac-Humanoid",
+    "Isaac-Velocity-Flat-AnymalD",
+    "Isaac-Reach-Franka",
+    "Isaac-Lift-Cube-Franka",
+    "Isaac-Reorient-KukaAllegro",
+    "IsaacContrib-Navigation-Flat-AnymalC",
+    "IsaacContrib-Stack-Cube-Franka",
 ]
 
 

@@ -1,0 +1,34 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Stable rendering correctness tests used by post-merge CI.
+rendering-correctness = [
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[newton-isaacsim_rtx-semantic_segmentation]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-isaacsim_rtx-semantic_segmentation]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-newton_warp-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole.py::test_rendering_cartpole[physx-newton_warp-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-albedo-cartpole]",
+  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-depth-cartpole]",
+  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-None-cartpole]",
+  "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-rgb-cartpole]",
+]
+
+rendering-correctness-kitless = [
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-newton_warp-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-newton_warp-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-ovrtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[newton-ovrtx-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-newton_warp-depth]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-newton_warp-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-ovrtx-albedo]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-ovrtx-rgb]",
+  "source/isaaclab_tasks/test/core/test_rendering_cartpole_kitless.py::test_rendering_cartpole_kitless[ovphysx-ovrtx-semantic_segmentation]",
+]

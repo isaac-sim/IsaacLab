@@ -20,11 +20,11 @@ from isaaclab_experimental.managers.manager_base import ManagerTermBase
 from isaaclab_newton.kernels.state_kernels import rotate_vec_to_body_frame
 
 import isaaclab.utils.string as string_utils
-from isaaclab.assets import Articulation
 
 if TYPE_CHECKING:
     from isaaclab_experimental.managers.manager_term_cfg import RewardTermCfg
 
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 
@@ -48,7 +48,7 @@ def _upright_posture_bonus_kernel(
     out: wp.array(dtype=wp.float32),
 ):
     i = wp.tid()
-    up_proj = -rotate_vec_to_body_frame(gravity_w[0], root_pose_w[i])[2]
+    up_proj = -rotate_vec_to_body_frame(wp.normalize(gravity_w[i]), root_pose_w[i])[2]
     out[i] = wp.where(up_proj > threshold, 1.0, 0.0)
 
 
