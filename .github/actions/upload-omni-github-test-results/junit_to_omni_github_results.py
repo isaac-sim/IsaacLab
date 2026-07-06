@@ -131,7 +131,7 @@ def _convert_testcase(
 
     markers = _testcase_markers(testcase)
     if markers:
-        row["test_type"] = f"{test_type}{', '.join(markers)}"
+        row["test_type"] = f"{test_type}{','.join(markers)}"
     else:
         row["test_type"] = test_type
 
