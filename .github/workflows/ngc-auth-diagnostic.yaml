@@ -1,0 +1,283 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: NGC Authentication Diagnostic
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ambient-auth:
+    name: Ambient runner authentication
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        filter: tree:0
+
+    - name: Load diagnostic configuration
+      id: config
+      shell: bash
+      run: |
+        set -euo pipefail
+        config_file=.github/workflows/config.yaml
+        isaacsim_image_name=$(yq -r .isaacsim_image_name "$config_file")
+        isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$config_file")
+        ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$config_file")
+        printf 'isaacsim_image_name=%s\n' "$isaacsim_image_name" >> "$GITHUB_OUTPUT"
+        printf 'isaacsim_image_tag=%s\n' "$isaacsim_image_tag" >> "$GITHUB_OUTPUT"
+        printf 'ovphysx_wheelhouse_resource=%s\n' "$ovphysx_wheelhouse_resource" >> "$GITHUB_OUTPUT"
+
+    - name: Probe ambient authentication
+      shell: bash
+      env:
+        ISAACSIM_IMAGE_NAME: ${{ steps.config.outputs.isaacsim_image_name }}
+        ISAACSIM_IMAGE_TAG: ${{ steps.config.outputs.isaacsim_image_tag }}
+        OVPHYSX_WHEELHOUSE_RESOURCE: ${{ steps.config.outputs.ovphysx_wheelhouse_resource }}
+      run: |
+        set -uo pipefail
+
+        NGC_CLI_VERSION=4.20.0
+        NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
+        NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
+
+        default_docker_config_exists=false
+        default_docker_config_names_nvcr=false
+        default_docker_config_inspects_image=false
+        empty_docker_config_inspects_image=false
+        aws_caller_identity_available=false
+        ecr_cache_url_resolves=false
+        ecr_cache_manifest_inspectable=false
+        ngc_artifact_downloadable_without_key=false
+
+        temp_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-ambient.XXXXXX")
+        empty_docker_config="${temp_root}/docker-empty"
+        ecr_docker_config="${temp_root}/docker-ecr"
+        ngc_home="${temp_root}/ngc-home"
+        ngc_download="${temp_root}/ngc-download"
+        ngc_unpack="${temp_root}/ngc-unpack"
+        ngc_zip="${temp_root}/ngccli_linux.zip"
+        mkdir -p "$empty_docker_config" "$ecr_docker_config" "$ngc_home" "$ngc_download" "$ngc_unpack"
+        cleanup() {
+          rm -rf -- "$temp_root"
+        }
+        trap cleanup EXIT
+
+        image="${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}"
+        default_docker_dir="${HOME}/.docker"
+        default_docker_config="${default_docker_dir}/config.json"
+
+        if [ -f "$default_docker_config" ]; then
+          default_docker_config_exists=true
+          if yq -e '((.auths // {}) | has("nvcr.io")) or ((.credHelpers // {}) | has("nvcr.io"))' \
+            "$default_docker_config" >/dev/null 2>&1; then
+            default_docker_config_names_nvcr=true
+          fi
+        fi
+
+        if DOCKER_CONFIG="$default_docker_dir" docker manifest inspect "$image" >/dev/null 2>&1; then
+          default_docker_config_inspects_image=true
+        fi
+
+        if DOCKER_CONFIG="$empty_docker_config" docker manifest inspect "$image" >/dev/null 2>&1; then
+          empty_docker_config_inspects_image=true
+        fi
+
+        if aws sts get-caller-identity >/dev/null 2>&1; then
+          aws_caller_identity_available=true
+        fi
+
+        ECR_URL="${ECR_CACHE_URL:-}"
+        if [ -z "$ECR_URL" ]; then
+          imds_token=$(curl -fsS -X PUT "http://169.254.169.254/latest/api/token" \
+            -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null) || imds_token=""
+          if [ -n "$imds_token" ]; then
+            instance_id=$(curl -fsS -H "X-aws-ec2-metadata-token: ${imds_token}" \
+              "http://169.254.169.254/latest/meta-data/instance-id" 2>/dev/null) || instance_id=""
+            instance_region=$(curl -fsS -H "X-aws-ec2-metadata-token: ${imds_token}" \
+              "http://169.254.169.254/latest/meta-data/placement/region" 2>/dev/null) || instance_region=""
+            if [ -n "$instance_id" ] && [ -n "$instance_region" ]; then
+              ECR_URL=$(aws ssm get-parameter \
+                --name "/github-runner/${instance_id}/ecr-cache-url" \
+                --region "$instance_region" \
+                --query 'Parameter.Value' --output text 2>/dev/null) || ECR_URL=""
+            fi
+          fi
+        fi
+
+        if [ -n "$ECR_URL" ]; then
+          ecr_cache_url_resolves=true
+          ecr_registry="${ECR_URL%%/*}"
+          ecr_region="${ecr_registry#*.dkr.ecr.}"
+          ecr_region="${ecr_region%%.amazonaws.com*}"
+          if [ -n "$ecr_region" ] && [ "$ecr_region" != "$ecr_registry" ]; then
+            if aws ecr get-login-password --region "$ecr_region" 2>/dev/null |
+              DOCKER_CONFIG="$ecr_docker_config" docker login --username AWS --password-stdin \
+                "$ecr_registry" >/dev/null 2>&1; then
+              if DOCKER_CONFIG="$ecr_docker_config" docker manifest inspect \
+                "${ECR_URL}:cache-base" >/dev/null 2>&1; then
+                ecr_cache_manifest_inspectable=true
+              fi
+            fi
+          fi
+        fi
+
+        ngc_cli="${ngc_unpack}/ngc-cli/ngc"
+        if curl -fsSL -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
+          printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1 &&
+          unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 && [ -x "$ngc_cli" ]; then
+          if (
+            unset NGC_API_KEY NGC_CLI_API_KEY
+            export HOME="$ngc_home"
+            export NGC_CLI_HOME="$ngc_home"
+            export NGC_CLI_ORG=nvidian
+            export NGC_CLI_TEAM=no-team
+            "$ngc_cli" registry resource download-version "$OVPHYSX_WHEELHOUSE_RESOURCE" \
+              --dest "$ngc_download" >/dev/null 2>&1
+          ); then
+            ngc_artifact_downloadable_without_key=true
+          fi
+        fi
+
+        {
+          printf '### Ambient authentication probes\n\n'
+          printf '| Probe | Result |\n'
+          printf '| --- | --- |\n'
+          printf '| Default Docker config exists | `%s` |\n' "$default_docker_config_exists"
+          printf '| Default Docker config names an nvcr.io auth/helper entry | `%s` |\n' \
+            "$default_docker_config_names_nvcr"
+          printf '| Default Docker config can inspect the configured Isaac Sim image | `%s` |\n' \
+            "$default_docker_config_inspects_image"
+          printf '| Empty isolated Docker config can inspect the configured Isaac Sim image | `%s` |\n' \
+            "$empty_docker_config_inspects_image"
+          printf '| AWS caller identity is available | `%s` |\n' "$aws_caller_identity_available"
+          printf '| ECR cache URL resolves from runner configuration | `%s` |\n' "$ecr_cache_url_resolves"
+          printf '| Authenticated ECR cache-base manifest is inspectable | `%s` |\n' \
+            "$ecr_cache_manifest_inspectable"
+          printf '| Isolated NGC CLI without an API key can download the configured resource | `%s` |\n' \
+            "$ngc_artifact_downloadable_without_key"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+  secret-backed-auth:
+    name: Explicit NGC secret authentication
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 30
+    env:
+      NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+      with:
+        filter: tree:0
+
+    - name: Load diagnostic configuration
+      id: config
+      shell: bash
+      run: |
+        set -euo pipefail
+        config_file=.github/workflows/config.yaml
+        isaacsim_image_name=$(yq -r .isaacsim_image_name "$config_file")
+        isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$config_file")
+        ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$config_file")
+        printf 'isaacsim_image_name=%s\n' "$isaacsim_image_name" >> "$GITHUB_OUTPUT"
+        printf 'isaacsim_image_tag=%s\n' "$isaacsim_image_tag" >> "$GITHUB_OUTPUT"
+        printf 'ovphysx_wheelhouse_resource=%s\n' "$ovphysx_wheelhouse_resource" >> "$GITHUB_OUTPUT"
+
+    - name: Probe explicit NGC authentication
+      shell: bash
+      env:
+        ISAACSIM_IMAGE_NAME: ${{ steps.config.outputs.isaacsim_image_name }}
+        ISAACSIM_IMAGE_TAG: ${{ steps.config.outputs.isaacsim_image_tag }}
+        OVPHYSX_WHEELHOUSE_RESOURCE: ${{ steps.config.outputs.ovphysx_wheelhouse_resource }}
+      run: |
+        set -uo pipefail
+
+        NGC_CLI_VERSION=4.20.0
+        NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
+        NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
+
+        secret_present=false
+        nvcr_login_accepted=false
+        nvcr_image_inspectable=false
+        ngc_artifact_downloadable=false
+
+        temp_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-secret.XXXXXX")
+        docker_config="${temp_root}/docker"
+        ngc_home="${temp_root}/ngc-home"
+        ngc_download="${temp_root}/ngc-download"
+        ngc_unpack="${temp_root}/ngc-unpack"
+        ngc_zip="${temp_root}/ngccli_linux.zip"
+        mkdir -p "$docker_config" "$ngc_home" "$ngc_download" "$ngc_unpack"
+        cleanup() {
+          rm -rf -- "$temp_root"
+        }
+        trap cleanup EXIT
+
+        write_summary() {
+          {
+            printf '### Explicit NGC authentication probes\n\n'
+            printf '| Probe | Result |\n'
+            printf '| --- | --- |\n'
+            printf '| NGC_API_KEY is present | `%s` |\n' "$secret_present"
+            printf '| NVCR login accepts the explicit secret | `%s` |\n' "$nvcr_login_accepted"
+            printf '| NVCR image is inspectable with the explicit secret | `%s` |\n' \
+              "$nvcr_image_inspectable"
+            printf '| NGC artifact is downloadable with the explicit secret | `%s` |\n' \
+              "$ngc_artifact_downloadable"
+          } >> "$GITHUB_STEP_SUMMARY"
+        }
+
+        if [ -z "${NGC_API_KEY:-}" ]; then
+          write_summary
+          echo "::error::NGC_API_KEY is empty; explicit authentication cannot be tested"
+          exit 1
+        fi
+        secret_present=true
+
+        export DOCKER_CONFIG="$docker_config"
+        if printf '%s' "$NGC_API_KEY" |
+          docker login --username '$oauthtoken' --password-stdin nvcr.io >/dev/null 2>&1; then
+          nvcr_login_accepted=true
+          if docker manifest inspect "${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}" >/dev/null 2>&1; then
+            nvcr_image_inspectable=true
+          fi
+        fi
+
+        ngc_cli="${ngc_unpack}/ngc-cli/ngc"
+        if curl -fsSL -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
+          printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1 &&
+          unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 && [ -x "$ngc_cli" ]; then
+          if (
+            export HOME="$ngc_home"
+            export NGC_CLI_HOME="$ngc_home"
+            export NGC_CLI_API_KEY="$NGC_API_KEY"
+            export NGC_CLI_ORG=nvidian
+            export NGC_CLI_TEAM=no-team
+            "$ngc_cli" registry resource download-version "$OVPHYSX_WHEELHOUSE_RESOURCE" \
+              --dest "$ngc_download" >/dev/null 2>&1
+          ); then
+            ngc_artifact_downloadable=true
+          fi
+        fi
+
+        write_summary
+        if [ "$nvcr_image_inspectable" != true ] || [ "$ngc_artifact_downloadable" != true ]; then
+          echo "::error::One or more explicit NGC authentication probes failed"
+          exit 1
+        fi
