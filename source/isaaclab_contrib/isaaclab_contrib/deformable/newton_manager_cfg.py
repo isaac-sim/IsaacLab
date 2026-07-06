@@ -30,8 +30,6 @@ class VBDSolverCfg(NewtonSolverCfg):
     class_type: type[NewtonManager] | str = "{DIR}.vbd_manager:NewtonVBDManager"
     """Manager class for the VBD solver."""
 
-    requires_graph_coloring: bool = True
-
     iterations: int = 10
     """Number of VBD iterations per substep."""
 
@@ -172,7 +170,8 @@ class CoupledNewtonCfg(NewtonCfg):
     the manager can resolve :class:`~isaaclab.managers.SceneEntityCfg` selectors
     against the scene at solver-build time.
 
-    Uses a distinct class name so :func:`_is_kitless_physics` does not match it,
+    Uses a distinct class name so it is not treated as kitless physics (its
+    class name is not in Isaac Lab's ``_KITLESS_PHYSICS_CFGS`` allowlist),
     ensuring Kit is launched for USD deformable/coupled spawning.
     """
 

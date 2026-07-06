@@ -230,9 +230,8 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # Call builder.color() if any deformable entries were added (required by VBD solver)
-        if cls._deformable_registry:
-            builder.color()
+        # Coloring is required by the VBD solver for particles and VBD-integrated bodies.
+        builder.color()
 
         cls.set_builder(builder)
 

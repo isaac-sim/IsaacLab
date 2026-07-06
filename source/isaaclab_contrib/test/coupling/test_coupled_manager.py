@@ -21,15 +21,19 @@ smoke tests on ``Isaac-Lift-Soft-Franka-v0`` in
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
 from newton import ShapeFlags
+from newton.solvers.experimental.coupled import SolverCoupledADMM
 
 from isaaclab.managers import SceneEntityCfg
 
+from isaaclab_contrib.coupling import coupled_manager
 from isaaclab_contrib.coupling.coupled_manager import NewtonCoupledSolverManager
+from isaaclab_contrib.coupling.coupled_manager_cfg import CoupledAdmmSolverCfg
 
 ##
 # Fakes
@@ -356,3 +360,80 @@ def test_select_proxy_bodies_accepts_string_without_body_names():
         scene_cfg=None,
     )
     assert proxy_ids == [1]
+
+
+##
+# _build_admm_coupled_solver
+#
+# The real ``SolverCoupledADMM.__init__`` needs a fully-built Newton model, so
+# these tests stub the constructor to capture the coupling config while keeping
+# the real ``ContactPair`` / ``Config`` dataclasses. This exercises the manager's
+# config forwarding without launching Isaac Sim.
+##
+
+
+class _RecordingAdmm:
+    """Stand-in for ``SolverCoupledADMM`` that records the coupling config.
+
+    Reuses the real nested ``ContactPair`` / ``Config`` dataclasses so passing an
+    unsupported ContactPair kwarg still raises, guarding the fixed bug.
+    """
+
+    ContactPair = SolverCoupledADMM.ContactPair
+    Config = SolverCoupledADMM.Config
+
+    def __init__(self, *, model, entries, coupling):
+        self.model = model
+        self.entries = entries
+        self.coupling = coupling
+
+
+def _build_admm(monkeypatch, solver_cfg: CoupledAdmmSolverCfg) -> _RecordingAdmm:
+    monkeypatch.setattr(coupled_manager, "SolverCoupledADMM", _RecordingAdmm)
+    return NewtonCoupledSolverManager._build_admm_coupled_solver(
+        model=object(),
+        entries=[],
+        solver_cfg=solver_cfg,
+    )
+
+
+def test_build_admm_registers_bare_contact_pair_when_enabled(monkeypatch):
+    """``enable_contacts`` adds exactly one contact pair naming only ``src``/``dst``."""
+    solver = _build_admm(monkeypatch, CoupledAdmmSolverCfg(enable_contacts=True))
+
+    pairs = list(solver.coupling.contact_pairs)
+    assert len(pairs) == 1
+    assert pairs[0].source == "src"
+    assert pairs[0].destination == "dst"
+    # ContactPair carries only the two entry-name fields (no contact geometry).
+    assert {f.name for f in dataclasses.fields(pairs[0])} == {"source", "destination"}
+
+
+def test_build_admm_omits_contact_pair_when_disabled(monkeypatch):
+    """No contact pair is registered when ``enable_contacts`` is ``False``."""
+    solver = _build_admm(monkeypatch, CoupledAdmmSolverCfg(enable_contacts=False))
+    assert list(solver.coupling.contact_pairs) == []
+
+
+def test_build_admm_forwards_config_values(monkeypatch):
+    """ADMM ``Config`` mirrors the cfg's iteration / penalty / joint knobs."""
+    cfg = CoupledAdmmSolverCfg(
+        iterations=7,
+        rho=2.0,
+        gamma=0.5,
+        baumgarte=0.1,
+        joint_stiffness=1.0e3,
+        joint_damping=2.0,
+        joint_angular_stiffness=3.0e3,
+        joint_angular_damping=4.0,
+    )
+    coupling = _build_admm(monkeypatch, cfg).coupling
+
+    assert coupling.iterations == 7
+    assert coupling.rho == 2.0
+    assert coupling.gamma == 0.5
+    assert coupling.baumgarte == 0.1
+    assert coupling.joint_stiffness == 1.0e3
+    assert coupling.joint_damping == 2.0
+    assert coupling.joint_angular_stiffness == 3.0e3
+    assert coupling.joint_angular_damping == 4.0

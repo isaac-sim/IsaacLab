@@ -42,8 +42,6 @@ class NewtonMJWarpManager(NewtonManager):
         ``True`` only when ``use_mujoco_contacts=False``.
         """
         kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
-        # ls_parallel is deprecated (#5956): accepted by the cfg but not forwarded.
-        kwargs.pop("ls_parallel", None)
         NewtonManager._solver = SolverMuJoCo(model, **kwargs)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts

@@ -173,16 +173,11 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         entries: list[SolverCoupled.Entry],
         solver_cfg: CoupledAdmmSolverCfg,
     ) -> SolverCoupledADMM:
+        # ContactPair only names the two entries; contact geometry comes from the
+        # model's collision properties (shape margins, particle radius, materials).
         contact_pairs: list[SolverCoupledADMM.ContactPair] = []
         if solver_cfg.enable_contacts:
-            contact_pairs.append(
-                SolverCoupledADMM.ContactPair(
-                    source="src",
-                    destination="dst",
-                    contact_distance=solver_cfg.contact_distance,
-                    detection_margin=solver_cfg.detection_margin,
-                )
-            )
+            contact_pairs.append(SolverCoupledADMM.ContactPair(source="src", destination="dst"))
         return SolverCoupledADMM(
             model=model,
             entries=entries,

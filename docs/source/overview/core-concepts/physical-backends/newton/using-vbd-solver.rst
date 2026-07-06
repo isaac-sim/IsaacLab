@@ -238,7 +238,7 @@ The Franka soft-body task ships a ``newton_mjwarp_vbd_proxy`` preset (the new
 default for ``Isaac-Lift-Soft-Franka-v0``) that demonstrates the typical
 configuration:
 
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/manager_based/manipulation/lift_franka_soft/franka_soft_env_cfg.py
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
     :start-at: newton_mjwarp_vbd_proxy: CoupledNewtonCfg
     :end-before: physx: PhysxCfg = PhysxCfg()

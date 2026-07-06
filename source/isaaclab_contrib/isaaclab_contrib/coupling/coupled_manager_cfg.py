@@ -48,9 +48,6 @@ class CoupledSolverCfg(NewtonSolverCfg):
     class_type: type[NewtonManager] | str = "{DIR}.coupled_manager:NewtonCoupledSolverManager"
     """Manager class for the coupled solver."""
 
-    requires_graph_coloring: bool = True
-    """VBD-style graph coloring is built when either sub-solver needs it."""
-
     src_solver_cfg: NewtonSolverCfg = MISSING
     """Source sub-solver configuration (e.g. :class:`~isaaclab_newton.physics.MJWarpSolverCfg`)."""
 
@@ -142,11 +139,6 @@ class CoupledAdmmSolverCfg(CoupledSolverCfg):
     """Whether to register a contact pair between the source and destination entries.
 
     When ``True``, a single :class:`newton.solvers.experimental.coupled.SolverCoupledADMM.ContactPair`
-    is added with the configured :attr:`contact_distance` / :attr:`detection_margin`.
+    is added. Contact geometry (shape margins, particle radius, friction) is taken
+    from the Newton model's collision properties, not per-pair overrides.
     """
-
-    contact_distance: float | None = None
-    """Per-pair contact distance override [m]. ``None`` uses Newton's default."""
-
-    detection_margin: float | None = None
-    """Per-pair detection margin override [m]. ``None`` uses Newton's default."""
