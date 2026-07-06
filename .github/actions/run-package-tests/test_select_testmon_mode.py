@@ -30,3 +30,9 @@ def test_static_relevant_change_collects_full_suite() -> None:
 
 def test_mixed_change_collects_full_suite() -> None:
     assert select_testmon_mode(["source/isaaclab/code.py", "docker/Dockerfile.base"]) == "collect"
+
+
+def test_workflow_yaml_change_collects_full_suite() -> None:
+    # A workflow change that testmon cannot reason about must run the full suite,
+    # otherwise a workflow-only PR would trigger a job that deselects every test.
+    assert select_testmon_mode([".github/workflows/install-ci.yml"]) == "collect"

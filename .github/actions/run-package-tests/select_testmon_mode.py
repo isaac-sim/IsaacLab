@@ -12,7 +12,7 @@ import sys
 
 _RELEVANT = re.compile(
     r"^(?:source|docker|tools|apps|scripts)/"
-    r"|^\.github/(?:workflows/(?:build|config)\.yaml|actions/)"
+    r"|^\.github/(?:workflows/[^/]+\.ya?ml|actions/)"
     r"|^\.gitmodules$"
     r"|^[^/]+\.(?:toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$"
 )
