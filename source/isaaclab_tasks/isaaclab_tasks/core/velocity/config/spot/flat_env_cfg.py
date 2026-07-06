@@ -49,7 +49,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
-    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
 ##
