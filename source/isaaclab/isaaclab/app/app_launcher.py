@@ -431,6 +431,8 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          When passing a single Kit argument, attach the value with ``=`` so argparse does not
+          mistake the option-like value for a flag: ``--kit_args=--ext-folder=/path/to/ext1``
 
         * ``visualizer`` (str): Visualizer backends to enable.
           Valid options are:
@@ -577,7 +579,9 @@ class AppLauncher:
             default="",
             help=(
                 "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
-                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
+                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2".'
+                " When passing a single Kit argument, attach the value with '=' so argparse does not"
+                " mistake the option-like value for a flag: --kit_args=--ext-folder=/path/to/ext1"
             ),
         )
         arg_group.add_argument(
