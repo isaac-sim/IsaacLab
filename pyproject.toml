@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# CI affected-tests probe for project configuration changes.
 [project]
 name = "isaaclab-dev"
 version = "0.1.0"
