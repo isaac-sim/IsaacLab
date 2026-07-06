@@ -153,8 +153,7 @@ def _sync_isaacsim_stage_context() -> None:
 
     # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = _context  # type: ignore
-      if getattr(sim_stage, "_context", None) is not _context:
-          sim_stage._context = _context  # type: ignore[attr-defined]
+    _isaacsim_stage_context_synced = True
 
 
 def create_new_stage() -> Usd.Stage:
