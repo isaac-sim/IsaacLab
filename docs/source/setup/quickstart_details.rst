@@ -84,6 +84,43 @@ Available Presets
 - ``isaacsim_rtx_renderer`` — Isaac Sim RTX (default with Isaac Sim)
 - ``newton_renderer`` — Newton Warp renderer
 - ``ovrtx_renderer`` — OV RTX renderer (kit-less)
+- ``rtx`` — Automatic RTX renderer selection
+
+Automatic RTX selection is available only when the camera exposes the renderer
+choices with :class:`~isaaclab_tasks.utils.presets.MultiBackendRendererCfg`:
+
+.. code-block:: python
+
+   from isaaclab.sensors import CameraCfg
+   from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+   camera = CameraCfg(
+       # Other camera settings...
+       renderer_cfg=MultiBackendRendererCfg(),
+   )
+
+Then use ``renderer=rtx`` to select the RTX implementation required by the runtime:
+
+.. list-table::
+   :widths: 55 45
+   :header-rows: 1
+
+   * - Runtime
+     - Resolved renderer
+   * - Requires Isaac Sim/Kit, such as ``physics=physx``, ``--visualizer kit``,
+       livestreaming, or another Kit camera
+     - :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`
+   * - Fully kit-less, such as ``physics=newton_mjwarp`` or ``physics=ovphysx``
+       without a Kit visualizer or camera
+     - :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`
+
+For example, ``physics=newton_mjwarp renderer=rtx`` selects OVRTX for a
+fully kit-less run, but selects Isaac Sim RTX when combined with
+``--visualizer kit``.
+
+A camera configured directly with ``renderer_cfg=IsaacRtxRendererCfg()`` does
+not participate in automatic selection and is not overridden by
+``renderer=rtx`` because it does not use the multi-backend renderer configuration.
 
 **Domain presets** (``presets=NAME[,NAME,...]``) are task-specific — run
 ``--task=<name> --help`` to list them.
@@ -94,6 +131,7 @@ Common combinations:
 
    physics=newton_mjwarp renderer=newton_renderer presets=rgb
    physics=newton_mjwarp renderer=newton_renderer presets=depth
+   physics=newton_mjwarp renderer=rtx presets=rgb
    physics=physx renderer=isaacsim_rtx_renderer presets=rgb
    physics=physx renderer=isaacsim_rtx_renderer presets=depth
    physics=physx renderer=isaacsim_rtx_renderer presets=albedo

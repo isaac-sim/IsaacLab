@@ -1,6 +1,102 @@
 Changelog
 ---------
 
+6.1.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_enhanced_determinism` and
+  :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_external_forces_every_iteration`, mirroring the
+  equivalent PhysX solver settings already exposed on
+  :class:`~isaaclab_physx.physics.PhysxCfg`.
+
+
+6.0.0 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.RigidObjectCollection.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw ``dict``
+  mapping ``TensorType`` to ``TensorBinding``. The view wraps the fused multi-prim bindings
+  (``prim_paths=[...]``) and stores each under the collection's ``LINK_*``/``BODY_*`` data-class
+  key via ``key_aliases`` (mapped from the underlying ``RIGID_BODY_*`` type). Replace
+  ``root_view[tensor_type]`` with ``root_view.try_binding_for(tensor_type)``.
+
+Fixed
+^^^^^
+
+* Updated :class:`~isaaclab_ovphysx.physics.OvPhysxManager` for the current
+  OVPhysX constructor, stage-reset, and synchronous-step APIs.
+* Synchronized GPU-to-host property staging before OVPhysX consumes the pinned
+  host buffers.
+
+
+5.0.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed center-of-mass writes in :class:`~isaaclab_ovphysx.assets.RigidObject`,
+  :class:`~isaaclab_ovphysx.assets.RigidObjectCollection`, and
+  :class:`~isaaclab_ovphysx.assets.Articulation` for compatibility with Warp
+  1.15.
+
+
+5.0.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.Articulation.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw
+  ``dict`` mapping ``TensorType`` to ``TensorBinding``. The view owns all tensor-binding
+  creation, caching, reads, and writes for the articulation. Address bindings by attribute
+  name or ``TensorType`` member through
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.try_binding_for` /
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute` rather than indexing the
+  dict, e.g. replace ``root_view[tensor_type]`` with
+  ``root_view.try_binding_for(tensor_type)`` and ``tensor_type in root_view`` with
+  ``root_view.try_binding_for(tensor_type) is not None``.
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.RigidObject.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw
+  ``dict`` mapping ``TensorType`` to ``TensorBinding``. The view owns all tensor-binding
+  creation, caching, reads, and writes for the rigid object. Replace ``root_view[tensor_type]``
+  with ``root_view.try_binding_for(tensor_type)`` /
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute`.
+
+Fixed
+^^^^^
+
+* Fixed repeated OVPhysX articulation body-frame center-of-mass pose reads by caching them as model
+  properties and invalidating dependent buffers when center-of-mass offsets are updated.
+
+
+4.0.0 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`, a string-keyed binding manager
+  over the OVPhysX tensor bindings. Attributes are addressed by the lowercased
+  ``TensorType`` name (e.g. ``view.get_attribute("articulation_dof_stiffness")``,
+  ``view.read_into("articulation_root_pose", buf)``,
+  ``view.set_attribute("rigid_body_pose", values, mask=...)``), bringing the OVPhysX
+  binding surface closer to the Newton selection API. The view reads/writes each binding
+  on its native device and raises on a device mismatch rather than staging between CPU
+  and GPU. :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.get_attribute` returns a typed
+  array for attributes with a structured layout (e.g. ``wp.transformf`` for poses,
+  ``wp.spatial_vectorf`` for velocities) and flat ``float32`` otherwise, and
+  :meth:`~isaaclab_ovphysx.sim.views.OvPhysxView.read_into` reuses the ``float32``
+  reinterpret of a destination buffer across calls so the wheel's read cache stays warm.
+
+
 3.2.0 (2026-06-23)
 ~~~~~~~~~~~~~~~~~~
 

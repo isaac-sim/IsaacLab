@@ -97,11 +97,10 @@ def gather_body_pose_kernel(
     For each env in the launch, copies ``pose_buffer[env]`` into
     ``raw_transforms[dst_flat_indices[env]]``. Skips envs whose ``env_mask`` is False.
 
-    The pose buffer is a view (``wp.array.view(wp.transformf)``) over a
-    ``(num_envs, 7)`` ``float32`` array populated by
-    ``binding.read(...)`` for a single ``RIGID_BODY_POSE`` tensor binding,
-    so it has shape ``(num_envs,)``. One launch per tracked body fills the
-    body's slot column in the flat ``raw_transforms`` buffer.
+    The pose buffer is a ``(num_envs,)`` ``wp.transformf`` array filled in place
+    from a single ``RIGID_BODY_POSE`` view via ``OvPhysxView.read_into``. One
+    launch per tracked body fills the body's slot column in the flat
+    ``raw_transforms`` buffer.
 
     Args:
         env_mask: Active environment mask, shape ``(num_envs,)``.

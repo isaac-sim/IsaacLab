@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Every test job runs on every PR.
+# Every test job runs on every PR and merge queue candidate. Pushes to protected branches run the
+# post-merge integration tests.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -46,6 +47,11 @@
 name: Docker + Tests
 
 on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
   pull_request:
     types: [opened, synchronize, reopened]
     branches:
@@ -67,7 +73,6 @@ permissions:
 
 env:
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
-  CI_IMAGE_TAG: isaac-lab-ci:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref_name }}-${{ github.sha }}
 
 jobs:
   changes:
@@ -100,10 +105,13 @@ jobs:
           $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
-          $'^\\.gitmodules$\tGit submodule config'
-          $'^[^/]+\\.(toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$\tRoot configuration and scripts'
+          $'^\\.github/test-subsets/\tCI test subset config'
         )
-        triggered_jobs="Docker build jobs + all test-* matrix jobs"
+        if [ "$EVENT_NAME" = "push" ]; then
+          triggered_jobs="Docker base build job + rendering-correctness + rendering-correctness-kitless"
+        else
+          triggered_jobs="Docker build jobs + all test-* matrix jobs"
+        fi
 
         render_table() {
           local files="$1" entry regex desc count sample shown
@@ -183,6 +191,8 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      ovphysx_wheelhouse_resource: ${{ steps.load.outputs.ovphysx_wheelhouse_resource }}
+      ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -196,6 +206,27 @@ jobs:
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$f")" >> "$GITHUB_OUTPUT"
+    - id: image_tag
+      shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        REF_NAME: ${{ github.ref_name }}
+        SHA: ${{ github.sha }}
+      run: |
+        set -euo pipefail
+
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          ref_component="pr-${PR_NUMBER}"
+        else
+          ref_component="$REF_NAME"
+        fi
+
+        # Sanitize the ref name for use as a Docker tag suffix.
+        sanitized_ref=$(echo "$ref_component" | sed 's/[^a-zA-Z0-9._-]/-/g')
+        echo "ci_image_tag=isaac-lab-ci:${sanitized_ref}-${SHA}" >> "$GITHUB_OUTPUT"
+        echo "CI image tag: isaac-lab-ci:${sanitized_ref}-${SHA}"
 
   #region build jobs
   build:
@@ -213,7 +244,7 @@ jobs:
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
@@ -223,7 +254,9 @@ jobs:
     name: Build cuRobo Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: >-
+      github.event_name != 'push' &&
+      needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -234,7 +267,7 @@ jobs:
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
@@ -249,7 +282,9 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -257,7 +292,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
@@ -272,7 +307,9 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -280,7 +317,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
@@ -295,7 +332,9 @@ jobs:
     timeout-minutes: 180
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -303,7 +342,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
@@ -317,7 +356,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -325,7 +366,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
@@ -338,7 +379,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -346,7 +389,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
@@ -359,7 +402,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -367,7 +412,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "not isaaclab_"
@@ -380,7 +425,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -388,7 +435,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_rl"
@@ -400,7 +447,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -408,7 +457,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_mimic"
@@ -419,7 +468,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -427,7 +478,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_contrib"
@@ -438,7 +489,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -446,7 +499,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_teleop"
@@ -457,7 +510,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -465,7 +520,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_visualizers"
@@ -476,7 +531,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -484,7 +541,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
@@ -495,7 +552,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -503,7 +562,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_newton"
@@ -514,7 +573,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -522,7 +583,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_physx"
@@ -533,7 +594,11 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -541,11 +606,17 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        extra-pip-packages: "ovrtx ovphysx"
+        # isaaclab_ovphysx requires ovphysx >= 0.5.1, which is only available from the
+        # NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip index
+        # and keep only the ovrtx-based isaaclab_ov coverage.
+        exclude-pattern: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'isaaclab_ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -558,14 +629,14 @@ jobs:
         docker run --rm \
           -v "$PWD":/workspace/isaaclab \
           --entrypoint bash \
-          "${{ env.CI_IMAGE_TAG }}" \
+          "${{ needs.config.outputs.ci_image_tag }}" \
           -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
 
     - name: Verify Base runtime user is non-root
       shell: bash
       run: |
         set -euo pipefail
-        runtime_identity="$(docker run --rm --entrypoint bash "${{ env.CI_IMAGE_TAG }}" \
+        runtime_identity="$(docker run --rm --entrypoint bash "${{ needs.config.outputs.ci_image_tag }}" \
           -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
         read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
         echo "Base runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
@@ -580,7 +651,9 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -588,7 +661,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
@@ -606,14 +679,14 @@ jobs:
         docker run --rm \
           -v "$PWD":/workspace/isaaclab \
           --entrypoint bash \
-          "${{ env.CI_IMAGE_TAG }}-curobo" \
+          "${{ needs.config.outputs.ci_image_tag }}-curobo" \
           -lc 'cd /workspace/isaaclab && /isaac-sim/python.sh -m pytest docker/test/test_dockerfile_nonroot.py -q'
 
     - name: Verify cuRobo runtime user is non-root
       shell: bash
       run: |
         set -euo pipefail
-        runtime_identity="$(docker run --rm --entrypoint bash "${{ env.CI_IMAGE_TAG }}-curobo" \
+        runtime_identity="$(docker run --rm --entrypoint bash "${{ needs.config.outputs.ci_image_tag }}-curobo" \
           -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
         read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
         echo "cuRobo runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
@@ -628,7 +701,9 @@ jobs:
     timeout-minutes: 120
     continue-on-error: true
     needs: [build-curobo, config]
-    if: needs.build-curobo.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -636,7 +711,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}-curobo
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}-curobo
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
@@ -650,7 +725,9 @@ jobs:
     timeout-minutes: 300
     continue-on-error: true
     needs: [build, config]
-    if: needs.build.result == 'success'
+    if: >-
+      github.event_name != 'push' &&
+      needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -658,18 +735,19 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
         include-files: "test_environments_training.py"
         container-name: isaac-lab-environments-training-test
+        omni-github-test-type: training-e2e
 
   test-rendering-correctness:
     name: "rendering-correctness"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
-    continue-on-error: true
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
     steps:
@@ -679,7 +757,7 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
@@ -689,15 +767,20 @@ jobs:
           test_rendering_dexsuite_kuka_hetero.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
+        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         container-name: isaac-lab-rendering-correctness-test
+        omni-github-test-type: rendering-correctness
 
   test-rendering-correctness-kitless:
     name: "rendering-correctness-kitless"
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
-    continue-on-error: true
+    continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -705,17 +788,26 @@ jobs:
         lfs: true
     - uses: ./.github/actions/run-package-tests
       with:
-        image-tag: ${{ env.CI_IMAGE_TAG }}
+        image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: "ovrtx ovphysx==0.4.13"
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which is only available
+        # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
+        # index and keep the newton/ovrtx kitless rendering coverage.
+        test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
           test_rendering_dexsuite_kuka_homo_kitless.py,
           test_rendering_dexsuite_kuka_hetero_kitless.py,
           test_rendering_shadow_hand_kitless.py
+        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
+        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
         container-name: isaac-lab-rendering-correctness-kitless-test
+        omni-github-test-type: rendering-correctness-kitless
   #endregion
 
 #region disabled quarantined tests
@@ -735,7 +827,7 @@ jobs:
 #       lfs: true
 #   - uses: ./.github/actions/run-package-tests
 #     with:
-#       image-tag: ${{ env.CI_IMAGE_TAG }}
+#       image-tag: ${{ needs.config.outputs.ci_image_tag }}
 #       isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
 #       isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
 #       quarantined-only: "true"

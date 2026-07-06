@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
@@ -70,6 +71,10 @@ def test_resolve_visible_env_indices_truncates_explicit_list():
     assert resolve_visible_env_indices([1, 3], 1, 10) == [1]
 
 
+def test_resolve_visible_env_indices_deduplicates_before_truncating():
+    assert resolve_visible_env_indices([1, 1, 3, 5], 2, 10) == [1, 3]
+
+
 def test_resolve_visible_env_indices_explicit_full_list_when_no_cap():
     assert resolve_visible_env_indices([1, 3], None, 10) == [1, 3]
 
@@ -111,6 +116,12 @@ def test_newton_visualizer_cfg_exposes_particle_options():
     assert cfg.particle_color == (0.1, 0.2, 0.3)
 
 
+def test_newton_visualizer_cfg_exposes_world_spacing():
+    cfg = NewtonVisualizerCfg(world_spacing=(2.0, 2.0, 0.0))
+
+    assert cfg.world_spacing == (2.0, 2.0, 0.0)
+
+
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():
     visualizer = NewtonVisualizer(NewtonVisualizerCfg())
 
@@ -146,6 +157,22 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert viewer.camera.look_at_calls == [(0.0, 0.0, 1.0)]
     assert visualizer.cfg.eye == (1.0, 2.0, 3.0)
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
+
+
+def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
+    frame = np.zeros((4, 6, 3), dtype=np.uint8)
+    viewer = SimpleNamespace(get_frame=lambda: SimpleNamespace(numpy=lambda: frame))
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+    visualizer._viewer = viewer
+
+    assert visualizer.render_rgb_array() is frame
+
+
+def test_newton_visualizer_render_rgb_array_requires_initialized_viewer():
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+
+    with pytest.raises(RuntimeError, match="must be initialized"):
+        visualizer.render_rgb_array()
 
 
 def test_newton_viewer_particle_color_override(monkeypatch):

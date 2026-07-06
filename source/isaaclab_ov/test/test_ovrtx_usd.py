@@ -81,6 +81,38 @@ def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")
 
 
+def test_ovrtx_instance_segmentation_fast_uses_non_stable_instance_segmentation_render_var():
+    """Requesting instance_segmentation_fast from OVRTX selects the NonStableInstanceSegmentation render variable."""
+    assert get_render_var_config(["instance_segmentation_fast"]) == (
+        "/Render/Vars/NonStableInstanceSegmentation",
+        "NonStableInstanceSegmentation",
+        "NonStableInstanceSegmentation",
+    )
+
+
+def test_ovrtx_instance_id_segmentation_fast_uses_instance_segmentation_sd_render_var():
+    """Requesting instance_id_segmentation_fast from OVRTX selects the InstanceSegmentationSD render variable."""
+    assert get_render_var_config(["instance_id_segmentation_fast"]) == (
+        "/Render/Vars/InstanceSegmentationSD",
+        "InstanceSegmentationSD",
+        "InstanceSegmentationSD",
+    )
+
+
+def test_ovrtx_motion_vectors_uses_target_motion_render_var():
+    """Requesting motion vectors from OVRTX selects the TargetMotionSD render variable."""
+    assert get_render_var_config(["motion_vectors"]) == (
+        "/Render/Vars/TargetMotionSD",
+        "TargetMotionSD",
+        "TargetMotionSD",
+    )
+
+
+def test_ovrtx_motion_vectors_with_rgb_falls_back_to_rgb():
+    """OVRTX only supports one main AOV at a time; combining motion vectors with RGB keeps RGB."""
+    assert get_render_var_config(["rgb", "motion_vectors"]) == ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+
+
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
     """Requesting LDR RGB and RGB_HDR keeps both OVRTX render variables."""
     render_var_configs = get_render_var_configs(["rgb", "rgb_hdr"])

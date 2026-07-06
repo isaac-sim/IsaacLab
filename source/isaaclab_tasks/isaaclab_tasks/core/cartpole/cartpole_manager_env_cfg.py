@@ -6,6 +6,7 @@
 import math
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -66,10 +67,10 @@ class CartpolePhysicsCfg(PresetCfg):
             collision_detector_pipeline="unified",
             collision_detector_max_contacts_per_pair=8,
         ),
-        num_substeps=1,
         debug_mode=False,
         use_cuda_graph=True,
     )
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
 
 
 ##
@@ -91,9 +92,13 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/DomeLight",
-        spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
+    # rot quaternion for euler angles (roll, pitch, yaw) = (0, -45, -45) degrees
+    distant_light = AssetBaseCfg(
+        prim_path="/World/DistantLight",
+        init_state=AssetBaseCfg.InitialStateCfg(
+            rot=(-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
+        ),
+        spawn=sim_utils.DistantLightCfg(color=(1.0, 1.0, 1.0), intensity=2000.0),
     )
 
 

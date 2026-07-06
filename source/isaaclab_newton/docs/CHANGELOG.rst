@@ -1,6 +1,153 @@
 Changelog
 ---------
 
+1.6.0 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, a single-namespace
+  ``newton`` rigid-body physics-material fragment (torsional and rolling friction) backing
+  ``NewtonMaterialAPI``. Composes with other rigid-body material fragments (e.g.
+  :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in a fragment list.
+* Added :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_adhesion` (writing
+  ``newton:contactStiffness``, ``newton:contactDamping``, ``newton:contactFrictionGain``, and
+  ``newton:contactAdhesion``), matching the per-material contact attributes Newton's USD schema
+  resolver reads in place of the deprecated per-shape ``ke``/``kd``/``kf``/``ka`` parameters.
+* Added the contact attributes
+  (:attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_adhesion`) to
+  :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`, matching
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonKaminoManager` to require exactly
+  one articulation per environment. :meth:`~isaaclab_newton.physics.NewtonKaminoManager._build_solver`
+  raises a ``RuntimeError`` at solver initialization when an environment contains multiple
+  articulations. Multiple articulations per environment are not yet supported in IsaacLab's Kamino integration.
+
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to route forward kinematics through a
+  solver-specialized hook bound during solver initialization. Kamino overrides this hook to call
+  :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints` when
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` is enabled. Environment resets
+  now share a single per-articulation mask for both :meth:`~isaaclab_newton.physics.NewtonManager.forward`
+  and pre-step reconcile, replacing the separate per-world Kamino reset mask.
+
+Fixed
+^^^^^
+
+* Fixed environment resets writing updated state into the wrong double-buffered simulation
+  state when ``use_cuda_graph`` was disabled. With an odd number of substeps the canonical input
+  state buffer flipped each step while asset write paths kept targeting the original binding, so
+  reset environments stayed inconsistent for solvers with separate input/output states (e.g.
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager`).
+
+* Fixed Kamino forward kinematics on environment resets leaving incorrect body poses for
+  closed-loop systems. Reset environments are now always updated through Kamino's loop-closure FK
+  solver instead of Newton's articulated ``eval_fk``.
+
+
+1.5.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.physics.NewtonKaminoManager` reset
+  compatibility with Newton's ``SolverKamino.ResetConfig`` API.
+
+
+1.5.0 (2026-06-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton mesh-collision cooking fragments:
+  :class:`~isaaclab_newton.sim.schemas.NewtonMeshCollisionCfg` (``newton:maxHullVertices`` via
+  ``NewtonMeshCollisionAPI``) and :class:`~isaaclab_newton.sim.schemas.NewtonSDFCollisionCfg`
+  (Newton SDF generation and hydroelastic-contact attributes via ``NewtonSDFCollisionAPI``). Each is
+  a single-namespace :class:`~isaaclab.sim.schemas.MeshCollisionFragment` dispatched via
+  :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+* Added the :class:`~isaaclab_newton.sim.schemas.MujocoJointCfg` joint-drive fragment
+  (``mjc:*`` / ``MjcJointAPI``), carrying joint-level ``actuatorgravcomp``. Applied alongside
+  :class:`~isaaclab.sim.schemas.UsdPhysicsDriveCfg` via
+  :func:`~isaaclab.sim.schemas.apply_joint_drive_properties`. The from-files spawn site continues
+  to auto-enable body-level gravcomp for the fragment path.
+
+
+1.4.0 (2026-06-27)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg` and its applier
+  :func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon` for tuning ``mjc:*``
+  fixed-tendon attributes on ``MjcTendon`` prims,
+  splitting the Mujoco tune path out of the PhysX fixed-tendon applier.
+
+
+1.3.0 (2026-06-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`, the ``newton:*``
+  single-namespace collision fragment (``newton:contactMargin``, ``newton:contactGap`` via
+  ``NewtonCollisionAPI``). It composes with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxCollisionCfg` in a ``collision_props`` fragment list.
+
+
+1.2.0 (2026-06-25)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`, the ``mjc:*`` single-namespace
+  rigid-body fragment (``mjc:gravcomp``) for Newton's MuJoCo solver. It composes with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` and
+  :class:`~isaaclab_physx.sim.schemas.PhysxRigidBodyCfg` in a ``rigid_props`` fragment list.
+
+
+1.1.0 (2026-06-24)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Overrode :meth:`provides_implicit_damping` on :class:`NewtonManager` to return ``False`` (its
+  symplectic integrator has no implicit damping) and :meth:`provides_temporal_camera_data` on
+  :class:`NewtonWarpRenderer` to return ``False`` (the rasterizer accumulates no temporal data),
+  so camera tasks can auto-enable frame stacking for the Newton combos that need it.
+
+Fixed
+^^^^^
+
+* Fixed the ``newton[sim]`` dependency pin to use Newton commit
+  ``79e95bf5571d70a0a46c8eaedc80644531d27368``, including the
+  RenderContext triangle-mesh construction fix from `newton-physics/newton#3199
+  <https://github.com/newton-physics/newton/pull/3199>`_.
+
+
 1.0.4 (2026-06-23)
 ~~~~~~~~~~~~~~~~~~
 

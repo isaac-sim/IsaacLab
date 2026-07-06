@@ -41,6 +41,24 @@ packages.
 Include ``assets`` in your install command, or use ``./isaaclab.sh -i`` to install
 everything.
 
+``<package> requires <version>, but <other-package> requires <version>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+During pip or uv installs, the package manager may print dependency warnings
+where an Isaac Lab package, Isaac Sim package, or third-party package declares
+an incompatible dependency constraint. Common examples include ``coverage``,
+``packaging``, ``numpy``, or ``Pillow`` constraints reported between
+``isaaclab``, ``isaacsim-kernel``, ``isaacsim-core``, ``nvidia-srl-usd``, and
+``moviepy``.
+
+These messages are generally benign when the install command completes
+successfully. They usually reflect package metadata that is stricter or older
+than the versions bundled and tested with Isaac Sim. Prefer starting from a
+fresh virtual environment and using the installation commands in the Isaac Lab
+docs. If the resolver aborts with ``No solution found`` or installation leaves
+missing modules at runtime, recreate the environment and install the documented
+Isaac Sim version before installing Isaac Lab.
+
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

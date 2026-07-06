@@ -79,22 +79,6 @@ def _install_system_deps() -> None:
             ]
             run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
-        # nlopt has no aarch64 manylinux wheel for the version pinned by
-        # isaacteleop[retargeters], so pip falls back to a CMake source build
-        # that needs SWIG. Mirrors the apt step in docker/Dockerfile.base.
-        if not shutil.which("swig"):
-            if os.geteuid() != 0 and not shutil.which("sudo"):
-                print_info(
-                    "swig is missing and sudo is unavailable; skipping swig install. "
-                    "Pre-install swig in your image if you need to build nlopt from source."
-                )
-            else:
-                print_info("Installing swig (required for building nlopt on ARM)...")
-                cmd = ["apt-get", "update"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-                cmd = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
-                run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
-
         # imgui-bundle has no aarch64 manylinux wheel, so pip falls back to a
         # CMake source build that needs GL/X11 dev headers (via glfw).
         # Mirrors the apt step in docker/Dockerfile.base.
@@ -154,25 +138,6 @@ sys.exit(0)
     return result.returncode == 1
 
 
-def _maybe_preinstall_arm_nlopt(pip_cmd: list[str]) -> None:
-    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
-
-    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
-    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
-    that hides the host-Python ``numpy`` from its isolated build env. Mirror
-    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
-    in the host Python first, then ``--no-build-isolation`` install nlopt so
-    later submodule installs see it as already satisfied.
-    """
-    if is_windows() or not is_arm():
-        return
-    print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
-    print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
-    run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
-    print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
-    run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
-
-
 def _maybe_uninstall_prebundled_torch(
     python_exe: str,
     pip_cmd: list[str],
@@ -193,6 +158,92 @@ def _maybe_uninstall_prebundled_torch(
         pip_cmd + ["uninstall"] + uninstall_flags + ["torch", "torchvision", "torchaudio"],
         check=False,
     )
+
+
+def _ensure_swig_installed() -> bool:
+    """Install ``swig`` via apt when missing so the nlopt source build can run.
+
+    Returns:
+        ``True`` when this call installed ``swig`` (so the caller is responsible
+        for purging it afterwards), ``False`` when ``swig`` was already present or
+        could not be installed.
+    """
+    if shutil.which("swig"):
+        return False
+    if os.geteuid() != 0 and not shutil.which("sudo"):
+        print_warning(
+            "swig is required to build nlopt==2.6.2 from source on ARM but is missing and sudo is "
+            "unavailable. Pre-install swig (or nlopt==2.6.2) manually; the build below will fail otherwise."
+        )
+        return False
+    print_info("Temporarily installing swig to build nlopt==2.6.2 from source on ARM...")
+    update = ["apt-get", "update"]
+    run_command(["sudo"] + update if os.geteuid() != 0 else update)
+    install = ["apt-get", "install", "-y", "--no-install-recommends", "swig"]
+    run_command(["sudo"] + install if os.geteuid() != 0 else install)
+    return shutil.which("swig") is not None
+
+
+def _purge_swig() -> None:
+    """Remove the ``swig`` package that was installed for the nlopt build.
+
+    ``swig`` is GPL-licensed and must not be shipped (e.g. in the Docker image),
+    so it is purged immediately after nlopt is built. ``nlopt`` is already a
+    compiled wheel at this point and does not need ``swig`` at runtime.
+    Best-effort: failures are logged but do not abort the install.
+    """
+    print_info("Removing swig now that nlopt is built (it must not remain installed)...")
+    purge = ["apt-get", "purge", "-y", "--auto-remove", "swig"]
+    run_command(["sudo"] + purge if os.geteuid() != 0 else purge, check=False)
+
+
+def _maybe_preinstall_arm_nlopt(python_exe: str, pip_cmd: list[str]) -> None:
+    """Pre-install ``nlopt==2.6.2`` on ARM Linux to skip the source-build fallback.
+
+    There is no aarch64 manylinux wheel for the ``nlopt 2.6.2`` version pinned
+    by ``isaacteleop[retargeters]``, so pip falls back to a CMake source build
+    that hides the host-Python ``numpy`` from its isolated build env. Mirror
+    the docker/Dockerfile.base arm64 step: install ``setuptools wheel numpy``
+    in the host Python first, then ``--no-build-isolation`` install nlopt so
+    later submodule installs see it as already satisfied.
+
+    The source build requires ``swig``. When it is missing it is installed via
+    apt only for the duration of the build and purged afterwards, so the
+    GPL-licensed ``swig`` package is never left behind — in particular it is
+    never shipped in the Docker image. In the Docker build nlopt is pre-installed,
+    so this function returns early and never touches ``swig`` (the Dockerfile
+    manages its own temporary swig install and purge).
+    """
+    if is_windows() or not is_arm():
+        return
+
+    probe_result = run_command(
+        [
+            python_exe,
+            "-c",
+            "import importlib.metadata as metadata; import nlopt; "
+            "raise SystemExit(0 if metadata.version('nlopt') == '2.6.2' else 1)",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if probe_result.returncode == 0:
+        print_info("nlopt==2.6.2 is already installed on ARM.")
+        return
+
+    # The from-source build needs swig; install it only if missing and purge it
+    # afterwards so swig is never left behind (it is GPL and must not ship).
+    swig_installed_by_us = _ensure_swig_installed()
+    try:
+        print_info("Pre-installing nlopt==2.6.2 on ARM (no-build-isolation)...")
+        print_info("  step 1/2: ensure setuptools/wheel/numpy are importable for the no-build-isolation backend")
+        run_command(pip_cmd + ["install", "setuptools", "wheel", "numpy"])
+        print_info("  step 2/2: install nlopt==2.6.2 with --no-build-isolation")
+        run_command(pip_cmd + ["install", "--no-build-isolation", "nlopt==2.6.2"])
+    finally:
+        if swig_installed_by_us:
+            _purge_swig()
 
 
 # Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
@@ -703,6 +754,24 @@ regardless of import path order.
 """
 
 
+def _force_remove(path: Path) -> None:
+    """Recursively remove a file, directory, or symlink. A missing path is a no-op.
+
+    Uses absolute-path :func:`os.unlink` / :func:`os.rmdir` rather than the
+    ``dir_fd``-relative operations :func:`shutil.rmtree` performs internally. On
+    an overlayfs *lower* layer (e.g. inside a Docker image build) the ``dir_fd``
+    variant raises ``EINVAL``, whereas the plain ``unlink(2)`` / ``rmdir(2)``
+    syscalls create the proper whiteout. This makes prebundle neutralization
+    behave identically on a normal filesystem and on an overlayfs lower layer.
+    """
+    if path.is_symlink() or path.is_file():
+        os.unlink(path)
+    elif path.is_dir():
+        for child in path.iterdir():
+            _force_remove(child)
+        os.rmdir(path)
+
+
 def _repoint_prebundle_packages() -> None:
     """Replace prebundled packages in Isaac Sim with symlinks to the active environment.
 
@@ -782,16 +851,15 @@ def _repoint_prebundle_packages() -> None:
                 continue
 
             try:
-                if prebundled.is_symlink():
-                    if prebundled.resolve() == venv_pkg.resolve():
-                        continue
-                    prebundled.unlink()
-                else:
-                    backup = prebundle_dir / f"{pkg_name}.bak"
-                    if backup.exists() or backup.is_symlink():
-                        shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
-                    prebundled.rename(backup)
-
+                # Already repointed to the right place — nothing to do.
+                if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
+                    continue
+                # Replace the prebundled copy (a stale symlink or a real directory)
+                # with a symlink to the active environment. We remove rather than
+                # rename-to-``.bak``: the env copy is the symlink target, so the
+                # prebundle content is redundant, and renaming a directory on an
+                # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
+                _force_remove(prebundled)
                 if use_symlinks:
                     prebundled.symlink_to(venv_pkg)
                 else:
@@ -807,6 +875,24 @@ def _repoint_prebundle_packages() -> None:
         )
     else:
         print_debug("All prebundled packages already up-to-date — nothing to repoint.")
+
+    # Fail loud: a real (non-symlink) prebundled ``torch`` left behind shadows the
+    # pip-installed torch on launch paths that do not import ``isaaclab`` (e.g.
+    # ``isaac-sim.streaming.sh``), pulling a mismatched NCCL and crashing with
+    # ``undefined symbol: ncclDevCommCreate``. Never let that state ship silently.
+    # Only relevant when symlinking (Linux); the Windows branch deliberately copies the
+    # env package into the prebundle, which is a real directory by design.
+    if use_symlinks and (site_packages / "torch").exists():
+        shadowing = [
+            prebundle_dir / "torch"
+            for prebundle_dir in prebundle_dirs
+            if (prebundle_dir / "torch").is_dir() and not (prebundle_dir / "torch").is_symlink()
+        ]
+        if shadowing:
+            raise RuntimeError(
+                "Failed to neutralize prebundled torch under Isaac Sim; the following would shadow the "
+                "pip-installed torch and crash non-isaaclab launches:\n  " + "\n  ".join(str(p) for p in shadowing)
+            )
 
 
 def command_install(install_type: str = "all") -> None:
@@ -953,7 +1039,7 @@ def command_install(install_type: str = "all") -> None:
         run_command(pip_cmd + ["install", "setuptools<82.0.0"])
 
         # On ARM Linux pre-install nlopt to dodge its from-source build fallback.
-        _maybe_preinstall_arm_nlopt(pip_cmd)
+        _maybe_preinstall_arm_nlopt(python_exe, pip_cmd)
 
         # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
         _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)

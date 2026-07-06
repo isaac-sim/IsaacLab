@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
 from typing import ClassVar, Literal
 
 from isaaclab.utils.configclass import configclass
@@ -104,6 +105,269 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     if getattr(cfg, canonical, None) is None:
         setattr(cfg, canonical, value)
     setattr(cfg, alias, None)
+
+
+@configclass
+class SchemaFragment:
+    """Base for a single-namespace USD-schema config fragment.
+
+    Each subclass mirrors exactly one USD applied schema. The fragment carries class-level
+    metadata describing which USD namespace its fields write to (:attr:`_usd_namespace`) and
+    which applied schema, if any, it owns (:attr:`_usd_applied_schema`). The :attr:`func`
+    field names the callable that applies the fragment to a prim; the default generic applier
+    (:func:`~isaaclab.sim.schemas.apply_namespaced`) reads the metadata and writes each
+    non-``None`` field as ``<namespace>:<camelCase(field)>``. Irregular APIs override
+    :attr:`func` with a custom applier.
+
+    .. note::
+        A fragment present in a spawner slot means its schema is applied. ``None`` fields are
+        left unchanged on the prim (partial update).
+
+    .. important::
+        Every dataclass field other than :attr:`func` is authored as a USD attribute
+        ``<_usd_namespace>:<camelCase(field)>``. A fragment must not carry non-USD/bookkeeping
+        fields -- such state belongs on the spawner cfg or as a writer keyword argument (this is
+        why ``fix_root_link`` / ``ensure_drives_exist`` are not fragment fields). The generic
+        applier (:func:`~isaaclab.sim.schemas.apply_namespaced`) enforces the invariant: it raises
+        when a fragment has no ``_usd_namespace``, and unsupported (non-scalar) value types raise
+        when written.
+    """
+
+    # -- Class metadata (not dataclass fields) --
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab.sim.schemas:apply_namespaced"
+    """Callable (or its ``module:attr`` import string) that applies this fragment to a prim.
+
+    Resolved via :func:`~isaaclab.utils.string.string_to_callable` when a string. The callable
+    signature is ``func(cfg, prim_path, stage)``.
+    """
+
+
+@configclass
+class RigidBodyFragment(SchemaFragment):
+    """Marker base for rigid-body fragments; types the ``rigid_props`` slot."""
+
+    pass
+
+
+@configclass
+class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
+    """``physics:*`` rigid-body attributes from `UsdPhysics.RigidBodyAPI`_.
+
+    The ``UsdPhysics.RigidBodyAPI`` schema is applied as the implicit anchor by the rigid-body
+    family writer, so this fragment owns no applied schema of its own.
+
+    .. _UsdPhysics.RigidBodyAPI: https://openusd.org/dev/api/class_usd_physics_rigid_body_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # RigidBodyAPI applied by the family anchor
+
+    rigid_body_enabled: bool | None = None
+    """Whether to enable or disable the rigid body."""
+
+    kinematic_enabled: bool | None = None
+    """Determines whether the body is kinematic or not.
+
+    A kinematic body is moved through animated or user-defined poses; the simulation still
+    derives velocities for it based on the external motion.
+    """
+
+
+@configclass
+class CollisionFragment(SchemaFragment):
+    """Marker base for collision fragments; types the ``collision_props`` slot."""
+
+    pass
+
+
+@configclass
+class JointDriveFragment(SchemaFragment):
+    """Marker base for joint-drive fragments; types the ``joint_drive_props`` slot."""
+
+    pass
+
+
+@configclass
+class MeshCollisionFragment(SchemaFragment):
+    """Marker base for mesh-collision fragments; types the ``mesh_collision_props`` slot.
+
+    A mesh-collision concept is split across one *core* fragment carrying the standard
+    ``physics:approximation`` token (:class:`UsdPhysicsMeshCollisionCfg`) and one cooking
+    fragment per backend cooking schema (PhysX convex hull / decomposition / triangle mesh /
+    SDF, Newton mesh / SDF). Whichever cooking fragment is present implies the approximation
+    token written to ``physics:approximation`` -- see
+    :func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`.
+    """
+
+    # Mesh-collision fragments author the shared ``physics:approximation`` token in addition to their
+    # own namespaced cooking attrs, so they dispatch through :func:`~isaaclab.sim.schemas.apply_mesh_collision`
+    # (not the generic :func:`~isaaclab.sim.schemas.apply_namespaced`). See that func for the token coupling.
+    func: Callable | str = "isaaclab.sim.schemas:apply_mesh_collision"
+
+
+@configclass
+class FixedTendonFragment(SchemaFragment):
+    """Marker base for fixed-tendon fragments; types the ``fixed_tendons_props`` slot.
+
+    Fixed tendons are a *tune-not-apply* family: the applied ``PhysxTendonAxisRootAPI``
+    multi-instance schemas already exist on the prim (authored in the source asset), so the
+    family writer (:func:`~isaaclab.sim.schemas.apply_fixed_tendon_properties`) does not apply
+    any anchor schema; it only tunes the existing instances via each fragment's
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    """
+
+    pass
+
+
+@configclass
+class SpatialTendonFragment(SchemaFragment):
+    """Marker base for spatial-tendon fragments; types the ``spatial_tendons_props`` slot.
+
+    Spatial tendons are a *tune-not-apply* family: the applied
+    ``PhysxTendonAttachmentRootAPI`` / ``PhysxTendonAttachmentLeafAPI`` multi-instance schemas
+    already exist on the prim (authored in the source asset), so the family writer
+    (:func:`~isaaclab.sim.schemas.apply_spatial_tendon_properties`) does not apply any anchor
+    schema; it only tunes the existing instances via each fragment's
+    :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    """
+
+    pass
+
+
+@configclass
+class UsdPhysicsCollisionCfg(CollisionFragment):
+    """``physics:*`` collision attributes from `UsdPhysics.CollisionAPI`_.
+
+    The ``UsdPhysics.CollisionAPI`` schema is applied as the implicit anchor by the collision
+    family writer (:func:`~isaaclab.sim.schemas.apply_collision_properties`), so this fragment
+    owns no applied schema of its own.
+
+    .. _UsdPhysics.CollisionAPI: https://openusd.org/dev/api/class_usd_physics_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # CollisionAPI applied by the family anchor
+
+    collision_enabled: bool | None = None
+    """Whether to enable or disable collisions.
+
+    Writes ``physics:collisionEnabled`` via :class:`UsdPhysics.CollisionAPI`.
+    """
+
+
+@configclass
+class UsdPhysicsDriveCfg(JointDriveFragment):
+    """``drive:<linear|angular>:physics:*`` joint-drive attributes from `UsdPhysics.DriveAPI`_.
+
+    The drive attributes live under a multi-instance ``UsdPhysics.DriveAPI`` (instance
+    ``"angular"`` for revolute joints, ``"linear"`` for prismatic joints), so this fragment
+    cannot use the generic :func:`~isaaclab.sim.schemas.apply_namespaced` writer. It overrides
+    :attr:`func` with :func:`~isaaclab.sim.schemas.apply_drive`, which selects the instance,
+    applies ``UsdPhysics.DriveAPI`` (presence-gated, the conditional anchor for the joint-drive
+    family), performs the radian-to-degree conversion for angular drives, and writes the typed
+    ``drive:<inst>:physics:{type,maxForce,stiffness,damping}`` attributes.
+
+    .. note::
+        Unlike most fragments, this one is not a metadata-driven write. ``DriveAPI`` is applied
+        only when this fragment is present in the slot.
+
+    .. _UsdPhysics.DriveAPI: https://openusd.org/dev/api/class_usd_physics_drive_a_p_i.html
+    """
+
+    # No metadata-driven namespace: the typed multi-instance ``UsdPhysics.DriveAPI`` is written
+    # directly by ``apply_drive``. ``DriveAPI`` is presence-gated, not an implicit anchor.
+    _usd_namespace: ClassVar[str | None] = None
+    _usd_applied_schema: ClassVar[str | None] = None
+
+    func: Callable | str = "isaaclab.sim.schemas:apply_drive"
+
+    def __post_init__(self):
+        # Deprecation alias: ``max_effort`` -> ``max_force`` (the USD attr is ``maxForce``).
+        # Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
+        _deprecate_field_alias(self, "max_effort", "max_force")
+
+    drive_type: Literal["force", "acceleration"] | None = None
+    """Joint drive type to apply.
+
+    If the drive type is ``"force"``, then the joint is driven by a force. If the drive type is
+    ``"acceleration"``, then the joint is driven by an acceleration (usually used for kinematic
+    joints). Written to ``drive:<inst>:physics:type`` (the USD attr is ``type``, a permanent
+    inline carve-out from the snake-to-camel convention).
+    """
+
+    max_force: float | None = None
+    """Maximum force/torque that can be applied to the joint [N for linear joints, N·m for angular joints].
+
+    Written to ``drive:<inst>:physics:maxForce`` via :class:`UsdPhysics.DriveAPI`.
+    """
+
+    max_effort: float | None = None
+    """Deprecated alias for :attr:`max_force`.
+
+    .. deprecated:: 4.6.25
+        Use :attr:`max_force` instead. The cfg field is renamed so its snake_case name maps
+        identity-style to the USD camelCase attribute (``maxForce`` on ``UsdPhysics.DriveAPI``).
+        The alias is forwarded to :attr:`max_force` in :meth:`__post_init__` and will be removed
+        in 4.0.
+    """
+
+    stiffness: float | None = None
+    """Stiffness of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s² (N/m).
+    * For angular joints, the unit is kg-m²/s²/rad (N·m/rad).
+
+    Angular drives are converted from radians to degrees (``N·m/rad`` -> ``N·m/deg``) before
+    being written to ``drive:angular:physics:stiffness``.
+    """
+
+    damping: float | None = None
+    """Damping of the joint drive.
+
+    The unit depends on the joint model:
+
+    * For linear joints, the unit is kg-m/s (N·s/m).
+    * For angular joints, the unit is kg-m²/s/rad (N·m·s/rad).
+
+    Angular drives are converted from radians to degrees (``N·m·s/rad`` -> ``N·m·s/deg``) before
+    being written to ``drive:angular:physics:damping``.
+    """
+
+
+@configclass
+class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
+    """``physics:approximation`` mesh-collision token from `UsdPhysics.MeshCollisionAPI`_.
+
+    Carries the standard mesh-collision approximation token (:attr:`mesh_approximation_name`
+    written to ``physics:approximation``). The ``UsdPhysics.MeshCollisionAPI`` schema is applied
+    as the implicit anchor by the mesh-collision family writer
+    (:func:`~isaaclab.sim.schemas.apply_mesh_collision_properties`), so this fragment owns no
+    applied schema of its own.
+
+    .. note::
+        The ``physics:approximation`` attribute is a ``TfToken`` validated against
+        :const:`~isaaclab.sim.schemas.MESH_APPROXIMATION_TOKENS`; the family writer (not the generic
+        :func:`~isaaclab.sim.schemas.apply_namespaced` applier) handles the token write, so this
+        fragment overrides nothing but the namespace metadata. When a PhysX/Newton cooking fragment
+        is present alongside this one, its default :attr:`mesh_approximation_name` sets the token.
+
+    .. _UsdPhysics.MeshCollisionAPI: https://openusd.org/release/api/class_usd_physics_mesh_collision_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # MeshCollisionAPI applied by the family anchor
+
+    mesh_approximation_name: str = "none"
+    """Name of mesh collision approximation method. Default: "none".
+
+    Writes the ``physics:approximation`` token via :class:`UsdPhysics.MeshCollisionAPI`.
+    Refer to :const:`~isaaclab.sim.schemas.MESH_APPROXIMATION_TOKENS` for available options.
+    """
 
 
 @configclass
@@ -336,6 +600,48 @@ class MassPropertiesCfg:
 
 
 @configclass
+class MassFragment(SchemaFragment):
+    """Marker base for mass fragments; types the ``mass_props`` slot."""
+
+    pass
+
+
+@configclass
+class MassCfg(MassFragment):
+    """``physics:*`` mass attributes from `UsdPhysics.MassAPI`_.
+
+    The ``UsdPhysics.MassAPI`` schema is applied as the implicit anchor by the mass family writer
+    (:func:`~isaaclab.sim.schemas.apply_mass_properties`), so this fragment owns no applied schema
+    of its own. Mirrors the legacy :class:`MassPropertiesCfg`.
+
+    .. note::
+        A fragment present in a spawner slot means its schema is applied. ``None`` fields are left
+        unchanged on the prim (partial update).
+
+    .. _UsdPhysics.MassAPI: https://openusd.org/dev/api/class_usd_physics_mass_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physics"
+    _usd_applied_schema: ClassVar[str | None] = None  # MassAPI applied by the family anchor
+
+    mass: float | None = None
+    """The mass of the rigid body [kg].
+
+    Writes ``physics:mass`` via :class:`UsdPhysics.MassAPI`.
+
+    Note:
+        If ``density`` is non-zero, it takes precedence and is used to compute the mass instead.
+    """
+
+    density: float | None = None
+    """The density of the rigid body [kg/m^3].
+
+    Writes ``physics:density`` via :class:`UsdPhysics.MassAPI`. The density indirectly defines the
+    mass of the rigid body. It is generally computed using the collision approximation of the body.
+    """
+
+
+@configclass
 class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
 
@@ -468,10 +774,7 @@ class MeshCollisionBaseCfg:
     """
 
     # -- Class metadata (not dataclass fields) --
-    # The standard ``UsdPhysics.MeshCollisionAPI`` is always applied by the writer when a
-    # mesh-collision cfg is supplied; ``_usd_applied_schema`` here records the standard
-    # API name so subclasses that author no PhysX namespace can rely on the writer's
-    # standard-vs-PhysX gating logic. PhysX-cooking subclasses override this.
+    # Records the standard API name for the writer's standard-vs-PhysX gating; cooking subclasses override.
     _usd_applied_schema: ClassVar[str | None] = "MeshCollisionAPI"
     # Base class authors no PhysX-namespaced fields, so no namespace is defined.
     _usd_namespace: ClassVar[str | None] = None
