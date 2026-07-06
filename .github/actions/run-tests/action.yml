@@ -41,6 +41,14 @@ inputs:
       excluded. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
+  test-k-expr:
+    description: >-
+      Global pytest -k expression applied inside every per-file pytest run
+      spawned by tools/conftest.py (combined with device-split selectors).
+      Unlike pytest-options, this reaches the individual test processes, so it
+      can deselect parametrized cases (e.g. "not ovphysx").
+    default: ''
+    required: false
   curobo-only:
     description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
     default: 'false'
@@ -94,6 +102,12 @@ runs:
   steps:
     - name: Run Tests in Docker Container
       shell: bash
+      env:
+        # Passed via env instead of inline ${{ }} interpolation: pytest options may
+        # contain spaces and quotes (e.g. -k "not ovphysx"), which would word-split
+        # the run_tests positional arguments if substituted textually.
+        PYTEST_OPTIONS: ${{ inputs.pytest-options }}
+        TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
       run: |
         # Function to run tests in Docker container
         run_tests() {
@@ -116,6 +130,7 @@ runs:
           local test_node_ids_key="${17}"
           local wheelhouse_host_dir="${18}"
           local wheelhouse_packages="${19}"
+          local test_k_expr="${20}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -256,6 +271,12 @@ runs:
           if [ -n "$extra_pip_packages" ]; then
             export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+          fi
+
+          if [ -n "$test_k_expr" ]; then
+            export TEST_K_EXPR="$test_k_expr"
+            docker_env_vars="$docker_env_vars -e TEST_K_EXPR"
+            echo "Setting per-file pytest -k expression: $test_k_expr"
           fi
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
@@ -491,7 +512,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT"
 
     - name: Kill container on cancellation
       if: cancelled()
