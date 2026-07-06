@@ -108,9 +108,9 @@ jobs:
           $'^\\.github/test-subsets/\tCI test subset config'
         )
         if [ "$EVENT_NAME" = "push" ]; then
-          triggered_jobs="Docker base build job + rendering-correctness + rendering-correctness-kitless"
+          triggered_jobs="Docker build jobs + all test-* matrix jobs (full suite via Testmon collect)"
         else
-          triggered_jobs="Docker build jobs + all test-* matrix jobs"
+          triggered_jobs="Docker build jobs + all test-* matrix jobs (Testmon-selected subset)"
         fi
 
         render_table() {
@@ -255,7 +255,6 @@ jobs:
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
     if: >-
-      github.event_name != 'push' &&
       needs.changes.outputs.run_docker_tests == 'true'
     steps:
     - name: Checkout Code
@@ -283,7 +282,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -308,7 +306,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -333,7 +330,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -357,7 +353,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -380,7 +375,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -403,7 +397,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -426,7 +419,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -448,7 +440,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -469,7 +460,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -490,7 +480,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -511,7 +500,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -532,7 +520,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -553,7 +540,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -574,7 +560,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -595,7 +580,6 @@ jobs:
     timeout-minutes: 180
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
@@ -652,7 +636,6 @@ jobs:
     continue-on-error: true
     needs: [build-curobo, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -702,7 +685,6 @@ jobs:
     continue-on-error: true
     needs: [build-curobo, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build-curobo.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -726,7 +708,6 @@ jobs:
     continue-on-error: true
     needs: [build, config]
     if: >-
-      github.event_name != 'push' &&
       needs.build.result == 'success'
     steps:
     - uses: actions/checkout@v6
@@ -767,8 +748,6 @@ jobs:
           test_rendering_dexsuite_kuka_hetero.py,
           test_rendering_registered_tasks.py,
           test_rendering_shadow_hand.py
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness' || '' }}
         container-name: isaac-lab-rendering-correctness-test
         omni-github-test-type: rendering-correctness
 
@@ -804,8 +783,6 @@ jobs:
           test_rendering_dexsuite_kuka_homo_kitless.py,
           test_rendering_dexsuite_kuka_hetero_kitless.py,
           test_rendering_shadow_hand_kitless.py
-        test-node-ids-file: ${{ github.event_name == 'push' && '.github/test-subsets/postmerge-rendering.toml' || '' }}
-        test-node-ids-key: ${{ github.event_name == 'push' && 'rendering-correctness-kitless' || '' }}
         container-name: isaac-lab-rendering-correctness-kitless-test
         omni-github-test-type: rendering-correctness-kitless
   #endregion
