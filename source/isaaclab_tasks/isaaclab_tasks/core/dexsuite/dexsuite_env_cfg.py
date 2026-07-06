@@ -470,7 +470,16 @@ class DexsuiteReorientEnvCfg(ManagerBasedRLEnvCfg):
     def validate_config(self):
         """Check for invalid preset combinations after resolution."""
 
-        warp_supported = {"rgb", "depth", "distance_to_camera", "distance_to_image_plane", "normals"}
+        warp_supported = {
+            "rgb",
+            "depth",
+            "distance_to_camera",
+            "distance_to_image_plane",
+            "normals",
+            "semantic_segmentation",
+            "instance_segmentation_fast",
+            "instance_id_segmentation_fast",
+        }
         for cam_attr in ("base_camera", "wrist_camera"):
             cam = getattr(self.scene, cam_attr, None)
             if cam is None:
