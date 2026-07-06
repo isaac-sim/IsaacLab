@@ -84,22 +84,15 @@ class NewtonMJWarpManager(NewtonManager):
     def _reset_solver_internals(cls, world_mask: wp.array) -> None:
         """Clear MuJoCo Warp solver-internal state for flagged worlds.
 
-        Calls :meth:`SolverMuJoCo.reset` with the accumulated per-world reset
-        bitmask and ``flags=0`` so only the solver-owned buffers persisting
-        across steps (``qacc_warmstart``, ``qfrc_applied``, ``xfrc_applied``,
-        ``ctrl``, ``act``) are zeroed for the flagged worlds, while the
-        joint state IsaacLab authored during the env reset is left untouched.
-        Without this, a NaN produced in one solve persists across
-        :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next solver
-        substep warm-starts from the NaN — the world is then permanently
+        Specializes the base hook, whose :meth:`SolverBase.reset` call resolves
+        to :meth:`SolverMuJoCo.reset` here: with ``flags=0`` it zeroes only the
+        solver-owned buffers persisting across steps (``qacc_warmstart``,
+        ``qfrc_applied``, ``xfrc_applied``, ``ctrl``, ``act``) for the flagged
+        worlds, while the joint state IsaacLab authored during the env reset is
+        left untouched.  Without this, a NaN produced in one solve persists
+        across :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next
+        solver substep warm-starts from the NaN — the world is then permanently
         dead.  See https://github.com/newton-physics/newton/issues/1266.
-
-        No-ops when ``world_mask`` is ``None``: :meth:`SolverMuJoCo.reset`
-        treats ``world_mask=None`` as "reset **every** world", which would
-        silently clear all sims after any unusual call sequence (e.g.
-        invocation between :meth:`~isaaclab_newton.physics.NewtonManager.clear`
-        and the next
-        :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`).
 
         With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
         and its reset path is not mask-aware — it clears the buffers for every

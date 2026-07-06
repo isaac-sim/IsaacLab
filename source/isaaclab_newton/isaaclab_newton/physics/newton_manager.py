@@ -1426,17 +1426,21 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
-        """Clear solver-internal scratch for reset worlds.
+        """Clear solver-internal state for environments reset since the last boundary.
 
-        Invoked immediately before reset masks are consumed by :meth:`step` and
-        :meth:`forward`. The default implementation is a no-op; subclasses can
-        clear solver-owned state that persists independently of Newton's
-        :class:`State`.
+        The hook runs immediately before reset masks are consumed by :meth:`step`
+        and :meth:`forward`. The base implementation delegates to
+        :meth:`SolverBase.reset` with ``flags=0``, preserving the joint state
+        authored by Isaac Lab while clearing solver-owned buffers. Solvers with
+        no reset implementation are unaffected.
 
         Args:
             world_mask: Per-world reset mask, or ``None`` when no simulation
                 state is available.
         """
+        if world_mask is None:
+            return
+        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     # ----- Lifecycle orchestration ----------------------------------------
 

@@ -17,12 +17,15 @@ Changed
 ^^^^^^^
 
 * Added :meth:`~isaaclab_newton.physics.NewtonManager._reset_solver_internals`
-  hook so each Newton solver subclass can clear its per-world internal scratch
-  buffers before the accumulated reset masks are consumed by
+  hook that clears per-world solver-internal scratch buffers before the
+  accumulated reset masks are consumed by
   :meth:`~isaaclab_newton.physics.NewtonManager.step` or
-  :meth:`~isaaclab_newton.physics.NewtonManager.forward`. Default is no-op;
-  :class:`~isaaclab_newton.physics.NewtonMJWarpManager` overrides it to call
-  :meth:`SolverMuJoCo.reset` with ``flags=0``, preserving the authored joint
-  state. :class:`~isaaclab_newton.physics.NewtonKaminoManager` needs no
-  override — its forward-kinematics delegate already routes through
+  :meth:`~isaaclab_newton.physics.NewtonManager.forward`. The default
+  implementation forwards to :meth:`SolverBase.reset` with ``flags=0``,
+  preserving the authored joint state — a no-op for solvers that do not
+  implement ``reset()``, and automatic coverage for any solver that does.
+  :class:`~isaaclab_newton.physics.NewtonMJWarpManager` specializes it to
+  gate the non-mask-aware CPU-MuJoCo path;
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager` opts out because its
+  forward-kinematics delegate already routes through
   :meth:`SolverKamino.reset`.
