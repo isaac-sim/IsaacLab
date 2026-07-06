@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing utilities for transforming strings and regular expressions."""
+"""Utilities for transforming strings and regular-expression patterns."""
 
 import ast
 import functools

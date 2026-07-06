@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module containing utilities for working with different array backends."""
+"""Utilities for working consistently with different array backends."""
 
 # needed to import for allowing type-hinting: torch.device | str | None
 from __future__ import annotations
