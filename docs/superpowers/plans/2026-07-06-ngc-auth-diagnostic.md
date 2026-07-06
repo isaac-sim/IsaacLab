@@ -52,13 +52,15 @@ on `[self-hosted, gpu]`, each with a 30-minute timeout:
 jobs:
   ambient-auth:
     name: Ambient runner authentication
+    if: github.event.pull_request.head.repo.full_name == github.repository
   secret-backed-auth:
     name: Explicit NGC secret authentication
     if: github.event.pull_request.head.repo.full_name == github.repository
 ```
 
-Neither job may use `pull_request_target`. Only `secret-backed-auth` may refer to
-`${{ secrets.NGC_API_KEY }}`.
+Neither job may use `pull_request_target`. Guard both jobs to same-repository pull
+requests so fork-authored code never runs on persistent self-hosted runners. Only
+`secret-backed-auth` may refer to `${{ secrets.NGC_API_KEY }}`.
 
 - [x] **Step 3: Implement the ambient probe**
 
@@ -69,6 +71,9 @@ Checkout the repository, load `isaacsim_image_name`, `isaacsim_image_tag`, and
 captured command output:
 
 ```text
+Docker CLI is available
+AWS CLI is available
+NGC CLI download, checksum, and unpack are ready
 default Docker config exists
 default Docker config names an nvcr.io auth/helper entry
 default Docker config can inspect the configured Isaac Sim image
@@ -90,8 +95,10 @@ Install NGC CLI 4.20.0 from the public NVIDIA URL and verify SHA-256
 Run the ambient artifact probe with `NGC_API_KEY` and `NGC_CLI_API_KEY` unset,
 an isolated `HOME`/`NGC_CLI_HOME`, org `nvidian`, and team `no-team`.
 
-Append a Markdown table of the booleans to `$GITHUB_STEP_SUMMARY`. Probe
-failures must remain visible as `false` but must not stop later probes.
+Bound Docker, AWS, unzip, and NGC commands with `timeout`; bound every `curl`
+with connection and total timeouts; and close NGC CLI stdin with `/dev/null`. Append
+a Markdown table of the booleans to `$GITHUB_STEP_SUMMARY`. Probe failures must
+remain visible as `false` but must not stop later probes.
 
 - [x] **Step 4: Implement the secret-backed probe**
 
@@ -107,15 +114,19 @@ configuration, authenticate using:
 
 ```bash
 printf '%s' "$NGC_API_KEY" |
-  docker login --username '$oauthtoken' --password-stdin nvcr.io
+  timeout 60s docker login --username '$oauthtoken' --password-stdin nvcr.io
 ```
 
 Suppress login and inspect output, inspect the configured Isaac Sim image, then
 use the verified NGC CLI with `NGC_CLI_API_KEY="$NGC_API_KEY"` and isolated
-NGC home to download the configured OVPhysX resource. Append a Markdown table
+NGC home and closed stdin to download the configured OVPhysX resource. Bound
+all external client operations as in the ambient probe. Append a Markdown table
 containing only these booleans:
 
 ```text
+Docker CLI is available
+AWS CLI is available
+NGC CLI download, checksum, and unpack are ready
 NGC_API_KEY is present
 NVCR login accepts the explicit secret
 NVCR image is inspectable with the explicit secret

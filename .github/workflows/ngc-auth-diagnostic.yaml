@@ -20,6 +20,7 @@ permissions:
 jobs:
   ambient-auth:
     name: Ambient runner authentication
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, gpu]
     timeout-minutes: 30
 
@@ -55,6 +56,9 @@ jobs:
         NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
         NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
 
+        docker_cli_available=false
+        aws_cli_available=false
+        ngc_cli_ready=false
         default_docker_config_exists=false
         default_docker_config_names_nvcr=false
         default_docker_config_inspects_image=false
@@ -77,6 +81,13 @@ jobs:
         }
         trap cleanup EXIT
 
+        if command -v docker >/dev/null 2>&1; then
+          docker_cli_available=true
+        fi
+        if command -v aws >/dev/null 2>&1; then
+          aws_cli_available=true
+        fi
+
         image="${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}"
         default_docker_dir="${HOME}/.docker"
         default_docker_config="${default_docker_dir}/config.json"
@@ -89,29 +100,36 @@ jobs:
           fi
         fi
 
-        if DOCKER_CONFIG="$default_docker_dir" docker manifest inspect "$image" >/dev/null 2>&1; then
+        if [ "$docker_cli_available" = true ] &&
+          DOCKER_CONFIG="$default_docker_dir" timeout 60s docker manifest inspect \
+            "$image" >/dev/null 2>&1; then
           default_docker_config_inspects_image=true
         fi
 
-        if DOCKER_CONFIG="$empty_docker_config" docker manifest inspect "$image" >/dev/null 2>&1; then
+        if [ "$docker_cli_available" = true ] &&
+          DOCKER_CONFIG="$empty_docker_config" timeout 60s docker manifest inspect \
+            "$image" >/dev/null 2>&1; then
           empty_docker_config_inspects_image=true
         fi
 
-        if aws sts get-caller-identity >/dev/null 2>&1; then
+        if [ "$aws_cli_available" = true ] && timeout 30s aws sts get-caller-identity >/dev/null 2>&1; then
           aws_caller_identity_available=true
         fi
 
         ECR_URL="${ECR_CACHE_URL:-}"
         if [ -z "$ECR_URL" ]; then
-          imds_token=$(curl -fsS -X PUT "http://169.254.169.254/latest/api/token" \
+          imds_token=$(curl --connect-timeout 2 --max-time 5 -fsS -X PUT \
+            "http://169.254.169.254/latest/api/token" \
             -H "X-aws-ec2-metadata-token-ttl-seconds: 21600" 2>/dev/null) || imds_token=""
           if [ -n "$imds_token" ]; then
-            instance_id=$(curl -fsS -H "X-aws-ec2-metadata-token: ${imds_token}" \
+            instance_id=$(curl --connect-timeout 2 --max-time 5 -fsS \
+              -H "X-aws-ec2-metadata-token: ${imds_token}" \
               "http://169.254.169.254/latest/meta-data/instance-id" 2>/dev/null) || instance_id=""
-            instance_region=$(curl -fsS -H "X-aws-ec2-metadata-token: ${imds_token}" \
+            instance_region=$(curl --connect-timeout 2 --max-time 5 -fsS \
+              -H "X-aws-ec2-metadata-token: ${imds_token}" \
               "http://169.254.169.254/latest/meta-data/placement/region" 2>/dev/null) || instance_region=""
-            if [ -n "$instance_id" ] && [ -n "$instance_region" ]; then
-              ECR_URL=$(aws ssm get-parameter \
+            if [ "$aws_cli_available" = true ] && [ -n "$instance_id" ] && [ -n "$instance_region" ]; then
+              ECR_URL=$(timeout 30s aws ssm get-parameter \
                 --name "/github-runner/${instance_id}/ecr-cache-url" \
                 --region "$instance_region" \
                 --query 'Parameter.Value' --output text 2>/dev/null) || ECR_URL=""
@@ -124,11 +142,12 @@ jobs:
           ecr_registry="${ECR_URL%%/*}"
           ecr_region="${ecr_registry#*.dkr.ecr.}"
           ecr_region="${ecr_region%%.amazonaws.com*}"
-          if [ -n "$ecr_region" ] && [ "$ecr_region" != "$ecr_registry" ]; then
-            if aws ecr get-login-password --region "$ecr_region" 2>/dev/null |
-              DOCKER_CONFIG="$ecr_docker_config" docker login --username AWS --password-stdin \
-                "$ecr_registry" >/dev/null 2>&1; then
-              if DOCKER_CONFIG="$ecr_docker_config" docker manifest inspect \
+          if [ "$docker_cli_available" = true ] && [ "$aws_cli_available" = true ] &&
+            [ -n "$ecr_region" ] && [ "$ecr_region" != "$ecr_registry" ]; then
+            if timeout 60s aws ecr get-login-password --region "$ecr_region" 2>/dev/null |
+              DOCKER_CONFIG="$ecr_docker_config" timeout 60s docker login \
+                --username AWS --password-stdin "$ecr_registry" >/dev/null 2>&1; then
+              if DOCKER_CONFIG="$ecr_docker_config" timeout 60s docker manifest inspect \
                 "${ECR_URL}:cache-base" >/dev/null 2>&1; then
                 ecr_cache_manifest_inspectable=true
               fi
@@ -137,17 +156,21 @@ jobs:
         fi
 
         ngc_cli="${ngc_unpack}/ngc-cli/ngc"
-        if curl -fsSL -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
+        if curl --connect-timeout 10 --max-time 180 -fsSL \
+          -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
           printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1 &&
-          unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 && [ -x "$ngc_cli" ]; then
+          timeout 60s unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 &&
+          [ -x "$ngc_cli" ]; then
+          ngc_cli_ready=true
           if (
             unset NGC_API_KEY NGC_CLI_API_KEY
             export HOME="$ngc_home"
             export NGC_CLI_HOME="$ngc_home"
             export NGC_CLI_ORG=nvidian
             export NGC_CLI_TEAM=no-team
-            "$ngc_cli" registry resource download-version "$OVPHYSX_WHEELHOUSE_RESOURCE" \
-              --dest "$ngc_download" >/dev/null 2>&1
+            timeout 10m "$ngc_cli" registry resource download-version \
+              "$OVPHYSX_WHEELHOUSE_RESOURCE" --dest "$ngc_download" \
+              </dev/null >/dev/null 2>&1
           ); then
             ngc_artifact_downloadable_without_key=true
           fi
@@ -157,6 +180,9 @@ jobs:
           printf '### Ambient authentication probes\n\n'
           printf '| Probe | Result |\n'
           printf '| --- | --- |\n'
+          printf '| Docker CLI is available | `%s` |\n' "$docker_cli_available"
+          printf '| AWS CLI is available | `%s` |\n' "$aws_cli_available"
+          printf '| NGC CLI download, checksum, and unpack are ready | `%s` |\n' "$ngc_cli_ready"
           printf '| Default Docker config exists | `%s` |\n' "$default_docker_config_exists"
           printf '| Default Docker config names an nvcr.io auth/helper entry | `%s` |\n' \
             "$default_docker_config_names_nvcr"
@@ -212,6 +238,9 @@ jobs:
         NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
         NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
 
+        docker_cli_available=false
+        aws_cli_available=false
+        ngc_cli_ready=false
         secret_present=false
         nvcr_login_accepted=false
         nvcr_image_inspectable=false
@@ -229,11 +258,21 @@ jobs:
         }
         trap cleanup EXIT
 
+        if command -v docker >/dev/null 2>&1; then
+          docker_cli_available=true
+        fi
+        if command -v aws >/dev/null 2>&1; then
+          aws_cli_available=true
+        fi
+
         write_summary() {
           {
             printf '### Explicit NGC authentication probes\n\n'
             printf '| Probe | Result |\n'
             printf '| --- | --- |\n'
+            printf '| Docker CLI is available | `%s` |\n' "$docker_cli_available"
+            printf '| AWS CLI is available | `%s` |\n' "$aws_cli_available"
+            printf '| NGC CLI download, checksum, and unpack are ready | `%s` |\n' "$ngc_cli_ready"
             printf '| NGC_API_KEY is present | `%s` |\n' "$secret_present"
             printf '| NVCR login accepts the explicit secret | `%s` |\n' "$nvcr_login_accepted"
             printf '| NVCR image is inspectable with the explicit secret | `%s` |\n' \
@@ -251,26 +290,34 @@ jobs:
         secret_present=true
 
         export DOCKER_CONFIG="$docker_config"
-        if printf '%s' "$NGC_API_KEY" |
-          docker login --username '$oauthtoken' --password-stdin nvcr.io >/dev/null 2>&1; then
-          nvcr_login_accepted=true
-          if docker manifest inspect "${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}" >/dev/null 2>&1; then
-            nvcr_image_inspectable=true
+        if [ "$docker_cli_available" = true ]; then
+          if printf '%s' "$NGC_API_KEY" |
+            timeout 60s docker login --username '$oauthtoken' --password-stdin \
+              nvcr.io >/dev/null 2>&1; then
+            nvcr_login_accepted=true
+            if timeout 60s docker manifest inspect \
+              "${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}" >/dev/null 2>&1; then
+              nvcr_image_inspectable=true
+            fi
           fi
         fi
 
         ngc_cli="${ngc_unpack}/ngc-cli/ngc"
-        if curl -fsSL -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
+        if curl --connect-timeout 10 --max-time 180 -fsSL \
+          -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
           printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1 &&
-          unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 && [ -x "$ngc_cli" ]; then
+          timeout 60s unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 &&
+          [ -x "$ngc_cli" ]; then
+          ngc_cli_ready=true
           if (
             export HOME="$ngc_home"
             export NGC_CLI_HOME="$ngc_home"
             export NGC_CLI_API_KEY="$NGC_API_KEY"
             export NGC_CLI_ORG=nvidian
             export NGC_CLI_TEAM=no-team
-            "$ngc_cli" registry resource download-version "$OVPHYSX_WHEELHOUSE_RESOURCE" \
-              --dest "$ngc_download" >/dev/null 2>&1
+            timeout 10m "$ngc_cli" registry resource download-version \
+              "$OVPHYSX_WHEELHOUSE_RESOURCE" --dest "$ngc_download" \
+              </dev/null >/dev/null 2>&1
           ); then
             ngc_artifact_downloadable=true
           fi
