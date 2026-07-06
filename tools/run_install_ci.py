@@ -320,10 +320,19 @@ def _cmd_docker(args: argparse.Namespace) -> int:
     if args.testmon_data_dir:
         testmon_data_dir = Path(args.testmon_data_dir).resolve()
         testmon_data_dir.mkdir(parents=True, exist_ok=True)
-        testmon_data_file = testmon_data_dir / ".testmondata"
-        testmon_data_dir.chmod(0o777)
-        if testmon_data_file.exists():
-            testmon_data_file.chmod(0o666)
+        # The container runs as the non-root 'isaaclab' user (uid 1000). SQLite
+        # opens the database in WAL mode, so it must also write the sibling
+        # ``.testmondata-wal``/``.testmondata-shm`` files restored from the cache.
+        # World-write the directory and every file inside it (not just
+        # ``.testmondata``); otherwise a restored sibling with default 0644
+        # perms makes SQLite report "attempt to write a readonly database".
+        try:
+            testmon_data_dir.chmod(0o777)
+            for entry in testmon_data_dir.iterdir():
+                if entry.is_file():
+                    entry.chmod(0o666)
+        except OSError as exc:
+            print(f"Warning: could not chmod testmon data dir {testmon_data_dir}: {exc}", file=sys.stderr)
         docker_run_cmd.extend(["-v", f"{testmon_data_dir}:/tmp/testmon"])
         docker_run_cmd.extend(["-e", "TESTMON_DATAFILE=/tmp/testmon/.testmondata"])
 
