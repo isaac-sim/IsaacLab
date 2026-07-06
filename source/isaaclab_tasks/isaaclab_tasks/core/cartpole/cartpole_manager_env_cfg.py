@@ -5,7 +5,7 @@
 
 import math
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -47,6 +47,19 @@ class CartpolePhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
         use_cuda_graph=True,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            pgs_iterations=4,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            dense_max_constraints=8,
+            mf_max_constraints=64,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(

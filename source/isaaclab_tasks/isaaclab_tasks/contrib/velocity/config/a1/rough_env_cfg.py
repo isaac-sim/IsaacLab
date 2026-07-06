@@ -3,10 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.velocity.velocity_env_cfg import LocomotionVelocityRoughEnvCfg
+from isaaclab_tasks.core.velocity.velocity_env_cfg import (
+    LocomotionVelocityRoughEnvCfg,
+    RoughPhysicsCfg,
+)
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -15,12 +21,39 @@ from isaaclab_assets.robots.unitree import UNITREE_A1_CFG  # isort: skip
 
 
 @configclass
+class PhysicsCfg(RoughPhysicsCfg):
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=0.6,
+            update_mass_matrix_interval=1,
+            enable_joint_limits=True,
+            pgs_iterations=16,
+            pgs_beta=0.02,
+            pgs_cfm=1.0e-5,
+            pgs_omega=0.8,
+            dense_max_constraints=64,
+            pgs_warmstart=False,
+            pgs_mode="split",
+            mf_max_constraints=512,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
+
+
+@configclass
 class UnitreeA1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
 
         self.scene.robot = UNITREE_A1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["base_legs"].armature = preset(default=0.0, feather_pgs=0.05)
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/trunk"
         # scale down the terrains because the robot is small
         self.scene.terrain.terrain_generator.sub_terrains["boxes"].grid_height_range = (0.025, 0.1)

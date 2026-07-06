@@ -3,16 +3,25 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
+    KaminoSolverCfg,
+    MJWarpSolverCfg,
+    NewtonCfg,
+    NewtonCollisionPipelineCfg,
+    NewtonShapeCfg,
+)
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from .rough_env_cfg import G1RoughEnvCfg
+
+from isaaclab_assets import G1_MINIMAL_CFG  # isort: skip
 
 
 @configclass
@@ -30,6 +39,26 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=2)
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=0.05,
+            update_mass_matrix_interval=2,
+            enable_joint_limits=True,
+            pgs_iterations=4,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            pgs_omega=1.0,
+            dense_max_constraints=64,
+            pgs_warmstart=False,
+            pgs_mode="matrix_free",
+            mf_max_constraints=512,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
 
 
 @configclass
@@ -39,6 +68,18 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        self.decimation = preset(default=self.decimation, feather_pgs=2)
+        self.sim.dt = preset(default=self.sim.dt, feather_pgs=0.01)
+        self.sim.render_interval = preset(default=self.sim.render_interval, feather_pgs=2)
+        self.scene.contact_forces.update_period = preset(
+            default=self.scene.contact_forces.update_period, feather_pgs=0.01
+        )
+        for name, actuator in self.scene.robot.actuators.items():
+            actuator.armature = preset(
+                default=actuator.armature,
+                feather_pgs=G1_MINIMAL_CFG.actuators[name].armature,
+            )
 
         # change terrain to flat
         self.scene.terrain.terrain_type = "plane"

@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -21,7 +21,7 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.locomotion.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG  # isort:skip
 
@@ -41,6 +41,21 @@ class HumanoidPhysicsCfg(PresetCfg):
         ),
         num_substeps=2,
         debug_mode=False,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=5.0,
+            enable_joint_limits=True,
+            pgs_iterations=24,
+            pgs_beta=0.002,
+            pgs_cfm=1.0e-4,
+            pgs_omega=0.5,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
     )
 
 
@@ -64,6 +79,7 @@ class HumanoidSceneCfg(InteractiveSceneCfg):
 
     # robot
     robot = HUMANOID_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot.actuators["body"].armature = preset(default=robot.actuators["body"].armature, feather_pgs=0.2)
 
     # sensors
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
@@ -138,6 +154,7 @@ class HumanoidObservationsCfg(PresetCfg):
     default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
+    feather_pgs: ObservationsCfg = newton_mjwarp
 
 
 @configclass
@@ -158,6 +175,36 @@ class EventCfg:
             "velocity_range": (-0.1, 0.1),
         },
     )
+
+
+@configclass
+class FeatherPGSEventCfg(EventCfg):
+    robot_body_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": (2.0, 2.0),
+            "operation": "abs",
+            "recompute_inertia": False,
+        },
+    )
+    robot_body_inertia = EventTerm(
+        func=mdp.randomize_rigid_body_inertia,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "inertia_distribution_params": (2.0, 2.0),
+            "operation": "add",
+            "diagonal_only": True,
+        },
+    )
+
+
+@configclass
+class HumanoidEventCfg(PresetCfg):
+    default = EventCfg()
+    feather_pgs = FeatherPGSEventCfg()
 
 
 @configclass
@@ -237,7 +284,7 @@ class HumanoidEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    events: HumanoidEventCfg = HumanoidEventCfg()
 
     def __post_init__(self):
         """Post initialization."""

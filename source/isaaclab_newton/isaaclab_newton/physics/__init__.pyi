@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "NewtonFeatherPGSManager",
+    "FeatherPGSSolverCfg",
     "NewtonFeatherstoneManager",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
@@ -22,6 +24,8 @@ __all__ = [
     "XPBDSolverCfg",
 ]
 
+from .feather_pgs_manager import NewtonFeatherPGSManager
+from .feather_pgs_manager_cfg import FeatherPGSSolverCfg
 from .featherstone_manager import NewtonFeatherstoneManager
 from .featherstone_manager_cfg import FeatherstoneSolverCfg
 from .kamino_manager import NewtonKaminoManager

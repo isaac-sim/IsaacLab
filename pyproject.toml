@@ -224,7 +224,10 @@ explicit = true
 [tool.uv]
 index-strategy = "unsafe-best-match"
 prerelease = "allow"
-override-dependencies = ["numpy>=2"]
+override-dependencies = [
+    "newton[sim] @ git+https://github.com/dylanturpin/newton-collab.git@3674b45e00cbe7b1e0d0b8f613af087298dcc110",
+    "numpy>=2",
+]
 python-preference = "only-managed"
 package = false
 
