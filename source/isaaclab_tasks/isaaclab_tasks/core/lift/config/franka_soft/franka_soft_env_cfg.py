@@ -36,7 +36,11 @@ from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdF
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_contrib.coupling import CoupledProxySolverCfg
+from isaaclab_contrib.coupling import (
+    CoupledProxyCfg,
+    CoupledProxySolverCfg,
+    CoupledSolverEntryCfg,
+)
 from isaaclab_contrib.deformable.newton_manager_cfg import (
     CoupledMJWarpVBDSolverCfg,
     CoupledNewtonCfg,
@@ -142,20 +146,37 @@ class PhysicsCfg(PresetCfg):
 
     newton_mjwarp_vbd_proxy: CoupledNewtonCfg = CoupledNewtonCfg(
         solver_cfg=CoupledProxySolverCfg(
-            src_solver_cfg=MJWarpSolverCfg(
-                cone="elliptic",
-                ls_iterations=20,
-                integrator="implicitfast",
-            ),
-            dst_solver_cfg=VBDSolverCfg(
-                iterations=10,
-            ),
-            src_bodies=["/World/envs/env_.*/Robot"],
-            proxy_bodies=[
-                "/World/envs/env_.*/Robot/panda_hand",
-                "/World/envs/env_.*/Robot/panda_(left|right)finger",
+            entries=[
+                CoupledSolverEntryCfg(
+                    name="rigid",
+                    solver_cfg=MJWarpSolverCfg(
+                        cone="elliptic",
+                        ls_iterations=20,
+                        integrator="implicitfast",
+                    ),
+                    bodies=[SceneEntityCfg("robot")],
+                ),
+                CoupledSolverEntryCfg(
+                    name="soft",
+                    solver_cfg=VBDSolverCfg(iterations=10),
+                    all_particles=True,
+                    include_static_shapes=True,
+                ),
             ],
-            proxy_collide_interval=5,
+            proxies=[
+                CoupledProxyCfg(
+                    source="rigid",
+                    destination="soft",
+                    bodies=[
+                        SceneEntityCfg(
+                            "robot",
+                            body_names=["panda_hand", "panda_(left|right)finger"],
+                        )
+                    ],
+                    collide_interval=5,
+                )
+            ],
+            iterations=1,
         ),
         model_cfg=NewtonModelCfg(
             soft_contact_ke=1e4,

@@ -5,17 +5,16 @@
 
 """Configuration classes for Newton coupled solvers.
 
-Defines a generic :class:`CoupledSolverCfg` base and two algorithm-specific
-subclasses, :class:`CoupledProxySolverCfg` (lagged-impulse virtual-proxy
-coupling) and :class:`CoupledAdmmSolverCfg` (linearized ADMM coupling).
-Both are consumed by :class:`~isaaclab_contrib.coupling.coupled_manager.NewtonCoupledSolverManager`,
-which dispatches to the matching Newton experimental coupled solver.
+The configurations describe named solver entries and the interfaces that
+couple them. A manager turns each entry's ownership selectors into a Newton
+``ModelView`` and dispatches to the selected experimental coupled solver.
 """
 
 from __future__ import annotations
 
-from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from dataclasses import MISSING, field
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonSolverCfg
 
@@ -24,121 +23,183 @@ from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
+    from newton import CollisionPipeline, ModelView
+
+
+@configclass
+class CoupledSolverEntryCfg:
+    """Configuration for one named sub-solver and its model ownership.
+
+    Bodies are selected by scene entity or full Newton body-label regex.
+    Joints and shapes attached to selected bodies are included by default;
+    additional shapes can be selected directly by their full labels.
+    """
+
+    name: str = MISSING
+    """Unique name used by coupling mappings to reference this entry."""
+
+    solver_cfg: NewtonSolverCfg = MISSING
+    """Configuration used to construct this entry's Newton solver."""
+
+    bodies: list[SceneEntityCfg | str] = field(default_factory=list)
+    """Bodies owned by this entry.
+
+    A :class:`~isaaclab.managers.SceneEntityCfg` selects bodies below the
+    corresponding scene asset and may narrow them with ``body_names``. A
+    string is treated as a regex matched against full Newton body labels.
+    """
+
+    particles: list[int] = field(default_factory=list)
+    """Parent-model particle indices owned by this entry."""
+
+    all_particles: bool = False
+    """Whether this entry owns every particle in the parent model."""
+
+    include_child_joints: bool = True
+    """Whether joints whose child body is selected are owned by this entry."""
+
+    include_body_shapes: bool = True
+    """Whether shapes attached to selected bodies are owned by this entry."""
+
+    include_static_shapes: bool = False
+    """Whether this entry owns all shapes whose body index is ``-1``."""
+
+    shape_label_patterns: list[str] = field(default_factory=list)
+    """Regexes matched against full Newton shape labels for additional ownership."""
+
+
+@configclass
+class CoupledProxyCfg:
+    """Configuration for one directed virtual-proxy mapping."""
+
+    source: str = MISSING
+    """Name of the entry that owns the source bodies."""
+
+    destination: str = MISSING
+    """Name of the entry that receives the proxy bodies."""
+
+    bodies: list[SceneEntityCfg | str] = field(default_factory=list)
+    """Source bodies exposed as proxies in the destination entry.
+
+    Selectors use the same scene-entity and full-label-regex semantics as
+    :attr:`CoupledSolverEntryCfg.bodies`.
+    """
+
+    particles: list[int] = field(default_factory=list)
+    """Source particle indices exposed as proxies in the destination entry."""
+
+    mode: Literal["lagged", "staggered"] = "lagged"
+    """Proxy transfer mode passed to Newton's coupled-proxy solver."""
+
+    mass_scale: float = 1.0
+    """Scale applied to proxy effective mass and inertia in the destination view."""
+
+    collide_interval: int | None = None
+    """Collision refresh interval when :attr:`collision_pipeline_factory` is set.
+
+    ``None`` refreshes contacts on every proxy pass. Explicit values must be
+    positive integers.
+    """
+
+    collision_pipeline_factory: Callable[[ModelView], CollisionPipeline | None] | None = None
+    """Optional factory for the proxy destination's collision pipeline."""
+
+    shape_material_ke: float | None = None
+    """Optional contact-stiffness override for shapes on selected proxy bodies [N/m]."""
+
+    shape_material_kd: float | None = None
+    """Optional contact-damping override for shapes on selected proxy bodies [N*s/m]."""
+
+    shape_material_mu: float | None = None
+    """Optional friction override for shapes on selected proxy bodies."""
+
+    shape_margin: float | None = None
+    """Optional contact-margin override for shapes on selected proxy bodies [m]."""
+
+    shape_gap: float | None = None
+    """Optional contact-gap override for shapes on selected proxy bodies [m]."""
 
 
 @configclass
 class CoupledSolverCfg(NewtonSolverCfg):
-    """Base configuration for any Newton experimental coupled solver.
+    """Base configuration for a Newton experimental coupled solver.
 
-    Wraps a pair of sub-solvers, partitioning the Newton model's bodies (and
-    derived joints/shapes) between a source (``src``) and destination (``dst``)
-    entry. All particles are routed to the destination entry.
-
-    Body selectors are either :class:`~isaaclab.managers.SceneEntityCfg`
-    (scoped by the asset's ``prim_path``, optionally narrowed by ``body_names``
-    full-matched against body short names) or raw prim-path regex strings
-    (e.g. ``"/World/envs/env_.*/MyCube"``) matched against ``model.body_label``
-    via ``^<string>(/|$)``.
-
-    The concrete coupling algorithm is selected by subclassing — use
-    :class:`CoupledProxySolverCfg` for :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`
-    and :class:`CoupledAdmmSolverCfg` for :class:`newton.solvers.experimental.coupled.SolverCoupledADMM`.
+    Every body and particle in the parent model must have one unambiguous
+    owner among :attr:`entries`. Joint and shape ownership is also unique, but
+    may intentionally omit constraints or collision geometry from all views.
+    Use a concrete subclass to configure the coupling interfaces.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.coupled_manager:NewtonCoupledSolverManager"
     """Manager class for the coupled solver."""
 
-    src_solver_cfg: NewtonSolverCfg = MISSING
-    """Source sub-solver configuration (e.g. :class:`~isaaclab_newton.physics.MJWarpSolverCfg`)."""
-
-    dst_solver_cfg: NewtonSolverCfg = MISSING
-    """Destination sub-solver configuration (e.g. :class:`~isaaclab_contrib.deformable.VBDSolverCfg`)."""
-
-    src_bodies: list[SceneEntityCfg | str] = []
-    """Selectors whose bodies/joints/shapes go to the source entry.
-
-    Joints inherit their child body's owner; shapes inherit their body's
-    owner; static shapes (``body == -1``) always go to the destination entry.
-    """
-
-    dst_bodies: list[SceneEntityCfg | str] = []
-    """Selectors routed to the destination entry (see :attr:`src_bodies`)."""
+    entries: list[CoupledSolverEntryCfg] = field(default_factory=list)
+    """Ordered named sub-solver entries and their ownership selectors."""
 
 
 @configclass
 class CoupledProxySolverCfg(CoupledSolverCfg):
-    """Configuration for the lagged-impulse virtual-proxy coupled solver.
+    """Configuration for Newton's lagged-impulse virtual-proxy coupling."""
 
-    Wraps Newton's :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`.
-    Selected source bodies are exposed as proxy bodies in the destination view
-    so the destination solver detects contacts against them and returns
-    feedback wrenches to the source via lagged impulses.
-    """
+    proxies: list[CoupledProxyCfg] = field(default_factory=list)
+    """Directed proxy mappings between named solver entries."""
 
-    proxy_bodies: list[SceneEntityCfg | str] = []
-    """Selectors naming source bodies to expose as proxies in the destination view.
-
-    For :class:`SceneEntityCfg` entries, ``body_names`` is **required**
-    (proxies are a subset, not the whole asset); raw strings are accepted
-    as-is. Matched bodies are filtered to those owning at least one
-    :attr:`newton.ShapeFlags.COLLIDE_SHAPES` shape. Empty list = no proxies.
-    """
-
-    proxy_mode: str = "lagged"
-    """Proxy transfer mode passed to :class:`newton.solvers.experimental.coupled.SolverCoupledProxy.Proxy`.
-
-    - ``"lagged"``: syncs source begin poses and end velocities, then rewinds
-      lagged feedback before the destination solve.
-    - ``"staggered"``: syncs source end poses and end velocities directly.
-    """
-
-    proxy_iterations: int = 1
-    """Number of relaxation iterations per coupled substep."""
-
-    proxy_collide_interval: int = 1
-    """Collision-detection refresh interval (in proxy passes)."""
-
-    proxy_mass_scale: float = 1.0
-    """Mass / inertia scale applied to destination proxy bodies (virtual inertia) [dimensionless]."""
+    iterations: int = 1
+    """Number of proxy relaxation passes per coupled step."""
 
 
 @configclass
 class CoupledAdmmSolverCfg(CoupledSolverCfg):
-    """Configuration for the linearized ADMM coupled solver.
+    """Configuration for Newton's linearized ADMM coupling."""
 
-    Wraps Newton's :class:`newton.solvers.experimental.coupled.SolverCoupledADMM`,
-    which enforces inter-solver constraints via a penalty method with explicit
-    contact pairs between the source and destination entries.
+    contact_pairs: list[tuple[str, str]] | None = None
+    """Symmetric contact interfaces between named solver entries.
+
+    ``None`` asks Newton to detect every distinct entry pair automatically.
+    An empty list disables ADMM contact coupling.
     """
 
     iterations: int = 5
-    """Number of ADMM dual iterations per coupled substep."""
+    """Number of ADMM dual iterations per coupled step."""
 
     rho: float = 1.0
-    """ADMM penalty parameter [dimensionless]. Larger values stiffen the constraint enforcement."""
+    """ADMM penalty parameter [dimensionless]."""
 
     gamma: float = 0.0
-    """Proximal mass scaling parameter [dimensionless]. Adds virtual mass to the sub-solvers."""
+    """Proximal mass scaling parameter [dimensionless]."""
 
     baumgarte: float = 0.0
-    """Position-error correction fraction [dimensionless], in ``[0, 1)``. Stabilization bias."""
+    """Position-error correction fraction [dimensionless]."""
 
     joint_stiffness: float = 1.0e4
-    """Translational joint-attachment stiffness [N/m]."""
+    """Translational cross-solver joint stiffness [N/m]."""
 
     joint_damping: float = 0.0
-    """Translational joint-attachment damping [N*s/m]."""
+    """Translational cross-solver joint damping [N*s/m]."""
 
     joint_angular_stiffness: float = 1.0e4
-    """Angular joint-attachment stiffness [N*m/rad]."""
+    """Angular cross-solver joint stiffness [N*m/rad]."""
 
     joint_angular_damping: float = 0.0
-    """Angular joint-attachment damping [N*m*s/rad]."""
+    """Angular cross-solver joint damping [N*m*s/rad]."""
 
-    enable_contacts: bool = True
-    """Whether to register a contact pair between the source and destination entries.
+    joint_proximal_bodies: bool = True
+    """Whether cross-solver joint neighbors remain visible as inertial proxies."""
 
-    When ``True``, a single :class:`newton.solvers.experimental.coupled.SolverCoupledADMM.ContactPair`
-    is added. Contact geometry (shape margins, particle radius, friction) is taken
-    from the Newton model's collision properties, not per-pair overrides.
-    """
+    joint_proximal_destination_entries: list[str] | None = None
+    """Optional entries that receive cross-solver joint proximal bodies."""
+
+    joint_proximal_mass_scale: float = 1.0
+    """Mass scale applied to cross-solver joint proximal bodies."""
+
+    rigid_contact_matching: Literal["disabled", "latest", "sticky"] = "disabled"
+    """Frame-to-frame matching mode for collision-detected rigid contacts."""
+
+    contact_matching_pos_threshold: float | None = None
+    """Maximum midpoint distance for matching rigid contacts [m]."""
+
+    contact_matching_normal_dot_threshold: float | None = None
+    """Minimum normal dot product for matching rigid contacts."""
+
+    contact_matching_force_scale: float = 0.9
+    """Scale applied to the previous ADMM dual when a rigid contact matches."""

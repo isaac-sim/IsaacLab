@@ -3,384 +3,427 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-# ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Pure-Python unit tests for the coupled-solver manager partitioning logic.
+"""Pure-Python tests for named Newton coupled-solver configuration.
 
-These tests intentionally do NOT launch :class:`isaaclab.app.AppLauncher`.
-:class:`NewtonCoupledSolverManager`'s body/joint/shape partitioning and
-proxy-body resolution are static class methods that operate on a Newton
-:class:`newton.Model` and an :class:`isaaclab.scene.InteractiveSceneCfg`, so
-they can be tested against minimal fakes without spinning up Isaac Sim.
-
-For the end-to-end smoke (solver builds and steps), see the existing env
-smoke tests on ``Isaac-Lift-Soft-Franka-v0`` in
-``isaaclab_tasks/test/test_environments.py``.
+The tests use small model fakes and never start Isaac Sim. They exercise the
+selector, ownership, proxy, and ADMM translation performed before Newton
+constructs the coupled solver.
 """
 
 from __future__ import annotations
 
-import dataclasses
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from isaaclab_newton.physics import KaminoSolverCfg, XPBDSolverCfg
 from newton import ShapeFlags
-from newton.solvers.experimental.coupled import SolverCoupledADMM
+from newton.solvers import SolverKamino
+from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.managers import SceneEntityCfg
 
 from isaaclab_contrib.coupling import coupled_manager
 from isaaclab_contrib.coupling.coupled_manager import NewtonCoupledSolverManager
-from isaaclab_contrib.coupling.coupled_manager_cfg import CoupledAdmmSolverCfg
-
-##
-# Fakes
-##
+from isaaclab_contrib.coupling.coupled_manager_cfg import (
+    CoupledAdmmSolverCfg,
+    CoupledProxyCfg,
+    CoupledProxySolverCfg,
+    CoupledSolverEntryCfg,
+)
 
 
 @dataclass
 class _FakeArray:
-    """Minimal stand-in for a Newton/warp array exposing ``.numpy()``."""
+    """Minimal mutable stand-in for a Warp array."""
 
     data: np.ndarray
 
     def numpy(self) -> np.ndarray:
-        return self.data
+        return self.data.copy()
+
+    def assign(self, values: np.ndarray) -> None:
+        self.data = np.asarray(values).copy()
 
 
 @dataclass
 class _FakeModel:
-    """Minimal stand-in for :class:`newton.Model`.
+    """Fields consulted by the manager's pure configuration helpers."""
 
-    Only the attributes consulted by the partitioning/selection helpers are
-    populated. Joint/shape arrays default to zero-length numpy arrays when
-    there are no joints/shapes to model.
-    """
+    body_count: int = 3
+    body_label: list[str] = field(
+        default_factory=lambda: [
+            "/World/envs/env_0/Robot/base",
+            "/World/envs/env_0/Robot/hand",
+            "/World/envs/env_0/Object/body",
+        ]
+    )
+    joint_count: int = 2
+    joint_child: _FakeArray = field(default_factory=lambda: _FakeArray(np.asarray([1, 2], dtype=np.int32)))
+    joint_parent: _FakeArray = field(default_factory=lambda: _FakeArray(np.asarray([0, -1], dtype=np.int32)))
+    shape_count: int = 4
+    shape_body: _FakeArray = field(default_factory=lambda: _FakeArray(np.asarray([0, 1, 2, -1], dtype=np.int32)))
+    shape_flags: _FakeArray = field(
+        default_factory=lambda: _FakeArray(np.full(4, int(ShapeFlags.COLLIDE_SHAPES), dtype=np.int32))
+    )
+    shape_label: list[str] = field(
+        default_factory=lambda: [
+            "/World/envs/env_0/Robot/base_collision",
+            "/World/envs/env_0/Robot/hand_collision",
+            "/World/envs/env_0/Object/object_collision",
+            "/World/ground",
+        ]
+    )
+    particle_count: int = 3
+    shape_material_ke: _FakeArray = field(default_factory=lambda: _float_array(4, 1.0))
+    shape_material_kd: _FakeArray = field(default_factory=lambda: _float_array(4, 2.0))
+    shape_material_mu: _FakeArray = field(default_factory=lambda: _float_array(4, 3.0))
+    shape_margin: _FakeArray = field(default_factory=lambda: _float_array(4, 4.0))
+    shape_gap: _FakeArray = field(default_factory=lambda: _float_array(4, 5.0))
 
-    body_count: int
-    body_label: list[str]
-    joint_count: int = 0
-    joint_child: _FakeArray = field(default_factory=lambda: _FakeArray(np.zeros(0, dtype=np.int32)))
-    shape_count: int = 0
-    shape_body: _FakeArray = field(default_factory=lambda: _FakeArray(np.zeros(0, dtype=np.int32)))
-    shape_flags: _FakeArray = field(default_factory=lambda: _FakeArray(np.zeros(0, dtype=np.int32)))
+
+def _float_array(size: int, value: float) -> _FakeArray:
+    return _FakeArray(np.full(size, value, dtype=np.float32))
 
 
 @dataclass
 class _FakeAsset:
-    """Stand-in for a scene asset cfg with the ``prim_path`` field consulted by the manager."""
-
     prim_path: str
 
 
 @dataclass
 class _FakeSceneCfg:
-    """Stand-in for :class:`InteractiveSceneCfg`. Asset attributes are looked up by ``getattr``."""
-
-    robot: _FakeAsset | None = None
-    other: _FakeAsset | None = None
+    robot: _FakeAsset = field(default_factory=lambda: _FakeAsset("/World/envs/env_.*/Robot"))
+    object: _FakeAsset = field(default_factory=lambda: _FakeAsset("/World/envs/env_.*/Object"))
 
 
-##
-# Helpers
-##
-
-
-def _model_with_two_bodies(
+def _entry(
+    name: str,
     *,
-    with_shapes: bool = False,
-    with_joints: bool = False,
-    extra_static_shape: bool = False,
-) -> _FakeModel:
-    """Build a 2-body Franka-like model under ``/World/envs/env_0/Robot``.
+    bodies: list[int] | None = None,
+    particles: list[int] | None = None,
+) -> NewtonCoupledSolverManager._ResolvedEntry:
+    """Build an already-resolved entry for validation tests."""
+    return NewtonCoupledSolverManager._ResolvedEntry(
+        config=CoupledSolverEntryCfg(name=name, solver_cfg=XPBDSolverCfg()),
+        bodies=list(bodies or []),
+        particles=list(particles or []),
+        joints=[],
+        shapes=[],
+    )
 
-    Args:
-        with_shapes: Attach one COLLIDE_SHAPES shape to each body.
-        with_joints: Attach one joint whose child is body 1.
-        extra_static_shape: Add an extra shape with ``body == -1``.
-    """
-    body_count = 2
-    body_label = [
-        "/World/envs/env_0/Robot/panda_link0",
-        "/World/envs/env_0/Robot/panda_hand",
+
+def _valid_proxy_setup(
+    *, proxy: CoupledProxyCfg | None = None
+) -> tuple[
+    CoupledProxySolverCfg,
+    list[NewtonCoupledSolverManager._ResolvedEntry],
+    list[NewtonCoupledSolverManager._ResolvedProxy],
+]:
+    """Build a complete two-entry proxy configuration."""
+    entries = [
+        _entry("rigid", bodies=[0, 1], particles=[0]),
+        _entry("soft", bodies=[2], particles=[1, 2]),
+    ]
+    proxy_cfg = proxy or CoupledProxyCfg(source="rigid", destination="soft", bodies=[1])
+    return (
+        CoupledProxySolverCfg(
+            entries=[entry.config for entry in entries],
+            proxies=[proxy_cfg],
+        ),
+        entries,
+        [
+            NewtonCoupledSolverManager._ResolvedProxy(
+                config=proxy_cfg,
+                bodies=[int(body) for body in proxy_cfg.bodies],
+                particles=list(proxy_cfg.particles),
+            )
+        ],
+    )
+
+
+def test_scene_entity_and_string_selectors_resolve_full_body_labels():
+    """Scene selectors filter short names while strings match full labels."""
+    model = _FakeModel()
+    scene_cfg = _FakeSceneCfg()
+
+    assert NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+        model,
+        SceneEntityCfg("robot", body_names=["hand"]),
+        scene_cfg,
+        "entry 'rigid'",
+    ) == [1]
+    assert NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+        model,
+        "/World/envs/env_.*/Object/body",
+        None,
+        "entry 'object'",
+    ) == [2]
+
+
+def test_scene_entity_selector_reports_unmatched_body_pattern():
+    with pytest.raises(ValueError, match="could not match body patterns"):
+        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+            _FakeModel(),
+            SceneEntityCfg("robot", body_names=["missing"]),
+            _FakeSceneCfg(),
+            "entry 'rigid'",
+        )
+
+
+def test_raw_body_label_selector_reports_no_matches():
+    with pytest.raises(ValueError, match="matched no Newton bodies"):
+        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+            _FakeModel(),
+            "/World/envs/env_.*/Missing",
+            None,
+            "entry 'missing'",
+        )
+
+
+def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
+    """Derived joint/shape ownership follows each entry's selected bodies."""
+    model = _FakeModel()
+    scene_cfg = _FakeSceneCfg()
+    entries = [
+        CoupledSolverEntryCfg(
+            name="rigid",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[SceneEntityCfg("robot")],
+        ),
+        CoupledSolverEntryCfg(
+            name="object",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=["/World/envs/env_.*/Object"],
+            all_particles=True,
+        ),
+        CoupledSolverEntryCfg(
+            name="world",
+            solver_cfg=XPBDSolverCfg(),
+            include_static_shapes=True,
+        ),
     ]
 
-    shape_body = np.zeros(0, dtype=np.int32)
-    shape_flags = np.zeros(0, dtype=np.int32)
-    shape_count = 0
-    if with_shapes:
-        owners = [0, 1]
-        if extra_static_shape:
-            owners.append(-1)
-        shape_body = np.asarray(owners, dtype=np.int32)
-        shape_flags = np.full(len(owners), int(ShapeFlags.COLLIDE_SHAPES), dtype=np.int32)
-        shape_count = len(owners)
+    resolved = [NewtonCoupledSolverManager._resolve_entry(model, entry, scene_cfg) for entry in entries]
 
-    joint_child = np.zeros(0, dtype=np.int32)
-    joint_count = 0
-    if with_joints:
-        joint_child = np.asarray([1], dtype=np.int32)
-        joint_count = 1
+    assert resolved[0].bodies == [0, 1]
+    assert resolved[0].joints == [0]
+    assert resolved[0].shapes == [0, 1]
+    assert resolved[1].bodies == [2]
+    assert resolved[1].joints == [1]
+    assert resolved[1].shapes == [2]
+    assert resolved[1].particles == [0, 1, 2]
+    assert resolved[2].bodies == []
+    assert resolved[2].joints == []
+    assert resolved[2].shapes == [3]
+    assert isinstance(entries[0].bodies[0], SceneEntityCfg)
+    assert entries[1].bodies == ["/World/envs/env_.*/Object"]
 
-    return _FakeModel(
-        body_count=body_count,
-        body_label=body_label,
-        joint_count=joint_count,
-        joint_child=_FakeArray(joint_child),
-        shape_count=shape_count,
-        shape_body=_FakeArray(shape_body),
-        shape_flags=_FakeArray(shape_flags),
+    cfg = CoupledAdmmSolverCfg(entries=entries)
+    NewtonCoupledSolverManager._validate_solver_cfg(model, cfg, resolved)
+
+
+def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
+    """A joint spanning two entries must remain visible to the ADMM coupler."""
+    model = _FakeModel()
+    model.joint_parent = _FakeArray(np.asarray([0, 1], dtype=np.int32))
+    entries = [
+        CoupledSolverEntryCfg(
+            name="robot",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[SceneEntityCfg("robot")],
+        ),
+        CoupledSolverEntryCfg(
+            name="object",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[SceneEntityCfg("object")],
+            all_particles=True,
+            include_static_shapes=True,
+        ),
+    ]
+
+    resolved = [NewtonCoupledSolverManager._resolve_entry(model, entry, _FakeSceneCfg()) for entry in entries]
+
+    assert resolved[0].joints == [0]
+    assert resolved[1].joints == []
+
+
+def test_proxy_validation_rejects_cross_entry_joint():
+    model = _FakeModel()
+    model.joint_parent = _FakeArray(np.asarray([0, 1], dtype=np.int32))
+    cfg, entries, proxies = _valid_proxy_setup()
+
+    with pytest.raises(ValueError, match="does not support cross-entry joint"):
+        NewtonCoupledSolverManager._validate_solver_cfg(model, cfg, entries, proxies)
+
+
+def test_explicit_particle_ownership_accepts_a_complete_partition():
+    model = _FakeModel()
+    entries = [
+        _entry("a", bodies=[0, 1], particles=[0, 2]),
+        _entry("b", bodies=[2], particles=[1]),
+    ]
+    cfg = CoupledAdmmSolverCfg(entries=[entry.config for entry in entries])
+    NewtonCoupledSolverManager._validate_solver_cfg(model, cfg, entries)
+
+
+@pytest.mark.parametrize(
+    ("entries", "match"),
+    [
+        (
+            [_entry("a", bodies=[0, 1], particles=[0]), _entry("b", bodies=[1, 2], particles=[1, 2])],
+            "bodies index 1 is owned by both",
+        ),
+        (
+            [_entry("a", bodies=[0], particles=[0]), _entry("b", bodies=[1], particles=[1, 2])],
+            "unclaimed bodies",
+        ),
+        (
+            [_entry("a", bodies=[0, 1], particles=[0, 1]), _entry("b", bodies=[2], particles=[1, 2])],
+            "particles index 1 is owned by both",
+        ),
+        (
+            [_entry("a", bodies=[0, 1], particles=[0]), _entry("b", bodies=[2], particles=[1])],
+            "unclaimed particles",
+        ),
+    ],
+)
+def test_validation_rejects_duplicate_or_unclaimed_body_and_particle_ownership(entries, match):
+    cfg = CoupledAdmmSolverCfg(entries=[entry.config for entry in entries])
+    with pytest.raises(ValueError, match=match):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries)
+
+
+@pytest.mark.parametrize(
+    ("entries", "match"),
+    [
+        ([_entry("a", bodies=[0, 1], particles=[0, 1, 2])], "at least two named entries"),
+        (
+            [
+                _entry("", bodies=[0, 1], particles=[0]),
+                _entry("b", bodies=[2], particles=[1, 2]),
+            ],
+            "name must be non-empty",
+        ),
+        (
+            [
+                _entry("same", bodies=[0, 1], particles=[0]),
+                _entry("same", bodies=[2], particles=[1, 2]),
+            ],
+            "names must be unique",
+        ),
+        (
+            [
+                _entry("a", bodies=[0, 1, 3], particles=[0]),
+                _entry("b", bodies=[2], particles=[1, 2]),
+            ],
+            "out-of-range bodies index 3",
+        ),
+        (
+            [
+                _entry("a", bodies=[0, 1], particles=[0, 3]),
+                _entry("b", bodies=[2], particles=[1, 2]),
+            ],
+            "out-of-range particles index 3",
+        ),
+    ],
+)
+def test_validation_rejects_invalid_entry_names_counts_and_indices(entries, match):
+    cfg = CoupledAdmmSolverCfg(entries=[entry.config for entry in entries])
+    with pytest.raises(ValueError, match=match):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries)
+
+
+def test_shape_label_patterns_and_static_shape_selection_are_additive():
+    entry = NewtonCoupledSolverManager._resolve_entry(
+        _FakeModel(),
+        CoupledSolverEntryCfg(
+            name="special",
+            solver_cfg=XPBDSolverCfg(),
+            bodies=[SceneEntityCfg("robot", body_names=["base"])],
+            include_body_shapes=False,
+            include_static_shapes=True,
+            shape_label_patterns=[r".*/Object/object_collision"],
+        ),
+        _FakeSceneCfg(),
     )
+    assert entry.bodies == [0]
+    assert entry.shapes == [3, 2]
 
 
-def _robot_scene() -> _FakeSceneCfg:
-    """A scene cfg with a single ``robot`` asset at the conventional prim path."""
-    return _FakeSceneCfg(robot=_FakeAsset(prim_path="/World/envs/env_.*/Robot"))
+@pytest.mark.parametrize(
+    ("proxy", "match"),
+    [
+        (CoupledProxyCfg(source="missing", destination="soft", bodies=[0]), "must name coupled entries"),
+        (CoupledProxyCfg(source="rigid", destination="rigid", bodies=[0]), "must differ"),
+        (CoupledProxyCfg(source="rigid", destination="soft", bodies=[2]), "owned by its source"),
+        (CoupledProxyCfg(source="rigid", destination="soft", particles=[2]), "owned by its source"),
+    ],
+)
+def test_proxy_validation_checks_endpoints_and_source_ownership(proxy, match):
+    cfg, entries, proxies = _valid_proxy_setup(proxy=proxy)
+    with pytest.raises(ValueError, match=match):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries, proxies)
 
 
-##
-# _resolve_entity_to_body_ids
-##
+@pytest.mark.parametrize(
+    ("proxy", "match"),
+    [
+        (CoupledProxyCfg(source="rigid", destination="soft"), "map at least one body or particle"),
+        (
+            CoupledProxyCfg(source="rigid", destination="soft", bodies=[0], mode="invalid"),
+            "mode must be 'lagged' or 'staggered'",
+        ),
+        (CoupledProxyCfg(source="rigid", destination="soft", bodies=[0], mass_scale=0.0), "mass_scale must be > 0"),
+        (
+            CoupledProxyCfg(source="rigid", destination="soft", bodies=[0], collide_interval=0),
+            "collide_interval must be >= 1",
+        ),
+    ],
+)
+def test_proxy_validation_rejects_invalid_mapping_options(proxy, match):
+    cfg, entries, proxies = _valid_proxy_setup(proxy=proxy)
+    with pytest.raises(ValueError, match=match):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries, proxies)
 
 
-def test_resolve_entity_no_body_names_returns_all_under_asset():
-    model = _model_with_two_bodies()
-    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+def test_proxy_validation_rejects_more_than_two_entries():
+    entries = [
+        _entry("a", bodies=[0], particles=[0]),
+        _entry("b", bodies=[1], particles=[1]),
+        _entry("c", bodies=[2], particles=[2]),
+    ]
+    proxy_cfg = CoupledProxyCfg(source="a", destination="b", bodies=[0])
+    cfg = CoupledProxySolverCfg(
+        entries=[entry.config for entry in entries],
+        proxies=[proxy_cfg],
+    )
+    proxies = [NewtonCoupledSolverManager._ResolvedProxy(proxy_cfg, bodies=[0], particles=[])]
+    with pytest.raises(ValueError, match="at most two solver entries"):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries, proxies)
+
+
+def test_proxy_resolution_keeps_only_collidable_selected_bodies():
+    model = _FakeModel()
+    model.shape_flags = _FakeArray(
+        np.asarray([int(ShapeFlags.COLLIDE_SHAPES), 0, int(ShapeFlags.COLLIDE_SHAPES), 0], dtype=np.int32)
+    )
+    proxy = NewtonCoupledSolverManager._resolve_proxy(
         model,
-        SceneEntityCfg("robot"),
-        _robot_scene(),
-        field="src_bodies",
+        CoupledProxyCfg(source="rigid", destination="soft", bodies=[SceneEntityCfg("robot")]),
+        _FakeSceneCfg(),
     )
-    assert body_ids == [0, 1]
+    assert proxy.bodies == [0]
 
 
-def test_resolve_entity_body_names_filter_by_regex():
-    """Patterns full-match against the short name (segment after last ``/``)."""
-    model = _model_with_two_bodies()
-    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
-        model,
-        SceneEntityCfg("robot", body_names=["panda_hand"]),
-        _robot_scene(),
-        field="proxy_bodies",
-    )
-    assert body_ids == [1]
+class _RecordingProxy:
+    """Capture proxy construction while retaining Newton's config dataclasses."""
 
-
-def test_resolve_entity_asset_missing_on_scene_cfg_raises():
-    model = _model_with_two_bodies()
-    with pytest.raises(ValueError, match="not on the attached scene cfg"):
-        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
-            model,
-            SceneEntityCfg("missing_asset"),
-            _robot_scene(),
-            field="src_bodies",
-        )
-
-
-def test_resolve_entity_unmatched_body_names_raises():
-    model = _model_with_two_bodies()
-    with pytest.raises(ValueError, match="no bodies matching"):
-        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
-            model,
-            SceneEntityCfg("robot", body_names=["nonexistent_link"]),
-            _robot_scene(),
-            field="proxy_bodies",
-        )
-
-
-##
-# _partition_model_by_entities
-##
-
-
-def test_partition_splits_bodies_joints_shapes():
-    """Bodies, joints, and shapes are split by their assigned partition."""
-    model = _model_with_two_bodies(with_shapes=True, with_joints=True, extra_static_shape=True)
-    scene = _FakeSceneCfg(
-        robot=_FakeAsset(prim_path="/World/envs/env_.*/Robot"),
-        other=_FakeAsset(prim_path="/World/envs/env_.*/Robot"),
-    )
-
-    src_b, dst_b, src_j, dst_j, src_s, dst_s = NewtonCoupledSolverManager._partition_model_by_entities(
-        model,
-        src_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
-        dst_bodies=[SceneEntityCfg("other", body_names=["panda_hand"])],
-        scene_cfg=scene,
-    )
-
-    assert src_b == [0]
-    assert dst_b == [1]
-    # Joint 0's child is body 1 (dst partition) → the joint index lands in dst.
-    assert src_j == []
-    assert dst_j == [0]
-    # Shape 0 → body 0 (src). Shape 1 → body 1 (dst). Shape 2 → body -1 (static, → dst).
-    assert src_s == [0]
-    assert dst_s == [1, 2]
-
-
-def test_partition_overlapping_bodies_raises():
-    model = _model_with_two_bodies()
-    scene = _FakeSceneCfg(
-        robot=_FakeAsset(prim_path="/World/envs/env_.*/Robot"),
-        other=_FakeAsset(prim_path="/World/envs/env_.*/Robot"),
-    )
-    with pytest.raises(ValueError, match="match both"):
-        NewtonCoupledSolverManager._partition_model_by_entities(
-            model,
-            src_bodies=[SceneEntityCfg("robot")],
-            dst_bodies=[SceneEntityCfg("other", body_names=["panda_hand"])],
-            scene_cfg=scene,
-        )
-
-
-def test_partition_unclaimed_bodies_raises():
-    model = _model_with_two_bodies()
-    with pytest.raises(ValueError, match="unclaimed"):
-        NewtonCoupledSolverManager._partition_model_by_entities(
-            model,
-            src_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
-            dst_bodies=[],
-            scene_cfg=_robot_scene(),
-        )
-
-
-##
-# _select_proxy_bodies
-##
-
-
-def test_select_proxy_bodies_filters_to_collide_shapes():
-    """Only bodies with at least one ``COLLIDE_SHAPES``-flagged shape become proxies."""
-    model = _model_with_two_bodies(with_shapes=True)
-    # Knock out body 0's collide flag — only body 1 should remain.
-    model.shape_flags = _FakeArray(np.asarray([0, int(ShapeFlags.COLLIDE_SHAPES)], dtype=np.int32))
-
-    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
-        model,
-        proxy_bodies=[SceneEntityCfg("robot", body_names=["panda_link0", "panda_hand"])],
-        scene_cfg=_robot_scene(),
-    )
-    assert proxy_ids == [1]
-
-
-def test_select_proxy_bodies_requires_body_names():
-    model = _model_with_two_bodies(with_shapes=True)
-    with pytest.raises(ValueError, match="requires `body_names`"):
-        NewtonCoupledSolverManager._select_proxy_bodies(
-            model,
-            proxy_bodies=[SceneEntityCfg("robot")],
-            scene_cfg=_robot_scene(),
-        )
-
-
-def test_select_proxy_bodies_empty_input_returns_empty():
-    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
-        model=_FakeModel(body_count=0, body_label=[]),
-        proxy_bodies=[],
-        scene_cfg=None,
-    )
-    assert proxy_ids == []
-
-
-def test_select_proxy_bodies_deduplicates_across_entries():
-    model = _model_with_two_bodies(with_shapes=True)
-    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
-        model,
-        proxy_bodies=[
-            SceneEntityCfg("robot", body_names=["panda_hand"]),
-            SceneEntityCfg("robot", body_names=["panda_hand"]),
-        ],
-        scene_cfg=_robot_scene(),
-    )
-    assert proxy_ids == [1]
-
-
-##
-# Raw prim-path strings as selectors
-##
-
-
-def test_resolve_string_prefix_claims_all_bodies_under_path():
-    """A raw prim-path string claims every body whose label matches ``^<string>(/|$)``."""
-    model = _model_with_two_bodies()
-    # Asset-prefix regex over the whole robot.
-    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
-        model,
-        spec="/World/envs/env_.*/Robot",
-        scene_cfg=None,
-        field="src_bodies",
-    )
-    assert body_ids == [0, 1]
-
-
-def test_resolve_string_narrows_to_a_single_body():
-    """A specific prim-path string claims only the body with that exact label."""
-    model = _model_with_two_bodies()
-    body_ids = NewtonCoupledSolverManager._resolve_entity_to_body_ids(
-        model,
-        spec="/World/envs/env_.*/Robot/panda_hand",
-        scene_cfg=None,
-        field="proxy_bodies",
-    )
-    assert body_ids == [1]
-
-
-def test_resolve_string_no_matches_raises():
-    model = _model_with_two_bodies()
-    with pytest.raises(ValueError, match="matched no bodies"):
-        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
-            model,
-            spec="/World/envs/env_.*/Nonexistent",
-            scene_cfg=None,
-            field="src_bodies",
-        )
-
-
-def test_partition_accepts_mixed_string_and_scene_entity():
-    """``src_bodies`` / ``dst_bodies`` accept a mix of strings and ``SceneEntityCfg``."""
-    model = _model_with_two_bodies(with_shapes=True, with_joints=True)
-    src_b, dst_b, _, _, _, _ = NewtonCoupledSolverManager._partition_model_by_entities(
-        model,
-        src_bodies=[SceneEntityCfg("robot", body_names=["panda_link0"])],
-        dst_bodies=["/World/envs/env_.*/Robot/panda_hand"],
-        scene_cfg=_robot_scene(),
-    )
-    assert src_b == [0]
-    assert dst_b == [1]
-
-
-def test_select_proxy_bodies_accepts_string_without_body_names():
-    """A raw prim-path string in ``proxy_bodies`` bypasses the ``body_names`` requirement."""
-    model = _model_with_two_bodies(with_shapes=True)
-    proxy_ids = NewtonCoupledSolverManager._select_proxy_bodies(
-        model,
-        proxy_bodies=["/World/envs/env_.*/Robot/panda_hand"],
-        scene_cfg=None,
-    )
-    assert proxy_ids == [1]
-
-
-##
-# _build_admm_coupled_solver
-#
-# The real ``SolverCoupledADMM.__init__`` needs a fully-built Newton model, so
-# these tests stub the constructor to capture the coupling config while keeping
-# the real ``ContactPair`` / ``Config`` dataclasses. This exercises the manager's
-# config forwarding without launching Isaac Sim.
-##
-
-
-class _RecordingAdmm:
-    """Stand-in for ``SolverCoupledADMM`` that records the coupling config.
-
-    Reuses the real nested ``ContactPair`` / ``Config`` dataclasses so passing an
-    unsupported ContactPair kwarg still raises, guarding the fixed bug.
-    """
-
-    ContactPair = SolverCoupledADMM.ContactPair
-    Config = SolverCoupledADMM.Config
+    Proxy = SolverCoupledProxy.Proxy
+    Config = SolverCoupledProxy.Config
 
     def __init__(self, *, model, entries, coupling):
         self.model = model
@@ -388,52 +431,257 @@ class _RecordingAdmm:
         self.coupling = coupling
 
 
-def _build_admm(monkeypatch, solver_cfg: CoupledAdmmSolverCfg) -> _RecordingAdmm:
-    monkeypatch.setattr(coupled_manager, "SolverCoupledADMM", _RecordingAdmm)
-    return NewtonCoupledSolverManager._build_admm_coupled_solver(
-        model=object(),
-        entries=[],
-        solver_cfg=solver_cfg,
+def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
+    def custom_pipeline(model_view):
+        return model_view
+
+    model = _FakeModel()
+    resolved_entries = [
+        _entry("rigid", bodies=[0, 1]),
+        _entry("soft", bodies=[2], particles=[0, 1, 2]),
+    ]
+    cfg = CoupledProxySolverCfg(
+        entries=[entry.config for entry in resolved_entries],
+        proxies=[
+            CoupledProxyCfg(
+                source="rigid",
+                destination="soft",
+                bodies=["/World/envs/env_.*/Robot/base"],
+                collision_pipeline_factory=custom_pipeline,
+            ),
+            CoupledProxyCfg(source="soft", destination="rigid", particles=[0]),
+        ],
+        iterations=3,
+    )
+    monkeypatch.setattr(coupled_manager, "SolverCoupledProxy", _RecordingProxy)
+    monkeypatch.setattr(
+        coupled_manager,
+        "CollisionPipeline",
+        lambda model_view, *, broad_phase: (model_view, broad_phase),
     )
 
+    solver = NewtonCoupledSolverManager._build_proxy_coupled_solver(model, [], cfg, resolved_entries, _FakeSceneCfg())
 
-def test_build_admm_registers_bare_contact_pair_when_enabled(monkeypatch):
-    """``enable_contacts`` adds exactly one contact pair naming only ``src``/``dst``."""
-    solver = _build_admm(monkeypatch, CoupledAdmmSolverCfg(enable_contacts=True))
-
-    pairs = list(solver.coupling.contact_pairs)
-    assert len(pairs) == 1
-    assert pairs[0].source == "src"
-    assert pairs[0].destination == "dst"
-    # ContactPair carries only the two entry-name fields (no contact geometry).
-    assert {f.name for f in dataclasses.fields(pairs[0])} == {"source", "destination"}
+    assert solver.coupling.iterations == 3
+    assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
+    assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
 
 
-def test_build_admm_omits_contact_pair_when_disabled(monkeypatch):
-    """No contact pair is registered when ``enable_contacts`` is ``False``."""
-    solver = _build_admm(monkeypatch, CoupledAdmmSolverCfg(enable_contacts=False))
+def test_proxy_shape_overrides_apply_only_to_selected_body_shapes():
+    model = _FakeModel()
+    proxy = CoupledProxyCfg(
+        source="rigid",
+        destination="soft",
+        bodies=[1],
+        shape_material_ke=10.0,
+        shape_material_kd=20.0,
+        shape_material_mu=0.75,
+        shape_margin=0.015,
+        shape_gap=0.002,
+    )
+
+    resolved_proxy = NewtonCoupledSolverManager._ResolvedProxy(config=proxy, bodies=[1], particles=[])
+    NewtonCoupledSolverManager._apply_proxy_shape_overrides(model, [resolved_proxy])
+
+    np.testing.assert_allclose(model.shape_material_ke.data, [1.0, 10.0, 1.0, 1.0])
+    np.testing.assert_allclose(model.shape_material_kd.data, [2.0, 20.0, 2.0, 2.0])
+    np.testing.assert_allclose(model.shape_material_mu.data, [3.0, 0.75, 3.0, 3.0])
+    np.testing.assert_allclose(model.shape_margin.data, [4.0, 0.015, 4.0, 4.0])
+    np.testing.assert_allclose(model.shape_gap.data, [5.0, 0.002, 5.0, 5.0])
+
+
+def test_entry_build_constructs_registered_solver_with_model_view(monkeypatch):
+    class _RecordingSolver:
+        def __init__(self, model):
+            self.model = model
+
+    monkeypatch.setitem(NewtonCoupledSolverManager._SOLVER_CLASS_BY_CFG_TYPE, XPBDSolverCfg, _RecordingSolver)
+    entry = NewtonCoupledSolverManager._ResolvedEntry(
+        config=CoupledSolverEntryCfg(
+            name="entry",
+            solver_cfg=XPBDSolverCfg(),
+        ),
+        bodies=[],
+        particles=[],
+        joints=[],
+        shapes=[],
+    )
+
+    solver_entry = NewtonCoupledSolverManager._build_entry(entry)
+    solver = solver_entry.solver("entry-view")
+
+    assert solver.model == "entry-view"
+
+
+def test_kamino_solver_config_remains_supported():
+    assert NewtonCoupledSolverManager._resolve_solver_class(KaminoSolverCfg()) is SolverKamino
+
+
+def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
+    """Proxy owns destination contacts while ADMM uses the shared outer pipeline."""
+    model = _FakeModel()
+    proxy_cfg, resolved_entries, _ = _valid_proxy_setup()
+    recorded_entries: list[str] = []
+
+    monkeypatch.setattr(
+        NewtonCoupledSolverManager,
+        "_resolve_entry",
+        classmethod(
+            lambda cls, model, entry_cfg, scene_cfg: next(
+                entry for entry in resolved_entries if entry.config.name == entry_cfg.name
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        NewtonCoupledSolverManager,
+        "_build_entry",
+        classmethod(lambda cls, entry: recorded_entries.append(entry.config.name) or entry.config.name),
+    )
+    monkeypatch.setattr(
+        NewtonCoupledSolverManager,
+        "_build_proxy_coupled_solver",
+        classmethod(lambda cls, model, entries, cfg, resolved_entries, scene_cfg: SimpleNamespace(kind="proxy")),
+    )
+    monkeypatch.setattr(
+        NewtonCoupledSolverManager,
+        "_build_admm_coupled_solver",
+        classmethod(lambda cls, model, entries, cfg, resolved_entries: SimpleNamespace(kind="admm")),
+    )
+    old_solver = coupled_manager.NewtonManager._solver
+    old_outer = coupled_manager.NewtonManager._needs_collision_pipeline
+    old_contact_support = coupled_manager.NewtonManager._supports_contact_sensors
+    old_report_contacts = coupled_manager.NewtonManager._report_contacts
+    try:
+        NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
+        assert coupled_manager.NewtonManager._needs_collision_pipeline is False
+        assert coupled_manager.NewtonManager._supports_contact_sensors is False
+        assert recorded_entries == ["rigid", "soft"]
+
+        recorded_entries.clear()
+        admm_cfg = CoupledAdmmSolverCfg(entries=proxy_cfg.entries)
+        NewtonCoupledSolverManager._build_solver(model, admm_cfg)
+        assert coupled_manager.NewtonManager._needs_collision_pipeline is True
+        assert recorded_entries == ["rigid", "soft"]
+
+        coupled_manager.NewtonManager._report_contacts = True
+        with pytest.raises(NotImplementedError, match="contact sensors"):
+            NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
+    finally:
+        coupled_manager.NewtonManager._solver = old_solver
+        coupled_manager.NewtonManager._needs_collision_pipeline = old_outer
+        coupled_manager.NewtonManager._supports_contact_sensors = old_contact_support
+        coupled_manager.NewtonManager._report_contacts = old_report_contacts
+
+
+class _RecordingAdmm:
+    """Capture ADMM construction while retaining Newton's config dataclasses."""
+
+    ContactPair = SolverCoupledADMM.ContactPair
+    Config = SolverCoupledADMM.Config
+
+    @classmethod
+    def auto_detect_contact_pairs(cls, entries):
+        return SolverCoupledADMM.auto_detect_contact_pairs(entries)
+
+    def __init__(self, *, model, entries, coupling):
+        self.model = model
+        self.entries = entries
+        self.coupling = coupling
+
+
+def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkeypatch):
+    model = _FakeModel()
+    resolved_entries = [
+        _entry("robot", bodies=[0], particles=[0]),
+        _entry("object", bodies=[1], particles=[1]),
+        _entry("world", bodies=[2], particles=[2]),
+    ]
+    cfg = CoupledAdmmSolverCfg(
+        entries=[entry.config for entry in resolved_entries],
+        contact_pairs=[
+            ("robot", "object"),
+            ("object", "world"),
+        ],
+        iterations=7,
+        joint_proximal_bodies=False,
+        joint_proximal_destination_entries=["object", "world"],
+        joint_proximal_mass_scale=0.25,
+        rigid_contact_matching="latest",
+        contact_matching_pos_threshold=0.01,
+        contact_matching_normal_dot_threshold=0.8,
+        contact_matching_force_scale=0.7,
+    )
+    monkeypatch.setattr(coupled_manager, "SolverCoupledADMM", _RecordingAdmm)
+
+    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, [], cfg, resolved_entries)
+
+    assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
+        ("robot", "object"),
+        ("object", "world"),
+    ]
+    assert solver.coupling.iterations == 7
+    assert solver.coupling.joint_proximal_bodies is False
+    assert solver.coupling.joint_proximal_destination_entries == ["object", "world"]
+    assert solver.coupling.joint_proximal_mass_scale == pytest.approx(0.25)
+    assert solver.coupling.rigid_contact_matching == "latest"
+    assert solver.coupling.contact_matching_pos_threshold == pytest.approx(0.01)
+    assert solver.coupling.contact_matching_normal_dot_threshold == pytest.approx(0.8)
+    assert solver.coupling.contact_matching_force_scale == pytest.approx(0.7)
+
+
+def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch):
+    model = _FakeModel()
+    resolved_entries = [
+        _entry("a", bodies=[0], particles=[0]),
+        _entry("b", bodies=[1], particles=[1]),
+        _entry("c", bodies=[2], particles=[2]),
+    ]
+    entries = [SimpleNamespace(name=entry.config.name) for entry in resolved_entries]
+    cfg = CoupledAdmmSolverCfg(entries=[entry.config for entry in resolved_entries])
+    monkeypatch.setattr(coupled_manager, "SolverCoupledADMM", _RecordingAdmm)
+
+    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, entries, cfg, resolved_entries)
+
+    assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
+        ("a", "b"),
+        ("a", "c"),
+        ("b", "c"),
+    ]
+
+    cfg.contact_pairs = []
+    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, entries, cfg, resolved_entries)
     assert list(solver.coupling.contact_pairs) == []
 
 
-def test_build_admm_forwards_config_values(monkeypatch):
-    """ADMM ``Config`` mirrors the cfg's iteration / penalty / joint knobs."""
+@pytest.mark.parametrize(
+    ("pair", "match"),
+    [
+        (("missing", "b"), "must name coupled entries"),
+        (("a", "a"), "source and destination must differ"),
+    ],
+)
+def test_admm_validation_rejects_invalid_contact_pairs(pair, match):
+    entries = [
+        _entry("a", bodies=[0, 1], particles=[0]),
+        _entry("b", bodies=[2], particles=[1, 2]),
+    ]
     cfg = CoupledAdmmSolverCfg(
-        iterations=7,
-        rho=2.0,
-        gamma=0.5,
-        baumgarte=0.1,
-        joint_stiffness=1.0e3,
-        joint_damping=2.0,
-        joint_angular_stiffness=3.0e3,
-        joint_angular_damping=4.0,
+        entries=[entry.config for entry in entries],
+        contact_pairs=[pair],
     )
-    coupling = _build_admm(monkeypatch, cfg).coupling
+    with pytest.raises(ValueError, match=match):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries)
 
-    assert coupling.iterations == 7
-    assert coupling.rho == 2.0
-    assert coupling.gamma == 0.5
-    assert coupling.baumgarte == 0.1
-    assert coupling.joint_stiffness == 1.0e3
-    assert coupling.joint_damping == 2.0
-    assert coupling.joint_angular_stiffness == 3.0e3
-    assert coupling.joint_angular_damping == 4.0
+
+def test_admm_validation_rejects_duplicate_symmetric_contact_pairs():
+    entries = [
+        _entry("a", bodies=[0, 1], particles=[0]),
+        _entry("b", bodies=[2], particles=[1, 2]),
+    ]
+    cfg = CoupledAdmmSolverCfg(
+        entries=[entry.config for entry in entries],
+        contact_pairs=[("a", "b"), ("b", "a")],
+    )
+
+    with pytest.raises(ValueError, match="Duplicate symmetric"):
+        NewtonCoupledSolverManager._validate_solver_cfg(_FakeModel(), cfg, entries)

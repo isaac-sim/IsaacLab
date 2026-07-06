@@ -5,10 +5,18 @@
 
 __all__ = [
     "CoupledAdmmSolverCfg",
+    "CoupledProxyCfg",
     "CoupledProxySolverCfg",
     "CoupledSolverCfg",
+    "CoupledSolverEntryCfg",
     "NewtonCoupledSolverManager",
 ]
 
 from .coupled_manager import NewtonCoupledSolverManager
-from .coupled_manager_cfg import CoupledAdmmSolverCfg, CoupledProxySolverCfg, CoupledSolverCfg
+from .coupled_manager_cfg import (
+    CoupledAdmmSolverCfg,
+    CoupledProxyCfg,
+    CoupledProxySolverCfg,
+    CoupledSolverCfg,
+    CoupledSolverEntryCfg,
+)

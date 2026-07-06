@@ -24,10 +24,10 @@ rigid bodies and VBD advances deformable particles:
   the rigid (MJWarp) and VBD substeps. Use it when the same robot should both
   contact and feel the deformable.
 * :class:`~isaaclab_contrib.coupling.CoupledProxySolverCfg` —
-  partitions the model between a source entry and a destination entry, exposing
-  selected source bodies as *proxies* in the destination view via lagged
-  impulses (see :ref:`newton-vbd-proxy-coupling` below). Use it when only a few
-  rigid bodies (e.g. a gripper) need to interact with the deformable.
+  partitions the model among named entries and exposes selected bodies from one
+  entry as *proxies* in another entry's view via lagged impulses (see
+  :ref:`newton-vbd-proxy-coupling` below). Use it when only a few rigid bodies
+  (e.g. a gripper) need to interact with the deformable.
 * :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` —
   alternates Featherstone and VBD; supports kinematic one-way coupling.
 
@@ -225,14 +225,14 @@ Proxy-Coupled MJWarp + VBD
 MJWarp + VBD coupling that wraps Newton's
 :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`. Instead of
 alternating two full-model substeps, the model is **partitioned** between a
-source (rigid, e.g. MJWarp) entry and a destination (soft, e.g. VBD) entry,
-and selected source bodies are exposed to the destination solver as *proxies* —
-virtual copies that the destination collides against. Contact feedback is
-returned to the source solver as lagged impulses. This typically scales better
-than the alternating coupling when only a small set of rigid bodies (e.g. the
-fingers of a gripper) actually needs to touch the deformable, since the bulk of
-the articulation is solved purely by MJWarp without seeing the particle
-contacts.
+set of named solver entries. Each directed proxy mapping names a source entry
+(rigid, e.g. MJWarp) and a destination entry (soft, e.g. VBD), then exposes
+selected source bodies to the destination solver as *proxies* — virtual copies
+that the destination collides against. Contact feedback is returned to the
+source solver as lagged impulses. This typically scales better than the
+alternating coupling when only a small set of rigid bodies (e.g. the fingers of
+a gripper) actually needs to touch the deformable, since the bulk of the
+articulation is solved purely by MJWarp without seeing the particle contacts.
 
 The Franka soft-body task ships a ``newton_mjwarp_vbd_proxy`` preset (the new
 default for ``Isaac-Lift-Soft-Franka-v0``) that demonstrates the typical
@@ -246,23 +246,29 @@ configuration:
 
 What the selectors do:
 
-* ``src_bodies`` and ``dst_bodies`` partition every body in the model. Each
-  entry is either a :class:`~isaaclab.managers.SceneEntityCfg` (resolved
-  against the scene's ``prim_path``, optionally narrowed by ``body_names``) or
-  a raw prim-path regex string matched against ``model.body_label`` (e.g.
-  ``"/World/envs/env_.*/Robot"``). Joints inherit their child body's owner;
-  shapes inherit their body's owner. Static shapes (world geometry) always go
-  to the destination entry so the proxy collision pipeline can test against the
-  ground. A body matching both partitions, or matching neither, is an error.
-* ``proxy_bodies`` selects the (rigid) source bodies that the destination solver
-  should collide against. Only bodies that own at least one
-  ``newton.ShapeFlags.COLLIDE_SHAPES`` shape are kept. For
-  :class:`~isaaclab.managers.SceneEntityCfg` entries, ``body_names`` is
-  **required** here since proxies must be a strict subset of the asset.
+* ``entries`` contains one
+  :class:`~isaaclab_contrib.coupling.CoupledSolverEntryCfg` per sub-solver. Each
+  entry has a stable ``name``, its own ``solver_cfg``, and explicit model
+  ownership selectors.
+* An entry's ``bodies`` selectors are either a
+  :class:`~isaaclab.managers.SceneEntityCfg` (resolved against the scene's
+  ``prim_path``, optionally narrowed by ``body_names``) or a full Newton body
+  label regex string. By default, joints inherit their child body's owner and
+  shapes inherit their body's owner. Use ``all_particles=True`` to own all
+  deformable particles and ``include_static_shapes=True`` to own world
+  geometry. Every body and particle must have exactly one owner; joints and
+  shapes may also be deliberately omitted from all solver views.
+* ``proxies`` contains directed
+  :class:`~isaaclab_contrib.coupling.CoupledProxyCfg` mappings. Each mapping
+  names its ``source`` and ``destination`` entries, then uses ``bodies`` to
+  select the source bodies that the destination solver should collide against.
+  Only bodies that own at least one ``newton.ShapeFlags.COLLIDE_SHAPES`` shape
+  are kept.
 * In the snippet above, the entire Franka articulation is routed to MJWarp,
-  the deformable particles are owned by VBD, and only the ``panda_hand`` and
-  the two fingers are exposed as proxies — so VBD only ever sees three rigid
-  proxies regardless of how many links the arm has.
+  while the deformable particles and static table/world shapes are routed to
+  VBD. Only the ``panda_hand`` and the two fingers are exposed as proxies —
+  so VBD only ever sees three rigid proxies regardless of how many links the
+  arm has.
 
 Key proxy-specific parameters:
 
@@ -272,20 +278,20 @@ Key proxy-specific parameters:
 
     * - Parameter
       - Description
-    * - ``proxy_mode``
+    * - ``CoupledProxyCfg.mode``
       - Default: ``"lagged"``. ``"lagged"`` syncs source begin poses and end
         velocities, then rewinds lagged feedback before the destination solve.
         ``"staggered"`` syncs source end poses and end velocities directly.
         Lagged is the safer default; staggered can be tighter but is more
         sensitive to timestep.
-    * - ``proxy_iterations``
+    * - ``CoupledProxySolverCfg.iterations``
       - Default: ``1``. Number of relaxation iterations per coupled substep.
         Increase it when proxy contact feedback needs more accuracy.
-    * - ``proxy_collide_interval``
-      - Default: ``1``. How often (in proxy passes) the proxy collision
-        pipeline rebuilds candidate pairs. Increase it for cheaper but
-        slightly staler proxy contacts.
-    * - ``proxy_mass_scale``
+    * - ``CoupledProxyCfg.collide_interval``
+      - Default: ``None`` (every proxy pass). How often the proxy collision
+        pipeline rebuilds candidate pairs. Increase it for cheaper but slightly
+        staler proxy contacts.
+    * - ``CoupledProxyCfg.mass_scale``
       - Default: ``1.0``. Multiplier for the virtual inertia of proxy bodies
         in the VBD view. Increase it to make proxies behave more like fixed
         obstacles to VBD.

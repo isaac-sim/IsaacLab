@@ -16,4 +16,5 @@ Changed
 * Migrated ``lift_franka_soft`` (rigid + cloth variants) from
   ``DeformableNewtonCfg`` to
   :class:`~isaaclab_contrib.deformable.newton_manager_cfg.CoupledNewtonCfg`
-  with the proxy-coupled MJWarp + VBD solver as the default.
+  with the proxy-coupled MJWarp + VBD solver as the default, configured through
+  named solver entries and an explicit rigid-to-soft proxy mapping.
