@@ -38,7 +38,6 @@ jobs:
       run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
       testmon_mode: ${{ steps.detect.outputs.testmon_mode }}
     steps:
-      - uses: actions/checkout@v6
       - id: detect
         env:
           GH_TOKEN: ${{ github.token }}
@@ -54,18 +53,14 @@ jobs:
           # filter (a not-triggered required check would block the PR forever).
           patterns=(
             $'^apps/\tStandalone apps'
-            $'^docker/\tContainer build inputs'
-            $'^scripts/\tStandalone scripts'
             $'^tools/\tBuild tooling'
             $'^source/\tLibrary source code'
             $'^\\.github/actions/run-package-tests/\tTest action'
             $'^\\.github/actions/install-ci-(collect|run)/\tInstall-ci composite actions'
             $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
-            $'^\\.gitmodules$\tGit submodule config'
             $'^VERSION$\tVersion file'
             $'(^|/)pyproject\\.toml$\tPython project metadata'
             $'(^|/)environment\\.ya?ml$\tConda environment file'
-            $'^[^/]+\\.(toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)$\tRoot configuration and scripts'
           )
 
           render_table() {
