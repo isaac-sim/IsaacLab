@@ -473,16 +473,21 @@ def launch_simulation(
                 {**base, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
             )
 
+    exit_code = 0
     try:
         yield physics_cfg
     except Exception:
+        exit_code = 1
         import traceback
 
         traceback.print_exc()
         raise
     finally:
         if close_fn is not None:
-            close_fn()
+            if exit_code:
+                close_fn(exit_code=exit_code)
+            else:
+                close_fn()
 
 
 def _ensure_isaac_sim_available() -> None:
