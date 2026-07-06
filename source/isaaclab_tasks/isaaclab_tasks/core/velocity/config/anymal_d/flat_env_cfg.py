@@ -22,7 +22,7 @@ class PhysicsCfg(PresetCfg):
             njmax=60,
             nconmax=25,
             cone="elliptic",
-            impratio=100.0,
+            impratio=100,
         ),
         num_substeps=1,
         debug_mode=False,
