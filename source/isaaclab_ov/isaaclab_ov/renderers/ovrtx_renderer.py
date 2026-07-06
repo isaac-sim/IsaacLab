@@ -265,6 +265,7 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
 
     @property
@@ -893,6 +894,14 @@ class OVRTXRenderer(BaseRenderer):
             with frame.render_vars["NormalSD"].map(device=Device.CUDA) as mapping:
                 tiled_normals_data = wp.from_dlpack(mapping.tensor)
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
+
+        # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
+        # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
+        # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
+        if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
+            with frame.render_vars["TargetMotionSD"].map(device=Device.CUDA) as mapping:
+                tiled_motion_vectors_data = wp.from_dlpack(mapping.tensor)
+                self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
 
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""
