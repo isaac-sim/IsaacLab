@@ -9,8 +9,11 @@ import json
 from pathlib import Path
 
 import pytest
+
 _TRAINING_BUNDLE_KEYS = {"run", "versions", "hardware", "runtime", "resources", "learning"}
 
+
+@pytest.fixture
 def load_training_bundle():
     """Provide a loader for the schema bundle in a formatter output directory."""
 
