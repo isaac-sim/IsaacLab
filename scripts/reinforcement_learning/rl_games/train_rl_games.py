@@ -30,7 +30,7 @@ from common import (
     resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
-    wrap_record_video,
+    wrap_training_capture,
     write_run_manifest,
 )
 
@@ -175,7 +175,7 @@ def run(argv: list[str]) -> None:
             args_cli,
             convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
         )
-        env = wrap_record_video(env, run_log_dir, args_cli)
+        env = wrap_training_capture(env, run_log_dir, args_cli)
 
         start_time = time.time()
         env = RlGamesVecEnvWrapper(env, rl_device, clip_obs, clip_actions, obs_groups, concate_obs_groups)
