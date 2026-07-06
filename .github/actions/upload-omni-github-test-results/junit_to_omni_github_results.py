@@ -75,7 +75,7 @@ def _testcase_markers(testcase: ET.Element) -> list[str]:
             if value and value not in seen:
                 seen.add(value)
                 markers.append(value)
-    return markers
+    return sorted(markers)
 
 
 def _short_message(element: ET.Element | None) -> str | None:
