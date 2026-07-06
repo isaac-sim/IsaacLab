@@ -40,7 +40,7 @@ def _find_bundle(out_dir: Path, expected_keys: set[str]) -> dict:
     pytest.fail(f"no bundle in {out_dir} contained keys {expected_keys}; found {[p.name for p in candidates]}")
 
 
-def test_play_sb3_emits_play_bundle(tmp_path, require_isaacsim):
+def test_play_sb3_emits_play_bundle(tmp_path):
     sh = ROOT / "isaaclab.sh"
     train_out = tmp_path / "train"
     play_out = tmp_path / "play"
