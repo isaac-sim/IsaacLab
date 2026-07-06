@@ -348,7 +348,7 @@ jobs:
           printf '| Ambient NGC artifact download timed out | `%s` |\n' "$ngc_download_timed_out"
           printf '| Isolated NGC CLI without an API key can download the configured resource | `%s` |\n' \
             "$ngc_artifact_downloadable_without_key"
-        } >> "$GITHUB_STEP_SUMMARY"
+        } | tee -a "$GITHUB_STEP_SUMMARY"
 
   secret-backed-auth:
     name: Explicit NGC secret authentication
@@ -492,7 +492,7 @@ jobs:
             printf '| Explicit NGC artifact download timed out | `%s` |\n' "$ngc_download_timed_out"
             printf '| NGC artifact is downloadable with the explicit secret | `%s` |\n' \
               "$ngc_artifact_downloadable"
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
         }
 
         if [ -z "${NGC_API_KEY:-}" ]; then
