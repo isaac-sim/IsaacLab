@@ -65,7 +65,8 @@ requests so fork-authored code never runs on persistent self-hosted runners. Onl
 - [x] **Step 3: Implement the ambient probe**
 
 Checkout the repository, load `isaacsim_image_name`, `isaacsim_image_tag`, and
-`ovphysx_wheelhouse_resource` from `.github/workflows/config.yaml`, then run one
+`ovphysx_wheelhouse_resource` from `.github/workflows/config.yaml` with a
+quote-aware `sed` parser and no `yq` dependency, then run one
 `bash` probe with `set -uo pipefail` and temporary directories cleaned by a
 `trap`. Check that `mktemp` returns a non-empty path, install the cleanup trap
 immediately, and fail cleanly if temporary subdirectory creation fails. The probe
@@ -74,6 +75,7 @@ output:
 
 ```text
 Timeout tool is available
+Python 3 is available
 Docker CLI is available
 AWS CLI is available
 NGC CLI download, checksum, and unpack are ready
@@ -155,6 +157,11 @@ test -f .github/workflows/ngc-auth-diagnostic.yaml
 Expected: the file-existence check exits 0 and every pre-commit hook passes.
 If pre-commit modifies files, review and stage them, then run `./isaaclab.sh -f`
 again.
+
+Regression evidence: CI run `28798383155` failed in configuration loading with
+exit `127` and `yq: command not found`. A structural RED check must show the old
+workflow contains `yq`; the GREEN check must show none and verify that the
+dependency-free parser preserves the full quoted resource value after its colon.
 
 - [x] **Step 6: Review and commit**
 

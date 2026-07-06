@@ -36,9 +36,39 @@ jobs:
       run: |
         set -euo pipefail
         config_file=.github/workflows/config.yaml
-        isaacsim_image_name=$(yq -r .isaacsim_image_name "$config_file")
-        isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$config_file")
-        ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$config_file")
+        read_config_value() {
+          config_key=$1
+          config_value=$(sed -n \
+            "s/^[[:space:]]*${config_key}[[:space:]]*:[[:space:]]*//p" "$config_file" | \
+            sed -n '1{s/[[:space:]]*$//;p;}')
+          case "$config_value" in
+            \"*\")
+              config_value=${config_value#\"}
+              config_value=${config_value%\"}
+              ;;
+            \'*\')
+              config_value=${config_value#\'}
+              config_value=${config_value%\'}
+              ;;
+          esac
+          printf '%s' "$config_value"
+        }
+
+        isaacsim_image_name=$(read_config_value isaacsim_image_name)
+        isaacsim_image_tag=$(read_config_value isaacsim_image_tag)
+        ovphysx_wheelhouse_resource=$(read_config_value ovphysx_wheelhouse_resource)
+        if [ -z "$isaacsim_image_name" ]; then
+          echo "::error::Missing required diagnostic configuration value: isaacsim_image_name"
+          exit 1
+        fi
+        if [ -z "$isaacsim_image_tag" ]; then
+          echo "::error::Missing required diagnostic configuration value: isaacsim_image_tag"
+          exit 1
+        fi
+        if [ -z "$ovphysx_wheelhouse_resource" ]; then
+          echo "::error::Missing required diagnostic configuration value: ovphysx_wheelhouse_resource"
+          exit 1
+        fi
         printf 'isaacsim_image_name=%s\n' "$isaacsim_image_name" >> "$GITHUB_OUTPUT"
         printf 'isaacsim_image_tag=%s\n' "$isaacsim_image_tag" >> "$GITHUB_OUTPUT"
         printf 'ovphysx_wheelhouse_resource=%s\n' "$ovphysx_wheelhouse_resource" >> "$GITHUB_OUTPUT"
@@ -57,6 +87,7 @@ jobs:
         NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
 
         timeout_cli_available=false
+        python3_available=false
         docker_cli_available=false
         aws_cli_available=false
         ngc_cli_setup_attempted=false
@@ -112,6 +143,9 @@ jobs:
         if command -v timeout >/dev/null 2>&1; then
           timeout_cli_available=true
         fi
+        if command -v python3 >/dev/null 2>&1; then
+          python3_available=true
+        fi
         if command -v docker >/dev/null 2>&1; then
           docker_cli_available=true
         fi
@@ -125,8 +159,10 @@ jobs:
 
         if [ -f "$default_docker_config" ]; then
           default_docker_config_exists=true
-          if yq -e '((.auths // {}) | has("nvcr.io")) or ((.credHelpers // {}) | has("nvcr.io"))' \
-            "$default_docker_config" >/dev/null 2>&1; then
+          if [ "$python3_available" = true ] &&
+            python3 -c \
+              'import json, sys; config = json.load(open(sys.argv[1], encoding="utf-8")); auths = config.get("auths") or {}; helpers = config.get("credHelpers") or {}; raise SystemExit(0 if "nvcr.io" in auths or "nvcr.io" in helpers else 1)' \
+              "$default_docker_config" >/dev/null 2>&1; then
             default_docker_config_names_nvcr=true
           fi
         fi
@@ -271,6 +307,7 @@ jobs:
           printf '| Probe | Result |\n'
           printf '| --- | --- |\n'
           printf '| Timeout tool is available | `%s` |\n' "$timeout_cli_available"
+          printf '| Python 3 is available | `%s` |\n' "$python3_available"
           printf '| Docker CLI is available | `%s` |\n' "$docker_cli_available"
           printf '| AWS CLI is available | `%s` |\n' "$aws_cli_available"
           printf '| NGC CLI setup was attempted | `%s` |\n' "$ngc_cli_setup_attempted"
@@ -332,9 +369,39 @@ jobs:
       run: |
         set -euo pipefail
         config_file=.github/workflows/config.yaml
-        isaacsim_image_name=$(yq -r .isaacsim_image_name "$config_file")
-        isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$config_file")
-        ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$config_file")
+        read_config_value() {
+          config_key=$1
+          config_value=$(sed -n \
+            "s/^[[:space:]]*${config_key}[[:space:]]*:[[:space:]]*//p" "$config_file" | \
+            sed -n '1{s/[[:space:]]*$//;p;}')
+          case "$config_value" in
+            \"*\")
+              config_value=${config_value#\"}
+              config_value=${config_value%\"}
+              ;;
+            \'*\')
+              config_value=${config_value#\'}
+              config_value=${config_value%\'}
+              ;;
+          esac
+          printf '%s' "$config_value"
+        }
+
+        isaacsim_image_name=$(read_config_value isaacsim_image_name)
+        isaacsim_image_tag=$(read_config_value isaacsim_image_tag)
+        ovphysx_wheelhouse_resource=$(read_config_value ovphysx_wheelhouse_resource)
+        if [ -z "$isaacsim_image_name" ]; then
+          echo "::error::Missing required diagnostic configuration value: isaacsim_image_name"
+          exit 1
+        fi
+        if [ -z "$isaacsim_image_tag" ]; then
+          echo "::error::Missing required diagnostic configuration value: isaacsim_image_tag"
+          exit 1
+        fi
+        if [ -z "$ovphysx_wheelhouse_resource" ]; then
+          echo "::error::Missing required diagnostic configuration value: ovphysx_wheelhouse_resource"
+          exit 1
+        fi
         printf 'isaacsim_image_name=%s\n' "$isaacsim_image_name" >> "$GITHUB_OUTPUT"
         printf 'isaacsim_image_tag=%s\n' "$isaacsim_image_tag" >> "$GITHUB_OUTPUT"
         printf 'ovphysx_wheelhouse_resource=%s\n' "$ovphysx_wheelhouse_resource" >> "$GITHUB_OUTPUT"
