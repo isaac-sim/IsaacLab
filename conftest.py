@@ -12,7 +12,22 @@ active test. The hooks are no-ops unless pytest-testmon is collecting coverage.
 
 import contextlib
 import sys
+from collections.abc import Generator
 from pathlib import Path
+
+import pytest
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> Generator[None, None, None]:
+    """Keep tests marked ``smoke`` selected when Testmon filters the collection."""
+    always_items = [item for item in items if item.get_closest_marker("smoke") is not None]
+    yield
+
+    if config.getoption("testmon_forceselect", default=False):
+        selected = set(items)
+        items.extend(item for item in always_items if item not in selected)
+
 
 _TOOLS_DIR = Path(__file__).resolve().parent / "tools"
 if _TOOLS_DIR.is_dir():
