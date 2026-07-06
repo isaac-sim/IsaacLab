@@ -11,6 +11,8 @@ This module provides a unified settings interface that can work in two modes:
 
 This allows Isaac Lab to run visualizers like Rerun and Newton without requiring
 the full Omniverse/SimulationApp stack.
+
+The shared interface keeps settings access consistent across both execution modes.
 """
 
 import sys
