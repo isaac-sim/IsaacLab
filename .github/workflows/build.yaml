@@ -241,6 +241,89 @@ jobs:
         fetch-depth: 1
         lfs: true
 
+    - name: Probe runner registry authentication boundary
+      if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+      shell: bash
+      env:
+        ISAACSIM_IMAGE: ${{ needs.config.outputs.isaacsim_image_name }}:${{ needs.config.outputs.isaacsim_image_tag }}
+        OVPHYSX_RESOURCE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource }}
+      run: |
+        set -uo pipefail
+
+        report_probe() {
+          local name="$1"
+          shift
+          if timeout 60 "$@" </dev/null >/dev/null 2>&1; then
+            echo "PROBE ${name}=allowed"
+          else
+            local rc=$?
+            echo "PROBE ${name}=denied_or_unavailable rc=${rc}"
+          fi
+        }
+
+        if [ -n "${NGC_API_KEY:-}" ]; then
+          echo "PROBE actions_ngc_secret=present"
+        else
+          echo "PROBE actions_ngc_secret=absent"
+        fi
+
+        probe_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-probe.XXXXXX")"
+        trap 'rm -rf "$probe_root"' EXIT
+        mkdir -p \
+          "$probe_root/docker-clean" \
+          "$probe_root/docker-inherited" \
+          "$probe_root/ngc-clean"
+
+        if [ -f "${HOME}/.docker/config.json" ]; then
+          python3 - "${HOME}/.docker/config.json" "$probe_root/docker-inherited/config.json" <<'PY'
+        import json
+        import pathlib
+        import sys
+
+        source = pathlib.Path(sys.argv[1])
+        destination = pathlib.Path(sys.argv[2])
+        config = json.loads(source.read_text(encoding="utf-8"))
+        config["credsStore"] = ""
+        config.pop("credHelpers", None)
+        destination.write_text(json.dumps(config), encoding="utf-8")
+        PY
+        fi
+
+        report_probe inherited_nvcr \
+          env DOCKER_CONFIG="$probe_root/docker-inherited" \
+          docker manifest inspect "$ISAACSIM_IMAGE"
+        report_probe clean_nvcr \
+          env DOCKER_CONFIG="$probe_root/docker-clean" \
+          docker manifest inspect "$ISAACSIM_IMAGE"
+
+        ngc_cli_version="4.20.0"
+        ngc_cli_sha256="5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b"
+        ngc_cli_zip="$probe_root/ngccli_linux.zip"
+        if ! curl -fsSL \
+          "https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${ngc_cli_version}/files/ngccli_linux.zip" \
+          -o "$ngc_cli_zip"; then
+          echo "PROBE ngc_cli_setup=download_failed"
+          exit 1
+        fi
+        if ! echo "${ngc_cli_sha256}  ${ngc_cli_zip}" | sha256sum -c - >/dev/null; then
+          echo "PROBE ngc_cli_setup=checksum_failed"
+          exit 1
+        fi
+        if ! unzip -q "$ngc_cli_zip" -d "$probe_root"; then
+          echo "PROBE ngc_cli_setup=unzip_failed"
+          exit 1
+        fi
+        echo "PROBE ngc_cli_setup=verified"
+        ngc="$probe_root/ngc-cli/ngc"
+
+        report_probe inherited_ngc_resource \
+          env -u NGC_API_KEY -u NGC_CLI_API_KEY -u NGC_CLI_HOME \
+          "$ngc" registry resource info --format_type json "$OVPHYSX_RESOURCE"
+        report_probe clean_ngc_resource \
+          env -u NGC_API_KEY -u NGC_CLI_API_KEY \
+          NGC_CLI_HOME="$probe_root/ngc-clean" \
+          "$ngc" registry resource info --format_type json "$OVPHYSX_RESOURCE"
+
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
       with:
