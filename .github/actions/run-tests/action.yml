@@ -127,9 +127,9 @@ runs:
           local extra_pip_packages="${15}"
           local wheelhouse_host_dir="${16}"
           local wheelhouse_packages="${17}"
-          local test_k_expr="${18}"
-          local testmon_data_dir="${19}"
-          local testmon_mode="${20}"
+          local testmon_data_dir="${18}"
+          local testmon_mode="${19}"
+          local test_k_expr="${20}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -157,6 +157,7 @@ runs:
           fi
           if [ "$testmon_mode" != "off" ]; then
             echo "Testmon mode: $testmon_mode"
+          fi
           if [ -n "$wheelhouse_host_dir" ]; then
             echo "With wheelhouse host directory: $wheelhouse_host_dir"
           fi
@@ -282,6 +283,7 @@ runs:
               off) ;;
               *) echo "Unknown Testmon mode: $testmon_mode"; return 1 ;;
             esac
+          fi
           if [ -n "$test_k_expr" ]; then
             export TEST_K_EXPR="$test_k_expr"
             docker_env_vars="$docker_env_vars -e TEST_K_EXPR"
