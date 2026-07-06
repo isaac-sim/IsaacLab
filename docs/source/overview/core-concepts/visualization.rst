@@ -163,6 +163,22 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
 
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
+Newton environments can share simulated coordinates, for example when ``scene.env_spacing=0``.
+Use :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing` to arrange selected
+worlds visually without changing their simulated poses:
+
+.. code-block:: python
+
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    NewtonVisualizerCfg(
+        visible_env_indices=[0, 1, 2, 3],
+        world_spacing=(2.0, 2.0, 0.0),
+    )
+
+Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
+selection and visual offsets. This includes point-cloud and task-geometry markers.
+
 .. _visualization-common-modes:
 
 .. list-table:: Common modes

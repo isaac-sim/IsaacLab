@@ -10,11 +10,13 @@ import contextlib
 import math
 import os
 import random
+import re
 import sys
 import time
 
 import gymnasium as gym
 import torch
+from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from rl_games.common import env_configurations, vecenv
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
@@ -50,7 +52,7 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
     "--agent", type=str, default="rl_games_cfg_entry_point", help="Name of the RL agent configuration entry point."
 )
-parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint.")
+parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument(
     "--use_pretrained_checkpoint",
@@ -101,6 +103,18 @@ def main():
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            config_name = agent_cfg["params"]["config"]["name"]
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="rl_games",
+                task=train_task_name,
+                checkpoint_pattern=r".*\.pth",
+                other_dirs=["nn"],
+                preferred_checkpoint_pattern=rf"{re.escape(config_name)}\.pth",
+                metadata={"agent": args_cli.agent},
+            )
         elif args_cli.checkpoint is None:
             run_dir = agent_cfg["params"]["config"].get("full_experiment_name", ".*")
             # prefer the best-reward checkpoint (``<name>.pth``); fall back to the latest checkpoint when it has

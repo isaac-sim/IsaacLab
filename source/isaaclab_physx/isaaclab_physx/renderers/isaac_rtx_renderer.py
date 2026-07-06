@@ -27,7 +27,11 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
-from .isaac_rtx_renderer_utils import ensure_isaac_rtx_render_update, ensure_rtx_hydra_engine_attached
+from .isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+    ensure_isaac_rtx_render_update,
+    ensure_rtx_hydra_engine_attached,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -115,8 +119,10 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def __init__(self, cfg: IsaacRtxRendererCfg):
         self.cfg = cfg
+        settings = get_settings_manager()
+        apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
         # RTX rendering requires the app to be launched with ``--enable_cameras``.
-        if not get_settings_manager().get("/isaaclab/cameras_enabled"):
+        if not settings.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
                 "A camera was spawned without the --enable_cameras flag. Please use --enable_cameras to enable"
                 " rendering."

@@ -267,6 +267,9 @@ Materials
     MdlFileCfg
     GlassMdlCfg
     PhysicsMaterialCfg
+    RigidBodyMaterialBaseCfg
+    RigidBodyMaterialFragment
+    UsdPhysicsRigidBodyMaterialCfg
     RigidBodyMaterialCfg
     DeformableBodyMaterialBaseCfg
     SurfaceDeformableBodyMaterialBaseCfg
@@ -303,7 +306,26 @@ Physical Materials
     :members:
     :exclude-members: __init__, func
 
+.. autofunction:: spawn_physics_material
+
 .. autofunction:: spawn_rigid_body_material
+
+.. autoclass:: RigidBodyMaterialBaseCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_rigid_body_material_from_fragments
+
+.. autoclass:: RigidBodyMaterialFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: UsdPhysicsRigidBodyMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
 
 .. autoclass:: RigidBodyMaterialCfg
     :members:

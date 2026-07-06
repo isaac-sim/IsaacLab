@@ -12,9 +12,9 @@ Run via ``./isaaclab.sh -p -m pytest``; the ovphysx wheel is now invocable
 through the standard Kit Python entrypoint, so the older kitless
 ``./scripts/run_ovphysx.sh`` wrapper is no longer required.
 
-The OVPhysX runtime binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` construction and cannot swap it without a
-process restart.  Full coverage therefore requires two separate pytest
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance and cannot switch it without a process
+restart. Full coverage therefore requires two separate pytest
 invocations -- once with ``-k 'cpu'`` and once with ``-k 'cuda:0'``.  The
 ``_ovphysx_skip_other_device`` autouse fixture below preempts the manager's
 :exc:`RuntimeError` by ``pytest.skip``-ing on the unlocked device so
