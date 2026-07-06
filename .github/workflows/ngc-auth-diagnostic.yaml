@@ -81,6 +81,7 @@ jobs:
         OVPHYSX_WHEELHOUSE_RESOURCE: ${{ steps.config.outputs.ovphysx_wheelhouse_resource }}
       run: |
         set -uo pipefail
+        set +e
 
         NGC_CLI_VERSION=4.20.0
         NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
@@ -414,6 +415,7 @@ jobs:
         OVPHYSX_WHEELHOUSE_RESOURCE: ${{ steps.config.outputs.ovphysx_wheelhouse_resource }}
       run: |
         set -uo pipefail
+        set +e
 
         NGC_CLI_VERSION=4.20.0
         NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
