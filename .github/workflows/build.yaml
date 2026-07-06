@@ -253,7 +253,7 @@ jobs:
         report_probe() {
           local name="$1"
           shift
-          if timeout 60 "$@" </dev/null >/dev/null 2>&1; then
+          if timeout 180 "$@" </dev/null >/dev/null 2>&1; then
             echo "PROBE ${name}=allowed"
           else
             local rc=$?
@@ -272,7 +272,9 @@ jobs:
         mkdir -p \
           "$probe_root/docker-clean" \
           "$probe_root/docker-inherited" \
-          "$probe_root/ngc-clean"
+          "$probe_root/ngc-clean" \
+          "$probe_root/ngc-clean-download" \
+          "$probe_root/ngc-inherited-download"
 
         if [ -f "${HOME}/.docker/config.json" ]; then
           python3 - "${HOME}/.docker/config.json" "$probe_root/docker-inherited/config.json" <<'PY'
@@ -315,14 +317,19 @@ jobs:
         fi
         echo "PROBE ngc_cli_setup=verified"
         ngc="$probe_root/ngc-cli/ngc"
+        ngc_org="${OVPHYSX_RESOURCE%%/*}"
 
-        report_probe inherited_ngc_resource \
+        report_probe inherited_ngc_download \
           env -u NGC_API_KEY -u NGC_CLI_API_KEY -u NGC_CLI_HOME \
-          "$ngc" registry resource info --format_type json "$OVPHYSX_RESOURCE"
-        report_probe clean_ngc_resource \
+          NGC_CLI_ORG="$ngc_org" NGC_CLI_TEAM=no-team \
+          "$ngc" registry resource download-version "$OVPHYSX_RESOURCE" \
+          --dest "$probe_root/ngc-inherited-download"
+        report_probe clean_ngc_download \
           env -u NGC_API_KEY -u NGC_CLI_API_KEY \
           NGC_CLI_HOME="$probe_root/ngc-clean" \
-          "$ngc" registry resource info --format_type json "$OVPHYSX_RESOURCE"
+          NGC_CLI_ORG="$ngc_org" NGC_CLI_TEAM=no-team \
+          "$ngc" registry resource download-version "$OVPHYSX_RESOURCE" \
+          --dest "$probe_root/ngc-clean-download"
 
     - name: Build and push to ECR
       uses: ./.github/actions/ecr-build-push-pull
