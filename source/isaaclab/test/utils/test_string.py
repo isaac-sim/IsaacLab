@@ -62,6 +62,11 @@ def test_case_conversion():
     assert string_utils.to_camel_case("snake_case_string", to="cC") == "snakeCaseString"
 
 
+def test_ci_selects_changed_python_test():
+    """Verify the temporary affected-test CI probe runs."""
+    assert string_utils.to_snake_case("AffectedTest") == "affected_test"
+
+
 def test_string_to_callable_allows_safe_lambdas():
     """Test that simple lambda expressions and module references resolve to callables."""
     assert string_utils.string_to_callable("lambda x: x + 1")(5) == 6
