@@ -141,8 +141,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .testmon/${{ runner.arch }}
-          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
-          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
+          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('conftest.py', 'tools/run_install_ci.py', 'tools/testmon_subprocess_coverage.py', 'tools/testmon_coverage_context.py', 'source/isaaclab/test/install_ci/conftest.py', 'source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
+          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('conftest.py', 'tools/run_install_ci.py', 'tools/testmon_subprocess_coverage.py', 'tools/testmon_coverage_context.py', 'source/isaaclab/test/install_ci/conftest.py', 'source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
@@ -168,8 +168,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .testmon/${{ runner.arch }}
-          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
-          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
+          key: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('conftest.py', 'tools/run_install_ci.py', 'tools/testmon_subprocess_coverage.py', 'tools/testmon_coverage_context.py', 'source/isaaclab/test/install_ci/conftest.py', 'source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-${{ github.sha }}
+          restore-keys: install-ci-testmon-${{ runner.arch }}-${{ hashFiles('conftest.py', 'tools/run_install_ci.py', 'tools/testmon_subprocess_coverage.py', 'tools/testmon_coverage_context.py', 'source/isaaclab/test/install_ci/conftest.py', 'source/isaaclab/test/install_ci/Dockerfile.installci', 'source/isaaclab/test/install_ci/pytest.ini') }}-
       - name: Show Collected Tests
         uses: ./.github/actions/install-ci-collect
         with:
