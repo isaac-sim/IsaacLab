@@ -76,7 +76,7 @@ class CabinetSimCfg(PresetCfg):
     newton_kamino: SimulationCfg = SimulationCfg(
         dt=1 / 600,
         render_interval=1,
-        physics=NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64), num_substeps=1),
+        physics=NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64)),
     )
 
 

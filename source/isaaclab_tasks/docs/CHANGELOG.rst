@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+8.1.5 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``motion_vectors`` to the rendering correctness test matrix for cartpole, shadow hand, and
+  dexsuite kuka allegro lift environments.
+
+Fixed
+^^^^^
+
+* Fixed flaky ``motion_vectors`` golden-image comparisons on PhysX backends (``physx`` and
+  ``ovphysx``) by enabling enhanced determinism and per-iteration external forces on the PhysX
+  solver, which otherwise produces run-to-run noisy velocities that this AOV encodes directly.
+
+
+8.1.4 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-DrLegs-HoldPose-v0`` and ``Isaac-DrLegs-Walk-v0`` Kamino closed-loop locomotion
+  tasks via :class:`~isaaclab_tasks.contrib.dr_legs.hold_pose_env_cfg.DrLegsHoldPoseEnvCfg` and
+  :class:`~isaaclab_tasks.contrib.dr_legs.walk_env_cfg.DrLegsWalkEnvCfg`.
+
+* Added ``newton_kamino`` physics presets to core and contrib velocity, reach, cabinet, and Shadow
+  Hand environment configurations.
+
+Fixed
+^^^^^
+
+* Fixed reach task table spawn offset for Newton ``newton_mjwarp`` and ``newton_kamino`` presets.
+
+
 8.1.3 (2026-07-03)
 ~~~~~~~~~~~~~~~~~~
 

@@ -67,9 +67,8 @@ def _kamino_newton_cfg() -> NewtonCfg:
             padmm_warmstart_mode="containers",
             padmm_contact_warmstart_method="geom_pair_net_force",
             padmm_use_graph_conditionals=False,
-            max_contacts_per_world=50,
+            max_contacts_per_world=32,
         ),
-        num_substeps=2,
         use_cuda_graph=True,
         default_shape_cfg=NewtonShapeCfg(margin=0.0, gap=0.001),
     )
@@ -195,7 +194,7 @@ class EventCfg:
             "pose_range": {
                 "x": (-0.05, 0.05),
                 "y": (-0.05, 0.05),
-                "z": (-0.02, 0.02),
+                "z": (0.01, 0.015),
                 "roll": (-0.1, 0.1),
                 "pitch": (-0.1, 0.1),
                 "yaw": (-3.14159, 3.14159),
@@ -266,14 +265,14 @@ class DrLegsHoldPoseEnvCfg(ManagerBasedRLEnvCfg):
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
     sim: SimulationCfg = SimulationCfg(
-        dt=0.004,
-        render_interval=5,
+        dt=1 / 150,
+        render_interval=3,
         physics=DrLegsPhysicsCfg(),
         physics_material=_PHYSICS_MATERIAL,
     )
 
     def __post_init__(self) -> None:
-        self.decimation = 5
+        self.decimation = 3
         self.episode_length_s = 10.0
         self.viewer.eye = (1.5, 0.5, 0.5)
         self.viewer.lookat = (0.0, 0.0, 0.265)
