@@ -119,27 +119,6 @@ def _with_distributed_arg(train_args: list[str]) -> list[str]:
     return [*train_args, "--distributed"]
 
 
-def _with_fused_kit_args(train_args: list[str]) -> list[str]:
-    """Fuse space-separated ``--kit_args`` values into single ``--kit_args=<value>`` tokens.
-
-    Kit arguments always start with ``--``, so forwarding ``["--kit_args", "--foo=bar"]``
-    verbatim makes the training script's argparse reject the value as a missing argument
-    ("expected one argument") and exit with code 2 on every rank. The ``=``-attached form
-    parses identically and is unambiguous.
-    """
-    fused_args = []
-    index = 0
-    while index < len(train_args):
-        arg = train_args[index]
-        if arg == "--kit_args" and index + 1 < len(train_args):
-            fused_args.append(f"--kit_args={train_args[index + 1]}")
-            index += 2
-        else:
-            fused_args.append(arg)
-            index += 1
-    return fused_args
-
-
 def _get_forwarded_arg_value(args: list[str], name: str) -> str | None:
     """Return the last value of a forwarded command-line option."""
     value = None
@@ -272,7 +251,7 @@ def _build_torchrun_command(args_cli: argparse.Namespace, train_args: list[str])
             str(TRAIN_SCRIPT),
             "--rl_library",
             args_cli.rl_library,
-            *_with_distributed_arg(_with_fused_kit_args(train_args)),
+            *_with_distributed_arg(train_args),
         ]
     )
     return command
@@ -295,7 +274,7 @@ def _build_skrl_jax_command(args_cli: argparse.Namespace, train_args: list[str])
             str(TRAIN_SCRIPT),
             "--rl_library",
             args_cli.rl_library,
-            *_with_distributed_arg(_with_fused_kit_args(train_args)),
+            *_with_distributed_arg(train_args),
         ]
     )
     return command
