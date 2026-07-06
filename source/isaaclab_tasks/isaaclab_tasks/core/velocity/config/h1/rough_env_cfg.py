@@ -3,21 +3,48 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.velocity.mdp as mdp
 from isaaclab_tasks.core.velocity.velocity_env_cfg import (
     LocomotionVelocityRoughEnvCfg,
     RewardsCfg,
+    RoughPhysicsCfg,
 )
 
 ##
 # Pre-defined configs
 ##
 from isaaclab_assets import H1_MINIMAL_CFG  # isort: skip
+
+
+@configclass
+class PhysicsCfg(RoughPhysicsCfg):
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            angular_damping=0.05,
+            update_mass_matrix_interval=1,
+            enable_joint_limits=True,
+            pgs_iterations=8,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            pgs_omega=1.0,
+            dense_max_constraints=64,
+            pgs_warmstart=False,
+            pgs_mode="split",
+            mf_max_constraints=512,
+        ),
+        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+    )
 
 
 @configclass
@@ -73,6 +100,8 @@ class H1Rewards(RewardsCfg):
 
 @configclass
 class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
+
     rewards: H1Rewards = H1Rewards()
 
     def __post_init__(self):

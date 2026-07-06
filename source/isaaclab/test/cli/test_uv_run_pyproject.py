@@ -98,7 +98,7 @@ def test_version_single_source_matches_literal_pins():
         assert f"{package}=={versions[package]}" in overrides
 
     # Newton git commit is pinned via a uv override; warp-lang is a core dependency.
-    assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
+    assert any(dep.startswith("newton[sim] @ git+") and dep.endswith(f"@{versions['newton']}") for dep in overrides)
     assert f"warp-lang=={versions['warp']}" in dependencies
 
 

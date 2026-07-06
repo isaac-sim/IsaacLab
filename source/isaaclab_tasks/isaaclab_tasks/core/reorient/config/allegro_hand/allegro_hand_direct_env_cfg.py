@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -18,7 +18,7 @@ from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMater
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
 
@@ -57,6 +57,7 @@ class ObjectCfg(PresetCfg):
         actuators={},
         articulation_root_prim_path="",
     )
+    feather_pgs = newton_mjwarp
     ovphysx = RigidObjectCfg(
         prim_path="/World/envs/env_.*/object",
         spawn=sim_utils.UsdFileCfg(
@@ -99,6 +100,21 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    feather_pgs = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            enable_joint_velocity_limits=True,
+            pgs_iterations=16,
+            pgs_beta=0.02,
+            pgs_cfm=1.0e-5,
+            dense_max_constraints=64,
+            pgs_mode="matrix_free",
+            mf_max_constraints=512,
+        ),
+        num_substeps=12,
+        debug_mode=False,
+        use_cuda_graph=False,
+    )
     ovphysx = OvPhysxCfg()
     default = physx
 
@@ -106,7 +122,7 @@ class PhysicsCfg(PresetCfg):
 @configclass
 class AllegroHandEnvCfg(DirectRLEnvCfg):
     # env
-    decimation = 4
+    decimation = preset(default=4, feather_pgs=2)
     episode_length_s = 10.0
     action_space = 16
     observation_space = 124  # (full)
@@ -125,6 +141,7 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     )
     # robot
     robot_cfg: ArticulationCfg = ALLEGRO_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    robot_cfg.actuators["fingers"].armature = preset(default=None, feather_pgs=0.1)
 
     actuated_joint_names = [
         "index_joint_0",

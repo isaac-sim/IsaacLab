@@ -275,6 +275,7 @@ class NewtonManager(PhysicsManager):
     _builder: ModelBuilder = None
     _model: Model = None
     _solver: SolverBase | None = None
+    _solver_update_contacts_accepts_state: bool = True
     _use_single_state: bool | None = None
     """Use only one state for both input and output for solver stepping. Requires solver support."""
     _state_0: State = None
@@ -855,6 +856,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._builder = None
         NewtonManager._model = None
         NewtonManager._solver = None
+        NewtonManager._solver_update_contacts_accepts_state = True
         NewtonManager._use_single_state = None
         NewtonManager._state_0 = None
         NewtonManager._state_1 = None
@@ -1554,6 +1556,18 @@ class NewtonManager(PhysicsManager):
         """
         cls._solver.step(state_0, state_1, control, contacts, substep_dt)
 
+    @staticmethod
+    def _solver_accepts_update_contacts_state(solver: SolverBase) -> bool:
+        """Return whether solver.update_contacts accepts the simulation state argument."""
+        try:
+            parameters = list(inspect.signature(solver.update_contacts).parameters.values())
+        except (TypeError, ValueError):
+            return True
+
+        if any(parameter.kind == inspect.Parameter.VAR_POSITIONAL for parameter in parameters):
+            return True
+        return len(parameters) >= 2
+
     @classmethod
     def _solver_specific_clear(cls) -> None:
         """Solver-specific cleanup hook called from :meth:`clear`.
@@ -1624,6 +1638,9 @@ class NewtonManager(PhysicsManager):
                     "Subclasses of NewtonManager must populate NewtonManager._solver, "
                     "NewtonManager._use_single_state, and NewtonManager._needs_collision_pipeline."
                 )
+            NewtonManager._solver_update_contacts_accepts_state = cls._solver_accepts_update_contacts_state(
+                NewtonManager._solver
+            )
             cls._initialize_contacts()
 
         # Bind the solver-specialized FK delegate to the active subclass's _eval_fk_impl so
@@ -1896,7 +1913,10 @@ class NewtonManager(PhysicsManager):
                 sensor.update(cls._state_0)
         if cls._report_contacts:
             eval_contacts = contacts if contacts is not None else cls._contacts
-            cls._solver.update_contacts(eval_contacts, cls._state_0)
+            if cls._solver_update_contacts_accepts_state:
+                cls._solver.update_contacts(eval_contacts, cls._state_0)
+            else:
+                cls._solver.update_contacts(eval_contacts)
             for sensor in cls._newton_contact_sensors.values():
                 sensor.update(cls._state_0, eval_contacts)
 

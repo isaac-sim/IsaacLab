@@ -20,6 +20,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from isaaclab_newton.physics import (
+    FeatherPGSSolverCfg,
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
     MJWarpSolverCfg,
@@ -461,6 +462,7 @@ def test_entry_build_uses_solver_config_class_type():
         MJWarpSolverCfg(),
         XPBDSolverCfg(),
         FeatherstoneSolverCfg(),
+        FeatherPGSSolverCfg(),
         MPMSolverCfg(),
         VBDSolverCfg(),
     ],

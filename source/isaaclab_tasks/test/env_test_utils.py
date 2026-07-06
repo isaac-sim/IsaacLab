@@ -19,7 +19,7 @@ from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
+from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
 # Map of task IDs to the reason for marking the corresponding parametrized
@@ -370,18 +370,14 @@ def _check_random_actions(
     get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
-        # parse config
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        # apply physics preset override before creating the environment
-        if physics_preset_name is not None:
-            # parse_env_cfg already resolved PresetCfg wrappers to their default,
-            # so we load the raw config to retrieve preset alternatives.
+        if physics_preset_name is None:
+            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
+        else:
             raw_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-            presets = {"env": collect_presets(raw_cfg), "agent": {}}
-            hydra_cfg = {"env": env_cfg.to_dict(), "agent": None}
-            apply_overrides(env_cfg, None, hydra_cfg, [physics_preset_name], [], [], presets)
-            # Re-apply num_envs since apply_overrides may have replaced
-            # the scene config with the preset's default num_envs.
+            if isinstance(raw_cfg, dict):
+                raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class.")
+            env_cfg = resolve_presets(raw_cfg, {physics_preset_name})
+            env_cfg.sim.device = device
             if num_envs is not None:
                 env_cfg.scene.num_envs = num_envs
         # set config args

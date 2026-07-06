@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import FeatherPGSSolverCfg, KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
@@ -43,6 +43,19 @@ class AntPhysicsCfg(PresetCfg):
         ),
         num_substeps=1,
         debug_mode=False,
+    )
+    feather_pgs: NewtonCfg = NewtonCfg(
+        solver_cfg=FeatherPGSSolverCfg(
+            enable_joint_limits=True,
+            pgs_iterations=8,
+            pgs_beta=0.05,
+            pgs_cfm=1.0e-6,
+            dense_max_constraints=64,
+            mf_max_constraints=512,
+        ),
+        num_substeps=1,
+        debug_mode=False,
+        use_cuda_graph=False,
     )
     newton_kamino: NewtonCfg = NewtonCfg(
         solver_cfg=KaminoSolverCfg(
@@ -154,6 +167,7 @@ class AntObservationsCfg(PresetCfg):
     default: ObservationsCfg = ObservationsCfg()
     physx: ObservationsCfg = ObservationsCfg()
     newton_mjwarp: ObservationsCfg = ObservationsCfg()
+    feather_pgs: ObservationsCfg = newton_mjwarp
 
 
 @configclass

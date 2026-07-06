@@ -30,6 +30,8 @@ handling different types of physics simulation. The Isaac Lab integration ships
 the following solver pages:
 
 * :doc:`mjwarp-solver` — the primary, validated solver path.
+* :doc:`feather-pgs-solver` — experimental reduced-coordinate dynamics with
+  projected Gauss-Seidel constraints.
 * :doc:`kamino-solver` — beta support on selected classic tasks.
 * :doc:`using-vbd-solver` — experimental VBD solver for cloth and soft bodies,
   available through :mod:`isaaclab_contrib.deformable` and the MJWarp + VBD or
@@ -55,6 +57,7 @@ new backend, see :doc:`../../multi_backend_architecture`.
   installation
   supported-features
   mjwarp-solver
+  feather-pgs-solver
   kamino-solver
   using-vbd-solver
   newton-manager-abstraction

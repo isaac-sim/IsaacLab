@@ -146,7 +146,8 @@ class NewtonCfg(PhysicsCfg):
     - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``,
     - :class:`KaminoSolverCfg` with ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
-    - :class:`FeatherstoneSolverCfg` (always).
+    - :class:`FeatherstoneSolverCfg` (always),
+    - :class:`FeatherPGSSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
     implicit MPM treats rigid geometry as colliders internally.
