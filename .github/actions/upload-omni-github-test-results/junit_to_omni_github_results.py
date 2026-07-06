@@ -66,16 +66,14 @@ def _testcase_markers(testcase: ET.Element) -> list[str]:
     if properties is None:
         return []
     markers: list[str] = []
-    seen: set[str] = set()
     for prop in properties:
         if _local_name(prop.tag) != "property" or prop.attrib.get("name") != "markers":
             continue
         for value in prop.attrib.get("value", "").split(","):
             value = value.strip()
-            if value and value not in seen:
-                seen.add(value)
+            if value:
                 markers.append(value)
-    return sorted(markers)
+    return markers
 
 
 def _short_message(element: ET.Element | None) -> str | None:
