@@ -18,7 +18,7 @@ import warp as wp
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
+from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
 from ..physics.newton_manager import NewtonManager
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
@@ -105,6 +105,13 @@ class RenderData:
         self._ray_depth_scratch: wp.array | None = None
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
+        # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
+        # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
+        # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
+        spawn = getattr(spec.cfg, "spawn", None)
+        clipping_range = getattr(spawn, "clipping_range", None)
+        self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
+        self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -230,6 +237,20 @@ class RenderData:
                     self.camera_rays,
                     out_depth=dest,
                 )
+
+    def apply_depth_clipping(self, behavior: str):
+        """Apply the renderer's depth-clipping behavior to the depth-family outputs.
+
+        Newton writes ``0.0`` for rays that miss all geometry or fall beyond the far plane
+        (``max_distance``), so ``"none"`` and ``"zero"`` both leave that ``0.0`` background. ``"max"``
+        replaces the background with the far clip [m] to mirror the RTX renderer's
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`. No-op when no
+        depth output was requested or the camera did not provide a clipping range.
+        """
+        if behavior != "max" or self.far_clip is None:
+            return
+        for dest in self._depth_dests.values():
+            replace_background_depth_wp(dest, self.far_clip, device=dest.device)
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
         converted_wp = wp.empty_like(orientations)
@@ -381,7 +402,15 @@ class NewtonWarpRenderer(BaseRenderer):
     def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-        return RenderData(self.newton_sensor, spec)
+        render_data = RenderData(self.newton_sensor, spec)
+        # Honor the camera's far clipping plane (``spawn.clipping_range[1]``). ``max_distance`` is
+        # baked into the sensor at construction from the renderer cfg default; the per-camera far
+        # plane is the authoritative value, so push it onto the live render config (documented as
+        # mutable for subsequent ``update`` calls). Rays beyond it return no hit and the depth buffer
+        # keeps its ``0.0`` background sentinel.
+        if render_data.far_clip is not None:
+            self.newton_sensor.render_config.max_distance = render_data.far_clip
+        return render_data
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, ProxyArray]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
@@ -432,6 +461,9 @@ class NewtonWarpRenderer(BaseRenderer):
 
         # Derive planar depth (``depth`` / ``distance_to_image_plane``) from Newton's ray-hit distance.
         render_data.convert_plane_depth()
+
+        # Apply the configured far-plane clipping behavior to the depth-family outputs.
+        render_data.apply_depth_clipping(self.cfg.depth_clipping_behavior)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
