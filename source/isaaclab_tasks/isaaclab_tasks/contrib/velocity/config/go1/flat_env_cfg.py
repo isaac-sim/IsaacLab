@@ -28,6 +28,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
@@ -53,6 +54,7 @@ class UnitreeGo1FlatEnvCfg(UnitreeGo1RoughEnvCfg):
         self.curriculum.terrain_levels = None
 
 
+@configclass
 class UnitreeGo1FlatEnvCfg_PLAY(UnitreeGo1FlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent

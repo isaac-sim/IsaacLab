@@ -54,6 +54,7 @@ class UnitreeGo2FlatEnvCfg(UnitreeGo2RoughEnvCfg):
         self.curriculum.terrain_levels = None
 
 
+@configclass
 class UnitreeGo2FlatEnvCfg_PLAY(UnitreeGo2FlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent

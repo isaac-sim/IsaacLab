@@ -49,6 +49,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
+    physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
@@ -109,7 +110,7 @@ class SpotObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        # `` observation terms (order preserved)
+        # observation terms (order preserved)
         base_lin_vel = ObsTerm(
             func=mdp.base_lin_vel, params={"asset_cfg": SceneEntityCfg("robot")}, noise=Unoise(n_min=-0.1, n_max=0.1)
         )
@@ -376,7 +377,6 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.friction_combine_mode = "multiply"
         self.sim.physics_material.restitution_combine_mode = "multiply"
-        self.sim.physics = PhysicsCfg()
         # update sensor update periods
         # we tick all the sensors based on the smallest update period (physics update period)
         self.scene.contact_forces.update_period = self.sim.dt
@@ -409,6 +409,7 @@ class SpotFlatEnvCfg(LocomotionVelocityRoughEnvCfg):
         self.scene.height_scanner = None
 
 
+@configclass
 class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
@@ -428,4 +429,3 @@ class SpotFlatEnvCfg_PLAY(SpotFlatEnvCfg):
 
         # disable randomization for play
         self.observations.policy.enable_corruption = False
-        # remove random pushing event

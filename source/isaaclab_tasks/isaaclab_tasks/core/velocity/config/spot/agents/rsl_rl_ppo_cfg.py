@@ -15,6 +15,7 @@ class SpotFlatPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     save_interval = 50
     experiment_name = "spot_flat"
     store_code_state = False
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",

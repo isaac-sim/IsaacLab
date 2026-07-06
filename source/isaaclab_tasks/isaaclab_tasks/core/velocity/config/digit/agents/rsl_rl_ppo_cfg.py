@@ -14,6 +14,7 @@ class DigitRoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 3000
     save_interval = 50
     experiment_name = "digit_rough"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",

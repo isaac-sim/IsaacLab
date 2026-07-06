@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg
@@ -29,7 +28,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = default
-    ovphysx = OvPhysxCfg()
+    newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
 @configclass
@@ -54,6 +53,7 @@ class AnymalDFlatEnvCfg(AnymalDRoughEnvCfg):
         self.curriculum.terrain_levels = None
 
 
+@configclass
 class AnymalDFlatEnvCfg_PLAY(AnymalDFlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent

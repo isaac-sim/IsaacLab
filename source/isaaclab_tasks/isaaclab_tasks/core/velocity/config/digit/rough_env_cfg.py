@@ -218,8 +218,6 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.decimation = 4
-        self.sim.dt = 0.005
 
         # Scene
         self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")

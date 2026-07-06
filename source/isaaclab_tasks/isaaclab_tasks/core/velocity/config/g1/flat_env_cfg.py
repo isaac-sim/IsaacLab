@@ -29,6 +29,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
     )
+    physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
 
 
@@ -66,6 +67,7 @@ class G1FlatEnvCfg(G1RoughEnvCfg):
         self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
 
 
+@configclass
 class G1FlatEnvCfg_PLAY(G1FlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent

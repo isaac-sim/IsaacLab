@@ -53,6 +53,7 @@ class CassieFlatEnvCfg(CassieRoughEnvCfg):
         self.curriculum.terrain_levels = None
 
 
+@configclass
 class CassieFlatEnvCfg_PLAY(CassieFlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent

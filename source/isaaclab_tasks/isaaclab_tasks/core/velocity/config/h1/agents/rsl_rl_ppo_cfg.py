@@ -14,6 +14,7 @@ class H1RoughPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     max_iterations = 3000
     save_interval = 50
     experiment_name = "h1_rough"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
         hidden_dims=[512, 256, 128],
         activation="elu",

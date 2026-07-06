@@ -54,6 +54,7 @@ class AnymalBFlatEnvCfg(AnymalBRoughEnvCfg):
         self.curriculum.terrain_levels = None
 
 
+@configclass
 class AnymalBFlatEnvCfg_PLAY(AnymalBFlatEnvCfg):
     def __post_init__(self) -> None:
         # post init of parent
