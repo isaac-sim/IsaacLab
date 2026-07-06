@@ -262,15 +262,11 @@ python safe_probe.py --side left --joint 1 --step 0.1 --max-kp 150 --skip-ctrl-m
 ## OpenARM Teleoperation Mirror Test
 
 ```
-./isaaclab.sh -p scripts/tools/record_demos_openarm.py \
-    --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
-    --dataset_file logs/demos/pickup.hdf5 \
-    --enable_cameras --num_demos 10 --teleop_device keyboard \
-    --mirror_udp_port 9999
+./isaaclab.sh -p scripts/tools/record_demos_openarm.py     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0     --dataset_file logs/demos/pickup.hdf5     --enable_cameras --num_demos 10 --teleop_device keyboard     --mirror_udp_port 9999 --mirror_feedback_port 9998
 ```
 
 ```
-python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can2 --left-port can3     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5
+python mirror_bridge.py --calibration calibration.json --udp-port 9999     --right-port can2 --left-port can3     --model-path model/openarm_description_leader.urdf     --max-joint-speed 0.5     --feedback-port 9998
 ```
 
 # Replay Trajectory(sim-to-real & real-to-sim)
