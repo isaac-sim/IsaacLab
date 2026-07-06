@@ -1,6 +1,23 @@
 Changelog
 ---------
 
+0.6.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``motion_vectors`` data type support to :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+Fixed
+^^^^^
+
+* Removed overly broad ``except Exception`` handling in :class:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer`
+  that downgraded failures in scene initialization, camera and object binding setup, scene partition writes,
+  Newton transform syncing, and :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.render` to log
+  warnings and silently continue. These now propagate so callers can decide how to handle the failure.
+
+
 0.5.4 (2026-07-03)
 ~~~~~~~~~~~~~~~~~~
 
