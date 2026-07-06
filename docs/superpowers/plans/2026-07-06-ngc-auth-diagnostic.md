@@ -67,10 +67,13 @@ requests so fork-authored code never runs on persistent self-hosted runners. Onl
 Checkout the repository, load `isaacsim_image_name`, `isaacsim_image_tag`, and
 `ovphysx_wheelhouse_resource` from `.github/workflows/config.yaml`, then run one
 `bash` probe with `set -uo pipefail` and temporary directories cleaned by a
-`trap`. The probe must collect these booleans without printing configuration or
-captured command output:
+`trap`. Check that `mktemp` returns a non-empty path, install the cleanup trap
+immediately, and fail cleanly if temporary subdirectory creation fails. The probe
+must collect these booleans without printing configuration or captured command
+output:
 
 ```text
+Timeout tool is available
 Docker CLI is available
 AWS CLI is available
 NGC CLI download, checksum, and unpack are ready
@@ -96,9 +99,11 @@ Run the ambient artifact probe with `NGC_API_KEY` and `NGC_CLI_API_KEY` unset,
 an isolated `HOME`/`NGC_CLI_HOME`, org `nvidian`, and team `no-team`.
 
 Bound Docker, AWS, unzip, and NGC commands with `timeout`; bound every `curl`
-with connection and total timeouts; and close NGC CLI stdin with `/dev/null`. Append
-a Markdown table of the booleans to `$GITHUB_STEP_SUMMARY`. Probe failures must
-remain visible as `false` but must not stop later probes.
+with connection and total timeouts; and close NGC CLI stdin with `/dev/null`.
+Report `timeout` readiness, separate ECR login success from manifest inspection,
+and record attempted and timed-out booleans for NVCR, ECR, and NGC operations.
+Append a Markdown table of the booleans to `$GITHUB_STEP_SUMMARY`. Probe failures
+must remain visible as `false` but must not stop later probes.
 
 - [x] **Step 4: Implement the secret-backed probe**
 
@@ -124,17 +129,19 @@ all external client operations as in the ambient probe. Append a Markdown table
 containing only these booleans:
 
 ```text
+Timeout tool is available
 Docker CLI is available
 AWS CLI is available
 NGC CLI download, checksum, and unpack are ready
 NGC_API_KEY is present
-NVCR login accepts the explicit secret
-NVCR image is inspectable with the explicit secret
-NGC artifact is downloadable with the explicit secret
+NVCR login attempted, timed out, and accepted
+NVCR image inspection attempted, timed out, and succeeded
+NGC artifact download attempted, timed out, and succeeded
 ```
 
 Exit nonzero when either secret-backed service probe fails so a trusted PR
-cannot look green when the shared secret is unusable.
+cannot look green when a service check fails. The error must direct readers to
+readiness and timeout rows before attributing the failure to credentials.
 
 - [x] **Step 5: Validate the workflow locally**
 

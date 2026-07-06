@@ -56,31 +56,62 @@ jobs:
         NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
         NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
 
+        timeout_cli_available=false
         docker_cli_available=false
         aws_cli_available=false
+        ngc_cli_setup_attempted=false
+        ngc_cli_setup_timed_out=false
         ngc_cli_ready=false
         default_docker_config_exists=false
         default_docker_config_names_nvcr=false
+        default_docker_image_inspect_attempted=false
+        default_docker_image_inspect_timed_out=false
         default_docker_config_inspects_image=false
+        empty_docker_image_inspect_attempted=false
+        empty_docker_image_inspect_timed_out=false
         empty_docker_config_inspects_image=false
+        aws_caller_identity_attempted=false
+        aws_caller_identity_timed_out=false
         aws_caller_identity_available=false
         ecr_cache_url_resolves=false
+        ecr_url_lookup_attempted=false
+        ecr_url_lookup_timed_out=false
+        ecr_login_attempted=false
+        ecr_login_timed_out=false
+        ecr_login_succeeded=false
+        ecr_manifest_inspect_attempted=false
+        ecr_manifest_inspect_timed_out=false
         ecr_cache_manifest_inspectable=false
+        ngc_download_attempted=false
+        ngc_download_timed_out=false
         ngc_artifact_downloadable_without_key=false
 
-        temp_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-ambient.XXXXXX")
+        temp_root=""
+        if ! temp_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-ambient.XXXXXX") ||
+          [ -z "$temp_root" ]; then
+          echo "::error::Failed to create a non-empty temporary directory for ambient authentication probes"
+          exit 1
+        fi
+        cleanup() {
+          rm -rf -- "$temp_root"
+        }
+        trap cleanup EXIT
+
         empty_docker_config="${temp_root}/docker-empty"
         ecr_docker_config="${temp_root}/docker-ecr"
         ngc_home="${temp_root}/ngc-home"
         ngc_download="${temp_root}/ngc-download"
         ngc_unpack="${temp_root}/ngc-unpack"
         ngc_zip="${temp_root}/ngccli_linux.zip"
-        mkdir -p "$empty_docker_config" "$ecr_docker_config" "$ngc_home" "$ngc_download" "$ngc_unpack"
-        cleanup() {
-          rm -rf -- "$temp_root"
-        }
-        trap cleanup EXIT
+        if ! mkdir -p \
+          "$empty_docker_config" "$ecr_docker_config" "$ngc_home" "$ngc_download" "$ngc_unpack"; then
+          echo "::error::Failed to initialize temporary directories for ambient authentication probes"
+          exit 1
+        fi
 
+        if command -v timeout >/dev/null 2>&1; then
+          timeout_cli_available=true
+        fi
         if command -v docker >/dev/null 2>&1; then
           docker_cli_available=true
         fi
@@ -100,20 +131,37 @@ jobs:
           fi
         fi
 
-        if [ "$docker_cli_available" = true ] &&
+        if [ "$timeout_cli_available" = true ] && [ "$docker_cli_available" = true ]; then
+          default_docker_image_inspect_attempted=true
           DOCKER_CONFIG="$default_docker_dir" timeout 60s docker manifest inspect \
-            "$image" >/dev/null 2>&1; then
-          default_docker_config_inspects_image=true
-        fi
+            "$image" >/dev/null 2>&1
+          default_docker_image_inspect_status=$?
+          if [ "$default_docker_image_inspect_status" -eq 0 ]; then
+            default_docker_config_inspects_image=true
+          elif [ "$default_docker_image_inspect_status" -eq 124 ]; then
+            default_docker_image_inspect_timed_out=true
+          fi
 
-        if [ "$docker_cli_available" = true ] &&
+          empty_docker_image_inspect_attempted=true
           DOCKER_CONFIG="$empty_docker_config" timeout 60s docker manifest inspect \
-            "$image" >/dev/null 2>&1; then
-          empty_docker_config_inspects_image=true
+            "$image" >/dev/null 2>&1
+          empty_docker_image_inspect_status=$?
+          if [ "$empty_docker_image_inspect_status" -eq 0 ]; then
+            empty_docker_config_inspects_image=true
+          elif [ "$empty_docker_image_inspect_status" -eq 124 ]; then
+            empty_docker_image_inspect_timed_out=true
+          fi
         fi
 
-        if [ "$aws_cli_available" = true ] && timeout 30s aws sts get-caller-identity >/dev/null 2>&1; then
-          aws_caller_identity_available=true
+        if [ "$timeout_cli_available" = true ] && [ "$aws_cli_available" = true ]; then
+          aws_caller_identity_attempted=true
+          timeout 30s aws sts get-caller-identity >/dev/null 2>&1
+          aws_caller_identity_status=$?
+          if [ "$aws_caller_identity_status" -eq 0 ]; then
+            aws_caller_identity_available=true
+          elif [ "$aws_caller_identity_status" -eq 124 ]; then
+            aws_caller_identity_timed_out=true
+          fi
         fi
 
         ECR_URL="${ECR_CACHE_URL:-}"
@@ -128,11 +176,20 @@ jobs:
             instance_region=$(curl --connect-timeout 2 --max-time 5 -fsS \
               -H "X-aws-ec2-metadata-token: ${imds_token}" \
               "http://169.254.169.254/latest/meta-data/placement/region" 2>/dev/null) || instance_region=""
-            if [ "$aws_cli_available" = true ] && [ -n "$instance_id" ] && [ -n "$instance_region" ]; then
+            if [ "$timeout_cli_available" = true ] && [ "$aws_cli_available" = true ] &&
+              [ -n "$instance_id" ] && [ -n "$instance_region" ]; then
+              ecr_url_lookup_attempted=true
               ECR_URL=$(timeout 30s aws ssm get-parameter \
                 --name "/github-runner/${instance_id}/ecr-cache-url" \
                 --region "$instance_region" \
-                --query 'Parameter.Value' --output text 2>/dev/null) || ECR_URL=""
+                --query 'Parameter.Value' --output text 2>/dev/null)
+              ecr_url_lookup_status=$?
+              if [ "$ecr_url_lookup_status" -eq 124 ]; then
+                ecr_url_lookup_timed_out=true
+                ECR_URL=""
+              elif [ "$ecr_url_lookup_status" -ne 0 ]; then
+                ECR_URL=""
+              fi
             fi
           fi
         fi
@@ -142,27 +199,57 @@ jobs:
           ecr_registry="${ECR_URL%%/*}"
           ecr_region="${ecr_registry#*.dkr.ecr.}"
           ecr_region="${ecr_region%%.amazonaws.com*}"
-          if [ "$docker_cli_available" = true ] && [ "$aws_cli_available" = true ] &&
-            [ -n "$ecr_region" ] && [ "$ecr_region" != "$ecr_registry" ]; then
-            if timeout 60s aws ecr get-login-password --region "$ecr_region" 2>/dev/null |
+          if [ "$timeout_cli_available" = true ] && [ "$docker_cli_available" = true ] &&
+            [ "$aws_cli_available" = true ] && [ -n "$ecr_region" ] &&
+            [ "$ecr_region" != "$ecr_registry" ]; then
+            ecr_login_attempted=true
+            timeout 60s aws ecr get-login-password --region "$ecr_region" 2>/dev/null |
               DOCKER_CONFIG="$ecr_docker_config" timeout 60s docker login \
-                --username AWS --password-stdin "$ecr_registry" >/dev/null 2>&1; then
-              if DOCKER_CONFIG="$ecr_docker_config" timeout 60s docker manifest inspect \
-                "${ECR_URL}:cache-base" >/dev/null 2>&1; then
+                --username AWS --password-stdin "$ecr_registry" >/dev/null 2>&1
+            ecr_login_status=("${PIPESTATUS[@]}")
+            if [ "${ecr_login_status[0]}" -eq 124 ] || [ "${ecr_login_status[1]}" -eq 124 ]; then
+              ecr_login_timed_out=true
+            elif [ "${ecr_login_status[0]}" -eq 0 ] && [ "${ecr_login_status[1]}" -eq 0 ]; then
+              ecr_login_succeeded=true
+            fi
+
+            if [ "$ecr_login_succeeded" = true ]; then
+              ecr_manifest_inspect_attempted=true
+              DOCKER_CONFIG="$ecr_docker_config" timeout 60s docker manifest inspect \
+                "${ECR_URL}:cache-base" >/dev/null 2>&1
+              ecr_manifest_inspect_status=$?
+              if [ "$ecr_manifest_inspect_status" -eq 0 ]; then
                 ecr_cache_manifest_inspectable=true
+              elif [ "$ecr_manifest_inspect_status" -eq 124 ]; then
+                ecr_manifest_inspect_timed_out=true
               fi
             fi
           fi
         fi
 
         ngc_cli="${ngc_unpack}/ngc-cli/ngc"
-        if curl --connect-timeout 10 --max-time 180 -fsSL \
-          -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
-          printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1 &&
-          timeout 60s unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 &&
-          [ -x "$ngc_cli" ]; then
-          ngc_cli_ready=true
-          if (
+        if [ "$timeout_cli_available" = true ]; then
+          ngc_cli_setup_attempted=true
+          curl --connect-timeout 10 --max-time 180 -fsSL \
+            -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1
+          ngc_cli_download_status=$?
+          if [ "$ngc_cli_download_status" -eq 28 ]; then
+            ngc_cli_setup_timed_out=true
+          elif [ "$ngc_cli_download_status" -eq 0 ] &&
+            printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1; then
+            timeout 60s unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1
+            ngc_cli_unpack_status=$?
+            if [ "$ngc_cli_unpack_status" -eq 124 ]; then
+              ngc_cli_setup_timed_out=true
+            elif [ "$ngc_cli_unpack_status" -eq 0 ] && [ -x "$ngc_cli" ]; then
+              ngc_cli_ready=true
+            fi
+          fi
+        fi
+
+        if [ "$ngc_cli_ready" = true ]; then
+          ngc_download_attempted=true
+          (
             unset NGC_API_KEY NGC_CLI_API_KEY
             export HOME="$ngc_home"
             export NGC_CLI_HOME="$ngc_home"
@@ -171,29 +258,56 @@ jobs:
             timeout 10m "$ngc_cli" registry resource download-version \
               "$OVPHYSX_WHEELHOUSE_RESOURCE" --dest "$ngc_download" \
               </dev/null >/dev/null 2>&1
-          ); then
+          )
+          ngc_download_status=$?
+          if [ "$ngc_download_status" -eq 0 ]; then
             ngc_artifact_downloadable_without_key=true
+          elif [ "$ngc_download_status" -eq 124 ]; then
+            ngc_download_timed_out=true
           fi
         fi
-
         {
           printf '### Ambient authentication probes\n\n'
           printf '| Probe | Result |\n'
           printf '| --- | --- |\n'
+          printf '| Timeout tool is available | `%s` |\n' "$timeout_cli_available"
           printf '| Docker CLI is available | `%s` |\n' "$docker_cli_available"
           printf '| AWS CLI is available | `%s` |\n' "$aws_cli_available"
+          printf '| NGC CLI setup was attempted | `%s` |\n' "$ngc_cli_setup_attempted"
+          printf '| NGC CLI setup timed out | `%s` |\n' "$ngc_cli_setup_timed_out"
           printf '| NGC CLI download, checksum, and unpack are ready | `%s` |\n' "$ngc_cli_ready"
           printf '| Default Docker config exists | `%s` |\n' "$default_docker_config_exists"
           printf '| Default Docker config names an nvcr.io auth/helper entry | `%s` |\n' \
             "$default_docker_config_names_nvcr"
+          printf '| Default Docker image inspection was attempted | `%s` |\n' \
+            "$default_docker_image_inspect_attempted"
+          printf '| Default Docker image inspection timed out | `%s` |\n' \
+            "$default_docker_image_inspect_timed_out"
           printf '| Default Docker config can inspect the configured Isaac Sim image | `%s` |\n' \
             "$default_docker_config_inspects_image"
+          printf '| Empty Docker image inspection was attempted | `%s` |\n' \
+            "$empty_docker_image_inspect_attempted"
+          printf '| Empty Docker image inspection timed out | `%s` |\n' \
+            "$empty_docker_image_inspect_timed_out"
           printf '| Empty isolated Docker config can inspect the configured Isaac Sim image | `%s` |\n' \
             "$empty_docker_config_inspects_image"
+          printf '| AWS caller identity check was attempted | `%s` |\n' "$aws_caller_identity_attempted"
+          printf '| AWS caller identity check timed out | `%s` |\n' "$aws_caller_identity_timed_out"
           printf '| AWS caller identity is available | `%s` |\n' "$aws_caller_identity_available"
           printf '| ECR cache URL resolves from runner configuration | `%s` |\n' "$ecr_cache_url_resolves"
+          printf '| ECR URL SSM lookup was attempted | `%s` |\n' "$ecr_url_lookup_attempted"
+          printf '| ECR URL SSM lookup timed out | `%s` |\n' "$ecr_url_lookup_timed_out"
+          printf '| ECR login was attempted | `%s` |\n' "$ecr_login_attempted"
+          printf '| ECR login timed out | `%s` |\n' "$ecr_login_timed_out"
+          printf '| ECR login succeeded | `%s` |\n' "$ecr_login_succeeded"
+          printf '| ECR cache-base manifest inspection was attempted | `%s` |\n' \
+            "$ecr_manifest_inspect_attempted"
+          printf '| ECR cache-base manifest inspection timed out | `%s` |\n' \
+            "$ecr_manifest_inspect_timed_out"
           printf '| Authenticated ECR cache-base manifest is inspectable | `%s` |\n' \
             "$ecr_cache_manifest_inspectable"
+          printf '| Ambient NGC artifact download was attempted | `%s` |\n' "$ngc_download_attempted"
+          printf '| Ambient NGC artifact download timed out | `%s` |\n' "$ngc_download_timed_out"
           printf '| Isolated NGC CLI without an API key can download the configured resource | `%s` |\n' \
             "$ngc_artifact_downloadable_without_key"
         } >> "$GITHUB_STEP_SUMMARY"
@@ -238,26 +352,47 @@ jobs:
         NGC_CLI_SHA256=5cf084c88998c58ad8abf7849d2d1b41d578423886eb03018df10194e341d35b
         NGC_CLI_URL="https://api.ngc.nvidia.com/v2/resources/nvidia/ngc-apps/ngc_cli/versions/${NGC_CLI_VERSION}/files/ngccli_linux.zip"
 
+        timeout_cli_available=false
         docker_cli_available=false
         aws_cli_available=false
+        ngc_cli_setup_attempted=false
+        ngc_cli_setup_timed_out=false
         ngc_cli_ready=false
         secret_present=false
+        nvcr_login_attempted=false
+        nvcr_login_timed_out=false
         nvcr_login_accepted=false
+        nvcr_image_inspect_attempted=false
+        nvcr_image_inspect_timed_out=false
         nvcr_image_inspectable=false
+        ngc_download_attempted=false
+        ngc_download_timed_out=false
         ngc_artifact_downloadable=false
 
-        temp_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-secret.XXXXXX")
-        docker_config="${temp_root}/docker"
-        ngc_home="${temp_root}/ngc-home"
-        ngc_download="${temp_root}/ngc-download"
-        ngc_unpack="${temp_root}/ngc-unpack"
-        ngc_zip="${temp_root}/ngccli_linux.zip"
-        mkdir -p "$docker_config" "$ngc_home" "$ngc_download" "$ngc_unpack"
+        temp_root=""
+        if ! temp_root=$(mktemp -d "${RUNNER_TEMP:-/tmp}/ngc-auth-secret.XXXXXX") ||
+          [ -z "$temp_root" ]; then
+          echo "::error::Failed to create a non-empty temporary directory for explicit authentication probes"
+          exit 1
+        fi
         cleanup() {
           rm -rf -- "$temp_root"
         }
         trap cleanup EXIT
 
+        docker_config="${temp_root}/docker"
+        ngc_home="${temp_root}/ngc-home"
+        ngc_download="${temp_root}/ngc-download"
+        ngc_unpack="${temp_root}/ngc-unpack"
+        ngc_zip="${temp_root}/ngccli_linux.zip"
+        if ! mkdir -p "$docker_config" "$ngc_home" "$ngc_download" "$ngc_unpack"; then
+          echo "::error::Failed to initialize temporary directories for explicit authentication probes"
+          exit 1
+        fi
+
+        if command -v timeout >/dev/null 2>&1; then
+          timeout_cli_available=true
+        fi
         if command -v docker >/dev/null 2>&1; then
           docker_cli_available=true
         fi
@@ -270,13 +405,22 @@ jobs:
             printf '### Explicit NGC authentication probes\n\n'
             printf '| Probe | Result |\n'
             printf '| --- | --- |\n'
+            printf '| Timeout tool is available | `%s` |\n' "$timeout_cli_available"
             printf '| Docker CLI is available | `%s` |\n' "$docker_cli_available"
             printf '| AWS CLI is available | `%s` |\n' "$aws_cli_available"
+            printf '| NGC CLI setup was attempted | `%s` |\n' "$ngc_cli_setup_attempted"
+            printf '| NGC CLI setup timed out | `%s` |\n' "$ngc_cli_setup_timed_out"
             printf '| NGC CLI download, checksum, and unpack are ready | `%s` |\n' "$ngc_cli_ready"
             printf '| NGC_API_KEY is present | `%s` |\n' "$secret_present"
+            printf '| NVCR login was attempted | `%s` |\n' "$nvcr_login_attempted"
+            printf '| NVCR login timed out | `%s` |\n' "$nvcr_login_timed_out"
             printf '| NVCR login accepts the explicit secret | `%s` |\n' "$nvcr_login_accepted"
+            printf '| NVCR image inspection was attempted | `%s` |\n' "$nvcr_image_inspect_attempted"
+            printf '| NVCR image inspection timed out | `%s` |\n' "$nvcr_image_inspect_timed_out"
             printf '| NVCR image is inspectable with the explicit secret | `%s` |\n' \
               "$nvcr_image_inspectable"
+            printf '| Explicit NGC artifact download was attempted | `%s` |\n' "$ngc_download_attempted"
+            printf '| Explicit NGC artifact download timed out | `%s` |\n' "$ngc_download_timed_out"
             printf '| NGC artifact is downloadable with the explicit secret | `%s` |\n' \
               "$ngc_artifact_downloadable"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -290,26 +434,54 @@ jobs:
         secret_present=true
 
         export DOCKER_CONFIG="$docker_config"
-        if [ "$docker_cli_available" = true ]; then
-          if printf '%s' "$NGC_API_KEY" |
+        if [ "$timeout_cli_available" = true ] && [ "$docker_cli_available" = true ]; then
+          nvcr_login_attempted=true
+          printf '%s' "$NGC_API_KEY" |
             timeout 60s docker login --username '$oauthtoken' --password-stdin \
-              nvcr.io >/dev/null 2>&1; then
+              nvcr.io >/dev/null 2>&1
+          nvcr_login_status=${PIPESTATUS[1]}
+          if [ "$nvcr_login_status" -eq 0 ]; then
             nvcr_login_accepted=true
-            if timeout 60s docker manifest inspect \
-              "${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}" >/dev/null 2>&1; then
+          elif [ "$nvcr_login_status" -eq 124 ]; then
+            nvcr_login_timed_out=true
+          fi
+
+          if [ "$nvcr_login_accepted" = true ]; then
+            nvcr_image_inspect_attempted=true
+            timeout 60s docker manifest inspect \
+              "${ISAACSIM_IMAGE_NAME}:${ISAACSIM_IMAGE_TAG}" >/dev/null 2>&1
+            nvcr_image_inspect_status=$?
+            if [ "$nvcr_image_inspect_status" -eq 0 ]; then
               nvcr_image_inspectable=true
+            elif [ "$nvcr_image_inspect_status" -eq 124 ]; then
+              nvcr_image_inspect_timed_out=true
             fi
           fi
         fi
 
         ngc_cli="${ngc_unpack}/ngc-cli/ngc"
-        if curl --connect-timeout 10 --max-time 180 -fsSL \
-          -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1 &&
-          printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1 &&
-          timeout 60s unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1 &&
-          [ -x "$ngc_cli" ]; then
-          ngc_cli_ready=true
-          if (
+        if [ "$timeout_cli_available" = true ]; then
+          ngc_cli_setup_attempted=true
+          curl --connect-timeout 10 --max-time 180 -fsSL \
+            -o "$ngc_zip" "$NGC_CLI_URL" >/dev/null 2>&1
+          ngc_cli_download_status=$?
+          if [ "$ngc_cli_download_status" -eq 28 ]; then
+            ngc_cli_setup_timed_out=true
+          elif [ "$ngc_cli_download_status" -eq 0 ] &&
+            printf '%s  %s\n' "$NGC_CLI_SHA256" "$ngc_zip" | sha256sum -c - >/dev/null 2>&1; then
+            timeout 60s unzip -q "$ngc_zip" -d "$ngc_unpack" >/dev/null 2>&1
+            ngc_cli_unpack_status=$?
+            if [ "$ngc_cli_unpack_status" -eq 124 ]; then
+              ngc_cli_setup_timed_out=true
+            elif [ "$ngc_cli_unpack_status" -eq 0 ] && [ -x "$ngc_cli" ]; then
+              ngc_cli_ready=true
+            fi
+          fi
+        fi
+
+        if [ "$ngc_cli_ready" = true ]; then
+          ngc_download_attempted=true
+          (
             export HOME="$ngc_home"
             export NGC_CLI_HOME="$ngc_home"
             export NGC_CLI_API_KEY="$NGC_API_KEY"
@@ -318,13 +490,16 @@ jobs:
             timeout 10m "$ngc_cli" registry resource download-version \
               "$OVPHYSX_WHEELHOUSE_RESOURCE" --dest "$ngc_download" \
               </dev/null >/dev/null 2>&1
-          ); then
+          )
+          ngc_download_status=$?
+          if [ "$ngc_download_status" -eq 0 ]; then
             ngc_artifact_downloadable=true
+          elif [ "$ngc_download_status" -eq 124 ]; then
+            ngc_download_timed_out=true
           fi
         fi
-
         write_summary
         if [ "$nvcr_image_inspectable" != true ] || [ "$ngc_artifact_downloadable" != true ]; then
-          echo "::error::One or more explicit NGC authentication probes failed"
+          echo "::error::One or more explicit NGC service checks failed; inspect readiness and timeout rows before attributing failures to credentials"
           exit 1
         fi
