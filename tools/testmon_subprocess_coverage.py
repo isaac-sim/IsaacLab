@@ -182,7 +182,12 @@ def combine_subprocess_coverage(config: pytest.Config) -> None:
     if collect_plugin is None:
         return
 
-    cov = collect_plugin.testmon.cov
+    # ``collect_plugin.testmon.cov`` is a private chain that could change on a
+    # future testmon release; fall back to ``None`` rather than raising
+    # ``AttributeError`` so a rename simply disables merging instead of breaking
+    # the whole test session.
+    testmon = getattr(collect_plugin, "testmon", None)
+    cov = getattr(testmon, "cov", None)
     if cov is None:
         return
 
