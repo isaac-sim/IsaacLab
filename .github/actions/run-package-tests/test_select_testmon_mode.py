@@ -36,3 +36,10 @@ def test_workflow_yaml_change_collects_full_suite() -> None:
     # A workflow change that testmon cannot reason about must run the full suite,
     # otherwise a workflow-only PR would trigger a job that deselects every test.
     assert select_testmon_mode([".github/workflows/install-ci.yml"]) == "collect"
+
+
+def test_action_python_change_collects_full_suite() -> None:
+    # Python helpers under .github/actions/ run outside pytest, so testmon has no
+    # dependency data for them; a change to one must run the full suite rather than
+    # taking the Python-only fast path and deselecting every test.
+    assert select_testmon_mode([".github/actions/run-package-tests/select_testmon_mode.py"]) == "collect"

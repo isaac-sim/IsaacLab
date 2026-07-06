@@ -179,8 +179,8 @@ runs:
       uses: actions/cache@v4
       with:
         path: .testmon/${{ inputs.container-name }}
-        key: testmon-${{ runner.arch }}-${{ inputs.container-name }}-${{ hashFiles('tools/conftest.py', 'tools/test_settings.py', '.github/actions/run-tests/action.yml', 'docker/Dockerfile.base', 'docker/Dockerfile.curobo', '.github/workflows/config.yaml') }}-${{ github.sha }}
-        restore-keys: testmon-${{ runner.arch }}-${{ inputs.container-name }}-${{ hashFiles('tools/conftest.py', 'tools/test_settings.py', '.github/actions/run-tests/action.yml', 'docker/Dockerfile.base', 'docker/Dockerfile.curobo', '.github/workflows/config.yaml') }}-
+        key: testmon-${{ runner.arch }}-${{ inputs.container-name }}-${{ hashFiles('conftest.py', 'tools/conftest.py', 'tools/testmon_subprocess_coverage.py', 'tools/test_settings.py', '.github/actions/run-tests/action.yml', 'docker/Dockerfile.base', 'docker/Dockerfile.curobo', '.github/workflows/config.yaml') }}-${{ github.sha }}
+        restore-keys: testmon-${{ runner.arch }}-${{ inputs.container-name }}-${{ hashFiles('conftest.py', 'tools/conftest.py', 'tools/testmon_subprocess_coverage.py', 'tools/test_settings.py', '.github/actions/run-tests/action.yml', 'docker/Dockerfile.base', 'docker/Dockerfile.curobo', '.github/workflows/config.yaml') }}-
     - name: Restore NGC CLI cache
       if: inputs.wheelhouse-resource != '' && env.NGC_API_KEY != ''
       uses: actions/cache@v4
