@@ -410,6 +410,7 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
+        cls._reset_solver_internals(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -677,6 +678,8 @@ class NewtonManager(PhysicsManager):
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return
+
+        cls._reset_solver_internals(cls._world_reset_mask)
 
         # Notify solver of model changes
         if cls._model_changes:
@@ -1419,6 +1422,20 @@ class NewtonManager(PhysicsManager):
 
         Default no-op.  Subclasses override to log solver-specific debug info
         (e.g. constraint violations, contact forces, etc.) after stepping.
+        """
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Clear solver-internal scratch for reset worlds.
+
+        Invoked immediately before reset masks are consumed by :meth:`step` and
+        :meth:`forward`. The default implementation is a no-op; subclasses can
+        clear solver-owned state that persists independently of Newton's
+        :class:`State`.
+
+        Args:
+            world_mask: Per-world reset mask, or ``None`` when no simulation
+                state is available.
         """
 
     # ----- Lifecycle orchestration ----------------------------------------

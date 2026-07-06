@@ -32,16 +32,6 @@ class NewtonMJWarpManager(NewtonManager):
     :attr:`NewtonCfg.debug_mode` is enabled.
     """
 
-    # Persistent bool mask co-located with MJWarp data, populated from
-    # :attr:`NewtonManager._world_reset_mask` when the two arrays live on
-    # different devices.  :func:`mujoco_warp.reset_data` launches on Warp's
-    # current device when no explicit device is passed, so
-    # :meth:`_reset_solver_internals` scopes the call to the MJWarp data
-    # device and mirrors the mask there when needed.  Lazily allocated in
-    # :meth:`_reset_solver_internals` and released via
-    # :meth:`_solver_specific_clear`.
-    _mjwarp_reset_mask: wp.array | None = None
-
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
         """Construct :class:`SolverMuJoCo` and populate the base-class slots.
@@ -94,37 +84,29 @@ class NewtonMJWarpManager(NewtonManager):
     def _reset_solver_internals(cls, world_mask: wp.array) -> None:
         """Clear MuJoCo Warp solver-internal state for flagged worlds.
 
-        Calls :func:`mujoco_warp.reset_data` with the accumulated per-world
-        reset bitmask to zero ``qacc_warmstart``, ``qfrc_applied``,
-        ``xfrc_applied``, ``qacc``, contact arrays, energy, and solver
-        counters for worlds that an env reset flagged since the previous
-        step.  Without this, a NaN produced in one solve persists across
+        Calls :meth:`SolverMuJoCo.reset` with the accumulated per-world reset
+        bitmask and ``flags=0`` so only the solver-owned buffers persisting
+        across steps (``qacc_warmstart``, ``qfrc_applied``, ``xfrc_applied``,
+        ``ctrl``, ``act``) are zeroed for the flagged worlds, while the
+        joint state IsaacLab authored during the env reset is left untouched.
+        Without this, a NaN produced in one solve persists across
         :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next solver
         substep warm-starts from the NaN — the world is then permanently
-        dead.  See https://github.com/newton-physics/newton/issues/1266 and
-        https://github.com/google-deepmind/mujoco_warp/discussions/1112.
+        dead.  See https://github.com/newton-physics/newton/issues/1266.
 
-        ``reset_data`` also overwrites ``mjw_data.qpos``/``qvel`` with the
-        model defaults, but :class:`SolverMuJoCo` re-syncs them from
-        ``state.joint_q``/``joint_qd`` on the very next step (its
-        ``update_data_interval`` defaults to ``1``), so IsaacLab's reset
-        pose still wins.  Until ``SolverMuJoCo.reset()`` lands upstream
-        (newton#2657), reaching into ``solver.mjw_model``/``solver.mjw_data``
-        directly is the documented workaround.
-
-        No-ops when ``world_mask`` is ``None``: :func:`mujoco_warp.reset_data`
-        with ``reset=None`` short-circuits its per-world guard
-        (``wp.static(reset is not None)``) and resets **every** world to
-        model defaults, which would silently nuke all sims after any
-        unusual call sequence (e.g. invocation between
-        :meth:`~isaaclab_newton.physics.NewtonManager.clear` and the next
+        No-ops when ``world_mask`` is ``None``: :meth:`SolverMuJoCo.reset`
+        treats ``world_mask=None`` as "reset **every** world", which would
+        silently clear all sims after any unusual call sequence (e.g.
+        invocation between :meth:`~isaaclab_newton.physics.NewtonManager.clear`
+        and the next
         :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`).
 
-        When :attr:`NewtonManager._world_reset_mask` and the MJWarp data live
-        on different devices, the mask is copied into
-        :attr:`_mjwarp_reset_mask` co-located with the data.  The
-        ``reset_data`` call runs under ``wp.ScopedDevice`` so Warp
-        launches on the data device instead of the current default device.
+        With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
+        and its reset path is not mask-aware — it clears the buffers for every
+        world.  Since this hook fires on every step/forward boundary (usually
+        with an all-``False`` mask), the CPU path is gated on at least one
+        world actually being flagged so warm-starting is not defeated on every
+        step.
 
         Args:
             world_mask: Per-world bool mask of shape ``(world_count,)``;
@@ -133,25 +115,11 @@ class NewtonMJWarpManager(NewtonManager):
         """
         if world_mask is None:
             return
-        # Deferred so the docs build, which does not install ``mujoco_warp``,
-        # can still autodoc :class:`NewtonMJWarpManager` from this module.
-        import mujoco_warp
-
-        target_device = cls._solver.mjw_data.xfrc_applied.device
-        if world_mask.device != target_device:
-            mirror = cls._mjwarp_reset_mask
-            if mirror is None or mirror.shape != world_mask.shape or mirror.device != target_device:
-                cls._mjwarp_reset_mask = wp.zeros(world_mask.shape[0], dtype=wp.bool, device=target_device)
-                mirror = cls._mjwarp_reset_mask
-            wp.copy(mirror, world_mask)
-            world_mask = mirror
-        with wp.ScopedDevice(target_device):
-            mujoco_warp.reset_data(cls._solver.mjw_model, cls._solver.mjw_data, reset=world_mask)
-
-    @classmethod
-    def _solver_specific_clear(cls) -> None:
-        """Release the on-mjw-device reset-mask mirror."""
-        cls._mjwarp_reset_mask = None
+        if cls._solver.use_mujoco_cpu and not world_mask.numpy().any():
+            return
+        # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
+        # joint_q/joint_qd and has already written the authored reset pose.
+        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:
