@@ -185,11 +185,13 @@ class SensorBase(ABC):
             inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
             device=self._device,
         )
+        self._data_generation += 1
 
     def update(self, dt: float, force_recompute: bool = False):
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
+        self._data_generation += 1
         # Update the timestamp for the sensors
         wp.launch(
             update_timestamp_kernel,
@@ -205,7 +207,7 @@ class SensorBase(ABC):
         )
         # Update the buffers
         if force_recompute or self._is_visualizing:
-            self._update_outdated_buffers()
+            self._update_outdated_buffers(force_recompute=force_recompute)
 
     """
     Implementation specific.
@@ -254,6 +256,8 @@ class SensorBase(ABC):
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._data_generation = 0
+        self._data_generation_last_update = -1
 
         # Initialize debug visualization handle
         if self._debug_vis_handle is None:
@@ -389,8 +393,10 @@ class SensorBase(ABC):
     Helper functions.
     """
 
-    def _update_outdated_buffers(self):
+    def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
+        if not force_recompute and self._data_generation == self._data_generation_last_update:
+            return
         self._update_buffers_impl(self._is_outdated)
         # update timestamps and clear outdated flags
         wp.launch(
@@ -399,6 +405,7 @@ class SensorBase(ABC):
             inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
             device=self._device,
         )
+        self._data_generation_last_update = self._data_generation
 
     def _resolve_indices_and_mask(
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None

@@ -33,10 +33,19 @@ class DummyData:
     count: torch.Tensor = None
 
 
+@wp.kernel
+def increment_count_kernel(env_mask: wp.array(dtype=wp.bool), count: wp.array(dtype=wp.int32)):
+    """Increment the count for the selected environments."""
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        count[env_id] += 1
+
+
 class DummySensor(SensorBase):
     def __init__(self, cfg):
         super().__init__(cfg)
         self._data = DummyData()
+        self.backend_update_count = 0
 
     def _initialize_impl(self):
         super()._initialize_impl()
@@ -50,10 +59,13 @@ class DummySensor(SensorBase):
         return self._data
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
-        env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-        if len(env_ids) == 0:
-            return
-        self._data.count[env_ids] += 1
+        self.backend_update_count += 1
+        wp.launch(
+            increment_count_kernel,
+            dim=self._num_envs,
+            inputs=[env_mask, wp.from_torch(self._data.count)],
+            device=self.device,
+        )
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         super().reset(env_ids=env_ids, env_mask=env_mask)
@@ -230,6 +242,91 @@ def test_sensor_reset(create_dummy_sensor, device):
             sensor.data.count[cont_ids],
             torch.tensor(k + 6, device=device, dtype=torch.int32).repeat(len(cont_ids)),
         )
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda"))
+def test_repeated_data_reads_update_backend_once(create_dummy_sensor, device):
+    """Test that repeated data reads update the backend once per sensor update."""
+    sensor_cfg, sim, dt = create_dummy_sensor
+    sensor = DummySensor(cfg=sensor_cfg)
+    sim.step()
+    sim.reset()
+
+    sensor.update(dt=dt)
+    _ = sensor.data
+    backend_update_count = sensor.backend_update_count
+    _ = sensor.data
+
+    assert sensor.backend_update_count == backend_update_count
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda"))
+def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
+    """Test that full and partial resets each invalidate cached sensor data once."""
+    sensor_cfg, sim, _ = create_dummy_sensor
+    sensor = DummySensor(cfg=sensor_cfg)
+    sim.step()
+    sim.reset()
+    _ = sensor.data
+
+    sensor.reset()
+    backend_update_count = sensor.backend_update_count
+    _ = sensor.data
+    _ = sensor.data
+    assert sensor.backend_update_count == backend_update_count + 1
+
+    reset_ids = [2, 4]
+    continued_ids = [0, 1, 3]
+    sensor.reset(env_ids=reset_ids)
+    backend_update_count = sensor.backend_update_count
+    _ = sensor.data
+    _ = sensor.data
+
+    assert sensor.backend_update_count == backend_update_count + 1
+    torch.testing.assert_close(
+        sensor.data.count[reset_ids], torch.ones(len(reset_ids), dtype=torch.int32, device=device)
+    )
+    torch.testing.assert_close(
+        sensor.data.count[continued_ids], torch.ones(len(continued_ids), dtype=torch.int32, device=device)
+    )
+
+
+@pytest.mark.parametrize("device", ("cpu", "cuda"))
+def test_force_recompute_bypasses_sensor_data_cache(create_dummy_sensor, device):
+    """Test that forced recomputation bypasses a consumed freshness generation."""
+    sensor_cfg, sim, _ = create_dummy_sensor
+    sensor = DummySensor(cfg=sensor_cfg)
+    sim.step()
+    sim.reset()
+    _ = sensor.data
+    backend_update_count = sensor.backend_update_count
+
+    sensor._update_outdated_buffers(force_recompute=True)
+    _ = sensor.data
+
+    assert sensor.backend_update_count == backend_update_count + 1
+
+
+@pytest.mark.parametrize("device", ("cuda",))
+def test_repeated_data_reads_are_graph_safe(create_dummy_sensor, device):
+    """Test that CUDA graph capture records one backend refresh for repeated reads."""
+    sensor_cfg, sim, dt = create_dummy_sensor
+    sensor = DummySensor(cfg=sensor_cfg)
+    sim.step()
+    sim.reset()
+
+    # Warm up the kernels before capture.
+    sensor.update(dt=dt)
+    _ = sensor.data
+    backend_update_count = sensor.backend_update_count
+
+    with wp.ScopedCapture(device=device) as capture:
+        sensor.update(dt=dt)
+        _ = sensor.data
+        _ = sensor.data
+
+    assert sensor.backend_update_count == backend_update_count + 1
+    wp.capture_launch(capture.graph)
 
 
 @pytest.mark.parametrize("device", ("cpu",))
