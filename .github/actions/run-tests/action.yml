@@ -176,12 +176,6 @@ runs:
           if [ -n "$include_files" ]; then
             echo "Include files: $include_files"
           fi
-          if [ -n "$test_node_ids_file" ]; then
-            echo "Test node IDs file: $test_node_ids_file"
-          fi
-          if [ -n "$test_node_ids_key" ]; then
-            echo "Test node IDs key: $test_node_ids_key"
-          fi
           if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
             echo "Shard: $shard_index of $shard_count"
           fi
@@ -225,11 +219,6 @@ runs:
           if [ -n "${TEST_NODE_IDS:-}" ]; then
             docker_env_vars="$docker_env_vars -e TEST_NODE_IDS"
             echo "Setting TEST_NODE_IDS"
-          fi
-
-          if [ -n "${TEST_NODE_IDS_FILE:-}" ]; then
-            docker_env_vars="$docker_env_vars -e TEST_NODE_IDS_FILE -e TEST_NODE_IDS_KEY"
-            echo "Setting TEST_NODE_IDS_FILE=$TEST_NODE_IDS_FILE TEST_NODE_IDS_KEY=$TEST_NODE_IDS_KEY"
           fi
 
           if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
