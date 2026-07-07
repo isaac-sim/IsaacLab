@@ -84,7 +84,7 @@
     "publish_only": {
       "hardware.gpu_compute_capability": "12.0",
       "hardware.gpu_total_memory_gb": 94.97,
-      "gpu_diag.cuda_version": "12.8",				
+      "gpu_diag.cuda_version": "12.8",
       "gpu_diag.nvidia_driver_version": "595.71.05"
     }
   },

@@ -173,9 +173,7 @@ def test_confirm_block_downgrades_when_median_does_not_reproduce(tmp_path: Path)
     baselines_dir = tmp_path / "baselines"
     _seed_baseline(baselines_dir)  # median 1000, mad 0 -> BLOCK threshold at 1000
 
-    result = _evaluate_with_attempts(
-        tmp_path, baselines_dir, initial_fps=950.0, attempts=[950.0, 1000.0, 1000.0]
-    )
+    result = _evaluate_with_attempts(tmp_path, baselines_dir, initial_fps=950.0, attempts=[950.0, 1000.0, 1000.0])
 
     assert result.verdict == OracleVerdict.WARN
     assert "block_not_reproduced(n=3)" in (result.note or "")
@@ -187,9 +185,7 @@ def test_confirm_block_keeps_block_when_median_still_blocks(tmp_path: Path) -> N
     baselines_dir = tmp_path / "baselines"
     _seed_baseline(baselines_dir)
 
-    result = _evaluate_with_attempts(
-        tmp_path, baselines_dir, initial_fps=950.0, attempts=[950.0, 940.0, 945.0]
-    )
+    result = _evaluate_with_attempts(tmp_path, baselines_dir, initial_fps=950.0, attempts=[950.0, 940.0, 945.0])
 
     assert result.verdict == OracleVerdict.BLOCK
     assert "block_confirmed(n=3)" in (result.note or "")
@@ -245,9 +241,7 @@ def test_confirm_block_cell_skips_failed_reruns(tmp_path: Path) -> None:
     bench_result = _bench_result()
     result_path.write_text(json.dumps(bench_result), encoding="utf-8")
 
-    attempts = confirm_block_cell(
-        bench_result, artifact_dir, result_path, frozenset(), lambda *_args, **_kw: None, 2
-    )
+    attempts = confirm_block_cell(bench_result, artifact_dir, result_path, frozenset(), lambda *_args, **_kw: None, 2)
 
     assert attempts == [pytest.approx(950.0)]
 
@@ -330,11 +324,16 @@ def test_aggregate_applies_confirmation_attempts_end_to_end(tmp_path: Path) -> N
         [
             sys.executable,
             str(_GATE_DIR / "aggregate.py"),
-            "--artifacts_dir", str(tmp_path / "artifacts"),
-            "--baselines_dir", str(baselines_dir),
-            "--gpu_model", _GPU_MODEL,
-            "--confirm_rerun_mode", "none",
-            "--summary_file", str(summary_file),
+            "--artifacts_dir",
+            str(tmp_path / "artifacts"),
+            "--baselines_dir",
+            str(baselines_dir),
+            "--gpu_model",
+            _GPU_MODEL,
+            "--confirm_rerun_mode",
+            "none",
+            "--summary_file",
+            str(summary_file),
         ],
         cwd=_REPO_ROOT,
         capture_output=True,

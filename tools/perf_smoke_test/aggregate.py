@@ -31,7 +31,7 @@ from baseline_manager import (  # noqa: E402
 )
 from gate_config import BASELINE_PUSH_RETRIES, load_gate_config  # noqa: E402
 from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
-from gpu_identity import canonical_gpu_model  # noqa: E402
+from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
 from oracle import compare  # noqa: E402
 from task_config import get_task  # noqa: E402
 
@@ -59,7 +59,9 @@ def _parse_args():
         "--confirm_rerun_mode",
         choices=["none", "local", "docker"],
         default="none",
-        help="Re-run BLOCK cells before finalizing the verdict: 'local' (./isaaclab.sh), 'docker' (CI image), or 'none'",
+        help=(
+            "Re-run BLOCK cells before finalizing the verdict: 'local' (./isaaclab.sh), 'docker' (CI image), or 'none'"
+        ),
     )
     parser.add_argument(
         "--confirm_block_reruns",
@@ -208,7 +210,9 @@ def _build_run_context(rows: list[tuple]) -> str:
     for _result, bench_result in rows:
         gpu_diag = bench_result.get("gpu_diag") or {}
         launch_config = bench_result.get("launch_config") or {}
-        gpu_names.append(gpu_diag.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", ""))
+        gpu_names.append(
+            gpu_diag.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", "")
+        )
         runtimes.append(_runtime_label(bench_result))
 
     lines = [
@@ -253,7 +257,9 @@ def _build_summary_table(rows: list[tuple]) -> str:
             _fmt(result.measured_fps),
             _fmt(result.baseline_fps),
             _fmt_signed_pct(result.regression_pct),
-            _fmt_pct(result.effective_noise_pct if result.effective_noise_pct is not None else result.baseline_noise_pct),
+            _fmt_pct(
+                result.effective_noise_pct if result.effective_noise_pct is not None else result.baseline_noise_pct
+            ),
             str(result.baseline_sample_count),
         ]
         if show_threshold:
@@ -303,7 +309,14 @@ def _write_github_output(**values) -> None:
                 fh.write(f"{key}={value}\n")
 
 
-def _evaluate_cell(bench_result: dict, baseline, bench_gpu_model: str, backend: str, artifact_dir: Path, min_block_regression_pct: float):
+def _evaluate_cell(
+    bench_result: dict,
+    baseline,
+    bench_gpu_model: str,
+    backend: str,
+    artifact_dir: Path,
+    min_block_regression_pct: float,
+) -> object:
     """Run the oracle for one cell with hard-floor and noise-floor config applied."""
     return compare(
         bench_result=bench_result,

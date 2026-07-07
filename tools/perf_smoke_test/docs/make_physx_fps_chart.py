@@ -301,9 +301,7 @@ def main() -> None:
                 )
 
         ax_mem = fig.add_subplot(gs[1, col])
-        gpu_mem = [
-            row.get("peak_gpu_mem_used_mb") or row.get("mean_gpu_mem_used_mb") or 0.0 for row in task_rows
-        ]
+        gpu_mem = [row.get("peak_gpu_mem_used_mb") or row.get("mean_gpu_mem_used_mb") or 0.0 for row in task_rows]
         sys_mem = [row.get("peak_system_ram_used_mb") or row.get("mean_system_ram_used_mb") or 0.0 for row in task_rows]
         width = 0.35
         mem_bars_vram = ax_mem.bar(

@@ -48,9 +48,7 @@ def test_era_key_is_deterministic() -> None:
 def test_era_key_changes_when_isaacsim_version_changes() -> None:
     """A different Isaac Sim version is a different era (under-sensitivity guard)."""
     old = image_era.compute_era_key(image_era.parse_env_file(_ENV_BASE))
-    new = image_era.compute_era_key(
-        image_era.parse_env_file(_ENV_BASE.replace("6.0.0-dev2", "5.0.0"))
-    )
+    new = image_era.compute_era_key(image_era.parse_env_file(_ENV_BASE.replace("6.0.0-dev2", "5.0.0")))
 
     assert old != new
 
