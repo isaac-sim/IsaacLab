@@ -29,7 +29,6 @@ _VIS_LABEL_SUFFIXES = {
     "shape_label": "Shape",
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
-    "equality_constraint_label": "EqualityConstraint",
 }
 _VIS_LABEL_ATTRS = tuple(_VIS_LABEL_SUFFIXES)
 
@@ -334,6 +333,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),
             mock.patch.object(newton_clone_utils_module.solvers.SolverMuJoCo, "register_custom_attributes"),
+            mock.patch.object(newton_clone_utils_module.solvers.SolverKamino, "register_custom_attributes"),
         ):
             builder = visualization_builder_module.build_visualization_builder_from_stage_envs(
                 stage, env_paths, clone_plan

@@ -14,6 +14,8 @@ import torch.utils.benchmark as benchmark
 
 import isaaclab.utils.math as math_utils
 
+pytestmark = pytest.mark.unit
+
 DECIMAL_PRECISION = 5
 """Precision of the test.
 

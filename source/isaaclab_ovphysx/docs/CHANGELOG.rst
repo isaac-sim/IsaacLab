@@ -1,6 +1,62 @@
 Changelog
 ---------
 
+6.1.1 (2026-07-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install
+  ``ovphysx==0.5.2+head.f62c22207c``, matching the supported runtime wheel.
+
+
+6.1.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_enhanced_determinism` and
+  :attr:`~isaaclab_ovphysx.physics.OvPhysxCfg.enable_external_forces_every_iteration`, mirroring the
+  equivalent PhysX solver settings already exposed on
+  :class:`~isaaclab_physx.physics.PhysxCfg`.
+
+
+6.0.0 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** :attr:`~isaaclab_ovphysx.assets.RigidObjectCollection.root_view` now returns an
+  :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` binding manager instead of a raw ``dict``
+  mapping ``TensorType`` to ``TensorBinding``. The view wraps the fused multi-prim bindings
+  (``prim_paths=[...]``) and stores each under the collection's ``LINK_*``/``BODY_*`` data-class
+  key via ``key_aliases`` (mapped from the underlying ``RIGID_BODY_*`` type). Replace
+  ``root_view[tensor_type]`` with ``root_view.try_binding_for(tensor_type)``.
+
+Fixed
+^^^^^
+
+* Updated :class:`~isaaclab_ovphysx.physics.OvPhysxManager` for the current
+  OVPhysX constructor, stage-reset, and synchronous-step APIs.
+* Synchronized GPU-to-host property staging before OVPhysX consumes the pinned
+  host buffers.
+
+
+5.0.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed center-of-mass writes in :class:`~isaaclab_ovphysx.assets.RigidObject`,
+  :class:`~isaaclab_ovphysx.assets.RigidObjectCollection`, and
+  :class:`~isaaclab_ovphysx.assets.Articulation` for compatibility with Warp
+  1.15.
+
+
 5.0.0 (2026-06-27)
 ~~~~~~~~~~~~~~~~~~
 

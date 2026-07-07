@@ -12,11 +12,14 @@ import os
 import sys
 import types
 
+import pytest
 import tomllib
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
     IsaacRtxRendererGlobalSettingsCfg,
 )
 from packaging.version import Version
+
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
 class _FakeSettings:

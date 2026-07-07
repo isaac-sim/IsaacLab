@@ -32,6 +32,7 @@ def build_source_builders(
     for source in sources:
         builder = create_builder()
         solvers.SolverMuJoCo.register_custom_attributes(builder)
+        solvers.SolverKamino.register_custom_attributes(builder)
         builder.add_usd(
             stage,
             root_path=source,
@@ -146,9 +147,6 @@ def rename_builder_labels(
             (builder.constraint_mimic_label, builder.constraint_mimic_world, False),
         ):
             _rename_pair(labels, worlds, collect_body_bindings=collect_body_bindings)
-
-        if "mujoco:equality_constraint_label" not in builder.custom_attributes:
-            _rename_pair(builder.equality_constraint_label, builder.equality_constraint_world)
 
         custom_attrs = builder.custom_attributes.values()
         worlds_by_freq = {attr.frequency: attr.values for attr in custom_attrs if attr.references == "world"}
