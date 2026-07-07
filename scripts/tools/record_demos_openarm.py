@@ -303,6 +303,8 @@ class JointMirrorBroadcaster:
         names = [all_names[i] for i in indices]
         return indices, names
 
+    WIDTH_PRINT_PERIOD_S = 0.5  # throttle -- printing every step at 30Hz would flood the console
+
     def __init__(self, robot, host: str, port: int):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._addr = (host, port)
@@ -310,6 +312,7 @@ class JointMirrorBroadcaster:
         self._robot = robot
         self._seq = 0
         self._history: list[tuple[float, dict]] = []
+        self._last_width_print_t = 0.0
         print(f"[MIRROR] Broadcasting {len(self._names)} joints to {host}:{port} -> {self._names}")
 
     def broadcast(self):
@@ -326,6 +329,15 @@ class JointMirrorBroadcaster:
             self._sock.sendto(json.dumps(packet).encode("utf-8"), self._addr)
         except OSError:
             pass  # best-effort only -- never let a networking hiccup break recording
+
+        if packet["t"] - self._last_width_print_t >= self.WIDTH_PRINT_PERIOD_S:
+            self._last_width_print_t = packet["t"]
+            # Both finger joints are prismatic, 0.0 (closed) .. 0.044m (open), moving symmetrically
+            # outward -- see openarm_description.urdf finger_joint1/2 limits and mimic tag. Total
+            # gripper opening width is the sum of both fingers' travel from the closed position.
+            left_mm = joints.get("openarm_left_finger_joint1", 0.0) * 2000.0
+            right_mm = joints.get("openarm_right_finger_joint1", 0.0) * 2000.0
+            print(f"[SIM GRIPPER]  left={left_mm:5.1f}mm  right={right_mm:5.1f}mm")
 
     def history(self) -> list[tuple[float, dict]]:
         return self._history

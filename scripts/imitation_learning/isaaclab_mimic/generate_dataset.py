@@ -44,6 +44,17 @@ parser.add_argument(
     default=False,
     help="use skillgen to generate motion trajectories",
 )
+parser.add_argument(
+    "--enable_domain_randomization",
+    action="store_true",
+    default=False,
+    help=(
+        "Enable optional domain randomization (cube/pad color+texture, pad position jitter,"
+        " scene lighting, front-camera pose) while generating the dataset. Off by default."
+        " Only takes effect for tasks whose event cfg defines a matching randomized variant"
+        " (currently: the OpenArm pick-up-red-cube task family)."
+    ),
+)
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -105,6 +116,26 @@ def main():
         device=args_cli.device,
         generation_num_trials=args_cli.generation_num_trials,
     )
+
+    # Optional domain randomization (cube/pad color+texture, pad position jitter, lighting,
+    # front-camera pose) -- opt-in via --enable_domain_randomization, off by default.
+    if args_cli.enable_domain_randomization:
+        from isaaclab_tasks.manager_based.manipulation.stack.config.openarm.pickup_ik_abs_env_cfg import (
+            PickUpDomainRandomizationEventCfg,
+            PickUpEventCfg,
+        )
+
+        if isinstance(env_cfg.events, PickUpEventCfg):
+            env_cfg.events = PickUpDomainRandomizationEventCfg()
+            print(
+                "[DR] Domain randomization enabled: cube/pad color+texture, pad position jitter,"
+                " scene lighting, front-camera pose."
+            )
+        else:
+            print(
+                f"[DR] --enable_domain_randomization was set, but task '{env_name}' has no matching"
+                " domain-randomization event cfg; ignoring."
+            )
 
     # Create environment
     env = gym.make(env_name, cfg=env_cfg).unwrapped

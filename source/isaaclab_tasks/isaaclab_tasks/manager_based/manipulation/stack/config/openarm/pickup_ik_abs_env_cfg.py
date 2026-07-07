@@ -19,7 +19,11 @@ Cube randomisation: left-arm workspace only.
   cube_2 is randomized within x:[0.17, 0.27]  y:[0.03, 0.17]
   — a compact band centred on the left arm's comfortable sweet spot.
 
-Success condition: cube_2 centre rises above 0.20 m world-Z.
+Success condition: cube_2 centre rises 2.5 cm above its resting height (see `cube_rest_z` in
+OpenarmPickUpRedCubeEnvCfg.__post_init__ -- resting height itself depends on the pad/cube
+geometry in stack_joint_pos_env_cfg.py, so this is computed at cfg-build time, not a literal;
+the +2.5 cm offset is calibrated against real recorded teleop demos' peak lift height, not
+picked by analogy to an older design -- see the comment above `cube_rest_z` for why).
 """
 
 import torch
@@ -33,9 +37,11 @@ from isaaclab.managers import SceneEntityCfg, TerminationTermCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 import isaaclab.envs.mdp as mdp_core
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
+from isaaclab_tasks.manager_based.manipulation.stack.mdp import openarm_domain_randomization
 
 from . import stack_ik_abs_visuomotor_env_cfg
 
@@ -95,6 +101,144 @@ class PickUpEventCfg:
     )
 
 
+@configclass
+class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
+    """Extends `PickUpEventCfg` with optional appearance/pose domain-randomization terms.
+
+    Not used by default -- only attached to the env cfg when domain randomization is
+    explicitly requested (see generate_dataset.py's --enable_domain_randomization flag).
+    Visual randomization requires scene.replicate_physics=False, which is already the
+    default for this task family (see stack_env_cfg.py's ObjectTableSceneCfg).
+    """
+
+    # NOTE: no texture (image-swap) randomization for cube_2/workspace_pad. An earlier version
+    # routed both color AND texture through the Replicator API (`rep.get.prims` +
+    # `rep.randomizer.color`/`.texture`), which creates a *new* OmniGraph node + OmniPBR
+    # material every single call. Invoked once per "reset" across many episodes, this produced
+    # a growing pile of orphaned nodes and surfaced as repeated `UsdExpiredPrimAccessError: Used
+    # null prim` errors from `OgnSampleOmniPBR` during an actual generate_dataset.py run (visible
+    # once enough resets had happened for an older node's cached prim to be replaced/invalidated
+    # by a newer call -- non-fatal to that particular run, but not something to keep doing across
+    # a full 50-trial generation). Color below now writes directly to the material's Shader prim
+    # (`randomize_visual_color`'s docstring), which has none of that risk -- but true image
+    # texture swapping needs an actual UV-mapped texture shader graph, which isn't safe to
+    # hand-build without a live Isaac Sim session to verify against. Color + roughness jitter is
+    # the appearance-randomization budget for these two assets until that's built properly.
+    randomize_cube_2_color = EventTerm(
+        func=openarm_domain_randomization.randomize_visual_color,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("cube_2"),
+            "colors": {"r": (0.2, 0.9), "g": (0.2, 0.9), "b": (0.2, 0.9)},
+            "roughness_range": (0.2, 0.9),
+        },
+    )
+
+    randomize_pad_color = EventTerm(
+        func=openarm_domain_randomization.randomize_visual_color,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("workspace_pad"),
+            "colors": {"r": (0.3, 0.9), "g": (0.3, 0.9), "b": (0.3, 0.9)},
+            "roughness_range": (0.2, 0.9),
+        },
+    )
+
+    randomize_pad_position = EventTerm(
+        func=openarm_domain_randomization.randomize_static_asset_pose,
+        mode="reset",
+        params={
+            # Small jitter only -- height (z) and orientation stay fixed so the deliberately
+            # tuned pad height / robot clearance (see stack_joint_pos_env_cfg.py) still holds.
+            "pose_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02)},
+            # Must match workspace_pad's spawn position in stack_joint_pos_env_cfg.py
+            # (PAD_CENTER_X, 0.0, PAD_HEIGHT / 2) -- update this if that changes.
+            "base_pos": (0.465, 0.0, 0.09),
+            "asset_cfg": SceneEntityCfg("workspace_pad"),
+        },
+    )
+
+    randomize_light = EventTerm(
+        func=openarm_domain_randomization.randomize_scene_lighting,
+        mode="reset",
+        params={
+            "intensity_range": (1000.0, 8000.0),
+            "color_range": (0.5, 1.0),
+            "skybox_textures": [
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/abandoned_parking_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/evening_road_01_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/lakeside_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/autoshop_01_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/carpentry_shop_01_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hospital_room_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hotel_room_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/old_bus_depot_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/small_empty_house_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/surgery_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Studio/photo_studio_01_4k.hdr",
+            ],
+            "asset_cfg": SceneEntityCfg("light"),
+        },
+    )
+
+    # ── Cameras ────────────────────────────────────────────────────────────
+    # front_cam is env-anchored (fixed relative to the env origin, not the robot) -- jitter
+    # its world position and where it's aimed. wrist/right_wrist/body cams are mounted on
+    # moving robot links, so they use randomize_mounted_camera_pose (mount-offset jitter
+    # relative to their parent link) instead -- see that function's docstring for why a
+    # world-frame jitter like front_cam's would be wrong for them.
+    randomize_camera_pose = EventTerm(
+        func=openarm_domain_randomization.randomize_fixed_camera_pose,
+        mode="reset",
+        params={
+            "pos_range": {"x": (-0.15, 0.15), "y": (-0.15, 0.15), "z": (-0.08, 0.08)},
+            "look_at_offset": (0.45, 0.0, 0.15),
+            "look_at_range": {"x": (-0.08, 0.08), "y": (-0.08, 0.08), "z": (-0.05, 0.05)},
+            "asset_cfg": SceneEntityCfg("front_cam"),
+        },
+    )
+
+    randomize_wrist_cam_pose = EventTerm(
+        func=openarm_domain_randomization.randomize_mounted_camera_pose,
+        mode="reset",
+        params={
+            "pos_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},
+            "rot_range": {"roll": (-0.09, 0.09), "pitch": (-0.09, 0.09), "yaw": (-0.09, 0.09)},
+            "parent_body_name": "openarm_left_ee_tcp",
+            "asset_cfg": SceneEntityCfg("wrist_cam"),
+        },
+    )
+
+    randomize_right_wrist_cam_pose = EventTerm(
+        func=openarm_domain_randomization.randomize_mounted_camera_pose,
+        mode="reset",
+        params={
+            "pos_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},
+            "rot_range": {"roll": (-0.09, 0.09), "pitch": (-0.09, 0.09), "yaw": (-0.09, 0.09)},
+            "parent_body_name": "openarm_right_ee_tcp",
+            "asset_cfg": SceneEntityCfg("right_wrist_cam"),
+        },
+    )
+
+    randomize_body_cam_pose = EventTerm(
+        func=openarm_domain_randomization.randomize_mounted_camera_pose,
+        mode="reset",
+        params={
+            "pos_range": {"x": (-0.015, 0.015), "y": (-0.015, 0.015), "z": (-0.015, 0.015)},
+            "rot_range": {"roll": (-0.09, 0.09), "pitch": (-0.09, 0.09), "yaw": (-0.09, 0.09)},
+            "parent_body_name": "openarm_body_link",
+            "asset_cfg": SceneEntityCfg("body_cam"),
+        },
+    )
+
+    # NOTE: robot/table texture randomization (via franka_stack_events.randomize_visual_texture_material)
+    # was removed here -- it goes through the same repeated-Replicator-call pattern that produced
+    # the "cube_2"/"workspace_pad" texture bug above (see the NOTE near randomize_cube_2_color).
+    # That function is pre-existing, shared code used elsewhere in this task family, so it wasn't
+    # rewritten; it's just not worth attaching two more copies of a known-fragile call pattern to
+    # this event cfg on top of the two (cube/pad) that already caused a real, observed failure.
+
+
 # ── Observations ──────────────────────────────────────────────────────────────
 
 @configclass
@@ -132,11 +276,20 @@ class PickUpObservationsCfg:
         """Subtask termination signals for Mimic auto-annotation.
 
         Both signals use cube height so they are robust and require no EEF tracking:
-          grasp (min_height=0.155 m): cube_2 has just left the pad (~5 mm above rest).
-                                      Marks end of the reach-and-grasp segment.
-          lift  (min_height=0.30 m):  cube_2 is well elevated.
-                                      Stored for debugging; not used as a Mimic term signal
-                                      (it is the last subtask).
+          grasp (min_height=cube_rest_z + 5 mm):  cube_2 has just left the pad.
+                                                   Marks end of the reach-and-grasp segment.
+          lift  (min_height=cube_rest_z + 2.5 cm): cube_2 is clearly picked up.
+                                                    Stored for debugging; not used as a Mimic
+                                                    term signal (it is the last subtask). Must
+                                                    still fire at least once during a demo or
+                                                    annotate_demos.py rejects the episode --
+                                                    calibrated against real recorded peak
+                                                    heights, see __post_init__.
+
+        The literal `min_height` values below are placeholders overwritten in
+        OpenarmPickUpRedCubeEnvCfg.__post_init__ once cube_2's actual resting height
+        (`cube_rest_z`) is known -- see that method for why a hardcoded literal here is
+        wrong whenever the pad height / cube size changes.
         """
 
         grasp = ObsTerm(
@@ -189,6 +342,25 @@ class OpenarmPickUpRedCubeEnvCfg(stack_ik_abs_visuomotor_env_cfg.OpenarmCubeStac
         self.observations.policy = PickUpObservationsCfg.PolicyCfg()
         self.observations.subtask_terms = PickUpObservationsCfg.SubtaskCfg()
 
+        # cube_2's resting height (its spawn Z, set in stack_joint_pos_env_cfg.py from
+        # PAD_HEIGHT/CUBE_SIZE) drives every height threshold below. Reading it back here
+        # instead of hardcoding a literal keeps "grasp"/"lift"/"success" correct if pad height
+        # or cube size ever change again -- a stale literal here previously broke the "grasp"
+        # subtask signal outright (it sat *below* the resting height, so cube_is_lifted was
+        # always True and the 0->1 transition annotate_demos.py/generate_dataset.py look for
+        # never happened).
+        #
+        # The +0.025/+0.025 offsets below (lift/success) are calibrated against the actual
+        # peak cube_2 height reached across 10 recorded teleop demos under this same geometry
+        # (rest=0.1975, observed max_z ranged 0.2006-0.2444, 9/10 demos cleared ~0.232+) -- a
+        # first attempt used a much larger +0.15/+0.05 offset by analogy to an older design
+        # tuned for a lower pad, and it made annotate_demos.py's success_term/"lift" signal
+        # unreachable by *every* recorded demo (all fell short of 0.245+). Keep any future
+        # offset choice grounded in the demos' actual achieved lift height, not a guessed value.
+        cube_rest_z = float(self.scene.cube_2.init_state.pos[2])
+        self.observations.subtask_terms.grasp.params["min_height"] = cube_rest_z + 0.005
+        self.observations.subtask_terms.lift.params["min_height"] = cube_rest_z + 0.025
+
         # ── ee_frame: track left EEF (required by eef_pos / eef_quat obs) ────
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/openarm_left_link1",
@@ -206,7 +378,7 @@ class OpenarmPickUpRedCubeEnvCfg(stack_ik_abs_visuomotor_env_cfg.OpenarmCubeStac
         self.terminations.time_out = None
         self.terminations.success = TerminationTermCfg(
             func=cube_pickup_success,
-            params={"asset_cfg": SceneEntityCfg("cube_2"), "min_height": 0.20},
+            params={"asset_cfg": SceneEntityCfg("cube_2"), "min_height": cube_rest_z + 0.025},
             time_out=False,
         )
 

@@ -82,23 +82,35 @@ class OpenarmCubeStackEnvCfg(StackEnvCfg):
         
         # 3. 方塊配置
         # ── Workspace pad ────────────────────────────────────────────────────
-        # A 10 cm tall platform that raises the cubes to a height the arms can
-        # comfortably grasp.  Top surface at Z = 0.10 m.
-        # Covers x: [0.075, 0.725], y: [-0.275, 0.275] — fits all randomised
-        # cube positions used in reach_red_cube_env_cfg.
+        # A 15 cm tall platform (resting on the black ground plane) that raises
+        # the cubes to a height the arms can comfortably grasp.
+        # Top surface at Z = 0.15 m.
+        # Near edge (facing the robot) sits PAD_NEAR_EDGE_X = 0.14 m in front of
+        # the robot base (x=0) — a ~10 cm clearance to the robot's physical body.
+        # Pad is centered on y=0, i.e. centered on the robot.
         # To hide the pad: comment out self.scene.workspace_pad below.
-        # To change height: edit size[2] and pad pos[2]=size[2]/2,
-        #   then update CUBE_Z = size[2] + 0.02 (half the 4 cm block).
-        PAD_HEIGHT = 0.13
-        CUBE_Z = PAD_HEIGHT + 0.02   # pad top + half-block height
+        # To change height: edit PAD_HEIGHT (pad pos[2] and CUBE_Z follow automatically).
+        PAD_HEIGHT = 0.18 #0.15
+        # 3cm -- 1cm smaller than the real cube (4cm) so the real gripper (whose achievable
+        # closed width has some slop vs. its calibrated target) can close fully around it and
+        # hold a firm grip instead of just contacting the surface without real squeeze force.
+        CUBE_SIZE = 0.03
+        CUBE_BASE_SIZE = 0.04  # default Blocks/*.usd asset side length
+        CUBE_SCALE = CUBE_SIZE / CUBE_BASE_SIZE
+        CUBE_Z = PAD_HEIGHT + CUBE_SIZE / 2   # pad top + half-block height
+        PAD_SIZE_X = 0.65
+        PAD_SIZE_Y = 0.55
+        PAD_NEAR_EDGE_X = 0.14  # distance from robot base (x=0) to pad's near edge
+        PAD_CENTER_X = PAD_NEAR_EDGE_X + PAD_SIZE_X / 2
         self.scene.workspace_pad = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/workspace_pad",
-            init_state=AssetBaseCfg.InitialStateCfg(pos=(0.45, 0.0, PAD_HEIGHT / 2)),
+            init_state=AssetBaseCfg.InitialStateCfg(pos=(PAD_CENTER_X, 0.0, PAD_HEIGHT / 2)),
             spawn=sim_utils.CuboidCfg(
-                size=(0.65, 0.55, PAD_HEIGHT),
+                size=(PAD_SIZE_X, PAD_SIZE_Y, PAD_HEIGHT),
                 collision_props=sim_utils.CollisionPropertiesCfg(),
                 visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(0.55, 0.55, 0.55), roughness=0.6
+                    diffuse_color=(0.4117647058823529, 0.4235294117647059, 0.42745098039215684),  # rgb(105,108,109) matches real mat
+                    roughness=0.6,
                 ),
             ),
         )
@@ -111,14 +123,21 @@ class OpenarmCubeStackEnvCfg(StackEnvCfg):
             ("cube_2", [0.55, 0.05,  CUBE_Z], "red"),
             ("cube_3", [0.60, -0.10, CUBE_Z], "green")
         ]):
+            spawn_cfg = UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/{color}_block.usd",
+                scale=(CUBE_SCALE, CUBE_SCALE, CUBE_SCALE),
+                rigid_props=cube_properties,
+                semantic_tags=[("class", name)],
+            )
+            if name == "cube_2":
+                # Pickup task target cube: recolor to match the real cube, rgb(140,113,100).
+                spawn_cfg.visual_material = sim_utils.PreviewSurfaceCfg(
+                    diffuse_color=(0.5490196078431373, 0.44313725490196076, 0.39215686274509803)
+                )
             setattr(self.scene, name, RigidObjectCfg(
                 prim_path=f"{{ENV_REGEX_NS}}/{name.capitalize()}",
                 init_state=RigidObjectCfg.InitialStateCfg(pos=pos, rot=[1, 0, 0, 0]),
-                spawn=UsdFileCfg(
-                    usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/{color}_block.usd",
-                    rigid_props=cube_properties,
-                    semantic_tags=[("class", name)],
-                ),
+                spawn=spawn_cfg,
             ))
 
         self.scene.ee_frame = FrameTransformerCfg(
