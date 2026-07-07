@@ -15,7 +15,7 @@
 #   -e PYTHONUSERBASE=/tmp/mgpu-pyuserbase   (shared site-packages across shards)
 #   -e ISAACLAB_TEST_QUEUE=/mgpu       (conftest queue root)
 #   -e TEST_INCLUDE_FILES="<comma-sep basenames>"
-#   -e ISAACLAB_PIN_KIT_GPU=1          (Kit overrides for the multi-GPU race)
+#   -e ISAACLAB_FABRIC_USE_GPU_INTEROP=0  (temporary Kit/PhysX CI workaround)
 #   -e CUDA_VISIBLE_DEVICES="<MIG-UUID,...>"  (MIG hosts only; discrete = --gpus all)
 #
 # Behavior:
