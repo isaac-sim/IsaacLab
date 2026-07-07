@@ -1083,7 +1083,7 @@ before using ``root_view`` in backend-portable code.
 Actuator API Moves to ``ActuatorCollection``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In Isaac Lab 3.0, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a
+In Isaac Lab 3.x, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a
 backend-neutral :class:`~isaaclab.actuators.ActuatorCollection`, available as
 :attr:`~isaaclab.assets.Articulation.actuators`. Joint-target setters, actuator gain writers, and
 per-joint actuator telemetry now live on the collection, so the same code path drives every
@@ -1097,7 +1097,7 @@ The following methods on :class:`~isaaclab.assets.Articulation` move to the actu
 The old methods are deprecated and will be removed in a future release:
 
 +---------------------------------------------------------------+-------------------------------------------------+
-| Deprecated (2.x)                                              | New (3.0)                                       |
+| Deprecated                                                    | New                                             |
 +===============================================================+=================================================+
 | ``set_joint_position_target``                                 | ``actuators.set_joint_position_target_index``   |
 +---------------------------------------------------------------+-------------------------------------------------+
@@ -1120,7 +1120,7 @@ collection under the same names. The old properties are deprecated and will be r
 future release:
 
 +------------------------------------------+------------------------------------------+
-| Deprecated (2.x)                         | New (3.0)                                |
+| Deprecated                               | New                                      |
 +==========================================+==========================================+
 | ``data.joint_pos_target``                | ``actuators.joint_pos_target``           |
 +------------------------------------------+------------------------------------------+
