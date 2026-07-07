@@ -531,7 +531,6 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_assets"
-        testmon-mode: select
         container-name: isaac-lab-assets-test
 
   test-isaaclab-newton:
