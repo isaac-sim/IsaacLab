@@ -65,6 +65,9 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._joint_pos_b: wp.array | None = None
         self._joint_quat_b: wp.array | None = None
         self._num_bodies: int = 0
+        self._raw_incoming_joint_wrench: wp.array | None = None
+        self._update_cmd: wp.Launch | None = None
+        self._use_recorded_launch: bool = False
 
     def __str__(self) -> str:
         """String representation of the sensor instance."""
@@ -139,6 +142,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._data._body_names = list(self._root_view.shared_metatype.link_names)
         self._create_joint_frame_buffers()
         self._data.create_buffers(num_envs=self._num_envs, num_bodies=self._num_bodies, device=self._device)
+        self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
         logger.info(f"Joint wrench sensor initialized: {self._num_envs} envs, {self._num_bodies} bodies")
 
@@ -193,13 +197,36 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         if self._joint_pos_b is None or self._joint_quat_b is None:
             raise RuntimeError(f"Joint wrench sensor '{self.cfg.prim_path}': joint frame buffers are not initialized.")
 
-        incoming_joint_wrench = self._root_view.get_link_incoming_joint_force().view(wp.spatial_vectorf)
-        wp.launch(
+        # Refresh the PhysX buffer every update, but create its typed Warp view only once.
+        incoming_joint_wrench = self._root_view.get_link_incoming_joint_force()
+        if self._raw_incoming_joint_wrench is None:
+            self._raw_incoming_joint_wrench = incoming_joint_wrench.view(wp.spatial_vectorf)
+
+        if self._use_recorded_launch:
+            if self._update_cmd is None:
+                try:
+                    self._update_cmd = self._launch_update(env_mask, record_cmd=True)
+                except Exception as exc:
+                    self._use_recorded_launch = False
+                    logger.warning(
+                        f"Failed to record the update of the joint wrench sensor at '{self.cfg.prim_path}'."
+                        f" Falling back to eager kernel launches. Reason: {exc}"
+                    )
+            if self._update_cmd is not None:
+                self._update_cmd.launch()
+                return
+
+        self._launch_update(env_mask)
+
+    def _launch_update(self, env_mask: wp.array, record_cmd: bool = False) -> wp.Launch | None:
+        """Launch or record the kernel that updates the joint wrench buffers."""
+
+        return wp.launch(
             joint_wrench_split_kernel,
             dim=(self._num_envs, self._num_bodies),
             inputs=[
                 env_mask,
-                incoming_joint_wrench,
+                self._raw_incoming_joint_wrench,
                 self._joint_pos_b,
                 self._joint_quat_b,
                 self._timestamp,
@@ -207,6 +234,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
                 self._data._torque,
             ],
             device=self._device,
+            record_cmd=record_cmd,
         )
 
     def _invalidate_initialize_callback(self, event) -> None:
@@ -221,6 +249,8 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         self._joint_pos_b = None
         self._joint_quat_b = None
         self._num_bodies = 0
+        self._raw_incoming_joint_wrench = None
+        self._update_cmd = None
         self._data._force = None
         self._data._torque = None
         self._data._body_names = []

@@ -10,7 +10,7 @@ incoming wrench for all three links and transforms it into each child-side
 joint frame.
 
 Usage:
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_joint_wrench.py --num_envs 4096
+    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_joint_wrench.py --num_envs 4096
 """
 
 from __future__ import annotations
@@ -42,13 +42,14 @@ import time
 
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils.configclass import configclass
+
 from isaaclab_assets import CARTPOLE_CFG
-from isaaclab_physx.physics import PhysxCfg
 
 
 @configclass
