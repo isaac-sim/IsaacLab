@@ -60,7 +60,6 @@ def test_hub_and_shared_packages_run_everything(path):
         ".github/actions/run-tests/action.yml",
         ".github/workflows/build.yaml",
         ".github/workflows/config.yaml",
-        ".github/test-subsets/postmerge-rendering.toml",
         "pyproject.toml",
         "isaaclab.sh",
         ".gitmodules",

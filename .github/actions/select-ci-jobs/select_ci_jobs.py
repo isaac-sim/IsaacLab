@@ -81,7 +81,7 @@ _GLOBAL_PACKAGE_PREFIXES: tuple[str, ...] = (
 
 # Non-source directories/files whose changes can affect any job.
 _GLOBAL_DIR_PREFIXES: tuple[str, ...] = ("docker/", "tools/", "apps/", "scripts/")
-_GLOBAL_CI_PREFIXES: tuple[str, ...] = (".github/actions/", ".github/test-subsets/")
+_GLOBAL_CI_PREFIXES: tuple[str, ...] = (".github/actions/",)
 _GLOBAL_CI_FILES: frozenset[str] = frozenset(
     {
         ".github/workflows/build.yaml",
