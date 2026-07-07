@@ -344,10 +344,11 @@ ROWS: dict[str, RowSpec] = {
     "effort-limit": RowSpec(
         name="Ideal PD effort-limit sweep (step from hanging to horizontal)",
         # Holding horizontal against gravity takes ~2.9 N·m. Stepping up from
-        # the hanging pose, every actuator saturates during the swing-up, then
-        # settles where gravity torque (~2.9 sin(theta)) matches its limit; only
-        # the limit-3 instance reaches and holds the commanded horizontal pose.
-        values=[0.5, 1.0, 1.5, 2.0, 3.0],
+        # the hanging pose, limits below that saturate and sag where gravity
+        # torque (~2.9 sin(theta)) matches the limit, oscillating while clipped
+        # (a saturated actuator has no torque headroom left for its damping
+        # term); limits above it reach horizontal, faster with more headroom.
+        values=[1.0, 2.0, 3.0, 4.0, 6.0],
         make_actuator_cfg=lambda v: IdealPDActuatorCfg(
             joint_names_expr=[".*"], stiffness=400.0, damping=20.0, effort_limit=v
         ),
