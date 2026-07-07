@@ -19,16 +19,16 @@ Reference:
 
 import os
 from collections.abc import Callable
-
-from pxr import Sdf, Usd
+from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
-from isaaclab.sim.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    from pxr import Usd
 
 MENAGERIE_ASSET_ROOT = os.environ.get(
     "MENAGERIE_ASSET_ROOT", "omniverse://isaac-dev.ov.nvidia.com/Isaac/Samples/Mujoco_Menagerie"
@@ -168,13 +168,15 @@ only the joint/body naming differs.
 """
 
 
-def _author_shadow_hand_fixed_tendons(prim: Usd.Prim) -> None:
+def _author_shadow_hand_fixed_tendons(prim: "Usd.Prim") -> None:
     """Author the PhysX fixed tendons that the Menagerie ``physx`` layer omits.
 
     Replicates the legacy ``ShadowHand`` asset's distal-middle finger couplings: per finger,
     tendon length ``-0.00805 * theta_middle + 0.00705 * theta_distal`` constrained to
     ``+/-0.001`` around rest length 0, so the distal joint tracks the middle joint.
     """
+    from pxr import Sdf, Usd
+
     joints = {p.GetName(): p for p in Usd.PrimRange(prim) if p.GetName().startswith("rh_")}
     for finger in ("FF", "MF", "RF", "LF"):
         tendon = f"rh_T_{finger}J1c"
@@ -198,27 +200,31 @@ def _author_shadow_hand_fixed_tendons(prim: Usd.Prim) -> None:
         axis_joint.CreateAttribute(f"physxTendon:{tendon}:gearing", Sdf.ValueTypeNames.FloatArray).Set([0.00705])
 
 
-@clone
 def spawn_shadow_hand_menagerie_physx(
     prim_path: str,
     cfg: "ShadowHandMenageriePhysxSpawnCfg",
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     **kwargs,
-) -> Usd.Prim:
+) -> "Usd.Prim":
     """Spawn the Menagerie Shadow Hand and author the missing PhysX fixed tendons.
 
     The MuJoCo USD Converter does not translate MJCF tendon couplings into PhysX tendon
     schemas, so the ``physx`` variant leaves the four distal finger joints uncoupled and
     undriven. This spawner authors them post-spawn until the converter gains support.
     """
-    prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
-    _author_shadow_hand_fixed_tendons(prim)
-    # Re-apply the tendon properties: the pass inside the USD spawn ran before the tendons
-    # existed, and the coupling only transmits through the configured limit stiffness.
-    if cfg.fixed_tendons_props is not None:
-        sim_utils.schemas.modify_fixed_tendon_properties(prim.GetPath().pathString, cfg.fixed_tendons_props)
-    return prim
+    # Deferred imports: this module is imported by the task-config registry before the
+    # simulation app starts, when pxr and the spawner internals are not yet loadable.
+    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.utils import clone
+
+    @clone
+    def _spawn(prim_path, cfg, translation=None, orientation=None, **inner_kwargs):
+        prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+        _author_shadow_hand_fixed_tendons(prim)
+        return prim
+
+    return _spawn(prim_path, cfg, translation, orientation, **kwargs)
 
 
 @configclass
