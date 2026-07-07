@@ -16,8 +16,10 @@ Cube randomisation: left-arm workspace only.
   Looking at the robot from the front camera (1,0,0.5):
     x = forward from robot base (depth in front of robot)
     y = left  (positive y = robot's left arm side)
-  cube_2 is randomized within x:[0.17, 0.27]  y:[0.03, 0.17]
-  — a compact band centred on the left arm's comfortable sweet spot.
+  cube_2 is randomized within x:[0.20, 0.27]  y:[0.08, 0.27]
+  — keeps >=8cm clearance from the robot base, stays within 15cm of the pad's near edge, and
+    still reaches near the pad's side edge in y; see PickUpEventCfg's docstring for the full
+    reasoning.
 
 Success condition: cube_2 centre rises 2.5 cm above its resting height (see `cube_rest_z` in
 OpenarmPickUpRedCubeEnvCfg.__post_init__ -- resting height itself depends on the pad/cube
@@ -75,11 +77,18 @@ class PickUpEventCfg:
     """Reset robot to default pose; randomize cube_2 in the left-arm workspace only.
 
     cube_2 default world position: [0.55, 0.05, CUBE_Z]  (CUBE_Z ≈ 0.15 m)
-    Target randomisation range:    x=[0.17, 0.27]  y=[0.03, 0.17]
-    Required offsets:              x=[-0.38, -0.28]  y=[-0.02, 0.12]
+    Target randomisation range:    x=[0.20, 0.27]  y=[0.08, 0.27]
+    Required offsets:              x=[-0.35, -0.28]  y=[0.03, 0.22]
 
-    Range is intentionally compact — centred on the left arm's comfortable sweet spot.
-    To widen: increase x max offset toward -0.20, or widen the y band symmetrically.
+    x range keeps the cube within 15cm of the pad's near edge (the side closest to the robot
+    base, x=0.12 -- see PAD_NEAR_EDGE_X in stack_joint_pos_env_cfg.py): x=0.27 is exactly
+    0.12+0.15. The near bound (x=0.20) still keeps >=8cm clearance from the robot origin -- an
+    earlier, more compact x=[0.17,0.27] band had a near corner only ~17cm from the origin, close
+    enough for the gripper to clip the base while reaching; widening the near edge out to 0.20
+    fixed that. y is unchanged: [0.08, 0.27], reaching close to the pad's real y=+-0.285
+    half-width so generated demos cover positions near that edge too, not just a narrow central
+    band. Not verified against the arm's actual comfortable reach limit at the y=0.27 corner --
+    if teleop feels strained or Mimic's generation success rate drops, narrow it back down.
     """
 
     init_robot_pose = EventTerm(
@@ -92,8 +101,8 @@ class PickUpEventCfg:
         mode="reset",
         params={
             "pose_range": {
-                "x": (-0.38, -0.28),   # cube_2 default x=0.55 → actual x:[0.17, 0.27]
-                "y": (-0.02, 0.12),    # cube_2 default y=0.05 → actual y:[0.03, 0.17]
+                "x": (-0.35, -0.28),   # cube_2 default x=0.55 → actual x:[0.20, 0.27]
+                "y": (0.03, 0.22),     # cube_2 default y=0.05 → actual y:[0.08, 0.27]
             },
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("cube_2"),
