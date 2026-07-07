@@ -8,7 +8,6 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -23,7 +22,7 @@ from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_MENAGERIE_CFG, SHADOW_HAND_MENAGERIE_PHYSX_CFG
 
 
 @configclass
@@ -139,73 +138,64 @@ class ShadowHandEventCfg(PresetCfg):
 
 @configclass
 class ShadowHandRobotCfg(PresetCfg):
-    physx = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            rot=(0.0, 0.0, 0.0, 1.0),
-            joint_pos={".*": 0.0},
-        )
-    )
-    newton_mjwarp = ArticulationCfg(
-        prim_path="/World/envs/env_.*/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            # newton/mujoco have separate usd schema
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHandNewton/shadow_hand_instanceable.usda",
-            activate_contact_sensors=False,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                disable_gravity=True,
-                retain_accelerations=True,
-                max_depenetration_velocity=1000.0,
-            ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
-            fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 0.5),
-            # WARNING(Octi): Newton's import_usd.py bakes the USD body xformOp rotation into
-            # joint_X_p for the root fixed joint, which cancels with the matching localPose1
-            # rotation in joint_X_c during FK (joint_X_p * inv(joint_X_c) ≈ identity). This
-            # discards the root body's native USD orientation, so we must re-apply it here as a
-            # spawn rotation. PhysX or USD does not have this issue. Remove once Newton fixes root joint
-            # transform handling in import_usd.py.
-            rot=(0.0, 0.0, -0.70710678118, 0.70710678118),
-            joint_pos={".*": 0.0},
-        ),
-        actuators={
-            "fingers": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-                effort_limit_sim={
-                    "robot0_WRJ1": 4.785,
-                    "robot0_WRJ0": 2.175,
-                    "robot0_(FF|MF|RF|LF)J1": 0.7245,
-                    "robot0_FFJ(3|2)": 0.9,
-                    "robot0_MFJ(3|2)": 0.9,
-                    "robot0_RFJ(3|2)": 0.9,
-                    "robot0_LFJ(4|3|2)": 0.9,
-                    "robot0_THJ4": 2.3722,
-                    "robot0_THJ3": 1.45,
-                    "robot0_THJ(2|1)": 0.99,
-                    "robot0_THJ0": 0.81,
-                },
-                stiffness={
-                    "robot0_WRJ.*": 5.0,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 1.0,
-                    "robot0_(LF|TH)J4": 1.0,
-                    "robot0_THJ0": 1.0,
-                },
-                damping={
-                    "robot0_WRJ.*": 0.5,
-                    "robot0_(FF|MF|RF|LF|TH)J(3|2|1)": 0.1,
-                    "robot0_(LF|TH)J4": 0.1,
-                    "robot0_THJ0": 0.1,
-                },
-                friction=1e-2,
-                armature=2e-3,
-            ),
-        },
-        soft_joint_pos_limit_factor=1.0,
-    )
+    physx = SHADOW_HAND_MENAGERIE_PHYSX_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    newton_mjwarp = SHADOW_HAND_MENAGERIE_CFG.replace(prim_path="/World/envs/env_.*/Robot")
+    default = physx
+
+
+@configclass
+class ShadowHandActuatedJointsCfg(PresetCfg):
+    """Actuation topology per engine, following each engine's reference configuration.
+
+    The PhysX list keeps the legacy asset's topology (knuckles and middle joints driven,
+    distal joints following via fixed tendons); the Newton list keeps the ``ShadowHandNewton``
+    reference topology (distal joints driven directly, finger knuckles passive).
+    """
+
+    physx = [
+        "rh_WRJ2",
+        "rh_WRJ1",
+        "rh_FFJ4",
+        "rh_FFJ3",
+        "rh_FFJ2",
+        "rh_MFJ4",
+        "rh_MFJ3",
+        "rh_MFJ2",
+        "rh_RFJ4",
+        "rh_RFJ3",
+        "rh_RFJ2",
+        "rh_LFJ5",
+        "rh_LFJ4",
+        "rh_LFJ3",
+        "rh_LFJ2",
+        "rh_THJ5",
+        "rh_THJ4",
+        "rh_THJ3",
+        "rh_THJ2",
+        "rh_THJ1",
+    ]
+    newton_mjwarp = [
+        "rh_WRJ2",
+        "rh_WRJ1",
+        "rh_FFJ3",
+        "rh_FFJ2",
+        "rh_FFJ1",
+        "rh_MFJ3",
+        "rh_MFJ2",
+        "rh_MFJ1",
+        "rh_RFJ3",
+        "rh_RFJ2",
+        "rh_RFJ1",
+        "rh_LFJ4",
+        "rh_LFJ3",
+        "rh_LFJ2",
+        "rh_LFJ1",
+        "rh_THJ5",
+        "rh_THJ4",
+        "rh_THJ3",
+        "rh_THJ2",
+        "rh_THJ1",
+    ]
     default = physx
 
 
@@ -309,34 +299,13 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
     )
     # robot
     robot_cfg: ShadowHandRobotCfg = ShadowHandRobotCfg()
-    actuated_joint_names = [
-        "robot0_WRJ1",
-        "robot0_WRJ0",
-        "robot0_FFJ3",
-        "robot0_FFJ2",
-        "robot0_FFJ1",
-        "robot0_MFJ3",
-        "robot0_MFJ2",
-        "robot0_MFJ1",
-        "robot0_RFJ3",
-        "robot0_RFJ2",
-        "robot0_RFJ1",
-        "robot0_LFJ4",
-        "robot0_LFJ3",
-        "robot0_LFJ2",
-        "robot0_LFJ1",
-        "robot0_THJ4",
-        "robot0_THJ3",
-        "robot0_THJ2",
-        "robot0_THJ1",
-        "robot0_THJ0",
-    ]
+    actuated_joint_names: ShadowHandActuatedJointsCfg = ShadowHandActuatedJointsCfg()
     fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
+        "rh_ffdistal",
+        "rh_mfdistal",
+        "rh_rfdistal",
+        "rh_lfdistal",
+        "rh_thdistal",
     ]
 
     # in-hand object
