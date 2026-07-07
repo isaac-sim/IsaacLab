@@ -29,7 +29,6 @@ _VIS_LABEL_SUFFIXES = {
     "shape_label": "Shape",
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
-    "equality_constraint_label": "EqualityConstraint",
 }
 _VIS_LABEL_ATTRS = tuple(_VIS_LABEL_SUFFIXES)
 
