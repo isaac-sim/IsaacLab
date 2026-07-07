@@ -94,7 +94,9 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
             max_contact_impulse=1e32,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True,
+            # The conversion loses MJCF's parent-child contact exclusions, so adjacent-link
+            # colliders permanently wedge the finger medial joints when self-collisions are on.
+            enabled_self_collisions=False,
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=0,
             sleep_threshold=0.005,
