@@ -148,7 +148,7 @@ The active preset is selected at launch via ``physics=``, ``renderer=``, or ``pr
    python train.py task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
 
    # Use OVRTX renderer
-   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx_renderer
+   python train.py task=Isaac-Cartpole-Camera-Direct renderer=ovrtx
 
    # Use default (Isaac RTX)
    python train.py task=Isaac-Cartpole-Camera-Direct

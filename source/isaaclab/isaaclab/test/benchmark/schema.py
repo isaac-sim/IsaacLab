@@ -135,7 +135,7 @@ class RunConfig:
         rendering_backend: Rendering backend, or ``"none"`` for headless runs
             with no camera sensors.
         presets: Active Hydra preset tokens applied to the run (e.g.
-            ``["rgb", "ovrtx_renderer"]``). Open-ended so sensor data types,
+            ``["rgb", "ovrtx"]``). Open-ended so sensor data types,
             resolutions, and any other domain presets are captured without a
             closed enum; ``physics_backend`` / ``rendering_backend`` surface the
             two primary grouping dimensions as typed fields.
