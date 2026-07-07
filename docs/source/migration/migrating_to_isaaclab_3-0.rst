@@ -1080,6 +1080,103 @@ and OvPhysX bindings use different access methods. See
 before using ``root_view`` in backend-portable code.
 
 
+Actuator API Moves to ``ActuatorCollection``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In Isaac Lab 3.0, actuator ownership moves from :class:`~isaaclab.assets.Articulation` to a
+backend-neutral :class:`~isaaclab.actuators.ActuatorCollection`, available as
+:attr:`~isaaclab.assets.Articulation.actuators`. Joint-target setters, actuator gain writers, and
+per-joint actuator telemetry now live on the collection, so the same code path drives every
+physics backend. The collection setters are keyword-only.
+
+
+Method Relocations
+------------------
+
+The following methods on :class:`~isaaclab.assets.Articulation` move to the actuator collection.
+The old methods are deprecated and will be removed in a future release:
+
++---------------------------------------------------------------+-------------------------------------------------+
+| Deprecated (2.x)                                              | New (3.0)                                       |
++===============================================================+=================================================+
+| ``set_joint_position_target``                                 | ``actuators.set_joint_position_target_index``   |
++---------------------------------------------------------------+-------------------------------------------------+
+| ``set_joint_velocity_target``                                 | ``actuators.set_joint_velocity_target_index``   |
++---------------------------------------------------------------+-------------------------------------------------+
+| ``set_joint_effort_target``                                   | ``actuators.set_joint_effort_target_index``     |
++---------------------------------------------------------------+-------------------------------------------------+
+| ``set_joint_{position,velocity,effort}_target_index/_mask``   | same names on ``articulation.actuators``        |
++---------------------------------------------------------------+-------------------------------------------------+
+| ``write_actuator_stiffness_to_sim`` /                         | same names on ``articulation.actuators``        |
+| ``write_actuator_damping_to_sim``                             |                                                 |
++---------------------------------------------------------------+-------------------------------------------------+
+
+
+Property Relocations (Data Class)
+---------------------------------
+
+The following properties on :class:`~isaaclab.assets.ArticulationData` move to the actuator
+collection under the same names. The old properties are deprecated and will be removed in a
+future release:
+
++------------------------------------------+------------------------------------------+
+| Deprecated (2.x)                         | New (3.0)                                |
++==========================================+==========================================+
+| ``data.joint_pos_target``                | ``actuators.joint_pos_target``           |
++------------------------------------------+------------------------------------------+
+| ``data.joint_vel_target``                | ``actuators.joint_vel_target``           |
++------------------------------------------+------------------------------------------+
+| ``data.joint_effort_target``             | ``actuators.joint_effort_target``        |
++------------------------------------------+------------------------------------------+
+| ``data.computed_torque``                 | ``actuators.computed_torque``            |
++------------------------------------------+------------------------------------------+
+| ``data.applied_torque``                  | ``actuators.applied_torque``             |
++------------------------------------------+------------------------------------------+
+| ``data.soft_joint_vel_limits``           | ``actuators.soft_joint_vel_limits``      |
++------------------------------------------+------------------------------------------+
+| ``data.gear_ratio``                      | ``actuators.gear_ratio``                 |
++------------------------------------------+------------------------------------------+
+
+.. note::
+
+   All deprecated methods and properties are forwarders that emit a :class:`DeprecationWarning`
+   when used. Your existing code will continue to work, but you should migrate to the new API to
+   avoid issues in future releases.
+
+
+Migration Example
+-----------------
+
+Here's a complete example showing how to update your code:
+
+**Before (Isaac Lab 2.x):**
+
+.. code-block:: python
+
+   # Setting joint targets on the articulation (deprecated)
+   robot = scene["robot"]
+   robot.set_joint_effort_target(efforts, joint_ids=joint_ids)
+
+   # Reading actuator telemetry from the data class (deprecated)
+   applied = robot.data.applied_torque
+   pos_target = robot.data.joint_pos_target
+
+**After (Isaac Lab 3.0):**
+
+.. code-block:: python
+
+   # Setting joint targets on the actuator collection (keyword-only)
+   robot = scene["robot"]
+   robot.actuators.set_joint_effort_target_index(target=efforts, joint_ids=joint_ids)
+
+   # Reading actuator telemetry from the collection
+   applied = robot.actuators.applied_torque.torch
+   pos_target = robot.actuators.joint_pos_target.torch
+
+For the full runtime API of the actuator collection -- target setters, telemetry buffers, and
+gain writers -- see :ref:`actuators-runtime-api`.
+
+
 Quaternion Format
 ~~~~~~~~~~~~~~~~~~~
 
