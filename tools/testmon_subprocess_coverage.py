@@ -214,6 +214,7 @@ def combine_subprocess_coverage(config: pytest.Config) -> None:
             except Exception:
                 continue
             child_file.unlink(missing_ok=True)
+
     finally:
         if was_started:
             cov.start()
@@ -257,11 +258,17 @@ def pytest_runtest_teardown(item: pytest.Item) -> None:
     os.environ.pop(_COVERAGE_CONTEXT, None)
 
 
-@pytest.hookimpl(tryfirst=True, wrapper=True)
+@pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]):
     if call.when == "teardown":
         combine_subprocess_coverage(item.config)
-    return (yield)
+    report = yield
+    if call.when == "teardown" and hasattr(report, "nodes_files_lines"):
+        report.nodes_files_lines = {
+            nodeid: {filename: lines for filename, lines in files.items() if Path(filename).suffix}
+            for nodeid, files in report.nodes_files_lines.items()
+        }
+    return report
 
 
 def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:

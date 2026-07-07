@@ -48,6 +48,7 @@ def test_calls_helper_in_subprocess():
     with open(os.environ["SUBPROC_DEP_RUNS"], "a", encoding="utf-8") as handle:
         handle.write("run\\n")
 
+    exec(compile("value = 1", "extensionless_template", "exec"))
     result = subprocess.run(
         [sys.executable, "-c", "import {module}; assert {module}.contribution() >= 0"],
         env=os.environ.copy(),
