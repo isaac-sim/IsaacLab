@@ -6,11 +6,6 @@
 name: Performance Smoke - Regression Evidence Pack
 
 on:
-  # This mirrors the legacy-floor collection workflow: workflow_dispatch is only
-  # dispatchable from the default branch, so pushing this dedicated branch is the
-  # runnable path while the workflow is still a one-off branch artifact.
-  push:
-    branches: [neilm/regression-evidence-pack]
   workflow_dispatch:
     inputs:
       legacy_image_ref:

@@ -20,10 +20,8 @@
 #              (self-hosted, gpu)
 #
 # Baseline updates are published from protected-branch push events
-# (main/develop/release) plus angehu/perf-smoke-poc while this POC is active.
-# Mirrored PR pushes under pull-request/<number> can run the gate on upstream
-# RTX runners; they are read-only unless PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE
-# is explicitly enabled as a temporary deployment escape hatch.
+# (main/develop/release). Pull requests and merge queue candidates are read-only
+# and post verdicts without updating the rolling baselines.
 #
 # backend_key: "{physics_backend}_{render_backend}" when render_backend is
 # set, otherwise just physics_backend.  Matches TaskConfig.backend_key.
@@ -32,13 +30,12 @@
 name: Performance Smoke Test
 
 on:
-  # NVIDIA's shared GPU fleet (ProdSec) does not grant runners to `pull_request`-
-  # triggered jobs, so a `pull_request`/`merge_group` trigger would leave a stuck or
-  # failing check on every PR. The runnable path is copy-pr-bot mirroring a vetted PR
-  # onto a `pull-request/<N>` branch, whose `push` IS allowed on the fleet. Trigger on
-  # that push (plus protected branches for baseline updates) and manual dispatch only.
+  pull_request:
+    branches: [main, develop, 'release/**']
+  merge_group:
+    branches: [main, develop, 'release/**']
   push:
-    branches: [main, develop, 'release/**', angehu/perf-smoke-poc, 'pull-request/[0-9]+']
+    branches: [main, develop, 'release/**']
   workflow_dispatch:
 
 concurrency:
@@ -619,7 +616,6 @@ jobs:
     - name: Resolve gate context
       id: gate_context
       env:
-        ALLOW_MIRROR_UPDATE: ${{ vars.PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE || 'false' }}
         GITHUB_TOKEN: ${{ github.token }}
       run: |
         python3 tools/perf_smoke_test/github_gate_context.py
@@ -691,22 +687,19 @@ jobs:
         cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}" || true
 
     # Post the verdict table as a single sticky comment on the PR (updated in place
-    # each run), so reviewers see regressions without opening the Actions tab. Only
-    # runs on the copy-pr-bot mirror branches (pull-request/<N>); skipped on manual
-    # dispatch / protected-branch pushes where there is no PR to comment on.
+    # each run), so reviewers see regressions without opening the Actions tab.
+    # Skipped on manual dispatch / protected-branch pushes where there is no PR.
     - name: Post verdict PR comment
       if: always()
       uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
-          const ref = context.ref || '';
-          const m = ref.match(/^refs\/heads\/pull-request\/(\d+)$/);
-          if (!m) {
-            core.info(`ref ${ref} is not a pull-request/<N> mirror; skipping PR comment`);
+          const issue_number = context.issue && context.issue.number;
+          if (!issue_number) {
+            core.info('no pull request issue number in context; skipping PR comment');
             return;
           }
-          const issue_number = parseInt(m[1], 10);
           let table = '_No verdict summary was produced._';
           try {
             table = fs.readFileSync(`${process.env.GITHUB_WORKSPACE}/verdict_summary.md`, 'utf8');

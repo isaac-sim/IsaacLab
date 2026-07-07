@@ -17,8 +17,11 @@
 # environment). Set repo variable PERF_SMOKE_CI_IMAGE only to override that
 # default, e.g. to pin an immutable tag.
 #
-# Manual dispatch only — seeding writes to perf-baselines and burns GPU time, so
-# it should never run automatically.
+# Manual dispatch is the normal path because seeding writes to perf-baselines and
+# burns GPU time. Temporary branch-push triggers are scoped to unified-POC /
+# perf-smoke/** so maintainers can host this POC on isaac-sim/IsaacLab and run a
+# small L40S validation seed from a non-default branch before the workflow is
+# merged.
 
 name: Performance Smoke - Seed Baselines
 
