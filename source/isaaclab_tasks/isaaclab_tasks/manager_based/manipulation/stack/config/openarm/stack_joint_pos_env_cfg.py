@@ -82,25 +82,32 @@ class OpenarmCubeStackEnvCfg(StackEnvCfg):
         
         # 3. 方塊配置
         # ── Workspace pad ────────────────────────────────────────────────────
-        # A 15 cm tall platform (resting on the black ground plane) that raises
-        # the cubes to a height the arms can comfortably grasp.
-        # Top surface at Z = 0.15 m.
-        # Near edge (facing the robot) sits PAD_NEAR_EDGE_X = 0.14 m in front of
-        # the robot base (x=0) — a ~10 cm clearance to the robot's physical body.
+        # Matches the real-world workspace measurements:
+        #   - cube: 5.5 x 5.5 x 5.5 cm
+        #   - openarm body-to-pad clearance: 12 cm
+        #   - pad width (side parallel to the robot, Y): 57 cm
+        #   - pad length (orthogonal to the robot, X): 48.5 cm
+        #   - pad height (from the robot-base/ground plane): 17 cm
         # Pad is centered on y=0, i.e. centered on the robot.
         # To hide the pad: comment out self.scene.workspace_pad below.
         # To change height: edit PAD_HEIGHT (pad pos[2] and CUBE_Z follow automatically).
-        PAD_HEIGHT = 0.18 #0.15
-        # 3cm -- 1cm smaller than the real cube (4cm) so the real gripper (whose achievable
-        # closed width has some slop vs. its calibrated target) can close fully around it and
-        # hold a firm grip instead of just contacting the surface without real squeeze force.
-        CUBE_SIZE = 0.03
-        CUBE_BASE_SIZE = 0.04  # default Blocks/*.usd asset side length
+        PAD_HEIGHT = 0.19  # 17 cm real-world + 2 cm extra, temporarily, for the same manual test
+        CUBE_SIZE = 0.055  # matches the real cube (5.5 cm per side)
+        # Default Blocks/*.usd asset side length -- NOT verified directly against the USD file
+        # (it's a remote Nucleus asset, no local copy to inspect), but empirically confirmed
+        # wrong at 0.04: sim-vs-real grasp testing showed the gripper only made real contact
+        # with cube_2 at a ~70mm opening despite CUBE_SIZE=0.055m, meaning at the old
+        # CUBE_SCALE=0.055/0.04=1.375 the cube was actually ~70mm, not 55mm. Back-solving
+        # true_base_size = 0.070 / 1.375 gives ~5.09cm, used here instead of the guessed 4cm.
+        CUBE_BASE_SIZE = 0.0509
         CUBE_SCALE = CUBE_SIZE / CUBE_BASE_SIZE
         CUBE_Z = PAD_HEIGHT + CUBE_SIZE / 2   # pad top + half-block height
-        PAD_SIZE_X = 0.65
-        PAD_SIZE_Y = 0.55
-        PAD_NEAR_EDGE_X = 0.14  # distance from robot base (x=0) to pad's near edge
+        PAD_SIZE_X = 0.485  # length, orthogonal to the robot
+        PAD_SIZE_Y = 0.57   # width, parallel to the robot
+        # 12 cm real-world clearance + 3 cm extra, temporarily, for manual sim-vs-real mirror
+        # testing (sim's gripper was reaching the pad before the real one did) -- revert to
+        # 0.12 once that's diagnosed/fixed.
+        PAD_NEAR_EDGE_X = 0.15  # distance from robot base (x=0) to pad's near edge
         PAD_CENTER_X = PAD_NEAR_EDGE_X + PAD_SIZE_X / 2
         self.scene.workspace_pad = AssetBaseCfg(
             prim_path="{ENV_REGEX_NS}/workspace_pad",

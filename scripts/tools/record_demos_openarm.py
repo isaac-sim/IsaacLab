@@ -305,6 +305,11 @@ class JointMirrorBroadcaster:
 
     WIDTH_PRINT_PERIOD_S = 0.5  # throttle -- printing every step at 30Hz would flood the console
 
+    # Matches BinaryJointPositionActionCfg's open_command_expr/close_command_expr for the
+    # finger joints in stack_joint_pos_env_cfg.py (both arms use the same values).
+    GRIPPER_OPEN_VAL = 0.044
+    GRIPPER_CLOSED_VAL = 0.0
+
     def __init__(self, robot, host: str, port: int):
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._addr = (host, port)
@@ -315,9 +320,39 @@ class JointMirrorBroadcaster:
         self._last_width_print_t = 0.0
         print(f"[MIRROR] Broadcasting {len(self._names)} joints to {host}:{port} -> {self._names}")
 
-    def broadcast(self):
+    def broadcast(self, left_gripper_state: float | None = None, right_gripper_state: float | None = None):
+        """Broadcast the robot's mirrored joint state.
+
+        Arm joints use the actual/measured position (`robot.data.joint_pos`) -- that's the real
+        kinematic pose and should be mirrored as-is. Finger joints, if a `*_gripper_state` is
+        given, are overridden to the fixed commanded open/close target instead of the measured
+        position.
+
+        Why: sim's cube and gripper fingers are rigid bodies, so once they contact each other the
+        measured finger joint position stalls almost exactly at the object's geometric surface --
+        that's correct rigid-body physics, not a bug. The real gripper's fingertip pads are
+        compliant and keep squeezing past that same contact point to reach a firm grip (observed:
+        sim/real agreed closely at first contact, ~52.6/53.4mm, but the real gripper needed to
+        reach ~43.4mm for a grip that actually holds). Mirroring the *measured* sim position was
+        capping the real robot's target at sim's rigid stopping point, never letting it command
+        the real gripper to keep squeezing further. Mirroring the fixed open/close *target*
+        instead lets the real hardware's own compliant pads decide how far they actually close,
+        independent of whatever sim's specific rigid object happened to stop the fingers at.
+        """
         joint_pos = self._robot.data.joint_pos[0, self._indices].tolist()
         joints = dict(zip(self._names, joint_pos))
+
+        if left_gripper_state is not None:
+            left_val = self.GRIPPER_OPEN_VAL if left_gripper_state > 0 else self.GRIPPER_CLOSED_VAL
+            for name in joints:
+                if name.startswith("openarm_left_finger_joint"):
+                    joints[name] = left_val
+        if right_gripper_state is not None:
+            right_val = self.GRIPPER_OPEN_VAL if right_gripper_state > 0 else self.GRIPPER_CLOSED_VAL
+            for name in joints:
+                if name.startswith("openarm_right_finger_joint"):
+                    joints[name] = right_val
+
         packet = {
             "seq": self._seq,
             "t": time.time(),
@@ -645,7 +680,10 @@ def main():
             if running:
                 obs, *_ = env.step(actions)
                 if mirror_broadcaster is not None:
-                    mirror_broadcaster.broadcast()
+                    mirror_broadcaster.broadcast(
+                        left_gripper_state=left_gripper_state,
+                        right_gripper_state=right_gripper_state if is_dual_arm else None,
+                    )
 
             # Success check
             if success_term is not None:

@@ -153,7 +153,7 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
             "pose_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02)},
             # Must match workspace_pad's spawn position in stack_joint_pos_env_cfg.py
             # (PAD_CENTER_X, 0.0, PAD_HEIGHT / 2) -- update this if that changes.
-            "base_pos": (0.465, 0.0, 0.09),
+            "base_pos": (0.3925, 0.0, 0.095),
             "asset_cfg": SceneEntityCfg("workspace_pad"),
         },
     )

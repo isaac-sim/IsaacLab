@@ -4,7 +4,7 @@ from pathlib import Path
 from huggingface_hub import HfApi, create_repo
 
 def main():
-    repo_id = "ethanCSL/openarm_visuomotor_sim_real_check"
+    repo_id = "ethanCSL/openarm_visuomotor_domain_randomization_test"
     dataset_dir = Path("~/Stanley_ws/IsaacLab/datasets/") / repo_id
 
     create_repo(
