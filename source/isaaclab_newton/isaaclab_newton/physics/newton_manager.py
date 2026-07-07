@@ -283,6 +283,10 @@ class NewtonManager(PhysicsManager):
     # CUDA graphing
     _graph = None
     _graph_capture_pending: bool = False
+    # When True, the next _capture_or_defer_graph() (e.g. after a hard reset)
+    # defers capture to the first step() instead of capturing synchronously,
+    # so it runs on a fully-idle device against freshly-rebuilt buffers.
+    _defer_capture_next: bool = False
 
     # USD/Fabric sync
     _newton_stage_path = None
@@ -375,8 +379,74 @@ class NewtonManager(PhysicsManager):
             soft: If True, skip full reinitialization.
         """
         if not soft:
+            # A full (hard) reset reallocates the Newton model/state/control,
+            # solver, collision pipeline and contact buffers (see
+            # ``start_simulation`` / ``initialize_solver``). Any CUDA graph we
+            # previously captured baked in the OLD device pointers of those
+            # buffers, so replaying it after this reset would dereference freed
+            # memory (CUDA error 700 in ``wp_cuda_graph_launch``).
+            #
+            # We CANNOT re-capture synchronously here: back-to-back capture of
+            # the contact+actuator pipeline immediately after a rebuild is
+            # unstable. Instead we:
+            #   1. Hard-invalidate the graph up front so ``step()`` falls back
+            #      to eager execution and can never launch a stale graph.
+            #   2. Schedule a DEFERRED re-capture; ``step()`` re-captures against
+            #      the freshly allocated buffers in a clean idle window.
+            had_graph = cls._graph is not None or cls._graph_capture_pending
+            NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = False
+            # Force the capture inside initialize_solver() to defer to the first
+            # step() (idle device) instead of re-capturing synchronously on a
+            # model whose rebuild just freed the buffers the previous capture and
+            # its cached graph-exec/module state referenced.
+            NewtonManager._defer_capture_next = True
+
+            # ROOT-CAUSE FIX: NewtonManager.reset() re-finalizes the model + rebuilds
+            # the solver/state, but ``_initialize_contacts`` only builds a NEW
+            # CollisionPipeline ``if cls._collision_pipeline is None`` -- and reset()
+            # historically never nulled it. So the STALE CollisionPipeline (and its
+            # ``_contacts``), still bound to the OLD (now-freed) model's shape_* /
+            # broad-phase candidate_pair device buffers, was reused against the
+            # freshly-finalized model. Its first (eager) narrow-phase launch
+            # (``narrow_phase_kernel_gjk_mpr``) then reads freed/mismatched memory ->
+            # CUDA 700, entirely outside any CUDA graph. Null them here so
+            # ``initialize_solver()`` rebuilds a fresh pipeline + contacts on the new
+            # model.
+            if cls._collision_pipeline is not None or cls._contacts is not None:
+                logger.debug(
+                    "NewtonManager.reset() releasing stale CollisionPipeline + contacts "
+                    "so they are rebuilt against the re-finalized model."
+                )
+            NewtonManager._collision_pipeline = None
+            NewtonManager._contacts = None
+
             cls.start_simulation()
             cls.initialize_solver()
+
+            cfg = PhysicsManager._cfg
+            device = PhysicsManager._device
+            wants_graph = (
+                cfg is not None
+                and getattr(cfg, "use_cuda_graph", False)
+                and device is not None
+                and "cuda" in device
+                and cls._supports_cuda_graph_capture()
+            )
+            if wants_graph:
+                # Drop stale Warp graph-exec / module state carried across the
+                # rebuild, then make sure all rebuild allocations/copies have
+                # completed before the deferred capture launches.
+                with contextlib.suppress(Exception):
+                    wp.synchronize_device(device)
+                NewtonManager._graph_capture_pending = True
+                if had_graph:
+                    logger.debug(
+                        "NewtonManager.reset() invalidated an active CUDA graph; it will be "
+                        "re-captured on the next step() against the freshly-allocated buffers."
+                    )
+            else:
+                NewtonManager._defer_capture_next = False
 
     @classmethod
     def _eval_fk_impl(cls, world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
@@ -1534,7 +1604,7 @@ class NewtonManager(PhysicsManager):
 
         if use_cuda_graph:
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                if cls._usdrt_stage is None:
+                if cls._usdrt_stage is None and not cls._defer_capture_next:
                     simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
                     with wp.ScopedCapture(device=device) as capture:
                         simulate()
@@ -1547,6 +1617,15 @@ class NewtonManager(PhysicsManager):
                     # memory-pool addresses before any eager solver.reset() call.
                     if isinstance(cls._solver, SolverKamino):
                         wp.capture_launch(cls._graph)
+                elif cls._defer_capture_next:
+                    # Reset path: defer capture to the first step() so it happens on a
+                    # fully-idle device against the freshly-rebuilt buffers (avoids the
+                    # second-capture fault seen when re-capturing synchronously right
+                    # after a model/solver/contact rebuild).
+                    NewtonManager._graph = None
+                    NewtonManager._graph_capture_pending = True
+                    NewtonManager._defer_capture_next = False
+                    logger.info("Newton CUDA graph capture deferred (post-reset, idle-window)")
                 else:
                     # RTX is active during initialization — cudaImportExternalMemory and other
                     # non-capturable RTX ops run on background CUDA streams right now.
