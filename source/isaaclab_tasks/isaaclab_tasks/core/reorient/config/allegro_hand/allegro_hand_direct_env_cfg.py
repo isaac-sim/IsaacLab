@@ -88,8 +88,11 @@ class PhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             solver="newton",
             integrator="implicitfast",
-            njmax=80,
-            nconmax=70,
+            # Sized for the legacy asset's colliders; the Menagerie conversion carries more
+            # contact-generating primitives (per-link boxes/capsules + welded tips) and
+            # saturates the smaller pools, dropping contacts.
+            njmax=200,
+            nconmax=150,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
