@@ -21,6 +21,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
+from isaaclab_physx.sensors.contact_sensor.contact_sensor import ContactSensor as PhysxContactSensor
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
@@ -222,6 +223,45 @@ def setup_simulation():
     devices = ["cuda:0", "cpu"]
     settings = get_settings_manager()
     return sim_dt, durations, terrains, devices, settings
+
+
+def test_cuda_graph_capture_launches_first_update_without_eager_compute():
+    """The initial graph capture should execute the update through one graph launch."""
+    device = "cuda:0"
+    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    source = wp.ones(1, dtype=wp.int32, device=device)
+    destination = wp.zeros(1, dtype=wp.int32, device=device)
+
+    sensor = PhysxContactSensor.__new__(PhysxContactSensor)
+    sensor._device = device
+    sensor._use_graph = True
+    sensor._compute_graph = None
+    sensor._initialize_handle = None
+    sensor._invalidate_initialize_handle = None
+    sensor._prim_deletion_handle = None
+    sensor._resolve_indices_and_mask = lambda env_ids, mask: mask
+    sensor._fetch_physx_buffers = lambda: None
+
+    compute_call_count = 0
+
+    def compute() -> None:
+        nonlocal compute_call_count
+        compute_call_count += 1
+        wp.copy(destination, source)
+
+    sensor._compute = compute
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(device)
+
+    assert compute_call_count == 1
+    assert destination.numpy().tolist() == [1]
+
+    source.fill_(2)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(device)
+
+    assert compute_call_count == 1
+    assert destination.numpy().tolist() == [2]
 
 
 @pytest.mark.parametrize("disable_contact_processing", [True, False])

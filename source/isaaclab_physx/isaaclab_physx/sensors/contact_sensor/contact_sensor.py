@@ -104,7 +104,6 @@ class ContactSensor(BaseContactSensor):
         # :meth:`_update_buffers_impl`)
         self._use_graph: bool = False
         self._compute_graph: wp.Graph | None = None
-        self._graph_env_mask: wp.array | None = None
         self._env_mask: wp.array | None = None
         # Warp views over the PhysX output buffers, built lazily on the first fetch since the
         # buffers are allocated once and refreshed in place (see :meth:`_fetch_physx_buffers`)
@@ -406,41 +405,34 @@ class ContactSensor(BaseContactSensor):
 
         The kernels run eagerly (no capture or replay) when the device is not a CUDA device, when
         an outer CUDA graph capture is active (they are then recorded into that graph instead),
-        when a previous capture attempt failed, or when :paramref:`env_mask` resolves to a
-        different array than the one baked into the graph.
+        or when a previous capture attempt failed.
         """
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
         # Refresh the PhysX contact data (not graph-capturable)
         self._fetch_physx_buffers()
-        # _compute reads the mask from this attribute; the captured graph bakes the array
-        # assigned at capture time, so replaying requires the same array
+        # _compute reads the stable outdated-environment mask from this attribute.
         self._env_mask = env_mask
 
         device = wp.get_device(self._device)
-        replayable = self._compute_graph is not None and env_mask is self._graph_env_mask
-        if not self._use_graph or device.is_capturing or (self._compute_graph is not None and not replayable):
+        if not self._use_graph or device.is_capturing:
             self._compute()
             return
-        if replayable:
-            wp.capture_launch(self._compute_graph)
-            return
 
-        # Warm-up: run eagerly once so that first-call allocations happen outside the capture.
-        # This also produces this update's data, since the capture only records the work.
-        self._compute()
-        try:
-            with wp.ScopedCapture(device=device) as capture:
+        if self._compute_graph is None:
+            try:
+                with wp.ScopedCapture(device=device) as capture:
+                    self._compute()
+            except Exception as exc:
+                self._use_graph = False
+                logger.warning(
+                    f"Failed to capture the update of the contact sensor at '{self.cfg.prim_path}' into a"
+                    f" CUDA graph. Falling back to eager kernel launches. Reason: {exc}"
+                )
                 self._compute()
-        except Exception as exc:
-            self._use_graph = False
-            logger.warning(
-                f"Failed to capture the update of the contact sensor at '{self.cfg.prim_path}' into a"
-                f" CUDA graph. Falling back to eager kernel launches. Reason: {exc}"
-            )
-            return
-        self._compute_graph = capture.graph
-        self._graph_env_mask = env_mask
+                return
+            self._compute_graph = capture.graph
+        wp.capture_launch(self._compute_graph)
 
     def _fetch_physx_buffers(self) -> None:
         """Refreshes the contact data from PhysX and lazily builds the warp views over it.
@@ -613,7 +605,6 @@ class ContactSensor(BaseContactSensor):
         # drop the captured graph and the cached warp views since they reference buffers owned
         # by the invalidated views
         self._compute_graph = None
-        self._graph_env_mask = None
         self._net_forces_flat = None
         self._force_matrix_flat = None
         self._poses_flat = None
