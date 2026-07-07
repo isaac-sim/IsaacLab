@@ -30,6 +30,7 @@ _VIS_LABEL_SUFFIXES = {
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
 }
+_VIS_LABEL_ATTRS = tuple(_VIS_LABEL_SUFFIXES)
 
 _TENDON_FREQ = "mujoco:tendon"
 _SRC = "/Sources/protoA"
@@ -39,7 +40,7 @@ _DST = "/World/envs/env_{}"
 class _FakeVisualizationModelBuilder:
     def __init__(self, up_axis=None):
         self.up_axis = up_axis
-        for attr in _VIS_LABEL_SUFFIXES:
+        for attr in _VIS_LABEL_ATTRS:
             setattr(self, attr, [])
             setattr(self, attr.replace("_label", "_world"), [])
         self.custom_attributes = {}
@@ -64,8 +65,8 @@ class _FakeVisualizationModelBuilder:
             return
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr in _VIS_LABEL_SUFFIXES:
-            getattr(self, attr).append(f"{root_path}/{_VIS_LABEL_SUFFIXES[attr]}")
+        for attr, suffix in _VIS_LABEL_SUFFIXES.items():
+            getattr(self, attr).append(f"{root_path}/{suffix}")
             getattr(self, attr.replace("_label", "_world")).append(self._current_world or 0)
         self.geometry_sources.append(root_path)
         self._record_world_slice(label_start, len(self.body_label), geometry_start, len(self.geometry_sources))
@@ -74,7 +75,7 @@ class _FakeVisualizationModelBuilder:
         del xform
         label_start = len(self.body_label)
         geometry_start = len(self.geometry_sources)
-        for attr in _VIS_LABEL_SUFFIXES:
+        for attr in _VIS_LABEL_ATTRS:
             labels = getattr(builder, attr)
             getattr(self, attr).extend(labels)
             getattr(self, attr.replace("_label", "_world")).extend([self._current_world] * len(labels))
