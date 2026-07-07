@@ -1,7 +1,10 @@
-_generated_by: scripts/sysid/run_sysid.py
+_generated_by: real_vs_sim_sysid_rmse/full_dataset_sysid/scripts/flexiv_full_dataset_sysid_tune.py
 _source_best_params_yaml: /home/horde/IsaacLab/output/sysid/flexiv/pd_only_gravityoff_high_cmdlimits_seed_default_steps_pm10_physx_n64_g20/best_params.yaml
 _source_gains_yaml: /home/horde/IsaacLab/input/manual_pd/flexiv_pd_only_gravityoff_high_cmdlimits_tuned_physx.yaml
 _base_actuator_yaml: flexiv/rizon4s_grav_usd_default_implicit.yaml
+_source_dataset:
+  - /home/ashwin/git_cloned/IsaacLab_osmo/input/sysid_data/flexiv_workspace_xlarge_base01_zero/output
+  - /home/ashwin/git_cloned/IsaacLab_osmo/input/sysid_data/flexiv_workspace_xlarge_base02_joint4_90deg/output
 
 effort_limit_sim:
   joint1: 123.0
@@ -22,40 +25,40 @@ velocity_limit_sim:
   joint7: 4.887
 
 stiffness:
-  joint1: 6051.500977
-  joint2: 3004.328857
-  joint3: 7032.64209
-  joint4: 4346.786133
-  joint5: 6829.847656
-  joint6: 3769.23291
-  joint7: 6181.429199
+  joint1: 2444.644779860334
+  joint2: 2454.6088134535826
+  joint3: 4273.368452557374
+  joint4: 2423.6797438613694
+  joint5: 6664.534638550969
+  joint6: 2476.4182575483555
+  joint7: 7750.655168285934
 
 damping:
-  joint1: 121.620995
-  joint2: 220.929214
-  joint3: 162.582214
-  joint4: 186.334442
-  joint5: 199.962311
-  joint6: 118.462029
-  joint7: 152.861771
+  joint1: 84.53152821762647
+  joint2: 270.1514569287321
+  joint3: 192.11542410547165
+  joint4: 185.80477160067872
+  joint5: 348.9429103302826
+  joint6: 137.1076685992307
+  joint7: 155.4299494964395
 
 armature:
-  joint1: 0.0
+  joint1: 0.016031804623087037
   joint2: 0.0
-  joint3: 0.0
+  joint3: 0.09079310995247876
   joint4: 0.0
-  joint5: 0.0
-  joint6: 0.0
+  joint5: 0.03506234030793366
+  joint6: 0.028407284483869172
   joint7: 0.0
 
 friction:
-  joint1: 0.0
-  joint2: 0.0
+  joint1: 0.4469057501336581
+  joint2: 0.0028027430277378224
   joint3: 0.0
-  joint4: 0.0
-  joint5: 0.0
-  joint6: 0.0
-  joint7: 0.0
+  joint4: 0.023950665402821605
+  joint5: 0.19162425676108663
+  joint6: 0.3486314724253511
+  joint7: 0.07779038751031743
 
 motor_lag_ms: 20.0
 command_velocity_limit: 2.0
