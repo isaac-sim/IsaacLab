@@ -130,6 +130,12 @@ def main() -> None:
     if finite_hits != expected_hits:
         raise RuntimeError(f"Expected {expected_hits} finite ray hits, received {finite_hits}.")
     max_hit_height = float(torch.abs(ray_hits[..., 2]).max().item())
+    hit_height_tolerance = 1.0e-4
+    if max_hit_height > hit_height_tolerance:
+        raise RuntimeError(
+            f"Expected ray hits within {hit_height_tolerance} m of the z=0 plane, "
+            f"received maximum |z| {max_hit_height} m."
+        )
 
     print("-" * 80)
     print("RayCaster update benchmark (PhysX)")

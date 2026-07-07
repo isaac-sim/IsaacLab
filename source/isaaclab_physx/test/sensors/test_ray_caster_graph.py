@@ -22,9 +22,12 @@ from isaaclab.sensors.ray_caster import BaseRayCaster
 @wp.kernel
 def _copy_transform_position(
     transforms: wp.array(dtype=wp.transformf),
+    env_mask: wp.array(dtype=wp.bool),
     output: wp.array(dtype=wp.vec3f),
 ):
-    output[0] = wp.transform_get_translation(transforms[0])
+    env_id = wp.tid()
+    if env_mask[env_id]:
+        output[env_id] = wp.transform_get_translation(transforms[env_id])
 
 
 class _FakeTransformView:
@@ -45,10 +48,13 @@ class _FakeTransformView:
 
 
 def _make_ray_caster(use_graph: bool = True, cache_raw_transforms: bool = True):
-    """Create a one-environment standard RayCaster without a USD scene."""
+    """Create a two-environment standard RayCaster without a USD scene."""
     device = "cuda:0"
     transforms_torch = torch.tensor(
-        [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]],
+        [
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        ],
         dtype=torch.float32,
         device=device,
     ).contiguous()
@@ -64,14 +70,14 @@ def _make_ray_caster(use_graph: bool = True, cache_raw_transforms: bool = True):
     sensor._use_graph = use_graph
     sensor._env_mask = None
     sensor._transforms_prefetched = False
-    sensor._test_output = wp.zeros(1, dtype=wp.vec3f, device=device)
+    sensor._test_output = wp.zeros(2, dtype=wp.vec3f, device=device)
     sensor._view = object()
     sensor._initialize_handle = None
     sensor._invalidate_initialize_handle = None
     sensor._prim_deletion_handle = None
 
     wp.load_module(device=device)
-    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    env_mask = wp.array([True, False], dtype=wp.bool, device=device)
     return sensor, transform_view, transforms_torch, env_mask
 
 
@@ -79,11 +85,10 @@ def _replace_base_update_with_test_kernel(monkeypatch) -> None:
     """Replace the four production kernels with one deterministic test kernel."""
 
     def compute(sensor, env_mask):
-        del env_mask
         wp.launch(
             _copy_transform_position,
-            dim=1,
-            inputs=[sensor._raw_transforms, sensor._test_output],
+            dim=2,
+            inputs=[sensor._raw_transforms, env_mask, sensor._test_output],
             device=sensor._device,
         )
 
@@ -101,8 +106,64 @@ def test_ray_caster_caches_physx_transform_view():
     assert transform_view.conversion_count == 1
 
 
+def test_ray_caster_updates_eagerly_when_graphs_are_disabled(monkeypatch):
+    """Graph-disabled updates should stay eager while reusing the cached transform view."""
+    _replace_base_update_with_test_kernel(monkeypatch)
+    sensor, transform_view, transforms_torch, env_mask = _make_ray_caster(use_graph=False, cache_raw_transforms=False)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    assert sensor._compute_graph is None
+    torch.testing.assert_close(
+        wp.to_torch(sensor._test_output),
+        torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=sensor.device),
+    )
+
+    transforms_torch[1, 0] = 4.0
+    wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor.device)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    assert sensor._compute_graph is None
+    assert transform_view.get_count == 2
+    assert transform_view.conversion_count == 1
+    torch.testing.assert_close(
+        wp.to_torch(sensor._test_output),
+        torch.tensor([[1.0, 0.0, 0.0], [4.0, 0.0, 0.0]], device=sensor.device),
+    )
+
+
+def test_ray_caster_joins_outer_graph_capture(monkeypatch):
+    """An outer capture should own the update kernels instead of creating the sensor graph."""
+    _replace_base_update_with_test_kernel(monkeypatch)
+    sensor, _, transforms_torch, env_mask = _make_ray_caster()
+    device = wp.get_device(sensor.device)
+
+    with wp.ScopedCapture(device=device) as capture:
+        sensor._update_buffers_impl(env_mask)
+    wp.capture_launch(capture.graph)
+    wp.synchronize_device(device)
+
+    assert sensor._compute_graph is None
+    torch.testing.assert_close(
+        wp.to_torch(sensor._test_output),
+        torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=sensor.device),
+    )
+
+    transforms_torch[1, 0] = 4.0
+    wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor.device)
+    wp.capture_launch(capture.graph)
+    wp.synchronize_device(device)
+
+    torch.testing.assert_close(
+        wp.to_torch(sensor._test_output),
+        torch.tensor([[1.0, 0.0, 0.0], [4.0, 0.0, 0.0]], device=sensor.device),
+    )
+
+
 def test_ray_caster_captures_and_replays_update_graph(monkeypatch):
-    """The first graphed update should execute, then replay with refreshed input data."""
+    """Graph replay should consume changed transforms and contents of the stable environment mask."""
     _replace_base_update_with_test_kernel(monkeypatch)
     sensor, _, transforms_torch, env_mask = _make_ray_caster()
 
@@ -112,18 +173,20 @@ def test_ray_caster_captures_and_replays_update_graph(monkeypatch):
 
     assert compute_graph is not None
     torch.testing.assert_close(
-        wp.to_torch(sensor._test_output)[0],
-        torch.tensor([1.0, 0.0, 0.0], device=sensor.device),
+        wp.to_torch(sensor._test_output),
+        torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=sensor.device),
     )
 
-    transforms_torch[0, 0] = 2.0
+    transforms_torch[1, 0] = 3.0
+    env_mask_torch = wp.to_torch(env_mask)
+    env_mask_torch[:] = torch.tensor([False, True], device=sensor.device)
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
     assert sensor._compute_graph is compute_graph
     torch.testing.assert_close(
-        wp.to_torch(sensor._test_output)[0],
-        torch.tensor([2.0, 0.0, 0.0], device=sensor.device),
+        wp.to_torch(sensor._test_output),
+        torch.tensor([[1.0, 0.0, 0.0], [3.0, 0.0, 0.0]], device=sensor.device),
     )
 
 
