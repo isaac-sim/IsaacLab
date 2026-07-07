@@ -372,6 +372,62 @@ class TestInjectReset:
 
 
 # ===========================================================================
+# toggle_debug_visualization / consume_visualization_toggle
+# ===========================================================================
+
+
+class TestToggleVizCommand:
+    def test_plain_text_sets_pending(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"toggle_debug_visualization"))
+        assert proc.consume_visualization_toggle() is True
+
+    def test_consume_clears_pending(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"toggle_debug_visualization"))
+        proc.consume_visualization_toggle()
+        assert proc.consume_visualization_toggle() is False
+
+    def test_no_pending_without_command(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _empty_tracked())
+        assert proc.consume_visualization_toggle() is False
+
+    def test_json_format_sets_pending(self):
+        proc = TeleopMessageProcessor(name="test")
+        payload = json.dumps({"type": "teleop_command", "message": {"command": "toggle_debug_visualization"}}).encode()
+        _step(proc, _tracked(payload))
+        assert proc.consume_visualization_toggle() is True
+
+    def test_does_not_drive_pipeline_outputs(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"toggle_debug_visualization"))
+        assert result["run_toggle"] is False
+        assert result["kill"] is False
+        assert result["reset"] is False
+
+    def test_multiple_toggles_in_batch_yield_single_pending(self):
+        proc = TeleopMessageProcessor(name="test")
+        _step(proc, _tracked(b"toggle_debug_visualization", b"toggle_debug_visualization"))
+        assert proc.consume_visualization_toggle() is True
+        assert proc.consume_visualization_toggle() is False
+
+    def test_classify_toggle_debug_visualization(self):
+        assert _classify_command("toggle_debug_visualization") == "toggle_debug_visualization"
+        assert _classify_command("TOGGLE_DEBUG_VISUALIZATION") == "toggle_debug_visualization"
+        assert _classify_command("please toggle_debug_visualization now") == "toggle_debug_visualization"
+
+    def test_classify_no_partial_word_match(self):
+        assert _classify_command("toggle_debug_visualizationzz") is None
+
+    def test_reset_wins_over_toggle_debug_visualization(self):
+        proc = TeleopMessageProcessor(name="test")
+        result = _step(proc, _tracked(b"reset toggle_debug_visualization"))
+        assert result["reset"] is True
+        assert proc.consume_visualization_toggle() is False
+
+
+# ===========================================================================
 # Word boundary matching
 # ===========================================================================
 

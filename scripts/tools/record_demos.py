@@ -93,6 +93,16 @@ parser.add_argument(
     ),
 )
 
+parser.add_argument(
+    "--enable_debug_visualization",
+    action="store_true",
+    default=False,
+    help=(
+        "Enable hand joint debug visualization at session start (IsaacTeleop pipeline only)."
+        " Can also be enabled or toggled at runtime with the 'toggle_debug_visualization' teleop control message"
+        " (runtime enabling is unavailable while recording to MCAP)."
+    ),
+)
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -358,6 +368,7 @@ def setup_teleop_device(callbacks: dict[str, Callable], use_isaac_teleop: bool =
                 cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
                 mcap_record_path=args_cli.mcap_record_path,
+                enable_debug_visualization=args_cli.enable_debug_visualization,
             )
             if args_cli.mcap_record_path is not None:
                 logger.info("Recording live IsaacTeleop session to MCAP (debug-only): %s", args_cli.mcap_record_path)

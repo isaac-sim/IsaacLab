@@ -22,6 +22,8 @@ from .xr_anchor_manager import XrAnchorManager
 
 if TYPE_CHECKING:
     from .session_lifecycle import SupportsDLPack
+    from .visualizers.controller_aim_visualizer import ControllerAimVisualizer
+    from .visualizers.hand_joint_visualizer import HandJointVisualizer
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +109,7 @@ class IsaacTeleopDevice:
         auto_launch_cloudxr: bool = True,
         mcap_record_path: str | None = None,
         mcap_replay_path: str | None = None,
+        enable_debug_visualization: bool = False,
     ):
         """Initialize the IsaacTeleop device.
 
@@ -129,6 +132,14 @@ class IsaacTeleopDevice:
                 XR connection and feeds the recorded tracker stream
                 through the pipeline.  Mutually exclusive with
                 *mcap_record_path*.
+            enable_debug_visualization: Whether tracking debug visualization
+                (red sphere markers at each OpenXR hand joint, RGB axis
+                markers at the controller aim poses) is enabled at session
+                start.  When ``False`` (the default), the pipeline carries
+                no visualization overhead; the feature can still be enabled
+                at runtime with a ``toggle_debug_visualization`` control
+                message (except while recording to or replaying from MCAP).
+                Once enabled, subsequent toggles only show/hide the markers.
         """
         self._cfg = cfg
 
@@ -140,10 +151,20 @@ class IsaacTeleopDevice:
             auto_launch_cloudxr=auto_launch_cloudxr,
             mcap_record_path=mcap_record_path,
             mcap_replay_path=mcap_replay_path,
+            enable_debug_visualization=enable_debug_visualization,
         )
 
         self._prev_right_a_pressed = False
         self._prev_control_is_active: bool | None = None
+
+        # Debug visualization state.  Each visualizer is created lazily on
+        # the first visible frame with matching data; the failure latches
+        # stop retry spam if creation fails (e.g. sim not ready).
+        self._viz_visible = enable_debug_visualization
+        self._hand_visualizer: HandJointVisualizer | None = None
+        self._hand_visualizer_failed = False
+        self._aim_visualizer: ControllerAimVisualizer | None = None
+        self._aim_visualizer_failed = False
 
     def __del__(self):
         """Clean up resources when the object is destroyed."""
@@ -277,10 +298,81 @@ class IsaacTeleopDevice:
         if action is not None:
             # Poll controller buttons (e.g. toggle anchor rotation on right 'A' press)
             self._poll_buttons()
+            # Handle viz toggles and update hand joint markers
+            self._update_hand_debug()
 
         self._dispatch_control_callbacks()
 
         return action
+
+    # ------------------------------------------------------------------
+    # Hand debug visualization
+    # ------------------------------------------------------------------
+
+    def _update_hand_debug(self) -> None:
+        """Handle runtime visualization toggles and update the debug markers.
+
+        Called once per :meth:`advance` frame after the session step.  A
+        ``toggle_debug_visualization`` control message either lazily chains
+        the debug outputs (first enable, see
+        :meth:`~isaaclab_teleop.session_lifecycle.TeleopSessionLifecycle.enable_debug_viz`)
+        or flips marker visibility.  While visible, each visualizer is
+        created lazily on the first frame with matching data (hand joints,
+        controller aim poses) and updated every frame.
+        """
+        if self._session_lifecycle.consume_visualization_toggle():
+            self._handle_viz_toggle()
+
+        if not self._viz_visible:
+            return
+
+        result = self._session_lifecycle.last_step_result
+        if result is None:
+            return
+        world_T_anchor = self._anchor_manager.get_world_matrix()
+
+        if TeleopSessionLifecycle.HAND_LEFT_KEY in result or TeleopSessionLifecycle.HAND_RIGHT_KEY in result:
+            if self._hand_visualizer is None and not self._hand_visualizer_failed:
+                try:
+                    from .visualizers.hand_joint_visualizer import HandJointVisualizer
+
+                    self._hand_visualizer = HandJointVisualizer()
+                except Exception:
+                    logger.debug("HandJointVisualizer creation failed; disabling hand debug", exc_info=True)
+                    self._hand_visualizer_failed = True
+            if self._hand_visualizer is not None:
+                self._hand_visualizer.update(result, world_T_anchor)
+
+        left_controller = self._session_lifecycle.last_left_controller
+        right_controller = self._session_lifecycle.last_right_controller
+        if self._session_lifecycle.debug_viz_chained and (left_controller is not None or right_controller is not None):
+            if self._aim_visualizer is None and not self._aim_visualizer_failed:
+                try:
+                    from .visualizers.controller_aim_visualizer import ControllerAimVisualizer
+
+                    self._aim_visualizer = ControllerAimVisualizer()
+                except Exception:
+                    logger.debug("ControllerAimVisualizer creation failed; disabling aim debug", exc_info=True)
+                    self._aim_visualizer_failed = True
+            if self._aim_visualizer is not None:
+                self._aim_visualizer.update(left_controller, right_controller, world_T_anchor)
+
+    def _handle_viz_toggle(self) -> None:
+        """Apply one ``toggle_debug_visualization`` control command.
+
+        When the debug outputs are already chained, flips marker visibility
+        (the outputs stay chained for the rest of the session).  Otherwise
+        attempts the lazy enable via an in-place session restart; on success
+        the markers become visible.
+        """
+        if self._session_lifecycle.debug_viz_chained:
+            self._viz_visible = not self._viz_visible
+            for visualizer in (self._hand_visualizer, self._aim_visualizer):
+                if visualizer is not None:
+                    visualizer.set_visible(self._viz_visible)
+            logger.info(f"Debug visualization {'shown' if self._viz_visible else 'hidden'}")
+        elif self._session_lifecycle.enable_debug_viz():
+            self._viz_visible = True
 
     # ------------------------------------------------------------------
     # Control event -> callback bridge
@@ -427,6 +519,7 @@ def create_isaac_teleop_device(
     auto_launch_cloudxr: bool = True,
     mcap_record_path: str | None = None,
     mcap_replay_path: str | None = None,
+    enable_debug_visualization: bool = False,
 ) -> IsaacTeleopDevice:
     """Create an :class:`IsaacTeleopDevice` with required Omniverse extension setup.
 
@@ -465,6 +558,9 @@ def create_isaac_teleop_device(
             returned device runs in :class:`SessionMode.REPLAY` and the XR
             teleop bridge is left untouched.  Mutually exclusive with
             *mcap_record_path*.
+        enable_debug_visualization: Whether tracking debug visualization is
+            enabled at session start.  See
+            :paramref:`IsaacTeleopDevice.enable_debug_visualization`.
 
     Returns:
         A fully configured :class:`IsaacTeleopDevice` ready for use in a
@@ -494,6 +590,7 @@ def create_isaac_teleop_device(
         auto_launch_cloudxr=auto_launch_cloudxr,
         mcap_record_path=mcap_record_path,
         mcap_replay_path=mcap_replay_path,
+        enable_debug_visualization=enable_debug_visualization,
     )
 
     if callbacks is not None:

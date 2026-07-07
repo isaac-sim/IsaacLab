@@ -355,6 +355,15 @@ parser.add_argument(
         " runtime externally). Ignored when ``--cloudxr_env`` is omitted."
     ),
 )
+parser.add_argument(
+    "--enable_debug_visualization",
+    action="store_true",
+    default=False,
+    help=(
+        "Enable hand joint debug visualization. Must be set at start; runtime enabling via the"
+        " 'toggle_debug_visualization' teleop control message is unavailable during MCAP replay."
+    ),
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -1227,6 +1236,7 @@ def _run_single_replay(
         cloudxr_env_file=None,
         auto_launch_cloudxr=False,
         mcap_replay_path=args_cli.replay_file,
+        enable_debug_visualization=args_cli.enable_debug_visualization,
     )
     if run_index == 0:
         print(f"Using teleop device: {teleop_interface}")

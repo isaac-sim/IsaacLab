@@ -55,6 +55,15 @@ parser.add_argument(
     help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
 )
 parser.add_argument(
+    "--enable_debug_visualization",
+    action="store_true",
+    default=False,
+    help=(
+        "Enable hand joint debug visualization at session start (IsaacTeleop pipeline only)."
+        " Can also be enabled or toggled at runtime with the 'toggle_debug_visualization' teleop control message."
+    ),
+)
+parser.add_argument(
     "--external_callback",
     default=None,
     help="Fully qualified path to an externally defined callback.",
@@ -262,6 +271,7 @@ def main() -> None:
                 callbacks=teleoperation_callbacks,
                 cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                enable_debug_visualization=args_cli.enable_debug_visualization,
             )
 
         elif teleop_device_explicitly_set:
