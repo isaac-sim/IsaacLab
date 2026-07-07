@@ -5,8 +5,8 @@
 
 """Shared helpers for rendering correctness tests."""
 
-import os
 import logging
+import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
@@ -218,7 +218,9 @@ GOLDEN_STAGE_RENDERING_TESTS = (
 
 def golden_stage_pytest_node_ids() -> tuple[str, ...]:
     """Return pytest node IDs for rendering tests that compare golden USD stages."""
-    return tuple(node_id for rendering_test in GOLDEN_STAGE_RENDERING_TESTS for node_id in rendering_test.pytest_node_ids())
+    return tuple(
+        node_id for rendering_test in GOLDEN_STAGE_RENDERING_TESTS for node_id in rendering_test.pytest_node_ids()
+    )
 
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
