@@ -86,7 +86,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from pxr import Gf, Sdf, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import (
@@ -106,11 +106,15 @@ from isaaclab.physics import PhysicsCfg
 SEED = 0
 """Random seed applied before scene construction."""
 
-DT = 1.0 / 120.0
-"""Physics step size [s]."""
+DT = 1.0 / 360.0
+"""Physics step size [s].
 
-DECIMATION = 2
-"""Number of physics steps between successive control commands."""
+Finer than the usual 1/120 so fast transients (e.g. the effort-limit swing-up
+overshoot) are resolved rather than numerically flattened.
+"""
+
+DECIMATION = 6
+"""Number of physics steps between successive control commands (60 Hz commands)."""
 
 CAPSULE_LENGTH = 0.6
 """Length of the pendulum capsule link [m]."""
@@ -144,14 +148,18 @@ DRIVE_DAMPING = 5.0
 MEDIA_DIR = Path(__file__).resolve().parents[2] / "docs" / "source" / "_static" / "actuators"
 """Output directory for the generated clips and curves."""
 
-CAMERA_WIDTH = 640
+CAMERA_WIDTH = 1280
 """Width of the captured RGB frames [px]."""
 
-CAMERA_HEIGHT = 360
-"""Height of the captured RGB frames [px]."""
+CAMERA_HEIGHT = 400
+"""Height of the captured RGB frames [px].
 
-CAPTURE_STRIDE = 4
-"""Capture one frame every this many physics steps."""
+The pendulums live in a narrow horizontal band, so the clips use a wide, short
+aspect ratio; a 16:9 frame would waste most of its pixels on sky and ground.
+"""
+
+CAPTURE_STRIDE = 12
+"""Capture one frame every this many physics steps (30 fps real-time playback)."""
 
 CAMERA_EYE = (0.0, -9.0, 1.7)
 """World-space eye position of the recording camera [m]."""
@@ -159,8 +167,17 @@ CAMERA_EYE = (0.0, -9.0, 1.7)
 CAMERA_TARGET = (0.0, 0.0, 1.7)
 """World-space look-at target of the recording camera [m]."""
 
-CLIP_MAX_BYTES = 300_000
+CLIP_MAX_BYTES = 1_200_000
 """Per-clip webp size budget [bytes]."""
+
+RECORD_HFOV_DEG = 47.2
+"""Horizontal field of view of the recording camera [deg]."""
+
+PIVOT_MARKER_COLOR = (1.0, 0.127, 0.847)
+"""Display color of the joint pivot marker spheres: ``#ff63ed`` decoded to linear RGB."""
+
+PIVOT_MARKER_RADIUS = 0.09
+"""Radius of the joint pivot marker spheres [m]."""
 
 SVG_HASHSALT = "isaaclab-actuator-parameters"
 """Fixed matplotlib SVG hash salt so generated curves are byte-reproducible."""
@@ -325,13 +342,17 @@ ROWS: dict[str, RowSpec] = {
         plot=PlotSpec("joint_vel", "Joint friction sweep", "Joint velocity [rad/s]"),
     ),
     "effort-limit": RowSpec(
-        name="Ideal PD effort-limit sweep (horizontal hold against gravity)",
-        values=[0.5, 1.5, 3.0, 6.0, 12.0],
+        name="Ideal PD effort-limit sweep (step from hanging to horizontal)",
+        # Holding horizontal against gravity takes ~2.9 N·m. Stepping up from
+        # the hanging pose, every actuator saturates during the swing-up, then
+        # settles where gravity torque (~2.9 sin(theta)) matches its limit; only
+        # the limit-3 instance reaches and holds the commanded horizontal pose.
+        values=[0.5, 1.0, 1.5, 2.0, 3.0],
         make_actuator_cfg=lambda v: IdealPDActuatorCfg(
             joint_names_expr=[".*"], stiffness=400.0, damping=20.0, effort_limit=v
         ),
-        command=_hold_horizontal,
-        initial_joint_pos=math.pi / 2.0,
+        command=_step_to_horizontal,
+        initial_joint_pos=0.0,
         initial_joint_vel=0.0,
         duration=4.0,
         plot=PlotSpec("applied_torque_vs_computed", "Effort-limit sweep", "Joint torque [N·m]"),
@@ -354,8 +375,10 @@ ROWS: dict[str, RowSpec] = {
         plot=PlotSpec("joint_vel", "Velocity-limit sweep", "Joint velocity [rad/s]"),
     ),
     "delay": RowSpec(
-        name="Command delay sweep (delayed PD, 0 to 16 physics steps)",
-        values=[0, 2, 4, 8, 16],
+        name="Command delay sweep (delayed PD, 0 to 133 ms)",
+        # Delays are counted in physics steps (1/360 s); these match the
+        # 0/17/33/67/133 ms sweep of the original 120 Hz parametrization.
+        values=[0, 6, 12, 24, 48],
         make_actuator_cfg=lambda v: DelayedPDActuatorCfg(
             joint_names_expr=[".*"], stiffness=100.0, damping=5.0, min_delay=int(v), max_delay=int(v)
         ),
@@ -490,6 +513,22 @@ def build_scene(sim: sim_utils.SimulationContext, row: RowSpec) -> list[Articula
     # Ground plane and lighting for interactive viewing.
     ground_cfg = sim_utils.GroundPlaneCfg()
     ground_cfg.func("/World/defaultGroundPlane", ground_cfg)
+    # Give the ground a neutral color in the Newton viewer. The grid asset's
+    # own material is not translated to Newton shape colors (it is not OmniPBR),
+    # which leaves Newton's default green; unbinding it and authoring a display
+    # color routes through the supported color path instead.
+    ground_prim = stage.GetPrimAtPath("/World/defaultGroundPlane")
+    for prim in Usd.PrimRange(ground_prim):
+        # Block the asset's material binding on every prim (bindings inherit
+        # from ancestors, so blocking only the geometry prims is not enough).
+        UsdShade.MaterialBindingAPI.Apply(prim).UnbindAllBindings()
+        if prim.IsA(UsdGeom.Gprim):
+            gprim = UsdGeom.Gprim(prim)
+            gprim.CreateDisplayColorAttr([Gf.Vec3f(0.25, 0.27, 0.31)])
+            # The asset's collision plane is a guide-purpose prim, which the
+            # Newton shape-color translation skips; make it a default-purpose
+            # prim so the display color above takes effect.
+            gprim.CreatePurposeAttr(UsdGeom.Tokens.default_)
     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     light_cfg.func("/World/Light", light_cfg)
 
@@ -667,56 +706,85 @@ def _print_parameters() -> None:
 ##
 
 
-def _build_record_camera(stage) -> "Camera":  # noqa: F821
-    """Author a fixed, world-framed RGB camera and wrap it in a camera sensor.
+def _author_row_markers(stage, prim_path: str) -> None:
+    """Author a marker sphere at a pendulum's pivot (rotation center).
 
-    The camera prim is authored directly with a look-at transform so the kitless
-    Newton-warp renderer (which reads the prim's USD transform, not the sensor's
-    pose buffer) frames every pendulum. This renderer captures RGB with
-    ``--viz none --enable_cameras`` without launching an Isaac Sim Kit process.
+    The sphere goes under the welded base link so the Newton importer includes
+    it with that body. It is visual-only: it carries no collision API, and the
+    base and swinging link are adjacent bodies whose contacts are excluded.
 
     Args:
-        stage: USD stage to author the camera prim on.
+        stage: USD stage to author on.
+        prim_path: Articulation root prim path of the pendulum.
+    """
+    pivot = UsdGeom.Sphere.Define(stage, f"{prim_path}/base/pivot_marker")
+    pivot.CreateRadiusAttr(PIVOT_MARKER_RADIUS)
+    pivot.CreateDisplayColorAttr([Gf.Vec3f(*PIVOT_MARKER_COLOR)])
+
+
+_RECORDER = None
+"""Shared clip recorder; one headless GL viewer reused across every recorded row."""
+
+
+def _get_record_recorder() -> "NewtonGlPerspectiveVideo":  # noqa: F821
+    """Return the headless Newton GL viewer used to capture the clips.
+
+    :class:`~isaaclab_newton.video_recording.NewtonGlPerspectiveVideo` wraps
+    ``newton.viewer.ViewerGL`` in headless (EGL) mode, so the clips get the
+    Newton viewer's default look — sky background, ground grid, and house
+    lighting — without any hand-authored backdrop. Call after
+    :meth:`SimulationContext.reset` so the Newton model exists.
+
+    A single viewer is created for the whole process and re-bound to the
+    current row's Newton model on each call: recreating the GL context after
+    closing a previous viewer renders blank frames, so ``--record --all`` must
+    reuse one context across rows.
 
     Returns:
-        The camera sensor bound to the authored prim.
+        The recorder, aimed at the pendulum row and bound to its model.
     """
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+    global _RECORDER
+    from isaaclab_newton.video_recording import NewtonGlPerspectiveVideo, NewtonGlPerspectiveVideoCfg
 
-    from isaaclab.sensors import Camera, CameraCfg
-
-    prim = UsdGeom.Camera.Define(stage, "/World/RecordCamera")
-    prim.CreateFocalLengthAttr(24.0)
-    prim.CreateHorizontalApertureAttr(20.955)
-    prim.CreateVerticalApertureAttr(20.955 * CAMERA_HEIGHT / CAMERA_WIDTH)
-    prim.CreateClippingRangeAttr(Gf.Vec2f(0.05, 1.0e5))
-    view = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*CAMERA_EYE), Gf.Vec3d(*CAMERA_TARGET), Gf.Vec3d(0.0, 0.0, 1.0))
-    xform = UsdGeom.Xformable(prim.GetPrim())
-    xform.ClearXformOpOrder()
-    xform.AddTransformOp().Set(view.GetInverse())
-
-    cfg = CameraCfg(
-        prim_path="/World/RecordCamera",
-        update_period=0.0,
-        height=CAMERA_HEIGHT,
-        width=CAMERA_WIDTH,
-        data_types=["rgb"],
-        renderer_cfg=NewtonWarpRendererCfg(),
-        spawn=None,
-    )
-    return Camera(cfg)
-
-
-def _capture_frame(camera: "Camera") -> Image.Image:  # noqa: F821
-    """Read the camera's latest RGB output as an ``H x W x 3`` PIL image."""
-    rgb = camera.data.output["rgb"][0]
-    if hasattr(rgb, "detach"):
-        array = rgb[..., :3].detach().cpu().numpy()
+    if _RECORDER is None:
+        _RECORDER = NewtonGlPerspectiveVideo(
+            NewtonGlPerspectiveVideoCfg(
+                window_width=CAMERA_WIDTH,
+                window_height=CAMERA_HEIGHT,
+                eye=CAMERA_EYE,
+                lookat=CAMERA_TARGET,
+                horiz_fov_deg=RECORD_HFOV_DEG,
+            )
+        )
+        # Creates the viewer bound to the current Newton model.
+        _RECORDER.update_camera(CAMERA_EYE, CAMERA_TARGET)
     else:
-        import warp as wp
+        from isaaclab_newton.physics import NewtonManager
 
-        array = wp.to_torch(rgb)[..., :3].detach().cpu().numpy()
-    return Image.fromarray(np.ascontiguousarray(array, dtype=np.uint8))
+        _RECORDER._viewer.set_model(NewtonManager.get_model())
+        _RECORDER.update_camera(CAMERA_EYE, CAMERA_TARGET)
+    return _RECORDER
+
+
+def _strip_webp_dispose_flags(path: Path) -> None:
+    """Clear the dispose-to-background flag on every animation frame of *path*.
+
+    libwebp marks long-held frames (such as the merged initial rest pose) with
+    dispose-to-background, which players render as a washed-out flash: the
+    canvas is cleared and the next frame only paints its changed sub-rectangle.
+    In these clips a frame's unchanged pixels always match the previous canvas
+    content, so keeping the canvas (dispose "none") renders identically without
+    the flash.
+    """
+    data = bytearray(path.read_bytes())
+    pos = 12  # skip the RIFF header and the WEBP fourcc
+    while pos + 8 <= len(data):
+        tag = bytes(data[pos : pos + 4])
+        size = int.from_bytes(data[pos + 4 : pos + 8], "little")
+        if tag == b"ANMF":
+            data[pos + 8 + 15] &= 0xFD
+        pos += 8 + size + (size & 1)
+    path.write_bytes(bytes(data))
 
 
 def _save_webp(path: Path, frames: list[Image.Image], duration_ms: int, quality: int) -> int:
@@ -730,16 +798,17 @@ def _save_webp(path: Path, frames: list[Image.Image], duration_ms: int, quality:
         method=6,
         quality=quality,
     )
+    _strip_webp_dispose_flags(path)
     return path.stat().st_size
 
 
 def _write_clip(frames: list[Image.Image], key: str) -> Path:
     """Encode *frames* to ``<key>-clip.webp``, shrinking until under the size budget.
 
-    Applies the fallback ladder from most to least fidelity: quality 70, then
-    quality 55, then half the frame rate (dropping every other frame), then a
-    480x270 downscale. Playback stays real-time because the per-frame duration is
-    doubled whenever the frame rate is halved.
+    Applies the fallback ladder from most to least fidelity: quality 80, then
+    70, then 55, then half the frame rate (dropping every other frame), then a
+    960x540 downscale. Playback stays real-time because the per-frame duration
+    is doubled whenever the frame rate is halved.
 
     Args:
         frames: Captured RGB frames in playback order.
@@ -751,19 +820,76 @@ def _write_clip(frames: list[Image.Image], key: str) -> Path:
     path = MEDIA_DIR / f"{key}-clip.webp"
     duration_ms = int(round(1000.0 * CAPTURE_STRIDE * DT))
 
-    size = _save_webp(path, frames, duration_ms, quality=70)
-    if size > CLIP_MAX_BYTES:
-        size = _save_webp(path, frames, duration_ms, quality=55)
+    size = _save_webp(path, frames, duration_ms, quality=80)
+    for quality in (70, 55):
+        if size > CLIP_MAX_BYTES:
+            size = _save_webp(path, frames, duration_ms, quality=quality)
     if size > CLIP_MAX_BYTES:
         frames = frames[::2]
         duration_ms *= 2
         size = _save_webp(path, frames, duration_ms, quality=55)
     if size > CLIP_MAX_BYTES:
-        frames = [frame.resize((480, 270), Image.LANCZOS) for frame in frames]
+        frames = [frame.resize((960, 540), Image.LANCZOS) for frame in frames]
         size = _save_webp(path, frames, duration_ms, quality=55)
     if size > CLIP_MAX_BYTES:
         print(f"[WARN]: {path.name} is {size / 1000:.1f} KB, still above the {CLIP_MAX_BYTES // 1000} KB budget.")
     return path
+
+
+def _clip_label(key: str, value: float | str) -> str:
+    """Build a short, unit-less caption for one pendulum column (e.g. ``stiffness = 40``)."""
+    if isinstance(value, str):
+        return value
+    if key == "delay":
+        return f"delay = {int(value)} steps"
+    return f"{key} = {_format_value(value)}"
+
+
+def _annotate_frames(frames: list[Image.Image], row: RowSpec, key: str) -> list[Image.Image]:
+    """Draw each pendulum's parameter value below its column on every frame.
+
+    Captions sit in the bottom band of the frame (over the static ground, clear
+    of the swing plane), white with a dark outline, sized proportionally to the
+    frame width, and centered under each pendulum's column using the pinhole
+    projection of its world x-offset.
+
+    Args:
+        frames: Captured RGB frames (modified in place).
+        row: Comparison row being recorded.
+        key: Comparison-row key used for the caption text.
+
+    Returns:
+        The annotated frames.
+    """
+    from matplotlib import font_manager
+    from PIL import ImageDraw, ImageFont
+
+    height, width = frames[0].height, frames[0].width
+    font = ImageFont.truetype(font_manager.findfont("DejaVu Sans"), size=max(12, round(0.02 * width)))
+
+    # Project each pendulum's pivot x-offset through the recording pinhole camera
+    # (eye x = target x = 0, so the image x only depends on the world x-offset).
+    live = [(column, value) for column, value in enumerate(row.values) if value is not None]
+    num_instances = len(live)
+    distance = abs(CAMERA_EYE[1])
+    half_width_at_pivots = distance * math.tan(math.radians(RECORD_HFOV_DEG) / 2.0)
+    y_text = height - round(0.06 * height)
+
+    for image in frames:
+        draw = ImageDraw.Draw(image)
+        for slot, (_, value) in enumerate(live):
+            x_offset = (slot - (num_instances - 1) / 2.0) * INSTANCE_SPACING
+            x_frac = 0.5 + 0.5 * x_offset / half_width_at_pivots
+            draw.text(
+                (round(x_frac * width), y_text),
+                _clip_label(key, value),
+                font=font,
+                fill=(255, 255, 255),
+                anchor="ms",
+                stroke_width=2,
+                stroke_fill=(25, 30, 40),
+            )
+    return frames
 
 
 @contextlib.contextmanager
@@ -935,26 +1061,23 @@ def record_row(sim: sim_utils.SimulationContext, row: RowSpec, key: str) -> list
         dark curves).
     """
     articulations = build_scene(sim, row)
-    stage = sim_utils.get_current_stage()
-    camera = None
     if row.record_clip:
-        # Drop the ground plane so clips render against a clean, uniform background
-        # (the fixed-base pendulums do not touch it, and the kitless renderer shows
-        # its untextured surface as a solid color).
-        stage.RemovePrim("/World/defaultGroundPlane")
-        camera = _build_record_camera(stage)
+        stage = sim_utils.get_current_stage()
+        for index in range(len(_live_values(row))):
+            _author_row_markers(stage, f"/World/Pendulum_{index}")
     sim.reset()
+    recorder = _get_record_recorder() if row.record_clip else None
 
-    sim_dt = sim.get_physics_dt()
     frames: list[Image.Image] = []
 
     def on_frame(step: int) -> None:
-        if camera is not None and step % CAPTURE_STRIDE == 0:
-            camera.update(sim_dt, force_recompute=True)
-            frames.append(_capture_frame(camera))
+        if recorder is not None and step % CAPTURE_STRIDE == 0:
+            frames.append(Image.fromarray(recorder.render_rgb_array()))
 
     logs = run_row(sim, articulations, row, on_frame=on_frame)
-    paths = [_write_clip(frames, key)] if frames else []
+    paths = []
+    if frames:
+        paths.append(_write_clip(_annotate_frames(frames, row, key), key))
     paths += plot_row(row, logs, key)
     return paths
 
