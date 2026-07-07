@@ -12,10 +12,9 @@ import sys
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.physics import PhysxCfg
 
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift.lift_env_cfg import LiftPhysicsCfg
+from isaaclab_tasks.core.lift.mdp import CurriculumDifferentialInverseKinematicsActionCfg
 from isaaclab_tasks.utils.hydra import resolve_task_config
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -74,23 +73,40 @@ def test_newton_curriculum_task_is_newton_only_and_uses_final_task_curriculum() 
     agent_cfg = load_cfg_from_registry(_CURRICULUM_TASK, _AGENT)
 
     assert isinstance(cfg.sim.physics, NewtonCfg)
-    assert isinstance(cfg.actions.arm_action, DifferentialInverseKinematicsActionCfg)
+    assert isinstance(cfg.actions.arm_action, CurriculumDifferentialInverseKinematicsActionCfg)
     assert cfg.actions.arm_action.scale == (0.1, 0.1, 0.1, 0.25, 0.25, 0.25)
     assert cfg.actions.arm_action.controller.use_relative_mode
-    assert cfg.actions.gripper_action.close_command_expr == {"panda_finger_.*": 0.014}
+    assert cfg.actions.arm_action.full_control_difficulty == 0.30
+    assert cfg.actions.gripper_action.close_command_expr == {"panda_finger_.*": 0.016}
+    assert cfg.actions.gripper_action.force_close_below_difficulty == 0.45
     assert cfg.scene.robot.spawn.rigid_props.disable_gravity
-    assert cfg.scene.robot.actuators["panda_shoulder"].stiffness == 2000.0
+    assert cfg.scene.robot.actuators["panda_shoulder"].stiffness == 20000.0
+    assert cfg.scene.robot.actuators["panda_forearm"].damping == 2000.0
     assert cfg.scene.robot.actuators["panda_forearm"].effort_limit_sim == 100.0
     assert cfg.events.reset_curriculum.func is not None
+    assert cfg.events.reset_curriculum.params["closed_finger_position"] == 0.016
     assert cfg.curriculum.lift_difficulty.params["max_difficulty"] == 40
     assert cfg.curriculum.lift_difficulty.params["initial_difficulty"] == 0
     assert cfg.curriculum.lift_difficulty.params["successes_to_promote"] == 1
     assert cfg.curriculum.lift_difficulty.params["success_termination_name"] == "success"
     assert cfg.rewards.action_rate.weight == -1e-3
     assert cfg.rewards.joint_vel.weight == -1e-4
-    assert cfg.rewards.success_bonus.weight == 2500.0
-    assert cfg.terminations.success.params["threshold"] == 0.05
+    assert cfg.rewards.object_goal_tracking.params["std"] == 0.12
+    assert cfg.rewards.object_goal_orientation.weight == 3.0
+    assert cfg.rewards.object_goal_fine_tracking.params["std"] == 0.025
+    assert cfg.rewards.object_goal_fine_orientation.params["std"] == 0.10
+    assert cfg.rewards.object_goal_pose_accuracy.weight == 10.0
+    assert cfg.rewards.action_magnitude.weight == -0.05
+    assert cfg.rewards.object_dropping.weight == -50.0
+    assert cfg.rewards.success_bonus.weight == 5000.0
+    assert cfg.terminations.success.params["position_threshold"] == 0.02
+    assert cfg.terminations.success.params["orientation_threshold"] == 0.15
+    assert cfg.terminations.success.params["hold_time"] == 1.0
+    assert cfg.terminations.object_dropping.func is not None
+    assert cfg.terminations.object_dropping.params["height_margin"] == 0.10
     assert cfg.observations.policy.ee_to_object.func is not None
     assert cfg.observations.policy.object_to_goal.func is not None
+    assert cfg.observations.policy.object_orientation_to_goal.func is not None
     assert agent_cfg.clip_actions == 1.0
-    assert agent_cfg.actor.distribution_cfg.std_range == (0.1, 1.0)
+    assert agent_cfg.actor.distribution_cfg.init_std == 0.10
+    assert agent_cfg.actor.distribution_cfg.std_range == (0.01, 1.0)

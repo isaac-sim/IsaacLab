@@ -21,7 +21,7 @@ class FixedRangeGaussianDistributionCfg(RslRlMLPModelCfg.GaussianDistributionCfg
 class CurriculumGaussianDistributionCfg(RslRlMLPModelCfg.GaussianDistributionCfg):
     """Learnable exploration noise bounded away from zero."""
 
-    std_range: tuple[float, float] = (0.1, 1.0)
+    std_range: tuple[float, float] = (0.01, 1.0)
 
 
 @configclass
@@ -74,7 +74,7 @@ class LiftCubeNewtonCurriculumPPORunnerCfg(RslRlOnPolicyRunnerCfg):
         hidden_dims=[256, 256, 128],
         activation="elu",
         obs_normalization=True,
-        distribution_cfg=CurriculumGaussianDistributionCfg(init_std=0.6),
+        distribution_cfg=CurriculumGaussianDistributionCfg(init_std=0.10),
     )
     critic = RslRlMLPModelCfg(
         hidden_dims=[256, 256, 128],

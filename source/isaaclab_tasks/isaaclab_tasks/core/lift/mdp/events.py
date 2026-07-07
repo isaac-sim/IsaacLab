@@ -28,6 +28,7 @@ def _smoothstep(value: torch.Tensor) -> torch.Tensor:
 def reset_franka_lift_curriculum(
     env: ManagerBasedRLEnv,
     env_ids: torch.Tensor,
+    closed_finger_position: float = 0.016,
     robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
     object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> None:
@@ -63,7 +64,7 @@ def reset_franka_lift_curriculum(
     finger_ids = robot.find_joints("panda_finger_joint.*")[0]
     grasp_arm = torch.lerp(high_arm, low_arm, move_to_table)
     joint_pos[:, arm_ids] = torch.lerp(grasp_arm, joint_pos[:, arm_ids], restore_default)
-    closed_fingers = torch.full((len(env_ids), len(finger_ids)), 0.014, device=env.device)
+    closed_fingers = torch.full((len(env_ids), len(finger_ids)), closed_finger_position, device=env.device)
     joint_pos[:, finger_ids] = torch.lerp(closed_fingers, joint_pos[:, finger_ids], release_object)
     joint_vel = torch.zeros_like(joint_pos)
     robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)

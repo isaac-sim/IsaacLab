@@ -13,12 +13,14 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils.math import combine_frame_transforms
+from isaaclab.utils.math import combine_frame_transforms, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import FrameTransformer
+
+from .curriculums import lift_difficulty_fraction
 
 
 def object_is_lifted(
@@ -59,6 +61,17 @@ def object_ee_distance(
     object_ee_distance = torch.linalg.norm(cube_pos_w - ee_w, dim=1)
 
     return 1 - torch.tanh(object_ee_distance / std)
+
+
+def curriculum_object_ee_distance(
+    env: ManagerBasedRLEnv,
+    std: float,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Ramp reaching reward in as the curriculum transitions away from pre-grasped resets."""
+    difficulty = lift_difficulty_fraction(env, slice(None))
+    return difficulty * object_ee_distance(env, std, object_cfg, ee_frame_cfg)
 
 
 class object_goal_distance(ManagerTermBase):
@@ -112,6 +125,47 @@ class object_goal_distance(ManagerTermBase):
         if success_threshold is not None:
             self._succeeded |= is_lifted & (distance < success_threshold)
         return is_lifted.float() * (1 - torch.tanh(distance / std))
+
+
+def object_goal_orientation_distance(
+    env: ManagerBasedRLEnv,
+    std: float,
+    minimal_height: float,
+    command_name: str,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Reward object orientation tracking using a tanh kernel."""
+    robot: RigidObject = env.scene[robot_cfg.name]
+    obj: RigidObject = env.scene[object_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    goal_quat_w = quat_mul(robot.data.root_quat_w.torch, command[:, 3:7])
+    orientation_error = quat_error_magnitude(obj.data.root_quat_w.torch, goal_quat_w)
+    is_lifted = obj.data.root_pos_w.torch[:, 2] > minimal_height
+    return is_lifted.float() * (1 - torch.tanh(orientation_error / std))
+
+
+def object_goal_pose_accuracy(
+    env: ManagerBasedRLEnv,
+    position_threshold: float,
+    orientation_threshold: float,
+    command_name: str,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Reward every step that the object remains inside the precise goal tolerance."""
+    robot: RigidObject = env.scene[robot_cfg.name]
+    obj: RigidObject = env.scene[object_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    goal_pos_w, _ = combine_frame_transforms(
+        robot.data.root_pos_w.torch,
+        robot.data.root_quat_w.torch,
+        command[:, :3],
+    )
+    goal_quat_w = quat_mul(robot.data.root_quat_w.torch, command[:, 3:7])
+    position_error = torch.linalg.norm(goal_pos_w - obj.data.root_pos_w.torch, dim=1)
+    orientation_error = quat_error_magnitude(obj.data.root_quat_w.torch, goal_quat_w)
+    return ((position_error <= position_threshold) & (orientation_error <= orientation_threshold)).float()
 
 
 def deformable_lifted(
@@ -213,3 +267,15 @@ def gripper_close_near_object(
     close_command = gripper_close_action(env, action_name)
     proximity = object_ee_distance(env, std, object_cfg, ee_frame_cfg)
     return close_command * proximity
+
+
+def curriculum_gripper_close_near_object(
+    env: ManagerBasedRLEnv,
+    std: float,
+    action_name: str = "gripper_action",
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Ramp grasp-command shaping in as policy control becomes necessary."""
+    difficulty = lift_difficulty_fraction(env, slice(None))
+    return difficulty * gripper_close_near_object(env, std, action_name, object_cfg, ee_frame_cfg)

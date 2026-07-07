@@ -5,6 +5,7 @@
 
 """Newton-only curriculum configuration for Franka cube lifting."""
 
+from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -12,8 +13,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
-from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.lift import mdp
@@ -37,6 +36,10 @@ class NewtonCurriculumObservationsCfg:
             func=mdp.object_goal_position_relative,
             params={"command_name": "object_pose"},
         )
+        object_orientation_to_goal = ObsTerm(
+            func=mdp.object_goal_orientation_error,
+            params={"command_name": "object_pose"},
+        )
         object_height = ObsTerm(func=mdp.object_height_above_table)
         actions = ObsTerm(func=mdp.last_action)
 
@@ -52,14 +55,18 @@ class NewtonCurriculumEventsCfg:
     """Reset events for the adaptive grasp-to-lift curriculum."""
 
     reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-    reset_curriculum = EventTerm(func=mdp.reset_franka_lift_curriculum, mode="reset")
+    reset_curriculum = EventTerm(
+        func=mdp.reset_franka_lift_curriculum,
+        mode="reset",
+        params={"closed_finger_position": 0.016},
+    )
 
 
 @configclass
 class NewtonCurriculumRewardsCfg:
     """Sparse progress shaping with a dominant terminal success bonus."""
 
-    reaching_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.08}, weight=2.0)
+    reaching_object = RewTerm(func=mdp.curriculum_object_ee_distance, params={"std": 0.08}, weight=2.0)
     lift_progress = RewTerm(
         func=mdp.object_lift_progress,
         params={"minimal_height": 0.02, "target_height": 0.20},
@@ -67,21 +74,46 @@ class NewtonCurriculumRewardsCfg:
     )
     object_goal_tracking = RewTerm(
         func=mdp.object_goal_distance,
+        params={"std": 0.12, "minimal_height": 0.10, "command_name": "object_pose"},
+        weight=3.0,
+    )
+    object_goal_orientation = RewTerm(
+        func=mdp.object_goal_orientation_distance,
         params={"std": 0.25, "minimal_height": 0.10, "command_name": "object_pose"},
+        weight=3.0,
+    )
+    object_goal_fine_tracking = RewTerm(
+        func=mdp.object_goal_distance,
+        params={"std": 0.025, "minimal_height": 0.10, "command_name": "object_pose"},
         weight=2.0,
+    )
+    object_goal_fine_orientation = RewTerm(
+        func=mdp.object_goal_orientation_distance,
+        params={"std": 0.10, "minimal_height": 0.10, "command_name": "object_pose"},
+        weight=2.0,
+    )
+    object_goal_pose_accuracy = RewTerm(
+        func=mdp.object_goal_pose_accuracy,
+        params={
+            "position_threshold": 0.02,
+            "orientation_threshold": 0.15,
+            "command_name": "object_pose",
+        },
+        weight=10.0,
     )
     success_bonus = RewTerm(
         func=mdp.is_terminated_term,
         params={"term_keys": "success"},
-        # RewardManager multiplies by the 0.02-s control step: 2500 * 0.02 = 50.
-        weight=2500.0,
+        # RewardManager multiplies by the 0.02-s control step: 5000 * 0.02 = 100.
+        weight=5000.0,
     )
     close_near_object = RewTerm(
-        func=mdp.gripper_close_near_object,
+        func=mdp.curriculum_gripper_close_near_object,
         params={"std": 0.05},
         weight=2.0,
     )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
+    action_magnitude = RewTerm(func=mdp.action_l2, weight=-0.05)
     joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-1e-4,
@@ -89,7 +121,7 @@ class NewtonCurriculumRewardsCfg:
     )
     object_dropping = RewTerm(
         func=mdp.is_terminated_term,
-        weight=-5.0,
+        weight=-50.0,
         params={"term_keys": "object_dropping"},
     )
 
@@ -100,12 +132,25 @@ class NewtonCurriculumTerminationsCfg:
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     success = DoneTerm(
-        func=mdp.object_reached_goal,
-        params={"command_name": "object_pose", "threshold": 0.05},
+        func=mdp.ObjectPoseHeld,
+        params={
+            "command_name": "object_pose",
+            "position_threshold": 0.02,
+            "orientation_threshold": 0.15,
+            "hold_time": 1.0,
+        },
     )
     object_dropping = DoneTerm(
-        func=mdp.root_height_below_minimum,
-        params={"minimum_height": -0.05, "asset_cfg": SceneEntityCfg("object")},
+        func=mdp.curriculum_object_below_reset_height,
+        params={
+            "high_object_height": 0.349140,
+            "low_object_height": 0.029296,
+            "transition_start": 0.30,
+            "transition_end": 0.55,
+            "height_margin": 0.10,
+            "minimum_height": -0.05,
+            "object_cfg": SceneEntityCfg("object"),
+        },
     )
 
 
@@ -139,17 +184,17 @@ class FrankaCubeLiftNewtonCurriculumEnvCfg(FrankaCubeLiftEnvCfg):
         self.scene.robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.actuators["panda_shoulder"].armature = 0.1
         self.scene.robot.actuators["panda_forearm"].armature = 0.1
-        self.scene.robot.actuators["panda_shoulder"].stiffness = 2000.0
-        self.scene.robot.actuators["panda_forearm"].stiffness = 2000.0
-        self.scene.robot.actuators["panda_shoulder"].damping = 200.0
-        self.scene.robot.actuators["panda_forearm"].damping = 200.0
+        self.scene.robot.actuators["panda_shoulder"].stiffness = 20000.0
+        self.scene.robot.actuators["panda_forearm"].stiffness = 20000.0
+        self.scene.robot.actuators["panda_shoulder"].damping = 2000.0
+        self.scene.robot.actuators["panda_forearm"].damping = 2000.0
         self.scene.robot.actuators["panda_shoulder"].effort_limit_sim = 200.0
         self.scene.robot.actuators["panda_forearm"].effort_limit_sim = 100.0
         self.scene.robot.actuators["panda_hand"].effort_limit_sim = 40.0
 
         # Relative task-space control lets the policy reuse the same approach and
         # transport motion across the curriculum's changing reset poses.
-        self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
+        self.actions.arm_action = mdp.CurriculumDifferentialInverseKinematicsActionCfg(
             asset_name="robot",
             joint_names=["panda_joint.*"],
             body_name="panda_hand",
@@ -161,15 +206,23 @@ class FrankaCubeLiftNewtonCurriculumEnvCfg(FrankaCubeLiftEnvCfg):
                 joint_limit_avoidance_gain=0.1,
             ),
             scale=(0.1, 0.1, 0.1, 0.25, 0.25, 0.25),
-            body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.1034]),
+            body_offset=mdp.CurriculumDifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.1034]),
+            full_control_difficulty=0.30,
         )
-        self.actions.gripper_action.close_command_expr = {"panda_finger_.*": 0.014}
+        self.actions.gripper_action = mdp.CurriculumGripperActionCfg(
+            asset_name="robot",
+            joint_names=["panda_finger.*"],
+            open_command_expr={"panda_finger_.*": 0.04},
+            close_command_expr={"panda_finger_.*": 0.016},
+            force_close_below_difficulty=0.45,
+        )
 
         self.commands.object_pose = mdp.CurriculumPoseCommandCfg(
             asset_name="robot",
             body_name="panda_hand",
             resampling_time_range=(5.0, 5.0),
-            debug_vis=True,
+            debug_vis=False,
+            tracked_object_name="object",
             easy_goal=(0.499620, 0.0, 0.349140),
             full_goal_difficulty=0.30,
             ranges=mdp.CurriculumPoseCommandCfg.Ranges(
@@ -196,3 +249,4 @@ class FrankaCubeLiftNewtonCurriculumEnvCfg_PLAY(FrankaCubeLiftNewtonCurriculumEn
         super().__post_init__()
         self.scene.num_envs = 50
         self.curriculum.lift_difficulty.params["initial_difficulty"] = 40
+        self.commands.object_pose.debug_vis = False

@@ -14,7 +14,7 @@ import torch
 import warp as wp
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
-from isaaclab.utils.math import subtract_frame_transforms
+from isaaclab.utils.math import combine_frame_transforms, quat_box_minus, subtract_frame_transforms
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, DeformableObject, RigidObject
@@ -62,6 +62,24 @@ def object_goal_position_relative(
         object.data.root_pos_w.torch[:, :3],
     )
     return env.command_manager.get_command(command_name)[:, :3] - object_pos_b
+
+
+def object_goal_orientation_error(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Axis-angle rotation from the object's orientation to its commanded orientation [rad]."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    object: RigidObject = env.scene[object_cfg.name]
+    command = env.command_manager.get_command(command_name)
+    _, goal_quat_w = combine_frame_transforms(
+        robot.data.root_pos_w.torch,
+        robot.data.root_quat_w.torch,
+        q12=command[:, 3:7],
+    )
+    return quat_box_minus(goal_quat_w, object.data.root_quat_w.torch)
 
 
 def object_height_above_table(
