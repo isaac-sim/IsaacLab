@@ -67,8 +67,9 @@ def randomize_static_asset_pose(
     asset.set_world_poses(positions, orientations, indices=env_ids.tolist())
 
 
-def _resolve_preview_surface_shader(asset):
-    """Find the `UsdPreviewSurface` Shader prim created by a `PreviewSurfaceCfg` override.
+def _resolve_preview_surface_shaders(asset, env_ids: torch.Tensor) -> list:
+    """Find the `UsdPreviewSurface` Shader prim(s) created by a `PreviewSurfaceCfg` override,
+    one per requested env id.
 
     `spawn_preview_surface` (`isaaclab.sim.spawners.materials.visual_materials`) creates the
     material at a known, deterministic path and always names the shader child `"Shader"`:
@@ -80,19 +81,32 @@ def _resolve_preview_surface_shader(asset):
     - `spawn_from_usd` (`cube_2`, a Nucleus block prop) binds directly on the asset root:
       `f"{asset.cfg.prim_path}/material"` (`from_files.py:_spawn_from_usd_file`).
     - `spawn_cuboid` (`workspace_pad`, a primitive shape) binds on the nested geometry prim,
-      never the root: `f"{asset.prim_paths[0]}/geometry/material"`
+      never the root: `f"{asset.prim_paths[env_id]}/geometry/material"`
       (`shapes.py:_spawn_geom_from_prim_type`).
 
-    Returns the Shader `Usd.Prim`, or `None` if it doesn't exist (e.g. the asset was never given
-    a `PreviewSurfaceCfg` visual_material override, so there's nothing to randomize).
+    `asset.cfg.prim_path` (used for the first case) is NOT a concrete per-env path -- it's the
+    env-regex TEMPLATE (`InteractiveScene` resolves `{ENV_REGEX_NS}` into the literal string
+    `/World/envs/env_.*` once at spawn time via `.format(...)`, and never substitutes it down to
+    a concrete `env_0`/`env_1`/... after that). Feeding that `"env_.*"` wildcard straight into
+    `stage.GetPrimAtPath(...)` produces an "Ill-formed SdfPath" USD warning (`GetPrimAtPath`
+    needs a literal path, not a regex) and always resolves to an invalid prim -- silently a
+    no-op every time, confirmed in practice: `cube_2`'s color never actually changed. Substitute
+    the real env index for each requested `env_id` instead of using the raw template.
+
+    Returns one Shader `Usd.Prim` per `env_id` (or `None` in that slot if it doesn't exist --
+    e.g. the asset was never given a `PreviewSurfaceCfg` visual_material override).
     """
     stage = get_current_stage()
-    if hasattr(asset, "cfg"):
-        material_path = f"{asset.cfg.prim_path}/material"
-    else:
-        material_path = f"{asset.prim_paths[0]}/geometry/material"
-    shader_prim = stage.GetPrimAtPath(f"{material_path}/Shader")
-    return shader_prim if shader_prim.IsValid() else None
+    shaders = []
+    for env_id in env_ids.tolist():
+        if hasattr(asset, "cfg"):
+            concrete_prim_path = asset.cfg.prim_path.replace("env_.*", f"env_{env_id}")
+            material_path = f"{concrete_prim_path}/material"
+        else:
+            material_path = f"{asset.prim_paths[env_id]}/geometry/material"
+        shader_prim = stage.GetPrimAtPath(f"{material_path}/Shader")
+        shaders.append(shader_prim if shader_prim.IsValid() else None)
+    return shaders
 
 
 def randomize_visual_color(
@@ -103,7 +117,7 @@ def randomize_visual_color(
     roughness_range: tuple[float, float] | None = None,
 ):
     """Randomize an asset's `PreviewSurfaceCfg` material color (and optionally roughness) by
-    writing directly to its Shader prim's USD attributes.
+    writing directly to its Shader prim's USD attributes -- independently per env id.
 
     Earlier versions of this function (and the equivalent core
     `isaaclab.envs.mdp.events.randomize_visual_color`) went through the Replicator API
@@ -120,20 +134,20 @@ def randomize_visual_color(
     `{"r": (low, high), "g": (low, high), "b": (low, high)}` to sample a uniform range from.
     """
     asset = env.scene[asset_cfg.name]
-    shader_prim = _resolve_preview_surface_shader(asset)
-    if shader_prim is None:
-        return
+    for shader_prim in _resolve_preview_surface_shaders(asset, env_ids):
+        if shader_prim is None:
+            continue
 
-    if isinstance(colors, dict):
-        r = random.uniform(*colors["r"])
-        g = random.uniform(*colors["g"])
-        b = random.uniform(*colors["b"])
-    else:
-        r, g, b = random.choice(list(colors))
-    shader_prim.GetAttribute("inputs:diffuseColor").Set((r, g, b))
+        if isinstance(colors, dict):
+            r = random.uniform(*colors["r"])
+            g = random.uniform(*colors["g"])
+            b = random.uniform(*colors["b"])
+        else:
+            r, g, b = random.choice(list(colors))
+        shader_prim.GetAttribute("inputs:diffuseColor").Set((r, g, b))
 
-    if roughness_range is not None:
-        shader_prim.GetAttribute("inputs:roughness").Set(random.uniform(*roughness_range))
+        if roughness_range is not None:
+            shader_prim.GetAttribute("inputs:roughness").Set(random.uniform(*roughness_range))
 
 
 def randomize_fixed_camera_pose(

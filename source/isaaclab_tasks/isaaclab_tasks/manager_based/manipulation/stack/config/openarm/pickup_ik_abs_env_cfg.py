@@ -37,7 +37,7 @@ from isaaclab.managers import SceneEntityCfg, TerminationTermCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, NVIDIA_NUCLEUS_DIR
 
 import isaaclab.envs.mdp as mdp_core
 from isaaclab_tasks.manager_based.manipulation.stack import mdp
@@ -129,8 +129,8 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("cube_2"),
-            "colors": {"r": (0.2, 0.9), "g": (0.2, 0.9), "b": (0.2, 0.9)},
-            "roughness_range": (0.2, 0.9),
+            "colors": {"r": (0.05, 0.95), "g": (0.05, 0.95), "b": (0.05, 0.95)},
+            "roughness_range": (0.0, 1.0),
         },
     )
 
@@ -139,8 +139,8 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("workspace_pad"),
-            "colors": {"r": (0.3, 0.9), "g": (0.3, 0.9), "b": (0.3, 0.9)},
-            "roughness_range": (0.2, 0.9),
+            "colors": {"r": (0.05, 0.95), "g": (0.05, 0.95), "b": (0.05, 0.95)},
+            "roughness_range": (0.0, 1.0),
         },
     )
 
@@ -162,12 +162,17 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
         func=openarm_domain_randomization.randomize_scene_lighting,
         mode="reset",
         params={
-            "intensity_range": (1000.0, 8000.0),
-            "color_range": (0.5, 1.0),
+            "intensity_range": (500.0, 12000.0),
+            "color_range": (0.3, 1.0),
+            # Every path below is one already referenced by other shipped Isaac Lab task
+            # configs/tests (grepped for "Skies/"+".hdr" across the repo) -- kept to
+            # confirmed-existing Nucleus assets rather than guessed filenames, since a wrong
+            # path fails silently (no texture applied) rather than erroring.
             "skybox_textures": [
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/abandoned_parking_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/evening_road_01_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/lakeside_4k.hdr",
+                f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Cloudy/kloofendal_48d_partly_cloudy_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/autoshop_01_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/carpentry_shop_01_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/hospital_room_4k.hdr",
@@ -176,6 +181,7 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/small_empty_house_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Indoor/surgery_4k.hdr",
                 f"{NVIDIA_NUCLEUS_DIR}/Assets/Skies/Studio/photo_studio_01_4k.hdr",
+                f"{ISAAC_NUCLEUS_DIR}/Materials/Textures/Skies/PolyHaven/kloofendal_43d_clear_puresky_4k.hdr",
             ],
             "asset_cfg": SceneEntityCfg("light"),
         },
@@ -191,19 +197,27 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
         func=openarm_domain_randomization.randomize_fixed_camera_pose,
         mode="reset",
         params={
-            "pos_range": {"x": (-0.15, 0.15), "y": (-0.15, 0.15), "z": (-0.08, 0.08)},
+            # Eye and look-at target jitter independently, so their worst-case combination (both
+            # pushed to opposite extremes) matters more than either range alone -- e.g. the old
+            # (0.15, 0.08) pair could swing the aim ~20 deg off nominal, enough to lose the
+            # robot/workspace out of frame (front_cam's half-FOV is ~24 deg). Halved below to
+            # keep the worst case comfortably inside the frame while still varying the viewpoint.
+            "pos_range": {"x": (-0.08, 0.08), "y": (-0.08, 0.08), "z": (-0.05, 0.05)},
             "look_at_offset": (0.45, 0.0, 0.15),
-            "look_at_range": {"x": (-0.08, 0.08), "y": (-0.08, 0.08), "z": (-0.05, 0.05)},
+            "look_at_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.03, 0.03)},
             "asset_cfg": SceneEntityCfg("front_cam"),
         },
     )
 
+    # Kept moderate (not maxed out like color/lighting above): these mounts sit close to the
+    # gripper and are the views the grasp itself depends on, so over-jittering risks losing the
+    # cube/gripper out of frame the same way front_cam did before it got dialed back.
     randomize_wrist_cam_pose = EventTerm(
         func=openarm_domain_randomization.randomize_mounted_camera_pose,
         mode="reset",
         params={
-            "pos_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},
-            "rot_range": {"roll": (-0.09, 0.09), "pitch": (-0.09, 0.09), "yaw": (-0.09, 0.09)},
+            "pos_range": {"x": (-0.015, 0.015), "y": (-0.015, 0.015), "z": (-0.015, 0.015)},
+            "rot_range": {"roll": (-0.14, 0.14), "pitch": (-0.14, 0.14), "yaw": (-0.14, 0.14)},
             "parent_body_name": "openarm_left_ee_tcp",
             "asset_cfg": SceneEntityCfg("wrist_cam"),
         },
@@ -213,8 +227,8 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
         func=openarm_domain_randomization.randomize_mounted_camera_pose,
         mode="reset",
         params={
-            "pos_range": {"x": (-0.01, 0.01), "y": (-0.01, 0.01), "z": (-0.01, 0.01)},
-            "rot_range": {"roll": (-0.09, 0.09), "pitch": (-0.09, 0.09), "yaw": (-0.09, 0.09)},
+            "pos_range": {"x": (-0.015, 0.015), "y": (-0.015, 0.015), "z": (-0.015, 0.015)},
+            "rot_range": {"roll": (-0.14, 0.14), "pitch": (-0.14, 0.14), "yaw": (-0.14, 0.14)},
             "parent_body_name": "openarm_right_ee_tcp",
             "asset_cfg": SceneEntityCfg("right_wrist_cam"),
         },
@@ -224,8 +238,8 @@ class PickUpDomainRandomizationEventCfg(PickUpEventCfg):
         func=openarm_domain_randomization.randomize_mounted_camera_pose,
         mode="reset",
         params={
-            "pos_range": {"x": (-0.015, 0.015), "y": (-0.015, 0.015), "z": (-0.015, 0.015)},
-            "rot_range": {"roll": (-0.09, 0.09), "pitch": (-0.09, 0.09), "yaw": (-0.09, 0.09)},
+            "pos_range": {"x": (-0.02, 0.02), "y": (-0.02, 0.02), "z": (-0.02, 0.02)},
+            "rot_range": {"roll": (-0.14, 0.14), "pitch": (-0.14, 0.14), "yaw": (-0.14, 0.14)},
             "parent_body_name": "openarm_body_link",
             "asset_cfg": SceneEntityCfg("body_cam"),
         },
