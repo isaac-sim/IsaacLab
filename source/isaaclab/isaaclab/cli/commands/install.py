@@ -381,6 +381,8 @@ def _ensure_newton() -> None:
     if not requirement:
         raise KeyError("Newton git pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
     commit = _pinned_version("newton")
+    # Newton-matched schemas (isaacsim pins the older ==0.2.0); force it alongside newton.
+    schemas = next((r for r in overrides if _requirement_name(r) == "newton-usd-schemas"), None)
 
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
@@ -397,7 +399,7 @@ def _ensure_newton() -> None:
     print_info(f"Installing pinned Newton git build ({commit[:10]})...")
     uninstall_flags = ["-y"] if not using_uv else []
     run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
-    run_command(pip_cmd + ["install", requirement])
+    run_command(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
 
 
 # Isaac Sim install settings.

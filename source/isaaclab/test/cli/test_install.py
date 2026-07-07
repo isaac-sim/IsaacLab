@@ -263,8 +263,9 @@ class TestEnsureNewton:
         assert any("uninstall" in cmd for cmd in calls), "old Newton should be uninstalled first"
         install_cmds = [cmd for cmd in calls if "install" in cmd]
         assert install_cmds, "expected a pip install call"
-        target = install_cmds[-1][-1]
-        assert target.startswith("newton[sim]") and target.endswith(commit)
+        install_args = install_cmds[-1]
+        assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
+        assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
 
     def test_skips_when_commit_already_installed(self):
         """When freeze already reports the pinned commit, do not reinstall."""
