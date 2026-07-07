@@ -77,7 +77,7 @@ inputs:
     required: false
   testmon-mode:
     description: 'Override Testmon mode with select, collect, or off'
-    default: ''
+    default: 'select'
     required: false
   wheelhouse-resource:
     description: 'Optional NGC resource containing wheelhouse/ and manifest.json for offline pip installs'
