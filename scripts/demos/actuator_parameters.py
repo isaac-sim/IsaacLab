@@ -209,7 +209,7 @@ class PlotSpec:
 
     Attributes:
         quantity: Logged quantity to plot. One of ``joint_pos``, ``joint_vel``,
-            or ``applied_torque_vs_computed``.
+            or ``applied_torque``.
         title: Human-readable plot title.
         ylabel: Label for the plot's y-axis.
     """
@@ -355,7 +355,7 @@ ROWS: dict[str, RowSpec] = {
         initial_joint_pos=0.0,
         initial_joint_vel=0.0,
         duration=4.0,
-        plot=PlotSpec("applied_torque_vs_computed", "Effort-limit sweep", "Joint torque [N·m]"),
+        plot=PlotSpec("applied_torque", "Effort-limit sweep", "Applied joint torque [N·m]"),
     ),
     "velocity-limit": RowSpec(
         name="DC motor velocity-limit sweep (torque-speed envelope)",
@@ -1017,22 +1017,13 @@ def plot_row(row: RowSpec, logs: dict[str, torch.Tensor] | None, key: str) -> li
     for dark in (False, True):
         with _mpl_style(dark):
             fig, ax = plt.subplots(figsize=(6.4, 3.6))
-            if quantity == "applied_torque_vs_computed":
-                applied = logs["applied_torque"].numpy()
-                computed = logs["computed_torque"].numpy()
-                for column, value in live:
-                    color = TRACE_COLORS[column % len(TRACE_COLORS)]
-                    ax.plot(times, applied[:, column], color=color, label=_trace_label(key, value))
-                    ax.plot(times, computed[:, column], color=color, ls="--", lw=1.0, alpha=0.6)
-                ax.plot([], [], color="0.5", ls="--", lw=1.0, label="computed (unclipped)")
-            else:
-                data = logs[quantity].numpy()
-                for column, value in live:
-                    color = TRACE_COLORS[column % len(TRACE_COLORS)]
-                    ax.plot(times, data[:, column], color=color, label=_trace_label(key, value))
-                if key == "delay":
-                    reference = np.array([row.command(t)[0] for t in times])
-                    ax.plot(times, reference, color="0.5", ls="--", lw=1.0, label="command")
+            data = logs[quantity].numpy()
+            for column, value in live:
+                color = TRACE_COLORS[column % len(TRACE_COLORS)]
+                ax.plot(times, data[:, column], color=color, label=_trace_label(key, value))
+            if key == "delay":
+                reference = np.array([row.command(t)[0] for t in times])
+                ax.plot(times, reference, color="0.5", ls="--", lw=1.0, label="command")
             ax.set_xlabel("Time [s]")
             ax.set_ylabel(row.plot.ylabel)
             ax.set_title(row.plot.title)
