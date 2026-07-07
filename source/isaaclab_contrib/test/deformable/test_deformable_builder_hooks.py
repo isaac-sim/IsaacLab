@@ -23,6 +23,7 @@ from isaaclab_contrib.deformable.deformable_object import (
     add_deformable_entry_to_builder,
     setup_registered_deformable_fabric_sync,
 )
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 class _FakeBuilder:
@@ -94,6 +95,11 @@ def test_newton_material_defaults_match_registry_defaults():
 
     assert material_cfg.density == DeformableRegistryEntry.density
     assert material_cfg.particle_radius == DeformableRegistryEntry.particle_radius
+
+
+def test_vbd_manager_disables_cuda_graph_recapture():
+    """Test that VBD advertises its one-capture-per-lifecycle limitation."""
+    assert NewtonVBDManager._supports_cuda_graph_recapture() is False
 
 
 def test_builder_hook_applies_env_quaternion_to_deformable_entry():

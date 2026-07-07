@@ -49,6 +49,7 @@ from isaaclab_newton.physics import (
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverXPBD
 
+from isaaclab.physics import PhysicsManager
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 # ---------------------------------------------------------------------------
@@ -683,6 +684,104 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 
         # Expect: 1 (top-of-tick) + expected_mid_loop_collides.
         assert calls["n"] == 1 + expected_mid_loop_collides
+
+
+@pytest.mark.parametrize(
+    "use_single_state, expected_events",
+    [
+        (
+            True,
+            [
+                ("force", "state_0"),
+                ("step", "state_0", "state_0"),
+                ("clear", "state_0"),
+                ("force", "state_0"),
+                ("step", "state_0", "state_0"),
+                ("clear", "state_0"),
+            ],
+        ),
+        (
+            False,
+            [
+                ("force", "state_0"),
+                ("step", "state_0", "state_1"),
+                ("clear", "state_1"),
+                ("force", "state_1"),
+                ("step", "state_1", "state_0"),
+                ("clear", "state_0"),
+            ],
+        ),
+    ],
+)
+def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_single_state, expected_events):
+    """Viewer forces are applied to the current state before every solver substep."""
+    events = []
+
+    class _State:
+        def __init__(self, name):
+            self.name = name
+
+        def clear_forces(self):
+            events.append(("clear", self.name))
+
+    state_0 = _State("state_0")
+    state_1 = _State("state_1")
+
+    def apply_force(state):
+        events.append(("force", state.name))
+
+    def step_solver(input_state, output_state, _control, _contacts, _dt):
+        events.append(("step", input_state.name, output_state.name))
+
+    monkeypatch.setattr(NewtonManager, "_state_0", state_0)
+    monkeypatch.setattr(NewtonManager, "_state_1", state_1)
+    monkeypatch.setattr(NewtonManager, "_control", object())
+    monkeypatch.setattr(NewtonManager, "_solver_dt", 0.001)
+    monkeypatch.setattr(NewtonManager, "_num_substeps", 2)
+    monkeypatch.setattr(NewtonManager, "_collision_decimation", 0)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(NewtonManager, "_use_single_state", use_single_state)
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [apply_force])
+    monkeypatch.setattr(NewtonManager, "_step_solver", staticmethod(step_solver))
+
+    NewtonManager._run_solver_substeps(contacts=None)
+
+    assert events == expected_events
+
+
+def test_non_recapturable_manager_starts_eagerly_for_newton_visualizer(monkeypatch):
+    """Interactive forces avoid an unsafe initial graph on managers that cannot re-capture."""
+
+    class _NonRecapturableManager(NewtonManager):
+        @classmethod
+        def _supports_cuda_graph_recapture(cls):
+            return False
+
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(visualizer_cfgs=[SimpleNamespace(visualizer_type="newton")]),
+        get_setting=lambda _name: "",
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True))
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
+    monkeypatch.setattr(NewtonManager, "_graph", object())
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True)
+
+    _NonRecapturableManager._capture_or_defer_graph()
+
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is False
+
+
+def test_disabled_picking_does_not_request_state_force_callbacks(monkeypatch):
+    """A Newton visualizer with picking disabled does not alter graph execution."""
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(visualizer_cfgs=[SimpleNamespace(visualizer_type="newton", enable_picking=False)]),
+        get_setting=lambda _name: "",
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+
+    assert NewtonManager._state_force_visualizer_requested() is False
 
 
 # ---------------------------------------------------------------------------

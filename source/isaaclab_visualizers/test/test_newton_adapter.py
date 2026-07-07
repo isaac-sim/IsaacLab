@@ -116,6 +116,23 @@ def test_newton_visualizer_cfg_exposes_particle_options():
     assert cfg.particle_color == (0.1, 0.2, 0.3)
 
 
+def test_newton_visualizer_cfg_enables_rigid_body_picking_by_default():
+    cfg = NewtonVisualizerCfg()
+
+    assert cfg.enable_picking is True
+
+
+def test_newton_visualizer_applies_viewer_forces():
+    calls = []
+    state = object()
+    visualizer = NewtonVisualizer(NewtonVisualizerCfg())
+    visualizer._viewer = SimpleNamespace(apply_forces=calls.append)
+
+    visualizer._apply_viewer_forces(state)
+
+    assert calls == [state]
+
+
 def test_newton_visualizer_cfg_exposes_world_spacing():
     cfg = NewtonVisualizerCfg(world_spacing=(2.0, 2.0, 0.0))
 

@@ -279,6 +279,9 @@ class NewtonManager(PhysicsManager):
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
     _post_actuator_callbacks: list[Callable[[], None]] = []
+    # In-graph hooks invoked immediately before every solver substep. Viewers
+    # use these to apply interactive forces to the current double-buffered state.
+    _state_force_callbacks: list[Callable[[State], None]] = []
 
     # CUDA graphing
     _graph = None
@@ -815,6 +818,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._report_contacts = False
         NewtonManager._adapter = None
         NewtonManager._post_actuator_callbacks = []
+        NewtonManager._state_force_callbacks = []
         # Set by an articulation that took the ``use_newton_actuators=True``
         # branch in ``_process_actuators_cfg``.  Together with the adapter
         # check, this gates whether the decimation loop can be captured into
@@ -1523,6 +1527,15 @@ class NewtonManager(PhysicsManager):
             return
 
         use_cuda_graph = cfg.use_cuda_graph and "cuda" in device
+        if use_cuda_graph and not cls._supports_cuda_graph_recapture() and cls._state_force_visualizer_requested():
+            NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = False
+            logger.info(
+                "%s uses eager execution because an interactive visualizer is configured and the solver does not "
+                "support CUDA graph re-capture.",
+                cls.__name__,
+            )
+            return
         if use_cuda_graph and not cls._supports_cuda_graph_capture():
             NewtonManager._graph = None
             NewtonManager._graph_capture_pending = False
@@ -1562,6 +1575,29 @@ class NewtonManager(PhysicsManager):
     def _supports_cuda_graph_capture(cls) -> bool:
         """Return whether the active solver configuration supports CUDA graph capture."""
         return True
+
+    @classmethod
+    def _supports_cuda_graph_recapture(cls) -> bool:
+        """Return whether an existing CUDA graph can be safely replaced during a simulation lifecycle."""
+        return True
+
+    @classmethod
+    def _state_force_visualizer_requested(cls) -> bool:
+        """Return whether simulation configuration requests a Newton visualizer."""
+        sim = PhysicsManager._sim
+        if sim is None:
+            return False
+
+        visualizer_cfgs = getattr(sim.cfg, "visualizer_cfgs", None) or []
+        if any(
+            getattr(cfg, "visualizer_type", None) == "newton" and getattr(cfg, "enable_picking", True)
+            for cfg in visualizer_cfgs
+        ):
+            return True
+
+        requested = sim.get_setting("/isaaclab/visualizer/types") or ""
+        requested_types = str(requested).replace(",", " ").split()
+        return "newton" in requested_types
 
     @classmethod
     def _capture_relaxed_graph(cls, device: str):
@@ -1699,6 +1735,8 @@ class NewtonManager(PhysicsManager):
 
         if cls._use_single_state:
             for i in range(cls._num_substeps):
+                for callback in cls._state_force_callbacks:
+                    callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_0, cls._control, contacts, cls._solver_dt)
                 cls._state_0.clear_forces()
                 if collide_mid_loop and (i + 1) % collide_every == 0 and i + 1 < cls._num_substeps:
@@ -1707,6 +1745,8 @@ class NewtonManager(PhysicsManager):
             cfg = PhysicsManager._cfg
             need_copy_on_last = cfg is not None and cls._num_substeps % 2 == 1
             for i in range(cls._num_substeps):
+                for callback in cls._state_force_callbacks:
+                    callback(cls._state_0)
                 cls._step_solver(cls._state_0, cls._state_1, cls._control, contacts, cls._solver_dt)
                 if need_copy_on_last and i == cls._num_substeps - 1:
                     cls._state_0.assign(cls._state_1)
@@ -2051,6 +2091,66 @@ class NewtonManager(PhysicsManager):
         registered callbacks fire in registration order each step.
         """
         cls._post_actuator_callbacks.append(callback)
+
+    @classmethod
+    def register_state_force_callback(cls, callback: Callable[[State], None]) -> None:
+        """Register a callback that applies forces before every solver substep.
+
+        The callback receives the current Newton state and runs inside the CUDA
+        graph when graph capture is enabled. Managers that support graph
+        re-capture refresh an existing graph when callbacks change. Managers
+        that do not support re-capture use eager execution when an interactive
+        visualizer is configured.
+
+        Args:
+            callback: Function that adds forces [N, N·m] to the provided state.
+        """
+        if callback in cls._state_force_callbacks:
+            return
+        NewtonManager._state_force_callbacks.append(callback)
+        try:
+            cls._refresh_state_force_graph()
+        except Exception:
+            NewtonManager._state_force_callbacks.remove(callback)
+            raise
+
+    @classmethod
+    def unregister_state_force_callback(cls, callback: Callable[[State], None]) -> None:
+        """Unregister a callback previously added by :meth:`register_state_force_callback`.
+
+        Args:
+            callback: Previously registered state-force callback.
+        """
+        if callback not in cls._state_force_callbacks:
+            return
+        NewtonManager._state_force_callbacks.remove(callback)
+        cls._refresh_state_force_graph()
+
+    @classmethod
+    def _refresh_state_force_graph(cls) -> None:
+        """Refresh graph execution after the state-force callback list changes."""
+        manager_cls = cls._get_active_manager_class()
+        if manager_cls._solver is None or manager_cls._graph_capture_pending:
+            return
+        if not manager_cls._supports_cuda_graph_recapture():
+            if manager_cls._graph is not None:
+                raise RuntimeError(
+                    f"{manager_cls.__name__} cannot attach state-force callbacks after CUDA graph capture. "
+                    "Configure the interactive visualizer before resetting the simulation or disable CUDA graphs."
+                )
+            return
+        manager_cls._capture_or_defer_graph()
+
+    @classmethod
+    def _get_active_manager_class(cls) -> type[NewtonManager]:
+        """Return the active Newton manager subclass, falling back to ``cls``."""
+        sim = SimulationContext.instance()
+        manager_cls = getattr(sim, "physics_manager", None)
+        if hasattr(manager_cls, "_resolve"):
+            manager_cls = manager_cls._resolve()
+        if isinstance(manager_cls, type) and issubclass(manager_cls, NewtonManager):
+            return manager_cls
+        return cls
 
     @classmethod
     def set_decimation(cls, decimation: int) -> None:

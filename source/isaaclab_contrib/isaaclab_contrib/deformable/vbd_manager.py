@@ -40,6 +40,11 @@ class NewtonVBDManager(NewtonManager):
     """
 
     @classmethod
+    def _supports_cuda_graph_recapture(cls) -> bool:
+        """Disable graph re-capture because VBD only supports one capture per simulation lifecycle."""
+        return False
+
+    @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the manager with simulation context.
 

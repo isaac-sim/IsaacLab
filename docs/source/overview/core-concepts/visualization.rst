@@ -91,6 +91,18 @@ To run in headless mode, omit the ``--viz`` argument:
     For compatibility, ``--headless`` still takes precedence and disables all visualizers.
 
 
+Newton Object Interaction
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With the Newton physics backend, right-click and drag a dynamic rigid body in
+the Newton visualizer to apply an interactive force. Static and kinematic
+bodies are not moved. Set
+:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.enable_picking` to
+``False`` to disable this interaction. Picking is also disabled when the Newton
+visualizer is displaying a PhysX simulation because its Newton state is only a
+visualization copy.
+
+
 .. _visualization-configuration:
 
 Configuration

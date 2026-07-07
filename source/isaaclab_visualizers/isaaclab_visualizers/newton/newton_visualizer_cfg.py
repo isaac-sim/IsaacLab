@@ -61,6 +61,9 @@ class NewtonVisualizerCfg(VisualizerCfg):
     Values are passed through to the Newton viewer unchanged.
     """
 
+    enable_picking: bool = True
+    """Enable right-click dragging of rigid bodies when using the Newton physics backend."""
+
     enable_shadows: bool = True
     """Enable shadow rendering."""
 

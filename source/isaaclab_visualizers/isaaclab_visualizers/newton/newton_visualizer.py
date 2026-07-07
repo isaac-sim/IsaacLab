@@ -49,6 +49,8 @@ CONTACT_ARROW_LENGTH = 0.1
 """Length of synthesized contact arrows in meters."""
 
 if TYPE_CHECKING:
+    from newton import State
+
     from isaaclab.scene_data import SceneDataProvider
 
 
@@ -364,6 +366,8 @@ class NewtonViewerGL(ViewerGL):
                 imgui.text("WASD - Forward/Left/Back/Right")
                 imgui.text("QE - Down/Up")
                 imgui.text("Left Click - Look around")
+                if self.picking_enabled:
+                    imgui.text("Right Click - Drag objects")
                 imgui.text("Scroll - Zoom")
                 imgui.text("H - Toggle UI")
                 imgui.text("ESC - Exit")
@@ -461,6 +465,7 @@ class NewtonVisualizer(BaseVisualizer):
         self._camera_env_indices: list[int] = []
         self._camera_is_owned = False
         self._generated_camera_prim_paths: list[str] = []
+        self._state_force_callback_registered = False
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -475,6 +480,7 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
+        newton_backend_active = NewtonManager._backend_is_newton(scene_data_provider)
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
@@ -522,6 +528,7 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.show_com = self.cfg.show_com
             self._viewer.show_particles = self.cfg.show_particles
             self._viewer.particle_color = self.cfg.particle_color
+            self._viewer.picking_enabled = self.cfg.enable_picking and newton_backend_active
 
             self._viewer.renderer.draw_shadows = self.cfg.enable_shadows
             self._viewer.renderer.draw_sky = self.cfg.enable_sky
@@ -552,8 +559,16 @@ class NewtonVisualizer(BaseVisualizer):
                 ("headless", self.cfg.headless),
                 ("show_particles", self.cfg.show_particles),
                 ("particle_color", self.cfg.particle_color),
+                ("enable_picking", self._viewer.picking_enabled if self._viewer is not None else False),
             ],
         )
+        if self._viewer is not None and newton_backend_active and self.cfg.enable_picking:
+            NewtonManager.register_state_force_callback(self._apply_viewer_forces)
+            self._state_force_callback_registered = True
+        elif self._viewer is not None and self.cfg.enable_picking:
+            logger.info(
+                "[NewtonVisualizer] Object dragging is disabled because the active physics backend is not Newton."
+            )
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -611,12 +626,22 @@ class NewtonVisualizer(BaseVisualizer):
         """Release viewer resources."""
         if self._is_closed:
             return
+        if self._state_force_callback_registered:
+            from isaaclab_newton.physics import NewtonManager
+
+            NewtonManager.unregister_state_force_callback(self._apply_viewer_forces)
+            self._state_force_callback_registered = False
         if self._viewer is not None:
             self._viewer = None
         if self._camera_sensor is not None and self._camera_is_owned:
             remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
         self._is_closed = True
+
+    def _apply_viewer_forces(self, state: State) -> None:
+        """Apply interactive Newton viewer forces to the current simulation state."""
+        if self._viewer is not None:
+            self._viewer.apply_forces(state)
 
     def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
         """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
