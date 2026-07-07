@@ -12,10 +12,10 @@ comparison.
 
 Usage:
     # Graphed update (default)
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_contact_sensor.py --num_envs 4096 --headless
+    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096
 
     # Eager update (baseline)
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_contact_sensor.py --num_envs 4096 --disable_graph --headless
+    ./isaaclab.sh -p source/isaaclab_physx/benchmark/sensors/benchmark_contact_sensor.py --num_envs 4096 --disable_graph
 """
 
 from __future__ import annotations
