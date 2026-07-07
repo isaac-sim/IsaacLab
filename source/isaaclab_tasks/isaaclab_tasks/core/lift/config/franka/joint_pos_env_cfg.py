@@ -13,6 +13,7 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.lift_env_cfg import LiftEnvCfg
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -29,10 +30,17 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
 
         # Set Franka as robot
         self.scene.robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.actuators["panda_shoulder"].armature = preset(default=1e-3, newton_mjwarp=0.1)
+        self.scene.robot.actuators["panda_forearm"].armature = preset(default=1e-3, newton_mjwarp=0.1)
+        self.scene.robot.actuators["panda_shoulder"].damping = preset(default=4.0, newton_mjwarp=10.0)
+        self.scene.robot.actuators["panda_forearm"].damping = preset(default=4.0, newton_mjwarp=10.0)
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=["panda_joint.*"], scale=0.5, use_default_offset=True
+            asset_name="robot",
+            joint_names=["panda_joint.*"],
+            scale=0.5,
+            use_default_offset=True,
         )
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",

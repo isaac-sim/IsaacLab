@@ -5,6 +5,7 @@
 
 from dataclasses import MISSING
 
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_physx.assets import DeformableObjectCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -25,6 +26,34 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.lift import mdp
+from isaaclab_tasks.utils import PresetCfg, preset
+
+
+@configclass
+class LiftPhysicsCfg(PresetCfg):
+    """Physics-backend presets for rigid-object lift tasks."""
+
+    physx: PhysxCfg = PhysxCfg(
+        bounce_threshold_velocity=0.01,
+        gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
+        gpu_total_aggregate_pairs_capacity=16 * 1024,
+        friction_correlation_distance=0.00625,
+    )
+
+    newton_mjwarp: NewtonCfg = NewtonCfg(
+        solver_cfg=MJWarpSolverCfg(
+            njmax=100,
+            nconmax=100,
+            cone="elliptic",
+            integrator="implicitfast",
+            impratio=10,
+        ),
+        num_substeps=2,
+        debug_mode=False,
+    )
+
+    default = physx
+
 
 ##
 # Scene definition
@@ -160,6 +189,12 @@ class RewardsCfg:
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
 
+    object_dropping = RewTerm(
+        func=mdp.is_terminated_term,
+        weight=preset(default=0.0, newton_mjwarp=-200.0),
+        params={"term_keys": "object_dropping"},
+    )
+
 
 @configclass
 class TerminationsCfg:
@@ -215,9 +250,4 @@ class LiftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation
 
-        self.sim.physics = PhysxCfg(
-            bounce_threshold_velocity=0.01,
-            gpu_found_lost_aggregate_pairs_capacity=1024 * 1024 * 4,
-            gpu_total_aggregate_pairs_capacity=16 * 1024,
-            friction_correlation_distance=0.00625,
-        )
+        self.sim.physics = LiftPhysicsCfg()

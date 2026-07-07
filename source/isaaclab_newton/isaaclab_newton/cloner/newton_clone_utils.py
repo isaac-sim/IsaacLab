@@ -65,7 +65,10 @@ def replicate_builder_mapping(
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = mapping.size(1)
-    local_site_map: dict[str, list[list[int]]] = {}
+    site_labels = set(env_root_sites)
+    for labels in source_site_indices.values():
+        site_labels.update(labels)
+    local_site_map: dict[str, list[list[int]]] = {label: [[] for _ in range(num_worlds)] for label in site_labels}
     world_xforms: list[wp.transform] = []
     source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1)
 
@@ -76,7 +79,7 @@ def replicate_builder_mapping(
 
         for label, xform in env_root_sites.items():
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
-            local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
+            local_site_map[label][col].append(site_idx)
 
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             source_builder = source_builders[sources[int(row)]]
@@ -88,7 +91,7 @@ def replicate_builder_mapping(
             )
 
             for label, source_shape_indices in source_site_indices.get(id(source_builder), {}).items():
-                local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col]
+                local_indices = local_site_map[label][col]
                 local_indices.extend(offset + shape_idx for shape_idx in source_shape_indices)
 
         for hook in per_world_builder_hooks:

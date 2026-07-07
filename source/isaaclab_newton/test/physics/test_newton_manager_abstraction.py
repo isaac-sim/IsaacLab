@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
 import pytest
 import warp as wp
@@ -424,6 +425,56 @@ def test_mpm_unsupported_cuda_graph_capture_uses_eager_execution(monkeypatch):
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is False
+
+
+def test_headless_cuda_graph_capture_uses_physics_device(monkeypatch):
+    """Headless capture must target the configured device on multi-GPU systems."""
+    from isaaclab.physics import PhysicsManager
+
+    capture_devices = []
+    graph = object()
+
+    class _Capture:
+        def __init__(self, device=None, **kwargs):
+            del kwargs
+            capture_devices.append(device)
+            self.graph = graph
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            del args
+
+    class _Timer:
+        def __init__(self, *args, **kwargs):
+            del args, kwargs
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            del args
+
+    monkeypatch.setattr(
+        PhysicsManager,
+        "_cfg",
+        NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=True),
+        raising=False,
+    )
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
+    monkeypatch.setattr(NewtonMJWarpManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(NewtonMJWarpManager, "_solver", object(), raising=False)
+    monkeypatch.setattr(NewtonMJWarpManager, "_supports_cuda_graph_capture", classmethod(lambda cls: True))
+    monkeypatch.setattr(NewtonMJWarpManager, "_is_all_graphable", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonMJWarpManager, "_simulate_physics_only", classmethod(lambda cls: None))
+    monkeypatch.setattr(newton_manager_module.wp, "ScopedCapture", _Capture)
+    monkeypatch.setattr(newton_manager_module, "Timer", _Timer)
+
+    NewtonMJWarpManager._capture_or_defer_graph()
+
+    assert capture_devices == ["cuda:1"]
+    assert NewtonManager._graph is graph
 
 
 # ---------------------------------------------------------------------------

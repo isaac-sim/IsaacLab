@@ -301,6 +301,36 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         self.assertEqual(builder.geometry_sources_for_world(0), ["/Sources/active"])
         self.assertEqual(builder.geometry_sources_for_world(1), [])
 
+    def test_site_map_storage_is_allocated_once(self):
+        sources = ("/Sources/active",)
+        source_builder = self._source_builder(sources[0])
+        source_builders = {sources[0]: source_builder}
+        builder = _FakeVisualizationModelBuilder()
+        num_worlds = 4
+        range_call_count = 0
+        builtin_range = range
+
+        def counting_range(*args):
+            nonlocal range_call_count
+            if args == (num_worlds,):
+                range_call_count += 1
+            return builtin_range(*args)
+
+        with mock.patch.object(newton_clone_utils_module, "range", counting_range, create=True):
+            site_map, _ = replicate_builder_mapping(
+                builder,
+                sources,
+                torch.ones((1, num_worlds), dtype=torch.bool),
+                torch.zeros((num_worlds, 3)),
+                torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(num_worlds, 1),
+                source_builders,
+                source_site_indices={id(source_builder): {"tracked_site": [0]}},
+            )
+
+        self.assertEqual(site_map["tracked_site"], [[world] for world in range(num_worlds)])
+        # One range for the world loop and one to allocate tracked_site's per-world rows.
+        self.assertEqual(range_call_count, 2)
+
 
 class TestVisualizationClonePlan(unittest.TestCase):
     @staticmethod
