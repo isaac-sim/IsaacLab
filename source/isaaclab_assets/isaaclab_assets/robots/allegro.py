@@ -105,7 +105,9 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.5),
+        # Offset so the palm center matches the legacy asset's spawned palm position
+        # (the Menagerie root sits at the palm; the legacy root is ~8 cm behind it).
+        pos=(0.0, -0.082, 0.512),
         # Maps the Menagerie base frame (fingers +X, spread +Y) onto the legacy asset's
         # spawned palm-up catch pose (fingers -Y, spread +X, palm facing up), derived from
         # the measured legacy fingertip layout.

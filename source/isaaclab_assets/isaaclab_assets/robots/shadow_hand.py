@@ -184,11 +184,12 @@ def _author_shadow_hand_fixed_tendons(prim: "Usd.Prim") -> None:
         axis_joint = joints[f"rh_{finger}J1"]
         root_joint.AddAppliedSchema(f"PhysxTendonAxisRootAPI:{tendon}")
         for attr, type_name, value in (
-            # limitStiffness/damping match the legacy asset's runtime values (applied there
-            # via FixedTendonPropertiesCfg); authored directly here since the spawn-time
-            # property pass runs before these tendons exist.
-            ("limitStiffness", Sdf.ValueTypeNames.Float, 30.0),
-            ("damping", Sdf.ValueTypeNames.Float, 0.1),
+            # All gains zero: parity with the legacy asset's RUNTIME values (its configured
+            # FixedTendonPropertiesCfg never lands due to the instanceable-prim issue, so the
+            # baseline trains with zero-gain tendons). A stiff coupling (limitStiffness 30)
+            # drags coupled joints to their limits against the weak position drives.
+            ("limitStiffness", Sdf.ValueTypeNames.Float, 0.0),
+            ("damping", Sdf.ValueTypeNames.Float, 0.0),
             ("stiffness", Sdf.ValueTypeNames.Float, 0.0),
             ("restLength", Sdf.ValueTypeNames.Float, 0.0),
             ("lowerLimit", Sdf.ValueTypeNames.Float, -0.001),
@@ -257,7 +258,10 @@ SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
-        rot=(0.0, 0.0, 0.0, 1.0),
+        # Maps the Menagerie native frame onto the legacy asset's spawned pose under the
+        # task's PhysX preset (fingers -Y beneath the falling cube), derived from the
+        # measured legacy fingertip layout.
+        rot=(-0.0061, -0.0054, -0.6743, 0.7384),
         joint_pos={".*": 0.0},
     ),
     actuators={

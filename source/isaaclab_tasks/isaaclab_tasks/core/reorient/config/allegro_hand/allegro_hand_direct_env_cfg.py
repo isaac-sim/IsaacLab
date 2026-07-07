@@ -156,11 +156,13 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
         "thj2",
         "thj3",
     ]
+    # The *_tip bodies carry the fingertip collision geometry (the *_distal bodies are
+    # collider-less in the Menagerie conversion), so contact wrenches resolve on them.
     fingertip_body_names = [
-        "ff_distal",
-        "mf_distal",
-        "rf_distal",
-        "th_distal",
+        "ff_tip",
+        "mf_tip",
+        "rf_tip",
+        "th_tip",
     ]
 
     # in-hand object
