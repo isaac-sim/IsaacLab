@@ -773,11 +773,36 @@ def test_non_recapturable_manager_starts_eagerly_for_newton_visualizer(monkeypat
     assert NewtonManager._graph_capture_pending is False
 
 
+def test_newton_actuator_path_disables_cuda_graph_recapture(monkeypatch):
+    """Interactive forces must not trigger a second capture of the combined actuator graph."""
+    monkeypatch.setattr(NewtonManager, "_use_newton_actuators_active", True)
+
+    assert NewtonManager._supports_cuda_graph_recapture() is False
+
+
+def test_mpm_manager_disables_cuda_graph_recapture():
+    """Fixed-grid MPM supports one graph capture, but Newton cannot safely replace that graph."""
+    assert NewtonMPMManager._supports_cuda_graph_recapture() is False
+
+
 def test_disabled_picking_does_not_request_state_force_callbacks(monkeypatch):
     """A Newton visualizer with picking disabled does not alter graph execution."""
     sim = SimpleNamespace(
         cfg=SimpleNamespace(visualizer_cfgs=[SimpleNamespace(visualizer_type="newton", enable_picking=False)]),
-        get_setting=lambda _name: "",
+        get_setting=lambda _name: "newton",
+        resolve_visualizer_types=lambda: ["newton"],
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+
+    assert NewtonManager._state_force_visualizer_requested() is False
+
+
+def test_unselected_newton_visualizer_does_not_request_state_force_callbacks(monkeypatch):
+    """A configured Newton visualizer does not affect graphs when the CLI selects another visualizer."""
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(visualizer_cfgs=[SimpleNamespace(visualizer_type="newton", enable_picking=True)]),
+        get_setting=lambda _name: "rerun",
+        resolve_visualizer_types=lambda: ["rerun"],
     )
     monkeypatch.setattr(PhysicsManager, "_sim", sim)
 

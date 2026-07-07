@@ -120,6 +120,11 @@ class NewtonMPMManager(NewtonManager):
         return cls._solver.grid_type == "fixed"
 
     @classmethod
+    def _supports_cuda_graph_recapture(cls) -> bool:
+        """Return ``False`` because an implicit-MPM CUDA graph cannot be safely replaced."""
+        return False
+
+    @classmethod
     def _step_solver(
         cls, state_0: State, state_1: State, control: Control, contacts: Contacts | None, substep_dt: float
     ) -> None:

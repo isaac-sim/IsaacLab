@@ -102,6 +102,13 @@ bodies are not moved. Set
 visualizer is displaying a PhysX simulation because its Newton state is only a
 visualization copy.
 
+Picking callbacks participate in Newton's physics step and are captured in the
+CUDA graph when the active solver supports graph re-capture. VBD, fixed-grid
+MPM, and the Newton-native actuator path cannot safely replace an existing
+graph, so they use eager execution while picking is enabled. Set
+``enable_picking=False`` when interaction is unnecessary to retain their usual
+CUDA-graph behavior.
+
 
 .. _visualization-configuration:
 

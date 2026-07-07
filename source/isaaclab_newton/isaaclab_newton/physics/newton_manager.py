@@ -1578,8 +1578,14 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def _supports_cuda_graph_recapture(cls) -> bool:
-        """Return whether an existing CUDA graph can be safely replaced during a simulation lifecycle."""
-        return True
+        """Return whether an existing CUDA graph can be safely replaced during a simulation lifecycle.
+
+        The Newton-native actuator path deliberately permits only one graph
+        capture after decimation is finalized. Re-capturing that combined
+        contact, actuator, and solver graph can invalidate Newton-owned CUDA
+        buffers, so interactive force callbacks use eager execution instead.
+        """
+        return not cls._use_newton_actuators_active
 
     @classmethod
     def _state_force_visualizer_requested(cls) -> bool:
@@ -1589,15 +1595,26 @@ class NewtonManager(PhysicsManager):
             return False
 
         visualizer_cfgs = getattr(sim.cfg, "visualizer_cfgs", None) or []
-        if any(
-            getattr(cfg, "visualizer_type", None) == "newton" and getattr(cfg, "enable_picking", True)
-            for cfg in visualizer_cfgs
-        ):
-            return True
+        if not isinstance(visualizer_cfgs, list):
+            visualizer_cfgs = [visualizer_cfgs]
 
-        requested = sim.get_setting("/isaaclab/visualizer/types") or ""
-        requested_types = str(requested).replace(",", " ").split()
-        return "newton" in requested_types
+        resolve_types = getattr(sim, "resolve_visualizer_types", None)
+        if callable(resolve_types):
+            requested_types = resolve_types()
+        else:
+            requested = sim.get_setting("/isaaclab/visualizer/types") or ""
+            requested_types = str(requested).replace(",", " ").split()
+            if not requested_types:
+                requested_types = [
+                    getattr(cfg, "visualizer_type", None)
+                    for cfg in visualizer_cfgs
+                    if getattr(cfg, "visualizer_type", None)
+                ]
+        if "newton" not in requested_types:
+            return False
+
+        newton_cfgs = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) == "newton"]
+        return not newton_cfgs or any(getattr(cfg, "enable_picking", True) for cfg in newton_cfgs)
 
     @classmethod
     def _capture_relaxed_graph(cls, device: str):
