@@ -11,13 +11,13 @@ simulation_app = AppLauncher(headless=True).app
 
 from types import SimpleNamespace
 
-import pytest
 import torch
 import warp as wp
-from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab_physx.sensors.frame_transformer import frame_transformer as frame_transformer_module
 from isaaclab_physx.sensors.frame_transformer.frame_transformer import FrameTransformer
 from isaaclab_physx.sensors.frame_transformer.frame_transformer_data import FrameTransformerData
+
+from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 
 
 class _FakeTransformView:
