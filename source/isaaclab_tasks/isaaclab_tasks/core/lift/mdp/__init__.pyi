@@ -18,6 +18,7 @@ __all__ = [
     "object_goal_distance",
     "object_goal_orientation_distance",
     "object_goal_pose_accuracy",
+    "object_angular_velocity_l2",
     "object_is_lifted",
     "object_lift_progress",
     "deformable_lifted",
@@ -79,6 +80,7 @@ from .rewards import (
     object_goal_distance,
     object_goal_orientation_distance,
     object_goal_pose_accuracy,
+    object_angular_velocity_l2,
     object_is_lifted,
     object_lift_progress,
 )

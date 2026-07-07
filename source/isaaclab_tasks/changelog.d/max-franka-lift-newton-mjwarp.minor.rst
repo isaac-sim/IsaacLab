@@ -9,3 +9,4 @@ Changed
 ^^^^^^^
 
 * Changed Newton Franka lift success to require sustained position and orientation accuracy.
+* Improved Newton lift orientation learning with broad-angle shaping and lifted-object angular stabilization.

@@ -92,11 +92,13 @@ def test_newton_curriculum_task_is_newton_only_and_uses_final_task_curriculum() 
     assert cfg.rewards.action_rate.weight == -1e-3
     assert cfg.rewards.joint_vel.weight == -1e-4
     assert cfg.rewards.object_goal_tracking.params["std"] == 0.12
-    assert cfg.rewards.object_goal_orientation.weight == 3.0
+    assert cfg.rewards.object_goal_orientation.params["std"] == 1.0
+    assert cfg.rewards.object_goal_orientation.weight == 4.0
     assert cfg.rewards.object_goal_fine_tracking.params["std"] == 0.025
     assert cfg.rewards.object_goal_fine_orientation.params["std"] == 0.10
     assert cfg.rewards.object_goal_pose_accuracy.weight == 10.0
     assert cfg.rewards.action_magnitude.weight == -0.05
+    assert cfg.rewards.object_angular_velocity.weight == -0.02
     assert cfg.rewards.object_dropping.weight == -50.0
     assert cfg.rewards.success_bonus.weight == 5000.0
     assert cfg.terminations.success.params["position_threshold"] == 0.02

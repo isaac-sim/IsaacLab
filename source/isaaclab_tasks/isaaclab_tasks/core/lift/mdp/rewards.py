@@ -168,6 +168,18 @@ def object_goal_pose_accuracy(
     return ((position_error <= position_threshold) & (orientation_error <= orientation_threshold)).float()
 
 
+def object_angular_velocity_l2(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Penalize object rotation while lifted so precise orientation can settle."""
+    obj: RigidObject = env.scene[object_cfg.name]
+    is_lifted = obj.data.root_pos_w.torch[:, 2] > minimal_height
+    angular_speed_squared = torch.sum(torch.square(obj.data.root_ang_vel_w.torch), dim=1)
+    return is_lifted.float() * angular_speed_squared
+
+
 def deformable_lifted(
     env: ManagerBasedRLEnv,
     minimal_height: float,

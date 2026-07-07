@@ -79,8 +79,8 @@ class NewtonCurriculumRewardsCfg:
     )
     object_goal_orientation = RewTerm(
         func=mdp.object_goal_orientation_distance,
-        params={"std": 0.25, "minimal_height": 0.10, "command_name": "object_pose"},
-        weight=3.0,
+        params={"std": 1.0, "minimal_height": 0.10, "command_name": "object_pose"},
+        weight=4.0,
     )
     object_goal_fine_tracking = RewTerm(
         func=mdp.object_goal_distance,
@@ -114,6 +114,11 @@ class NewtonCurriculumRewardsCfg:
     )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-3)
     action_magnitude = RewTerm(func=mdp.action_l2, weight=-0.05)
+    object_angular_velocity = RewTerm(
+        func=mdp.object_angular_velocity_l2,
+        params={"minimal_height": 0.10},
+        weight=-0.02,
+    )
     joint_vel = RewTerm(
         func=mdp.joint_vel_l2,
         weight=-1e-4,

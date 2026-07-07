@@ -15,6 +15,7 @@ from isaaclab_tasks.core.lift.mdp import (
     LiftDifficultyScheduler,
     ObjectPoseHeld,
     curriculum_object_below_reset_height,
+    object_angular_velocity_l2,
     object_goal_pose_accuracy,
 )
 
@@ -179,3 +180,16 @@ def test_curriculum_drop_height_rejects_failed_pregrasp_without_changing_final_f
         height_margin=0.10,
         minimum_height=-0.05,
     ).tolist() == [True, True]
+
+
+def test_object_angular_velocity_penalty_only_applies_while_lifted() -> None:
+    """Table-level objects should not receive the lifted stabilization penalty."""
+    object = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.3], [0.0, 0.0, 0.05]])),
+            root_ang_vel_w=SimpleNamespace(torch=torch.tensor([[1.0, 2.0, 2.0], [1.0, 2.0, 2.0]])),
+        )
+    )
+    env = SimpleNamespace(scene={"object": object})
+
+    assert object_angular_velocity_l2(env, minimal_height=0.10).tolist() == [9.0, 0.0]
