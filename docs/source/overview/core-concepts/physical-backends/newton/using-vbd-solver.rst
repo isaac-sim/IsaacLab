@@ -22,6 +22,26 @@ rigid-body scenes usually use
 :class:`~isaaclab_contrib.deformable.CoupledFeatherstoneVBDSolverCfg` so one
 solver advances rigid bodies and VBD advances deformable particles.
 
+Run the Rigid-Only Conveyor Example
+-----------------------------------
+
+The standalone conveyor example exercises VBD's rigid-body solver without any
+deformable particles. Run the default XPBD version with:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p scripts/demos/basic_conveyor.py --visualizer newton
+
+Select VBD with:
+
+.. code-block:: bash
+
+    ./isaaclab.sh -p scripts/demos/basic_conveyor.py --visualizer newton --solver vbd
+
+The VBD configuration uses
+:attr:`~isaaclab_contrib.deformable.VBDSolverCfg.rigid_body_contact_buffer_size`
+to reserve enough contacts for the conveyor's rigid bodies.
+
 Start from a Supported Deformable Task
 --------------------------------------
 

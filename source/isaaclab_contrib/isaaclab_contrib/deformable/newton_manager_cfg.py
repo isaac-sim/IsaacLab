@@ -86,6 +86,9 @@ class VBDSolverCfg(NewtonSolverCfg):
     Used by the AVBD rigid contact solver. Increase to make rigid contacts stiffer.
     """
 
+    rigid_body_contact_buffer_size: int = 64
+    """Maximum body-body contacts stored per rigid body."""
+
 
 @configclass
 class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):

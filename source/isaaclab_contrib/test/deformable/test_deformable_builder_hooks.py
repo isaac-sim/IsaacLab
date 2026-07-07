@@ -23,6 +23,7 @@ from isaaclab_contrib.deformable.deformable_object import (
     add_deformable_entry_to_builder,
     setup_registered_deformable_fabric_sync,
 )
+from isaaclab_contrib.deformable.vbd_manager import NewtonVBDManager
 
 
 class _FakeBuilder:
@@ -33,6 +34,22 @@ class _FakeBuilder:
     def add_cloth_mesh(self, **kwargs) -> None:
         self.cloth_meshes.append(kwargs)
         self.particle_count += len(kwargs["vertices"])
+
+
+class _FakeColorBuilder:
+    def __init__(self):
+        self.color_call_count = 0
+
+    def color(self) -> None:
+        self.color_call_count += 1
+
+
+class _FakeVBDSolver:
+    def __init__(self):
+        self.rebuild_call_count = 0
+
+    def rebuild_bvh(self, state) -> None:
+        self.rebuild_call_count += 1
 
 
 class _FakePath:
@@ -94,6 +111,29 @@ def test_newton_material_defaults_match_registry_defaults():
 
     assert material_cfg.density == DeformableRegistryEntry.density
     assert material_cfg.particle_radius == DeformableRegistryEntry.particle_radius
+
+
+def test_vbd_manager_colors_rigid_only_builder_before_finalize():
+    """Test that VBD prepares coloring even when no deformable is registered."""
+    builder = _FakeColorBuilder()
+
+    NewtonVBDManager._prepare_builder_for_finalize(builder)
+
+    assert builder.color_call_count == 1
+
+
+@pytest.mark.parametrize(("particle_count", "expected_rebuilds"), [(0, 0), (1, 1)])
+def test_vbd_manager_rebuilds_bvh_only_for_particle_models(monkeypatch, particle_count: int, expected_rebuilds: int):
+    """Test that rigid-only VBD stepping does not enter particle BVH code."""
+    solver = _FakeVBDSolver()
+    monkeypatch.setattr(NewtonManager, "_model", SimpleNamespace(particle_count=particle_count))
+    monkeypatch.setattr(NewtonManager, "_solver", solver)
+    monkeypatch.setattr(NewtonManager, "_state_0", object())
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
+
+    NewtonVBDManager._simulate_physics_only()
+
+    assert solver.rebuild_call_count == expected_rebuilds
 
 
 def test_builder_hook_applies_env_quaternion_to_deformable_entry():

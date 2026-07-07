@@ -84,6 +84,11 @@ class NewtonVBDManager(NewtonManager):
         return paths
 
     @classmethod
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Build the particle and rigid-body color groups required by VBD."""
+        builder.color()
+
+    @classmethod
     def start_simulation(cls) -> None:
         """Start simulation by finalizing model and initializing state.
 
@@ -231,10 +236,6 @@ class NewtonVBDManager(NewtonManager):
             }
             NewtonManager._num_envs = len(env_paths)
 
-        # Call builder.color() if any deformable entries were added (required by VBD solver)
-        if cls._deformable_registry:
-            builder.color()
-
         cls.set_builder(builder)
 
     @classmethod
@@ -253,6 +254,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         # Rebuild BVH once per step for solvers that require it (e.g. VBD cloth).
-        if hasattr(cls._solver, "rebuild_bvh"):
+        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
             cls._solver.rebuild_bvh(cls._state_0)
         super()._simulate_physics_only()
