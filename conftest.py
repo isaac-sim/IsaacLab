@@ -10,10 +10,11 @@ into the session so that code executed in child Python processes is attributed t
 active test. The hooks are no-ops unless pytest-testmon is collecting coverage.
 """
 
+from __future__ import annotations
+
 import contextlib
 import sys
 from collections.abc import Generator
-from __future__ import annotations
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ Level markers (``unit`` / ``integration`` / ``benchmark``) are applied per file 
 and registered in the repo-root ``pyproject.toml``. Select them with the standard ``-m`` syntax,
 e.g. ``pytest -m unit source/isaaclab/test`` or ``pytest -m "not unit" source/isaaclab/test``.
 """
+
 
 def pytest_collection_modifyitems(config, items):
     """Record each collected test's registered markers for the JUnit report.
@@ -45,6 +47,7 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         markers = {mark.name for mark in item.iter_markers() if mark.name in registered}
         item.user_properties.append(("markers", ",".join(sorted(markers))))
+
 
 @pytest.hookimpl(wrapper=True, tryfirst=True)
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> Generator[None, None, None]:
