@@ -111,9 +111,10 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        # Offset so the palm center matches the legacy asset's spawned palm position
-        # (the Menagerie root sits at the palm; the legacy root is ~8 cm behind it).
-        pos=(0.0, -0.082, 0.512),
+        # Offset so the cube's measured rest point coincides with the task's in-hand target
+        # (palm-to-palm alignment leaves the cube resting on the palm heel, 8.5 cm behind
+        # the fingers' grasp zone).
+        pos=(0.0, -0.167, 0.461),
         # Maps the Menagerie base frame (fingers +X, spread +Y) onto the legacy asset's
         # spawned palm-up catch pose (fingers -Y, spread +X, palm facing up), derived from
         # the measured legacy fingertip layout.
