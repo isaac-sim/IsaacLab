@@ -38,28 +38,24 @@ class _FakeArticulationView:
         return self.wrenches
 
 
-def _make_joint_wrench_sensor(use_recorded_launch: bool = True):
-    """Create a one-environment JointWrench sensor without a USD scene."""
+def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 1):
+    """Create a JointWrench sensor without a USD scene."""
     device = "cuda:0"
-    wrenches_torch = torch.tensor(
-        [[[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]],
-        dtype=torch.float32,
-        device=device,
-    )
+    wrenches_torch = torch.arange(1, num_envs * 6 + 1, dtype=torch.float32, device=device).reshape(num_envs, 1, 6)
     wrenches = wp.from_torch(wrenches_torch.contiguous()).view(wp.spatial_vectorf)
     root_view = _FakeArticulationView(wrenches)
 
     sensor = JointWrenchSensor.__new__(JointWrenchSensor)
     sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
     sensor._device = device
-    sensor._num_envs = 1
+    sensor._num_envs = num_envs
     sensor._num_bodies = 1
     sensor._root_view = root_view
     sensor._joint_pos_b = wp.zeros(1, dtype=wp.vec3f, device=device)
     sensor._joint_quat_b = wp.array([wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device)
-    sensor._timestamp = wp.ones(1, dtype=wp.float32, device=device)
+    sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
     sensor._data = JointWrenchSensorData()
-    sensor._data.create_buffers(num_envs=1, num_bodies=1, device=device)
+    sensor._data.create_buffers(num_envs=num_envs, num_bodies=1, device=device)
     sensor._raw_incoming_joint_wrench = None
     sensor._update_cmd = None
     sensor._use_recorded_launch = use_recorded_launch
@@ -68,7 +64,7 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True):
     sensor._invalidate_initialize_handle = None
     sensor._prim_deletion_handle = None
 
-    env_mask = wp.ones(1, dtype=wp.bool, device=device)
+    env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
     return sensor, root_view, wrenches_torch, env_mask
 
 
@@ -85,8 +81,10 @@ def test_joint_wrench_caches_physx_wrench_view():
 
 
 def test_joint_wrench_records_and_replays_update_launch():
-    """The first recorded update should execute, and later updates should replay refreshed data."""
-    sensor, _, wrenches_torch, env_mask = _make_joint_wrench_sensor()
+    """A recorded update should replay using changes to the stable environment mask."""
+    sensor, _, wrenches_torch, env_mask = _make_joint_wrench_sensor(num_envs=2)
+    env_mask_torch = wp.to_torch(env_mask)
+    env_mask_torch[:] = torch.tensor([True, False], device=sensor.device)
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
@@ -101,15 +99,25 @@ def test_joint_wrench_records_and_replays_update_launch():
         wp.to_torch(sensor._data._torque)[0, 0],
         torch.tensor([4.0, 5.0, 6.0], device=sensor.device),
     )
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[1, 0],
+        torch.zeros(3, device=sensor.device),
+    )
 
-    wrenches_torch[0, 0, 0] = 7.0
+    wrenches_torch[0, 0, 0] = 101.0
+    wrenches_torch[1, 0, 0] = 107.0
+    env_mask_torch[:] = torch.tensor([False, True], device=sensor.device)
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
 
     assert sensor._update_cmd is update_cmd
     torch.testing.assert_close(
         wp.to_torch(sensor._data._force)[0, 0],
-        torch.tensor([7.0, 2.0, 3.0], device=sensor.device),
+        torch.tensor([1.0, 2.0, 3.0], device=sensor.device),
+    )
+    torch.testing.assert_close(
+        wp.to_torch(sensor._data._force)[1, 0],
+        torch.tensor([107.0, 8.0, 9.0], device=sensor.device),
     )
 
 
