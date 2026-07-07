@@ -322,10 +322,12 @@ class ContactSensor(BaseContactSensor):
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
-        # with a list of sensor patterns, the contact view expects one filter list per pattern
+        # with a list of sensor patterns, the contact view expects one filter list per pattern;
+        # keep the no-filter case as a flat empty list, matching the API default
+        filter_patterns = [filter_prim_paths_glob] * len(body_path_globs) if filter_prim_paths_glob else []
         self._contact_view = self._physics_sim_view.create_rigid_contact_view(
             body_path_globs,
-            filter_patterns=[filter_prim_paths_glob] * len(body_path_globs),
+            filter_patterns=filter_patterns,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
         # resolve the true count of bodies
