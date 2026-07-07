@@ -33,11 +33,11 @@ import warp as wp
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import add_launcher_args, launch_simulation, resolve_task_config
-from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.displayport_insertion_env_cfg import (
+from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg import (
     compute_plug_pose,
     compute_socket_root,
 )
-from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.config.displayport_rizon_4s.joint_pos_env_cfg import (
+from isaaclab_tasks.contrib.deploy.cable_insertion.config.displayport_rizon_4s.joint_pos_env_cfg import (
     _GEOMETRY_POS,
     _SOCKET_ROT,
 )

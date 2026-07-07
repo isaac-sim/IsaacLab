@@ -23,8 +23,8 @@ from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg
 
-import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
-from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
+import isaaclab_tasks.contrib.deploy.mdp as mdp
+from isaaclab_tasks.contrib.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))
 ASSETS_DIR = os.path.join(CONFIG_DIR, "cable_insertion_assets")

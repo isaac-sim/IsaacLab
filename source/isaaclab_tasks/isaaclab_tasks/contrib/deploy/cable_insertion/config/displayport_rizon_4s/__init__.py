@@ -9,7 +9,7 @@ from . import agents
 
 # Env class that logs task-success metrics during training (see insertion_env.py).
 _INSERTION_ENV_ENTRY = (
-    "isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.insertion_env:DisplayportInsertionEnv"
+    "isaaclab_tasks.contrib.deploy.cable_insertion.insertion_env:DisplayportInsertionEnv"
 )
 
 ##

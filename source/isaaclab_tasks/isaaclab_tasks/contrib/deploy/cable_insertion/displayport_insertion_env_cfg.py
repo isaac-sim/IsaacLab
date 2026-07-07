@@ -45,18 +45,18 @@ from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg
 
-import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
-from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.cable_insertion_env_cfg import (
+import isaaclab_tasks.contrib.deploy.mdp as mdp
+from isaaclab_tasks.contrib.deploy.cable_insertion.cable_insertion_env_cfg import (
     _quat_mul,
     _quat_rotate_vec,
 )
-from isaaclab_tasks.manager_based.manipulation.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
+from isaaclab_tasks.contrib.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 CABLE_INSERTION_DIR = os.path.dirname(os.path.abspath(__file__))
 DISPLAY_ASSETS_DIR = os.path.join(CABLE_INSERTION_DIR, "display_cable_insertion_assets")
 
 # _DP_SPAWNER = (  # old: runtime USD patching for original multi-body simready assets
-#     "isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion"
+#     "isaaclab_tasks.contrib.deploy.cable_insertion"
 #     ".config.displayport_basic.spawners:spawn_usd_with_physics"
 # )
 
