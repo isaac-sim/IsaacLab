@@ -88,10 +88,10 @@ In this tutorial, we control the articulation using joint effort commands. For t
 articulation's stiffness and damping parameters to zero. This is done a-priori inside the cart-pole's pre-defined
 configuration object.
 
-At every step, we randomly sample joint efforts and set them to the articulation by calling the
-:meth:`Articulation.set_joint_effort_target_index` method. After setting the targets, we call the
-:meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers. Finally, we step
-the simulation.
+At every step, we randomly sample joint efforts and set them on the articulation's actuator collection
+by calling the :meth:`ActuatorCollection.set_joint_effort_target_index` method. After setting the targets,
+we call the :meth:`Articulation.write_data_to_sim` method to write the data to the simulation buffers.
+Finally, we step the simulation.
 
 .. literalinclude:: ../../../../scripts/tutorials/01_assets/run_articulation.py
    :language: python
