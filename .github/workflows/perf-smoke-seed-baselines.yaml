@@ -23,6 +23,8 @@
 name: Performance Smoke - Seed Baselines
 
 on:
+  push:
+    branches: [unified-POC, 'perf-smoke/**']
   workflow_dispatch:
     inputs:
       branches:
@@ -95,7 +97,7 @@ jobs:
         echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:latest-develop" >> "$GITHUB_OUTPUT"
 
   seed:
-    name: Seed baselines (${{ inputs.commit_branch }} x${{ inputs.commit_count }})
+    name: Seed baselines (${{ inputs.commit_branch || 'develop' }} x${{ inputs.commit_count || '1' }})
     runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
     needs: [config]
     timeout-minutes: 600
@@ -113,8 +115,8 @@ jobs:
     # explicitly; the clone the orchestrator makes draws its objects from here.
     - name: Fetch seed + baseline refs
       env:
-        SEED_BRANCHES: ${{ inputs.branches }}
-        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch }}
+        SEED_BRANCHES: ${{ inputs.branches || 'develop' }}
+        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || 'develop' }}
       run: |
         set -euo pipefail
         # Collect every branch we might seed from: the multi-branch list (stripping
@@ -171,27 +173,37 @@ jobs:
         rm -rf "${DOCKER_CONFIG_DIR}"
 
     - name: Seed baselines from commit history
+      env:
+        SEED_BRANCHES: ${{ inputs.branches || 'develop' }}
+        SEED_COMMITS: ${{ inputs.commits || '' }}
+        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || 'develop' }}
+        SEED_COMMIT_COUNT: ${{ inputs.commit_count || '1' }}
+        SEED_SAMPLES_PER_COMMIT: ${{ inputs.samples_per_commit || '3' }}
+        SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_BACKENDS: ${{ inputs.backends || '' }}
+        SEED_TARGET_BRANCH: ${{ inputs.target_branch || 'develop' }}
+        SEED_DRY_RUN: ${{ inputs.dry_run || 'false' }}
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
         python3 tools/perf_smoke_test/seed_baselines.py \
-          --branches "${{ inputs.branches }}" \
-          --commits "${{ inputs.commits }}" \
-          --commit_branch "${{ inputs.commit_branch }}" \
-          --commit_count "${{ inputs.commit_count }}" \
-          --samples_per_commit "${{ inputs.samples_per_commit }}" \
-          --tasks "${{ inputs.tasks }}" \
-          --backends "${{ inputs.backends }}" \
+          --branches "${SEED_BRANCHES}" \
+          --commits "${SEED_COMMITS}" \
+          --commit_branch "${SEED_COMMIT_BRANCH}" \
+          --commit_count "${SEED_COMMIT_COUNT}" \
+          --samples_per_commit "${SEED_SAMPLES_PER_COMMIT}" \
+          --tasks "${SEED_TASKS}" \
+          --backends "${SEED_BACKENDS}" \
           --image "${{ env.CI_IMAGE_TAG }}" \
           --gpu_model "${GPU_MODEL}" \
-          --target_branch "${{ inputs.target_branch }}" \
+          --target_branch "${SEED_TARGET_BRANCH}" \
           --baseline_branch perf-baselines \
           --baseline_remote origin \
           --baseline_push_retries 3 \
           --workdir "${{ github.workspace }}" \
           --artifacts_root seed-artifacts \
           --source_mount true \
-          --dry_run "${{ inputs.dry_run }}"
+          --dry_run "${SEED_DRY_RUN}"
 
     - name: Upload seed artifacts
       if: always()

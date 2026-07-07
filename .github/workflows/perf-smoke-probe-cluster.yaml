@@ -20,6 +20,8 @@
 name: Performance Smoke - Cluster Hardware Probe
 
 on:
+  push:
+    branches: [unified-POC, 'perf-smoke/**']
   workflow_dispatch:
     inputs:
       fanout:
