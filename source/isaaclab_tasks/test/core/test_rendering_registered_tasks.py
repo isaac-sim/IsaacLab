@@ -18,11 +18,13 @@ import gymnasium as gym  # noqa: E402
 import pytest  # noqa: E402
 import torch  # noqa: E402
 from rendering_test_utils import (  # noqa: E402
+    GOLDEN_STAGE_REGISTERED_TASK,
     MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
     maybe_save_stage,
+    should_compare_golden_stage_registered_task,
     validate_camera_outputs,
 )
 
@@ -66,7 +68,7 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 # The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
 # ``None`` uses the default.
 _RENDER_CORRECTNESS_TASK_IDS = [
-    ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
+    GOLDEN_STAGE_REGISTERED_TASK,
     ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "depth", "cartpole"),
     ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
@@ -105,7 +107,13 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
         if sim is not None:
             sim._app_control_on_stop_handle = None
 
-        maybe_save_stage(f"registered_tasks_{task_id}", "default_physics", "default_renderer", "stage")
+        maybe_save_stage(
+            f"registered_tasks_{task_id}",
+            "default_physics",
+            "default_renderer",
+            "stage",
+            compare_golden=should_compare_golden_stage_registered_task(task_id, presets, env_name),
+        )
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)
         num_camera_outputs = len(camera_outputs_nested_dict)

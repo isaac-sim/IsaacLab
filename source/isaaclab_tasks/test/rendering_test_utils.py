@@ -6,6 +6,9 @@
 """Shared helpers for rendering correctness tests."""
 
 import os
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -16,8 +19,13 @@ from PIL import Image, ImageChops
 
 from isaaclab.utils.warp import ProxyArray
 
+logger = logging.getLogger(__name__)
+
 # Directory containing golden images.
 _GOLDEN_IMAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_images")
+
+# Directory containing golden USD stage files.
+_GOLDEN_STAGES_DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "golden_stages")
 
 # Pixel L2 norm difference threshold. L2 norm difference is the Euclidean distance between two pixels:
 #
@@ -130,6 +138,76 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
+# Registered-task rendering case that also compares the exported USD stage.
+GOLDEN_STAGE_REGISTERED_TASK = ("Isaac-Cartpole-Camera-Direct", None, "cartpole")
+
+_RENDERING_TEST_CORE_DIR = "source/isaaclab_tasks/test/core"
+
+
+@dataclass(frozen=True)
+class GoldenStageRenderingTest:
+    """Pytest target and parametrized cases that export golden USD stages."""
+
+    test_module: str
+    test_function: str
+    combinations: tuple[Any, ...]
+    should_compare: Callable[..., bool]
+    test_root: str = _RENDERING_TEST_CORE_DIR
+
+    def pytest_node_ids(self) -> tuple[str, ...]:
+        """Build pytest node IDs for parametrized cases selected by ``should_compare``."""
+        node_ids: list[str] = []
+        for entry in self.combinations:
+            entry_id = getattr(entry, "id", None)
+            if entry_id is not None:
+                values = entry.values
+            elif isinstance(entry, tuple):
+                values = entry
+                entry_id = "-".join("None" if value is None else str(value) for value in values)
+            else:
+                continue
+
+            if not self.should_compare(*values):
+                continue
+
+            node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{entry_id}]")
+
+        return tuple(node_ids)
+
+
+def should_compare_golden_stage_cartpole(physics_backend: str, renderer: str, data_type: str) -> bool:
+    """Return whether the cartpole rendering case exports a golden USD stage."""
+    return physics_backend == "physx" and renderer == "isaacsim_rtx_renderer" and data_type == "rgb"
+
+
+def should_compare_golden_stage_registered_task(task_id: str, presets: str | None, env_name: str) -> bool:
+    """Return whether the registered-task rendering case exports a golden USD stage."""
+    del env_name
+    golden_task_id, golden_presets, _ = GOLDEN_STAGE_REGISTERED_TASK
+    return task_id == golden_task_id and presets == golden_presets
+
+
+GOLDEN_STAGE_RENDERING_TESTS = (
+    GoldenStageRenderingTest(
+        test_module="test_rendering_cartpole.py",
+        test_function="test_rendering_cartpole",
+        combinations=PHYSICS_RENDERER_AOV_COMBINATIONS,
+        should_compare=should_compare_golden_stage_cartpole,
+    ),
+    GoldenStageRenderingTest(
+        test_module="test_rendering_registered_tasks.py",
+        test_function="test_rendering_registered_tasks",
+        combinations=(GOLDEN_STAGE_REGISTERED_TASK,),
+        should_compare=should_compare_golden_stage_registered_task,
+    ),
+)
+
+
+def golden_stage_pytest_node_ids() -> tuple[str, ...]:
+    """Return pytest node IDs for rendering tests that compare golden USD stages."""
+    return tuple(node_id for rendering_test in GOLDEN_STAGE_RENDERING_TESTS for node_id in rendering_test.pytest_node_ids())
+
+
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("ovphysx", "ovrtx"),
     *_make_sensor_data_type_params("newton", "ovrtx"),
@@ -174,19 +252,89 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 
-def maybe_save_stage(test_name: str, physics_backend: str, renderer: str, data_type: str) -> None:
-    """If ``ISAAC_LAB_SAVE_STAGES`` is set, dump the current USD stage to that directory."""
+def maybe_save_stage(
+    test_name: str,
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    *,
+    compare_golden: bool = False,
+) -> None:
+    """Dump the current USD stage and optionally compare it against a golden USDA file.
+
+    When ``ISAAC_LAB_SAVE_STAGES`` is set, the stage is written to that directory. When
+    ``compare_golden`` is True, the exported stage is also validated against
+    ``golden_stages/<test_name>/<physics_backend>-<renderer>-<data_type>.usda``.
+    """
     out_dir = os.environ.get("ISAAC_LAB_SAVE_STAGES")
-    if not out_dir:
+    if not out_dir and not compare_golden:
         return
+
+    import tempfile
 
     import isaaclab.sim as sim_utils
 
-    os.makedirs(out_dir, exist_ok=True)
     safe_test_name = test_name.replace("/", "_")
-    stage_path = os.path.join(out_dir, f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}.usda")
-    sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
-    print(f"[ISAAC_LAB_SAVE_STAGES] wrote {stage_path}")
+    stage_basename = f"{safe_test_name}-{physics_backend}-{renderer}-{data_type}.usda"
+
+    with tempfile.NamedTemporaryFile(suffix=".usda", delete=False) as tmp_file:
+        stage_path = tmp_file.name
+
+    try:
+        sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
+        with open(stage_path, encoding="utf-8") as file:
+            stage_text = file.read()
+
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, stage_basename)
+            with open(out_path, "w", encoding="utf-8") as file:
+                file.write(stage_text)
+            logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
+
+        if compare_golden:
+            import difflib
+            import re
+
+            def _canonicalize_stage_text(text: str) -> str:
+                text = text.replace("\r\n", "\n")
+                text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
+                text = re.sub(r"anon:0x[0-9a-fA-F]+:[^\s\"')>]+", "<ANON_LAYER>", text)
+                return "\n".join(line.rstrip() for line in text.split("\n"))
+
+            golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, test_name)
+            os.makedirs(golden_dir, exist_ok=True)
+            golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
+            result_text = _canonicalize_stage_text(stage_text)
+
+            if not os.path.exists(golden_path):
+                with open(golden_path, "w", encoding="utf-8") as file:
+                    file.write(result_text)
+                pytest.fail(f"Golden stage not found at {golden_path}. A new baseline was written.")
+
+            with open(golden_path, encoding="utf-8") as file:
+                golden_text = _canonicalize_stage_text(file.read())
+
+            if result_text != golden_text:
+                diff_lines = list(
+                    difflib.unified_diff(
+                        golden_text.splitlines(),
+                        result_text.splitlines(),
+                        fromfile="golden",
+                        tofile="result",
+                        lineterm="",
+                    )
+                )
+                diff_summary = "\n".join(diff_lines[:80])
+                if len(diff_lines) > 80:
+                    diff_summary += f"\n... ({len(diff_lines) - 80} more diff lines)"
+                pytest.fail(
+                    f"{test_name} (physics={physics_backend}, renderer={renderer}, data_type={data_type}) "
+                    f"USD stage mismatch:\n{diff_summary}"
+                )
+    finally:
+        if os.path.exists(stage_path):
+            os.unlink(stage_path)
 
 
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
@@ -745,7 +893,34 @@ def rendering_test_cartpole(
 
     try:
         env = CartpoleCameraEnv(env_cfg)
+<<<<<<< Updated upstream
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
+=======
+        # Nudge the cart with a small constant force so motion vectors also capture cart translation,
+        # not just pole dynamics already in flight from the randomized reset.
+        maybe_step_env_for_motion(env, data_type, action_value=0.5)
+        camera_outputs = env._tiled_camera.data.output
+        if renderer == "ovrtx_renderer":
+            # The first output access creates the selected OVRTX render-variable mapping. Give
+            # it a few frames to compile and populate instead of validating its zeroed buffer.
+            for _ in range(10):
+                has_valid_outputs = all(
+                    torch.count_nonzero(output if isinstance(output, torch.Tensor) else output.torch).item() > 0
+                    for output in camera_outputs.values()
+                )
+                if has_valid_outputs:
+                    break
+                env.sim.render()
+                env.scene.update(dt=env.physics_dt)
+                camera_outputs = env._tiled_camera.data.output
+        maybe_save_stage(
+            "cartpole",
+            physics_backend,
+            renderer,
+            data_type,
+            compare_golden=should_compare_golden_stage_cartpole(physics_backend, renderer, data_type),
+        )
+>>>>>>> Stashed changes
         validate_camera_outputs(
             "cartpole",
             physics_backend,
