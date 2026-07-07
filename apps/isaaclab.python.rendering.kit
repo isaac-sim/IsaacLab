@@ -79,6 +79,12 @@ rtx.raytracing.subpixel.mode = 1
 # Set the DLSS model
 rtx.post.dlss.execMode = 2 # can be 0 (Performance), 1 (Balanced), 2 (Quality), or 3 (Auto)
 
+# Avoids unnecessary GPU context initialization
+renderer.multiGpu.maxGpuCount=1
+
+# Let spectator camera see all the envs
+rtx.scenePartitioning.showPartitionsInBackground = true
+
 # Force synchronous rendering to improve training results
 omni.replicator.asyncRendering = false
 

@@ -585,7 +585,10 @@ class KitVisualizer(BaseVisualizer):
             self._controlled_camera_path,
         )
 
-        env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
+        if self._resolved_visible_env_ids is None:
+            return
+
+        env_id = self._resolved_visible_env_ids[0]
         camera_prim = usd_stage.GetPrimAtPath(self._controlled_camera_path)
         if not camera_prim.IsValid() or not camera_prim.IsA(UsdGeom.Camera):
             logger.debug(
