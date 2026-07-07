@@ -80,6 +80,18 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     assert close_args == {"exit_code": 1}
 
 
+def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.MonkeyPatch):
+    """The post-Kit device hook must synchronize both CUDA runtimes."""
+    devices = []
+    monkeypatch.setattr(app_launcher_module, "set_cuda_device", devices.append)
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._deferred_cuda_device_id = 2
+
+    launcher._set_deferred_cuda_device()
+
+    assert devices == [2]
+
+
 class _DummySettings:
     def __init__(self):
         self.values = {}

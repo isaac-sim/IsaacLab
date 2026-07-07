@@ -29,6 +29,7 @@ with contextlib.suppress(ModuleNotFoundError):
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.utils._device import set_cuda_device
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -1081,13 +1082,11 @@ class AppLauncher:
         logger.info("Using device: %s", device)
 
     def _set_deferred_cuda_device(self) -> None:
-        """Set the current torch CUDA device after Kit startup."""
+        """Set the current CUDA device after Kit startup."""
         if self._deferred_cuda_device_id is None:
             return
 
-        import torch
-
-        torch.cuda.set_device(self._deferred_cuda_device_id)
+        set_cuda_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
