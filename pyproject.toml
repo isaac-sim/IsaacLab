@@ -73,9 +73,9 @@ dependencies = [
     "rsl-rl-lib==5.4.1",  # default RL framework
     "onnxscript>=0.5",
     # ----- newton (default physics engine) -----
-    # Exact git commit so the wheel and ``-i`` match the uv workspace; the override
-    # below mirrors it and also neutralizes isaacsim's transitive newton pin.
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee",
+    # Loose bound so the wheel co-resolves with isaacsim's newton[sim]==1.2.0 pin; the
+    # exact git commit is forced via [tool.uv].override-dependencies (uv sync only).
+    "newton[sim]>=1.2.0",
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",

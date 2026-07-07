@@ -367,6 +367,39 @@ def _ensure_cuda_torch() -> None:
     run_command(pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"])
 
 
+def _ensure_newton() -> None:
+    """Install the pinned Newton git build, replacing any index version.
+
+    Isaac Sim bundles ``newton[sim]==1.2.0``, which satisfies the loose core bound in
+    the root pyproject, so the centralized install would otherwise keep the older
+    Newton. Isaac Lab owns the exact commit via ``[tool.uv].override-dependencies``
+    (``uv sync`` honors it, ``pip``/``uv pip`` installs do not), so force it in here
+    from that single source.
+    """
+    overrides = _load_root_pyproject().get("tool", {}).get("uv", {}).get("override-dependencies", [])
+    requirement = next((r for r in overrides if _requirement_name(r) == "newton"), None)
+    if not requirement:
+        raise KeyError("Newton git pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
+    commit = _pinned_version("newton")
+
+    python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
+    using_uv = pip_cmd[0] == "uv"
+
+    # git installs record the commit in freeze output; skip if it is already present.
+    frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
+    if frozen.returncode == 0 and any(
+        _requirement_name(line) == "newton" and commit in line for line in frozen.stdout.splitlines()
+    ):
+        print_info(f"Newton git build ({commit[:10]}) already installed.")
+        return
+
+    print_info(f"Installing pinned Newton git build ({commit[:10]})...")
+    uninstall_flags = ["-y"] if not using_uv else []
+    run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
+    run_command(pip_cmd + ["install", requirement])
+
+
 # Isaac Sim install settings.
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
@@ -1181,6 +1214,10 @@ def command_install(install_type: str = "all") -> None:
         # centralized core requirements (and optional-submodule extras) from the
         # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
         _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
+
+        # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
+        # pinned Newton git build (the default physics engine) over it.
+        _ensure_newton()
 
         # Install requested optional submodule dependency extras.
         if optional_submodule_extra_dependencies:

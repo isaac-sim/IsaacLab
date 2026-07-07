@@ -14,6 +14,9 @@ Changed
   The Newton interactive viewer GUI is also part of the base install, so the
   ``newton`` optional extra has been removed; the ``newton`` install token /
   ``--extra newton`` is now a no-op kept for backward compatibility.
+* ``./isaaclab.sh -i`` now force-installs the pinned Newton git build (from
+  ``[tool.uv].override-dependencies``) over the older ``newton[sim]`` bundled by
+  Isaac Sim, so environments get the Newton version Isaac Lab targets.
 * Added the ``[tool.isaaclab.versions]`` table to the root ``pyproject.toml`` as
   the single source of truth for externally-pinned versions (Isaac Sim, the
   torch stack, and the OV renderer/physics wheels). The install CLI, docs, and
