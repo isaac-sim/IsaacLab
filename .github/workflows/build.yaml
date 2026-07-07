@@ -309,6 +309,11 @@ jobs:
         container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
         extra-pip-packages: "ovrtx ovphysx==0.4.13"
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which has no aarch64
+        # wheel yet; keep the newton/ovrtx rendering coverage, mirroring the public
+        # pip-index fallback of rendering-correctness-kitless. Running them anyway
+        # exhausts ovrtx SyncScopeIds (>15 renderer creations in one process).
+        test-k-expr: not ovphysx
         ci-marker: arm_ci
         volume-mount-source: ${{ github.workspace }}
 
