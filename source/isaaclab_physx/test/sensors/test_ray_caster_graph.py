@@ -227,6 +227,7 @@ def test_ray_caster_invalidation_drops_cached_graph_state(monkeypatch):
     sensor._invalidate_initialize_callback(None)
 
     assert sensor._view is None
+    assert sensor._physx_body_view is None
     assert sensor._raw_transforms is None
     assert sensor._compute_graph is None
     assert sensor._env_mask is None
