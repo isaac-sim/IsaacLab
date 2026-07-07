@@ -5,9 +5,8 @@
 
 """Joint-space DisplayPort insertion environment for Flexiv Rizon 4S + Grav gripper.
 
-Mirrors the GB300 ``config/rizon_4s/joint_pos_env_cfg.py`` but builds on the
-DisplayPort base env. Relative joint-position control of the 7-DoF arm; the
-plug is grasped at reset and the goal is the verified seated mate.
+Relative joint-position control of the 7-DoF arm; the plug is grasped at reset
+and the goal is the verified seated mate.
 """
 
 import math
@@ -40,10 +39,9 @@ from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg
 # matching the verified drop-test seated pose), and the vertical clearance the
 # plug starts above the socket.
 #
-# CALIBRATE: _GEOMETRY_POS is seeded from the GB300 Hubble cable-insertion
-# station and must be re-measured for the real DisplayPort fixture (reachable by
-# the Flexiv, socket opening facing +Z). Verify the reset poses against the live
-# sim (see scripts/dp_probe_pose_geometry.py) before training.
+# CALIBRATE: _GEOMETRY_POS must be re-measured for the real DisplayPort fixture
+# (reachable by the Flexiv, socket opening facing +Z). Verify reset poses in sim
+# before training.
 _GEOMETRY_POS = (0.475, 0.125, 0.06)
 _SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)  # opening faces +Z (top-down insertion)
 _PLUG_CLEARANCE_Z = 0.068
@@ -57,63 +55,6 @@ _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
 # used by the at-goal curriculum. ~11 mm of blade nests in the socket cavity at
 # the verified seated pose. Kept identical to the task-space env.
 _INSERTION_LENGTH = 0.011
-
-# ---------------------------------------------------------------------------
-# Sim-to-real action model toggle (ported from IsaacLab_ashwin gear-assembly
-# ``sysid_physx_env_cfg.py``)
-# ---------------------------------------------------------------------------
-# Master switch. Flip to ``True`` to enable the sim-to-real action pipeline
-# (mirrors IsaacLab_ashwin ``Rizon4sGearAssemblyROSInferenceSysIDPhysXShapedEnvCfg``):
-#   1. Sim rate       -> 200 Hz PhysX physics with decimation 4 => 50 Hz control,
-#      matching the Flexiv deployment command loop.
-#   2. Action latency -> ``ShapedDelayedRelativeJointPositionActionCfg`` delays
-#      the applied joint target by ``USE_SIM2REAL_ACTION_LATENCY_S`` seconds,
-#      approximating the real robot's command loop lag.
-#   3. Command shaping -> per-step velocity / acceleration clamping of the arm
-#      joint targets (matches the collection-time command limits).
-#   4. SysID PD gains  -> replaces the stock arm PD (1320/600/216) with the
-#      PhysX SysID-tuned per-joint stiffness/damping for the Flexiv Rizon 4S.
-#
-# Leave ``False`` to keep the current behavior exactly (plain
-# ``RelativeJointPositionActionCfg`` + stock actuator PD gains + 240 Hz / dec 8).
-# This single flag is the only thing you need to change to revert.
-USE_SIM2REAL_ACTION_MODEL = False
-
-# Sim rate for the sim-to-real deployment loop. 200 Hz PhysX physics with
-# decimation 4 gives a 50 Hz effective control rate (== ashwin gear assembly).
-# Uses PhysX implicit actuators (not Newton). At 50 Hz, a 20 ms latency maps to
-# exactly one control step.
-USE_SIM2REAL_PHYSICS_FREQ_HZ = 200.0
-USE_SIM2REAL_DECIMATION = 4
-
-# Command latency in seconds. 20 ms = one 50 Hz control sample in ashwin.
-USE_SIM2REAL_ACTION_LATENCY_S = 0.02
-# Command-target slew limits applied to the arm (rad/s and rad/s^2). Zero
-# disables the respective limit. Deployment values from ashwin gear assembly.
-USE_SIM2REAL_COMMAND_VELOCITY_LIMIT = 2.0
-USE_SIM2REAL_COMMAND_ACCELERATION_LIMIT = 3.0
-
-# PhysX SysID-tuned per-joint PD gains for the Flexiv Rizon 4S arm. Values from
-# IsaacLab_ashwin ``input/actuator_models/flexiv/manual/
-# flexiv_pd_only_gravityoff_high_cmdlimits_tuned_physx.yaml``.
-_SIM2REAL_ARM_STIFFNESS = {
-    "joint1": 6051.500977,
-    "joint2": 3004.328857,
-    "joint3": 7032.64209,
-    "joint4": 4346.786133,
-    "joint5": 6829.847656,
-    "joint6": 3769.23291,
-    "joint7": 6181.429199,
-}
-_SIM2REAL_ARM_DAMPING = {
-    "joint1": 121.620995,
-    "joint2": 220.929214,
-    "joint3": 162.582214,
-    "joint4": 186.334442,
-    "joint5": 199.962311,
-    "joint6": 118.462029,
-    "joint7": 152.861771,
-}
 
 ##
 # Pre-defined configs
@@ -345,14 +286,6 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
     def __post_init__(self):
         super().__post_init__()
 
-        if USE_SIM2REAL_ACTION_MODEL:
-            # Deployment sim rate: 200 Hz PhysX physics, decimation 4 => 50 Hz
-            # control loop (overrides the base 240 Hz / decimation 8). At 50 Hz a
-            # 20 ms latency maps to exactly one control step.
-            self.decimation = USE_SIM2REAL_DECIMATION
-            self.sim.dt = 1.0 / USE_SIM2REAL_PHYSICS_FREQ_HZ
-            self.sim.render_interval = self.decimation
-
         self.end_effector_body_name = "flange"
         self.num_arm_joints = 7
         # CALIBRATE: flange position in the DisplayPort plug's local frame.
@@ -404,24 +337,12 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
 
         self.joint_action_scale = 0.025
         _arm_joint_names = ["joint1", "joint2", "joint3", "joint4", "joint5", "joint6", "joint7"]
-        if USE_SIM2REAL_ACTION_MODEL:
-            # Delayed + velocity/acceleration-shaped relative joint action.
-            self.actions.arm_action = mdp.ShapedDelayedRelativeJointPositionActionCfg(
-                asset_name="robot",
-                joint_names=_arm_joint_names,
-                scale=self.joint_action_scale,
-                use_zero_offset=True,
-                latency_s=USE_SIM2REAL_ACTION_LATENCY_S,
-                command_velocity_limit=USE_SIM2REAL_COMMAND_VELOCITY_LIMIT,
-                command_acceleration_limit=USE_SIM2REAL_COMMAND_ACCELERATION_LIMIT,
-            )
-        else:
-            self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
-                asset_name="robot",
-                joint_names=_arm_joint_names,
-                scale=self.joint_action_scale,
-                use_zero_offset=True,
-            )
+        self.actions.arm_action = mdp.RelativeJointPositionActionCfg(
+            asset_name="robot",
+            joint_names=_arm_joint_names,
+            scale=self.joint_action_scale,
+            use_zero_offset=True,
+        )
 
         self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
             prim_path="{ENV_REGEX_NS}/Robot",
@@ -476,22 +397,6 @@ class Rizon4sGravDisplayportInsertionEnvCfg(DisplayportInsertionEnvCfg):
             stiffness=0.0,
             damping=0.0,
         )
-
-        if USE_SIM2REAL_ACTION_MODEL:
-            # Replace the stock arm PD (shoulder 1320 / elbow 600 / wrist 216)
-            # with the PhysX SysID-tuned per-joint gains. Values are keyed by
-            # joint name so each implicit actuator group picks up its own gains.
-            for _group, _joints in (
-                ("shoulder", ("joint1", "joint2")),
-                ("elbow", ("joint3", "joint4")),
-                ("wrist", ("joint5", "joint6", "joint7")),
-            ):
-                self.scene.robot.actuators[_group].stiffness = {
-                    _j: _SIM2REAL_ARM_STIFFNESS[_j] for _j in _joints
-                }
-                self.scene.robot.actuators[_group].damping = {
-                    _j: _SIM2REAL_ARM_DAMPING[_j] for _j in _joints
-                }
 
         self.scene.dp_socket.init_state = RigidObjectCfg.InitialStateCfg(
             pos=_SOCKET_ROOT,
