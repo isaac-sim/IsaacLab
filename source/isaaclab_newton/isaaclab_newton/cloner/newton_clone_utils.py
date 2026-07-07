@@ -32,6 +32,7 @@ def build_source_builders(
     for source in sources:
         builder = create_builder()
         solvers.SolverMuJoCo.register_custom_attributes(builder)
+        solvers.SolverKamino.register_custom_attributes(builder)
         builder.add_usd(
             stage,
             root_path=source,

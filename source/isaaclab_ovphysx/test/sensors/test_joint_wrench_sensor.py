@@ -12,9 +12,9 @@ Mirrors ``isaaclab_physx`` ``test_joint_wrench_sensor.py``; only the
 fixtures and raw-tensor read helper change. Physical assertions are
 kept byte-identical so the two backends report the same convention.
 
-``ovphysx<=0.3.7`` binds device mode (CPU vs GPU) at the C++ layer on the
-first ``ovphysx.PhysX(device=...)`` construction.  Full coverage therefore
-requires two pytest runs -- once with ``-k 'cpu'`` and once with
+The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
+its first ``ovphysx.PhysX`` instance. Full coverage therefore requires two
+pytest runs -- once with ``-k 'cpu'`` and once with
 ``-k 'cuda:0'``.  The ``_ovphysx_skip_other_device`` autouse fixture below
 preempts the manager's :exc:`RuntimeError` by ``pytest.skip``-ing on the
 unlocked device so single-device runs finish cleanly.

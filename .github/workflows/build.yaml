@@ -191,6 +191,7 @@ jobs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
       isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      ovphysx_wheelhouse_resource: ${{ steps.load.outputs.ovphysx_wheelhouse_resource }}
       ci_image_tag: ${{ steps.image_tag.outputs.ci_image_tag }}
     steps:
     - uses: actions/checkout@v6
@@ -205,6 +206,7 @@ jobs:
         echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
         echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
         echo "isaaclab_image_name=$(yq -r .isaaclab_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "ovphysx_wheelhouse_resource=$(yq -r .ovphysx_wheelhouse_resource "$f")" >> "$GITHUB_OUTPUT"
     - id: image_tag
       shell: bash
       env:
@@ -595,6 +597,8 @@ jobs:
     if: >-
       github.event_name != 'push' &&
       needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
@@ -606,7 +610,13 @@ jobs:
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_ov"
-        extra-pip-packages: "ovrtx ovphysx"
+        # isaaclab_ovphysx requires ovphysx >= 0.5.1, which is only available from the
+        # NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip index
+        # and keep only the ovrtx-based isaaclab_ov coverage.
+        exclude-pattern: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'isaaclab_ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         container-name: isaac-lab-ov-test
 
     # Folded from the former standalone verify-base-non-root job: reuses the
@@ -769,30 +779,26 @@ jobs:
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
     needs: [build, config]
     if: needs.build.result == 'success'
+    env:
+      USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
         lfs: true
-    # Single source of truth: read the OV runtime pins from [tool.isaaclab.versions].
-    - name: Resolve OV runtime pins from pyproject
-      id: ov_pins
-      run: |
-        PINS=$(python3 <<'PY'
-        import re
-        block = re.search(r"^\[tool\.isaaclab\.versions\]\n(.*?)(?:\n\[|\Z)", open("pyproject.toml").read(), re.S | re.M).group(1)
-        vals = dict(re.findall(r'(\w+)\s*=\s*"([^"]+)"', block))
-        print(f"ovphysx=={vals['ovphysx']} ovrtx{vals['ovrtx']}")
-        PY
-        )
-        echo "pins=$PINS" >> "$GITHUB_OUTPUT"
     - uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         filter-pattern: "isaaclab_tasks"
-        extra-pip-packages: ${{ steps.ov_pins.outputs.pins }}
+        # ovphysx-backed test params require ovphysx >= 0.5.1, which is only available
+        # from the NGC wheelhouse; untrusted runs (fork PRs) fall back to the public pip
+        # index and keep the newton/ovrtx kitless rendering coverage.
+        test-k-expr: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && '' || 'not ovphysx' }}
+        extra-pip-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovrtx' || 'ovrtx ovphysx' }}
+        wheelhouse-resource: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && needs.config.outputs.ovphysx_wheelhouse_resource || '' }}
+        wheelhouse-packages: ${{ env.USE_OVPHYSX_WHEELHOUSE == 'true' && 'ovphysx' || '' }}
         include-files: >-
           test_rendering_cartpole_kitless.py,
           test_rendering_dexsuite_kuka_homo_kitless.py,
