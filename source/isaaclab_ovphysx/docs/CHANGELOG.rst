@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+6.1.1 (2026-07-07)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the OVPhysX optional runtime dependency to install
+  ``ovphysx==0.5.2+head.f62c22207c``, matching the supported runtime wheel.
+
+
 6.1.0 (2026-07-06)
 ~~~~~~~~~~~~~~~~~~
 
