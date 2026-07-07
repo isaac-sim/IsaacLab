@@ -7,6 +7,8 @@ import pytest
 import torch
 import torch.utils.benchmark as benchmark
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.isaacsim_ci
 def test_array_slicing():

@@ -13,6 +13,8 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import numpy as np
 import scipy.interpolate as interpolate
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.isaacsim_ci
 def test_interpolation():

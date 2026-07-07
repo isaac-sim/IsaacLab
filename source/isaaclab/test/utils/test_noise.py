@@ -8,6 +8,8 @@ import torch
 
 import isaaclab.utils.noise as noise
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 @pytest.mark.parametrize("noise_device", ["cpu", "cuda:0"])

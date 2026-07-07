@@ -11,6 +11,8 @@ import warp as wp
 from isaaclab.test.mock_interfaces.assets import MockRigidObjectCollection
 from isaaclab.utils.wrench_composer import WrenchComposer
 
+pytestmark = pytest.mark.unit
+
 
 def create_mock_asset(
     num_envs: int,
