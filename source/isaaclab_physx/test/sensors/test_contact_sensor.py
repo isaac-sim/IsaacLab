@@ -383,7 +383,11 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
     sim_dt, durations, terrains, devices, settings = setup_simulation
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
-        scene_cfg = NestedChainSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        # replicate_physics is disabled since the chain is hand-authored USD, not a
+        # referenced asset that the physics replication path can clone
+        scene_cfg = NestedChainSceneCfg(
+            num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False, replicate_physics=False
+        )
         scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
         scene_cfg.robot = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=NestedChainCfg())
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -396,9 +400,10 @@ def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
         sim.reset()
 
         contact_sensor = scene["contact_sensor"]
-        # all three nested bodies must be resolved into the views (pre-fix: init raised)
+        # all three nested bodies must be resolved into the views (pre-fix: init raised);
+        # exact order guards the body-major view convention in body_names
         assert contact_sensor.num_sensors == 3
-        assert set(contact_sensor.body_names) == {"pelvis", "left_hip", "left_knee"}
+        assert contact_sensor.body_names == ["pelvis", "left_hip", "left_knee"]
 
         # let the chain settle on the ground plane
         scene.reset()

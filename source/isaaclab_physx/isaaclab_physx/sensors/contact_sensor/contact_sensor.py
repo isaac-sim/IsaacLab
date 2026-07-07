@@ -138,7 +138,9 @@ class ContactSensor(BaseContactSensor):
     @property
     def body_names(self) -> list[str]:
         """Ordered names of bodies with contact sensors attached."""
-        prim_paths = self.body_physx_view.prim_paths[: self.num_sensors]
+        # view paths are body-major (one view pattern per body), so one path per body
+        # is every num_envs-th entry
+        prim_paths = self.body_physx_view.prim_paths[:: self._num_envs]
         return [path.split("/")[-1] for path in prim_paths]
 
     @property
@@ -320,9 +322,10 @@ class ContactSensor(BaseContactSensor):
 
         # create a rigid prim view for the sensor
         self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
+        # with a list of sensor patterns, the contact view expects one filter list per pattern
         self._contact_view = self._physics_sim_view.create_rigid_contact_view(
             body_path_globs,
-            filter_patterns=filter_prim_paths_glob,
+            filter_patterns=[filter_prim_paths_glob] * len(body_path_globs),
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
         # resolve the true count of bodies
@@ -333,6 +336,8 @@ class ContactSensor(BaseContactSensor):
                 "Failed to initialize contact reporter for specified bodies."
                 f"\n\tInput prim path    : {self.cfg.prim_path}"
                 f"\n\tResolved prim paths: {body_path_globs}"
+                f"\n\tView body count    : {self.body_physx_view.count} ({self._num_envs} envs,"
+                f" {self._num_sensors} per env), expected {len(body_names)} per env"
             )
 
         # check if filter paths are valid
