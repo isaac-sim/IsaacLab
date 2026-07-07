@@ -82,8 +82,13 @@ def test_teleop_only_runs_teleop_tasks_family_and_core():
     assert _true_jobs(["source/isaaclab_teleop/foo.py"]) == {"teleop", "core"} | _TASKS_FAMILY
 
 
-def test_visualizers_only_runs_visualizers_and_core():
-    assert _true_jobs(["source/isaaclab_visualizers/foo.py"]) == {"visualizers", "core"}
+def test_visualizers_only_runs_visualizers_core_and_rendering():
+    assert _true_jobs(["source/isaaclab_visualizers/foo.py"]) == {
+        "visualizers",
+        "core",
+        "rendering",
+        "rendering_kitless",
+    }
 
 
 @pytest.mark.parametrize("pkg", ["isaaclab_ov", "isaaclab_ovphysx"])
@@ -127,6 +132,8 @@ def test_multiple_leaf_packages_union_their_jobs():
         "mimic",
         "visualizers",
         "core",
+        "rendering",
+        "rendering_kitless",
     }
 
 

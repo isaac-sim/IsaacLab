@@ -99,7 +99,7 @@ _TARGETED: dict[str, frozenset[str]] = {
     "source/isaaclab_mimic/": frozenset({"mimic"}),
     "source/isaaclab_rl/": frozenset({"rl"}) | _TASKS_FAMILY,
     "source/isaaclab_teleop/": frozenset({"teleop", "core"}) | _TASKS_FAMILY,
-    "source/isaaclab_visualizers/": frozenset({"visualizers", "core"}),
+    "source/isaaclab_visualizers/": frozenset({"visualizers", "core", "rendering", "rendering_kitless"}),
     "source/isaaclab_ov/": frozenset({"ov", "core"}) | _TASKS_FAMILY,
     "source/isaaclab_ovphysx/": frozenset({"ov", "core"}) | _TASKS_FAMILY,
     "source/isaaclab_contrib/": frozenset({"contrib", "core", "newton", "physx", "assets"}) | _TASKS_FAMILY,
