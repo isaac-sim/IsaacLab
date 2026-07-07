@@ -23,16 +23,16 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
-import isaaclab_tasks.manager_based.manipulation.deploy.mdp.terminations as cable_terminations
-from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.cable_insertion_env_cfg import (
+import isaaclab_tasks.contrib.deploy.mdp as mdp
+import isaaclab_tasks.contrib.deploy.mdp.terminations as cable_terminations
+from isaaclab_tasks.contrib.deploy.cable_insertion.cable_insertion_env_cfg import (
     PLUG_GOAL_ROT,
     PLUG_INSERTION_OFFSET,
     SOCKET_INSERTION_OFFSET,
     CableInsertionEnvCfg,
 )
 
-from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.config.rizon_4s.joint_pos_env_cfg import (
+from isaaclab_tasks.contrib.deploy.cable_insertion.config.rizon_4s.joint_pos_env_cfg import (
     _PLUG_ROOT,
     _PLUG_ROT,
     _SOCKET_ROOT,

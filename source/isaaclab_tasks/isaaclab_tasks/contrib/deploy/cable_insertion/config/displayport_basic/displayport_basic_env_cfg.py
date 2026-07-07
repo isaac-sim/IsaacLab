@@ -26,7 +26,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.simulation_cfg import SimulationCfg
 from isaaclab.utils import configclass
 
-import isaaclab_tasks.manager_based.manipulation.deploy.mdp as mdp
+import isaaclab_tasks.contrib.deploy.mdp as mdp
 
 # ---------------------------------------------------------------------------
 # Asset paths

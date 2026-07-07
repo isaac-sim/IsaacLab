@@ -15,7 +15,7 @@ import math
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.utils import configclass
 
-from isaaclab_tasks.manager_based.manipulation.deploy.cable_insertion.displayport_insertion_env_cfg import (
+from isaaclab_tasks.contrib.deploy.cable_insertion.displayport_insertion_env_cfg import (
     compute_plug_pose,
     compute_socket_root,
 )
