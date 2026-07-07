@@ -5,24 +5,9 @@
 
 """Base RL environment for inserting a DisplayPort plug into a socket.
 
-This mirrors :mod:`cable_insertion_env_cfg` (the GB300 cable-insertion base)
-but targets the right-angle DisplayPort plug/socket assets in
-``display_cable_insertion_assets``.
-
-Assets (``display_port_plug_fixed.usd``, ``display_port_socket_fixed.usd``) were
-produced from STEP source via the ``omniverse-cad-to-simready`` pipeline and
-post-processed by ``physical-ai-skill-hub-dev/scripts/finalize_dp_assets.py``.
-All issues from ``output_dir/displayport_asset_fixes_required.md`` have been
-resolved offline: geometry is in metres, single root :class:`RigidBodyAPI`,
-no embedded ``PhysicsScene``, ``convexDecomposition`` on the plug, ``triangleMesh``
-on the socket (all bodies enabled). Assets load with plain
-:class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``; no custom spawner needed.
-
-Geometry constants below were derived from the **live-sim-verified** seated pose
-of the drop-test (plug pos ``(0,0,0.2096)`` rot ``(0.70711,0.70711,0,0)``;
-socket pos ``(0,0,0.15)`` rot ``(0.5,0.5,0.5,-0.5)`` in Isaac Lab quat order),
-re-parameterized through the same quaternion helpers as the GB300 base so the
-keypoint goal exactly reproduces the verified mate.
+Targets the right-angle DisplayPort plug/socket assets in
+``display_cable_insertion_assets``. Assets load with plain
+:class:`~isaaclab.sim.UsdFileCfg` at ``scale=(1,1,1)``.
 """
 
 import os
@@ -46,19 +31,36 @@ from isaaclab.utils import configclass
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
-from isaaclab_tasks.contrib.deploy.cable_insertion.cable_insertion_env_cfg import (
-    _quat_mul,
-    _quat_rotate_vec,
-)
 from isaaclab_tasks.contrib.deploy.mdp.noise_models import ResetSampledConstantNoiseModelCfg
 
 CABLE_INSERTION_DIR = os.path.dirname(os.path.abspath(__file__))
 DISPLAY_ASSETS_DIR = os.path.join(CABLE_INSERTION_DIR, "display_cable_insertion_assets")
 
-# _DP_SPAWNER = (  # old: runtime USD patching for original multi-body simready assets
-#     "isaaclab_tasks.contrib.deploy.cable_insertion"
-#     ".config.displayport_basic.spawners:spawn_usd_with_physics"
-# )
+
+def _quat_rotate_vec(q_xyzw, v):
+    """Apply quaternion rotation to a 3D vector."""
+    qx, qy, qz, qw = q_xyzw
+    vx, vy, vz = v
+    tx = 2.0 * (qy * vz - qz * vy)
+    ty = 2.0 * (qz * vx - qx * vz)
+    tz = 2.0 * (qx * vy - qy * vx)
+    return (
+        vx + qw * tx + qy * tz - qz * ty,
+        vy + qw * ty + qz * tx - qx * tz,
+        vz + qw * tz + qx * ty - qy * tx,
+    )
+
+
+def _quat_mul(q1_xyzw, q2_xyzw):
+    """Multiply two quaternions in (x, y, z, w) format."""
+    x1, y1, z1, w1 = q1_xyzw
+    x2, y2, z2, w2 = q2_xyzw
+    return (
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    )
 
 # ---------------------------------------------------------------------------
 # USD body-frame offsets (DisplayPort asset geometry)
@@ -115,8 +117,6 @@ _PLUG_ROOT_POS, _DEFAULT_PLUG_ROT = compute_plug_pose(
     _INSERTION_POINT, _DEFAULT_SOCKET_ROT, z_clearance=0.033,
 )
 
-# _DP_SCALE = (0.0254, 0.0254, 0.0254)  # old: inch→metre workaround for original simready assets; geometry is now natively in metres
-
 ##
 # Asset Configurations
 ##
@@ -128,11 +128,7 @@ class DisplayPortPlug(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortPlug"
     spawn = sim_utils.UsdFileCfg(
-        # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
-        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_plug_latch_removed_simready.usd"),  # old: inches, multi-body, instanced
-        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_watertight.usd"),  # old: convexDecomposition, hulls too wide → blocks slot entrance
         usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_plug_fixed_sdf.usd"),
-        # scale=_DP_SCALE,  # old: inch→metre workaround; finalize_dp_assets.py baked metres into vertices
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -166,11 +162,7 @@ class DisplayPortSocket(RigidObjectCfg):
 
     prim_path = "{ENV_REGEX_NS}/DisplayPortSocket"
     spawn = sim_utils.UsdFileCfg(
-        # func=_DP_SPAWNER,  # old: runtime patcher for original multi-body simready assets
-        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "2584n111_displayport_cord_socket_screws_removed_simready.usd"),  # old: inches, multi-body
-        # usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_watertight.usd"),  # old: triangleMesh, may have entrance artifacts
         usd_path=os.path.join(DISPLAY_ASSETS_DIR, "display_port_socket_fixed_sdf_noprotrusions.usd"),
-        # scale=_DP_SCALE,  # old: inch→metre workaround
         scale=(1.0, 1.0, 1.0),
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
