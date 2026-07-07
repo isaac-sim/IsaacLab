@@ -309,18 +309,19 @@ class ContactSensor(BaseContactSensor):
                 "\nHINT: Make sure to enable 'activate_contact_sensors' in the corresponding asset spawn configuration."
             )
 
-        # construct regex expression for the body names and convert to PhysX glob form
-        _, body_path_expr = body_matches[0]
-        body_parent = body_path_expr.rsplit("/", 1)[0]
-        body_names_regex = r"(" + "|".join(body_names) + r")"
-        body_names_regex = f"{body_parent}/{body_names_regex}"
-        body_names_glob = body_names_regex.replace(".*", "*")
+        # convert each resolved body expression to PhysX glob form. A list with one pattern per
+        # body is required for nested rigid-body hierarchies (child links authored under their
+        # parent link prim), where the bodies do not share a common parent and a single
+        # parent-level name alternation cannot address them.
+        # note: with a list of patterns, the views order bodies pattern-major:
+        #   view_id = body_id * num_envs + env_id
+        body_path_globs = [expr.replace(".*", "*") for _, expr in body_matches]
         filter_prim_paths_glob = [expr.replace(".*", "*") for expr in self.cfg.filter_prim_paths_expr]
 
         # create a rigid prim view for the sensor
-        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_names_glob)
+        self._body_physx_view = self._physics_sim_view.create_rigid_body_view(body_path_globs)
         self._contact_view = self._physics_sim_view.create_rigid_contact_view(
-            body_names_glob,
+            body_path_globs,
             filter_patterns=filter_prim_paths_glob,
             max_contact_data_count=self.cfg.max_contact_data_count_per_prim * len(body_names) * self._num_envs,
         )
@@ -331,7 +332,7 @@ class ContactSensor(BaseContactSensor):
             raise RuntimeError(
                 "Failed to initialize contact reporter for specified bodies."
                 f"\n\tInput prim path    : {self.cfg.prim_path}"
-                f"\n\tResolved prim paths: {body_names_glob}"
+                f"\n\tResolved prim paths: {body_path_globs}"
             )
 
         # check if filter paths are valid
@@ -374,9 +375,9 @@ class ContactSensor(BaseContactSensor):
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
-        # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
+        # PhysX returns (B*N, 3) float32 -> (B*N,) vec3f, body-major (one view pattern per body)
         net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
-        # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
+        # PhysX returns (B*N, M, 3) float32 -> (B*N, M) vec3f
         if self.cfg.filter_prim_paths_expr:
             force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)
         else:
@@ -389,7 +390,7 @@ class ContactSensor(BaseContactSensor):
                 net_forces_flat,
                 force_matrix_flat,
                 env_mask,
-                self._num_sensors,
+                self._num_envs,
                 self._num_filter_shapes,
                 self._history_length,
                 self.cfg.force_threshold,
@@ -411,12 +412,12 @@ class ContactSensor(BaseContactSensor):
 
         # -- Pose --
         if self.cfg.track_pose:
-            # PhysX returns (N*B, 7) float32 -> (N*B,) transformf
+            # PhysX returns (B*N, 7) float32 -> (B*N,) transformf, body-major
             poses_flat = self.body_physx_view.get_transforms().view(wp.transformf)
             wp.launch(
                 split_flat_pose_to_pos_quat,
                 dim=(self._num_envs, self._num_sensors),
-                inputs=[poses_flat, env_mask, self._num_sensors],
+                inputs=[poses_flat, env_mask, self._num_envs],
                 outputs=[self._data._pos_w, self._data._quat_w],
                 device=self.device,
             )
@@ -436,7 +437,7 @@ class ContactSensor(BaseContactSensor):
                     buffer_count,
                     buffer_start_indices,
                     env_mask,
-                    self._num_sensors,
+                    self._num_envs,
                     True,
                     float("nan"),
                 ],
@@ -458,7 +459,7 @@ class ContactSensor(BaseContactSensor):
                     buffer_count,
                     buffer_start_indices,
                     env_mask,
-                    self._num_sensors,
+                    self._num_envs,
                     False,
                     0.0,
                 ],
@@ -493,9 +494,9 @@ class ContactSensor(BaseContactSensor):
         if self.cfg.track_pose:
             frame_origins = self._data.pos_w.torch  # (N, B, 3)
         else:
-            pose = self.body_physx_view.get_transforms()  # (N*B, 7) float32
+            pose = self.body_physx_view.get_transforms()  # (B*N, 7) float32, body-major
             pose_torch = wp.to_torch(pose)
-            frame_origins = pose_torch.view(-1, self._num_sensors, 7)[:, :, :3]
+            frame_origins = pose_torch.view(self._num_sensors, -1, 7).transpose(0, 1)[:, :, :3]
         # visualize
         self.contact_visualizer.visualize(frame_origins.reshape(-1, 3), marker_indices=marker_indices.reshape(-1))
 

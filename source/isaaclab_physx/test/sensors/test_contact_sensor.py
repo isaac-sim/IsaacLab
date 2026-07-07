@@ -14,6 +14,7 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+from collections.abc import Callable
 from dataclasses import MISSING
 from enum import Enum
 
@@ -22,9 +23,12 @@ import torch
 import warp as wp
 from flaky import flaky
 
+from pxr import Gf, UsdGeom, UsdPhysics
+
 import isaaclab.sim as sim_utils
+import isaaclab.sim.schemas as schemas
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
@@ -311,6 +315,103 @@ def test_cube_stack_contact_filtering(setup_simulation, device, num_envs):
         # Check values are non-zero (contacts are happening and are getting reported)
         assert contact_sensor_2.data.net_forces_w.torch.sum().item() > 0.0
         assert contact_sensor.data.net_forces_w.torch.sum().item() > 0.0
+
+
+@sim_utils.clone
+def _spawn_nested_chain(prim_path: str, cfg: sim_utils.SpawnerCfg, translation=None, orientation=None):
+    """Spawn a fixed-joint chain whose link prims are nested under each other.
+
+    Mirrors the layout produced by the URDF importer in Isaac Sim 6.0+, where each child
+    link prim is authored under its parent link prim instead of as a flat sibling.
+    """
+    stage = get_current_stage()
+    robot = UsdGeom.Xform.Define(stage, prim_path)
+    UsdPhysics.ArticulationRootAPI.Apply(robot.GetPrim())
+    # each link: an Xform with the rigid-body schema and a cube collision geometry below it
+    link_specs = [
+        ("pelvis", (0.0, 0.0, 1.25)),
+        ("pelvis/left_hip", (0.0, 0.0, -0.5)),
+        ("pelvis/left_hip/left_knee", (0.0, 0.0, -0.5)),
+    ]
+    prev_link_path = None
+    for rel_path, offset in link_specs:
+        link_path = f"{prim_path}/{rel_path}"
+        link = UsdGeom.Xform.Define(stage, link_path)
+        link.AddTranslateOp().Set(Gf.Vec3d(*offset))
+        UsdPhysics.RigidBodyAPI.Apply(link.GetPrim())
+        geom = UsdGeom.Cube.Define(stage, f"{link_path}/geom")
+        geom.GetSizeAttr().Set(0.5)
+        UsdPhysics.CollisionAPI.Apply(geom.GetPrim())
+        if prev_link_path is not None:
+            joint = UsdPhysics.FixedJoint.Define(stage, f"{link_path}/fixed_joint")
+            joint.GetBody0Rel().SetTargets([prev_link_path])
+            joint.GetBody1Rel().SetTargets([link_path])
+            joint.GetLocalPos0Attr().Set(Gf.Vec3f(*offset))
+            joint.GetLocalPos1Attr().Set(Gf.Vec3f(0.0, 0.0, 0.0))
+        prev_link_path = link_path
+    # add the contact-report schema to every nested link
+    schemas.activate_contact_sensors(prim_path)
+    return stage.GetPrimAtPath(prim_path)
+
+
+@configclass
+class NestedChainCfg(sim_utils.SpawnerCfg):
+    """Spawner configuration for the nested-link chain."""
+
+    func: Callable = _spawn_nested_chain
+
+
+@configclass
+class NestedChainSceneCfg(InteractiveSceneCfg):
+    """Scene with an articulation whose rigid bodies are nested (regression for issue #5126)."""
+
+    terrain: TerrainImporterCfg = MISSING
+    robot: AssetBaseCfg = MISSING
+    contact_sensor: ContactSensorCfg = MISSING
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("num_envs", [1, 6])
+def test_nested_rigid_body_hierarchy(setup_simulation, device, num_envs):
+    """Checks contact sensor creation and per-body reporting on nested rigid-body hierarchies.
+
+    Regression test for issue #5126: the sensor views were created from a single
+    parent-level name alternation, which cannot address bodies nested under other
+    bodies, so sensor initialization failed on URDF-importer-style assets.
+    """
+    sim_dt, durations, terrains, devices, settings = setup_simulation
+    with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = NestedChainSceneCfg(num_envs=num_envs, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.robot = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=NestedChainCfg())
+        scene_cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/.*",
+            track_pose=True,
+            debug_vis=False,
+            update_period=0.0,
+        )
+        scene = InteractiveScene(scene_cfg)
+        sim.reset()
+
+        contact_sensor = scene["contact_sensor"]
+        # all three nested bodies must be resolved into the views (pre-fix: init raised)
+        assert contact_sensor.num_sensors == 3
+        assert set(contact_sensor.body_names) == {"pelvis", "left_hip", "left_knee"}
+
+        # let the chain settle on the ground plane
+        scene.reset()
+        for _ in range(100):
+            _perform_sim_step(sim, scene, sim_dt)
+
+        # only the bottom link touches the ground: its column must carry the chain weight,
+        # which also validates the body ordering of the views against body_names
+        net_forces = contact_sensor.data.net_forces_w.torch  # (num_envs, num_bodies, 3)
+        knee_idx = contact_sensor.body_names.index("left_knee")
+        other_ids = [i for i in range(3) if i != knee_idx]
+        assert torch.all(net_forces[:, knee_idx, 2] > 100.0)
+        assert torch.all(net_forces[:, other_ids, :].abs() < 1.0)
 
 
 def test_no_contact_reporting(setup_simulation):
@@ -816,13 +917,16 @@ def _test_friction_forces(shape: RigidObject, sensor: ContactSensor, mode: Conta
         friction_forces_t = wp.to_torch(friction_forces)
         buffer_count_t = wp.to_torch(buffer_count).to(torch.int32)
         buffer_start_t = wp.to_torch(buffer_start_indices).to(torch.int32)
-        for i in range(sensor.num_instances * num_sensors):
+        # the raw view buffers are body-major (one view pattern per body):
+        # flat index = body_id * num_envs + env_id
+        num_envs = sensor.num_instances // num_sensors
+        for i in range(sensor.num_instances):
             for j in range(sensor.contact_view.filter_count):
                 start_index_ij = buffer_start_t[i, j]
                 count_ij = buffer_count_t[i, j]
                 force = torch.sum(friction_forces_t[start_index_ij : (start_index_ij + count_ij), :], dim=0)
-                env_idx = i // num_sensors
-                sensor_idx = i % num_sensors
+                env_idx = i % num_envs
+                sensor_idx = i // num_envs
                 assert torch.allclose(force, friction_torch[env_idx, sensor_idx, j, :], atol=1e-5)
 
     elif mode == ContactTestMode.NON_CONTACT:
