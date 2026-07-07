@@ -21,6 +21,7 @@ from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
 
 pytestmark = pytest.mark.integration
 
+
 @pytest.fixture
 def rigid_object_iface(request):
     backend = request.getfixturevalue("backend")
