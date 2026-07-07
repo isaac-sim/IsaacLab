@@ -80,16 +80,14 @@ def main():
     sim_cfg = sim_utils.SimulationCfg(dt=sim_dt, device=args_cli.device)
     sim = sim_utils.SimulationContext(sim_cfg)
 
-    scene_cfg = ContactSensorBenchmarkSceneCfg(
-        num_envs=args_cli.num_envs, env_spacing=2.0, lazy_sensor_update=False
-    )
+    scene_cfg = ContactSensorBenchmarkSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0, lazy_sensor_update=False)
     scene = InteractiveScene(scene_cfg)
     sim.reset()
     scene.reset()
 
     sensor = scene["contact_sensor"]
     if args_cli.disable_graph:
-        sensor._graph_capture_enabled = False
+        sensor._use_graph = False
 
     # warm-up: let the cubes settle on the ground and trigger the graph capture (if enabled)
     for _ in range(args_cli.warmup_steps):
