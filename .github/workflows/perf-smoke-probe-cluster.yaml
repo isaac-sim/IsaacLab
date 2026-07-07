@@ -1,0 +1,158 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Performance Smoke - Cluster Hardware Probe
+#
+# Answers "is the GPU/CPU pool uniform?" empirically. The perf gate keys
+# baselines by GPU model and (as of runtime contract v2) CPU model, so a
+# heterogeneous pool silently mixes hardware into one baseline. This probe
+# fans out many tiny parallel jobs onto the same runner pool the gate uses
+# (["self-hosted","gpu"] by default) and has each report its own GPU, CPU,
+# and host. A summary job then tallies the distinct hardware fingerprints:
+# a single fingerprint means a uniform cluster; more than one means the
+# baselines would pool across non-identical nodes.
+#
+# It runs no benchmarks and pulls no image — just hardware queries — so it
+# is cheap and safe to run on demand. Manual dispatch only.
+
+name: Performance Smoke - Cluster Hardware Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      fanout:
+        description: "Number of parallel probe jobs (raise well above the node count to spread across the pool)."
+        required: false
+        default: "20"
+      runs_on:
+        description: "JSON array of runner labels to probe (defaults to the gate's PERF_SMOKE_RUNS_ON or [self-hosted, gpu])."
+        required: false
+        default: ""
+
+concurrency:
+  group: perf-smoke-probe-cluster
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Plan fan-out
+    runs-on: ubuntu-latest
+    outputs:
+      indices: ${{ steps.mk.outputs.indices }}
+      runs_on: ${{ steps.mk.outputs.runs_on }}
+    steps:
+    - id: mk
+      env:
+        FANOUT: ${{ inputs.fanout }}
+        RUNS_ON_INPUT: ${{ inputs.runs_on }}
+        RUNS_ON_VAR: ${{ vars.PERF_SMOKE_RUNS_ON }}
+      run: |
+        set -euo pipefail
+        n="${FANOUT:-20}"
+        case "$n" in
+          ''|*[!0-9]*) echo "::error::fanout must be a positive integer, got '$n'"; exit 1 ;;
+        esac
+        [ "$n" -lt 1 ] && n=1
+        [ "$n" -gt 256 ] && n=256
+        indices="$(python3 -c "import json,sys; print(json.dumps(list(range(int(sys.argv[1])))))" "$n")"
+        echo "indices=${indices}" >> "$GITHUB_OUTPUT"
+        runs_on="${RUNS_ON_INPUT:-}"
+        [ -z "$runs_on" ] && runs_on="${RUNS_ON_VAR:-}"
+        [ -z "$runs_on" ] && runs_on='["self-hosted","gpu"]'
+        echo "runs_on=${runs_on}" >> "$GITHUB_OUTPUT"
+        echo "Fanning out ${n} probe job(s) onto ${runs_on}"
+
+  probe:
+    name: Probe ${{ matrix.index }}
+    needs: [plan]
+    runs-on: ${{ fromJSON(needs.plan.outputs.runs_on) }}
+    strategy:
+      fail-fast: false
+      max-parallel: 256
+      matrix:
+        index: ${{ fromJSON(needs.plan.outputs.indices) }}
+    steps:
+    - name: Query hardware
+      run: |
+        set -uo pipefail
+        host="$(hostname)"
+        gpu="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs || true)"
+        driver="$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1 | xargs || true)"
+        gpu_count="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l | xargs || echo 0)"
+        cpu="$(LC_ALL=C lscpu 2>/dev/null | sed -n 's/^Model name:[[:space:]]*//p' | head -1 | xargs || true)"
+        cores="$(nproc 2>/dev/null || echo '?')"
+        mem_gb="$(awk '/MemTotal/ {printf "%.0f", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo '?')"
+        [ -z "$gpu" ] && gpu="UNKNOWN_GPU"
+        [ -z "$cpu" ] && cpu="UNKNOWN_CPU"
+        [ -z "$driver" ] && driver="UNKNOWN_DRIVER"
+        mkdir -p probe-out
+        python3 - "$host" "$gpu" "$gpu_count" "$driver" "$cpu" "$cores" "$mem_gb" <<'PY' > "probe-out/probe-${{ matrix.index }}.json"
+        import json, sys
+        keys = ["host", "gpu", "gpu_count", "driver", "cpu", "cores", "mem_gb"]
+        print(json.dumps(dict(zip(keys, sys.argv[1:8])), sort_keys=True))
+        PY
+        echo "PROBE_RECORD $(cat "probe-out/probe-${{ matrix.index }}.json")"
+
+    - name: Upload probe record
+      uses: actions/upload-artifact@v7
+      with:
+        name: cluster-probe-${{ matrix.index }}
+        path: probe-out/probe-${{ matrix.index }}.json
+        retention-days: 3
+        if-no-files-found: error
+
+  summary:
+    name: Aggregate cluster distribution
+    needs: [probe]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all probe records
+      uses: actions/download-artifact@v6
+      with:
+        pattern: cluster-probe-*
+        path: probes
+        merge-multiple: true
+
+    - name: Tally distinct hardware
+      run: |
+        set -euo pipefail
+        python3 - <<'PY' | tee -a "$GITHUB_STEP_SUMMARY"
+        import glob, json, collections
+
+        records = []
+        for path in sorted(glob.glob("probes/**/*.json", recursive=True)):
+            with open(path) as fh:
+                records.append(json.load(fh))
+
+        n = len(records)
+        hosts = {r.get("host") for r in records}
+        # The gate keys baselines on GPU model + CPU model, so that pair is the
+        # fingerprint that actually decides whether samples pool together.
+        fp = collections.Counter((r.get("gpu"), r.get("cpu")) for r in records)
+        drivers = collections.Counter(r.get("driver") for r in records)
+
+        print(f"## Cluster hardware distribution\n")
+        print(f"- probe jobs that reported: **{n}**")
+        print(f"- distinct hosts reached: **{len(hosts)}**")
+        print(f"- distinct (GPU, CPU) fingerprints: **{len(fp)}**")
+        print(f"- distinct GPU drivers: **{len(drivers)}**\n")
+
+        verdict = "UNIFORM ✅" if len(fp) <= 1 else "HETEROGENEOUS ⚠️"
+        print(f"**Verdict: {verdict}**\n")
+
+        print("| count | GPU | CPU |")
+        print("|---|---|---|")
+        for (gpu, cpu), c in fp.most_common():
+            print(f"| {c} | {gpu} | {cpu} |")
+
+        if len(fp) > 1:
+            print("\n> More than one (GPU, CPU) fingerprint: the pool is not uniform, so "
+                  "baselines seeded here would mix hardware. Pin the perf jobs to a single "
+                  "node class via a narrower PERF_SMOKE_RUNS_ON label.")
+        PY

@@ -85,6 +85,7 @@ class TaskConfig:
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
     fps_mean_thresholds: dict[str, dict[str, list[FpsMeanThreshold]]]
+    noise_floor_pct: dict
     caches: list[str]
     tags: list[str] = field(default_factory=lambda: ["always"])
     task_type: str = "benchmark"
@@ -182,6 +183,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
             tuple(camera_raw) if camera_raw is not None else None  # type: ignore[assignment]
         )
         fps_mean_thresholds = parse_fps_mean_thresholds(merged.get("fps_mean_thresholds", {}))
+        noise_floor_pct: dict = merged.get("noise_floor_pct", {})
         backends: list[dict] = merged.get("backends", [])
 
         for backend_entry in backends:
@@ -201,6 +203,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
                     camera_resolution=camera_resolution,
                     timeout_minutes=int(merged["timeout_minutes"]),
                     fps_mean_thresholds=fps_mean_thresholds,
+                    noise_floor_pct=noise_floor_pct,
                     caches=caches_for_backend(physics),
                     tags=merged["tags"],
                     task_type=merged["type"],

@@ -1,0 +1,198 @@
+{
+  "task_id": "Isaac-Cartpole-Direct",
+  "backend": "newton",
+  "physics_backend": "newton",
+  "render_backend": null,
+  "backend_key": "newton",
+  "preset": "default",
+  "attempt": 1,
+  "was_retried": false,
+  "exit_code": 0,
+  "failure_phase": null,
+  "stdout_tail": "disable the 'enable collision' property. [python3.12]\nWarning: The rigid body at /World/envs/env_0/Robot/pole has a possibly invalid inertia tensor of {1.0, 1.0, 1.0}, small sphere approximated inertia was used. Either specify correct values in the mass properties, or add collider(s) to any shape(s) that you wish to automatically compute mass properties for. If you do not want the objects to collide, add colliders regardless then disable the 'enable collision' property. [python3.12]\n[INFO]: Time taken for scene creation Last: 14.282631 s, Mean: 14.282631 s, Std: 0.000000 s, N: 1\n[INFO]: Scene manager:  <class InteractiveScene>\n\tNumber of environments: 4096\n\tEnvironment spacing   : 4.0\n\tSource prim name      : /World/envs/env_0\n\tGlobal prim paths     : []\n\tReplicate physics     : True\n[INFO]: Starting the simulation. This may take a few seconds. Please wait...\n/workspace/isaaclab/source/isaaclab_newton/isaaclab_newton/physics/newton_manager.py:990: FutureWarning: Newton shape color replacement is enabled; this workaround will be deprecated in a future release.\n  replace_newton_shape_colors(cls._model)\nFinalize builder took: Last: 1.485656 s, Mean: 1.485656 s, Std: 0.000000 s, N: 1\nFailed to get root com velocity. If the articulation is fixed, this is expected. Setting root com velocity to zeros.\nwarning: invalid feature combination:  +avx10.1-256; will be promoted to avx10.1-512 [-Winvalid-feature-combination]\n1 warning generated.\nwarning: invalid feature combination:  +avx10.1-256; will be promoted to avx10.1-512 [-Winvalid-feature-combination]\n1 warning generated.\nInitialize solver took: Last: 29.963402 s, Mean: 29.963402 s, Std: 0.000000 s, N: 1\nCUDA graph took: Last: 25.545658 s, Mean: 25.545658 s, Std: 0.000000 s, N: 1\n[INFO]: Time taken for simulation start Last: 80.531694 s, Mean: 80.531694 s, Std: 0.000000 s, N: 1\n[INFO]: Completed setting up the environment...\nResults written to: /tmp/bench_out/benchmark_non_rl_Isaac-Cartpole-Direct_2026-06-25_19-31-58.json\n",
+  "wall_time_s": 110.0,								-> Useful run-duration context. We do not gate on this today, but it helps explain startup/runtime cost.
+  "startup_time_s": 99.646479446,
+  "perf_smoke_test_info_present": true,						-> Verdict-critical: if false, the run produced no FPS artifact, so the gate reports HARD_FAILURE (the tomllib demo case).
+  "raw_fps_mean": 913674.226890766,						-> Raw FPS summary from the benchmark artifact. Useful for debugging; the oracle recomputes the gated FPS from the kept steady-state frames.
+  "raw_fps_std": 116523.3631516716,
+  "raw_fps_min": 82478.25738423549,
+  "raw_fps_max": 1286077.520080832,
+  "raw_fps_median": 902565.9780997471,
+  "raw_fps_p5": 824664.8958108299,
+  "raw_fps_p95": 1086727.646123614,
+  "p99_over_median": 1.209,							-> Within-run stability metric: p99 frame time / median frame time after warmup filtering. Higher means more frame-time spikes.
+  "outlier_count": 0,								-> Number of kept frames with unusually high step time. Useful for explaining jitter in a single run.
+  "debug_kpis": {
+    "steady_frames": 199,
+    "p99_over_median": 1.209,
+    "outlier_count": 0
+  },
+  "benchmark_info": {							-> Human-readable benchmark metadata captured by the benchmark runner.
+    "phase": "benchmark_info",
+    "workflow_name": "benchmark_non_rl",
+    "timestamp": "2026-06-25T19:31:58.676408",
+    "task": "Isaac-Cartpole-Direct",
+    "seed": 42,
+    "num_envs": 4096,
+    "num_frames": 300,
+    "presets": "newton_mjwarp",
+    "physics": "default"
+  },
+  "observed_backend": {
+    "physics_backend": "newton",
+    "render_backend": null,
+    "backend_key": "newton"
+  },
+  "config_mismatch": null, 						-> Verdict-critical: confirms the observed backend matches the requested config. A mismatch is treated as HARD_FAILURE.
+  "runtime_contract": {							-> Baseline matching contract: only these binding software versions are hashed, so we avoid comparing across incompatible software eras.
+    "runtime_contract_version": 1,
+    "fields": {
+      "software.isaacsim": null,
+      "software.isaaclab": "6.6.1",
+      "software.torch": "2.10.0+cu128",
+      "software.warp": "1.13.0",
+      "software.isaaclab_newton": "0.15.4",
+      "software.newton": "1.2.1"
+    }
+  },
+  "runtime_contract_hash": "78513a1e8507d6e6",
+  "runtime_info": {
+    "software": {
+      "phase": "version_info",
+      "workflow_name": "benchmark_non_rl",
+      "isaaclab": "6.6.1",
+      "warp": "1.13.0",
+      "torch": "2.10.0+cu128",
+      "numpy": "2.5.0",
+      "isaaclab_newton": "0.15.4",
+      "isaaclab_physx": "1.1.5",
+      "isaaclab_ov": "0.4.4",
+      "isaaclab_tasks": "5.0.0",
+      "isaaclab_rl": "0.6.1",
+      "newton": "1.2.1",
+      "mujoco": "3.8.1",
+      "mujoco_warp": "3.8.1",
+      "rl_games": "1.6.1",
+      "rsl_rl": "5.0.1",
+      "stable_baselines3": "2.9.0",
+      "skrl": "2.1.0",
+      "gymnasium": "1.3.0",
+      "cuda_bindings": "12.9.4",
+      "usd_core": "25.11",
+      "isaaclab_release": "3.0.0"
+    },
+    "publish_only": {
+      "hardware.gpu_compute_capability": "12.0",
+      "hardware.gpu_total_memory_gb": 94.97,
+      "gpu_diag.cuda_version": "12.8",				
+      "gpu_diag.nvidia_driver_version": "595.71.05"
+    }
+  },
+  "gpu_diag": {
+    "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "gpu_total_memory_gb": 94.97,
+    "cuda_version": "12.8",
+    "nvidia_driver_version": "595.71.05",
+    "gpu_mem_used_mb": 798.72
+  },
+  "provenance": {					-> Audit context: records the machine/software we actually ran on. Useful for debugging hardware or environment differences.
+    "hardware": {
+      "cpu_name": "Intel(R) Xeon(R) 6731P",
+      "cpu_physical_cores": 16,
+      "total_ram_gb": 58.44,
+      "gpu_device_count": 1,
+      "cuda_version": "12.8",
+      "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "gpu_total_memory_gb": 94.97,
+      "gpu_compute_capability": "12.0",
+      "gpu_multi_processor_count": 188
+    },
+    "software": {
+      "phase": "version_info",
+      "workflow_name": "benchmark_non_rl",
+      "isaaclab": "6.6.1",
+      "warp": "1.13.0",
+      "torch": "2.10.0+cu128",
+      "numpy": "2.5.0",
+      "isaaclab_newton": "0.15.4",
+      "isaaclab_physx": "1.1.5",
+      "isaaclab_ov": "0.4.4",
+      "isaaclab_tasks": "5.0.0",
+      "isaaclab_rl": "0.6.1",
+      "newton": "1.2.1",
+      "mujoco": "3.8.1",
+      "mujoco_warp": "3.8.1",
+      "rl_games": "1.6.1",
+      "rsl_rl": "5.0.1",
+      "stable_baselines3": "2.9.0",
+      "skrl": "2.1.0",
+      "gymnasium": "1.3.0",
+      "cuda_bindings": "12.9.4",
+      "usd_core": "25.11",
+      "isaaclab_release": "3.0.0"
+    },
+    "git": {}
+  },
+  "launch_config": {
+    "backend_key": "newton",
+    "baseline_epoch": 1,
+    "benchmark_backend": "json",
+    "benchmark_contract_hash": "87396c49e8ea5f5c",
+    "benchmark_contract_version": 1,
+    "camera_resolution": null,
+    "excluded_frames_raw": [
+      [
+        0,
+        100
+      ]
+    ],
+    "fps_mean_floor": 0.0,							-> Absolute safety floor. Here it is disabled for newton, so the verdict comes from rolling-baseline comparison.
+    "gpu_model": "rtx_pro_6000_blackwell",
+    "gpu_model_raw": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "hydra_args": [
+      "presets=newton_mjwarp"
+    ],
+    "launch_config_hash": "4b767e9ad26d2531",
+    "num_envs": 4096,
+    "num_frames": 300,
+    "physics_backend": "newton",
+    "preset": "default",
+    "render_backend": null,
+    "schema_version": 1,
+    "seed": 42,
+    "tags": [
+      "always"
+    ],
+    "task_id": "Isaac-Cartpole-Direct",
+    "timeout_minutes": 10,
+    "backend": "newton"
+  },
+  "launch_config_hash": "4b767e9ad26d2531",
+  "benchmark_contract_hash": "87396c49e8ea5f5c",
+  "baseline_epoch": 1,
+  "task_config_snapshot": {
+    "task_id": "Isaac-Cartpole-Direct",
+    "backend": "newton",
+    "physics_backend": "newton",
+    "render_backend": null,
+    "backend_key": "newton",
+    "preset": "default",
+    "num_envs": 4096,
+    "num_frames": 300,
+    "excluded_frames_raw": [						-> Warmup frames discarded before FPS comparison. [0, 100] means keep frames 101..299 from a 300-frame run.
+      [
+        0,
+        100
+      ]
+    ],
+    "timeout_minutes": 10,
+    "tags": [
+      "always"
+    ],
+    "seed": 42,
+    "launch_config_hash": "4b767e9ad26d2531",
+    "benchmark_contract_hash": "87396c49e8ea5f5c",
+    "runtime_contract_hash": "78513a1e8507d6e6",
+    "baseline_epoch": 1
+  }
+}

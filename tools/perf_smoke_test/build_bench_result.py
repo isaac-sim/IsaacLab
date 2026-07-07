@@ -80,6 +80,35 @@ def _duration_to_seconds(value: float, unit: str | None) -> float:
     return value
 
 
+def _memory_to_mb(value: float, unit: str | None) -> float:
+    normalized = str(unit or "MB").strip().lower()
+    if normalized in {"b", "byte", "bytes"}:
+        return value / (1024.0 * 1024.0)
+    if normalized in {"kb", "kib", "kilobyte", "kilobytes"}:
+        return value / 1024.0
+    if normalized in {"gb", "gib", "gigabyte", "gigabytes"}:
+        return value * 1024.0
+    return value
+
+
+def _system_memory_measurement_mb(name: str, value: object, unit: str | None) -> float | None:
+    """Return a system-memory measurement in MB when a runtime recorder emits one."""
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    normalized = name.lower()
+    markers = (
+        "system ram used",
+        "system memory used",
+        "cpu memory used",
+        "process rss",
+        "resident set size",
+        "rss memory",
+    )
+    if any(marker in normalized for marker in markers):
+        return _memory_to_mb(float(value), unit)
+    return None
+
+
 def _gpu_driver_version() -> str | None:
     """Return the GPU driver version string from nvidia-smi, or None if unavailable"""
     try:
@@ -101,8 +130,9 @@ def _extract_info_provenance(info_path: Path) -> dict:
     """Parse ``perf_smoke_test_info.json`` and return provenance + FPS fields
 
     Extracts hardware metadata (GPU name/memory/CUDA, CPU, RAM), software versions,
-    git provenance, FPS distribution statistics, GPU memory used at runtime, and
-    startup time.  All fields are best-effort; missing data is omitted.
+    git provenance, FPS distribution statistics, GPU memory used at runtime,
+    optional system memory usage, and startup time.  All fields are best-effort;
+    missing data is omitted.
 
     Returns:
         Dict with a subset of the following keys:
@@ -111,6 +141,7 @@ def _extract_info_provenance(info_path: Path) -> dict:
         - ``startup_time_s``: float
         - ``gpu_diag``: dict with gpu_name, gpu_total_memory_gb, cuda_version,
           nvidia_driver_version, gpu_mem_used_mb
+        - ``memory_diag``: dict with optional system_ram_used_mb
         - ``provenance``: dict with ``hardware``, ``software``, ``git`` sub-dicts
     """
     try:
@@ -123,6 +154,7 @@ def _extract_info_provenance(info_path: Path) -> dict:
     git: dict = {}
     fps_stats: dict = {}
     gpu_mem_used_gb: float | None = None
+    system_ram_used_mb: float | None = None
     startup_time_s: float | None = None
 
     for phase in phases:
@@ -183,6 +215,10 @@ def _extract_info_provenance(info_path: Path) -> dict:
                 # GPU memory used (mean over run, in GB):  SingleMeasurement from GPUInfoRecorder
                 elif name.endswith("GPU Memory Used") and isinstance(value, (int, float)):
                     gpu_mem_used_gb = float(value)
+                else:
+                    measurement_mb = _system_memory_measurement_mb(name, value, m.get("unit"))
+                    if measurement_mb is not None:
+                        system_ram_used_mb = measurement_mb
 
         elif pname == "startup":
             for m in phase.get("measurements", []):
@@ -203,6 +239,13 @@ def _extract_info_provenance(info_path: Path) -> dict:
         }.items()
         if v is not None
     }
+    memory_diag: dict = {
+        k: v
+        for k, v in {
+            "system_ram_used_mb": round(system_ram_used_mb, 2) if system_ram_used_mb is not None else None,
+        }.items()
+        if v is not None
+    }
 
     result: dict = {}
     result.update(fps_stats)
@@ -210,6 +253,8 @@ def _extract_info_provenance(info_path: Path) -> dict:
         result["startup_time_s"] = startup_time_s
     if gpu_diag:
         result["gpu_diag"] = gpu_diag
+    if memory_diag:
+        result["memory_diag"] = memory_diag
     result["provenance"] = {
         "hardware": {k: v for k, v in hardware.items() if v is not None},
         "software": software,
@@ -521,6 +566,7 @@ def main() -> int:
         "runtime_contract_hash": runtime_contract_hash,
         "runtime_info": runtime_info,
         "gpu_diag": info_provenance.get("gpu_diag"),
+        "memory_diag": info_provenance.get("memory_diag"),
         "provenance": info_provenance.get("provenance"),
         "launch_config": launch_config,
         "launch_config_hash": launch_config.get("launch_config_hash"),

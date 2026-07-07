@@ -1,0 +1,470 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Performance Smoke - Regression Evidence Pack
+
+on:
+  # This mirrors the legacy-floor collection workflow: workflow_dispatch is only
+  # dispatchable from the default branch, so pushing this dedicated branch is the
+  # runnable path while the workflow is still a one-off branch artifact.
+  push:
+    branches: [neilm/regression-evidence-pack]
+  workflow_dispatch:
+    inputs:
+      legacy_image_ref:
+        description: "IsaacLab 2.3.2 image to compare against."
+        required: false
+        default: "nvcr.io/nvidia/isaac-lab:2.3.2"
+      current_image_ref:
+        description: "Current IsaacLab CI image. Empty = PERF_SMOKE_CI_IMAGE or the main latest-develop image."
+        required: false
+        default: ""
+      samples:
+        description: "Unprofiled benchmark repetitions per release/task."
+        required: false
+        default: "3"
+      nsys_frames:
+        description: "Frame count for the separate nsys profiling pass."
+        required: false
+        default: "180"
+      collect_nsys:
+        description: "Collect one Nsight Systems trace per release/task."
+        type: boolean
+        required: false
+        default: true
+      seed:
+        description: "Benchmark seed."
+        required: false
+        default: "42"
+      cells:
+        description: "JSON cells. Each may define legacy_task/current_task, num_envs, num_frames, excluded, extra_args, hydra_args."
+        required: false
+        default: >-
+          [
+            {"name":"cartpole","legacy_task":"Isaac-Cartpole-Direct-v0","current_task":"Isaac-Cartpole-Direct","num_envs":4096,"num_frames":300,"excluded":"0-100"},
+            {"name":"factory","legacy_task":"Isaac-Factory-GearMesh-Direct-v0","current_task":"Isaac-Factory-GearMesh-Direct-v0","num_envs":512,"num_frames":300,"excluded":"0-100"},
+            {"name":"g1","legacy_task":"Isaac-Velocity-Flat-G1-v0","current_task":"Isaac-Velocity-Flat-G1-v0","num_envs":512,"num_frames":300,"excluded":"0-100"},
+            {"name":"shadow_vision","legacy_task":"Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0","current_task":"Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0","num_envs":16,"num_frames":150,"excluded":"0-50","extra_args":["--enable_cameras"]}
+          ]
+
+concurrency:
+  group: perf-smoke-regression-evidence
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  LEGACY_IMAGE_TAG: isaac-lab-evidence:legacy-${{ github.run_id }}
+  CURRENT_IMAGE_TAG: isaac-lab-evidence:current-${{ github.run_id }}
+
+jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaaclab_image_ref: ${{ steps.load.outputs.isaaclab_image_ref }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
+        echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:latest-develop" >> "$GITHUB_OUTPUT"
+
+  collect:
+    name: Collect 3.0-vs-2.3.2 evidence
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config]
+    timeout-minutes: 720
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Pull comparison images
+      env:
+        LEGACY_REF: ${{ inputs.legacy_image_ref || 'nvcr.io/nvidia/isaac-lab:2.3.2' }}
+        CURRENT_REF: ${{ inputs.current_image_ref || vars.PERF_SMOKE_CI_IMAGE || needs.config.outputs.isaaclab_image_ref }}
+      run: |
+        set -euo pipefail
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        login_if_needed() {
+          local ref="$1"
+          local registry="${ref%%/*}"
+          if [ "${registry}" = "nvcr.io" ] && [ -n "${NGC_API_KEY:-}" ]; then
+            echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          fi
+        }
+
+        login_if_needed "${LEGACY_REF}"
+        login_if_needed "${CURRENT_REF}"
+        docker pull "${LEGACY_REF}"
+        docker pull "${CURRENT_REF}"
+        docker tag "${LEGACY_REF}" "${LEGACY_IMAGE_TAG}"
+        docker tag "${CURRENT_REF}" "${CURRENT_IMAGE_TAG}"
+        rm -rf "${DOCKER_CONFIG_DIR}"
+
+    - name: Capture host hardware
+      if: always()
+      run: |
+        set +e
+        mkdir -p regression-evidence/host
+        lscpu > regression-evidence/host/lscpu.txt 2>&1
+        nvidia-smi -q > regression-evidence/host/nvidia-smi-q.txt 2>&1
+        nvidia-smi --query-gpu=name,driver_version,cuda_version,memory.total,compute_cap --format=csv > regression-evidence/host/nvidia-smi-summary.csv 2>&1
+        cat /proc/meminfo > regression-evidence/host/meminfo.txt 2>&1
+
+    - name: Prepare Nsight Systems CLI
+      env:
+        COLLECT_NSYS: ${{ inputs.collect_nsys }}
+      run: |
+        set -euo pipefail
+        if [ -z "${COLLECT_NSYS}" ]; then
+          COLLECT_NSYS=true
+        fi
+        if [ "${COLLECT_NSYS}" != "true" ]; then
+          echo "COLLECT_NSYS=${COLLECT_NSYS}; skipping nsys preparation"
+          exit 0
+        fi
+        rm -rf regression-evidence/nsys-cli
+        mkdir -p regression-evidence/nsys-cli
+        case "$(uname -m)" in
+          aarch64) REPO_ARCH=arm64 ;;
+          *) REPO_ARCH=amd64 ;;
+        esac
+        UBU=ubuntu2404
+        if grep -q "20.04" /etc/os-release 2>/dev/null; then UBU=ubuntu2004; fi
+        if grep -q "22.04" /etc/os-release 2>/dev/null; then UBU=ubuntu2204; fi
+        BASE="https://developer.download.nvidia.com/devtools/repos/${UBU}/${REPO_ARCH}"
+        echo "Using devtools repo ${BASE}"
+        curl -fsSL -o /tmp/nsys-packages.gz "${BASE}/Packages.gz"
+        gunzip -c /tmp/nsys-packages.gz > /tmp/nsys-packages.txt
+        DEB_REL="$(grep -E '^Filename: .*NsightSystems-linux-cli-public-.*\.deb$' /tmp/nsys-packages.txt | sed 's/^Filename: //' | sort -V | tail -1)"
+        if [ -z "${DEB_REL}" ]; then
+          echo "::error::Could not find a NsightSystems CLI package in ${BASE}/Packages"
+          exit 1
+        fi
+        echo "Chosen nsys package: ${DEB_REL}"
+        curl -fsSL -o /tmp/nsys.deb "${BASE}/${DEB_REL}"
+        dpkg-deb -x /tmp/nsys.deb regression-evidence/nsys-cli
+        NSYS_BIN="$(find regression-evidence/nsys-cli -type f -path '*/bin/nsys' | head -1)"
+        if [ -z "${NSYS_BIN}" ]; then
+          NSYS_BIN="$(find regression-evidence/nsys-cli -type f -path '*target-linux-x64/nsys' | head -1)"
+        fi
+        if [ -z "${NSYS_BIN}" ]; then
+          echo "::error::nsys binary not found after extracting ${DEB_REL}"
+          exit 1
+        fi
+        chmod -R a+rX regression-evidence/nsys-cli
+        echo "nsys located at ${NSYS_BIN}"
+        # Fail fast on the runner (x86_64) before the ~40 min benchmark matrix.
+        "${NSYS_BIN}" --version
+        echo "HOST_NSYS_REL=${NSYS_BIN#regression-evidence/nsys-cli/}" >> "$GITHUB_ENV"
+
+    - name: Run benchmark repeats and nsys traces
+      env:
+        CELLS: ${{ inputs.cells }}
+        SAMPLES: ${{ inputs.samples || '3' }}
+        NSYS_FRAMES: ${{ inputs.nsys_frames || '180' }}
+        COLLECT_NSYS: ${{ inputs.collect_nsys }}
+        SEED: ${{ inputs.seed || '42' }}
+      run: |
+        set -euo pipefail
+        if [ -z "${CELLS}" ]; then
+          CELLS='[
+            {"name":"cartpole","legacy_task":"Isaac-Cartpole-Direct-v0","current_task":"Isaac-Cartpole-Direct","num_envs":4096,"num_frames":300,"excluded":"0-100"},
+            {"name":"factory","legacy_task":"Isaac-Factory-GearMesh-Direct-v0","current_task":"Isaac-Factory-GearMesh-Direct-v0","num_envs":512,"num_frames":300,"excluded":"0-100"},
+            {"name":"g1","legacy_task":"Isaac-Velocity-Flat-G1-v0","current_task":"Isaac-Velocity-Flat-G1-v0","num_envs":512,"num_frames":300,"excluded":"0-100"},
+            {"name":"shadow_vision","legacy_task":"Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0","current_task":"Isaac-Repose-Cube-Shadow-Vision-Benchmark-Direct-v0","num_envs":16,"num_frames":150,"excluded":"0-50","extra_args":["--enable_cameras"]}
+          ]'
+        fi
+        if [ -z "${COLLECT_NSYS}" ]; then
+          COLLECT_NSYS=true
+        fi
+        mkdir -p regression-evidence jit-cache/warp jit-cache/nv kit-cache
+        chmod -R 0777 regression-evidence jit-cache kit-cache
+
+        safe_component() {
+          printf '%s' "$1" | tr -c 'a-zA-Z0-9._-' '-'
+        }
+
+        monitor_container() {
+          local container="$1"
+          local out_dir="$2"
+          local host_pid=""
+          host_pid="$(docker inspect -f '{{.State.Pid}}' "${container}" 2>/dev/null || true)"
+          {
+            echo "container=${container}"
+            echo "host_pid=${host_pid}"
+            echo "started_at=$(date --iso-8601=seconds)"
+          } > "${out_dir}/host_process.txt"
+          while [ "$(docker inspect -f '{{.State.Running}}' "${container}" 2>/dev/null || echo false)" = "true" ]; do
+            docker stats --no-stream --format '{{json .}}' "${container}" >> "${out_dir}/docker_stats.jsonl" 2>/dev/null || true
+            nvidia-smi --query-gpu=timestamp,name,utilization.gpu,utilization.memory,memory.used,memory.total,power.draw --format=csv >> "${out_dir}/nvidia_smi_samples.csv" 2>/dev/null || true
+            if command -v pidstat >/dev/null 2>&1 && [ -n "${host_pid}" ] && [ "${host_pid}" != "0" ]; then
+              pidstat -rud -p "${host_pid}" 1 1 >> "${out_dir}/pidstat.log" 2>&1 || true
+            fi
+            sleep 1
+          done
+        }
+
+        run_one() {
+          local label="$1"
+          local image="$2"
+          local task="$3"
+          local name="$4"
+          local num_envs="$5"
+          local num_frames="$6"
+          local excluded="$7"
+          local out_dir="$8"
+          local mount_source="$9"
+          local profile="${10}"
+          local extra_args="${11}"
+          local hydra_args="${12}"
+
+          mkdir -p "${out_dir}"
+          chmod -R 0777 "${out_dir}"
+          echo "${task}" > "${out_dir}/task_id.txt"
+          echo "${excluded}" > "${out_dir}/excluded.txt"
+
+          local safe_name
+          safe_name="$(safe_component "${label}-${name}-${profile}")"
+          local container="perf-evidence-${safe_name}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker rm -f "${container}" >/dev/null 2>&1 || true
+
+          local source_mount=()
+          if [ "${mount_source}" = "true" ]; then
+            chmod -R a+rwX "${GITHUB_WORKSPACE}" 2>/dev/null || true
+            source_mount=(-v "${GITHUB_WORKSPACE}:/workspace/isaaclab")
+          fi
+
+          local profile_env="false"
+          if [ "${profile}" = "nsys" ]; then
+            profile_env="true"
+          fi
+
+          docker run -d --name "${container}" \
+            --init --stop-timeout 10 --entrypoint bash \
+            --gpus all --network=host \
+            --cap-add SYS_ADMIN --security-opt seccomp=unconfined \
+            --ulimit nofile=65536:65536 --ulimit nproc=4096:4096 \
+            -e OMNI_KIT_ACCEPT_EULA=yes -e ACCEPT_EULA=Y \
+            -e OMNI_KIT_DISABLE_CUP=1 -e ISAAC_SIM_HEADLESS=1 \
+            -e PYTHONUNBUFFERED=1 -e PYTHONDONTWRITEBYTECODE=1 \
+            -e WARP_CACHE_PATH=/tmp/jit-cache/warp -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+            -e BENCH_TASK="${task}" -e BENCH_NUM_ENVS="${num_envs}" \
+            -e BENCH_NUM_FRAMES="${num_frames}" -e BENCH_SEED="${SEED}" \
+            -e BENCH_EXTRA_ARGS="${extra_args}" -e BENCH_HYDRA_ARGS="${hydra_args}" \
+            -e BENCH_PROFILE_NSYS="${profile_env}" \
+            -e HOST_NSYS_REL="${HOST_NSYS_REL:-}" \
+            -v "${out_dir}:/tmp/bench_out" \
+            -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
+            -v "${GITHUB_WORKSPACE}/kit-cache:/isaac-sim/kit/cache" \
+            -v "${GITHUB_WORKSPACE}/regression-evidence/nsys-cli:/opt/nsys-cli" \
+            "${source_mount[@]}" \
+            "${image}" \
+            -c '
+              set -euo pipefail
+              ISAACLAB_ROOT=""
+              for d in /workspace/isaaclab /workspace/IsaacLab /root/IsaacLab /isaac-lab; do
+                if [ -x "$d/isaaclab.sh" ]; then ISAACLAB_ROOT="$d"; break; fi
+              done
+              if [ -z "$ISAACLAB_ROOT" ]; then
+                echo "could not locate isaaclab.sh"; exit 1
+              fi
+              cd "$ISAACLAB_ROOT"
+              if [ -d /isaac-sim ]; then rm -f _isaac_sim; ln -s /isaac-sim _isaac_sim; fi
+              touch /tmp/.benchstart
+              read -r -a EXTRA_ARGS <<< "${BENCH_EXTRA_ARGS:-}"
+              read -r -a HYDRA_ARGS <<< "${BENCH_HYDRA_ARGS:-}"
+              CMD=(./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py
+                --task "$BENCH_TASK"
+                --num_envs "$BENCH_NUM_ENVS"
+                --num_frames "$BENCH_NUM_FRAMES"
+                --benchmark_backend JSONFileMetrics
+                --seed "$BENCH_SEED"
+                --headless)
+              CMD+=("${EXTRA_ARGS[@]}")
+              CMD+=("${HYDRA_ARGS[@]}")
+              if [ "${BENCH_PROFILE_NSYS}" = "true" ]; then
+                NSYS_BIN=""
+                if [ -n "${HOST_NSYS_REL:-}" ] && [ -x "/opt/nsys-cli/${HOST_NSYS_REL}" ]; then
+                  NSYS_BIN="/opt/nsys-cli/${HOST_NSYS_REL}"
+                fi
+                for cand in \
+                  "${NSYS_BIN}" \
+                  "$(command -v nsys 2>/dev/null || true)" \
+                  /opt/nvidia/nsight-systems/*/bin/nsys \
+                  /opt/nvidia/nsight-systems/*/target-linux-x64/nsys \
+                  /opt/nvidia/nsight-systems/*/host-linux-x64/nsys \
+                  /opt/nvidia/nsight-systems-cli/*/bin/nsys \
+                  /opt/nvidia/nsight-systems-cli/*/target-linux-x64/nsys \
+                  /opt/nvidia/nsight_systems/*/bin/nsys \
+                  /usr/local/cuda*/bin/nsys \
+                  /usr/local/bin/nsys; do
+                  if [ -n "$cand" ] && [ -x "$cand" ]; then NSYS_BIN="$cand"; break; fi
+                done
+                if [ -z "$NSYS_BIN" ]; then
+                  NSYS_BIN="$(find /opt /usr/local /isaac-sim -maxdepth 8 -type f -name nsys 2>/dev/null | head -1 || true)"
+                fi
+                if [ -z "$NSYS_BIN" ]; then
+                  echo "nsys not present in image; attempting rootless install from NVIDIA devtools repo"
+                  case "$(uname -m)" in
+                    aarch64) REPO_ARCH=arm64 ;;
+                    *) REPO_ARCH=amd64 ;;
+                  esac
+                  UBU=ubuntu2204
+                  if grep -q "20.04" /etc/os-release 2>/dev/null; then UBU=ubuntu2004; fi
+                  if grep -q "24.04" /etc/os-release 2>/dev/null; then UBU=ubuntu2404; fi
+                  BASE="https://developer.download.nvidia.com/devtools/repos/${UBU}/${REPO_ARCH}"
+                  FETCH=""
+                  if command -v curl >/dev/null 2>&1; then FETCH=curl; elif command -v wget >/dev/null 2>&1; then FETCH=wget; fi
+                  if [ -n "$FETCH" ] && command -v dpkg-deb >/dev/null 2>&1; then
+                    dl() { if [ "$FETCH" = curl ]; then curl -fsSL -o "$2" "$1"; else wget -qO "$2" "$1"; fi; }
+                    if dl "${BASE}/Packages.gz" /tmp/nsys-packages.gz && gunzip -c /tmp/nsys-packages.gz > /tmp/nsys-packages.txt 2>/dev/null; then :; else
+                      dl "${BASE}/Packages" /tmp/nsys-packages.txt || true
+                    fi
+                    DEB_REL="$(grep -E "^Filename: .*NsightSystems-linux-cli-public-.*\.deb$" /tmp/nsys-packages.txt 2>/dev/null | sed "s/^Filename: //" | sort -V | tail -1 || true)"
+                    if [ -n "$DEB_REL" ] && dl "${BASE}/${DEB_REL}" /tmp/nsys.deb && [ -s /tmp/nsys.deb ]; then
+                      mkdir -p /tmp/nsys-cli
+                      dpkg-deb -x /tmp/nsys.deb /tmp/nsys-cli || true
+                      NSYS_BIN="$(find /tmp/nsys-cli -type f -path "*/bin/nsys" 2>/dev/null | head -1 || true)"
+                      if [ -z "$NSYS_BIN" ]; then
+                        NSYS_BIN="$(find /tmp/nsys-cli -type f -name nsys 2>/dev/null | head -1 || true)"
+                      fi
+                      [ -n "$NSYS_BIN" ] && chmod +x "$NSYS_BIN" 2>/dev/null || true
+                    else
+                      echo "could not resolve/download nsight-systems-cli deb from ${BASE}"
+                    fi
+                  else
+                    echo "no curl/wget or dpkg-deb available for rootless nsys install"
+                  fi
+                fi
+                if [ -n "$NSYS_BIN" ] && [ -x "$NSYS_BIN" ]; then
+                  echo "using nsys at $NSYS_BIN"
+                  "$NSYS_BIN" --version 2>&1 | head -1 || true
+                  NSYS_OK=1
+                  "$NSYS_BIN" profile -t cuda,nvtx,osrt,cudnn,cublas \
+                    --sample=cpu --python-sampling=true \
+                    --force-overwrite true -o /tmp/bench_out/nsys_trace "${CMD[@]}" || NSYS_OK=0
+                  if [ "$NSYS_OK" = "0" ] || [ ! -f /tmp/bench_out/nsys_trace.nsys-rep ]; then
+                    echo "nsys profiling failed; retrying with reduced options" | tee /tmp/bench_out/nsys_retry.txt
+                    NSYS_OK=1
+                    "$NSYS_BIN" profile -t cuda,nvtx,osrt \
+                      --force-overwrite true -o /tmp/bench_out/nsys_trace "${CMD[@]}" || NSYS_OK=0
+                  fi
+                  if [ -f /tmp/bench_out/nsys_trace.nsys-rep ]; then
+                    for report in cuda_gpu_kern_sum osrt_sum cuda_api_sum; do
+                      "$NSYS_BIN" stats --report "$report" --format csv \
+                        --output "/tmp/bench_out/nsys_${report}" /tmp/bench_out/nsys_trace.nsys-rep || true
+                    done
+                  else
+                    echo "nsys produced no report; running unprofiled to still collect FPS" | tee /tmp/bench_out/nsys_norep.txt
+                    "${CMD[@]}"
+                  fi
+                else
+                  echo "nsys not found and rootless install failed" | tee /tmp/bench_out/nsys_missing.txt
+                  "${CMD[@]}"
+                fi
+              else
+                "${CMD[@]}"
+              fi
+              FRESH="$(find "$ISAACLAB_ROOT" /tmp /root /isaac-sim -type f -name "*.json" -newer /tmp/.benchstart 2>/dev/null || true)"
+              OUT_JSON="$(echo "$FRESH" | xargs -r grep -l "Environment step effective FPS" 2>/dev/null | head -1 || true)"
+              if [ -n "$OUT_JSON" ]; then
+                cp "$OUT_JSON" /tmp/bench_out/benchmark_output.json
+                echo "collected $OUT_JSON"
+              else
+                echo "no benchmark JSON with effective FPS found" | tee /tmp/bench_out/missing_benchmark_json.txt
+              fi
+            '
+
+          monitor_container "${container}" "${out_dir}" &
+          local monitor_pid=$!
+          docker logs -f "${container}" 2>&1 | tee "${out_dir}/run.log" &
+          local logs_pid=$!
+          local bench_exit=1
+          if docker_exit="$(timeout 3600 docker wait "${container}" 2>/dev/null)"; then
+            bench_exit="${docker_exit:-1}"
+          else
+            echo "::warning::${label}/${task}/${profile} timed out" | tee -a "${out_dir}/run.log"
+          fi
+          wait "${logs_pid}" 2>/dev/null || true
+          wait "${monitor_pid}" 2>/dev/null || true
+          echo "${bench_exit}" > "${out_dir}/exit_code.txt"
+          docker rm -f "${container}" >/dev/null 2>&1 || true
+        }
+
+        run_suite() {
+          local label="$1"
+          local image="$2"
+          local mount_source="$3"
+          local label_dir="${GITHUB_WORKSPACE}/regression-evidence/${label}"
+          mkdir -p "${label_dir}"
+          echo "${CELLS}" | jq -c ".[]" | while read -r cell; do
+            local name task num_envs num_frames excluded extra_args hydra_args
+            name="$(echo "${cell}" | jq -r '.name // .task // .legacy_task // .current_task')"
+            if [ "${label}" = "current_fork" ]; then
+              task="$(echo "${cell}" | jq -r '.current_task // .task // .legacy_task')"
+            else
+              task="$(echo "${cell}" | jq -r '.legacy_task // .task // .current_task')"
+            fi
+            num_envs="$(echo "${cell}" | jq -r '.num_envs')"
+            num_frames="$(echo "${cell}" | jq -r '.num_frames // 300')"
+            excluded="$(echo "${cell}" | jq -r '.excluded // "0-100"')"
+            extra_args="$(echo "${cell}" | jq -r '(.extra_args // []) | join(" ")')"
+            hydra_args="$(echo "${cell}" | jq -r '(.hydra_args // []) | join(" ")')"
+            local safe_name
+            safe_name="$(safe_component "${name}")"
+            for sample in $(seq 1 "${SAMPLES}"); do
+              run_one "${label}" "${image}" "${task}" "${safe_name}-sample-${sample}" \
+                "${num_envs}" "${num_frames}" "${excluded}" \
+                "${label_dir}/${safe_name}/sample_${sample}" "${mount_source}" \
+                "sample" "${extra_args}" "${hydra_args}"
+            done
+            if [ "${COLLECT_NSYS}" = "true" ]; then
+              run_one "${label}" "${image}" "${task}" "${safe_name}-nsys" \
+                "${num_envs}" "${NSYS_FRAMES}" "${excluded}" \
+                "${label_dir}/${safe_name}/nsys" "${mount_source}" \
+                "nsys" "${extra_args}" "${hydra_args}"
+            fi
+          done
+        }
+
+        run_suite "isaaclab_2_3_2" "${LEGACY_IMAGE_TAG}" "false"
+        run_suite "current_fork" "${CURRENT_IMAGE_TAG}" "true"
+
+    - name: Build evidence summary
+      if: always()
+      run: |
+        set -euo pipefail
+        python3 tools/perf_smoke_test/regression_evidence_pack.py \
+          --input isaaclab_2_3_2=regression-evidence/isaaclab_2_3_2 \
+          --input current_fork=regression-evidence/current_fork \
+          --output_json regression-evidence/regression_evidence_summary.json \
+          --markdown_out regression-evidence/3_0_vs_2_3_2_regression_evidence.md
+        cat regression-evidence/3_0_vs_2_3_2_regression_evidence.md >> "${GITHUB_STEP_SUMMARY}" || true
+
+    - name: Upload regression evidence artifacts
+      if: always()
+      uses: actions/upload-artifact@v7
+      with:
+        name: regression-evidence-${{ github.run_id }}
+        path: regression-evidence/
+        retention-days: 14
+        if-no-files-found: warn

@@ -5,9 +5,8 @@
 
 # Performance Smoke Test
 #
-# GPU jobs default to the RTX PRO 6000 runner label used by the upstream
-# deployment. Override with repo variable PERF_SMOKE_RUNS_ON, e.g. a JSON array
-# of runner labels.
+# GPU jobs default to the shared IsaacLab L40S runner pool. Override with repo
+# variable PERF_SMOKE_RUNS_ON, e.g. a JSON array of runner labels.
 #
 # Runs a matrix of benchmark tasks on self-hosted runners, compares
 # results to the rolling baseline in the perf-baselines branch, and posts a verdict
@@ -52,8 +51,8 @@ permissions:
   statuses: write        # post per-task benchmark commit statuses on the PR head
 
 env:
-  # Lets the ecr-build-push-pull action `docker login nvcr.io` to pull the Isaac Sim
-  # base image; without it the pull/build 403s (true even for the public release).
+  # Lets Docker log in to nvcr.io for the same Isaac Sim / IsaacLab images used
+  # by the main IsaacLab CI.
   NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
   CI_IMAGE_TAG: >-
     isaac-lab-ci:${{
@@ -73,24 +72,39 @@ jobs:
     outputs:
       isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
       isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+      isaaclab_image_name: ${{ steps.load.outputs.isaaclab_image_name }}
+      isaaclab_image_ref: ${{ steps.load.outputs.isaaclab_image_ref }}
       bench_matrix: ${{ steps.build_matrix.outputs.bench_matrix }}
     steps:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
     - id: load
-      # The shared config.yaml points at the internal nvcr.io/nvidian/isaac-sim image,
-      # which the fork's NGC key is not entitled to pull. Default this gate to the
-      # PUBLIC nvcr.io/nvidia/isaac-sim:6.0.0 release (same 6.0.0.x family as develop,
-      # any authenticated NGC account can pull it). Override via repo variables
-      # PERF_SMOKE_ISAACSIM_IMAGE / PERF_SMOKE_ISAACSIM_TAG if the fork later gains
-      # access to the internal image.
       run: |
         set -euo pipefail
-        IMG="${{ vars.PERF_SMOKE_ISAACSIM_IMAGE || 'nvcr.io/nvidia/isaac-sim' }}"
-        TAG="${{ vars.PERF_SMOKE_ISAACSIM_TAG || '6.0.0' }}"
-        echo "isaacsim_image_name=${IMG}" >> "$GITHUB_OUTPUT"
-        echo "isaacsim_image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+        f=.github/workflows/config.yaml
+        ISAACSIM_IMAGE_NAME="$(yq -r .isaacsim_image_name "$f")"
+        ISAACSIM_IMAGE_TAG="$(yq -r .isaacsim_image_tag "$f")"
+        ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
+
+        # Match the image tags published by .github/workflows/publish-images.yaml.
+        case "${GITHUB_REF_NAME}" in
+          main)
+            ISAACLAB_IMAGE_TAG="latest"
+            ;;
+          release/*)
+            RELEASE_SUFFIX="$(echo "${GITHUB_REF_NAME#release/}" | sed 's/[^a-zA-Z0-9._-]/-/g')"
+            ISAACLAB_IMAGE_TAG="latest-release-${RELEASE_SUFFIX}"
+            ;;
+          *)
+            ISAACLAB_IMAGE_TAG="latest-develop"
+            ;;
+        esac
+
+        echo "isaacsim_image_name=${ISAACSIM_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=${ISAACSIM_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_name=${ISAACLAB_IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+        echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:${ISAACLAB_IMAGE_TAG}" >> "$GITHUB_OUTPUT"
     - id: build_matrix
       run: |
         set -euo pipefail
@@ -118,7 +132,7 @@ jobs:
   bench:
     name: Bench / ${{ matrix.task_id }} / ${{ matrix.physics_backend }}${{ matrix.render_backend != '' && format('_{0}', matrix.render_backend) || '' }}
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.draft == false }}
-    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
     needs: [config, validate]
     continue-on-error: true
     timeout-minutes: ${{ matrix.job_timeout_minutes }}
@@ -144,37 +158,44 @@ jobs:
     # the cache after its first save and never pick up newly compiled kernels. The
     # restore-keys fall back to the newest prior cache by prefix, giving a rolling
     # cache that refills every run.
+    # Derive the Warp version from the pinned dependency so the JIT cache key
+    # tracks the toolchain automatically: bumping the pin invalidates stale
+    # kernels instead of silently reusing a cache compiled by a different Warp.
+    - name: Resolve Warp version for JIT cache key
+      id: warp_version
+      run: |
+        version="$(sed -n 's/.*warp-lang[^0-9]*\([0-9][0-9A-Za-z.\-]*\).*/\1/p' source/isaaclab/pyproject.toml | head -n1)"
+        [ -z "$version" ] && version="unpinned"
+        echo "value=$version" >> "$GITHUB_OUTPUT"
+        echo "JIT cache keyed to Warp $version"
+
     - name: Restore warm JIT cache
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/jit-cache
-        key: perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-${{ github.run_id }}
+        key: perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-${{ github.run_id }}
         restore-keys: |
-          perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-
-          perf-jit-warp1.13.0-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
-          perf-jit-warp1.13.0-${{ matrix.task_id }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-${{ matrix.physics_backend }}-${{ hashFiles('tools/perf_smoke_test/tasks.json') }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-${{ matrix.physics_backend }}-
+          perf-jit-warp${{ steps.warp_version.outputs.value }}-${{ matrix.task_id }}-
 
     # Image source — pull the published image (primary), build only as a fallback:
     #
-    #  Primary: `docker pull` the perf-smoke CI image published to nvcr.io by
-    #      perf-smoke-publish-image.yaml (once per dependency era). nvcr.io is the shared
-    #      IsaacLab registry, reachable from the RTX PRO 6000 fleet, so every matrix cell
-    #      just pulls (~seconds) instead of cold-building (~26 min). The reference defaults
-    #      to nvcr.io/nvidian/isaac-lab:latest-perf; set the optional PERF_SMOKE_CI_IMAGE
-    #      repo variable to override it (e.g. to pin an immutable sha-<short> tag). The
-    #      seeder pulls this same image, so baselines and PR runs share an identical
-    #      environment (same runtime_contract_hash, no seed-vs-gate offset). The pulled
-    #      image is retagged to the workflow-local CI_IMAGE_TAG so nothing downstream changes.
+    #  Primary: `docker pull` the same IsaacLab image published by the main CI
+    #      image workflow (latest-develop/latest/latest-release-*). Set the optional
+    #      PERF_SMOKE_CI_IMAGE repo variable to pin a specific image. The seeder pulls
+    #      this same image, so baselines and PR runs share an identical environment
+    #      (same runtime_contract_hash, no seed-vs-gate offset). The pulled image is
+    #      retagged to the workflow-local CI_IMAGE_TAG so nothing downstream changes.
     #
     #  Fallback: if the pull fails (e.g. a new era before the image is republished), build
-    #      from source via ecr-build-push-pull. On the RTX fleet ECR is only a local build
-    #      cache that never resolves, so this relies on the opt-in gha layer cache scope.
+    #      from source via ecr-build-push-pull, matching the main IsaacLab CI build path.
     #      This makes a missing image self-heal (slowly) instead of hard-failing the gate.
     - name: Pull prebuilt CI image
       id: pull_image
       continue-on-error: true
       env:
-        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
+        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || needs.config.outputs.isaaclab_image_ref }}
       run: |
         set -euo pipefail
 
@@ -214,10 +235,8 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.base
         cache-tag: cache-base
-        # The RTX-6000 fleet is NVIDIA-managed (not AWS EC2), so the action's ECR URL
-        # never resolves and the build would otherwise run with no layer cache. Opt
-        # into a registry-free gha cache (the org standard for this Dockerfile) under a
-        # dedicated scope so it can't collide with publish-images/build.yaml.
+        # Keep a dedicated GHA cache scope so perf-smoke fallback builds do not collide
+        # with the main Docker test workflow's cache entries.
         gha-cache-scope: perf-smoke-base
 
     - name: Run benchmark in Docker
@@ -572,8 +591,8 @@ jobs:
   # ---------------------------------------------------------------------------
   aggregate:
     name: Aggregate + Verdict
-    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
-    needs: [bench]
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config, bench]
     # Always run for real gate attempts, even when some bench jobs fail.
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
 
@@ -605,12 +624,52 @@ jobs:
       run: |
         python3 tools/perf_smoke_test/github_gate_context.py
 
+    # Pull the same prebuilt CI image the bench cells used, so confirm-on-BLOCK can
+    # re-run a blocking cell on this runner. Skipped when confirmation is disabled
+    # (PERF_SMOKE_CONFIRM_BLOCK_RERUNS=0). The pull is ~seconds from nvcr.io.
+    - name: Pull prebuilt CI image (for confirm-on-BLOCK)
+      id: pull_image
+      if: ${{ (vars.PERF_SMOKE_CONFIRM_BLOCK_RERUNS || '2') != '0' }}
+      continue-on-error: true
+      env:
+        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || needs.config.outputs.isaaclab_image_ref }}
+      run: |
+        set -euo pipefail
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+        REGISTRY="${CI_IMAGE_REF%%/*}"
+        if [ "${REGISTRY}" = "nvcr.io" ] && [ -n "${NGC_API_KEY:-}" ]; then
+          echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+        fi
+        docker pull "${CI_IMAGE_REF}"
+        docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"
+        rm -rf "${DOCKER_CONFIG_DIR}"
+        mkdir -p "${{ github.workspace }}/jit-cache/warp" "${{ github.workspace }}/jit-cache/nv"
+        mkdir -p "${{ github.workspace }}/kit-cache"
+        chmod -R a+rwX "${{ github.workspace }}" 2>/dev/null || true
+
     - name: Run aggregate oracle
       id: aggregate
+      env:
+        # Re-run any BLOCK cell this many times and decide on the median of attempts.
+        # Set the repo variable to 0 to disable confirm-on-BLOCK entirely.
+        CONFIRM_BLOCK_RERUNS: ${{ vars.PERF_SMOKE_CONFIRM_BLOCK_RERUNS || '2' }}
       run: |
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
         if [[ -z "${GPU_MODEL}" ]]; then
           GPU_MODEL="unknown-gpu"
+        fi
+        # Confirm-on-BLOCK re-runs blocking cells in the CI image; only enable the
+        # docker rerun backend if the image pull above actually succeeded.
+        CONFIRM_ARGS=()
+        if [ "${CONFIRM_BLOCK_RERUNS}" != "0" ] && [ "${{ steps.pull_image.outcome }}" = "success" ]; then
+          CONFIRM_ARGS=(--confirm_rerun_mode docker
+                        --confirm_block_reruns "${CONFIRM_BLOCK_RERUNS}"
+                        --ci_image_tag "${{ env.CI_IMAGE_TAG }}"
+                        --workspace "${{ github.workspace }}")
+        elif [ "${CONFIRM_BLOCK_RERUNS}" != "0" ]; then
+          echo "::warning::CI image pull failed; finalizing on the single initial draw (no confirm-on-BLOCK)"
         fi
         # Write the verdict table to a dedicated file so it can be reused for the
         # sticky PR comment, then mirror it into the run's step summary.
@@ -627,6 +686,7 @@ jobs:
           --source_branch "${{ steps.gate_context.outputs.source_branch }}" \
           --allow_baseline_update "${{ steps.gate_context.outputs.allow_update }}" \
           --trusted_source "${{ steps.gate_context.outputs.trusted_source }}" \
+          "${CONFIRM_ARGS[@]}" \
           --summary_file "${SUMMARY_FILE}"
         cat "${SUMMARY_FILE}" >> "${GITHUB_STEP_SUMMARY}" || true
 
@@ -654,7 +714,7 @@ jobs:
             core.info('verdict_summary.md not found; posting placeholder');
           }
           const marker = '<!-- perf-smoke-test-verdict -->';
-          const body = `${marker}\n## Performance Smoke Test\n\n${table}\n\n_Updated for ${context.sha.slice(0, 8)} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
+          const body = `${marker}\n${table}\n\n_Updated for ${context.sha.slice(0, 8)} · [run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})_`;
           const { owner, repo } = context.repo;
           const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
           const existing = comments.find(c => c.body && c.body.includes(marker));

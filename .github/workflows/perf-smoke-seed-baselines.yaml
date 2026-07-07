@@ -12,11 +12,10 @@
 # The samples are keyed by their real commit SHA, so the gate's merge-base /
 # ancestry isolation has a populated, branch-correct baseline to compare against.
 #
-# Uses the prebuilt CI image published to nvcr.io (the same image the gate pulls, so
-# baselines and PR runs share an identical environment). Defaults to
-# nvcr.io/nvidian/isaac-lab:latest-perf; set repo variable PERF_SMOKE_CI_IMAGE only to
-# override that (e.g. to pin a sha-<short> tag). If the image is not published yet the
-# job fails fast with a clear message (publish it first via perf-smoke-publish-image).
+# Uses the prebuilt IsaacLab CI image from the main image-publish workflow (the
+# same image the gate pulls, so baselines and PR runs share an identical
+# environment). Set repo variable PERF_SMOKE_CI_IMAGE only to override that
+# default, e.g. to pin an immutable tag.
 #
 # Manual dispatch only — seeding writes to perf-baselines and burns GPU time, so
 # it should never run automatically.
@@ -27,9 +26,9 @@ on:
   workflow_dispatch:
     inputs:
       branches:
-        description: "Branches to seed in one run (comma/space separated). Use 'branch:target' to override the stamp. Empty = use commit_branch/commits. NOTE: only seed branches whose code matches the prebuilt CI image's era (the image is built from unified-POC); seeding a divergent branch such as main/develop yields incompatible extensions or unregistered task ids."
+        description: "Branches to seed in one run (comma/space separated). Use 'branch:target' to override the stamp. Empty = use commit_branch/commits. NOTE: only seed branches whose code matches the prebuilt CI image's era."
         required: false
-        default: "unified-POC"
+        default: "develop"
       commits:
         description: "Explicit commit SHAs/refs (space/comma separated). Used only when branches is empty."
         required: false
@@ -37,7 +36,7 @@ on:
       commit_branch:
         description: "Single branch to seed when branches and commits are empty."
         required: false
-        default: "unified-POC"
+        default: "develop"
       commit_count:
         description: "Number of recent commits to seed from commit_branch."
         required: false
@@ -57,7 +56,7 @@ on:
       target_branch:
         description: "Protected branch stamped onto each seeded sample."
         required: false
-        default: "unified-POC"
+        default: "develop"
       dry_run:
         description: "Run benchmarks + build samples but DO NOT push to perf-baselines."
         type: boolean
@@ -77,9 +76,28 @@ env:
   CI_IMAGE_TAG: isaac-lab-ci:seed-${{ github.run_id }}
 
 jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaaclab_image_ref: ${{ steps.load.outputs.isaaclab_image_ref }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
+        echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:latest-develop" >> "$GITHUB_OUTPUT"
+
   seed:
     name: Seed baselines (${{ inputs.commit_branch }} x${{ inputs.commit_count }})
-    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["linux-amd64-gpu-rtxpro6000-latest-1"]') }}
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config]
     timeout-minutes: 600
 
     steps:
@@ -113,13 +131,12 @@ jobs:
           echo "::notice::perf-baselines not found yet; first seed run will create it"
 
     # Pull the published CI image and retag it locally (the exact image the gate pulls,
-    # so seeded baselines and PR runs share one environment). Defaults to
-    # nvcr.io/nvidian/isaac-lab:latest-perf; set PERF_SMOKE_CI_IMAGE to override (e.g. to
-    # pin a sha-<short> tag). Unlike the gate there is no build fallback: seeding is a
-    # deliberate, baseline-writing op, so a missing image should fail fast (publish first).
+    # so seeded baselines and PR runs share one environment). Unlike the gate there is no
+    # build fallback: seeding is a deliberate, baseline-writing op, so a missing image
+    # should fail fast.
     - name: Pull prebuilt CI image
       env:
-        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || 'nvcr.io/nvidian/isaac-lab:latest-perf' }}
+        CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || needs.config.outputs.isaaclab_image_ref }}
       run: |
         set -euo pipefail
 
@@ -146,8 +163,7 @@ jobs:
 
         echo "🔵 Pulling prebuilt image ${CI_IMAGE_REF}..."
         docker pull "${CI_IMAGE_REF}" || {
-          echo "::error::Failed to pull ${CI_IMAGE_REF}. Publish it first via perf-smoke-publish-image"
-          echo "::error::(default tag latest-perf), or set PERF_SMOKE_CI_IMAGE to an existing image."
+          echo "::error::Failed to pull ${CI_IMAGE_REF}. Publish the main IsaacLab CI image or set PERF_SMOKE_CI_IMAGE."
           exit 1
         }
         docker tag "${CI_IMAGE_REF}" "${{ env.CI_IMAGE_TAG }}"

@@ -55,6 +55,20 @@ def _parse_args():
     parser.add_argument(
         "--trusted_source", default="protected_branch", help="Audit label for baseline samples written by this run"
     )
+    parser.add_argument(
+        "--confirm_rerun_mode",
+        choices=["none", "local", "docker"],
+        default="none",
+        help="Re-run BLOCK cells before finalizing the verdict: 'local' (./isaaclab.sh), 'docker' (CI image), or 'none'",
+    )
+    parser.add_argument(
+        "--confirm_block_reruns",
+        type=int,
+        default=0,
+        help="Number of extra reruns per BLOCK cell when confirm_rerun_mode != none (median of all attempts decides)",
+    )
+    parser.add_argument("--ci_image_tag", default=None, help="CI image tag for confirm_rerun_mode=docker")
+    parser.add_argument("--workspace", type=Path, default=None, help="Workspace root for confirm_rerun_mode=docker")
     return parser.parse_args()
 
 
@@ -82,6 +96,14 @@ def _excluded_frames(bench_result: dict) -> frozenset[int]:
 
 def _fmt(value, decimals: int = 1) -> str:
     return f"{value:.{decimals}f}" if value is not None else "N/A"
+
+
+def _fmt_pct(value, decimals: int = 2) -> str:
+    return f"{value:.{decimals}f}%" if value is not None else "N/A"
+
+
+def _fmt_signed_pct(value, decimals: int = 2) -> str:
+    return f"{value:+.{decimals}f}%" if value is not None else "N/A"
 
 
 def _short_sha(value: str | None) -> str:
@@ -116,41 +138,159 @@ def _render_crossed(crossed: list[dict]) -> list[str]:
     return parts
 
 
-def _build_summary_table(rows: list[tuple]) -> str:
-    lines = [
-        "| Task | Backend | Verdict | FPS | Baseline | Samples | Regression% | Floor | Threshold | Phase | "
-        "Retry | GPU | Runtime | Note |",
-        "|---|---|---|---:|---:|---:|---:|---:|---|---|---|---|---|---|",
-    ]
-    for result, bench_result in rows:
+def _noise_floor_pct(bench_result: dict, gpu_model: str, backend: str) -> float:
+    launch_config = bench_result.get("launch_config") or {}
+    if launch_config.get("noise_floor_pct") is not None:
+        return float(launch_config.get("noise_floor_pct") or 0.0)
+    try:
+        task = get_task(bench_result["task_id"], backend)
+        for key in gpu_model_config_keys(gpu_model):
+            value = task.noise_floor_pct.get(key, {}).get(backend)
+            if value is not None:
+                return float(value)
+        return 0.0
+    except Exception:
+        return 0.0
+
+
+def _runtime_label(bench_result: dict) -> str:
+    """Return the compact runtime label shown in the sticky summary."""
+    gpu_diag = bench_result.get("gpu_diag") or {}
+    provenance = bench_result.get("provenance") or {}
+    software = provenance.get("software") or {}
+    return ", ".join(
+        part
+        for part in (
+            f"cuda={gpu_diag.get('cuda_version')}" if gpu_diag.get("cuda_version") else "",
+            f"driver={gpu_diag.get('nvidia_driver_version')}" if gpu_diag.get("nvidia_driver_version") else "",
+            f"warp={software.get('warp')}" if software.get("warp") else "",
+        )
+        if part
+    )
+
+
+def _collapse_values(values: list[str]) -> str:
+    """Render a list of possibly repeated values as one summary value."""
+    unique = sorted({value for value in values if value})
+    if not unique:
+        return "N/A"
+    if len(unique) == 1:
+        return unique[0]
+    return "varies: " + "; ".join(unique)
+
+
+def _uniform_value(values: list[str]) -> str | None:
+    """Return the shared value when every row agrees, otherwise ``None``."""
+    unique = {value for value in values if value}
+    return next(iter(unique)) if len(unique) == 1 else None
+
+
+def _threshold_sources(rows: list[tuple]) -> list[str]:
+    return [result.threshold_source for result, _ in rows]
+
+
+def _threshold_policy_label(source: str) -> str:
+    """Return a reader-friendly explanation of a shared threshold policy."""
+    if source == "rolling_window":
+        return (
+            "rolling baseline per row. Each task/backend is compared against its own compatible baseline "
+            "samples using median/MAD."
+        )
+    if source == "n/a":
+        return "not applicable because no usable FPS was produced for baseline comparison."
+    return f"{source} for every row."
+
+
+def _build_run_context(rows: list[tuple]) -> str:
+    """Return run-wide fields that should not be repeated in every table row."""
+    gpu_names = []
+    runtimes = []
+    for _result, bench_result in rows:
         gpu_diag = bench_result.get("gpu_diag") or {}
         launch_config = bench_result.get("launch_config") or {}
-        gpu_name = gpu_diag.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", "")
-        provenance = bench_result.get("provenance") or {}
-        software = provenance.get("software") or {}
-        runtime = ", ".join(
-            part
-            for part in (
-                f"cuda={gpu_diag.get('cuda_version')}" if gpu_diag.get("cuda_version") else "",
-                f"driver={gpu_diag.get('nvidia_driver_version')}" if gpu_diag.get("nvidia_driver_version") else "",
-                f"warp={software.get('warp')}" if software.get("warp") else "",
-            )
-            if part
-        )
+        gpu_names.append(gpu_diag.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", ""))
+        runtimes.append(_runtime_label(bench_result))
+
+    lines = [
+        "### Run context",
+        "",
+        f"- **GPU:** {_collapse_values(gpu_names)}",
+        f"- **Runtime:** {_collapse_values(runtimes)}",
+    ]
+    shared_threshold = _uniform_value(_threshold_sources(rows))
+    if shared_threshold is not None:
+        lines.append(f"- **Threshold policy:** {_threshold_policy_label(shared_threshold)}")
+    return "\n".join(lines)
+
+
+def _build_summary_table(rows: list[tuple]) -> str:
+    # Threshold only earns a column when it actually differs across tasks; if every
+    # task shares the same threshold source it is reported once in the run context.
+    show_threshold = _uniform_value(_threshold_sources(rows)) is None
+
+    header = ["Task", "Backend", "Verdict", "FPS", "Baseline", "Delta (+ faster / - slower)", "Noise", "Samples"]
+    if show_threshold:
+        header.append("Threshold")
+    header += ["Phase", "Notes", "Retried"]
+
+    aligns = ["---", "---", "---", "---:", "---:", "---:", "---:", "---:"]
+    if show_threshold:
+        aligns.append("---")
+    aligns += ["---", "---", "---"]
+
+    lines = ["| " + " | ".join(header) + " |", "|" + "|".join(aligns) + "|"]
+    for result, bench_result in rows:
         note_parts = [part for part in (result.note, bench_result.get("config_mismatch")) if part]
         note_parts.extend(_render_crossed(result.crossed_thresholds))
         if bench_result.get("p99_over_median") is not None:
             note_parts.append(f"p99/med={bench_result['p99_over_median']}")
         if bench_result.get("outlier_count") is not None:
             note_parts.append(f"outliers={bench_result['outlier_count']}")
-        lines.append(
-            f"| {result.task_id} | {result.backend} | {result.verdict.value}"
-            f" | {_fmt(result.measured_fps)} | {_fmt(result.baseline_fps)} | {result.baseline_sample_count}"
-            f" | {_fmt(result.regression_pct, 2)} | {_fmt(result.hard_floor_fps)} | {result.threshold_source}"
-            f" | {result.failure_phase or ''} | {result.was_retried} | {gpu_name}"
-            f" | {runtime} | {'; '.join(note_parts)} |"
-        )
+        cells = [
+            result.task_id,
+            result.backend,
+            result.verdict.value,
+            _fmt(result.measured_fps),
+            _fmt(result.baseline_fps),
+            _fmt_signed_pct(result.regression_pct),
+            _fmt_pct(result.effective_noise_pct if result.effective_noise_pct is not None else result.baseline_noise_pct),
+            str(result.baseline_sample_count),
+        ]
+        if show_threshold:
+            cells.append(result.threshold_source)
+        cells += [
+            result.failure_phase or "",
+            "; ".join(note_parts),
+            "yes" if result.was_retried else "no",
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines)
+
+
+def _build_summary_notes() -> str:
+    return "\n".join(
+        [
+            "### How to read this table",
+            "",
+            "- **PASS**: no meaningful slowdown was detected.",
+            "- **WARN**: suspicious or uncertain result, such as insufficient baselines, retry-only success, or a"
+            " slowdown in the WARN band.",
+            "- **BLOCK**: a blocking-level regression signal was detected. In this POC, BLOCK is advisory (it flags a"
+            " regression) and only fails the check when the gate is explicitly configured as blocking.",
+            "- **HARD_FAILURE**: the benchmark did not produce usable FPS data, for example an import/init/runtime"
+            " failure or config mismatch.",
+            "- **Delta**: change in FPS versus the baseline. ``+`` means faster than baseline (speedup);"
+            " ``-`` means slower than baseline (slowdown).",
+            "- **Threshold policy**: explains which comparison rule produced the verdict. ``rolling_window`` means"
+            " each row uses its own compatible baseline median/MAD window, not one shared FPS cutoff.",
+            "- **Noise**: baseline MAD as a percent of baseline FPS. Higher noise means the task/backend naturally"
+            " varies more from run to run. If a calibrated noise floor is configured, this shows the effective"
+            " noise used for WARN/BLOCK thresholds.",
+            "- **Phase**: the stage a HARD_FAILURE happened in (e.g. ``import``, ``init``, ``runtime``); blank when"
+            " the benchmark ran to completion.",
+            "- **Retried**: ``yes`` if the cell only passed after an automatic re-run.",
+        ]
+    )
 
 
 def _write_github_output(**values) -> None:
@@ -161,6 +301,39 @@ def _write_github_output(**values) -> None:
         for key, value in values.items():
             if value is not None:
                 fh.write(f"{key}={value}\n")
+
+
+def _evaluate_cell(bench_result: dict, baseline, bench_gpu_model: str, backend: str, artifact_dir: Path, min_block_regression_pct: float):
+    """Run the oracle for one cell with hard-floor and noise-floor config applied."""
+    return compare(
+        bench_result=bench_result,
+        baseline=baseline,
+        fps_mean_thresholds=_thresholds(bench_result, bench_gpu_model, backend),
+        excluded_frames=_excluded_frames(bench_result),
+        artifact_dir=artifact_dir,
+        min_block_regression_pct=min_block_regression_pct,
+        noise_floor_pct=_noise_floor_pct(bench_result, bench_gpu_model, backend),
+    )
+
+
+def _make_rerun_fn(args):
+    """Build the confirm-on-BLOCK rerun backend, or None when confirmation is off."""
+    mode = (args.confirm_rerun_mode or "none").lower()
+    if mode == "none" or args.confirm_block_reruns <= 0:
+        return None
+    if mode == "local":
+        from confirm import make_local_rerun
+
+        repo_root = _TOOLS_DIR.parent
+        return make_local_rerun(repo_root, repo_root / "scripts" / "benchmarks" / "benchmark_non_rl.py")
+    if mode == "docker":
+        if not args.ci_image_tag or not args.workspace:
+            print("::error::confirm_rerun_mode=docker requires --ci_image_tag and --workspace; skipping confirmation")
+            return None
+        from confirm import make_docker_rerun
+
+        return make_docker_rerun(Path(args.workspace), args.ci_image_tag)
+    return None
 
 
 def main() -> int:
@@ -197,13 +370,15 @@ def main() -> int:
         else:
             print(f"[aggregate] Baseline branch {args.baseline_branch!r} not found; treating this as a seed run")
 
-    rows = []
     has_block = False
     has_hard_failure = False
     baselines_updated = False
     baseline_update_failed = False
     pending_git_updates: list[BaselineUpdateRecord] = []
 
+    # Pass 1: evaluate every cell. Keep the per-cell context so BLOCK cells can be
+    # re-scored after confirmation without re-reading baselines.
+    cells: list[dict] = []
     for artifact_dir, bench_result in items:
         task_id = bench_result["task_id"]
         backend = bench_result.get("backend_key") or bench_result.get("backend")
@@ -233,15 +408,20 @@ def main() -> int:
         except Exception as exc:
             print(f"[aggregate] Warning: baseline load failed for {task_id}/{backend}: {exc}")
 
-        oracle_result = compare(
-            bench_result=bench_result,
-            baseline=baseline,
-            fps_mean_thresholds=_thresholds(bench_result, bench_gpu_model, backend),
-            excluded_frames=_excluded_frames(bench_result),
-            artifact_dir=artifact_dir,
-            min_block_regression_pct=min_block_regression_pct,
+        oracle_result = _evaluate_cell(
+            bench_result, baseline, bench_gpu_model, backend, artifact_dir, min_block_regression_pct
         )
-        rows.append((oracle_result, bench_result))
+        cells.append(
+            {
+                "artifact_dir": artifact_dir,
+                "bench_result": bench_result,
+                "task_id": task_id,
+                "backend": backend,
+                "bench_gpu_model": bench_gpu_model,
+                "baseline": baseline,
+                "result": oracle_result,
+            }
+        )
 
         crossed_summary = _render_crossed(oracle_result.crossed_thresholds)
         print(
@@ -250,6 +430,46 @@ def main() -> int:
             f"  samples={oracle_result.baseline_sample_count}  source={oracle_result.threshold_source}"
             + (f"  {'  '.join(crossed_summary)}" if crossed_summary else "")
         )
+
+    # Confirm-on-BLOCK: re-run only the cells that initially blocked, then re-score
+    # them against the median of all attempts (see confirm.py / oracle.py).
+    rerun_fn = _make_rerun_fn(args)
+    block_cells = [cell for cell in cells if cell["result"].verdict == OracleVerdict.BLOCK]
+    if rerun_fn is not None and block_cells:
+        from confirm import confirm_block_cell
+
+        print(f"[aggregate] confirm-on-BLOCK: re-running {len(block_cells)} cell(s) x{args.confirm_block_reruns}")
+        for cell in block_cells:
+            confirm_block_cell(
+                cell["bench_result"],
+                cell["artifact_dir"],
+                cell["artifact_dir"] / "perf_smoke_test_result.json",
+                _excluded_frames(cell["bench_result"]),
+                rerun_fn,
+                args.confirm_block_reruns,
+            )
+            cell["result"] = _evaluate_cell(
+                cell["bench_result"],
+                cell["baseline"],
+                cell["bench_gpu_model"],
+                cell["backend"],
+                cell["artifact_dir"],
+                min_block_regression_pct,
+            )
+            print(
+                f"[aggregate] {cell['task_id']}/{cell['backend']}: confirmed verdict"
+                f" {cell['result'].verdict.value} ({cell['result'].note})"
+            )
+
+    # Finalize: build the verdict rows and apply baseline updates from FINAL verdicts.
+    rows = []
+    for cell in cells:
+        oracle_result = cell["result"]
+        bench_result = cell["bench_result"]
+        task_id = cell["task_id"]
+        backend = cell["backend"]
+        bench_gpu_model = cell["bench_gpu_model"]
+        rows.append((oracle_result, bench_result))
 
         if oracle_result.verdict == OracleVerdict.BLOCK:
             has_block = True
@@ -325,12 +545,16 @@ def main() -> int:
 
     table = _build_summary_table(rows)
     print("\n## Performance Smoke Results\n")
+    print(_build_run_context(rows))
+    print()
+    print(_build_summary_notes())
+    print()
     print(table)
     print()
 
     if args.summary_file:
         with open(args.summary_file, "a") as fh:
-            fh.write("\n## Performance Smoke Results\n\n")
+            fh.write("## Performance Smoke Results\n\n")
             if not use_flat:
                 fh.write(f"Baseline read SHA: `{_short_sha(baseline_read_sha)}`\n\n")
                 if baseline_push_result and baseline_push_result.pushed_sha:
@@ -338,6 +562,10 @@ def main() -> int:
                         f"Baseline pushed SHA: `{_short_sha(baseline_push_result.pushed_sha)}` "
                         f"after {baseline_push_result.attempts} attempt(s)\n\n"
                     )
+            fh.write(_build_run_context(rows))
+            fh.write("\n\n")
+            fh.write(_build_summary_notes())
+            fh.write("\n\n")
             fh.write(table)
             fh.write("\n")
 

@@ -11,7 +11,6 @@ as the run intent instead of re-reading ``tasks.json``, so it can catch workflow
 command bugs and self-hosted-runner handoff issues.
 """
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -20,25 +19,19 @@ try:
     from .backend_identity import make_backend_key, normalize_render_backend
     from .gate_types import FpsMeanThreshold
     from .gpu_identity import normalize_gpu_fields
+    from .hashing import stable_hash
     from .task_config import TaskConfig
 except ImportError:  # pragma: no cover (for direct scripting execution/import)
     from backend_identity import make_backend_key, normalize_render_backend
     from gate_types import FpsMeanThreshold
     from gpu_identity import normalize_gpu_fields
+    from hashing import stable_hash
     from task_config import TaskConfig
 
 LAUNCH_CONFIG_SCHEMA_VERSION = 1
 BENCHMARK_CONTRACT_VERSION = 1
 DEFAULT_BASELINE_EPOCH = 1
 LAUNCH_CONFIG_FILENAME = "launch_config.json"
-
-
-def _canonical_json(data: dict[str, Any]) -> str:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
-
-
-def stable_hash(data: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json(data).encode("utf-8")).hexdigest()[:16]
 
 
 def workload_contract(config: dict[str, Any]) -> dict[str, Any]:
