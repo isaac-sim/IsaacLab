@@ -40,3 +40,30 @@ gym.register(
         "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
     },
 )
+
+
+gym.register(
+    id="Isaac-Lift-Cube-Franka-Newton-Curriculum",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.newton_curriculum_env_cfg:FrankaCubeLiftNewtonCurriculumEnvCfg",
+        "rsl_rl_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubeNewtonCurriculumPPORunnerCfg"
+        ),
+    },
+)
+
+gym.register(
+    id="Isaac-Lift-Cube-Franka-Newton-Curriculum-Play",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": (
+            f"{__name__}.newton_curriculum_env_cfg:FrankaCubeLiftNewtonCurriculumEnvCfg_PLAY"
+        ),
+        "rsl_rl_cfg_entry_point": (
+            f"{agents.__name__}.rsl_rl_ppo_cfg:LiftCubeNewtonCurriculumPPORunnerCfg"
+        ),
+    },
+)

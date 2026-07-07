@@ -9,6 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from isaaclab import _deprioritize_prebundle_paths
+
+_deprioritize_prebundle_paths()
+
 from common import dispatch_library_entrypoint
 
 SCRIPT_DIR = Path(__file__).resolve().parent

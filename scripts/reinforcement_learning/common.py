@@ -30,6 +30,12 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.io import dump_yaml
 
+# Importing Isaac Sim's launcher can prepend bundled, older Python packages.
+# Restore the virtual environment's packages before RL libraries are imported.
+from isaaclab import _deprioritize_prebundle_paths  # isort: skip
+
+_deprioritize_prebundle_paths()
+
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})

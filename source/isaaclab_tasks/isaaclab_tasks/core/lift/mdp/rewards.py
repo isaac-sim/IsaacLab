@@ -29,6 +29,18 @@ def object_is_lifted(
     return torch.where(object.data.root_pos_w.torch[:, 2] > minimal_height, 1.0, 0.0)
 
 
+def object_lift_progress(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    target_height: float,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Reward normalized object-height progress between two heights [m]."""
+    object: RigidObject = env.scene[object_cfg.name]
+    object_height = object.data.root_pos_w.torch[:, 2] - env.scene.env_origins[:, 2]
+    return ((object_height - minimal_height) / (target_height - minimal_height)).clamp(0.0, 1.0)
+
+
 def object_ee_distance(
     env: ManagerBasedRLEnv,
     std: float,
@@ -70,6 +82,13 @@ class object_goal_distance(ManagerTermBase):
                 self._succeeded[env_ids].float().mean().item()
             )
             self._succeeded[env_ids] = False
+
+    @property
+    def succeeded(self) -> torch.Tensor:
+        """Per-environment sticky success state for the current episode."""
+        if not self._track_success:
+            raise RuntimeError("Success tracking requires the 'success_threshold' parameter.")
+        return self._succeeded
 
     def __call__(
         self,
@@ -181,3 +200,16 @@ def gripper_close_action(env: ManagerBasedRLEnv, action_name: str = "gripper_act
     """
     gripper_action = env.action_manager.get_term(action_name).raw_actions
     return torch.any(gripper_action < 0.0, dim=1).float()
+
+
+def gripper_close_near_object(
+    env: ManagerBasedRLEnv,
+    std: float,
+    action_name: str = "gripper_action",
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Reward closing only when the end effector is near the object."""
+    close_command = gripper_close_action(env, action_name)
+    proximity = object_ee_distance(env, std, object_cfg, ee_frame_cfg)
+    return close_command * proximity

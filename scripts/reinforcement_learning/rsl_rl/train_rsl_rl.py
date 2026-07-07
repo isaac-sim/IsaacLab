@@ -130,10 +130,10 @@ def run(argv: list[str]) -> None:
 
         env_cfg.seed = agent_cfg.seed
         validate_distributed_device(args_cli)
+        agent_cfg.device = env_cfg.sim.device
 
         if args_cli.distributed:
             global_rank = int(os.getenv("RANK", "0"))
-            agent_cfg.device = env_cfg.sim.device
 
             seed = agent_cfg.seed + global_rank
             env_cfg.seed = seed

@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.managers import ObservationTermCfg
+    from isaaclab.sensors import FrameTransformer
 
 
 def object_position_in_robot_root_frame(
@@ -33,6 +34,45 @@ def object_position_in_robot_root_frame(
     object_pos_w = object.data.root_pos_w.torch[:, :3]
     object_pos_b, _ = subtract_frame_transforms(robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, object_pos_w)
     return object_pos_b
+
+
+def object_position_relative_to_ee(
+    env: ManagerBasedRLEnv,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+) -> torch.Tensor:
+    """Object position relative to the end effector [m]."""
+    object: RigidObject = env.scene[object_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
+    return object.data.root_pos_w.torch[:, :3] - ee_frame.data.target_pos_w.torch[..., 0, :]
+
+
+def object_goal_position_relative(
+    env: ManagerBasedRLEnv,
+    command_name: str,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Goal position relative to the object, expressed in the robot root frame [m]."""
+    robot: Articulation = env.scene[robot_cfg.name]
+    object: RigidObject = env.scene[object_cfg.name]
+    object_pos_b, _ = subtract_frame_transforms(
+        robot.data.root_pos_w.torch,
+        robot.data.root_quat_w.torch,
+        object.data.root_pos_w.torch[:, :3],
+    )
+    return env.command_manager.get_command(command_name)[:, :3] - object_pos_b
+
+
+def object_height_above_table(
+    env: ManagerBasedRLEnv,
+    table_height: float = 0.0,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+) -> torch.Tensor:
+    """Object height above the table surface [m]."""
+    object: RigidObject = env.scene[object_cfg.name]
+    height = object.data.root_pos_w.torch[:, 2] - env.scene.env_origins[:, 2] - table_height
+    return height.unsqueeze(-1)
 
 
 def deformable_com_in_robot_root_frame(
