@@ -12,10 +12,9 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-
 from rendering_test_utils import (
-    GOLDEN_STAGE_RENDERING_TESTS,
     _GOLDEN_STAGES_DIRECTORY,
+    GOLDEN_STAGE_RENDERING_TESTS,
     golden_stage_pytest_node_ids,
     maybe_save_stage,
 )
@@ -31,7 +30,9 @@ def golden_stage_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
 def test_maybe_save_stage_writes_and_matches_golden(golden_stage_dir: Path):
     """maybe_save_stage bootstraps a golden USDA file and passes on the next identical export."""
-    stage_text = '#usda 1.0\n(\n    doc = """Generated from Composed Stage of root layer \n"""\n)\ndef Xform "World"\n{\n}\n'
+    stage_text = (
+        '#usda 1.0\n(\n    doc = """Generated from Composed Stage of root layer \n"""\n)\ndef Xform "World"\n{\n}\n'
+    )
 
     with mock.patch("isaaclab.sim.save_stage", return_value=True) as save_stage_mock:
 
