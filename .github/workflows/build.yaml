@@ -4,8 +4,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # region help
-# Every test job runs on every PR and merge queue candidate. Pushes to protected branches run the
-# post-merge integration tests.
+# On pull requests, the `changes` job maps the changed files to per-job run flags via
+# .github/actions/select-ci-jobs/select_ci_jobs.py: a test job runs only when files affecting
+# its package (or a package it depends on) changed. Hub packages (core/assets/tasks/newton/
+# physx), build tooling, Docker, and CI changes still run the full suite; docs-only changes run
+# nothing. Skipped jobs report green to branch protection. To force a full run, touch a
+# global-trigger path or dispatch the workflow manually. Pushes to protected branches (main,
+# develop, release/**) run the entire suite: all flags default to true on non-PR events.
 #
 # =============================================================================
 # CI DEBUGGING TIPS
@@ -79,8 +84,34 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
+      # Per-job run flags computed by select_ci_jobs.py from the PR's changed files.
+      # A test job runs only when its flag is 'true'; skipped jobs report green to branch
+      # protection (that's why we gate via `if:` rather than a workflow-level `paths:`
+      # filter, which would leave a required check un-triggered and block the PR forever).
+      run_any: ${{ steps.detect.outputs.run_any }}
+      run_curobo_image: ${{ steps.detect.outputs.run_curobo_image }}
+      run_core: ${{ steps.detect.outputs.run_core }}
+      run_tasks: ${{ steps.detect.outputs.run_tasks }}
+      run_rl: ${{ steps.detect.outputs.run_rl }}
+      run_mimic: ${{ steps.detect.outputs.run_mimic }}
+      run_contrib: ${{ steps.detect.outputs.run_contrib }}
+      run_teleop: ${{ steps.detect.outputs.run_teleop }}
+      run_visualizers: ${{ steps.detect.outputs.run_visualizers }}
+      run_assets: ${{ steps.detect.outputs.run_assets }}
+      run_newton: ${{ steps.detect.outputs.run_newton }}
+      run_physx: ${{ steps.detect.outputs.run_physx }}
+      run_ov: ${{ steps.detect.outputs.run_ov }}
+      run_curobo: ${{ steps.detect.outputs.run_curobo }}
+      run_skillgen: ${{ steps.detect.outputs.run_skillgen }}
+      run_environments_training: ${{ steps.detect.outputs.run_environments_training }}
+      run_rendering: ${{ steps.detect.outputs.run_rendering }}
+      run_rendering_kitless: ${{ steps.detect.outputs.run_rendering_kitless }}
     steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/actions/select-ci-jobs
+        sparse-checkout-cone-mode: false
     - id: detect
       env:
         GH_TOKEN: ${{ github.token }}
@@ -90,99 +121,45 @@ jobs:
       run: |
         set -euo pipefail
 
-        # Docker test jobs run only when paths in the patterns table change.
-        # Otherwise they skip via `if:` and report green to branch protection,
-        # which is why we don't use a workflow-level `paths:` filter (a
-        # not-triggered required check would block the PR forever).
-        # config.yaml is included because it controls the base image names and
-        # tags consumed by the Docker build jobs.
-        patterns=(
-          $'^source/\tLibrary source code'
-          $'^docker/\tContainer build inputs'
-          $'^tools/\tBuild tooling'
-          $'^apps/\tStandalone apps'
-          $'^scripts/\tStandalone scripts'
-          $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
-          $'^\\.github/workflows/config\\.yaml$\tBase image config'
-          $'^\\.github/actions/\tCI actions'
-          $'^\\.github/test-subsets/\tCI test subset config'
-        )
-        if [ "$EVENT_NAME" = "push" ]; then
-          triggered_jobs="Docker base build job + rendering-correctness + rendering-correctness-kitless"
-        else
-          triggered_jobs="Docker build jobs + all test-* matrix jobs"
+        # For pull_request events, select_ci_jobs.py maps the changed files to per-job run
+        # flags. For every other event (push to a protected branch, workflow_dispatch) we
+        # feed it an empty change set, which returns all flags true so the full suite runs
+        # -- the same fail-safe applied when the changed-files API is unavailable.
+        changed_files=""
+        reason="non-PR event ($EVENT_NAME): running the full suite"
+        if [ "$EVENT_NAME" = "pull_request" ]; then
+          if changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
+            reason="selected from changed files"
+            printf '%s\n' "$changed_files"
+          else
+            echo "::warning::Could not list changed files; defaulting to the full suite"
+            changed_files=""
+            reason="fail-safe (could not list changed files): running the full suite"
+          fi
         fi
 
-        render_table() {
-          local files="$1" entry regex desc count sample shown
-          echo "| Pattern | What it covers | Matched files |"
-          echo "|---|---|---|"
-          for entry in "${patterns[@]}"; do
-            IFS=$'\t' read -r regex desc <<< "$entry"
-            # escape | so it doesn't end the markdown table cell mid-regex
-            shown="${regex//|/\\|}"
-            count=$(grep -cE "$regex" <<< "$files" || true)
-            if [ "$count" -gt 0 ]; then
-              sample=$(grep -m 3 -E "$regex" <<< "$files" | paste -sd ', ' -)
-              [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
-              echo "| \`$shown\` | $desc | $sample |"
-            else
-              echo "| \`$shown\` | $desc | - |"
-            fi
-          done
-        }
+        job_flags="$(printf '%s\n' "$changed_files" | python3 .github/actions/select-ci-jobs/select_ci_jobs.py)"
+        printf '%s\n' "$job_flags" >> "$GITHUB_OUTPUT"
 
-        any_match() {
-          local files="$1" entry regex
-          for entry in "${patterns[@]}"; do
-            IFS=$'\t' read -r regex _ <<< "$entry"
-            if grep -qE "$regex" <<< "$files"; then
-              return 0
-            fi
-          done
-          return 1
-        }
-
-        decide() {
-          local decision="$1" reason="$2" files="${3:-}"
-          echo "Decision: run_docker_tests=$decision ($reason)"
-          echo "run_docker_tests=$decision" >> "$GITHUB_OUTPUT"
-          {
-            echo "## Docker test gating"
+        {
+          echo "## CI test job selection"
+          echo ""
+          echo "$reason."
+          echo ""
+          echo "| Job flag | Runs? |"
+          echo "|---|---|"
+          while IFS='=' read -r key value; do
+            [ -n "$key" ] && echo "| \`$key\` | $value |"
+          done <<< "$job_flags"
+          if [ -n "$changed_files" ]; then
             echo ""
-            if [ "$decision" = "true" ]; then
-              echo "Docker tests will **run**: $reason."
-            else
-              echo "Docker tests will be **skipped**: $reason."
-            fi
+            echo "<details><summary>Changed files</summary>"
             echo ""
-            echo "Triggered jobs: $triggered_jobs."
-            if [ -n "$files" ]; then
-              echo ""
-              render_table "$files"
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
-        }
-
-        if [ "$EVENT_NAME" != "pull_request" ]; then
-          decide true "non-PR event ($EVENT_NAME)"
-          exit 0
-        fi
-
-        if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
-          # Fail-safe: a transient API error must not block merge. Default to running.
-          echo "::warning::Could not list changed files; defaulting to running tests"
-          decide true "fail-safe (could not list changed files)"
-          exit 0
-        fi
-
-        printf '%s\n' "$changed_files"
-
-        if any_match "$changed_files"; then
-          decide true "relevant paths changed" "$changed_files"
-        else
-          decide false "no relevant paths changed" "$changed_files"
-        fi
+            printf '%s\n' "$changed_files" | sed 's/^/- /'
+            echo ""
+            echo "</details>"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
 
   config:
     name: Load Config
@@ -233,7 +210,7 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: needs.changes.outputs.run_any == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -255,8 +232,7 @@ jobs:
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.changes.outputs.run_docker_tests == 'true'
+      needs.changes.outputs.run_curobo_image == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -281,10 +257,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_tasks == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -306,10 +282,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_tasks == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -331,10 +307,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     continue-on-error: true
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_tasks == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -355,10 +331,10 @@ jobs:
     name: isaaclab (core) [1/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_core == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -378,10 +354,10 @@ jobs:
     name: isaaclab (core) [2/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_core == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -401,10 +377,10 @@ jobs:
     name: isaaclab (core) [3/3]
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_core == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -424,10 +400,10 @@ jobs:
     name: isaaclab_rl
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_rl == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -446,10 +422,10 @@ jobs:
     name: isaaclab_mimic
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_mimic == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -467,10 +443,10 @@ jobs:
     name: isaaclab_contrib
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_contrib == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -488,10 +464,10 @@ jobs:
     name: isaaclab_teleop
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_teleop == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -509,10 +485,10 @@ jobs:
     name: isaaclab_visualizers
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_visualizers == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -530,10 +506,10 @@ jobs:
     name: isaaclab_assets
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_assets == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -551,10 +527,10 @@ jobs:
     name: isaaclab_newton
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_newton == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -572,10 +548,10 @@ jobs:
     name: isaaclab_physx
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_physx == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -593,10 +569,10 @@ jobs:
     name: isaaclab_ov
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_ov == 'true'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:
@@ -650,10 +626,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, config]
+    needs: [changes, build-curobo, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+      needs.build-curobo.result == 'success' &&
+      needs.changes.outputs.run_curobo == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -700,10 +676,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: true
-    needs: [build-curobo, config]
+    needs: [changes, build-curobo, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build-curobo.result == 'success'
+      needs.build-curobo.result == 'success' &&
+      needs.changes.outputs.run_skillgen == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -724,10 +700,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 300
     continue-on-error: true
-    needs: [build, config]
+    needs: [changes, build, config]
     if: >-
-      github.event_name != 'push' &&
-      needs.build.result == 'success'
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_environments_training == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -748,8 +724,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
-    if: needs.build.result == 'success'
+    needs: [changes, build, config]
+    if: >-
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_rendering == 'true'
     steps:
     - uses: actions/checkout@v6
       with:
@@ -777,8 +755,10 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     continue-on-error: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
-    needs: [build, config]
-    if: needs.build.result == 'success'
+    needs: [changes, build, config]
+    if: >-
+      needs.build.result == 'success' &&
+      needs.changes.outputs.run_rendering_kitless == 'true'
     env:
       USE_OVPHYSX_WHEELHOUSE: ${{ needs.config.outputs.ovphysx_wheelhouse_resource != '' && ((github.event_name == 'pull_request' && github.base_ref == 'develop' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name != 'pull_request' && github.ref_name == 'develop')) }}
     steps:

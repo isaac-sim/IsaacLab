@@ -1,0 +1,2 @@
+CI-only: select which Docker test jobs run on a pull request from the affected packages
+(.github/actions/select-ci-jobs/select_ci_jobs.py) instead of running every job on every PR.
