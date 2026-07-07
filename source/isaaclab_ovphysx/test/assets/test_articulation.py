@@ -94,14 +94,6 @@ _OMNI_PHYSX_SCHEMAS_GAP_REASON = (
     "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
 )
 
-_MATERIAL_GAP_REASON = (
-    "Requires a ``RIGID_BODY_MATERIAL`` TensorType (or a view-helper) on the "
-    "ovphysx wheel side.  ``Articulation.root_view`` is an ``OvPhysxView`` over "
-    "the per-tensor-type bindings on OVPhysX, so ``root_view.get_material_properties()`` / "
-    "``set_material_properties()`` / ``max_shapes`` are not available.  See "
-    "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
-)
-
 
 def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device: str | torch.device) -> torch.Tensor:
     """Read an OVPhysX attribute into a torch tensor on *device*.
@@ -2326,9 +2318,19 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 def test_set_material_properties(sim, num_articulations, device, add_ground_plane, articulation_type):
-    """Test getting and setting material properties (friction/restitution) of articulation shapes."""
+    """Test getting and setting per-shape material properties (friction/restitution).
+
+    OVPhysX exposes per-collision-shape material as the
+    ``articulation_shape_friction_and_restitution`` tensor binding (shape ``[N, S, 3]`` =
+    static friction, dynamic friction, restitution), addressed through the
+    :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`. The binding is device-resident, so the
+    buffer lives on the simulation device. (The PhysX backend instead uses a dedicated
+    ``root_view.get_material_properties`` / ``set_material_properties`` view API.)
+    """
+    if not hasattr(TT, "SHAPE_FRICTION_AND_RESTITUTION"):
+        pytest.skip("ovphysx wheel does not expose the shape material tensor type")
+
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -2337,28 +2339,21 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     # Play the simulator
     sim.reset()
 
-    # Get number of shapes from the articulation
-    max_shapes = articulation.root_view.max_shapes
+    view = articulation.root_view
+    # Number of collision shapes per articulation, from the material binding's shape [N, S, 3].
+    num_shapes = view.binding_for(TT.SHAPE_FRICTION_AND_RESTITUTION).shape[1]
 
-    # Generate random material properties: (static_friction, dynamic_friction, restitution)
-    materials = torch.empty(num_articulations, max_shapes, 3, device="cpu").uniform_(0.0, 1.0)
-    # Ensure dynamic friction <= static friction
-    materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])
+    # Random material per shape: (static_friction, dynamic_friction, restitution), on the sim device.
+    materials = torch.empty(num_articulations, num_shapes, 3, device=device).uniform_(0.0, 1.0)
+    materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])  # dynamic <= static
 
-    # Set material properties via the PhysX view-level API
-    env_ids = torch.arange(num_articulations, dtype=torch.int32)
-    articulation.root_view.set_material_properties(
-        wp.from_torch(materials, dtype=wp.float32), wp.from_torch(env_ids, dtype=wp.int32)
-    )
-
-    # Simulate physics
+    # Set material properties through the view, then simulate.
+    view.set_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION, wp.from_torch(materials, dtype=wp.float32))
     sim.step()
     articulation.update(sim.cfg.dt)
 
-    # Get material properties from simulation
-    materials_check = wp.to_torch(articulation.root_view.get_material_properties())
-
-    # Check if material properties are set correctly
+    # Read back from the simulation and verify the round-trip.
+    materials_check = wp.to_torch(view.get_attribute(TT.SHAPE_FRICTION_AND_RESTITUTION))
     torch.testing.assert_close(materials_check, materials)
 
 
