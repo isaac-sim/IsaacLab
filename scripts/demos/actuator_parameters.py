@@ -220,6 +220,9 @@ class RowSpec:
         initial_joint_vel: Initial joint velocity applied on reset [rad/s].
         duration: Duration of the finite comparison run [s].
         plot: Plotting metadata.
+        record_clip: Whether record mode captures an animated clip for this row.
+            Curve-only rows (behaviors identical by design, or analytic plots)
+            set this to ``False``.
     """
 
     name: str
@@ -230,6 +233,7 @@ class RowSpec:
     initial_joint_vel: float
     duration: float
     plot: PlotSpec
+    record_clip: bool = True
 
 
 # Common command profiles. ``t`` is the elapsed simulation time in seconds.
@@ -258,6 +262,25 @@ def _free(t: float) -> tuple[float | None, float | None, float | None]:
 def _implicit_pendulum_cfg(**kwargs) -> ImplicitActuatorCfg:
     """Build an implicit actuator config for the pendulum joint."""
     return ImplicitActuatorCfg(joint_names_expr=[".*"], **kwargs)
+
+
+def _use_implicit_integrator(physics_cfg) -> None:
+    """Switch the MJWarp solver to its implicit-derivative integrator.
+
+    MJWarp's default ``euler`` integrator applies actuator velocity gains
+    explicitly, which goes unstable once ``damping > 2 * inertia / dt`` (about
+    29 N·m·s/rad for this pendulum at 120 Hz) — exactly the upper end of the
+    damping sweep. The ``implicitfast`` integrator folds the actuator force
+    derivatives into the velocity update, making the implicit PD gain sweeps
+    unconditionally stable without changing their values. No-op for other
+    physics backends.
+
+    Args:
+        physics_cfg: Resolved physics configuration from ``launch_simulation``.
+    """
+    solver_cfg = getattr(physics_cfg, "solver_cfg", None)
+    if solver_cfg is not None and hasattr(solver_cfg, "integrator"):
+        solver_cfg.integrator = "implicitfast"
 
 
 ROWS: dict[str, RowSpec] = {
@@ -311,7 +334,7 @@ ROWS: dict[str, RowSpec] = {
         initial_joint_pos=math.pi / 2.0,
         initial_joint_vel=0.0,
         duration=4.0,
-        plot=PlotSpec("applied_torque_vs_computed", "Effort-limit sweep", "Joint torque [N*m]"),
+        plot=PlotSpec("applied_torque_vs_computed", "Effort-limit sweep", "Joint torque [N·m]"),
     ),
     "velocity-limit": RowSpec(
         name="DC motor velocity-limit sweep (torque-speed envelope)",
@@ -331,18 +354,16 @@ ROWS: dict[str, RowSpec] = {
         plot=PlotSpec("joint_vel", "Velocity-limit sweep", "Joint velocity [rad/s]"),
     ),
     "delay": RowSpec(
-        name="Command delay comparison (ideal PD vs 8-step delayed PD)",
-        values=["no delay", "8 steps", None, None, None],
-        make_actuator_cfg=lambda v: (
-            IdealPDActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=5.0)
-            if v == "no delay"
-            else DelayedPDActuatorCfg(joint_names_expr=[".*"], stiffness=100.0, damping=5.0, min_delay=8, max_delay=8)
+        name="Command delay sweep (delayed PD, 0 to 16 physics steps)",
+        values=[0, 2, 4, 8, 16],
+        make_actuator_cfg=lambda v: DelayedPDActuatorCfg(
+            joint_names_expr=[".*"], stiffness=100.0, damping=5.0, min_delay=int(v), max_delay=int(v)
         ),
         command=_square_wave,
         initial_joint_pos=0.0,
         initial_joint_vel=0.0,
         duration=6.0,
-        plot=PlotSpec("joint_pos", "Command delay comparison", "Joint position [rad]"),
+        plot=PlotSpec("joint_pos", "Command delay sweep", "Joint position [rad]"),
     ),
     "implicit-vs-explicit": RowSpec(
         name="Implicit vs explicit PD (identical stiffness 100, damping 5)",
@@ -357,6 +378,9 @@ ROWS: dict[str, RowSpec] = {
         initial_joint_vel=0.0,
         duration=4.0,
         plot=PlotSpec("joint_pos", "Implicit vs explicit PD", "Joint position [rad]"),
+        # The two responses are identical by design, so a clip adds nothing; the
+        # overlaid curve is the teaching artifact.
+        record_clip=False,
     ),
 }
 
@@ -784,15 +808,26 @@ def _trace_label(key: str, value: float | str) -> str:
     """Build a legend label such as ``stiffness=100 N·m/rad`` (or the raw string label)."""
     if isinstance(value, str):
         return value
+    if key == "delay":
+        steps = int(value)
+        return f"delay={steps} steps ({round(steps * DT * 1000.0)} ms)"
     unit = VALUE_UNITS.get(key, "")
     return f"{key}={_format_value(value)} {unit}".rstrip()
 
 
 def _save_curve(fig, key: str, dark: bool) -> Path:
-    """Write *fig* as a light or dark SVG with reproducible (timestamp-free) metadata."""
+    """Write *fig* as a light or dark SVG with reproducible (timestamp-free) metadata.
+
+    Trailing whitespace is stripped from every line (and a final newline is
+    ensured) so the output is byte-stable under the repository's pre-commit
+    hooks: matplotlib emits trailing spaces that the hooks would otherwise trim,
+    making committed files differ from freshly generated ones.
+    """
     path = MEDIA_DIR / f"{key}-curve-{'dark' if dark else 'light'}.svg"
     fig.savefig(path, format="svg", bbox_inches="tight", metadata={"Date": None})
     plt.close(fig)
+    lines = [line.rstrip() for line in path.read_text().splitlines()]
+    path.write_text("\n".join(lines) + "\n")
     return path
 
 
@@ -882,11 +917,13 @@ def plot_row(row: RowSpec, logs: dict[str, torch.Tensor] | None, key: str) -> li
 
 
 def record_row(sim: sim_utils.SimulationContext, row: RowSpec, key: str) -> list[Path]:
-    """Capture one row's clip and plot its curves.
+    """Capture one row's clip (when the row has one) and plot its curves.
 
     Builds the scene, runs the row while capturing every :data:`CAPTURE_STRIDE`
     physics frames from a fixed camera, writes the animated clip, then plots the
-    comparison curves from the logged telemetry.
+    comparison curves from the logged telemetry. Rows with
+    :attr:`RowSpec.record_clip` disabled skip the camera and clip entirely and
+    only produce curves.
 
     Args:
         sim: Active simulation context (fresh stage for this row).
@@ -894,27 +931,30 @@ def record_row(sim: sim_utils.SimulationContext, row: RowSpec, key: str) -> list
         key: Comparison-row key used for the output filenames.
 
     Returns:
-        Every written media path (clip first, then the light and dark curves).
+        Every written media path (clip first when captured, then the light and
+        dark curves).
     """
     articulations = build_scene(sim, row)
     stage = sim_utils.get_current_stage()
-    # Drop the ground plane so clips render against a clean, uniform background
-    # (the fixed-base pendulums do not touch it, and the kitless renderer shows
-    # its untextured surface as a solid color).
-    stage.RemovePrim("/World/defaultGroundPlane")
-    camera = _build_record_camera(stage)
+    camera = None
+    if row.record_clip:
+        # Drop the ground plane so clips render against a clean, uniform background
+        # (the fixed-base pendulums do not touch it, and the kitless renderer shows
+        # its untextured surface as a solid color).
+        stage.RemovePrim("/World/defaultGroundPlane")
+        camera = _build_record_camera(stage)
     sim.reset()
 
     sim_dt = sim.get_physics_dt()
     frames: list[Image.Image] = []
 
     def on_frame(step: int) -> None:
-        if step % CAPTURE_STRIDE == 0:
+        if camera is not None and step % CAPTURE_STRIDE == 0:
             camera.update(sim_dt, force_recompute=True)
             frames.append(_capture_frame(camera))
 
     logs = run_row(sim, articulations, row, on_frame=on_frame)
-    paths = [_write_clip(frames, key)]
+    paths = [_write_clip(frames, key)] if frames else []
     paths += plot_row(row, logs, key)
     return paths
 
@@ -949,6 +989,7 @@ def _run_record() -> None:
 
     if sim_keys:
         with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+            _use_implicit_integrator(physics_cfg)
             for index, key in enumerate(sim_keys):
                 # Rebuild a fresh stage per row so scenes do not accumulate.
                 if index > 0:
@@ -986,6 +1027,7 @@ def main() -> None:
     torch.manual_seed(SEED)
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        _use_implicit_integrator(physics_cfg)
         sim_cfg = sim_utils.SimulationCfg(dt=DT, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[0.0, -6.0, 2.0], target=[0.0, 0.0, 1.6])
