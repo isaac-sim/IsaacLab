@@ -364,7 +364,7 @@ demand does not merely slow the joint, it removes the controller's ability to da
 .. figure:: ../../_static/actuators/effort-limit-clip.webp
     :align: center
     :width: 100%
-    :alt: Five pendulums with decreasing effort limit holding or failing against gravity.
+    :alt: Five pendulums with increasing effort limit holding or failing against gravity.
 
 .. figure:: ../../_static/actuators/effort-limit-curve-light.svg
     :class: only-light

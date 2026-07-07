@@ -286,8 +286,8 @@ def _use_implicit_integrator(physics_cfg) -> None:
 
     MJWarp's default ``euler`` integrator applies actuator velocity gains
     explicitly, which goes unstable once ``damping > 2 * inertia / dt`` (about
-    29 N·m·s/rad for this pendulum at 120 Hz) — exactly the upper end of the
-    damping sweep. The ``implicitfast`` integrator folds the actuator force
+    87 N·m·s/rad for this pendulum at 360 Hz), which the damping sweep's top
+    value crosses. The ``implicitfast`` integrator folds the actuator force
     derivatives into the velocity update, making the implicit PD gain sweeps
     unconditionally stable without changing their values. No-op for other
     physics backends.
