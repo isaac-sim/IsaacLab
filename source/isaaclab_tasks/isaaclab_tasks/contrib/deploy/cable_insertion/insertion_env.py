@@ -25,7 +25,6 @@ Newton/warp backend.
 from __future__ import annotations
 
 import torch
-
 import warp as wp
 
 from isaaclab.envs import ManagerBasedRLEnv

@@ -35,7 +35,9 @@ _HUBBLE_PLUG_CLEARANCE_Z = 0.068
 
 _HUBBLE_SOCKET_ROOT = compute_socket_root(_HUBBLE_GEOMETRY_POS, _HUBBLE_SOCKET_ROT)
 _HUBBLE_PLUG_ROOT, _HUBBLE_PLUG_ROT = compute_plug_pose(
-    _HUBBLE_GEOMETRY_POS, _HUBBLE_SOCKET_ROT, z_clearance=_HUBBLE_PLUG_CLEARANCE_Z,
+    _HUBBLE_GEOMETRY_POS,
+    _HUBBLE_SOCKET_ROT,
+    z_clearance=_HUBBLE_PLUG_CLEARANCE_Z,
 )
 
 
@@ -133,9 +135,7 @@ class Rizon4sGravDisplayportInsertionROSInferenceEnvCfg(Rizon4sGravDisplayportIn
 
 
 @configclass
-class Rizon4sGravDisplayportInsertionNoJointVelROSInferenceEnvCfg(
-    Rizon4sGravDisplayportInsertionROSInferenceEnvCfg
-):
+class Rizon4sGravDisplayportInsertionNoJointVelROSInferenceEnvCfg(Rizon4sGravDisplayportInsertionROSInferenceEnvCfg):
     """ROS inference config for the velocity-free joint-space policy.
 
     Identical deployment setup to
