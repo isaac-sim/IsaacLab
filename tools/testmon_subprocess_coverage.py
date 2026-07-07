@@ -25,6 +25,7 @@ Import the pytest hook functions into ``conftest.py``.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import shutil
 import sysconfig
@@ -231,11 +232,12 @@ def teardown_subprocess_coverage(config: pytest.Config) -> None:
             os.environ.pop("PYTHONPATH", None)
         else:
             os.environ["PYTHONPATH"] = state.prev_pythonpath
-    if state.enabled and state.rc_path.is_file():
-        state.rc_path.unlink(missing_ok=True)
     if state.enabled:
+        with contextlib.suppress(OSError):
+            state.rc_path.unlink(missing_ok=True)
         for leftover in _child_data_files(state.data_prefix):
-            leftover.unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                leftover.unlink(missing_ok=True)
     if state.shim_dir is not None and state.shim_dir.is_dir():
         shutil.rmtree(state.shim_dir, ignore_errors=True)
     if _STATE_KEY in config.stash:
