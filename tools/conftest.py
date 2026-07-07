@@ -20,6 +20,11 @@ from prettytable import PrettyTable
 import test_settings as test_settings  # isort: skip
 from _device_split import DEVICE_SPLIT_PASSES, is_device_split_file  # isort: skip
 
+_TESTMON_PYTEST_ARGS = {
+    "select": ["--testmon", "--testmon-forceselect"],
+    "collect": ["--testmon", "--testmon-noselect"],
+}
+
 
 def pytest_ignore_collect(collection_path, config):
     # Skip collection and run each test script individually
@@ -489,6 +494,7 @@ def _run_one_pass(
         sys.executable,
         "-m",
         "pytest",
+        *_TESTMON_PYTEST_ARGS.get(ctx.env.get("TESTMON_MODE"), []),
         "-s",
         "--no-header",
         f"--config-file={ctx.workspace_root}/pyproject.toml",

@@ -113,6 +113,41 @@ def _run_count(runs_file: Path) -> int:
     return len([line for line in runs_file.read_text(encoding="utf-8").splitlines() if line.strip()])
 
 
+def test_testmon_args_are_forwarded_to_per_file_pytest(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """The package-test runner applies Testmon selection to the pytest process that collects real tests."""
+    module_name = "isaaclab_package_test_runner"
+    spec = importlib.util.spec_from_file_location(module_name, _TOOLS_DIR / "conftest.py")
+    assert spec and spec.loader
+    test_runner = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, module_name, test_runner)
+    spec.loader.exec_module(test_runner)
+
+    commands: list[list[str]] = []
+
+    def capture_command(cmd, *args, **kwargs):
+        commands.append(cmd)
+        return 0, b"", b"", "", 0.0, ""
+
+    monkeypatch.setattr(test_runner, "capture_test_output_with_timeout", capture_command)
+    monkeypatch.setattr(test_runner, "_get_diagnostics", lambda *args: "")
+    context = test_runner._PassContext(
+        test_file="test_selection_probe.py",
+        file_name="test_selection_probe.py",
+        workspace_root=str(tmp_path),
+        isaacsim_ci=False,
+        timeout=1,
+        startup_deadline=1,
+        env={"TESTMON_MODE": "select"},
+        pytest_targets=["test_selection_probe.py"],
+    )
+
+    test_runner._run_one_pass(context, k_expr=None, suffix="")
+
+    assert commands
+    assert "--testmon" in commands[0]
+    assert "--testmon-forceselect" in commands[0]
+
+
 @pytest.mark.skipif(not _dependencies_available(), reason="pytest-testmon and coverage are required")
 def test_editing_subprocess_only_dependency_reselects_test(tmp_path: Path) -> None:
     """Testmon reselects a test when a dependency reached only via a subprocess changes."""

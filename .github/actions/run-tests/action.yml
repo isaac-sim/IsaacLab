@@ -255,20 +255,19 @@ runs:
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
           fi
 
-          testmon_options=""
           if [ -n "$testmon_data_dir" ]; then
             mkdir -p "$testmon_data_dir"
             docker_env_vars="$docker_env_vars -e TESTMON_DATAFILE=/workspace/isaaclab/$testmon_data_dir/.testmondata"
             case "$testmon_mode" in
               select)
                 if [ -s "$testmon_data_dir/.testmondata" ]; then
-                  testmon_options="--testmon --testmon-forceselect"
+                  docker_env_vars="$docker_env_vars -e TESTMON_MODE=select"
                 else
                   echo "::warning::Testmon data is missing; collecting a full baseline"
-                  testmon_options="--testmon --testmon-noselect"
+                  docker_env_vars="$docker_env_vars -e TESTMON_MODE=collect"
                 fi
                 ;;
-              collect) testmon_options="--testmon --testmon-noselect" ;;
+              collect) docker_env_vars="$docker_env_vars -e TESTMON_MODE=collect" ;;
               off) ;;
               *) echo "Unknown Testmon mode: $testmon_mode"; return 1 ;;
             esac
@@ -415,7 +414,7 @@ runs:
                 esac
               fi
               echo 'Starting pytest with path: $test_path'
-              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options $testmon_options -v --junitxml=tests/$result_file
+              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
             "
 
           # Stream container logs in background.
