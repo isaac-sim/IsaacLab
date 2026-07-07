@@ -1648,6 +1648,7 @@ class ArticulationData(BaseArticulationData):
                 copy=False,
             )
         wp.copy(staging, src_view)
+        wp.synchronize_stream(src.device)
         binding.write(staging, indices=indices, mask=mask)
 
     def _stage_to_pinned_cpu(self, tensor_type: int, role: str, src: wp.array) -> wp.array:
@@ -1681,6 +1682,7 @@ class ArticulationData(BaseArticulationData):
         else:
             flat_src = wp.array(ptr=src.ptr, shape=staging.shape, dtype=wp.float32, device=str(src.device), copy=False)
             wp.copy(staging, flat_src)
+        wp.synchronize_stream(src.device)
         return staging
 
     def _read_initial_properties(self) -> None:

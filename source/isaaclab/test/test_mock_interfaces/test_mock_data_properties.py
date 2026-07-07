@@ -20,6 +20,8 @@ from isaaclab.test.mock_interfaces.sensors import (
     MockPvaData,
 )
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # IMU Data Property Tests
 # ==============================================================================

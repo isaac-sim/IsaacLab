@@ -1,6 +1,57 @@
 Changelog
 ---------
 
+0.6.0 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``motion_vectors`` data type support to :class:`~isaaclab_ov.renderers.OVRTXRenderer`.
+
+Fixed
+^^^^^
+
+* Removed overly broad ``except Exception`` handling in :class:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer`
+  that downgraded failures in scene initialization, camera and object binding setup, scene partition writes,
+  Newton transform syncing, and :meth:`~isaaclab_ov.renderers.ovrtx_renderer.OVRTXRenderer.render` to log
+  warnings and silently continue. These now propagate so callers can decide how to handle the failure.
+
+
+0.5.4 (2026-07-03)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_segmentation` and
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_id_segmentation` config fields
+  to :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`.
+* Added support for the ``instance_segmentation_fast`` and ``instance_id_segmentation_fast``
+  data types in the OVRTX renderer, via the ``NonStableInstanceSegmentation`` and
+  ``InstanceSegmentationSD`` AOVs respectively. When the corresponding
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_segmentation` /
+  :attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.colorize_instance_id_segmentation` flag is
+  ``True`` (default), instance IDs are colorized and returned as ``uint8`` RGBA; when ``False``,
+  raw ``uint32`` instance IDs are returned.
+
+Changed
+^^^^^^^
+
+* Consolidated the OVRTX tile-extraction Warp kernels into a single generic
+  :func:`~isaaclab_ov.renderers.ovrtx_renderer_kernels.extract_all_tiles_kernel`.
+
+
+0.5.3 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS`` environment variable to control whether
+  :class:`~isaaclab_ov.renderers.OVRTXRenderer` enables OVRTX GPU transform reads.
+
+
 0.5.2 (2026-06-26)
 ~~~~~~~~~~~~~~~~~~
 

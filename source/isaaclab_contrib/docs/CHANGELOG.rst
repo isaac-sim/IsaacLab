@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+0.4.6 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed two-way rigid-deformable contact reactions with Newton shape margins.
+
+
 0.4.5 (2026-06-08)
 ~~~~~~~~~~~~~~~~~~
 

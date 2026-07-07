@@ -29,9 +29,12 @@ with contextlib.suppress(ModuleNotFoundError):
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.utils._device import set_cuda_device
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 
 # Suppress noisy debug-level logs from third-party libraries
 logging.getLogger("websockets").setLevel(logging.WARNING)
@@ -79,6 +82,10 @@ class AppLauncher:
         overrides the ``LIVESTREAM`` environment variable when ``livestream`` argument is set to a
         value >-1. In other words, if ``livestream=-1``, then the value from the environment variable
         ``LIVESTREAM`` is used.
+
+    The ``ISAACLAB_FABRIC_USE_GPU_INTEROP`` environment variable optionally overrides the
+    ``/physics/fabricUseGPUInterop`` Kit setting. Set it to ``1`` or ``0`` to enable or disable the setting.
+    When unset, Kit's configured default is preserved.
 
     """
 
@@ -431,6 +438,8 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
+          multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
         * ``visualizer`` (str): Visualizer backends to enable.
           Valid options are:
@@ -567,7 +576,8 @@ class AppLauncher:
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
                 ' Can be "performance", "balanced", or "quality".'
-                " Individual settings can be overwritten by using the RenderCfg class."
+                " Individual Isaac RTX settings can be overwritten through "
+                "IsaacRtxRendererCfg.global_settings."
             ),
         )
         arg_group.add_argument(
@@ -1003,7 +1013,6 @@ class AppLauncher:
         device = launcher_args.get("device", AppLauncher._APPLAUNCHER_CFG_INFO["device"][1])
 
         device_explicitly_passed = launcher_args.pop("device_explicit", False)
-
         if self._xr and not device_explicitly_passed:
             # If no device is specified, default to the CPU device if we are running in XR
             device = "cpu"
@@ -1061,32 +1070,6 @@ class AppLauncher:
         launcher_args["physics_gpu"] = self.device_id
         launcher_args["active_gpu"] = self.device_id
 
-        # Pin Kit's renderer to a single GPU when ``ISAACLAB_PIN_KIT_GPU`` is
-        # truthy. The default ``apps/isaaclab.python.headless.kit`` sets
-        # ``renderer.multiGpu.enabled = true`` + ``renderer.multiGpu.autoEnable
-        # = true``, so each Kit process enumerates every visible GPU at
-        # startup. Under concurrent multi-GPU CI shards (``--gpus all`` per
-        # container, one Kit per non-default cuda device), that produces a
-        # shared GPU-interop context across sibling processes -- surfacing as
-        # ``[Error] [omni.physx.plugin] Stage X already attached`` mid-test and
-        # ``SimulationApp.close`` hanging in teardown (see
-        # https://github.com/isaac-sim/IsaacLab/issues/3475). The mitigation is
-        # to set ``renderer.multiGpu.enabled = false`` + ``maxGpuCount = 1`` so
-        # each Kit only touches its assigned GPU.
-        if os.environ.get("ISAACLAB_PIN_KIT_GPU", "0").lower() not in {"", "0", "false", "no", "off"}:
-            sys.argv.append("--/renderer/multiGpu/enabled=False")
-            sys.argv.append("--/renderer/multiGpu/autoEnable=False")
-            sys.argv.append("--/renderer/multiGpu/maxGpuCount=1")
-            # Also disable the fabric GPU-interop path. The renderer multiGpu
-            # flags above mitigate the startup-time enumeration race; this
-            # mitigates the runtime GPU-interop race on top. Safe for the
-            # multi-GPU CI lane: it covers physics / scene / utility tests,
-            # not rendering.
-            sys.argv.append("--/physics/fabricUseGPUInterop=false")
-            logger.info(
-                "ISAACLAB_PIN_KIT_GPU enabled: pinning Kit renderer to a single GPU + disabling fabric GPU-interop"
-            )
-
         # Defer importing torch until after SimulationApp starts.  Importing
         # torch can import NumPy/OpenBLAS, whose at-fork handlers can crash
         # Kit's platform-info fork during startup.
@@ -1099,13 +1082,11 @@ class AppLauncher:
         logger.info("Using device: %s", device)
 
     def _set_deferred_cuda_device(self) -> None:
-        """Set the current torch CUDA device after Kit startup."""
+        """Set the current CUDA device after Kit startup."""
         if self._deferred_cuda_device_id is None:
             return
 
-        import torch
-
-        torch.cuda.set_device(self._deferred_cuda_device_id)
+        set_cuda_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -1195,11 +1176,21 @@ class AppLauncher:
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
-        # Resolve additional arguments passed to Kit
-        self._kit_args = []
-        if "kit_args" in launcher_args:
-            self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
-            sys.argv += self._kit_args
+        self._kit_args = launcher_args.get("kit_args", "").split()
+
+        fabric_gpu_interop = os.environ.get(_FABRIC_GPU_INTEROP_ENV)
+        if fabric_gpu_interop is not None:
+            if fabric_gpu_interop not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid value for environment variable `{_FABRIC_GPU_INTEROP_ENV}`: {fabric_gpu_interop}."
+                    " Expected: 0 or 1."
+                )
+            argument = f"--/physics/fabricUseGPUInterop={'true' if fabric_gpu_interop == '1' else 'false'}"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
+
+        sys.argv += self._kit_args
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
@@ -1288,6 +1279,10 @@ class AppLauncher:
             # handlers remain at WARNING.
             logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
+
+        # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
+        # SimulationContext and renderers consume this setting during their initialization.
+        settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)

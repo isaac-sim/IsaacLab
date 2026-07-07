@@ -1,6 +1,35 @@
 Changelog
 ---------
 
+1.1.0 (2026-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_visualizers.newton.NewtonVisualizer.render_rgb_array` to access the latest
+  Newton viewer framebuffer.
+* Added :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing`
+  to visually separate Newton worlds without changing their simulated poses.
+
+Fixed
+^^^^^
+
+* Fixed Newton marker filtering for environment-major marker arrays and aligned marker
+  overlays with visual world spacing.
+
+
+1.0.4 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+
 1.0.3 (2026-06-25)
 ~~~~~~~~~~~~~~~~~~
 

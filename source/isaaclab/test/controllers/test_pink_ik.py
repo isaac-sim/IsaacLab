@@ -30,7 +30,7 @@ from isaaclab.utils.math import axis_angle_from_quat, matrix_from_quat, quat_fro
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 def load_test_config(env_name):

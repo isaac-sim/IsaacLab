@@ -39,3 +39,17 @@ class OVRTXRendererCfg(RendererCfg):
 
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
+
+    colorize_instance_segmentation: bool = True
+    """Whether to colorize instance segmentation output. Defaults to True.
+
+    If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
+    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    """
+
+    colorize_instance_id_segmentation: bool = True
+    """Whether to colorize instance ID segmentation output. Defaults to True.
+
+    If True, instance IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
+    If False, raw instance IDs are returned as a ``uint32`` 1-channel array.
+    """

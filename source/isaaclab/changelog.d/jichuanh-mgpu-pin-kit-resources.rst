@@ -1,13 +1,14 @@
+Changed
+^^^^^^^
+
+* Changed the Isaac Lab Kit experiences to use one renderer GPU by default. To
+  enable single-process multi-GPU rendering, pass the ``renderer.multiGpu``
+  settings explicitly through :class:`~isaaclab.app.AppLauncher`'s ``kit_args``.
+
 Added
 ^^^^^
 
-* Added ``ISAACLAB_PIN_KIT_GPU`` env var for :class:`~isaaclab.app.AppLauncher`.
-  When set to a truthy value, appends ``--/renderer/multiGpu/enabled=False``,
-  ``--/renderer/multiGpu/autoEnable=False``, ``--/renderer/multiGpu/maxGpuCount=1``
-  and ``--/physics/fabricUseGPUInterop=false`` to the Kit command line so each
-  Kit process touches only its assigned GPU (rather than enumerating every
-  visible GPU at startup). Used by the multi-GPU CI workflow to prevent the
-  shared GPU-interop context across sibling shards that surfaces as
-  ``[Error] [omni.physx.plugin] Stage X already attached`` and
-  ``SimulationApp.close`` hangs (see https://github.com/isaac-sim/IsaacLab/issues/3475).
-  Off by default; single-GPU and user-facing rendering paths are unchanged.
+* Added ``ISAACLAB_FABRIC_USE_GPU_INTEROP`` to override the corresponding PhysX
+  Fabric Kit setting without changing renderer multi-GPU behavior. The multi-GPU
+  CI override is a temporary workaround to remove after the underlying Kit/PhysX
+  problem is fixed.

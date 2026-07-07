@@ -46,6 +46,20 @@ class RenderContext:
         self._prepared_num_envs: int | None = None
         self._last_transforms_step: int | None = None
 
+    def _check_global_settings_compatible(self, cfg: RendererCfg) -> None:
+        """Reject conflicting process-global renderer settings."""
+        if getattr(cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(cfg, "global_settings"):
+            return
+        for stored_cfg, _renderer in self._renderer_entries:
+            if getattr(stored_cfg, "renderer_type", None) != "isaac_rtx" or not hasattr(stored_cfg, "global_settings"):
+                continue
+            if stored_cfg.global_settings != cfg.global_settings:
+                raise ValueError(
+                    "Isaac RTX global settings differ across camera renderer configs. "
+                    "These settings are process-global; configure the same "
+                    "IsaacRtxRendererCfg.global_settings for every Isaac RTX camera."
+                )
+
     def get_renderer(self, cfg: RendererCfg) -> BaseRenderer:
         """Return a backend for this configuration, reusing a matching instance if present.
 
@@ -58,6 +72,7 @@ class RenderContext:
         Returns:
             A shared or newly created renderer backend.
         """
+        self._check_global_settings_compatible(cfg)
         for stored_cfg, r in self._renderer_entries:
             if type(stored_cfg) is type(cfg) and stored_cfg == cfg:
                 return r

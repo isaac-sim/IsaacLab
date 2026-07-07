@@ -30,6 +30,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
+from isaaclab.utils._device import set_cuda_device
 
 logger = logging.getLogger(__name__)
 
@@ -379,7 +380,7 @@ def _resolve_distributed_device(cfg, launcher_args: argparse.Namespace | dict | 
     sim_cfg = getattr(cfg, "sim", None)
     if sim_cfg is not None:
         sim_cfg.device = device_str
-    torch.cuda.set_device(device_str)
+    set_cuda_device(device_str)
     logger.info(
         "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d)",
         device_str,
@@ -473,16 +474,21 @@ def launch_simulation(
                 {**base, "visualizer_explicit": True, "visualizer_disable_all": disable_all}
             )
 
+    exit_code = 0
     try:
         yield physics_cfg
     except Exception:
+        exit_code = 1
         import traceback
 
         traceback.print_exc()
         raise
     finally:
         if close_fn is not None:
-            close_fn()
+            if exit_code:
+                close_fn(exit_code=exit_code)
+            else:
+                close_fn()
 
 
 def _ensure_isaac_sim_available() -> None:

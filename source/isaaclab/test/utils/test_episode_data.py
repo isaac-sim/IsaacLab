@@ -8,6 +8,8 @@ import torch
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.datasets import EpisodeData
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_is_empty(device):

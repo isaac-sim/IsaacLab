@@ -8,3 +8,4 @@
 isaacsim_image_name: nvcr.io/nvidian/isaac-sim
 isaacsim_image_tag: latest-develop
 isaaclab_image_name: nvcr.io/nvidian/isaac-lab
+ovphysx_wheelhouse_resource: "nvidian/ovphysx-wheelhouse:trunk-gf62c22207cfd"
