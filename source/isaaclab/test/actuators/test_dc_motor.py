@@ -8,6 +8,8 @@ import torch
 
 from isaaclab.actuators import DCMotorCfg
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.parametrize("num_joints", [1, 2])

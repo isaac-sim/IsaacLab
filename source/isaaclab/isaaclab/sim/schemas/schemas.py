@@ -933,33 +933,25 @@ def activate_contact_sensors(prim_path: str, threshold: float = 0.0, stage: Usd.
     # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # iterate over all children
-    num_contact_sensors = 0
-    all_prims = [prim]
-    while len(all_prims) > 0:
-        # get current prim
-        child_prim = all_prims.pop(0)
-        # check if prim is a rigid body
-        # nested rigid bodies are not allowed by SDK so we can safely assume that
-        # if a prim has a rigid body API, it is a rigid body and we don't need to
-        # check its children
-        if child_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            # set sleep threshold to zero
-            child_applied = child_prim.GetAppliedSchemas()
-            if "PhysxRigidBodyAPI" not in child_applied:
-                child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
-            safe_set_attribute_on_usd_prim(child_prim, "physxRigidBody:sleepThreshold", 0.0, camel_case=False)
-            # add contact report API with threshold of zero
-            if "PhysxContactReportAPI" not in child_applied:
-                child_prim.AddAppliedSchema("PhysxContactReportAPI")
-            safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
-            # increment number of contact sensors
-            num_contact_sensors += 1
-        else:
-            # add all children to tree
-            all_prims += child_prim.GetChildren()
+    # collect all rigid bodies under the prim, including nested rigid-body trees
+    rigid_body_prims = get_all_matching_child_prims(
+        prim_path,
+        predicate=lambda child_prim: child_prim.HasAPI(UsdPhysics.RigidBodyAPI),
+        stage=stage,
+        traverse_instance_prims=False,
+    )
+    for child_prim in rigid_body_prims:
+        # set sleep threshold to zero
+        child_applied = child_prim.GetAppliedSchemas()
+        if "PhysxRigidBodyAPI" not in child_applied:
+            child_prim.AddAppliedSchema("PhysxRigidBodyAPI")
+        safe_set_attribute_on_usd_prim(child_prim, "physxRigidBody:sleepThreshold", 0.0, camel_case=False)
+        # add contact report API with threshold of zero
+        if "PhysxContactReportAPI" not in child_applied:
+            child_prim.AddAppliedSchema("PhysxContactReportAPI")
+        safe_set_attribute_on_usd_prim(child_prim, "physxContactReport:threshold", threshold, camel_case=False)
     # check if no contact sensors were found
-    if num_contact_sensors == 0:
+    if not rigid_body_prims:
         descendant_count = 0
         frontier = [prim]
         while frontier:

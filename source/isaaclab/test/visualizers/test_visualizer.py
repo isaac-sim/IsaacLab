@@ -18,6 +18,8 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 #
 # Config factory
 #

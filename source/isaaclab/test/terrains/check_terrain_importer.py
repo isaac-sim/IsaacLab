@@ -159,7 +159,8 @@ def main():
     ball_initial_positions = terrain_importer.env_origins.clone()
     ball_initial_positions[:, 2] += 5.0
     # set initial poses (writes to USD before simulation)
-    xform_view.set_world_poses(positions=ball_initial_positions)
+    with xform_view.xform_world_space_writer() as w:
+        w.set_poses(positions=ball_initial_positions)
 
     # Play simulator
     sim.reset()

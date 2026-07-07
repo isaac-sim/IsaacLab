@@ -63,7 +63,6 @@ class AntPhysicsCfg(PresetCfg):
             collision_detector_pipeline="unified",
             collision_detector_max_contacts_per_pair=8,
         ),
-        num_substeps=2,
         debug_mode=False,
         use_cuda_graph=True,
     )

@@ -140,7 +140,7 @@ class StringMetadata(MetadataBase):
         type: Metadata type label. Defaults to "string".
     """
 
-    data: str
+    data: str | None
     type: str = "string"
 
 

@@ -12,6 +12,8 @@ wp.init()
 
 from isaaclab.utils.timer import Timer, TimerError
 
+pytestmark = pytest.mark.unit
+
 # number of decimal places to check
 PRECISION_PLACES = 2
 

@@ -5,6 +5,8 @@
 
 """Warp kernels for OVRTX rendering pipeline."""
 
+from typing import Any
+
 import warp as wp
 
 
@@ -72,92 +74,32 @@ def extract_tile_from_tiled_buffer_kernel(
 
 
 @wp.kernel
-def extract_all_rgba_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.uint8, ndim=4),  # type: ignore
+def extract_all_tiles_kernel(
+    tiled_buffer: wp.array(dtype=Any, ndim=3),  # type: ignore
+    output_buffer: wp.array(dtype=Any, ndim=4),  # type: ignore
     num_cols: int,
     tile_width: int,
     tile_height: int,
-    num_channels: int,
 ):
-    """Extract ALL RGBA or RGB tiles from a tiled buffer in a single kernel launch.
+    """Extract ALL tiles from a tiled buffer into per-env tiles in a single kernel launch.
+
+    Generic over the tile channel layout (RGB, RGBA, or single-channel depth) and dtype (e.g. uint8 color,
+    float32 depth/HDR color, or float16 HDR color widened to float32 on output). The channel count is taken
+    from ``output_buffer`` rather than passed explicitly, and each element is cast to the output dtype, so the
+    same kernel body serves every tile-extraction case; see the :func:`warp.overload` registrations below for
+    the concrete dtype pairs this is compiled for.
+
+    Precondition:
+        ``output_buffer``'s channel count (last dimension) must not exceed ``tiled_buffer``'s (the per-thread
+        channel loop below indexes ``tiled_buffer`` up to that bound). In this package, always launch this
+        kernel through ``OVRTXRenderer._launch_extract_all_tiles``, which validates this before every launch
+        instead of relying on each call site to remember to check. Passing a wider output buffer than the
+        tiled input reads out of bounds on the GPU.
 
     Args:
-        tiled_buffer: 3D uint8 array of shape (H, W, 4) for RGBA or (H, W, 3) for RGB.
-        output_buffer: 4D uint8 array of shape (num_envs, H, W, 4) for RGBA or (num_envs, H, W, 3) for RGB.
-        num_cols: number of columns in the tiled buffer.
-        tile_width: width of each tile.
-        tile_height: height of each tile.
-        num_channels: number of channels in the output buffer. Use 3 for RGB or 4 for RGBA.
-            If a value other than 3 or 4 is given, it will be treated as 3 (RGB).
-    """
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-
-    # RGB
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
-
-    # Alpha (if it is RGBA)
-    if num_channels == 4:
-        output_buffer[env_idx, y, x, 3] = tiled_buffer[src_y, src_x, 3]
-
-
-@wp.kernel
-def extract_all_rgb_float_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 3)
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract ALL RGB float tiles from a tiled buffer in a single kernel launch."""
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
-    output_buffer[env_idx, y, x, 1] = tiled_buffer[src_y, src_x, 1]
-    output_buffer[env_idx, y, x, 2] = tiled_buffer[src_y, src_x, 2]
-
-
-@wp.kernel
-def extract_all_rgb_half_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.float16, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore  (num_envs, H, W, 3)
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract ALL RGB half tiles into float32 output in a single kernel launch."""
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = wp.float32(tiled_buffer[src_y, src_x, 0])
-    output_buffer[env_idx, y, x, 1] = wp.float32(tiled_buffer[src_y, src_x, 1])
-    output_buffer[env_idx, y, x, 2] = wp.float32(tiled_buffer[src_y, src_x, 2])
-
-
-@wp.kernel
-def extract_all_depth_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.float32, ndim=3),  # type: ignore
-    output_buffer: wp.array(dtype=wp.float32, ndim=4),  # type: ignore
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract all depth tiles from a tiled buffer in a single kernel launch.
-
-    Args:
-        tiled_buffer: 3D float32 array of shape (H, W, 1) for depth.
-        output_buffer: 4D float32 array of shape (num_envs, H, W, 1) for depth.
+        tiled_buffer: 3D array of shape (H, W, C) holding all tiles packed into one buffer.
+        output_buffer: 4D array of shape (num_envs, H, W, C) to receive the per-env tiles, with C no greater
+            than ``tiled_buffer``'s channel count.
         num_cols: number of columns in the tiled buffer.
         tile_width: width of each tile.
         tile_height: height of each tile.
@@ -167,7 +109,30 @@ def extract_all_depth_tiles_kernel(
     tile_y = env_idx // num_cols
     src_x = tile_x * tile_width + x
     src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
+    for channel in range(output_buffer.shape[3]):
+        output_buffer[env_idx, y, x, channel] = output_buffer.dtype(tiled_buffer[src_y, src_x, channel])
+
+
+# uint8 color tiles (e.g. RGB/RGBA, semantic segmentation).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.uint8, ndim=3), wp.array(dtype=wp.uint8, ndim=4), int, int, int],
+)
+# float32 tiles (e.g. depth, normals, HDR color).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.float32, ndim=3), wp.array(dtype=wp.float32, ndim=4), int, int, int],
+)
+# float16 tiles (e.g. HDR color), widened to a float32 output buffer.
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.float16, ndim=3), wp.array(dtype=wp.float32, ndim=4), int, int, int],
+)
+# uint32 tiles (e.g. raw instance segmentation IDs).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.uint32, ndim=3), wp.array(dtype=wp.uint32, ndim=4), int, int, int],
+)
 
 
 @wp.kernel
@@ -292,23 +257,6 @@ def random_color_from_id(input_id: wp.uint32) -> wp.uint32:
         | (wp.uint32(ai) << wp.uint32(24))
     )
     return color
-
-
-@wp.kernel
-def extract_all_uint32_tiles_kernel(
-    tiled_buffer: wp.array(dtype=wp.uint32, ndim=3),  # type: ignore  (TH, TW, 1)
-    output_buffer: wp.array(dtype=wp.uint32, ndim=4),  # type: ignore  (num_envs, H, W, 1)
-    num_cols: int,
-    tile_width: int,
-    tile_height: int,
-):
-    """Extract all single-channel uint32 tiles (e.g. raw instance segmentation IDs)."""
-    env_idx, y, x = wp.tid()
-    tile_x = env_idx % num_cols
-    tile_y = env_idx // num_cols
-    src_x = tile_x * tile_width + x
-    src_y = tile_y * tile_height + y
-    output_buffer[env_idx, y, x, 0] = tiled_buffer[src_y, src_x, 0]
 
 
 @wp.kernel

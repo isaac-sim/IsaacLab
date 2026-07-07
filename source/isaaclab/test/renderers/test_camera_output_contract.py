@@ -17,6 +17,8 @@ from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
     focus_distance=400.0,
