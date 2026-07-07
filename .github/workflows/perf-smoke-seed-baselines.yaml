@@ -21,7 +21,8 @@
 # burns GPU time. Temporary branch-push triggers are scoped to unified-POC /
 # perf-smoke/** so maintainers can host this POC on isaac-sim/IsaacLab and run a
 # small L40S validation seed from a non-default branch before the workflow is
-# merged.
+# merged. Push-triggered validation is dry-run by default; use manual dispatch
+# with dry_run=false when maintainers are ready to write real baselines.
 
 name: Performance Smoke - Seed Baselines
 
@@ -185,7 +186,7 @@ jobs:
         SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
         SEED_TARGET_BRANCH: ${{ inputs.target_branch || 'develop' }}
-        SEED_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        SEED_DRY_RUN: ${{ github.event_name == 'push' && 'true' || inputs.dry_run || 'false' }}
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
