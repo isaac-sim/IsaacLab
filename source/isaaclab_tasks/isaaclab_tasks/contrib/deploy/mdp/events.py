@@ -11,6 +11,7 @@ import random
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
@@ -763,9 +764,7 @@ class set_robot_to_object_grasp_pose(ManagerTermBase):
         # Write gripper STATE at ``hand_hold_width`` (fingers just touching the
         # plug, no mesh overlap) and set the TARGET to ``hand_close_width``
         # (fully closed) so the actuator drive squeezes around the plug.
-        self.gripper_joint_setter_func(
-            joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_hold_width
-        )
+        self.gripper_joint_setter_func(joint_pos, list(range(num_reset_envs)), self.finger_joints, self.hand_hold_width)
         self.robot_asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self.robot_asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
@@ -824,9 +823,7 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
 
         self.normal_pose_range: dict = cfg.params.get("normal_pose_range", {})
 
-        self.identity_quat = torch.tensor(
-            [0.0, 0.0, 0.0, 1.0], device=env.device, dtype=torch.float32
-        )
+        self.identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=env.device, dtype=torch.float32)
 
     def _current_at_goal_prob(self, env: ManagerBasedEnv) -> float:
         """Return the at-goal probability for the current training progress.
@@ -835,11 +832,7 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
         between ``anneal_start_iter`` and ``anneal_end_iter``. Returns the
         constant ``at_goal_prob`` when annealing is not fully configured.
         """
-        if (
-            self.at_goal_prob_final is None
-            or self.anneal_end_iter is None
-            or not self.num_steps_per_env
-        ):
+        if self.at_goal_prob_final is None or self.anneal_end_iter is None or not self.num_steps_per_env:
             return self.at_goal_prob
 
         current_iter = env.common_step_counter / float(self.num_steps_per_env)
@@ -875,7 +868,10 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
         socket_offset_batch = self.socket_insertion_offset.unsqueeze(0).expand(num_envs, -1)
         id_quat_batch = self.identity_quat.unsqueeze(0).expand(num_envs, -1)
         kp_origin_w, _ = math_utils.combine_frame_transforms(
-            socket_pos, socket_quat, socket_offset_batch, id_quat_batch,
+            socket_pos,
+            socket_quat,
+            socket_offset_batch,
+            id_quat_batch,
         )
 
         # Insertion axis in world frame (rotated by socket orientation)
@@ -917,7 +913,9 @@ class reset_plug_at_goal_curriculum(ManagerTermBase):
             num_at_goal = int(at_goal_local.numel())
             if num_at_goal > 0:
                 depth_rand = torch.rand(num_at_goal, 1, device=env.device)
-                goal_kp_pos = kp_origin_w[at_goal_local] + depth_rand * insertion_axis_w[at_goal_local] * self.insertion_length
+                goal_kp_pos = (
+                    kp_origin_w[at_goal_local] + depth_rand * insertion_axis_w[at_goal_local] * self.insertion_length
+                )
 
                 # Convert keypoint position to plug root position
                 plug_pos[at_goal_local] = goal_kp_pos - plug_kp_in_world[at_goal_local]

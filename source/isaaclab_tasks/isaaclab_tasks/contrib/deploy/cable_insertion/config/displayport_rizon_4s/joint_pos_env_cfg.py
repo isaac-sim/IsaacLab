@@ -48,7 +48,9 @@ _PLUG_CLEARANCE_Z = 0.068
 
 _SOCKET_ROOT = compute_socket_root(_GEOMETRY_POS, _SOCKET_ROT)
 _PLUG_ROOT, _PLUG_ROT = compute_plug_pose(
-    _GEOMETRY_POS, _SOCKET_ROT, z_clearance=_PLUG_CLEARANCE_Z,
+    _GEOMETRY_POS,
+    _SOCKET_ROT,
+    z_clearance=_PLUG_CLEARANCE_Z,
 )
 
 # DisplayPort plug insertion length (blade engagement along the insertion axis)

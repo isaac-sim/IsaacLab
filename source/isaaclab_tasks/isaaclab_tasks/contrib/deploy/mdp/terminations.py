@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import torch
+import warp as wp
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg

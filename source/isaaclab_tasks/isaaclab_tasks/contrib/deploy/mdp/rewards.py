@@ -609,15 +609,13 @@ class keypoint_two_body_error(ManagerTermBase):
             torch.tensor(rot_offset_2, device=env.device, dtype=torch.float32).unsqueeze(0).repeat(env.num_envs, 1)
         )
 
-        self.identity_quat = (
-            torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32).repeat(env.num_envs, 1)
+        self.identity_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=env.device, dtype=torch.float32).repeat(
+            env.num_envs, 1
         )
 
         self.keypoint_computer = _compute_keypoint_distance(cfg, env)
 
-    def _get_kp_frames(
-        self, env: ManagerBasedRLEnv
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _get_kp_frames(self, env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute keypoint frames for both assets with offsets applied."""
         import warp as wp
 

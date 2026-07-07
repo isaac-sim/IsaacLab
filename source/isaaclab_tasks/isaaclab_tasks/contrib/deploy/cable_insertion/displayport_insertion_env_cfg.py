@@ -62,6 +62,7 @@ def _quat_mul(q1_xyzw, q2_xyzw):
         w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
     )
 
+
 # ---------------------------------------------------------------------------
 # USD body-frame offsets (DisplayPort asset geometry)
 # ---------------------------------------------------------------------------
@@ -114,7 +115,9 @@ _DEFAULT_SOCKET_ROT = (0.5, 0.5, 0.5, -0.5)
 
 _SOCKET_ROOT_POS = compute_socket_root(_INSERTION_POINT, _DEFAULT_SOCKET_ROT)
 _PLUG_ROOT_POS, _DEFAULT_PLUG_ROT = compute_plug_pose(
-    _INSERTION_POINT, _DEFAULT_SOCKET_ROT, z_clearance=0.033,
+    _INSERTION_POINT,
+    _DEFAULT_SOCKET_ROT,
+    z_clearance=0.033,
 )
 
 ##
