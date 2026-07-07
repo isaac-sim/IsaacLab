@@ -13,7 +13,7 @@ import pytest
 from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv
 from isaaclab.envs.utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 class _FakeMultiAgentEnv:

@@ -26,7 +26,7 @@ from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 def generate_cubes_scene(

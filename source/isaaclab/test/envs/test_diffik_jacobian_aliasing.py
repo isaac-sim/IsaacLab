@@ -21,7 +21,7 @@ import torch
 from isaaclab.envs.mdp.actions.task_space_actions import DifferentialInverseKinematicsAction
 from isaaclab.utils import math as math_utils
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 class _Stub:

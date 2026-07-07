@@ -19,7 +19,7 @@ from packaging.version import Version
 
 from isaaclab.utils.version import compare_versions, get_isaac_sim_version
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 def test_get_isaac_sim_version():

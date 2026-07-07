@@ -21,7 +21,7 @@ from isaaclab.envs.utils.spaces import (
     spec_to_gym_space,
 )
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 def test_spec_to_gym_space():

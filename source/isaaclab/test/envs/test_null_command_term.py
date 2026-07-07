@@ -9,7 +9,7 @@ import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
