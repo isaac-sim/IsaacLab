@@ -9,6 +9,8 @@ import pytest
 
 from isaaclab.app import AppLauncher
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_env_vars(mocker):

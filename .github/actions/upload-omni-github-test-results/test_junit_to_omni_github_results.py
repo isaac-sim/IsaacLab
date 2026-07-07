@@ -167,3 +167,42 @@ def test_convert_junit_adds_log_paths_for_junit_and_comparison_artifacts(tmp_pat
         junit_log_url,
         comparison_images_url,
     ]
+
+
+def test_convert_junit_appends_markers_to_test_type_with_separator(tmp_path: Path) -> None:
+    """Recorded intent markers should append to the base test_type with comma separators."""
+    converter = _load_converter_module()
+    junit_file = tmp_path / "report.xml"
+    output_dir = tmp_path / "out"
+    junit_file.write_text(
+        """<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="pytest" tests="2" failures="0" errors="0" skipped="0" time="2">
+  <testcase classname="test_camera" name="test_rgb" time="1">
+    <properties>
+      <property name="markers" value="integration,rendering"/>
+    </properties>
+  </testcase>
+  <testcase classname="test_math" name="test_quat" time="1"/>
+</testsuite>
+""",
+        encoding="utf-8",
+    )
+
+    converter.convert_junit(
+        junit_file=junit_file,
+        output_dir=output_dir,
+        test_tool_id="pytest",
+        test_type="pytest",
+        app_platform="linux-x86_64",
+        app_config="test-job",
+        group_name="Docker + Tests / isaaclab",
+        junit_log_url="",
+        comparison_images_url="",
+        retries=0,
+    )
+
+    marked, unmarked = _load_rows(output_dir)
+    # The base type must be separated from the first marker, not fused into "pytestintegration".
+    assert marked["test_type"] == "pytest,integration,rendering"
+    # Testcases without markers keep the bare base type.
+    assert unmarked["test_type"] == "pytest"

@@ -20,6 +20,8 @@ import torch
 import warp as wp
 from _rigid_object_collection_iface_test_utils import BACKENDS, get_rigid_object_collection
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def collection_iface(request):
