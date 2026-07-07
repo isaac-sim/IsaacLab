@@ -12,9 +12,11 @@ space-separated form ``--kit_args "--foo=/bar"`` for a single Kit argument on
 every entry point, including all ranks of the multi-GPU launcher.
 
 :meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` now fuses such pairs in
-``sys.argv`` into single ``--kit_args=<value>`` tokens before any parsing. The
-multi-GPU launcher forwards the tokens verbatim; the child training script
-normalizes them at startup.
+``sys.argv`` into single ``--kit_args=<value>`` tokens before any parsing, and
+``dispatch_library_entrypoint`` applies the same fusing to the explicit argv list
+it forwards to the per-library scripts (which parse that list, not ``sys.argv``).
+The multi-GPU launcher forwards the tokens verbatim; each child rank runs through
+the dispatcher and normalizes them at startup.
 
 These tests exercise the pure normalization and command-building logic and run
 without a GPU or Isaac Sim installation.
@@ -40,6 +42,11 @@ _TRAIN_MULTIGPU_PATH = _REPO_ROOT / "scripts" / "reinforcement_learning" / "trai
 _spec = importlib.util.spec_from_file_location("train_multigpu", _TRAIN_MULTIGPU_PATH)
 train_multigpu = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(train_multigpu)
+
+_COMMON_PATH = _REPO_ROOT / "scripts" / "reinforcement_learning" / "common.py"
+_common_spec = importlib.util.spec_from_file_location("rl_common", _COMMON_PATH)
+rl_common = importlib.util.module_from_spec(_common_spec)
+_common_spec.loader.exec_module(rl_common)
 
 
 def _build_command(argv: list[str]) -> list[str]:
@@ -124,6 +131,37 @@ class TestAddAppLauncherArgsNormalization:
         args, unknown = parser.parse_known_args()
         assert args.kit_args == "--foo=/bar"
         assert unknown == ["env.param=1"]
+
+
+class TestDispatchLibraryEntrypoint:
+    """Tests for the ``--kit_args`` normalization in ``dispatch_library_entrypoint``.
+
+    The unified ``train.py``/``play.py`` dispatchers hand the per-library scripts an
+    explicit argv list (not ``sys.argv``), so the normalization must also run on that
+    list before it is forwarded.
+    """
+
+    @staticmethod
+    def _dispatch(tmp_path: Path, argv: list[str]) -> list[str]:
+        """Dispatch to a stub library entry point and return the argv it received."""
+        stub = tmp_path / "stub_train.py"
+        stub.write_text(
+            "received = None\n\n\ndef run(argv):\n    global received\n    globals()['received'] = list(argv)\n"
+        )
+        exit_code = rl_common.dispatch_library_entrypoint(
+            argv, {"stub": stub}, action="train", description="test", library_help="test"
+        )
+        assert exit_code == 0
+        return sys.modules["isaaclab_rl_train_stub"].received
+
+    def test_space_separated_kit_args_fused_before_library_script(self, tmp_path):
+        received = self._dispatch(tmp_path, ["--rl_library", "stub", "--task", "X", "--kit_args", "--foo=/bar"])
+        assert received == ["--task", "X", "--kit_args=--foo=/bar"]
+
+    def test_already_working_argv_forms_forwarded_unchanged(self, tmp_path):
+        argv = ["--task", "X", "--kit_args=--foo=/bar", "--kit_args", "--a=/x --b=/y", "--num_envs", "16", "--headless"]
+        received = self._dispatch(tmp_path, ["--rl_library", "stub", *argv])
+        assert received == argv
 
 
 class TestKitArgsForwarding:
