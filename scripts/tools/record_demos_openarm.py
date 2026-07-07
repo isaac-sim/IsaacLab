@@ -204,6 +204,13 @@ class OpenArmKeyboard:
         self._delta_rot[:] = 0.0
         self._close_gripper = False
 
+    def clear_deltas(self):
+        """Like `reset()` but leaves `_close_gripper` untouched -- for clearing stray
+        position/rotation deltas accumulated while keys were held during a non-teleop
+        interlude (e.g. the ramp-to-rest test), without forcing the gripper open."""
+        self._delta_pos[:] = 0.0
+        self._delta_rot[:] = 0.0
+
     def add_callback(self, key: str, func):
         self._additional_callbacks[key] = func
 
@@ -440,6 +447,52 @@ class RateLimiter:
                 self.last_time += self.sleep_duration
 
 
+def run_ramp_to_rest_test(env, duration: float = 4.0, rate_hz: float = 50.0, stop_requested: dict | None = None):
+    """Replay reset_to_rest_pose.py's exact real-robot ramp (straight-line joint-space
+    interpolation from the current pose to the default rest pose) inside Isaac Sim, so you can
+    watch the viewport for the arm/gripper intersecting the pad -- without needing the real
+    hardware to test it.
+
+    This bypasses the env's normal action interface (IK deltas + binary gripper) entirely and
+    drives the robot's joints directly, matching lerobot_openarm/sim_bridge_common.py's
+    `ramp_to()`:  cmd = start + alpha * (end - start), alpha going 0->1 over `duration` seconds.
+    `env.step()` is not called during the ramp (nothing is recorded, no observations/rewards/
+    terminations run) -- this is a visual diagnostic only. Whatever pose the arm is in when you
+    trigger this becomes the ramp's start; the target is the task's own default joint pose
+    (`robot.data.default_joint_pos`), i.e. what a normal `env.reset()` would put it in.
+    """
+    robot = env.unwrapped.scene["robot"]
+    joint_ids, names = JointMirrorBroadcaster.resolve_mirror_joint_indices(robot)
+
+    start_pos = robot.data.joint_pos[0, joint_ids].clone()
+    end_pos = robot.data.default_joint_pos[0, joint_ids].clone()
+
+    print(f"[RAMP TEST] Ramping {len(names)} joints to the default rest pose over {duration}s...")
+    print("[RAMP TEST] Watch the viewport -- Ctrl+C aborts and leaves the arm wherever it stopped.")
+
+    steps = max(1, int(duration * rate_hz))
+    dt = 1.0 / rate_hz
+    sim_dt = env.unwrapped.sim.get_physics_dt()
+    for i in range(1, steps + 1):
+        if stop_requested is not None and stop_requested.get("flag"):
+            print("[RAMP TEST] Aborted.")
+            break
+        step_start = time.time()
+        alpha = i / steps
+        target = start_pos + alpha * (end_pos - start_pos)
+        target_batched = target.unsqueeze(0).expand(env.unwrapped.num_envs, -1)
+        robot.set_joint_position_target(target_batched, joint_ids=joint_ids)
+        robot.write_data_to_sim()
+        env.unwrapped.sim.step()
+        robot.update(sim_dt)
+        env.unwrapped.sim.render()
+        remaining = dt - (time.time() - step_start)
+        if remaining > 0:
+            time.sleep(remaining)
+    else:
+        print("[RAMP TEST] Done -- arm should now be at the default rest pose.")
+
+
 def build_single_arm_action(
     teleop_7d: torch.Tensor,
     gripper_state: float,
@@ -581,11 +634,16 @@ def main():
     running = True
     demo_count = 0
     success_step_count = 0
+    ramp_test_requested = False
 
     def reset_episode():
         nonlocal should_reset
         should_reset = True
         print("Reset requested")
+
+    def request_ramp_test():
+        nonlocal ramp_test_requested
+        ramp_test_requested = True
 
     def save_episode():
         nonlocal should_reset
@@ -615,6 +673,7 @@ def main():
     teleop.add_callback("R", reset_episode)
     teleop.add_callback("N", save_episode)
     teleop.add_callback("TAB", toggle_arm)
+    teleop.add_callback("T", request_ramp_test)
 
     # ── UI ────────────────────────────────────────────────────────────────────
     instruction_display = InstructionDisplay(xr=False)
@@ -641,6 +700,8 @@ def main():
     print("  ↑/↓        — pitch ±  |  ←/→ — yaw ±  |  [/] — roll ±")
     print("  N          — save episode as success")
     print("  R          — discard & reset episode")
+    print("  T          — ramp current pose to rest (matches reset_to_rest_pose.py) and watch")
+    print("               the viewport for a pad collision -- doesn't record, doesn't reset")
     if is_dual_arm:
         print(f"\nActive arm: LEFT\n")
     else:
@@ -657,6 +718,12 @@ def main():
 
     with contextlib.suppress(KeyboardInterrupt), torch.inference_mode():
         while simulation_app.is_running() and not stop_requested["flag"]:
+            if ramp_test_requested:
+                ramp_test_requested = False
+                run_ramp_to_rest_test(env, stop_requested=stop_requested)
+                teleop.clear_deltas()  # clear deltas accumulated while keys were held during the ramp
+                continue
+
             # Get 7D teleop output
             teleop_7d = teleop.advance()
 
