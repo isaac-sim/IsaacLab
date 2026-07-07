@@ -20,6 +20,8 @@ from isaaclab.cli.utils import (
     get_pip_command,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def _python_in_venv(venv: Path) -> Path:
     if sys.platform == "win32":

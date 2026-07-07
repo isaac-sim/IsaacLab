@@ -15,6 +15,8 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
+
 from isaaclab.cli.commands.install import (
     CORE_ISAACLAB_SUBMODULES,
     MANUAL_EXTRA_FEATURES,
@@ -23,6 +25,8 @@ from isaaclab.cli.commands.install import (
     command_install,
     split_install_items,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def _optional_submodule_packages() -> list[str]:

@@ -15,6 +15,8 @@ import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
 from isaaclab.app.sim_launcher import _ensure_livestream_kit_visualizer
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_kwargs(mocker):

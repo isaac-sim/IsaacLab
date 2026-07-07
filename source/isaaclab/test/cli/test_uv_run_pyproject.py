@@ -10,7 +10,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
 import tomllib
+
+pytestmark = pytest.mark.unit
 
 
 def _repo_root() -> Path:

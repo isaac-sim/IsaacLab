@@ -15,6 +15,12 @@ from isaaclab.test.benchmark import formatters
 from isaaclab.test.benchmark.benchmark_core import BaseIsaacLabBenchmark
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StringMetadata
 
+pytestmark = pytest.mark.benchmark
+
+# ==============================================================================
+# BaseIsaacLabBenchmark Tests
+# ==============================================================================
+
 
 @pytest.fixture(autouse=True)
 def reset_formatters():

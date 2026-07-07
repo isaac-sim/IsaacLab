@@ -11,7 +11,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 import tomllib
+
+pytestmark = pytest.mark.unit
 
 
 def _repo_root() -> Path:
