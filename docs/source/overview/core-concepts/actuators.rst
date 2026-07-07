@@ -208,8 +208,7 @@ Run a single comparison interactively (with the visualizer) via
     **effort_limit vs. effort_limit_sim.** These two fields look alike but act at different stages:
 
     * :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit` clips the torque **inside an explicit
-      actuator model** (it has no effect for implicit actuators, where it is treated as an alias of
-      ``effort_limit_sim``).
+      actuator model** (for implicit actuators it is treated as an alias of ``effort_limit_sim``).
     * :attr:`~isaaclab.actuators.ActuatorBaseCfg.effort_limit_sim` is the **solver's** hard effort
       clip. For explicit actuators it defaults to ``1.0e9`` so the solver does not clip a second
       time after the model already has; for implicit actuators it defaults to the value on the USD
@@ -219,7 +218,7 @@ Run a single comparison interactively (with the visualizer) via
     ``effort_limit_sim`` because it names the stage it acts on. The analogous
     :attr:`~isaaclab.actuators.ActuatorBaseCfg.velocity_limit` is **ignored for implicit actuators**
     (only ``velocity_limit_sim`` reaches the solver); it is used only by explicit models such as the
-    DC motor. Setting ``effort_limit`` on an implicit group emits a deprecation warning, and setting
+    DC motor. Setting ``effort_limit`` on an implicit group logs a deprecation warning, and setting
     both fields to conflicting values raises an error.
 
 
@@ -483,8 +482,9 @@ the mask setters when you already hold boolean Warp masks. All are keyword-only:
     robot.actuators.set_joint_position_target_index(target=sub, joint_ids=ids, env_ids=env_ids)
 
 By default ``target`` is shaped ``(len(env_ids), len(joint_ids))``. Pass ``full_data=True`` when
-``target`` is already a full ``(num_instances, num_joints)`` command buffer, which skips the
-per-index scatter -- the fast path for writing the whole articulation at once.
+``target`` is already a full ``(num_instances, num_joints)`` command buffer, so you don't have to
+build a per-index sub-tensor: the same scatter kernel runs either way, but the source is then read
+at full-buffer coordinates.
 
 **Telemetry.** The collection exposes per-joint buffers for the last step. Read the underlying tensor
 through ``.torch`` (or ``.warp``):
@@ -548,7 +548,8 @@ conventions.
 To see exactly which value won for each joint, set
 :attr:`~isaaclab.assets.ArticulationCfg.actuator_value_resolution_debug_print` to ``True`` on the
 articulation config; the collection logs a table of USD value, config value, and applied value for
-every joint whose sources disagree. For the full precedence walk-through and the ``velocity_limit``
+every joint whose sources disagree or whose config field was left unspecified (shown as
+``Not Specified``). For the full precedence walk-through and the ``velocity_limit``
 vs. ``velocity_limit_sim`` table, see :ref:`how-to-write-articulation-config`.
 
 
@@ -568,11 +569,12 @@ models **inside the Newton solver**:
     sim_cfg = SimulationCfg(use_newton_actuators=True)
 
 **What changes.** With the flag on, each explicit actuator config is translated into a
-``NewtonActuator`` USD prim and stepped by the physics engine (in the CUDA-graph-captured region),
-rather than by :meth:`ActuatorCollection.compute`. Implicit actuators are unaffected: their gains
-are written to the solver and PD runs there as before, so implicit joints keep working exactly the
-same. The PhysX backend can also consume these Newton-authored actuators through its adapter, so the
-authoring is shared across backends.
+``NewtonActuator`` USD prim and stepped by the physics engine rather than by
+:meth:`ActuatorCollection.compute`. On the Newton backend the actuators run inside the
+CUDA-graph-captured region. Implicit actuators are unaffected: their gains are written to the
+solver and PD runs there as before, so implicit joints keep working exactly the same. The PhysX
+backend can also consume these Newton-authored actuators through its adapter, which steps them
+host-side each step, so the authoring is shared across backends.
 
 **Supported models.** The authoring maps each supported config to a set of USD schemas:
 
@@ -628,13 +630,18 @@ of them:
 
     * - Backend
       - Submit behavior
-    * - PhysX / OVPhysX
+    * - PhysX
       - Processed position, velocity, and effort staging buffers are pushed through the PhysX Tensor
         API; a fused reorder gather runs first when a non-identity joint ordering is active.
+    * - OVPhysX
+      - The post-clip ``applied_torque`` is pushed as the effort together with the raw position and
+        velocity target buffers (not the processed staging buffers) via OV ``set_attribute`` tensor
+        bindings; every raw setter write is also eagerly mirrored into the binding at set time. A
+        fused reorder gather runs first when a non-identity joint ordering is active.
     * - Newton / MJWarp
-      - Targets are written into the solver's bound control arrays (``joint_act`` / effort); the
-        solver's built-in joint drive runs PD for implicit joints and adds the effort buffer as
-        feed-forward.
+      - Targets are written into the solver's bound control arrays (effort feed-forward, plus
+        ``joint_act`` under native actuators); the solver's built-in joint drive runs PD for
+        implicit joints and adds the effort buffer as feed-forward.
 
 For explicit actuators on any backend, remember that the solver's stiffness and damping for those
 joints are zero -- the model owns the gains.
