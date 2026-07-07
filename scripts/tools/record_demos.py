@@ -478,7 +478,10 @@ def handle_reset(
         Reset success step count (0).
     """
     print("Resetting environment...")
-    env.sim.reset()
+    # Do not call `env.sim.reset()` here: it performs a stop/play cycle that snaps every body
+    # back to its authored spawn pose before `env.reset()` applies the managed reset, so the
+    # scene visibly resets twice and the first recorded frames of the next episode can be
+    # corrupted. `env.reset()` alone fully restores the managers, events and recorder state.
     env.recorder_manager.reset()
     env.reset()
     if teleop_interface is not None and hasattr(teleop_interface, "reset"):
