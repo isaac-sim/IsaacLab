@@ -103,6 +103,10 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         # The mujoco variant authors no UsdPhysics drives (actuation is declared as MjcActuator
         # prims); IsaacLab's implicit actuators require the drive APIs to exist.
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
+        # The conversion's physics-material bindings resolve outside the reference scope and
+        # are silently dropped, leaving the hand on default friction; bind an explicit
+        # high-friction material like the legacy asset carries.
+        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         # Offset so the palm center matches the legacy asset's spawned palm position
