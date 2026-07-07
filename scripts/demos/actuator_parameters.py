@@ -56,17 +56,35 @@ parser.add_argument(
     choices=["physx", "newton_mjwarp"],
     help="Physics backend.",
 )
+parser.add_argument(
+    "--record",
+    action="store_true",
+    help="Render an animated clip and plot the comparison curves into the docs media directory.",
+)
+parser.add_argument(
+    "--all",
+    action="store_true",
+    help="With --record, generate media for every comparison row instead of just --parameter.",
+)
 # Hidden flag used by CI: run a fixed number of steps then exit cleanly.
 parser.add_argument("--smoke", action="store_true", help=argparse.SUPPRESS)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
+import contextlib
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
+from PIL import Image
 
 from pxr import Gf, Sdf, UsdGeom, UsdPhysics
 
@@ -120,6 +138,50 @@ DRIVE_DAMPING = 5.0
 
 
 ##
+# Recording constants (media generation for the documentation).
+##
+
+MEDIA_DIR = Path(__file__).resolve().parents[2] / "docs" / "source" / "_static" / "actuators"
+"""Output directory for the generated clips and curves."""
+
+CAMERA_WIDTH = 640
+"""Width of the captured RGB frames [px]."""
+
+CAMERA_HEIGHT = 360
+"""Height of the captured RGB frames [px]."""
+
+CAPTURE_STRIDE = 4
+"""Capture one frame every this many physics steps."""
+
+CAMERA_EYE = (0.0, -9.0, 1.7)
+"""World-space eye position of the recording camera [m]."""
+
+CAMERA_TARGET = (0.0, 0.0, 1.7)
+"""World-space look-at target of the recording camera [m]."""
+
+CLIP_MAX_BYTES = 300_000
+"""Per-clip webp size budget [bytes]."""
+
+SVG_HASHSALT = "isaaclab-actuator-parameters"
+"""Fixed matplotlib SVG hash salt so generated curves are byte-reproducible."""
+
+TRACE_COLORS = ("#3B82C4", "#E8833A", "#3EA96B", "#D14B57", "#8E63C4")
+"""Mid-tone categorical palette that reads on both light and dark backgrounds."""
+
+VALUE_UNITS = {
+    "stiffness": "N·m/rad",
+    "damping": "N·m·s/rad",
+    "armature": "kg·m²",
+    "friction": "N·m",
+    "effort-limit": "N·m",
+    "velocity-limit": "rad/s",
+    "delay": "",
+    "implicit-vs-explicit": "",
+}
+"""Per-row SI unit appended to numeric legend labels (empty for label-valued rows)."""
+
+
+##
 # Comparison matrix definitions.
 ##
 
@@ -128,7 +190,7 @@ DRIVE_DAMPING = 5.0
 class PlotSpec:
     """Plotting metadata consumed by the recording tooling.
 
-    Args:
+    Attributes:
         quantity: Logged quantity to plot. One of ``joint_pos``, ``joint_vel``,
             or ``applied_torque_vs_computed``.
         title: Human-readable plot title.
@@ -144,7 +206,7 @@ class PlotSpec:
 class RowSpec:
     """A single actuator-parameter comparison.
 
-    Args:
+    Attributes:
         name: Human-readable description of the comparison.
         values: Per-instance parameter values (five entries). ``None`` entries
             are padded placeholders for comparisons that use fewer than five live
@@ -576,10 +638,345 @@ def _print_parameters() -> None:
         print(f"  {key:<{width}}  {row.name}")
 
 
+##
+# Media recording (clips) and plotting (curves).
+##
+
+
+def _build_record_camera(stage) -> "Camera":  # noqa: F821
+    """Author a fixed, world-framed RGB camera and wrap it in a camera sensor.
+
+    The camera prim is authored directly with a look-at transform so the kitless
+    Newton-warp renderer (which reads the prim's USD transform, not the sensor's
+    pose buffer) frames every pendulum. This renderer captures RGB with
+    ``--viz none --enable_cameras`` without launching an Isaac Sim Kit process.
+
+    Args:
+        stage: USD stage to author the camera prim on.
+
+    Returns:
+        The camera sensor bound to the authored prim.
+    """
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    from isaaclab.sensors import Camera, CameraCfg
+
+    prim = UsdGeom.Camera.Define(stage, "/World/RecordCamera")
+    prim.CreateFocalLengthAttr(24.0)
+    prim.CreateHorizontalApertureAttr(20.955)
+    prim.CreateVerticalApertureAttr(20.955 * CAMERA_HEIGHT / CAMERA_WIDTH)
+    prim.CreateClippingRangeAttr(Gf.Vec2f(0.05, 1.0e5))
+    view = Gf.Matrix4d().SetLookAt(Gf.Vec3d(*CAMERA_EYE), Gf.Vec3d(*CAMERA_TARGET), Gf.Vec3d(0.0, 0.0, 1.0))
+    xform = UsdGeom.Xformable(prim.GetPrim())
+    xform.ClearXformOpOrder()
+    xform.AddTransformOp().Set(view.GetInverse())
+
+    cfg = CameraCfg(
+        prim_path="/World/RecordCamera",
+        update_period=0.0,
+        height=CAMERA_HEIGHT,
+        width=CAMERA_WIDTH,
+        data_types=["rgb"],
+        renderer_cfg=NewtonWarpRendererCfg(),
+        spawn=None,
+    )
+    return Camera(cfg)
+
+
+def _capture_frame(camera: "Camera") -> Image.Image:  # noqa: F821
+    """Read the camera's latest RGB output as an ``H x W x 3`` PIL image."""
+    rgb = camera.data.output["rgb"][0]
+    if hasattr(rgb, "detach"):
+        array = rgb[..., :3].detach().cpu().numpy()
+    else:
+        import warp as wp
+
+        array = wp.to_torch(rgb)[..., :3].detach().cpu().numpy()
+    return Image.fromarray(np.ascontiguousarray(array, dtype=np.uint8))
+
+
+def _save_webp(path: Path, frames: list[Image.Image], duration_ms: int, quality: int) -> int:
+    """Write *frames* as an animated webp and return the resulting file size [bytes]."""
+    frames[0].save(
+        path,
+        save_all=True,
+        append_images=frames[1:],
+        duration=duration_ms,
+        loop=0,
+        method=6,
+        quality=quality,
+    )
+    return path.stat().st_size
+
+
+def _write_clip(frames: list[Image.Image], key: str) -> Path:
+    """Encode *frames* to ``<key>-clip.webp``, shrinking until under the size budget.
+
+    Applies the fallback ladder from most to least fidelity: quality 70, then
+    quality 55, then half the frame rate (dropping every other frame), then a
+    480x270 downscale. Playback stays real-time because the per-frame duration is
+    doubled whenever the frame rate is halved.
+
+    Args:
+        frames: Captured RGB frames in playback order.
+        key: Comparison-row key used for the output filename.
+
+    Returns:
+        The path to the written clip.
+    """
+    path = MEDIA_DIR / f"{key}-clip.webp"
+    duration_ms = int(round(1000.0 * CAPTURE_STRIDE * DT))
+
+    size = _save_webp(path, frames, duration_ms, quality=70)
+    if size > CLIP_MAX_BYTES:
+        size = _save_webp(path, frames, duration_ms, quality=55)
+    if size > CLIP_MAX_BYTES:
+        frames = frames[::2]
+        duration_ms *= 2
+        size = _save_webp(path, frames, duration_ms, quality=55)
+    if size > CLIP_MAX_BYTES:
+        frames = [frame.resize((480, 270), Image.LANCZOS) for frame in frames]
+        size = _save_webp(path, frames, duration_ms, quality=55)
+    if size > CLIP_MAX_BYTES:
+        print(f"[WARN]: {path.name} is {size / 1000:.1f} KB, still above the {CLIP_MAX_BYTES // 1000} KB budget.")
+    return path
+
+
+@contextlib.contextmanager
+def _mpl_style(dark: bool) -> Iterator[None]:
+    """Apply a transparent-background matplotlib style for a light or dark curve.
+
+    Args:
+        dark: Whether to use foreground colors legible on a dark page background.
+
+    Yields:
+        None; the style is active for the duration of the context.
+    """
+    foreground = "#E6E6E6" if dark else "#1A1A1A"
+    grid = "#6E6E6E" if dark else "#BFBFBF"
+    rc = {
+        "svg.hashsalt": SVG_HASHSALT,
+        "svg.fonttype": "path",
+        "figure.facecolor": "none",
+        "axes.facecolor": "none",
+        "savefig.facecolor": "none",
+        "savefig.transparent": True,
+        "text.color": foreground,
+        "axes.labelcolor": foreground,
+        "axes.edgecolor": foreground,
+        "axes.titlecolor": foreground,
+        "xtick.color": foreground,
+        "ytick.color": foreground,
+        "grid.color": grid,
+        "legend.framealpha": 0.0,
+        "font.size": 11,
+    }
+    with plt.rc_context(rc):
+        yield
+
+
+def _format_value(value: float) -> str:
+    """Format a numeric parameter value without a trailing ``.0``."""
+    return str(int(value)) if float(value).is_integer() else f"{value:g}"
+
+
+def _trace_label(key: str, value: float | str) -> str:
+    """Build a legend label such as ``stiffness=100 N·m/rad`` (or the raw string label)."""
+    if isinstance(value, str):
+        return value
+    unit = VALUE_UNITS.get(key, "")
+    return f"{key}={_format_value(value)} {unit}".rstrip()
+
+
+def _save_curve(fig, key: str, dark: bool) -> Path:
+    """Write *fig* as a light or dark SVG with reproducible (timestamp-free) metadata."""
+    path = MEDIA_DIR / f"{key}-curve-{'dark' if dark else 'light'}.svg"
+    fig.savefig(path, format="svg", bbox_inches="tight", metadata={"Date": None})
+    plt.close(fig)
+    return path
+
+
+def _plot_velocity_limit(row: RowSpec, key: str) -> list[Path]:
+    """Plot the analytic DC-motor torque-speed envelope for each velocity limit.
+
+    The envelope follows the linear four-quadrant model
+    ``clip(saturation_effort * (1 - q_dot / velocity_limit), -effort_limit, effort_limit)``,
+    matching :class:`isaaclab.actuators.DCMotor`.
+    """
+    cfg = row.make_actuator_cfg(row.values[0])
+    stall = float(cfg.saturation_effort)
+    continuous = float(cfg.effort_limit)
+    max_limit = max(float(value) for value in row.values if value is not None)
+    q_max = max_limit * (1.0 + continuous / stall) * 1.1
+    speed = np.linspace(-q_max, q_max, 512)
+
+    paths = []
+    for dark in (False, True):
+        with _mpl_style(dark):
+            fig, ax = plt.subplots(figsize=(6.4, 3.6))
+            for column, value in enumerate(row.values):
+                if value is None:
+                    continue
+                envelope = np.clip(stall * (1.0 - speed / float(value)), -continuous, continuous)
+                ax.plot(speed, envelope, color=TRACE_COLORS[column % len(TRACE_COLORS)], label=_trace_label(key, value))
+            ax.axhline(continuous, color="0.5", ls="--", lw=0.8)
+            ax.axhline(-continuous, color="0.5", ls="--", lw=0.8)
+            ax.axhline(0.0, color="0.6", lw=0.6)
+            ax.axvline(0.0, color="0.6", lw=0.6)
+            ax.set_xlabel("Joint velocity [rad/s]")
+            ax.set_ylabel("Joint torque [N·m]")
+            ax.set_title("DC-motor torque-speed envelope")
+            ax.grid(True, alpha=0.4)
+            ax.legend(loc="upper right", fontsize=9)
+            paths.append(_save_curve(fig, key, dark))
+    return paths
+
+
+def plot_row(row: RowSpec, logs: dict[str, torch.Tensor] | None, key: str) -> list[Path]:
+    """Plot a row's comparison curves as a light and a dark SVG.
+
+    Args:
+        row: Comparison row being plotted.
+        logs: Per-step telemetry from :func:`run_row`, or ``None`` for the
+            analytic ``velocity-limit`` row.
+        key: Comparison-row key used for the output filenames.
+
+    Returns:
+        The written SVG paths, light variant first.
+    """
+    if key == "velocity-limit":
+        return _plot_velocity_limit(row, key)
+
+    assert logs is not None, f"logs are required to plot {key!r}"
+    quantity = row.plot.quantity
+    live = [(column, value) for column, value in enumerate(row.values) if value is not None]
+    times = np.arange(logs["joint_pos"].shape[0]) * DT
+
+    paths = []
+    for dark in (False, True):
+        with _mpl_style(dark):
+            fig, ax = plt.subplots(figsize=(6.4, 3.6))
+            if quantity == "applied_torque_vs_computed":
+                applied = logs["applied_torque"].numpy()
+                computed = logs["computed_torque"].numpy()
+                for column, value in live:
+                    color = TRACE_COLORS[column % len(TRACE_COLORS)]
+                    ax.plot(times, applied[:, column], color=color, label=_trace_label(key, value))
+                    ax.plot(times, computed[:, column], color=color, ls="--", lw=1.0, alpha=0.6)
+                ax.plot([], [], color="0.5", ls="--", lw=1.0, label="computed (unclipped)")
+            else:
+                data = logs[quantity].numpy()
+                for column, value in live:
+                    color = TRACE_COLORS[column % len(TRACE_COLORS)]
+                    ax.plot(times, data[:, column], color=color, label=_trace_label(key, value))
+                if key == "delay":
+                    reference = np.array([row.command(t)[0] for t in times])
+                    ax.plot(times, reference, color="0.5", ls="--", lw=1.0, label="command")
+            ax.set_xlabel("Time [s]")
+            ax.set_ylabel(row.plot.ylabel)
+            ax.set_title(row.plot.title)
+            ax.grid(True, alpha=0.4)
+            ax.legend(loc="best", fontsize=9)
+            paths.append(_save_curve(fig, key, dark))
+    return paths
+
+
+def record_row(sim: sim_utils.SimulationContext, row: RowSpec, key: str) -> list[Path]:
+    """Capture one row's clip and plot its curves.
+
+    Builds the scene, runs the row while capturing every :data:`CAPTURE_STRIDE`
+    physics frames from a fixed camera, writes the animated clip, then plots the
+    comparison curves from the logged telemetry.
+
+    Args:
+        sim: Active simulation context (fresh stage for this row).
+        row: Comparison row to record.
+        key: Comparison-row key used for the output filenames.
+
+    Returns:
+        Every written media path (clip first, then the light and dark curves).
+    """
+    articulations = build_scene(sim, row)
+    stage = sim_utils.get_current_stage()
+    # Drop the ground plane so clips render against a clean, uniform background
+    # (the fixed-base pendulums do not touch it, and the kitless renderer shows
+    # its untextured surface as a solid color).
+    stage.RemovePrim("/World/defaultGroundPlane")
+    camera = _build_record_camera(stage)
+    sim.reset()
+
+    sim_dt = sim.get_physics_dt()
+    frames: list[Image.Image] = []
+
+    def on_frame(step: int) -> None:
+        if step % CAPTURE_STRIDE == 0:
+            camera.update(sim_dt, force_recompute=True)
+            frames.append(_capture_frame(camera))
+
+    logs = run_row(sim, articulations, row, on_frame=on_frame)
+    paths = [_write_clip(frames, key)]
+    paths += plot_row(row, logs, key)
+    return paths
+
+
+def _print_size_table(written: dict[str, list[Path]]) -> None:
+    """Print a ``file -> KB`` table plus the directory total."""
+    print("\nGenerated media:")
+    total = 0
+    for paths in written.values():
+        for path in paths:
+            size = path.stat().st_size
+            total += size
+            print(f"  {path.name:<28s} {size / 1000:8.1f} KB")
+    print(f"  {'TOTAL':<28s} {total / 1000:8.1f} KB")
+
+
+def _run_record() -> None:
+    """Generate clips and curves for the selected comparison rows."""
+    if args_cli.all:
+        keys = list(ROWS)
+    elif args_cli.parameter in ROWS:
+        keys = [args_cli.parameter]
+    else:
+        raise SystemExit(f"Unknown parameter {args_cli.parameter!r}. Use --list_parameters to see the available keys.")
+
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+    written: dict[str, list[Path]] = {}
+
+    # ``velocity-limit`` is an analytic curve with no clip, so it needs no simulation.
+    sim_keys = [key for key in keys if key != "velocity-limit"]
+    analytic_keys = [key for key in keys if key == "velocity-limit"]
+
+    if sim_keys:
+        with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+            for index, key in enumerate(sim_keys):
+                # Rebuild a fresh stage per row so scenes do not accumulate.
+                if index > 0:
+                    sim_utils.SimulationContext.clear_instance()
+                torch.manual_seed(SEED)
+                sim_cfg = sim_utils.SimulationCfg(dt=DT, device=args_cli.device, physics=physics_cfg)
+                sim = sim_utils.SimulationContext(sim_cfg)
+                sim.set_camera_view(eye=list(CAMERA_EYE), target=list(CAMERA_TARGET))
+                row = ROWS[key]
+                print(f"[INFO]: Recording '{key}': {row.name}")
+                written[key] = record_row(sim, row, key)
+
+    for key in analytic_keys:
+        row = ROWS[key]
+        print(f"[INFO]: Plotting analytic curves for '{key}': {row.name}")
+        written[key] = plot_row(row, None, key)
+
+    _print_size_table(written)
+
+
 def main() -> None:
     """Author the requested comparison scene and run it."""
     if args_cli.list_parameters:
         _print_parameters()
+        return
+
+    if args_cli.record:
+        _run_record()
         return
 
     if args_cli.parameter not in ROWS:
