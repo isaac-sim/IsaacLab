@@ -106,8 +106,17 @@ class FileCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     This parameter is ignored if `physics_material` is not None.
     """
 
-    physics_material: materials.PhysicsMaterialCfg | None = None
+    physics_material: (
+        materials.PhysicsMaterialCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
+        | None
+    ) = None
     """Physics material properties.
+
+    Accepts either a legacy material cfg, a single
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
+    single-namespace fragments.
 
     Note:
         If None, then no custom physics material will be added.
@@ -259,5 +268,15 @@ class GroundPlaneCfg(SpawnerCfg):
     size: tuple[float, float] = (100.0, 100.0)
     """The size of the ground plane. Defaults to 100 m x 100 m."""
 
-    physics_material: materials.RigidBodyMaterialCfg = materials.RigidBodyMaterialCfg()
-    """Physics material properties. Defaults to the default rigid body material."""
+    physics_material: (
+        materials.RigidBodyMaterialBaseCfg
+        | materials.RigidBodyMaterialFragment
+        | list[materials.RigidBodyMaterialFragment]
+    ) = materials.RigidBodyMaterialCfg()
+    """Physics material properties. Defaults to the default rigid body material.
+
+    The ground plane only spawns a collision plane, so this only accepts rigid-body materials: a
+    legacy :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialBaseCfg`, a single
+    :class:`~isaaclab.sim.spawners.materials.RigidBodyMaterialFragment`, or a list of such
+    single-namespace fragments.
+    """

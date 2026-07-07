@@ -177,4 +177,5 @@ Summary
 See also
 --------
 
+* :doc:`capture_sensor_frames` - save image-like scene sensor outputs during training
 * :doc:`/source/overview/core-concepts/visualization` - interactive visualizers

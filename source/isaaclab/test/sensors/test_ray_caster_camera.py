@@ -32,6 +32,8 @@ from isaaclab.sim import PinholeCameraCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 # sample camera poses
 POSITION = [2.5, 2.5, 2.5]
 QUAT_ROS = [0.33985114, 0.82047325, -0.42470819, -0.17591989]

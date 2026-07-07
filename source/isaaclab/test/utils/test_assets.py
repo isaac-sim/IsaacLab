@@ -13,6 +13,8 @@ import pytest
 
 import isaaclab.utils.assets as assets_utils
 
+pytestmark = pytest.mark.unit
+
 
 def test_nucleus_connection():
     """Test checking the Nucleus connection."""

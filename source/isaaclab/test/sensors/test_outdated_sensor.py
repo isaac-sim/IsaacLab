@@ -25,6 +25,8 @@ from isaaclab.app.settings_manager import get_settings_manager
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture()
 def temp_dir():

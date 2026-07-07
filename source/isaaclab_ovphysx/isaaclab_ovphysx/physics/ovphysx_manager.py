@@ -714,15 +714,15 @@ class OvPhysxManager(PhysicsManager):
         so we write the apiSchemas list entry and scene attributes directly via
         raw Sdf metadata manipulation instead of using the high-level USD API.
 
-        The schema and scene-query-support attribute are applied regardless of
-        device. The GPU-specific dynamics/broadphase/capacity attributes are
+        The schema, scene-query-support, and solver-determinism/accuracy attributes are applied
+        regardless of device. The GPU-specific dynamics/broadphase/capacity attributes are
         applied only when ``device == "gpu"`` — without them PhysX defaults to
         CPU broadphase even when OVPhysX is configured for GPU execution.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
-            cfg: The :class:`OvPhysxCfg` carrying GPU buffer-capacity values.
-                Only consulted when ``device == "gpu"``.
+            cfg: The :class:`OvPhysxCfg` carrying solver-determinism flags and GPU buffer-capacity
+                values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
         from pxr import Sdf
@@ -740,6 +740,14 @@ class OvPhysxManager(PhysicsManager):
         sim_cfg = PhysicsManager._sim.cfg if PhysicsManager._sim is not None else None
         enable_sq = getattr(sim_cfg, "enable_scene_query_support", False)
         scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
+
+        if cfg is not None:
+            scene_prim.CreateAttribute("physxScene:enableEnhancedDeterminism", Sdf.ValueTypeNames.Bool).Set(
+                cfg.enable_enhanced_determinism
+            )
+            scene_prim.CreateAttribute("physxScene:enableExternalForcesEveryIteration", Sdf.ValueTypeNames.Bool).Set(
+                cfg.enable_external_forces_every_iteration
+            )
 
         if device == "gpu":
             scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
