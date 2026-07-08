@@ -197,6 +197,10 @@ class Pva(BasePva):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
+        # Refresh the PhysX buffers every update, but create their typed Warp views only once:
+        # the getters lazily allocate their output buffers and refresh the same memory in place
+        # on every call, so the cached views (and the recorded launch that consumes them) stay
+        # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
         transforms = self._view.get_transforms()
         velocities = self._view.get_velocities()
         coms = self._view.get_coms()
@@ -204,6 +208,16 @@ class Pva(BasePva):
             self._raw_transforms = transforms.view(wp.transformf)
             self._raw_velocities = velocities.view(wp.spatial_vectorf)
             self._raw_coms = coms.view(wp.transformf)
+        elif (
+            transforms.ptr != self._raw_transforms.ptr
+            or velocities.ptr != self._raw_velocities.ptr
+            or coms.ptr != self._raw_coms.ptr
+        ):
+            raise RuntimeError(
+                f"A PhysX rigid body buffer of the sensor at '{self.cfg.prim_path}' was re-allocated"
+                " after its warp view was cached. The cached views and the recorded launch require"
+                " pointer-stable buffers refreshed in place."
+            )
         wp.copy(self._coms_buffer, self._raw_coms)
 
         inv_dt = 1.0 / self._dt
