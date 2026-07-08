@@ -190,7 +190,12 @@ class SimulationContext:
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
-        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
+        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created.
+        # It is a global setting flipped to True by RTX Camera creation (see Camera._initialize_impl)
+        # and is never flipped back. Reset it here so a fresh SimulationContext reflects its own
+        # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
+        # cameras created for this instance re-set it to True before it is read.
+        self.set_setting("/isaaclab/render/rtx_sensors", False)
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self.vis_marker_registry = VisMarkerRegistry()
 
