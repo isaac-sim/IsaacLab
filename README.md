@@ -239,9 +239,8 @@ conda activate env_isaaclab
 cd ~/Stanley_ws/IsaacLab
 ./isaaclab.sh -p scripts/imitation_learning/lerobot/eval_smolvla.py \
     --task Isaac-PickUp-RedCube-OpenArm-IK-Abs-v0 \
-    --num_rollouts 5 \
-    --horizon 300 \
-    --enable_cameras
+    --num_rollouts 5 --horizon 300 --enable_cameras \
+    --cameras body_cam,wrist_cam
 ```
 
 # Run in Real-world
