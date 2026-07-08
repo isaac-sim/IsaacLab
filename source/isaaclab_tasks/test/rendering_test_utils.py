@@ -231,6 +231,21 @@ class GoldenStageRenderingTest:
                 node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{case_id}]")
         return tuple(node_ids)
 
+    def should_compare_case(self, case_values: tuple[Any, ...]) -> bool:
+        """Return whether ``case_values`` is one of the registered combinations that carries a golden.
+
+        The shared test body is also reused by kit-less variants whose parametrized combinations are
+        not part of this golden set (and therefore have no generated baseline). Requiring membership
+        in :attr:`combinations` keeps the runtime comparison and :meth:`pytest_node_ids` generation a
+        single source of truth, so a kit-less-only case never asks for a baseline that was never
+        generated.
+        """
+        for entry in self.combinations:
+            _, values = _parametrize_case_id_and_values(entry)
+            if tuple(values) == tuple(case_values):
+                return self.should_compare(*case_values)
+        return False
+
 
 def should_compare_golden_stage_cartpole(physics_backend: str, renderer: str, data_type: str) -> bool:
     """Select one representative cartpole case per (physics backend, renderer): the ``rgb`` AOV."""
@@ -272,7 +287,7 @@ def should_compare_golden_stage(test_function: str, *case_values: Any) -> bool:
     """
     for rendering_test in GOLDEN_STAGE_RENDERING_TESTS:
         if rendering_test.test_function == test_function:
-            return rendering_test.should_compare(*case_values)
+            return rendering_test.should_compare_case(case_values)
     return False
 
 

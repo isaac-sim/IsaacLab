@@ -15,6 +15,7 @@ import pytest
 from rendering_test_utils import (
     _GOLDEN_STAGES_DIRECTORY,
     GOLDEN_STAGE_RENDERING_TESTS,
+    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     GoldenStageRenderingTest,
     _parametrize_case_id_and_values,
     compare_golden_stage,
@@ -167,6 +168,28 @@ def test_runtime_selection_matches_generation_selection():
             )
             assert should_compare_golden_stage(rendering_test.test_function, *values) == (node_id in generated)
     assert not should_compare_golden_stage("test_not_registered", "x")
+
+
+def test_kitless_cartpole_cases_do_not_compare_golden():
+    """Kit-less cartpole cases must not trigger golden comparison for baselines never generated.
+
+    ``rendering_test_cartpole`` is shared by ``test_rendering_cartpole`` and its kit-less variant,
+    dispatching golden selection through the hardcoded ``"test_rendering_cartpole"`` function name.
+    The kit-less parametrization (e.g. ``newton`` + ``newton_renderer``) is not part of the golden
+    generation set, so selecting it would fail at runtime with "Golden stage not found".
+    """
+    generated = {
+        _parametrize_case_id_and_values(entry)[1]
+        for rt in GOLDEN_STAGE_RENDERING_TESTS
+        if rt.test_function == "test_rendering_cartpole"
+        for entry in rt.combinations
+    }
+    for entry in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS:
+        values = _parametrize_case_id_and_values(entry)[1]
+        if values not in generated:
+            assert not should_compare_golden_stage("test_rendering_cartpole", *values), (
+                f"kit-less case {values} has no generated golden but was selected for comparison"
+            )
 
 
 def test_golden_stages_directory_exists_in_repo():
