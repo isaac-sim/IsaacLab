@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,6 +16,7 @@ from pxr import Usd, UsdPhysics
 
 from isaaclab.sim import schemas
 from isaaclab.sim.utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
+from isaaclab.utils.version import has_kit
 
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
@@ -26,6 +28,9 @@ from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from . import meshes_cfg
+
+# import logger
+logger = logging.getLogger(__name__)
 
 
 @clone
@@ -465,14 +470,17 @@ def _spawn_mesh_geom_from_mesh(
 
     # apply visual material
     if cfg.visual_material is not None:
-        if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
+        if not has_kit():
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", mesh_prim_path)
         else:
-            material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(mesh_prim_path, material_path, stage=stage)
+            if not cfg.visual_material_path.startswith("/"):
+                material_path = f"{geom_prim_path}/{cfg.visual_material_path}"
+            else:
+                material_path = cfg.visual_material_path
+            # create material
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            # apply material
+            bind_visual_material(mesh_prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:
