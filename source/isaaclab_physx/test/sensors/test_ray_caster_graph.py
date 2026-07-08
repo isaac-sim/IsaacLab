@@ -11,12 +11,18 @@ simulation_app = AppLauncher(headless=True).app
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 import warp as wp
 from isaaclab_physx.sensors.ray_caster import ray_caster as ray_caster_module
 from isaaclab_physx.sensors.ray_caster.ray_caster import RayCaster
 
 from isaaclab.sensors.ray_caster import BaseRayCaster
+
+pytestmark = [
+    pytest.mark.isaacsim_ci,
+    pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available"),
+]
 
 
 @wp.kernel
