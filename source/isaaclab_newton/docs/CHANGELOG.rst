@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+1.6.1 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_local_scales`
+  and :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_world_scales`
+  for reading transform (xform) scales.  Scale writes go through the writer
+  scope (see the ``xform-space-writer`` fragment).  These transform-scale
+  APIs are intentionally separate from Newton collision shape geometry
+  sizes.
+* Added the ``newton-usd-schemas`` dependency, required by Newton's USD parsing
+  since the new pin.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` now ships
+  pass-through ``FrameViewWorldSpaceWriter`` / ``FrameViewLocalSpaceWriter``
+  implementations so writes follow the new
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer` context API.
+  ``set_world_poses`` / ``set_local_poses`` shims still work (one-time
+  ``DeprecationWarning`` per class).  The legacy ``set_scales`` /
+  ``get_scales`` paths continue to operate on Newton collision-shape
+  geometry sizes -- they are not routed through the writer because the
+  writer's ``set_scales`` writes the transform-scale state.
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``c7ae7c7648cd0717df39e5c94b95d5a02c997320``, which includes the experimental
+  coupled solver framework.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales`
+  and :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.set_scales` in favor
+  of the explicit transform-scale getters ``get_world_scales`` /
+  ``get_local_scales`` (and the writer scope's ``set_scales``).  The
+  deprecated methods still work but emit a ``DeprecationWarning`` and
+  preserve Newton's legacy collision shape geometry-scale behavior.
+
+Fixed
+^^^^^
+
+* Fixed the cloner label renaming after Newton's removal of
+  ``ModelBuilder.equality_constraint_label`` by dropping the equality
+  constraint fallback; equality constraint labels are renamed through the
+  generic custom attribute handling.
+* Fixed Newton physics failing to initialize on non-default CUDA devices
+  (``cuda:1`` and higher).
+
+
 1.6.0 (2026-07-04)
 ~~~~~~~~~~~~~~~~~~
 

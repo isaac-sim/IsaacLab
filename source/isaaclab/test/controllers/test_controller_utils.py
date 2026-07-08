@@ -29,6 +29,8 @@ from isaaclab.controllers.utils import (
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.utils.io.torchscript import load_torchscript_model
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mock_urdf_content():

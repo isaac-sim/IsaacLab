@@ -56,6 +56,8 @@ from generate_synthetic_gaussian_asset import (
 
 from isaaclab.sim import SimulationCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 
 def _collect_renderer_cfg_params() -> list:
     """Return pytest.param entries for installed RTX-backed renderer packages.

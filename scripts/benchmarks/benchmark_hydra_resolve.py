@@ -70,7 +70,7 @@ QUICK_CASES = (
         "cartpole_camera_newton_ovrtx",
         "Isaac-Cartpole-Camera-Direct",
         "rl_games_cfg_entry_point",
-        ("presets=newton_mjwarp,ovrtx_renderer",),
+        ("presets=newton_mjwarp,ovrtx",),
     ),
     Case("anymal_rough_scalar", "IsaacContrib-Velocity-Rough-AnymalC", None, ("env.scene.num_envs=256",)),
 )

@@ -32,7 +32,7 @@ from isaaclab.sensors.camera import TiledCamera, TiledCameraCfg
 
 # Deprecation warnings from TiledCamera/TiledCameraCfg are expected in this file;
 # the deprecation mechanism itself is validated in test_tiled_camera.py.
-pytestmark = pytest.mark.filterwarnings("ignore::DeprecationWarning")
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.filterwarnings("ignore::DeprecationWarning")]
 
 
 @pytest.fixture()

@@ -1,6 +1,154 @@
 Changelog
 ---------
 
+10.0.0 (2026-07-08)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added explicit local/world scale getters
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_local_scales` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.get_world_scales` to the FrameView
+  API, implemented for :class:`~isaaclab.sim.views.UsdFrameView`.  Scale
+  writes go through the writer scope (see the ``xform-space-writer``
+  fragment).
+
+* Added :func:`~isaaclab.utils.warp.fabric.decompose_indexed_fabric_transforms`,
+  :func:`~isaaclab.utils.warp.fabric.compose_indexed_fabric_transforms`,
+  :func:`~isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`, and
+  :func:`~isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`
+  Warp kernels operating on :class:`wp.indexedfabricarray` for reading and
+  writing Fabric ``Matrix4d`` attributes (``omni:fabric:worldMatrix`` /
+  ``omni:fabric:localMatrix``).
+* Added :class:`~isaaclab.sim.views.FrameViewSpaceWriterBase`, the new context-managed
+  write API for ``FrameView``-managed prim transforms.  Open with
+  ``view.xform_world_space_writer()`` or ``view.xform_local_space_writer()`` and call
+  :meth:`~isaaclab.sim.views.FrameViewSpaceWriterBase.set_poses` /
+  :meth:`~isaaclab.sim.views.FrameViewSpaceWriterBase.set_scales` inside the scope;
+  the writer's ``__exit__`` derives the opposite-space matrices once and
+  synchronizes once.  Only one writer scope may be active per view at a
+  time.  View-level getters
+  (:meth:`~isaaclab.sim.views.BaseFrameView.get_world_poses` etc.) raise
+  :class:`RuntimeError` while a writer scope is active.
+
+* Added the two concrete tag classes
+  :class:`~isaaclab.sim.views.FrameViewWorldSpaceWriter` and
+  :class:`~isaaclab.sim.views.FrameViewLocalSpaceWriter` returned by
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`.
+* Added pytest *level* markers (``unit`` and ``integration``) and a ``rendering`` *flavor* marker
+  registered in the repository-root ``pyproject.toml`` and applied per file via a module-level
+  ``pytestmark``, so tests can be filtered by kind (e.g. ``pytest -m unit``, ``pytest -m "not unit"``,
+  or ``pytest -m "integration and not rendering"``). The repository-root ``conftest.py`` records
+  each test's markers into the JUnit XML report for CI to categorize uploaded results.
+* Added ``ISAACLAB_FABRIC_USE_GPU_INTEROP`` to override the corresponding PhysX
+  Fabric Kit setting without changing renderer multi-GPU behavior. The multi-GPU
+  CI override is a temporary workaround to remove after the underlying Kit/PhysX
+  problem is fixed.
+* Added an ``isaacsim`` extra to the root ``pyproject.toml`` so the PhysX
+  backend can be pulled in directly under uv, e.g.
+  ``uv run --extra isaacsim isaaclab train --task Isaac-Cartpole-Direct presets=physx``.
+  Isaac Sim narrows ``newton`` to its own pinned version, while the base install
+  otherwise tracks the latest ``newton[sim]>=1.2.0`` from the package index.
+* Added documentation for ``uv run`` workflows with repo-local Isaac Sim source or binary installs.
+
+Changed
+^^^^^^^
+
+* Changed the Isaac Lab Kit experiences to use one renderer GPU by default. To
+  enable single-process multi-GPU rendering, pass the ``renderer.multiGpu``
+  settings explicitly through :class:`~isaaclab.app.AppLauncher`'s ``kit_args``.
+* Centralized all Isaac Lab third-party dependencies (required and optional)
+  into the root ``pyproject.toml`` as the single source of truth. The wheel
+  builder (``tools/wheel_builder/gen_pyproject.py``) and the ``./isaaclab.sh -i``
+  install CLI now read the root project's ``dependencies`` and
+  ``optional-dependencies`` instead of per-sub-package declarations and
+  ``tools/wheel_builder/res/python_packages.toml`` (removed). Sub-package
+  ``pyproject.toml`` files no longer declare dependencies. The ``./isaaclab.sh -i``
+  token syntax is unchanged.
+* **Changed:** Newton (``newton[sim]``) is now a core dependency installed in
+  every environment as the default physics engine, rather than an opt-in extra.
+  The Newton interactive viewer GUI is also part of the base install, so the
+  ``newton`` optional extra has been removed; the ``newton`` install token /
+  ``--extra newton`` is now a no-op kept for backward compatibility.
+* ``./isaaclab.sh -i`` now force-installs the pinned Newton git build (from
+  ``[tool.uv].override-dependencies``) over the older ``newton[sim]`` bundled by
+  Isaac Sim, so environments get the Newton version Isaac Lab targets.
+* Added the ``[tool.isaaclab.versions]`` table to the root ``pyproject.toml`` as
+  the single source of truth for externally-pinned versions (Isaac Sim, the
+  torch stack, and the OV renderer/physics wheels). The install CLI, docs, and
+  CI read these values; a unit test enforces that the literal pins in the extras
+  and ``[tool.uv].override-dependencies`` stay in sync with the table.
+* **Changed:** The aggregate ``all`` extra now contains only packages that can
+  co-resolve with ``isaacsim`` (the documented ``[all,isaacsim]`` install).
+  ``ov`` (OVRTX / OvPhysX), ``viser``, and the mimic USD-to-URDF converter
+  (``nvidia-srl-usd-to-urdf``) are no longer pulled in by ``all`` because their
+  pins conflict with isaacsim's; install them explicitly with ``--extra ov`` /
+  ``--extra viser`` / ``--extra mimic`` when not using isaacsim.
+* The Newton interactive viewer GUI (``imgui-bundle``, ``typing-extensions``) is
+  now part of the base install, so the viewer's HUD controls work without
+  ``--extra newton``. The ``newton`` extra / ``-i newton`` token is retained as a
+  backwards-compatible alias.
+* The Isaac Sim version is now declared once in the root ``pyproject.toml``
+  ``isaacsim`` extra and read from there by the documentation build and the
+  license-check CI workflow, instead of being hard-coded in each location.
+* **Breaking:** Removed the standalone ``train``, ``play``, and ``train_multigpu``
+  console scripts. These are now subcommands of the ``isaaclab`` entry point
+  (``isaaclab train`` / ``isaaclab play`` / ``isaaclab train_multigpu``, e.g.
+  ``uv run isaaclab train ...``) so they no longer clash with ``train``/``play``
+  commands provided by other installed packages.
+* Updated the ``launch_simulation`` runtime-compatibility error and help text to
+  reference the suffix-less renderer presets ``ovrtx`` and ``isaacsim_rtx``
+  instead of ``ovrtx_renderer`` and ``isaacsim_rtx_renderer``.
+
+Fixed
+^^^^^
+
+* Fixed repeated sensor data reads re-running backend updates when the cached
+  data was already fresh.
+* Fixed PyTorch and Warp selecting different CUDA devices during simulation
+  initialization.
+* Fixed ``./isaaclab.sh -i`` (PhysX path) to install the Isaac Sim requirement
+  pinned in the root ``pyproject.toml`` ``isaacsim`` extra, instead of a
+  hard-coded ``isaacsim[all]>=6.0.0``. The install CLI now shares the single
+  source of truth used by the docs, CI, and ``uv run --extra isaacsim``.
+* Fixed a broken ``pxr`` (OpenUSD) runtime on x86_64 caused by co-installing
+  ``usd-core`` and ``usd-exchange``. Both wheels vendor a complete ``pxr``
+  package at different USD versions, so installing both left a mixed
+  installation that raised ``RuntimeError: extension class wrapper for base
+  class ... Tf_PyEnumWrapper has not been created yet`` on ``import pxr``.
+  ``usd-exchange`` is now installed only on ``aarch64``/``arm64`` (where
+  ``usd-core`` has no wheel); x86_64 uses ``usd-core`` as the sole ``pxr``
+  provider.
+
+Notes
+^^^^^
+
+* :meth:`~isaaclab.sim.views.BaseFrameView.get_scales` and
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales` remain supported as
+  convenience helpers (not deprecated).  For reads where the space matters,
+  prefer the explicit ``get_local_scales`` (operates on ``xformOp:scale``) or
+  ``get_world_scales`` (composed world-space scale).  For writes that also
+  update poses, prefer batching inside one scope:
+  ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+  (or ``xform_local_space_writer``).
+  :class:`~isaaclab.sim.views.UsdFrameView` preserves prior behavior by
+  defaulting :meth:`get_scales` / :meth:`set_scales` to local scales.
+* :meth:`~isaaclab.sim.views.BaseFrameView.set_world_poses`,
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_local_poses`, and
+  :meth:`~isaaclab.sim.views.BaseFrameView.set_scales` remain supported as
+  convenience helpers (not deprecated).  Each opens a single-statement writer
+  scope internally, so updating poses and scales through separate calls derives
+  the opposite-space matrices and synchronizes twice.  For best performance,
+  update both inside one scope:
+  ``with view.xform_world_space_writer() as w: w.set_poses(...); w.set_scales(...)``
+  (or :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer`).
+  The bundled examples use the writer scope to get this benefit; callers may
+  keep the convenience helpers when code simplicity matters more than shaving
+  a redundant derive/sync.
+
+
 9.0.0 (2026-07-07)
 ~~~~~~~~~~~~~~~~~~
 

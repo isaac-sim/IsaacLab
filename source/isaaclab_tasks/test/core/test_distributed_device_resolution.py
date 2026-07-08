@@ -15,8 +15,8 @@ correctly handles:
 - Non-distributed: no device override applied
 - launch_simulation device propagation from AppLauncher
 
-No actual GPUs required — ``torch.cuda.device_count`` and
-``torch.cuda.set_device`` are mocked throughout.
+No actual GPUs required — ``torch.cuda.device_count`` and the shared CUDA
+device-selection helper are mocked throughout.
 """
 
 from __future__ import annotations
@@ -95,7 +95,7 @@ def _make_env_vars(
 class TestResolveDistributedDeviceNamespace:
     """Tests for _resolve_distributed_device with argparse.Namespace args."""
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
     def test_normal_multi_gpu_rank0(self, mock_count, mock_set_device):
         """4 visible GPUs, world_size=4, rank 0 → cuda:0."""
@@ -109,7 +109,7 @@ class TestResolveDistributedDeviceNamespace:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_called_once_with("cuda:0")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
     def test_normal_multi_gpu_rank3(self, mock_count, mock_set_device):
         """4 visible GPUs, world_size=4, rank 3 → cuda:3."""
@@ -123,7 +123,7 @@ class TestResolveDistributedDeviceNamespace:
         assert env_cfg.sim.device == "cuda:3"
         mock_set_device.assert_called_once_with("cuda:3")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=1)
     def test_cuda_visible_devices_restricted_rank0(self, mock_count, mock_set_device):
         """1 visible GPU (CUDA_VISIBLE_DEVICES set), world_size=2, rank 0 → cuda:0."""
@@ -137,7 +137,7 @@ class TestResolveDistributedDeviceNamespace:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_called_once_with("cuda:0")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=1)
     def test_cuda_visible_devices_restricted_rank1(self, mock_count, mock_set_device):
         """1 visible GPU, world_size=2, rank 1 → falls back to cuda:0 (not cuda:1)."""
@@ -151,7 +151,7 @@ class TestResolveDistributedDeviceNamespace:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_called_once_with("cuda:0")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=2)
     def test_jax_local_rank_added(self, mock_count, mock_set_device):
         """JAX_LOCAL_RANK is added to LOCAL_RANK for correct device mapping."""
@@ -166,7 +166,7 @@ class TestResolveDistributedDeviceNamespace:
         assert env_cfg.sim.device == "cuda:1"
         mock_set_device.assert_called_once_with("cuda:1")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=1)
     def test_jax_local_rank_with_restricted_gpus(self, mock_count, mock_set_device):
         """JAX_LOCAL_RANK + restricted GPUs → fallback to cuda:0."""
@@ -189,7 +189,7 @@ class TestResolveDistributedDeviceNamespace:
 class TestResolveDistributedDeviceDict:
     """Tests for _resolve_distributed_device with dict-style args."""
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
     def test_dict_args_distributed(self, mock_count, mock_set_device):
         """Dict launcher_args with distributed=True should work identically."""
@@ -203,7 +203,7 @@ class TestResolveDistributedDeviceDict:
         assert env_cfg.sim.device == "cuda:2"
         mock_set_device.assert_called_once_with("cuda:2")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=1)
     def test_dict_args_restricted(self, mock_count, mock_set_device):
         """Dict args with restricted GPUs should fall back to cuda:0."""
@@ -226,7 +226,7 @@ class TestResolveDistributedDeviceDict:
 class TestResolveDistributedDeviceNoop:
     """Tests that non-distributed runs skip device resolution."""
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     def test_not_distributed_namespace(self, mock_set_device):
         """distributed=False → device unchanged, set_device not called."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
@@ -237,7 +237,7 @@ class TestResolveDistributedDeviceNoop:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     def test_not_distributed_dict(self, mock_set_device):
         """Dict with distributed=False → no-op."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
@@ -248,7 +248,7 @@ class TestResolveDistributedDeviceNoop:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     def test_no_distributed_key(self, mock_set_device):
         """Dict without 'distributed' key → no-op."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
@@ -259,7 +259,7 @@ class TestResolveDistributedDeviceNoop:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     def test_none_launcher_args(self, mock_set_device):
         """launcher_args=None → no-op."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
@@ -278,7 +278,7 @@ class TestResolveDistributedDeviceNoop:
 class TestResolveDistributedDeviceEdgeCases:
     """Edge cases for device resolution."""
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=2)
     def test_env_cfg_without_sim(self, mock_count, mock_set_device):
         """env_cfg with no 'sim' attribute → set_device still called, no crash."""
@@ -296,7 +296,7 @@ class TestResolveDistributedDeviceEdgeCases:
         # Should still call set_device even without sim_cfg
         mock_set_device.assert_called_once_with("cuda:1")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=2)
     def test_world_size_equals_visible_gpus(self, mock_count, mock_set_device):
         """Exact match: 2 visible GPUs, world_size=2 → use local_rank directly."""
@@ -309,7 +309,7 @@ class TestResolveDistributedDeviceEdgeCases:
 
         assert env_cfg.sim.device == "cuda:1"
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=8)
     def test_more_gpus_than_world_size(self, mock_count, mock_set_device):
         """8 visible GPUs but only 2 ranks → use local_rank directly."""
@@ -322,7 +322,7 @@ class TestResolveDistributedDeviceEdgeCases:
 
         assert env_cfg.sim.device == "cuda:1"
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=0)
     def test_zero_visible_gpus(self, mock_count, mock_set_device):
         """0 visible GPUs → fallback to cuda:0 (will fail later at CUDA init)."""
@@ -335,7 +335,7 @@ class TestResolveDistributedDeviceEdgeCases:
 
         assert env_cfg.sim.device == "cuda:0"
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
     def test_missing_env_vars_default_to_zero(self, mock_count, mock_set_device):
         """Missing LOCAL_RANK/WORLD_SIZE → defaults to 0/1."""
@@ -364,7 +364,7 @@ class TestResolveDistributedDeviceEdgeCases:
 class TestResolveDistributedDeviceMultiNode:
     """Tests for multi-node setups where WORLD_SIZE > local GPU count."""
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
     def test_multi_node_rank3_sees_4_gpus(self, mock_count, mock_set_device):
         """2 nodes × 4 GPUs, WORLD_SIZE=8, local_rank=3, 4 visible → cuda:3.
@@ -382,7 +382,7 @@ class TestResolveDistributedDeviceMultiNode:
         assert env_cfg.sim.device == "cuda:3"
         mock_set_device.assert_called_once_with("cuda:3")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
     def test_multi_node_rank0_sees_4_gpus(self, mock_count, mock_set_device):
         """2 nodes × 4 GPUs, WORLD_SIZE=8, local_rank=0 → cuda:0."""
@@ -396,7 +396,7 @@ class TestResolveDistributedDeviceMultiNode:
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_called_once_with("cuda:0")
 
-    @patch("torch.cuda.set_device")
+    @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=1)
     def test_multi_node_restricted_gpus(self, mock_count, mock_set_device):
         """Multi-node with CUDA_VISIBLE_DEVICES=<one GPU per rank>, local_rank=1 → cuda:0."""
