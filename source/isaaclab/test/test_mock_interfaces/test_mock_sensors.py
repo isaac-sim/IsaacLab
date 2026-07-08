@@ -21,6 +21,8 @@ from isaaclab.test.mock_interfaces.sensors import (
 )
 from isaaclab.test.mock_interfaces.utils import MockSensorBuilder
 
+pytestmark = pytest.mark.unit
+
 # ==============================================================================
 # MockImu Tests
 # ==============================================================================

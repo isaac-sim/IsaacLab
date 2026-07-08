@@ -72,10 +72,12 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   # Step 1: Install safe dependencies via the rlinf extra
    # NOTE: On DGX Spark / aarch64 systems, build decord from source first
    # (see "Building decord on DGX Spark / aarch64" below), then run this step.
-   uv pip install -e "source/isaaclab_contrib[rlinf]"
+   # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
+   # adding the rlinf dependencies from the root pyproject.
+   uv sync --inexact --extra rlinf
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps

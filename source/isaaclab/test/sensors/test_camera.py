@@ -30,7 +30,7 @@ from pxr import Gf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
 # sample camera poses
 POSITION = (2.5, 2.5, 2.5)

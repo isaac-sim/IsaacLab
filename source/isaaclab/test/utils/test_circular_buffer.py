@@ -8,6 +8,8 @@ import torch
 
 from isaaclab.utils import CircularBuffer
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def circular_buffer():

@@ -6,7 +6,7 @@ Benchmarking Framework
 Isaac Lab provides a comprehensive benchmarking framework for measuring the performance
 of simulations, training workflows, and system resources. The framework is designed to
 work without depending on Isaac Sim's benchmark services, enabling standalone benchmarking
-with pluggable output backends.
+with pluggable output formatters.
 
 Overview
 --------
@@ -23,9 +23,9 @@ The benchmarking framework consists of several key components:
        ┌───────────┼───────────┐
        │           │           │
        ▼           ▼           ▼
-   ┌───────┐  ┌─────────┐  ┌──────────┐
-   │Phases │  │Recorders│  │ Backends │
-   └───────┘  └─────────┘  └──────────┘
+   ┌───────┐  ┌─────────┐  ┌────────────┐
+   │Phases │  │Recorders│  │ Formatters │
+   └───────┘  └─────────┘  └────────────┘
 
 **Key Components:**
 
@@ -34,7 +34,7 @@ The benchmarking framework consists of several key components:
 - **Metadata**: Data classes for recording context (hardware, versions, parameters)
 - **TestPhase**: Container for organizing measurements into logical groups
 - **Recorders**: System information collectors (CPU, GPU, memory, versions)
-- **Backends**: Output formatters (JSON, Osmo, OmniPerf, Summary)
+- **Formatters**: Output formatters (JSON, Osmo, OmniPerf, Summary, Schema)
 
 .. seealso::
 
@@ -59,7 +59,7 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
    # Initialize benchmark
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="MyBenchmark",
-       backend_type="json",
+       formatter_type="json",
        output_path="./results",
    )
 
@@ -113,7 +113,7 @@ Measure environment stepping performance without training:
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --num_frames 100 \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
 
 RL Training Benchmarks
@@ -131,7 +131,7 @@ Measure training performance with RSL-RL:
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
 
 PhysX Micro-Benchmarks
@@ -166,7 +166,7 @@ understanding where time is spent during initialization.
    ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
        --task Isaac-Ant \
        --num_envs 4096 \
-       --benchmark_backend summary
+       --benchmark_formatter summary
 
 The script profiles five phases independently:
 
@@ -204,7 +204,7 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
    ./isaaclab.sh -p scripts/benchmarks/benchmark_startup.py \
        --task Isaac-Ant \
        --num_envs 4096 \
-       --benchmark_backend omniperf \
+       --benchmark_formatter omniperf \
        --whitelist_config scripts/benchmarks/startup_whitelist.yaml
 
 Phases listed in the YAML use the whitelist; phases not listed fall back to
@@ -233,9 +233,9 @@ A default whitelist is provided at ``scripts/benchmarks/startup_whitelist.yaml``
    * - ``--whitelist_config``
      - None
      - Path to YAML whitelist file
-   * - ``--benchmark_backend``
+   * - ``--benchmark_formatter``
      - ``omniperf``
-     - Output backend (``json``, ``osmo``, ``omniperf``, ``summary``)
+     - Output formatter (``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``)
    * - ``--output_path``
      - ``.``
      - Directory for output files
@@ -253,9 +253,9 @@ Common Arguments
    * - Argument
      - Default
      - Description
-   * - ``--benchmark_backend``
+   * - ``--benchmark_formatter``
      - ``json``
-     - Output backend: ``json``, ``osmo``, ``omniperf``, or ``summary``
+     - Output formatter: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
    * - ``--output_path``
      - ``./``
      - Directory for output files
@@ -404,17 +404,17 @@ Example:
    benchmark.add_measurement("simulation", metadata=task_metadata)
    benchmark.add_measurement("training", measurement=reward_measurement)
 
-Output Backends
----------------
+Output Formatters
+-----------------
 
-JSON Backend
-~~~~~~~~~~~~
+JSON Formatter
+~~~~~~~~~~~~~~
 
 Full output with all phases, measurements, and metadata:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p ... --benchmark_backend json --output_path ./results
+   ./isaaclab.sh -p ... --benchmark_formatter json --output_path ./results
 
 Output structure:
 
@@ -437,14 +437,14 @@ Output structure:
      }
    ]
 
-Osmo Backend
-~~~~~~~~~~~~
+Osmo Formatter
+~~~~~~~~~~~~~~
 
 Simplified key-value format for CI/CD integration:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p ... --benchmark_backend osmo --output_path ./results
+   ./isaaclab.sh -p ... --benchmark_formatter osmo --output_path ./results
 
 Output structure:
 
@@ -457,14 +457,14 @@ Output structure:
      "task": "Isaac-Cartpole"
    }
 
-OmniPerf Backend
-~~~~~~~~~~~~~~~~
+OmniPerf Formatter
+~~~~~~~~~~~~~~~~~~
 
 Format for database upload and performance tracking:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p ... --benchmark_backend omniperf --output_path ./results
+   ./isaaclab.sh -p ... --benchmark_formatter omniperf --output_path ./results
 
 Output structure:
 
@@ -479,8 +479,20 @@ Output structure:
      }
    }
 
-Summary Backend
-~~~~~~~~~~~~~~~
+Schema Formatter
+~~~~~~~~~~~~~~~~
+
+Writes a schema-v1 bundle attached with
+:meth:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark.attach_bundle`. Use it
+with a ``RuntimeBundle``, ``TrainingBundle``, or ``StartupBundle`` when a
+typed, stable output contract is required.
+
+.. code-block:: bash
+
+   ./isaaclab.sh -p ... --benchmark_formatter schema --output_path ./results
+
+Summary Formatter
+~~~~~~~~~~~~~~~~~
 
 Human-readable console report plus JSON file. Prints a formatted summary to the
 terminal while also writing the same data as JSON. Standard phases (runtime,
@@ -491,7 +503,7 @@ entries. Use when you want a quick readout without opening the JSON:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p ... --benchmark_backend summary --output_path ./results
+   ./isaaclab.sh -p ... --benchmark_formatter summary --output_path ./results
 
 When ``summary`` is selected, frametime recorders are enabled automatically when
 running with Isaac Sim (Kit).
@@ -508,7 +520,7 @@ monitoring during blocking operations like RL training loops:
 
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="TrainingBenchmark",
-       backend_type="json",
+       formatter_type="json",
        output_path="./results",
    )
 
@@ -564,13 +576,13 @@ Step 1: Initialize Benchmark
    from isaaclab.test.benchmark import BaseIsaacLabBenchmark
 
    parser = argparse.ArgumentParser()
-   parser.add_argument("--benchmark_backend", default="json")
+   parser.add_argument("--benchmark_formatter", default="json")
    parser.add_argument("--output_path", default="./")
    args = parser.parse_args()
 
    benchmark = BaseIsaacLabBenchmark(
        benchmark_name="CustomBenchmark",
-       backend_type=args.benchmark_backend,
+       formatter_type=args.benchmark_formatter,
        output_path=args.output_path,
    )
 
@@ -635,7 +647,7 @@ The shell scripts in ``scripts/benchmarks/`` are designed for CI/CD integration:
        name: benchmark-results
        path: ./benchmark_results/
 
-For Osmo integration, use the ``osmo`` backend:
+For Osmo integration, use the ``osmo`` formatter:
 
 .. code-block:: bash
 
@@ -682,15 +694,15 @@ Ensure ``_finalize_impl()`` is called before the script exits:
    finally:
        benchmark._finalize_impl()
 
-Backend Not Recognized
-~~~~~~~~~~~~~~~~~~~~~~
+Formatter Not Recognized
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Valid backend types are: ``json``, ``osmo``, ``omniperf``, ``summary``
+Valid formatter types are: ``json``, ``osmo``, ``omniperf``, ``summary``, or ``schema``
 
 .. code-block:: bash
 
    # Correct
-   --benchmark_backend json
+   --benchmark_formatter json
 
    # Incorrect
-   --benchmark_backend JSON  # Case sensitive
+   --benchmark_formatter JSON  # Case sensitive

@@ -22,6 +22,8 @@ from isaaclab.cli.commands.install import (
     split_install_items,
 )
 
+pytestmark = pytest.mark.unit
+
 # ---------------------------------------------------------------------------
 # split_install_items
 # ---------------------------------------------------------------------------

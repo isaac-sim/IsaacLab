@@ -16,14 +16,9 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["extension", "template", "isaaclab"]
 requires-python = ">=3.12"
-dependencies = [
-    # jupyter notebook
-    "ipywidgets>=8.1.5",
-    # data collection
-    "h5py>=3.15.0",
-    # data augmentation (Linux only)
-    "robomimic @ git+https://github.com/ARISE-Initiative/robomimic.git@v0.4.0 ; sys_platform == 'linux'",
-]
+# Third-party requirements are centralized in the root pyproject.toml
+# (installed via the ``mimic`` extra).
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

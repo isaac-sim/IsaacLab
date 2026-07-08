@@ -489,6 +489,11 @@
     "comment": "NVIDIA"
   },
   {
+    "package": "cuda-toolkit",
+    "license": null,
+    "comment": "NVIDIA CUDA Toolkit EULA (LicenseRef-NVIDIA-SOFTWARE-LICENSE); wheel ships no license metadata"
+  },
+  {
     "package": "omniverseclient",
     "license": "NVIDIA Proprietary Software, https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement/",
     "comment": "NVIDIA"
@@ -507,5 +512,15 @@
     "package": "pytetwild",
     "license": "Mozilla Public License 2.0 (MPL 2.0)",
     "comment": "MPL-2.0 / OSRB"
+  },
+  {
+    "package": "distlib",
+    "license": "Python Software Foundation License",
+    "comment": "PSFL / OSRB"
+  },
+  {
+    "package": "ovrtx",
+    "license": "NVIDIA Proprietary Software",
+    "comment": "NVIDIA"
   }
 ]

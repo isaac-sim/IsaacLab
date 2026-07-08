@@ -94,3 +94,39 @@ def normalize_camera_image(
     if is_normals_like(data_type):
         return (images + 1.0) * 0.5
     return images
+
+
+def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
+    """Convert camera output tensor to [0, 1] float32 for conversion to image."""
+    normalized = tensor.float()
+
+    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
+        max_val = normalized.max()
+        if max_val > 0:
+            normalized = normalized / max_val
+    elif data_type in {"albedo"}:
+        normalized = normalized[..., :3] / 255.0
+    elif data_type in {"normals"}:
+        normalized = (normalized + 1.0) * 0.5
+    elif data_type in {"motion_vectors"}:
+        # Motion vectors are per-pixel (u, v) offsets that can be positive or negative. Normalize by the
+        # peak magnitude to map into [-1, 1], remap to [0, 1], and pack the two channels into an RGB image
+        # (u -> R, v -> G, unused B -> 0) so the result can be composed into a grid and saved as an image.
+        uv = normalized[..., :2]
+        max_mag = uv.abs().max()
+        if max_mag > 0:
+            uv = uv / max_mag
+        uv = (uv + 1.0) * 0.5
+        blue = torch.zeros_like(uv[..., :1])
+        normalized = torch.cat([uv, blue], dim=-1)
+    else:
+        normalized = normalized / 255.0
+
+    return normalized
+
+
+def make_camera_output_grid(images: torch.Tensor) -> torch.Tensor:
+    """Make a grid of images from a tensor of shape (B, H, W, C)."""
+    from torchvision.utils import make_grid
+
+    return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
