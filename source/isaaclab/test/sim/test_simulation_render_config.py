@@ -8,16 +8,37 @@
 from __future__ import annotations
 
 import importlib
-import os
 import sys
 import types
+from pathlib import Path
 
 import pytest
-import tomllib
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
     IsaacRtxRendererGlobalSettingsCfg,
 )
-from packaging.version import Version
+
+_QUALITY_DEFAULT_SETTINGS = {
+    "rtx.translucency.enabled": True,
+    "rtx.reflections.enabled": True,
+    "rtx.indirectDiffuse.enabled": True,
+    "rtx.rtpt.maxBounces": 3,
+    "rtx.rtpt.cached.enabled": False,
+    "rtx.rtpt.lightcache.cached.enabled": False,
+    "rtx.rtpt.translucency.virtualMotion.enabled": False,
+    "rtx.rtpt.splitRoughReflection": True,
+    "rtx.rtpt.adaptiveSampling.disocclusion.enabled": True,
+    "rtx.rtpt.adaptiveSampling.disocclusion.spp": 4,
+    "rtx.sceneDb.ambientLightIntensity": 1.0,
+    "rtx.shadows.enabled": True,
+    "rtx.ambientOcclusion.enabled": True,
+    "rtx.ambientOcclusion.denoiserMode": 0,
+    "rtx.raytracing.subpixel.mode": 1,
+    "rtx.raytracing.cached.enabled": True,
+    "rtx-transient.dlssg.enabled": False,
+    "rtx.post.dlss.execMode": 2,
+    "rtx.pathtracing.maxSamplesPerLaunch": 1000000,
+    "rtx.viewTile.limit": 1000000,
+}
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -72,16 +93,24 @@ def _import_isaac_rtx_utils(monkeypatch):
     return importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
 
 
-def _flatten_preset(data: dict, prefix: str = "") -> dict[str, object]:
-    """Flatten nested preset dictionaries using dot-separated keys."""
-    flattened = {}
-    for key, value in data.items():
-        key_path = f"{prefix}.{key}" if prefix else key
-        if isinstance(value, dict):
-            flattened.update(_flatten_preset(value, key_path))
+def _parse_kit_setting_values(path: Path) -> dict[str, object]:
+    """Parse scalar Kit setting assignments used by this test."""
+    values = {}
+    expected_names = set(_QUALITY_DEFAULT_SETTINGS)
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line or "=" not in line:
+            continue
+        key, raw_value = (item.strip() for item in line.split("=", 1))
+        if key not in expected_names:
+            continue
+        if raw_value in {"true", "false"}:
+            values[key] = raw_value == "true"
+        elif "." in raw_value:
+            values[key] = float(raw_value)
         else:
-            flattened[key_path] = value
-    return flattened
+            values[key] = int(raw_value)
+    return values
 
 
 def test_isaac_rtx_global_settings(monkeypatch):
@@ -112,6 +141,10 @@ def test_isaac_rtx_global_settings(monkeypatch):
         enable_cached_raytracing=True,
         max_samples_per_launch=500000,
         view_tile_limit=500000,
+        carb_settings={
+            "rtx.raytracing.subpixel.mode": 2,
+            "/rtx/custom/setting": True,
+        },
     )
 
     utils.apply_isaac_rtx_global_settings(global_settings)
@@ -132,56 +165,28 @@ def test_isaac_rtx_global_settings(monkeypatch):
     assert settings.get("/rtx/rtpt/splitRoughReflection") is True
     assert settings.get("/rtx/sceneDb/ambientLightIntensity") == 0.5
     assert settings.get("/rtx/ambientOcclusion/denoiserMode") == 0
-    assert settings.get("/rtx/raytracing/subpixel/mode") == 1
+    assert settings.get("/rtx/raytracing/subpixel/mode") == 2
     assert settings.get("/rtx/raytracing/cached/enabled") is True
     assert settings.get("/rtx/pathtracing/maxSamplesPerLaunch") == 500000
     assert settings.get("/rtx/viewTile/limit") == 500000
+    assert settings.get("/rtx/custom/setting") is True
     assert rep_settings.antialiasing == "DLAA"
 
 
-def test_isaac_rtx_global_settings_presets(monkeypatch):
-    """Test that Isaac RTX rendering-mode presets apply before overrides."""
-    utils = _import_isaac_rtx_utils(monkeypatch)
-    import isaaclab.utils.version as version_utils
+def test_isaac_rtx_camera_experience_defaults():
+    """Test that camera app files carry the high-fidelity RTX defaults."""
+    isaaclab_app_exp_path = Path(__file__).resolve().parents[4] / "apps"
 
-    monkeypatch.setattr(version_utils, "get_isaac_sim_version", lambda: Version("6.0.0"))
+    for app_filename in (
+        "isaaclab.python.rendering.kit",
+        "isaaclab.python.headless.rendering.kit",
+    ):
+        app_settings = _parse_kit_setting_values(isaaclab_app_exp_path / app_filename)
 
-    carb_settings = {
-        "/rtx/raytracing/subpixel/mode": 3,
-        "/rtx/pathtracing/maxSamplesPerLaunch": 999999,
-    }
-    dlss_mode = ("/rtx/post/dlss/execMode", 5)
-
-    rendering_modes = ["performance", "balanced", "quality"]
-
-    for rendering_mode in rendering_modes:
-        settings = _FakeSettings()
-        monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
-        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-        preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-        with open(preset_filename, "rb") as file:
-            preset_dict = tomllib.load(file)
-        preset_dict = _flatten_preset(preset_dict)
-
-        global_settings = IsaacRtxRendererGlobalSettingsCfg(
-            rendering_mode=rendering_mode,
-            dlss_mode=dlss_mode[1],
-            carb_settings=carb_settings,
-        )
-        utils.apply_isaac_rtx_global_settings(global_settings)
-
-        for key, val in preset_dict.items():
-            setting_name = "/" + key.replace(".", "/")
-            if setting_name in carb_settings:
-                setting_gt = carb_settings[setting_name]
-            elif setting_name == dlss_mode[0]:
-                setting_gt = dlss_mode[1]
-            else:
-                setting_gt = val
-
-            setting_val = settings.get(setting_name)
-
-            assert setting_gt == setting_val, (
-                f"Mismatch for '{setting_name}' in mode '{rendering_mode}': "
-                f"expected {setting_gt!r}, got {setting_val!r}"
+        for setting_name, expected_value in _QUALITY_DEFAULT_SETTINGS.items():
+            assert setting_name in app_settings, f"'{setting_name}' is not defined in '{app_filename}'"
+            assert app_settings[setting_name] == expected_value, (
+                f"Mismatch for '{setting_name}' in '{app_filename}': "
+                f"expected {expected_value!r}, "
+                f"got {app_settings[setting_name]!r}"
             )

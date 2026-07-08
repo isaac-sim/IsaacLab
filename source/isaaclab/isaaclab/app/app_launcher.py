@@ -319,8 +319,6 @@ class AppLauncher:
 
         # Hide the stop button in the toolbar
         self._hide_stop_button()
-        # Set settings from the given rendering mode
-        self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
         # Set visualizer settings (if requested)
@@ -608,18 +606,6 @@ class AppLauncher:
             help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
         )
         arg_group.add_argument(
-            "--rendering_mode",
-            type=str,
-            action=ExplicitAction,
-            choices={"performance", "balanced", "quality"},
-            help=(
-                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", or "quality".'
-                " Individual Isaac RTX settings can be overwritten through "
-                "IsaacRtxRendererCfg.global_settings."
-            ),
-        )
-        arg_group.add_argument(
             "--kit_args",
             type=str,
             default="",
@@ -679,7 +665,6 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "deterministic": ([bool], False),
-        "rendering_mode": ([str], "balanced"),
         "max_visible_envs": ([int, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -1367,18 +1352,6 @@ class AppLauncher:
                 play_button_group._stop_button.visible = False  # type: ignore
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
-
-    def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Store RTX rendering mode in settings."""
-        rendering_mode = launcher_args.get("rendering_mode")
-
-        if rendering_mode is None:
-            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
-            if not self._enable_cameras:
-                return
-            rendering_mode = ""
-
-        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in settings."""

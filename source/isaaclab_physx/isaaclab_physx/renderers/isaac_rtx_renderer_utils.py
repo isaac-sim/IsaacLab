@@ -8,11 +8,8 @@
 from __future__ import annotations
 
 import logging
-import os
 import time
 from typing import Any
-
-import tomllib
 
 import omni.usd
 
@@ -68,40 +65,6 @@ def _setting_path_from_key(key: str) -> str:
     return key
 
 
-def _apply_nested_preset(settings: SettingsManager, data: dict[str, Any], path: str = "") -> None:
-    """Apply nested preset dictionaries loaded from a .kit file."""
-    for key, value in data.items():
-        key_path = f"{path}/{key}" if path else f"/{key}"
-        if isinstance(value, dict):
-            _apply_nested_preset(settings, value, key_path)
-        else:
-            settings.set(key_path.replace(".", "/"), value)
-
-
-def _apply_rendering_mode_preset(settings: SettingsManager, rendering_mode: str) -> None:
-    """Apply an Isaac Lab rendering-mode preset."""
-    supported_rendering_modes = {"performance", "balanced", "quality"}
-    if rendering_mode not in supported_rendering_modes:
-        raise ValueError(
-            f"IsaacRtxRendererCfg rendering mode '{rendering_mode}' not in "
-            "supported modes "
-            f"{sorted(supported_rendering_modes)}."
-        )
-
-    isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-    from isaaclab.utils.version import get_isaac_sim_version
-
-    if get_isaac_sim_version().major < 6:
-        isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-    preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-    if os.path.exists(preset_filename):
-        with open(preset_filename, "rb") as file:
-            _apply_nested_preset(settings, tomllib.load(file))
-    else:
-        logger.warning("[isaac_rtx] Render preset file not found: %s", preset_filename)
-
-
 def apply_isaac_rtx_global_settings(
     global_settings: IsaacRtxRendererGlobalSettingsCfg,
     settings: SettingsManager | None = None,
@@ -123,10 +86,6 @@ def _apply_isaac_rtx_global_settings(
 ) -> None:
     """Apply global Isaac RTX settings to the provided settings manager."""
 
-    rendering_mode = getattr(global_settings, "rendering_mode", None)
-    if rendering_mode:
-        _apply_rendering_mode_preset(settings, rendering_mode)
-
     for field_name, setting_path in _RTX_FIELD_TO_SETTING.items():
         value = getattr(global_settings, field_name, None)
         if value is not None:
@@ -139,12 +98,9 @@ def _apply_isaac_rtx_global_settings(
 
     antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
     if antialiasing_mode is not None:
-        try:
-            import omni.replicator.core as rep
+        import omni.replicator.core as rep
 
-            rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-        except Exception:
-            pass
+        rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
 
 
 def _get_stage_streaming_busy() -> bool:
