@@ -77,16 +77,19 @@ def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
             f"Corrupt SemanticIdMap: {num_entries} entries ({entries_size} bytes) exceed buffer size {data.size}."
         )
 
+    # Labels live between the entries and the trailing 4-byte entry count, so a valid label must end at or
+    # before ``data.size - 4`` (never spilling into the count field), consistent with the check above.
+    labels_end = data.size - 4
     entries = data[:entries_size].view(entry_dtype).reshape(num_entries)
     labels_by_id: dict[int, dict[str, str]] = {}
     for entry in entries:
         semantic_id = int(entry["id"][0])
         label_offset = int(entry["label_offset"])
         label_end = label_offset + int(entry["label_length"])
-        if label_end > data.size:
+        if label_end > labels_end:
             raise ValueError(
                 f"Corrupt SemanticIdMap: label for id {semantic_id} spans [{label_offset}, {label_end}) beyond"
-                f" buffer size {data.size}."
+                f" the label region end {labels_end} (buffer size {data.size}, minus the 4-byte entry count)."
             )
         raw_label = data[label_offset:label_end].tobytes().decode("utf-8").rstrip("\x00").rstrip()
         labels_by_id[semantic_id] = parse_semantic_label(raw_label)

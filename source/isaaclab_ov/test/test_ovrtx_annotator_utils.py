@@ -76,6 +76,16 @@ def test_decode_semantic_id_map_rejects_corrupt_entry_count():
         decode_semantic_id_map(id_map)
 
 
+def test_decode_semantic_id_map_rejects_label_spilling_into_count_field():
+    """A label whose bytes run into the trailing 4-byte entry count is rejected (bound is data.size - 4)."""
+    id_map = _encode_semantic_id_map([(2, "class: cone;")])
+    # Inflate the single entry's label_length (u4 at byte offset 16 of the 24-byte entry) so the label
+    # would extend into the trailing entry-count word.
+    id_map[16:20] = np.frombuffer(int(len("class: cone;") + 4).to_bytes(4, "little"), dtype=np.uint8)
+    with pytest.raises(ValueError, match="Corrupt SemanticIdMap"):
+        decode_semantic_id_map(id_map)
+
+
 def test_build_semantic_id_to_labels_non_colorize_keys_by_id():
     """Non-colorized idToLabels is keyed by decimal semantic ID and always includes the reserved entries."""
     id_to_labels = build_semantic_id_to_labels({2: {"class": "cone"}}, colorize=False, device="cpu")
