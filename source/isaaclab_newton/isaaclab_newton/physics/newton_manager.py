@@ -1294,7 +1294,9 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
-            builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
+            from isaaclab_newton.cloner.newton_clone_utils import _add_global_stage_to_builder
+
+            _add_global_stage_to_builder(builder, stage, ignore_paths, schema_resolvers)
             replace_newton_builder_shape_colors(builder, stage)
 
             _, proto_path = env_paths[0]

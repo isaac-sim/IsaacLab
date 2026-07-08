@@ -14,6 +14,7 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
+from isaaclab_visualizers.newton import newton_visualization_markers as newton_markers
 from isaaclab_visualizers.newton.newton_visualizer import NewtonViewerGL
 from isaaclab_visualizers.newton_adapter import (
     VISUALIZER_INFINITE_PLANE_SIZE,
@@ -114,6 +115,27 @@ def test_newton_visualizer_cfg_exposes_particle_options():
 
     assert cfg.show_particles is True
     assert cfg.particle_color == (0.1, 0.2, 0.3)
+
+
+def test_newton_marker_close_does_not_query_simulation_context(monkeypatch: pytest.MonkeyPatch):
+    """Marker cleanup should remain safe during interpreter shutdown."""
+
+    class _Registry:
+        removed_groups: list[str] = []
+
+        def remove_group(self, group_id: str) -> None:
+            self.removed_groups.append(group_id)
+
+    marker = object.__new__(newton_markers.NewtonVisualizationMarkers)
+    marker.group_id = "/Visuals/test::marker"
+    marker._registry = _Registry()
+    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", None)
+
+    marker.close()
+    marker.close()
+
+    assert marker._registry is None
+    assert _Registry.removed_groups == [marker.group_id]
 
 
 def test_newton_visualizer_cfg_exposes_world_spacing():
