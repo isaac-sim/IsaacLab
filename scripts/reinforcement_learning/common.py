@@ -162,7 +162,9 @@ def dispatch_library_entrypoint(
         run_as_script: Whether to execute the selected implementation as a script.
 
     Returns:
-        Process exit code.
+        Process exit code. Returns ``0`` after printing selector help when
+        ``argv`` requests ``-h`` or ``--help`` without ``--rl_library``;
+        otherwise returns ``2`` when no library is selected.
     """
     if argv is None:
         argv = sys.argv[1:]
