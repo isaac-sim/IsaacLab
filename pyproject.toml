@@ -54,6 +54,7 @@ dependencies = [
     # isaacsim.robot_motion.pink extension needs pink.exceptions.NoSolutionFound (module
     # layout from 3.3.0), while pink 3.4+ breaks the task API used by
     # isaaclab.controllers.pink_ik. daqp is pinned because later versions change runtime behavior.
+    # The install CLI derives its Pink IK force-install stack from these three entries.
     "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "pin-pink==3.3.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
     "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",

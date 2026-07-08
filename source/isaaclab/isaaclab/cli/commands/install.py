@@ -246,15 +246,32 @@ def _maybe_preinstall_arm_nlopt(python_exe: str, pip_cmd: list[str]) -> None:
             _purge_swig()
 
 
-# Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
-# via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# Packages forming the Pink IK dependency stack. Pinocchio is installed via the
+# cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
 # ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
-# pin-pink sits in the 3.3.x window on purpose: Isaac Sim 6.x's
-# ``isaacsim.robot_motion.pink`` extension needs ``pink.exceptions.NoSolutionFound``
-# (module layout introduced in 3.3.0), while pink 3.4+ breaks the task API used by
-# :mod:`isaaclab.controllers.pink_ik` (``set_target_from_configuration``).
-_PINK_IK_STACK = ("pin", "pin-pink==3.3.0", "daqp==0.8.5")
+# Versions (e.g. the pink 3.3.x window required by Isaac Sim 6.x) are pinned in the
+# root pyproject.toml; :func:`_pink_ik_stack` derives the requirements from there.
+_PINK_IK_PACKAGES = ("pin", "pin-pink", "daqp")
+
+
+def _pink_ik_stack() -> tuple[str, ...]:
+    """Return the Pink IK stack requirements pinned in the root ``pyproject.toml``.
+
+    Derives the requirement strings for :data:`_PINK_IK_PACKAGES` from the
+    centralized ``[project.dependencies]`` table so the pins live in one place.
+    Environment markers are stripped because
+    :func:`_ensure_pink_ik_dependencies_installed` gates on platform itself.
+
+    Raises:
+        KeyError: If a stack package is missing from the root dependencies.
+    """
+    dependencies = _load_root_pyproject().get("project", {}).get("dependencies", [])
+    requirements = {_requirement_name(r): r.split(";", 1)[0].strip() for r in dependencies}
+    missing = [name for name in _PINK_IK_PACKAGES if name not in requirements]
+    if missing:
+        raise KeyError(f"{missing} missing from [project.dependencies] in the root pyproject.toml.")
+    return tuple(requirements[name] for name in _PINK_IK_PACKAGES)
 
 
 def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
@@ -301,15 +318,16 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
         return
 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
+    pink_ik_stack = _pink_ik_stack()
     install_result = run_command(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINK_IK_STACK],
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
         check=False,
     )
     if install_result.returncode != 0:
         print_warning(
             "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
             f"{install_result.returncode}). The pink IK controller and its tests will not be"
-            " usable until ``pin pin-pink==3.3.0 daqp==0.8.5`` is installed manually."
+            f" usable until ``{' '.join(pink_ik_stack)}`` is installed manually."
         )
 
 
