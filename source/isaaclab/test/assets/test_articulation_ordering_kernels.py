@@ -186,20 +186,12 @@ def test_fused_identity_writer_supports_aliased_outputs(selection: str, writer: 
     if writer == "scalar":
         data = wp.array(initial, dtype=wp.float32, device="cpu")
         if selection == "indices":
-            wp.launch(
-                write_float_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], user_ids.shape[0]),
-                inputs=[42.0, env_ids, user_ids, user_to_backend, False, False],
-                outputs=[data, data],
-                device="cpu",
+            write_float_user_to_backend_with_indices(
+                42.0, env_ids, user_ids, user_to_backend, False, False, data, data, device="cpu"
             )
         else:
-            wp.launch(
-                write_float_user_to_backend_with_mask,
-                dim=data.shape,
-                inputs=[42.0, env_mask, user_mask, user_to_backend, False],
-                outputs=[data, data],
-                device="cpu",
+            write_float_user_to_backend_with_mask(
+                42.0, env_mask, user_mask, user_to_backend, False, data, data, device="cpu"
             )
         np.testing.assert_allclose(data.numpy(), expected_with_selected_value(initial, 42.0))
         return
@@ -207,20 +199,12 @@ def test_fused_identity_writer_supports_aliased_outputs(selection: str, writer: 
     if writer == "float":
         data = wp.array(initial, dtype=wp.float32, device="cpu")
         if selection == "indices":
-            wp.launch(
-                write_float_user_to_backend_with_indices,
-                dim=(env_ids.shape[0], user_ids.shape[0]),
-                inputs=[input_data, env_ids, user_ids, user_to_backend, False, True],
-                outputs=[data, data],
-                device="cpu",
+            write_float_user_to_backend_with_indices(
+                input_data, env_ids, user_ids, user_to_backend, False, True, data, data, device="cpu"
             )
         else:
-            wp.launch(
-                write_float_user_to_backend_with_mask,
-                dim=data.shape,
-                inputs=[input_data, env_mask, user_mask, user_to_backend, False],
-                outputs=[data, data],
-                device="cpu",
+            write_float_user_to_backend_with_mask(
+                input_data, env_mask, user_mask, user_to_backend, False, data, data, device="cpu"
             )
         np.testing.assert_allclose(data.numpy(), expected_with_selected_value(initial, 102.0))
         return
@@ -300,12 +284,8 @@ def test_write_float_scalar_user_to_backend_with_indices_updates_user_and_backen
     user_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
     backend_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
 
-    wp.launch(
-        write_float_user_to_backend_with_indices,
-        dim=(env_ids.shape[0], user_ids.shape[0]),
-        inputs=[4.5, env_ids, user_ids, user_to_backend, True, False],
-        outputs=[user_data, backend_data],
-        device="cpu",
+    write_float_user_to_backend_with_indices(
+        4.5, env_ids, user_ids, user_to_backend, True, False, user_data, backend_data, device="cpu"
     )
 
     expected_user = np.asarray([[4.5, 0.0, 4.5], [0.0, 0.0, 0.0], [4.5, 0.0, 4.5]], dtype=np.float32)
@@ -322,12 +302,8 @@ def test_write_float_scalar_user_to_backend_with_mask_updates_selected_entries()
     user_data = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
     backend_data = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
 
-    wp.launch(
-        write_float_user_to_backend_with_mask,
-        dim=user_data.shape,
-        inputs=[7.25, env_mask, user_mask, user_to_backend, True],
-        outputs=[user_data, backend_data],
-        device="cpu",
+    write_float_user_to_backend_with_mask(
+        7.25, env_mask, user_mask, user_to_backend, True, user_data, backend_data, device="cpu"
     )
 
     expected_user = np.asarray([[0.0, 7.25, 7.25], [0.0, 0.0, 0.0]], dtype=np.float32)
@@ -355,12 +331,8 @@ def test_write_float_array_user_to_backend_with_indices_updates_user_and_backend
     user_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
     backend_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
 
-    wp.launch(
-        write_float_user_to_backend_with_indices,
-        dim=input_data.shape,
-        inputs=[input_data, env_ids, user_ids, user_to_backend, True, False],
-        outputs=[user_data, backend_data],
-        device="cpu",
+    write_float_user_to_backend_with_indices(
+        input_data, env_ids, user_ids, user_to_backend, True, False, user_data, backend_data, device="cpu"
     )
 
     expected_user = np.asarray([[11.0, 0.0, 10.0], [0.0, 0.0, 0.0], [21.0, 0.0, 20.0]], dtype=np.float32)
@@ -388,12 +360,8 @@ def test_write_float_array_user_to_backend_with_mask_updates_selected_entries() 
     user_data = wp.zeros_like(input_data)
     backend_data = wp.zeros_like(input_data)
 
-    wp.launch(
-        write_float_user_to_backend_with_mask,
-        dim=input_data.shape,
-        inputs=[input_data, env_mask, user_mask, user_to_backend, True],
-        outputs=[user_data, backend_data],
-        device="cpu",
+    write_float_user_to_backend_with_mask(
+        input_data, env_mask, user_mask, user_to_backend, True, user_data, backend_data, device="cpu"
     )
 
     expected_user = np.asarray([[0.0, 11.0, 12.0], [0.0, 0.0, 0.0]], dtype=np.float32)
@@ -470,8 +438,6 @@ def test_write_joint_vel_user_to_backend_with_mask_updates_selected_entries() ->
 @pytest.mark.parametrize("selection", ["indices", "mask"])
 def test_write_2d_user_to_backend_updates_structured_buffers(selection: str) -> None:
     """Fuse selected structured writes into public and backend-order buffers."""
-    kernel = write_2d_user_to_backend_with_indices if selection == "indices" else write_2d_user_to_backend_with_mask
-
     input_data_np = np.asarray(
         [
             [[10.0, 11.0, 12.0], [20.0, 21.0, 22.0], [30.0, 31.0, 32.0]],
@@ -487,21 +453,30 @@ def test_write_2d_user_to_backend_updates_structured_buffers(selection: str) -> 
     if selection == "indices":
         env_ids = wp.array(np.asarray([0], dtype=np.int32), dtype=wp.int32, device="cpu")
         user_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
-        wp.launch(
-            kernel,
-            dim=(env_ids.shape[0], user_ids.shape[0]),
-            inputs=[input_data, env_ids, user_ids, user_to_backend, True, True],
-            outputs=[user_data, backend_data],
+        write_2d_user_to_backend_with_indices(
+            input_data,
+            env_ids,
+            user_ids,
+            user_to_backend,
+            True,
+            True,
+            user_data,
+            backend_data,
+            dtype=wp.vec3f,
             device="cpu",
         )
     else:
         env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
         user_mask = wp.array(np.asarray([True, False, True]), dtype=wp.bool, device="cpu")
-        wp.launch(
-            kernel,
-            dim=input_data.shape,
-            inputs=[input_data, env_mask, user_mask, user_to_backend, True],
-            outputs=[user_data, backend_data],
+        write_2d_user_to_backend_with_mask(
+            input_data,
+            env_mask,
+            user_mask,
+            user_to_backend,
+            True,
+            user_data,
+            backend_data,
+            dtype=wp.vec3f,
             device="cpu",
         )
 
@@ -516,8 +491,6 @@ def test_write_2d_user_to_backend_updates_structured_buffers(selection: str) -> 
 @pytest.mark.parametrize("selection", ["indices", "mask"])
 def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> None:
     """Fuse selected component-array writes into public and backend-order buffers."""
-    kernel = write_3d_user_to_backend_with_indices if selection == "indices" else write_3d_user_to_backend_with_mask
-
     input_data_np = np.arange(2 * 3 * 4, dtype=np.float32).reshape(2, 3, 4) + 1.0
     input_data = wp.array(input_data_np, dtype=wp.float32, device="cpu")
     user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
@@ -527,21 +500,30 @@ def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> N
     if selection == "indices":
         env_ids = wp.array(np.asarray([0], dtype=np.int32), dtype=wp.int32, device="cpu")
         user_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
-        wp.launch(
-            kernel,
-            dim=(env_ids.shape[0], user_ids.shape[0], input_data.shape[2]),
-            inputs=[input_data, env_ids, user_ids, user_to_backend, True, True],
-            outputs=[user_data, backend_data],
+        write_3d_user_to_backend_with_indices(
+            input_data,
+            env_ids,
+            user_ids,
+            user_to_backend,
+            True,
+            True,
+            user_data,
+            backend_data,
+            dtype=wp.float32,
             device="cpu",
         )
     else:
         env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
         user_mask = wp.array(np.asarray([True, False, True]), dtype=wp.bool, device="cpu")
-        wp.launch(
-            kernel,
-            dim=input_data.shape,
-            inputs=[input_data, env_mask, user_mask, user_to_backend, True],
-            outputs=[user_data, backend_data],
+        write_3d_user_to_backend_with_mask(
+            input_data,
+            env_mask,
+            user_mask,
+            user_to_backend,
+            True,
+            user_data,
+            backend_data,
+            dtype=wp.float32,
             device="cpu",
         )
 
@@ -561,3 +543,54 @@ def test_directional_reorder_names_alias_the_gather_kernels() -> None:
     assert k.reorder_2d_user_to_backend is k.gather_2d
     assert k.reorder_3d_backend_to_user is k.gather_3d
     assert k.reorder_3d_user_to_backend is k.gather_3d
+
+
+def test_write_2d_wrapper_adapts_torch_vec3_inputs() -> None:
+    """The launch wrapper accepts torch tensors and folds trailing vec3 dims."""
+    import torch
+
+    from isaaclab.assets.articulation import ordering_kernels as k
+
+    num_envs, num_items = 2, 3
+    input_data = torch.arange(num_envs * num_items * 3, dtype=torch.float32, device="cpu").reshape(
+        num_envs, num_items, 3
+    )
+    user_data = torch.zeros_like(input_data)
+    backend_data = torch.zeros_like(input_data)
+    env_ids = wp.array([0, 1], dtype=wp.int32, device="cpu")
+    user_ids = wp.array([0, 1, 2], dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array([2, 0, 1], dtype=wp.int32, device="cpu")
+
+    k.write_2d_user_to_backend_with_indices(
+        input_data,
+        env_ids,
+        user_ids,
+        user_to_backend,
+        True,
+        True,
+        user_data,
+        backend_data,
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    assert torch.equal(user_data, input_data)
+    assert torch.equal(backend_data[:, [2, 0, 1], :], input_data)
+
+
+def test_write_float_wrapper_accepts_scalar_input() -> None:
+    """The float wrapper passes Python scalars straight to the scalar overload."""
+    import torch
+
+    from isaaclab.assets.articulation import ordering_kernels as k
+
+    user_data = torch.zeros((2, 3), dtype=torch.float32, device="cpu")
+    backend_data = torch.zeros((2, 3), dtype=torch.float32, device="cpu")
+    env_ids = wp.array([0, 1], dtype=wp.int32, device="cpu")
+    user_ids = wp.array([1], dtype=wp.int32, device="cpu")
+    user_to_backend = wp.array([2, 0, 1], dtype=wp.int32, device="cpu")
+
+    k.write_float_user_to_backend_with_indices(
+        7.5, env_ids, user_ids, user_to_backend, True, False, user_data, backend_data, device="cpu"
+    )
+    assert user_data[0, 1].item() == 7.5 and user_data[1, 1].item() == 7.5
+    assert backend_data[0, 0].item() == 7.5  # user index 1 -> backend index 0

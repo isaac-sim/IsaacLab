@@ -6,16 +6,16 @@
 """Shared Warp kernels for articulation ordering conversions.
 
 Visibility contract:
-    The elementwise ``reorder_2d_*``/``reorder_3d_*`` kernels listed in
-    ``__all__`` are public: they gather a single item axis between public and
-    backend order and can legitimately be launched on raw solver-view arrays for
-    advanced interop. Every other symbol in this module -- the fused joint-target
-    and body-wrench kernels, the Jacobian/mass-matrix/generalized-vector
-    specials, the ``write_*`` kernels, and their dtype-suffixed overloads -- is
-    an internal contract between isaaclab core and the backend packages. Those
-    symbols are not user API and may change without deprecation; the backend
-    packages launch them by name, so they stay non-underscored despite being
-    internal.
+    The ``gather_2d``/``gather_3d`` kernels and their directional
+    ``reorder_*`` aliases listed in ``__all__`` are public: they gather a
+    single item axis between public and backend order and can legitimately be
+    launched on raw solver-view arrays for advanced interop. The
+    ``write_*_user_to_backend_*`` Python launch wrappers and the fused
+    joint-target, body-wrench, joint-state, Jacobian, mass-matrix, and
+    generalized-vector kernels are an internal contract between isaaclab core
+    and the backend packages: not user API, may change without deprecation.
+    Underscore-prefixed kernels and helpers are module-private; backends go
+    through the wrappers.
 
 Axis conventions and ownership:
     Axis 0 is always the environment axis. An articulation item axis is
@@ -515,7 +515,7 @@ def write_joint_state_user_to_backend_with_mask(
 
 
 @wp.kernel
-def write_2d_user_to_backend_with_indices(
+def _write_2d_user_to_backend_with_indices(
     input_data: wp.array2d(dtype=Any),
     env_ids: wp.array(dtype=wp.int32),
     user_ids: wp.array(dtype=wp.int32),
@@ -554,7 +554,7 @@ def write_2d_user_to_backend_with_indices(
 
 
 @wp.kernel
-def write_2d_user_to_backend_with_mask(
+def _write_2d_user_to_backend_with_mask(
     input_data: wp.array2d(dtype=Any),
     env_mask: wp.array(dtype=wp.bool),
     user_mask: wp.array(dtype=wp.bool),
@@ -587,7 +587,7 @@ def write_2d_user_to_backend_with_mask(
 
 
 @wp.kernel
-def write_3d_user_to_backend_with_indices(
+def _write_3d_user_to_backend_with_indices(
     input_data: wp.array3d(dtype=Any),
     env_ids: wp.array(dtype=wp.int32),
     user_ids: wp.array(dtype=wp.int32),
@@ -626,7 +626,7 @@ def write_3d_user_to_backend_with_indices(
 
 
 @wp.kernel
-def write_3d_user_to_backend_with_mask(
+def _write_3d_user_to_backend_with_mask(
     input_data: wp.array3d(dtype=Any),
     env_mask: wp.array(dtype=wp.bool),
     user_mask: wp.array(dtype=wp.bool),
@@ -658,65 +658,244 @@ def write_3d_user_to_backend_with_mask(
         backend_data[env_id, user_to_backend[user_id], component_id] = value
 
 
-# Concrete, dtype-suffixed overloads of the generic ``write_*`` kernels above.
-# These exist because Warp cannot infer generic (``dtype=Any``) kernel
-# parameters from torch tensors: launching a generic kernel with a torch input
-# raises "Unable to infer the type of argument" even for an unambiguous
-# float32 tensor, while a concrete overload adapts the tensor to the declared
-# dtype, including trailing-dimension folding for vector and transform
-# element types. Kernels launched exclusively with Warp arrays need no
-# explicit overload (implicit instantiation handles them); every kernel whose
-# call sites accept ``torch.Tensor`` inputs does. The backend packages launch
-# these by name (the ``_vec3``/``_transform``/``_float`` suffix names the
-# input/output element dtype).
-write_2d_user_to_backend_with_indices_vec3 = wp.overload(
-    write_2d_user_to_backend_with_indices,
-    {
-        "input_data": wp.array2d(dtype=wp.vec3f),
-        "user_data": wp.array2d(dtype=wp.vec3f),
-        "backend_data": wp.array2d(dtype=wp.vec3f),
-    },
-)
-write_2d_user_to_backend_with_mask_vec3 = wp.overload(
-    write_2d_user_to_backend_with_mask,
-    {
-        "input_data": wp.array2d(dtype=wp.vec3f),
-        "user_data": wp.array2d(dtype=wp.vec3f),
-        "backend_data": wp.array2d(dtype=wp.vec3f),
-    },
-)
-write_2d_user_to_backend_with_indices_transform = wp.overload(
-    write_2d_user_to_backend_with_indices,
-    {
-        "input_data": wp.array2d(dtype=wp.transformf),
-        "user_data": wp.array2d(dtype=wp.transformf),
-        "backend_data": wp.array2d(dtype=wp.transformf),
-    },
-)
-write_2d_user_to_backend_with_mask_transform = wp.overload(
-    write_2d_user_to_backend_with_mask,
-    {
-        "input_data": wp.array2d(dtype=wp.transformf),
-        "user_data": wp.array2d(dtype=wp.transformf),
-        "backend_data": wp.array2d(dtype=wp.transformf),
-    },
-)
-write_3d_user_to_backend_with_indices_float = wp.overload(
-    write_3d_user_to_backend_with_indices,
-    {
-        "input_data": wp.array3d(dtype=wp.float32),
-        "user_data": wp.array3d(dtype=wp.float32),
-        "backend_data": wp.array3d(dtype=wp.float32),
-    },
-)
-write_3d_user_to_backend_with_mask_float = wp.overload(
-    write_3d_user_to_backend_with_mask,
-    {
-        "input_data": wp.array3d(dtype=wp.float32),
-        "user_data": wp.array3d(dtype=wp.float32),
-        "backend_data": wp.array3d(dtype=wp.float32),
-    },
-)
+def _as_warp_array(data, dtype) -> wp.array:
+    """Return ``data`` as a Warp array of ``dtype``, adapting torch tensors.
+
+    Warp cannot infer generic (``dtype=Any``) kernel parameters from torch
+    tensors, so the launch wrappers below adapt every torch input once, here,
+    including trailing-dimension folding for vector and transform dtypes.
+    Warp arrays pass through unchanged and must already carry ``dtype``.
+    """
+    if isinstance(data, wp.array):
+        return data
+    return wp.from_torch(data, dtype=dtype)
+
+
+def write_2d_user_to_backend_with_indices(
+    input_data,
+    env_ids,
+    user_ids,
+    user_to_backend,
+    has_ordering,
+    full_data,
+    user_data,
+    backend_data,
+    *,
+    dtype,
+    device,
+) -> None:
+    """Write selected structured values to public- and backend-order buffers.
+
+    Launch wrapper over the module-private generic kernel: adapts torch inputs
+    to :paramref:`dtype` and derives the launch dim from the selectors, so call
+    sites need no dtype-suffixed overload names. Argument contract matches
+    :func:`_write_2d_user_to_backend_with_indices`.
+
+    Args:
+        input_data: Values in caller-defined units, torch tensor or Warp array.
+            With full_data true, shape is [num_envs, num_items] in public order;
+            otherwise it is [len(env_ids), len(user_ids)].
+        env_ids: Unique selected environment indices, ``wp.int32``.
+        user_ids: Unique selected public item indices, ``wp.int32``.
+        user_to_backend: Read-only public-to-backend item map, ``wp.int32``.
+        has_ordering: Whether to scatter values into backend_data. When false,
+            backend_data is not written and may alias user_data.
+        full_data: Whether input_data uses global public indices.
+        user_data: Public-order destination with element type ``dtype``.
+        backend_data: Backend-order destination with element type ``dtype``.
+        dtype: Warp element dtype shared by the data arrays (e.g. ``wp.vec3f``,
+            ``wp.transformf``).
+        device: Warp launch device.
+    """
+    wp.launch(
+        _write_2d_user_to_backend_with_indices,
+        dim=(env_ids.shape[0], user_ids.shape[0]),
+        inputs=[
+            _as_warp_array(input_data, dtype),
+            env_ids,
+            user_ids,
+            user_to_backend,
+            has_ordering,
+            full_data,
+            _as_warp_array(user_data, dtype),
+            _as_warp_array(backend_data, dtype),
+        ],
+        device=device,
+    )
+
+
+def write_2d_user_to_backend_with_mask(
+    input_data,
+    env_mask,
+    user_mask,
+    user_to_backend,
+    has_ordering,
+    user_data,
+    backend_data,
+    *,
+    dtype,
+    device,
+) -> None:
+    """Write masked structured values to public- and backend-order buffers.
+
+    Launch wrapper over :func:`_write_2d_user_to_backend_with_mask`; see
+    :func:`write_2d_user_to_backend_with_indices` for the adaptation contract.
+    The launch dim is the full [num_envs, num_items] mask domain.
+    """
+    wp.launch(
+        _write_2d_user_to_backend_with_mask,
+        dim=(env_mask.shape[0], user_mask.shape[0]),
+        inputs=[
+            _as_warp_array(input_data, dtype),
+            env_mask,
+            user_mask,
+            user_to_backend,
+            has_ordering,
+            _as_warp_array(user_data, dtype),
+            _as_warp_array(backend_data, dtype),
+        ],
+        device=device,
+    )
+
+
+def write_3d_user_to_backend_with_indices(
+    input_data,
+    env_ids,
+    user_ids,
+    user_to_backend,
+    has_ordering,
+    full_data,
+    user_data,
+    backend_data,
+    *,
+    dtype,
+    device,
+) -> None:
+    """Write selected component values to public- and backend-order buffers.
+
+    Launch wrapper over :func:`_write_3d_user_to_backend_with_indices`; the
+    component count of the launch dim comes from the adapted destination.
+    """
+    user_array = _as_warp_array(user_data, dtype)
+    wp.launch(
+        _write_3d_user_to_backend_with_indices,
+        dim=(env_ids.shape[0], user_ids.shape[0], user_array.shape[2]),
+        inputs=[
+            _as_warp_array(input_data, dtype),
+            env_ids,
+            user_ids,
+            user_to_backend,
+            has_ordering,
+            full_data,
+            user_array,
+            _as_warp_array(backend_data, dtype),
+        ],
+        device=device,
+    )
+
+
+def write_3d_user_to_backend_with_mask(
+    input_data,
+    env_mask,
+    user_mask,
+    user_to_backend,
+    has_ordering,
+    user_data,
+    backend_data,
+    *,
+    dtype,
+    device,
+) -> None:
+    """Write masked component values to public- and backend-order buffers.
+
+    Launch wrapper over :func:`_write_3d_user_to_backend_with_mask`.
+    """
+    user_array = _as_warp_array(user_data, dtype)
+    wp.launch(
+        _write_3d_user_to_backend_with_mask,
+        dim=(env_mask.shape[0], user_mask.shape[0], user_array.shape[2]),
+        inputs=[
+            _as_warp_array(input_data, dtype),
+            env_mask,
+            user_mask,
+            user_to_backend,
+            has_ordering,
+            user_array,
+            _as_warp_array(backend_data, dtype),
+        ],
+        device=device,
+    )
+
+
+def write_float_user_to_backend_with_indices(
+    input_data,
+    env_ids,
+    user_ids,
+    user_to_backend,
+    has_ordering,
+    full_data,
+    user_data,
+    backend_data,
+    *,
+    device,
+) -> None:
+    """Write a scalar or selected 2-D public values to public and backend buffers.
+
+    Launch wrapper over :func:`_write_float_user_to_backend_with_indices`.
+    ``input_data`` may be a Python scalar (passed through to the scalar
+    ``wp.func`` overload) or a 2-D float32 torch tensor / Warp array.
+    """
+    if not isinstance(input_data, (int, float)):
+        input_data = _as_warp_array(input_data, wp.float32)
+    wp.launch(
+        _write_float_user_to_backend_with_indices,
+        dim=(env_ids.shape[0], user_ids.shape[0]),
+        inputs=[
+            input_data,
+            env_ids,
+            user_ids,
+            user_to_backend,
+            has_ordering,
+            full_data,
+            _as_warp_array(user_data, wp.float32),
+            _as_warp_array(backend_data, wp.float32),
+        ],
+        device=device,
+    )
+
+
+def write_float_user_to_backend_with_mask(
+    input_data,
+    env_mask,
+    user_mask,
+    user_to_backend,
+    has_ordering,
+    user_data,
+    backend_data,
+    *,
+    device,
+) -> None:
+    """Write a scalar or masked 2-D public values to public and backend buffers.
+
+    Launch wrapper over :func:`_write_float_user_to_backend_with_mask`; see
+    :func:`write_float_user_to_backend_with_indices` for the input contract.
+    """
+    if not isinstance(input_data, (int, float)):
+        input_data = _as_warp_array(input_data, wp.float32)
+    wp.launch(
+        _write_float_user_to_backend_with_mask,
+        dim=(env_mask.shape[0], user_mask.shape[0]),
+        inputs=[
+            input_data,
+            env_mask,
+            user_mask,
+            user_to_backend,
+            has_ordering,
+            _as_warp_array(user_data, wp.float32),
+            _as_warp_array(backend_data, wp.float32),
+        ],
+        device=device,
+    )
 
 
 @wp.func
@@ -748,7 +927,7 @@ def _resolve_float_input(
 
 
 @wp.kernel
-def write_float_user_to_backend_with_indices(
+def _write_float_user_to_backend_with_indices(
     input_data: Any,
     env_ids: wp.array(dtype=wp.int32),
     user_ids: wp.array(dtype=wp.int32),
@@ -790,7 +969,7 @@ def write_float_user_to_backend_with_indices(
 
 
 @wp.kernel
-def write_float_user_to_backend_with_mask(
+def _write_float_user_to_backend_with_mask(
     input_data: Any,
     env_mask: wp.array(dtype=wp.bool),
     user_mask: wp.array(dtype=wp.bool),
@@ -821,17 +1000,3 @@ def write_float_user_to_backend_with_mask(
     if has_ordering:
         backend_id = user_to_backend[user_id]
         backend_data[env_id, backend_id] = value
-
-
-# Concrete array overloads of the ``write_float_*`` kernels above, for the
-# array (rather than scalar) input form. Same rationale as the block above:
-# their call sites accept torch tensors, which Warp cannot adapt to a generic
-# parameter, so the 2-D float32 signature must be declared explicitly. The
-# backend packages launch these by name (the ``_array`` suffix marks the
-# array input form).
-write_float_user_to_backend_with_indices_array = wp.overload(
-    write_float_user_to_backend_with_indices, {"input_data": wp.array2d(dtype=wp.float32)}
-)
-write_float_user_to_backend_with_mask_array = wp.overload(
-    write_float_user_to_backend_with_mask, {"input_data": wp.array2d(dtype=wp.float32)}
-)
