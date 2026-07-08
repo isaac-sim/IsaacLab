@@ -642,12 +642,16 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         camera_data: CameraData,
     ) -> None:
-        """Copy per-output metadata collected during :meth:`render` into ``camera_data.info``.
+        """Forward per-output metadata collected during :meth:`render` into ``camera_data.info``.
 
-        Pixel data needs no copy here: :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
+        Each entry is stored by reference (a shallow assignment, not a deep copy): ``camera_data.info``
+        ends up sharing the same metadata dict objects as ``render_data.renderer_info`` (e.g. the semantic
+        ``idToLabels`` mapping). Those references stay valid even if ``renderer_info`` is later cleared or
+        rebuilt, and each render builds a fresh metadata dict, so no aliased object is mutated in place.
+
+        Pixel data needs no handling here: :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
         zero-copy warp array stored in ``render_data.warp_buffers``, and :meth:`render` writes the rendered
-        tiles directly into those warp arrays. The only work left is forwarding the metadata gathered in
-        ``render_data.renderer_info`` (e.g. the semantic ``idToLabels`` mapping).
+        tiles directly into those warp arrays.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
         """
