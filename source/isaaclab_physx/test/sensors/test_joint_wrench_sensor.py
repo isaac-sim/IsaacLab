@@ -479,6 +479,10 @@ class _FakeArticulationView:
         self.view_count += 1
         return self.wrenches
 
+    @property
+    def ptr(self):
+        return self.wrenches.ptr
+
 
 def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 1):
     """Create a JointWrench sensor without a USD scene."""

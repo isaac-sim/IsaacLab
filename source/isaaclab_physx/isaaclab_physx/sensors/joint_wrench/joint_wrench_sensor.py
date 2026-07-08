@@ -197,10 +197,19 @@ class JointWrenchSensor(BaseJointWrenchSensor):
         if self._joint_pos_b is None or self._joint_quat_b is None:
             raise RuntimeError(f"Joint wrench sensor '{self.cfg.prim_path}': joint frame buffers are not initialized.")
 
-        # Refresh the PhysX buffer every update, but create its typed Warp view only once.
+        # Refresh the PhysX buffer every update, but create its typed Warp view only once:
+        # the getter lazily allocates its output buffer and refreshes the same memory in place
+        # on every call, so the cached view (and the recorded launch that consumes it) stays
+        # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
         incoming_joint_wrench = self._root_view.get_link_incoming_joint_force()
         if self._raw_incoming_joint_wrench is None:
             self._raw_incoming_joint_wrench = incoming_joint_wrench.view(wp.spatial_vectorf)
+        elif incoming_joint_wrench.ptr != self._raw_incoming_joint_wrench.ptr:
+            raise RuntimeError(
+                f"The PhysX joint wrench buffer of the sensor at '{self.cfg.prim_path}' was"
+                " re-allocated after its warp view was cached. The cached view and the recorded"
+                " launch require a pointer-stable buffer refreshed in place."
+            )
 
         if self._use_recorded_launch:
             if self._update_cmd is None:
