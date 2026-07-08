@@ -906,6 +906,8 @@ def _make_frame_transformer(use_recorded_launch: bool = True):
     return sensor, transform_view, transforms_torch, env_mask
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_frame_transformer_caches_physx_transform_view():
     """Repeated eager updates should reuse one typed view over the refreshed PhysX buffer."""
     sensor, transform_view, _, env_mask = _make_frame_transformer(use_recorded_launch=False)
@@ -918,6 +920,8 @@ def test_frame_transformer_caches_physx_transform_view():
     assert transform_view.view_count == 1
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_frame_transformer_records_and_replays_update_launch():
     """The first recorded update should execute, and later updates should replay refreshed data."""
     sensor, _, transforms_torch, env_mask = _make_frame_transformer()
@@ -943,6 +947,8 @@ def test_frame_transformer_records_and_replays_update_launch():
     )
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_frame_transformer_falls_back_when_recording_fails(monkeypatch):
     """A recording failure should disable recording and execute the current update eagerly."""
     sensor, _, _, env_mask = _make_frame_transformer()
@@ -964,6 +970,8 @@ def test_frame_transformer_falls_back_when_recording_fails(monkeypatch):
     )
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_frame_transformer_invalidation_drops_cached_launch_state(monkeypatch):
     """Physics invalidation should release the cached PhysX view and recorded command."""
     sensor, _, _, _ = _make_frame_transformer()
