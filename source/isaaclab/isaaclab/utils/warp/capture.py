@@ -40,7 +40,7 @@ class CapturedKernelUpdate:
         self._device = wp.get_device(device)
         self._owner = owner
         self.enabled: bool = self._device.is_cuda
-        """Whether graph capture is active. Set to False to force eager launches."""
+        """Whether updates run through a captured CUDA graph. Set to False to force eager launches."""
         self._graph: wp.Graph | None = None
 
     def refuse_outer_capture(self) -> None:
