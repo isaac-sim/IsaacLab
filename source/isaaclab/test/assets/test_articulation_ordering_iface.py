@@ -108,37 +108,23 @@ def _install_test_body_ordering(art) -> np.ndarray:
     else:
         body_ordering = tuple(reversed(art.backend_body_names))
     art.cfg = art.cfg.replace(body_ordering=body_ordering)
+    # Re-resolve and re-stage the ordering maps exactly as backend initialization
+    # does after a config change installs a new ordering on an already-initialized
+    # articulation.
     art._resolve_and_install_ordering_maps()
-    # Mirror the backend initialization path, which resets the guard flag before
-    # rebuilding ordering maps on an already-initialized articulation.
-    art._ordering_maps_cached = False
-    art._cache_ordering_maps()
+    art._ordering_configure_backend_staging()
     return np.asarray(art.body_ordering.user_to_backend_indices, dtype=np.int64)
 
 
 def _install_reversed_joint_ordering(art) -> np.ndarray:
     """Install a reversed public joint ordering on an already constructed articulation."""
     art.cfg = art.cfg.replace(joint_ordering=tuple(reversed(art.backend_joint_names)))
+    # Re-resolve and re-stage the ordering maps exactly as backend initialization
+    # does after a config change installs a new ordering on an already-initialized
+    # articulation.
     art._resolve_and_install_ordering_maps()
-    # Mirror the backend initialization path, which resets the guard flag before
-    # rebuilding ordering maps on an already-initialized articulation.
-    art._ordering_maps_cached = False
-    art._cache_ordering_maps()
+    art._ordering_configure_backend_staging()
     return np.asarray(art.joint_ordering.user_to_backend_indices, dtype=np.int64)
-
-
-@pytest.mark.parametrize("backend", ["physx", "ovphysx", "newton"])
-def test_cache_ordering_maps_rejects_reinvocation_after_init(backend: str) -> None:
-    """Reject a second ordering-map cache without an explicit guard-flag reset."""
-    if backend not in BACKENDS:
-        pytest.skip(f"{backend} backend is not available")
-    art, _ = get_articulation(backend, num_instances=2, num_joints=4, num_bodies=4, device="cpu")
-
-    # Initialization already cached the maps; re-invoking without resetting the guard
-    # flag (as backends do before their single call) must be rejected.
-    assert art._ordering_maps_cached is True
-    with pytest.raises(RuntimeError, match="cached exactly once"):
-        art._cache_ordering_maps()
 
 
 def _joint_ordering_for_mode(mode: str, num_joints: int) -> tuple[str, ...] | None:
@@ -808,7 +794,7 @@ def _seed_root_writer_backend_com(backend: str, art, raw_backend, backend_coms: 
     elif backend == "newton":
         backend_positions = backend_coms[..., :3]
         art.data._sim_bind_body_com_pos_b.assign(wp.array(backend_positions, dtype=wp.vec3f, device=art.device))
-        if art._has_body_ordering:
+        if art.body_ordering is not None:
             art.data._sync_user_ordered_body_property_buffers()
         backend_actual = art.data._sim_bind_body_com_pos_b.numpy()
         public_actual = art.data.body_com_pos_b.warp.numpy()
@@ -1349,18 +1335,19 @@ class TestArticulationOrderingAllocation:
         )
 
         if ordering_mode == "reversed":
-            assert art.joint_ordering is not None and not art.joint_ordering.is_identity
-            assert art.body_ordering is not None and not art.body_ordering.is_identity
+            assert art.joint_ordering is not None
+            assert art.body_ordering is not None
         else:
             # Identity-configured orderings normalize to ``None`` at install time.
             assert art.joint_ordering is None
             assert art.body_ordering is None
 
         expected_ordering = ordering_mode == "reversed"
-        assert art._has_joint_ordering is expected_ordering
-        assert art._has_body_ordering is expected_ordering
-        assert art.data._has_joint_ordering is expected_ordering
-        assert art.data._has_body_ordering is expected_ordering
+        assert (art.joint_ordering is not None) is expected_ordering
+        assert (art.body_ordering is not None) is expected_ordering
+        # The asset ordering properties delegate to the single source on data.
+        assert art.joint_ordering is art.data.joint_ordering
+        assert art.body_ordering is art.data.body_ordering
 
         for owner, field_names in (
             (art.data, self._DATA_SHADOWS[backend]),
@@ -1393,18 +1380,16 @@ class TestArticulationOrderingAllocation:
         )
 
         if ordering_mode == "reversed":
-            assert art.joint_ordering is not None and not art.joint_ordering.is_identity
-            assert art.body_ordering is not None and not art.body_ordering.is_identity
+            assert art.joint_ordering is not None
+            assert art.body_ordering is not None
         else:
             # Identity-configured orderings normalize to ``None`` at install time.
             assert art.joint_ordering is None
             assert art.body_ordering is None
 
         expected_ordering = ordering_mode == "reversed"
-        assert art._has_joint_ordering is expected_ordering
-        assert art._has_body_ordering is expected_ordering
-        assert art.data._has_joint_ordering is expected_ordering
-        assert art.data._has_body_ordering is expected_ordering
+        assert (art.joint_ordering is not None) is expected_ordering
+        assert (art.body_ordering is not None) is expected_ordering
 
         unexpected_fields = []
         for field_name in self._DATA_SHADOWS["newton"]:
@@ -1423,8 +1408,8 @@ class TestArticulationOrderingAllocation:
         """Treat an identity-configured ordering exactly like the default ``None`` ordering.
 
         Identity orderings are normalized to ``None`` at install time, so the equivalence is
-        structural: the ordering properties, the ``_has_*_ordering`` flags, and shadow allocation
-        are all identical to the unconfigured case. This single boundary check stands in for
+        structural: the ordering properties and shadow allocation are all identical to the
+        unconfigured case. This single boundary check stands in for
         re-running the ``none``/``identity`` pair through every write/read cartesian.
         """
         if backend not in BACKENDS:
@@ -1443,10 +1428,6 @@ class TestArticulationOrderingAllocation:
 
         assert art.joint_ordering is None
         assert art.body_ordering is None
-        assert art._has_joint_ordering is False
-        assert art._has_body_ordering is False
-        assert art.data._has_joint_ordering is False
-        assert art.data._has_body_ordering is False
         # A cheap allocation assert mirroring the None branch of the shadows-only-for-nonidentity
         # tests: identity ordering must not allocate a reorder-only shadow.
         assert getattr(art.data, self._DATA_SHADOWS[backend][0]) is None
@@ -1591,7 +1572,7 @@ class TestArticulationOrderingComWrites:
         )
         backend_seed = _make_backend_com_poses(num_instances, num_bodies)[..., :3].copy()
         art.data._sim_bind_body_com_pos_b.assign(wp.array(backend_seed, dtype=wp.vec3f, device=art.device))
-        if art._has_body_ordering:
+        if art.body_ordering is not None:
             art.data._sync_user_ordered_body_property_buffers()
 
         user_to_backend = _ordering_user_to_backend(art.body_ordering, num_bodies)
@@ -1839,7 +1820,7 @@ class TestArticulationOrderingRootWriteParity:
         )
         # The identity-configured reference normalizes to ``None`` at install time.
         assert identity_art.body_ordering is None
-        assert ordered_art.body_ordering is not None and not ordered_art.body_ordering.is_identity
+        assert ordered_art.body_ordering is not None
         assert ordered_art.body_ordering.backend_to_user_indices[0] != 0
         if backend == "physx":
             identity_raw._noop_setters = False
