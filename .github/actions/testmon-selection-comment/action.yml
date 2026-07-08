@@ -1,0 +1,66 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Testmon Selection Comment'
+description: >
+  Downloads the per-job Testmon selection-graph fragments, assembles them into one
+  Markdown body, and creates or updates a single sticky comment on the pull request.
+  NOTE: requires pull-requests:write permission and a GH_TOKEN in the environment.
+
+inputs:
+  pr-number:
+    description: 'Pull request number to comment on'
+    required: true
+  repo:
+    description: 'owner/name of the repository'
+    required: true
+  github-token:
+    description: 'Token with pull-requests:write scope'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Download selection-graph fragments
+      uses: actions/download-artifact@v7
+      with:
+        pattern: testmon-graph-*
+        path: testmon-graph-fragments
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: Assemble comment body
+      id: assemble
+      shell: bash
+      run: |
+        out="$RUNNER_TEMP/testmon-selection-comment.md"
+        python3 .github/actions/testmon-selection-comment/assemble_selection_comment.py \
+          testmon-graph-fragments --output "$out"
+        echo "body-path=$out" >> "$GITHUB_OUTPUT"
+
+    - name: Create or update sticky comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ inputs.repo }}
+        PR_NUMBER: ${{ inputs.pr-number }}
+        BODY_PATH: ${{ steps.assemble.outputs.body-path }}
+      run: |
+        set -euo pipefail
+        marker="<!-- testmon-selection-graph -->"
+
+        # Find an existing sticky comment carrying our hidden marker.
+        comment_id="$(gh api --paginate "repos/$REPO/issues/$PR_NUMBER/comments" \
+          --jq "map(select(.body | contains(\"$marker\"))) | .[0].id // empty")" || comment_id=""
+
+        if [ -n "$comment_id" ]; then
+          echo "Updating existing sticky comment $comment_id"
+          gh api --method PATCH "repos/$REPO/issues/comments/$comment_id" \
+            -F body=@"$BODY_PATH" >/dev/null
+        else
+          echo "Creating new sticky comment"
+          gh api --method POST "repos/$REPO/issues/$PR_NUMBER/comments" \
+            -F body=@"$BODY_PATH" >/dev/null
+        fi

@@ -164,14 +164,23 @@ runs:
         REQUESTED_MODE: ${{ inputs.testmon-mode }}
       run: |
         mode="${REQUESTED_MODE:-collect}"
-        if [ -z "$REQUESTED_MODE" ] && [ "${{ github.event_name }}" = "pull_request" ]; then
+        # Persist the PR's changed files so the selection-graph step can explain which
+        # tests Testmon re-ran. Written for every pull_request (independent of any mode
+        # override) and left empty otherwise.
+        changed_files_path="$RUNNER_TEMP/testmon-changed-files.txt"
+        : > "$changed_files_path"
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
           if changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
-            mode="$(printf '%s\n' "$changed_files" | python3 .github/actions/run-package-tests/select_testmon_mode.py)"
+            printf '%s\n' "$changed_files" > "$changed_files_path"
+            if [ -z "$REQUESTED_MODE" ]; then
+              mode="$(printf '%s\n' "$changed_files" | python3 .github/actions/run-package-tests/select_testmon_mode.py)"
+            fi
           else
             echo "::warning::Could not list changed files; running the full test suite"
           fi
         fi
         echo "mode=$mode" >> "$GITHUB_OUTPUT"
+        echo "changed-files-path=$changed_files_path" >> "$GITHUB_OUTPUT"
         echo "Testmon mode: $mode" >> "$GITHUB_STEP_SUMMARY"
 
     - name: Restore Testmon Data
@@ -328,6 +337,45 @@ runs:
         wheelhouse-host-dir: ${{ steps.extract-wheelhouse.outputs.wheelhouse_host_dir }}
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
+
+    - name: Render Testmon selection graph
+      id: testmon-graph
+      if: always() && github.event_name == 'pull_request' && steps.testmon-mode.outputs.mode == 'select'
+      shell: bash
+      run: |
+        # The Testmon database is written by pytest inside the container into the
+        # volume-mounted workspace, so it is readable from the host here.
+        db="$GITHUB_WORKSPACE/.testmon/${{ inputs.container-name }}/.testmondata"
+        changed_files_path="${{ steps.testmon-mode.outputs.changed-files-path }}"
+        graph_md="$RUNNER_TEMP/testmon-graph-${{ inputs.container-name }}.md"
+
+        if [ ! -s "$db" ]; then
+          echo "🟠 No Testmon database for ${{ inputs.container-name }}; skipping selection graph"
+          exit 0
+        fi
+        if [ ! -s "$changed_files_path" ]; then
+          echo "🟠 No changed-file list available; skipping selection graph"
+          exit 0
+        fi
+
+        if ! python3 tools/testmon_selection_graph.py "$db" \
+              --title "Testmon selection graph — ${{ inputs.container-name }}" \
+              < "$changed_files_path" > "$graph_md"; then
+          echo "::warning::Failed to render Testmon selection graph for ${{ inputs.container-name }}"
+          exit 0
+        fi
+
+        cat "$graph_md" >> "$GITHUB_STEP_SUMMARY"
+        echo "graph-path=$graph_md" >> "$GITHUB_OUTPUT"
+
+    - name: Upload Testmon selection graph
+      if: always() && steps.testmon-graph.outputs.graph-path != ''
+      uses: actions/upload-artifact@v7
+      with:
+        name: testmon-graph-${{ inputs.container-name }}
+        path: ${{ steps.testmon-graph.outputs.graph-path }}
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Check Test Results
       if: always()

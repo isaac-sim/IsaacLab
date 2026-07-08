@@ -786,6 +786,44 @@ jobs:
         omni-github-test-type: rendering-correctness-kitless
   #endregion
 
+  # Aggregate every job's Testmon selection-graph fragment into one sticky PR comment
+  # explaining which affected tests ran and why. Runs regardless of test outcome so the
+  # comment appears even when some jobs fail; a no-op on non-PR events.
+  testmon-selection-comment:
+    name: Testmon Selection Comment
+    runs-on: ubuntu-latest
+    if: always() && github.event_name == 'pull_request'
+    needs:
+      - test-isaaclab-tasks
+      - test-isaaclab-tasks-2
+      - test-isaaclab-tasks-3
+      - test-isaaclab-core
+      - test-isaaclab-core-2
+      - test-isaaclab-core-3
+      - test-isaaclab-rl
+      - test-isaaclab-mimic
+      - test-isaaclab-contrib
+      - test-isaaclab-teleop
+      - test-isaaclab-visualizers
+      - test-isaaclab-assets
+      - test-isaaclab-newton
+      - test-isaaclab-physx
+      - test-isaaclab-ov
+      - test-curobo
+      - test-skillgen
+      - test-environments-training
+      - test-rendering-correctness
+      - test-rendering-correctness-kitless
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - uses: ./.github/actions/testmon-selection-comment
+      with:
+        pr-number: ${{ github.event.pull_request.number }}
+        repo: ${{ github.repository }}
+        github-token: ${{ github.token }}
+
 #region disabled quarantined tests
 # test-quarantined:
 #   name: "Quarantined Tests"

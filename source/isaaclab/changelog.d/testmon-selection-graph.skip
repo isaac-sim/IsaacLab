@@ -1,0 +1,3 @@
+CI and test-selection changes only: render a Testmon affected-test selection
+graph (Mermaid) and post it as a sticky pull-request comment explaining which
+tests ran and why.
