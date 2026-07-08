@@ -2684,51 +2684,6 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     torch.testing.assert_close(updated_gap, new_gap)
 
 
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
-@pytest.mark.xfail(
-    strict=True,
-    raises=NotImplementedError,
-    reason=(
-        "Newton's ArticulationView exposes eval_fk / eval_jacobian /"
-        " eval_mass_matrix only — no inverse-dynamics primitive yet."
-        " Upstream Newton is actively working on this through the inverse-"
-        " dynamics feature request (https://github.com/newton-physics/newton/issues/2497)"
-        " and its sub-task for Coriolis + gravity compensation"
-        " (https://github.com/newton-physics/newton/issues/2529). A known"
-        " correctness bug for floating-base + non-identity root pose is"
-        " tracked separately at"
-        " https://github.com/newton-physics/newton/issues/2625, and"
-        " informs why we deliberately do NOT roll our own J^T·m·g shim in"
-        " this PR — Newton's eventual primitive is going through RNEA via"
-        " MuJoCo Warp and may differ at corner cases we wouldn't catch."
-        " Once the wrapper at"
-        " isaaclab_newton.assets.ArticulationData.gravity_compensation_forces"
-        " switches from a NotImplementedError stub to a real implementation"
-        " (likely calling the new Newton primitive), this XFAIL will turn"
-        " into XPASS and fail under strict=True. The maintainer should"
-        " then: (1) drop this xfail or invert it into a positive value"
-        " assertion against PhysX (the cross-backend accuracy diff), and"
-        " (2) remove the OSC config-time guidance about setting"
-        " gravity_compensation=False on Newton."
-    ),
-)
-def test_get_gravity_compensation_forces_not_implemented_on_newton(sim, num_articulations, device, articulation_type):
-    """Pin the known Newton gravity-compensation gap.
-
-    See the ``xfail`` marker for full rationale. The body simply invokes the
-    wrapper and lets the strict-xfail marker handle the expected failure.
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-
-    _ = articulation.data.gravity_compensation_forces
-
-
 ##
 # Shape-contract regression tests for the new BaseArticulation accessors.
 # These pin the public shape contract so future regressions (e.g., reverting
@@ -2800,6 +2755,30 @@ def test_get_mass_matrix_shape_and_nonsingular_fixed_base(sim, num_articulations
 
 @pytest.mark.parametrize("num_articulations", [1, 4])
 @pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_shape_fixed_base(sim, num_articulations, device, articulation_type):
+    """Fixed-base ``gravity_compensation_forces`` shape ``(N, num_joints)``.
+
+    No floating-base entries on the DoF axis, and per-articulation output
+    sizing — a wrong view gather (model-wide ``max_dofs`` or a bad flat DoF
+    offset) would surface here in heterogeneous scenes.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base, "panda fixture must be fixed-base for this test"
+
+    g = articulation.data.gravity_compensation_forces.torch
+
+    expected_shape = (num_articulations, articulation.num_joints)
+    assert g.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(g.shape)}"
+    assert g.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
 @pytest.mark.isaacsim_ci
@@ -2856,6 +2835,32 @@ def test_get_mass_matrix_shape_floating_base(sim, num_articulations, device, add
     expected_shape = (num_articulations, expected_dofs, expected_dofs)
     assert M.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(M.shape)}"
     assert M.dtype == torch.float32
+
+
+@pytest.mark.parametrize("num_articulations", [1, 4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_shape_floating_base(
+    sim, num_articulations, device, add_ground_plane, articulation_type
+):
+    """Floating-base ``gravity_compensation_forces`` shape ``(N, num_joints + 6)``.
+
+    Includes the 6 floating-base entries on the DoF axis, matching the
+    cross-library industry convention.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+    assert not articulation.is_fixed_base, "anymal fixture must be floating-base for this test"
+
+    g = articulation.data.gravity_compensation_forces.torch
+
+    expected_shape = (num_articulations, articulation.num_joints + articulation.num_base_dofs)
+    assert g.shape == torch.Size(expected_shape), f"expected {expected_shape}, got {tuple(g.shape)}"
+    assert g.dtype == torch.float32
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -3075,6 +3080,64 @@ def test_get_mass_matrix_symmetry_pd(sim, num_articulations, device, articulatio
     torch.linalg.cholesky(M + 1e-6 * eye)
 
 
+@pytest.mark.parametrize("num_articulations", [4])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_matches_jacobian_gravity(
+    sim, num_articulations, device, add_ground_plane, articulation_type
+):
+    """``g(q)`` must equal ``-sum_b J_com_b^T (m_b * g_w)`` at the current configuration.
+
+    Newton computes the gravity compensation force through an RNEA pass
+    (``eval_inverse_dynamics``); the static identity above derives the same
+    quantity independently from the (already contract-validated) COM-referenced
+    Jacobian and the per-body masses, pinning the sign convention, the DoF
+    ordering (including the 6 floating-base entries), and the flat-buffer view
+    gather in one assertion. Non-default joint positions and — for
+    floating-base — a rotated, lifted root pose guard the corner fixed
+    upstream in newton#2625 (wrong gravity compensation under non-identity
+    root pose).
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Non-trivial configuration via manual writes (no sim step, so the assert
+    # compares both quantities at exactly this state): random joint offsets,
+    # and for floating-base a non-identity root pose.
+    torch.manual_seed(0)
+    q = articulation.data.default_joint_pos.torch + 0.3 * torch.randn(
+        num_articulations, articulation.num_joints, device=device
+    )
+    articulation.write_joint_position_to_sim_index(position=q)
+    if not articulation.is_fixed_base:
+        root_pose = articulation.data.default_root_pose.torch.clone()
+        root_pose[:, 2] += 1.0
+        # (x, y, z, w) quaternion — 30 deg roll about x.
+        root_pose[:, 3:] = torch.tensor([0.2588, 0.0, 0.0, 0.9659], device=device)
+        articulation.write_root_pose_to_sim_index(root_pose=root_pose)
+
+    g_meas = articulation.data.gravity_compensation_forces.torch
+
+    # Independent derivation: generalized gravity load tau_g = sum_b J_lin_b^T (m_b g_w);
+    # the compensation force is its negation. The COM-referenced Jacobian is exactly the
+    # right lever arm for a point gravity force acting at each body's COM.
+    J_com = articulation.data.body_com_jacobian_w.torch  # (N, B_jac, 6, D)
+    masses = articulation.data.body_mass.torch  # (N, num_bodies)
+    if articulation.is_fixed_base:
+        # jacobi_body_idx == body_idx - 1 for fixed-base (fixed-root row excluded).
+        masses = masses[:, 1:]
+    gravity_w = wp.to_torch(SimulationManager.get_model().gravity)  # (num_worlds, 3)
+    assert gravity_w.shape[0] == num_articulations, "fixture must place one articulation per world"
+    f_gravity = masses.unsqueeze(-1) * gravity_w.unsqueeze(1)  # (N, B_jac, 3)
+    g_expected = -torch.einsum("nbij,nbi->nj", J_com[:, :, 0:3, :], f_gravity)
+
+    torch.testing.assert_close(g_meas, g_expected, atol=1e-2, rtol=1e-3)
+
+
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
@@ -3157,6 +3220,122 @@ def test_mass_matrix_refreshes_after_manual_joint_write(
         "mass_matrix did not change after manual joint write — "
         "FK trigger likely missing before eval_mass_matrix (compute_body_spatial_inertia "
         "reads stale state.body_q)."
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_gravity_compensation_refreshes_after_manual_joint_write(sim, num_articulations, device, articulation_type):
+    """After ``write_joint_position_to_sim_index`` (no sim step), the gravity
+    compensation read must reflect the new joint state.
+
+    ``g(q)`` depends on ``q`` through the RNEA pass in ``eval_inverse_dynamics``,
+    which reads ``state.body_q``. Same FK-staleness pattern as the Jacobian and
+    the mass matrix. Gravity stays enabled (the default) — with gravity off,
+    ``g(q)`` is identically zero and the assert would be vacuous.
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    sim.reset()
+    sim.step()
+    articulation.update(sim.cfg.dt)
+
+    g_0 = articulation.data.gravity_compensation_forces.torch.clone()
+    q_target = articulation.data.joint_pos.torch.clone() + 0.5
+    env_ids = wp.array([0], dtype=wp.int32, device=device)
+    articulation.write_joint_position_to_sim_index(position=q_target, env_ids=env_ids)
+    g_1 = articulation.data.gravity_compensation_forces.torch.clone()
+
+    assert not torch.allclose(g_0, g_1, atol=1e-3), (
+        "gravity_compensation_forces did not change after manual joint write — "
+        "FK trigger likely missing before eval_inverse_dynamics."
+    )
+
+
+@pytest.mark.parametrize("num_articulations", [1])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.isaacsim_ci
+def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device, articulation_type):
+    """Newton accuracy: ``τ_gc`` must hold the manipulator in static equilibrium.
+
+    Newton-side variant of the PhysX test of the same name (backend parity).
+    The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
+    Setting ``τ_input = g(q)`` at ``q̇ = 0`` gives ``q̈ = 0`` — the arm should
+    not move. This pins
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+    in isolation: sign errors, frame errors, and DoF-ordering errors all
+    surface as joint drift, while a controller-level test would have those
+    bugs averaged out by PD damping.
+    """
+    base_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    # Replace default Franka actuators with a passthrough implicit actuator
+    # (stiffness = 0, damping = 0). With both gains zero the effort target
+    # we set IS the joint torque applied — no PD spring-damper masks the
+    # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
+    # which would absorb gravity through PD bias and hide accessor bugs.
+    cfg = base_cfg.replace(
+        actuators={
+            "all": ImplicitActuatorCfg(
+                joint_names_expr=[".*"],
+                stiffness=0.0,
+                damping=0.0,
+            ),
+        },
+    )
+    # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
+    # defensive — gravity must be ON for τ_gc to have anything to cancel.
+    cfg = cfg.replace(
+        spawn=cfg.spawn.replace(
+            rigid_props=cfg.spawn.rigid_props.replace(disable_gravity=False),
+        ),
+    )
+
+    articulation, _ = generate_articulation(cfg, num_articulations, device=device)
+    sim.reset()
+    assert articulation.is_initialized
+
+    # Force a clean static state: default joint positions, zero velocities.
+    # ``sim.reset`` may leave residual ``q_dot`` from solver settling under
+    # gravity, so we pin it explicitly here.
+    default_q = articulation.data.default_joint_pos.torch.clone()
+    default_qd = torch.zeros_like(default_q)
+    articulation.write_joint_position_to_sim_index(position=default_q)
+    articulation.write_joint_velocity_to_sim_index(velocity=default_qd)
+    articulation.update(sim.cfg.dt)
+
+    # Default joint pose from FRANKA_PANDA_CFG bends the elbow
+    # (joint2=-0.569, joint4=-2.81, joint6=3.04) so several links carry a
+    # gravity load — τ_gc is non-trivial in this configuration. A natural-
+    # hang pose (all zeros) would produce near-zero τ_gc and make this
+    # test uninformative.
+    init_q = articulation.data.joint_pos.torch.clone()
+
+    # Step 100 times applying only τ_gc as joint efforts.
+    for _ in range(100):
+        # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``
+        # — leading ``num_base_dofs`` floating-base entries (0 on fixed-base) followed
+        # by the actuated-joint entries. Slice past the floating-base entries so the
+        # remaining tensor aligns with ``set_joint_effort_target_index`` (actuated only).
+        tau_gc = articulation.data.gravity_compensation_forces.torch[:, articulation.num_base_dofs :]
+        articulation.set_joint_effort_target_index(target=tau_gc)
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+
+    final_q = articulation.data.joint_pos.torch
+    drift = (final_q - init_q).abs().max()
+    # Tight bound: 5e-3 rad ≈ 0.3°. Numerical integration over 100 steps will
+    # accumulate some floor (sub-millirad on Franka), but a sign or frame bug
+    # in τ_gc produces drift of at least a degree per step on bent-elbow
+    # poses. This bound separates "correct" from "broken" cleanly.
+    assert drift < 5e-3, (
+        f"max joint drift {drift:.5f} rad after 100 gravity-comp-only steps —"
+        " τ_gc did not hold static equilibrium. Check sign, DoF ordering, and"
+        " whether gravity_compensation_forces returns g(q) (positive) or"
+        " its negation."
     )
 
 

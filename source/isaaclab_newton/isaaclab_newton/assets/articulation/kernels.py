@@ -693,6 +693,36 @@ def gather_mass_matrix_rows(
 
 
 @wp.kernel
+def gather_dof_force_rows(
+    src: wp.array(dtype=wp.float32),
+    view_dof_starts: wp.array(dtype=wp.int32),
+    dst: wp.array2d(dtype=wp.float32),
+):
+    """Copy per-view articulation DoF forces from a flat model-sized buffer into a view-sized buffer.
+
+    Flat-layout analogue of :func:`gather_mass_matrix_rows` for per-DoF outputs
+    written in :attr:`newton.Model.joint_qd` layout (e.g. the gravity
+    compensation force from ``newton.eval_inverse_dynamics``). The DoF axis is
+    preserved in full (including the leading 6 free-root entries for
+    floating-base articulations), matching the cross-library industry
+    convention used by PhysX, Pinocchio, Drake, MuJoCo, RBDL, OCS2, and
+    iDynTree.
+
+    The gather is in-place on a pre-allocated ``dst`` buffer, so the kernel
+    launch is safe under CUDA graph capture.
+
+    Args:
+        src: Input flat DoF buffer. Shape is (model.joint_dof_count,).
+        view_dof_starts: Flat DoF start index of each view articulation. Shape
+            is (num_instances,).
+        dst: Output DoF-force buffer for this view. Shape is
+            (num_instances, num_joints + num_base_dofs).
+    """
+    i, d = wp.tid()
+    dst[i, d] = src[view_dof_starts[i] + d]
+
+
+@wp.kernel
 def shift_jacobian_com_to_origin(
     body_link_pose: wp.array2d(dtype=wp.transformf),
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
