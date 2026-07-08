@@ -122,11 +122,11 @@ def test_unrelated_files_run_nothing():
     assert _true_jobs([".github/workflows/labeler.yml", "LICENSE"]) == set()
 
 
-def test_leaf_plus_hub_falls_back_to_everything():
+def test_isaaclab_target_plus_hub_falls_back_to_everything():
     assert _true_jobs(["source/isaaclab_mimic/foo.py", "source/isaaclab/isaaclab/bar.py"]) == set(_BASE_JOBS)
 
 
-def test_multiple_leaf_packages_union_their_jobs():
+def test_multiple_isaaclab_target_packages_union_their_jobs():
     assert _true_jobs(["source/isaaclab_mimic/foo.py", "source/isaaclab_visualizers/bar.py"]) == {
         "mimic",
         "visualizers",

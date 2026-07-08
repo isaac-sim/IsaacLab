@@ -16,7 +16,7 @@ Design invariants:
   newton, physx), to shared low-level packages, to build tooling / Docker / CI, or to any
   path not covered by an explicit rule falls back to running the *entire* suite. The
   failure mode is always "runs too much", never "misses a break".
-* **Leaf packages get a subset.** Packages that few or nothing depend on
+* **isaaclab_target packages get a subset.** Packages that few or nothing depend on
   (``isaaclab_mimic``, ``isaaclab_rl``, ``isaaclab_teleop``, ``isaaclab_visualizers``,
   ``isaaclab_ov`` / ``isaaclab_ovphysx``, ``isaaclab_contrib``) map to just the jobs whose
   tests can be affected.
@@ -92,7 +92,7 @@ _GLOBAL_CI_FILES: frozenset[str] = frozenset(
 # Repo-root config files (dependency pins, lock files, top-level tooling config).
 _ROOT_CONFIG = re.compile(r"^(?:[^/]+\.(?:toml|yaml|yml|json|ini|cfg|conf|lock|sh|bat|ps1)|\.gitmodules)$")
 
-# Leaf packages -> the exact set of job groups whose tests they can affect. Derived from the
+# isaaclab_target packages -> the exact set of job groups whose tests they can affect. Derived from the
 # import graph; see the module docstring. ``core`` is included where core lazily imports the
 # package (video recorder / markers / teleop shim), so editing it can touch core runtime paths.
 _TARGETED: dict[str, frozenset[str]] = {
