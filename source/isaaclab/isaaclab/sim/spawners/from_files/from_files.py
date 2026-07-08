@@ -24,8 +24,8 @@ from isaaclab.sim.utils import (
     change_prim_property,
     clone,
     create_prim,
+    get_all_matching_child_prims,
     get_current_stage,
-    get_first_matching_child_prim,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -178,9 +178,11 @@ def spawn_ground_plane(
 ) -> Usd.Prim:
     """Spawns a ground plane into the scene.
 
-    This function loads the USD file containing the grid plane asset from Isaac Sim. It may
-    not work with other assets for ground planes. In those cases, please use the `spawn_from_usd`
-    function.
+    This function loads the USD file containing the grid plane asset from Isaac Sim by default.
+    The physics material is bound to all collision-enabled prims found in the spawned asset, so it
+    works with any ground-plane USD file. The size and color overrides are specific to the layout
+    of the default grid plane asset. When the referenced asset does not contain the corresponding
+    prims, these overrides are skipped (with a warning for the color override).
 
     Note:
         This function takes keyword arguments to be compatible with other spawners. However, it does not
@@ -212,18 +214,24 @@ def spawn_ground_plane(
 
     # Create physics material
     if cfg.physics_material is not None:
+        from pxr import UsdPhysics  # noqa: PLC0415
+
         spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
-        # Apply physics material to ground plane
-        collision_prim = get_first_matching_child_prim(
+        # Apply physics material to the collision prims in the spawned asset.
+        # note: we search by the applied collision API rather than a fixed prim type or path
+        #   to stay agnostic to the layout of the referenced USD file.
+        collision_prims = get_all_matching_child_prims(
             prim_path,
-            predicate=lambda _prim: _prim.GetTypeName() == "Plane",
+            predicate=lambda _prim: _prim.HasAPI(UsdPhysics.CollisionAPI),
             stage=stage,
         )
-        if collision_prim is None:
-            raise ValueError(f"No collision prim found at path: '{prim_path}'.")
-        # bind physics material to the collision prim
-        collision_prim_path = str(collision_prim.GetPath())
-        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial", stage=stage)
+        if not collision_prims:
+            logger.warning(
+                f"No collision-enabled prim found under path: '{prim_path}'. Skipping physics material binding."
+            )
+        # bind physics material to the collision prims
+        for collision_prim in collision_prims:
+            bind_physics_material(str(collision_prim.GetPath()), f"{prim_path}/physicsMaterial", stage=stage)
 
     # Obtain environment prim
     environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
@@ -236,17 +244,22 @@ def spawn_ground_plane(
         environment_prim.GetAttribute("xformOp:scale").Set(scale)
 
     # Change the color of the plane
-    # Warning: This is specific to the default grid plane asset.
+    # Warning: This is specific to the default grid plane asset. For other assets, the color
+    #   override is skipped with a warning since the grid shader does not exist in them.
     if cfg.color is not None:
-        from pxr import Gf, Sdf  # noqa: PLC0415
+        shader_path = f"{prim_path}/Looks/theGrid/Shader"
+        if stage.GetPrimAtPath(shader_path).IsValid():
+            from pxr import Gf, Sdf  # noqa: PLC0415
 
-        # change the color
-        change_prim_property(
-            prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
-            value=Gf.Vec3f(*cfg.color),
-            stage=stage,
-            type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
-        )
+            # change the color
+            change_prim_property(
+                prop_path=f"{shader_path}.inputs:diffuse_tint",
+                value=Gf.Vec3f(*cfg.color),
+                stage=stage,
+                type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
+            )
+        else:
+            logger.warning(f"No grid shader found at path: '{shader_path}'. Skipping color override.")
     # Remove the light from the ground plane (USD API, works without Kit/Newton)
     # It isn't bright enough and messes up with the user's lighting settings
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
