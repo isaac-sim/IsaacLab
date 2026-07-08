@@ -74,13 +74,6 @@ def _benchmark_task(args: argparse.Namespace) -> dict:
 
     import gymnasium as gym
     import torch
-
-    import isaaclab.sim as sim_utils
-    from isaaclab.cloner.cloner_utils import grid_transforms
-    from isaaclab.physics import PhysicsManager
-    from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-
-    import isaaclab_tasks  # noqa: F401
     from isaaclab_newton.cloner.batched_model_builder import replicate_builder_mapping_batched
     from isaaclab_newton.cloner.builder_diff import compare_builder_states
     from isaaclab_newton.cloner.newton_clone_utils import (
@@ -88,8 +81,15 @@ def _benchmark_task(args: argparse.Namespace) -> dict:
         rename_builder_labels,
         replicate_builder_mapping,
     )
-    from isaaclab_tasks.utils import resolve_task_config
     from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
+
+    import isaaclab.sim as sim_utils
+    from isaaclab.cloner.cloner_utils import grid_transforms
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
+
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.utils import resolve_task_config
 
     task = args._single_task
     result: dict = {"task": task, "rows": [], "verify": None}
@@ -186,7 +186,12 @@ def _benchmark_task(args: argparse.Namespace) -> dict:
                     "total_time_s": min(b + f for b, f in zip(build_times, finalize_times)),
                 }
             except Exception as exc:  # keep going: report which combination failed and why
-                row = {"task": task, "num_worlds": num_worlds, "builder": builder_name, "error": f"{type(exc).__name__}: {exc}"}
+                row = {
+                    "task": task,
+                    "num_worlds": num_worlds,
+                    "builder": builder_name,
+                    "error": f"{type(exc).__name__}: {exc}",
+                }
             result["rows"].append(row)
             print(f"[done] {task} worlds={num_worlds} builder={builder_name}: {row}", flush=True)
 
@@ -195,7 +200,10 @@ def _benchmark_task(args: argparse.Namespace) -> dict:
 
 
 def _print_table(rows: list[dict]) -> None:
-    header = f"{'task':<36} {'worlds':>7} {'builder':>8} {'build [s]':>10} {'finalize [s]':>13} {'total [s]':>10} {'speedup':>8}"
+    header = (
+        f"{'task':<36} {'worlds':>7} {'builder':>8} "
+        f"{'build [s]':>10} {'finalize [s]':>13} {'total [s]':>10} {'speedup':>8}"
+    )
     print("\n" + header)
     print("-" * len(header))
     legacy_totals = {
@@ -247,13 +255,20 @@ def main() -> int:
         cmd = [
             sys.executable,
             os.path.abspath(__file__),
-            "--_single_task", task,
-            "--_result_file", result_file,
-            "--world_counts", *map(str, args.world_counts),
-            "--physics", args.physics,
-            "--device", args.device,
-            "--warmup", str(args.warmup),
-            "--repeats", str(args.repeats),
+            "--_single_task",
+            task,
+            "--_result_file",
+            result_file,
+            "--world_counts",
+            *map(str, args.world_counts),
+            "--physics",
+            args.physics,
+            "--device",
+            args.device,
+            "--warmup",
+            str(args.warmup),
+            "--repeats",
+            str(args.repeats),
         ]
         if args.renderer:
             cmd += ["--renderer", args.renderer]
@@ -283,7 +298,11 @@ def main() -> int:
 
     output = args.output or f"benchmark_model_builder_{time.strftime('%Y-%m-%d_%H-%M-%S')}.json"
     with open(output, "w") as f:
-        json.dump({"args": {k: v for k, v in vars(args).items() if not k.startswith("_")}, "results": task_results}, f, indent=2)
+        json.dump(
+            {"args": {k: v for k, v in vars(args).items() if not k.startswith("_")}, "results": task_results},
+            f,
+            indent=2,
+        )
     print(f"\nResults written to {output}")
     if args.csv:
         _write_csv(args.csv, all_rows)
