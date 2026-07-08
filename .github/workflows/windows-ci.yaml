@@ -295,21 +295,33 @@ jobs:
           $ErrorActionPreference = "Stop"
           & "env_isaaclab_uv\Scripts\Activate.ps1"
           $script = @'
+          import os
           import sys
+          import traceback
+
           from isaaclab.app import AppLauncher
+
           app_launcher = AppLauncher(headless=True, enable_cameras=True)
           sim = app_launcher.app
           assert sim is not None, "AppLauncher did not return a SimulationApp"
-          import gymnasium as gym
-          import isaaclab_tasks  # noqa: F401  (gym env registration)
-          env = gym.make("Isaac-Cartpole-RGB-Camera-Direct-v0", num_envs=1)
-          obs, info = env.reset()
-          assert obs is not None, "env.reset returned None observation"
-          for step_i in range(3):
-              action = env.action_space.sample()
-              obs, reward, terminated, truncated, info = env.step(action)
-              assert obs is not None, f"env.step {step_i} returned None observation"
-          env.close()
+          try:
+              import gymnasium as gym
+              import isaaclab_tasks  # noqa: F401  (gym env registration)
+              env = gym.make("Isaac-Cartpole-Camera-Direct", num_envs=1)
+              obs, info = env.reset()
+              assert obs is not None, "env.reset returned None observation"
+              for step_i in range(3):
+                  action = env.action_space.sample()
+                  obs, reward, terminated, truncated, info = env.step(action)
+                  assert obs is not None, f"env.step {step_i} returned None observation"
+              env.close()
+          except BaseException:
+              # Print the real failure and skip Kit teardown: a wedged shutdown
+              # would otherwise hide the traceback behind the 3-min watchdog kill.
+              traceback.print_exc()
+              sys.stdout.flush()
+              sys.stderr.flush()
+              os._exit(1)
           sim.close()
           sys.exit(0)
           '@

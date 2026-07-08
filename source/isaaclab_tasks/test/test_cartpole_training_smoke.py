@@ -5,16 +5,15 @@
 
 """Minimal end-to-end training smoke for cartpole.
 
-Two cases — state-only and perception (RGB tiled camera) — each spawn a
-``scripts/reinforcement_learning/<framework>/train.py`` for two PPO iterations
-on a small env count. They validate the full pipeline (``./isaaclab.sh``
-wrapper, gym registration, env build, RL wrapper, optimizer step, checkpoint
-write) without the cost of a real training run, so the orchestrator can
-include them in every CI shape (Linux, ARM/Spark).
+Two cases — state-only and perception (RGB tiled camera) — each spawn the
+unified ``isaaclab train`` entrypoint for two PPO iterations on a small env
+count. They validate the full pipeline (``./isaaclab.sh`` wrapper, gym
+registration, env build, RL wrapper, optimizer step, checkpoint write)
+without the cost of a real training run, so the orchestrator can include
+them in every CI shape (Linux, ARM/Spark).
 
-The state case uses rsl_rl (matches Isaac-Cartpole-Direct-v0's registered
-config entry); the perception case uses rl_games because the camera-variant
-direct envs only register ``rl_games_cfg_entry_point``.
+The state case uses rsl_rl and the perception case rl_games, so the two
+smokes cover two different RL-library dispatch paths.
 """
 
 from __future__ import annotations
@@ -33,17 +32,20 @@ _REPO_ROOT = Path(__file__).resolve().parents[3]
 _LAUNCHER = str(_REPO_ROOT / ("isaaclab.bat" if os.name == "nt" else "isaaclab.sh"))
 
 
-def _run_train(train_script: str, task_name: str, extra_args: list[str] | None = None, timeout: int = 600) -> None:
+def _run_train(
+    rl_library: str, task_name: str, num_envs: str = "16", extra_args: list[str] | None = None, timeout: int = 600
+) -> None:
     """Spawn a trainer for two iterations and assert it exits cleanly."""
     cmd = [
         _LAUNCHER,
-        "-p",
-        train_script,
+        "train",
+        "--rl_library",
+        rl_library,
         "--task",
         task_name,
         "--headless",
         "--num_envs",
-        "16",
+        num_envs,
         "--max_iterations",
         "2",
         "--seed",
@@ -69,13 +71,16 @@ def _run_train(train_script: str, task_name: str, extra_args: list[str] | None =
 
 def test_train_cartpole_state():
     """State-observation cartpole trains for two rsl_rl PPO iterations without errors."""
-    _run_train("scripts/reinforcement_learning/rsl_rl/train.py", "Isaac-Cartpole-Direct-v0")
+    _run_train("rsl_rl", "Isaac-Cartpole-Direct")
 
 
 def test_train_cartpole_perception():
     """RGB-camera cartpole trains for two rl_games PPO iterations without errors."""
+    # 32 envs: rl_games asserts batch_size (horizon_length * num_envs = 64 * 32)
+    # is divisible by the agent cfg's minibatch_size (2048).
     _run_train(
-        "scripts/reinforcement_learning/rl_games/train.py",
-        "Isaac-Cartpole-RGB-Camera-Direct-v0",
+        "rl_games",
+        "Isaac-Cartpole-Camera-Direct",
+        num_envs="32",
         extra_args=["--enable_cameras"],
     )
