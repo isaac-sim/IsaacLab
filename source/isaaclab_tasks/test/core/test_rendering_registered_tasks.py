@@ -24,6 +24,7 @@ from rendering_test_utils import (  # noqa: E402
     make_determinism_fixture,
     make_generate_html_report_fixture,
     maybe_save_stage,
+    should_compare_golden_stage,
     validate_camera_outputs,
 )
 
@@ -90,7 +91,7 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
             "default_physics",
             "default_renderer",
             "stage",
-            compare_golden=True,
+            compare_golden=should_compare_golden_stage("test_rendering_registered_tasks", task_id, presets, env_name),
         )
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)

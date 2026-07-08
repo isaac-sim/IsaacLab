@@ -7,8 +7,7 @@
 
 import logging
 import os
-import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -207,57 +206,74 @@ def _default_case_id(values: tuple[Any, ...]) -> str:
 
 @dataclass(frozen=True)
 class GoldenStageRenderingTest:
-    """A parametrized rendering test whose every case exports a golden USD stage.
+    """A parametrized rendering test whose selected cases export a golden USD stage.
 
-    Golden-stage comparison covers all simulation backends: every case in ``combinations`` is
-    validated against a checked-in baseline. ``combinations`` must be the same object the test's
-    ``@pytest.mark.parametrize`` consumes so the generated node IDs and the cases the test actually
-    runs stay in lock-step — adding a backend/task to that list automatically extends golden-stage
-    coverage to it, with no per-case registration.
+    A golden *stage* (prim structure + transforms) is essentially independent of the camera AOV,
+    so only a representative subset of the parametrized cases needs a baseline. ``should_compare``
+    receives a case's parametrize values positionally — in the same order as the test's
+    ``@pytest.mark.parametrize`` argnames — and returns whether that case participates. Keeping the
+    predicate value-based (e.g. one AOV per backend/renderer) means adding a backend or task to the
+    shared ``combinations`` list automatically extends coverage to it, with no per-case registration.
     """
 
     test_module: str
     test_function: str
     combinations: Sequence[Any]
+    should_compare: Callable[..., bool]
     test_root: str = _RENDERING_TEST_CORE_DIR
 
     def pytest_node_ids(self) -> tuple[str, ...]:
-        """Build pytest node IDs for every parametrized case of this test."""
+        """Build pytest node IDs for the parametrized cases selected by ``should_compare``."""
         node_ids: list[str] = []
         for entry in self.combinations:
-            case_id, _ = _parametrize_case_id_and_values(entry)
-            node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{case_id}]")
+            case_id, values = _parametrize_case_id_and_values(entry)
+            if self.should_compare(*values):
+                node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{case_id}]")
         return tuple(node_ids)
 
 
-# Rendering tests whose cases validate their exported USD stage against a golden baseline. Each
-# entry shares its ``combinations`` object with the test's ``@pytest.mark.parametrize`` so the
-# coverage is a single source of truth across all simulation backends.
+def should_compare_golden_stage_cartpole(physics_backend: str, renderer: str, data_type: str) -> bool:
+    """Select one representative cartpole case per (physics backend, renderer): the ``rgb`` AOV."""
+    del physics_backend, renderer
+    return data_type == "rgb"
+
+
+def should_compare_golden_stage_registered_task(task_id: str, presets: str | None, env_name: str) -> bool:
+    """Select one representative registered-task case per task: the default (no-preset) variant."""
+    del task_id, env_name
+    return presets is None
+
+
+# Rendering tests whose selected cases validate their exported USD stage against a golden baseline.
+# Each entry shares its ``combinations`` object with the test's ``@pytest.mark.parametrize`` so the
+# generated node IDs and the cases the test runs stay a single source of truth.
 GOLDEN_STAGE_RENDERING_TESTS = (
     GoldenStageRenderingTest(
         test_module="test_rendering_cartpole.py",
         test_function="test_rendering_cartpole",
         combinations=PHYSICS_RENDERER_AOV_COMBINATIONS,
+        should_compare=should_compare_golden_stage_cartpole,
     ),
     GoldenStageRenderingTest(
         test_module="test_rendering_registered_tasks.py",
         test_function="test_rendering_registered_tasks",
         combinations=REGISTERED_TASK_RENDERING_COMBINATIONS,
+        should_compare=should_compare_golden_stage_registered_task,
     ),
 )
 
-_GOLDEN_STAGE_TEST_FUNCTIONS = frozenset(
-    rendering_test.test_function for rendering_test in GOLDEN_STAGE_RENDERING_TESTS
-)
 
+def should_compare_golden_stage(test_function: str, *case_values: Any) -> bool:
+    """Return whether a parametrized rendering case validates its exported USD stage.
 
-def compares_golden_stage(test_function: str) -> bool:
-    """Return whether a rendering test validates its exported USD stage for all backends.
-
-    Single source of truth shared by the test call sites and ``generate_golden_stages.py`` so the
-    runtime comparison and the golden-generation selection can never diverge.
+    Single dispatch point shared by the test call sites and ``generate_golden_stages.py`` so the
+    runtime comparison and the golden-generation selection can never diverge. ``case_values`` are
+    the case's parametrize values, in parametrize-argname order.
     """
-    return test_function in _GOLDEN_STAGE_TEST_FUNCTIONS
+    for rendering_test in GOLDEN_STAGE_RENDERING_TESTS:
+        if rendering_test.test_function == test_function:
+            return rendering_test.should_compare(*case_values)
+    return False
 
 
 def golden_stage_pytest_node_ids() -> tuple[str, ...]:
@@ -311,31 +327,90 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 
-def _normalize_asset_reference(match: re.Match) -> str:
-    """Mask the volatile parts of a USD asset reference target (``@...@``).
+# Tolerances for the numeric transform comparison. Transform entries mix unit-scale rotation
+# components with translations in metres, so a small absolute floor plus a relative term absorbs
+# per-platform / per-Kit-build float noise while still catching real pose changes.
+_STAGE_TRANSFORM_RTOL = 1e-4
+_STAGE_TRANSFORM_ATOL = 1e-5
 
-    Windows exports use ``\\`` separators while Linux uses ``/``, and the Isaac assets root
-    carries a version segment (e.g. ``Isaac/6.0``) that bumps between releases. Masking both
-    keeps the baseline stable across platforms and asset releases while still detecting real
-    scene-composition changes.
+# Cap on the number of reported stage differences so a large regression stays readable.
+_MAX_STAGE_DIFF_LINES = 80
+
+
+def extract_stage_structure_and_transforms(usd_path: str) -> tuple[dict[str, str], dict[str, np.ndarray]]:
+    """Open a USD stage and return its prim structure and per-prim world transforms.
+
+    Args:
+        usd_path: Path to a ``.usda``/``.usd`` file to open and compose.
+
+    Returns:
+        A ``(structure, transforms)`` pair. ``structure`` maps every prim path to its type name.
+        ``transforms`` maps each :class:`~pxr.UsdGeom.Xformable` prim path to its 4x4 local-to-world
+        transform as a ``float64`` array.
     """
-    path = match.group(1).replace("\\", "/")
-    path = re.sub(r"(/Isaac/)\d+(?:\.\d+)*/", r"\1<VERSION>/", path)
-    return f"@{path}@"
+    from pxr import Usd, UsdGeom  # noqa: PLC0415
+
+    stage = Usd.Stage.Open(usd_path)
+    if stage is None:
+        raise RuntimeError(f"Failed to open USD stage at {usd_path}.")
+
+    structure: dict[str, str] = {}
+    transforms: dict[str, np.ndarray] = {}
+    xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+    for prim in stage.Traverse():
+        path = str(prim.GetPath())
+        structure[path] = str(prim.GetTypeName())
+        if UsdGeom.Xformable(prim):
+            matrix = xform_cache.GetLocalToWorldTransform(prim)
+            transforms[path] = np.array([[matrix[row][col] for col in range(4)] for row in range(4)], dtype=np.float64)
+    return structure, transforms
 
 
-def canonicalize_stage_text(text: str) -> str:
-    """Canonicalize exported USDA text so golden comparison ignores non-semantic churn.
+def compare_golden_stage(golden_path: str, result_path: str) -> list[str]:
+    """Compare two USD stages by prim structure (exact) and world transforms (``allclose``).
 
-    Normalizes line endings, strips the volatile ``doc = \"\"\"...\"\"\"`` provenance block, masks
-    ``anon:0x...`` layer identifiers, and portability-masks asset reference targets. Extend this
-    when a newly covered task emits additional volatile fields (timestamps, GUIDs, seeds).
+    Prim structure — the set of prim paths and their type names — must match exactly. Transforms of
+    prims present in both stages are compared with :func:`numpy.allclose` so per-platform float noise
+    does not trip the comparison. Returns a list of human-readable difference descriptions (empty
+    when the stages match).
     """
-    text = text.replace("\r\n", "\n")
+    golden_structure, golden_transforms = extract_stage_structure_and_transforms(golden_path)
+    result_structure, result_transforms = extract_stage_structure_and_transforms(result_path)
+
+    problems: list[str] = []
+    golden_paths, result_paths = set(golden_structure), set(result_structure)
+    for path in sorted(result_paths - golden_paths):
+        problems.append(f"+ added prim {path} ({result_structure[path]})")
+    for path in sorted(golden_paths - result_paths):
+        problems.append(f"- removed prim {path} ({golden_structure[path]})")
+    for path in sorted(golden_paths & result_paths):
+        if golden_structure[path] != result_structure[path]:
+            problems.append(f"~ type changed {path}: {golden_structure[path]} -> {result_structure[path]}")
+
+    for path in sorted(set(golden_transforms) & set(result_transforms)):
+        golden_matrix, result_matrix = golden_transforms[path], result_transforms[path]
+        if not np.allclose(golden_matrix, result_matrix, rtol=_STAGE_TRANSFORM_RTOL, atol=_STAGE_TRANSFORM_ATOL):
+            max_diff = float(np.max(np.abs(golden_matrix - result_matrix)))
+            problems.append(f"~ transform {path}: max abs diff {max_diff:.3e} exceeds tolerance")
+
+    return problems
+
+
+def _sanitize_golden_stage_text(text: str) -> str:
+    """Strip machine-specific provenance from a flattened golden so it commits reproducibly.
+
+    Blanks the volatile ``doc`` provenance block (which embeds the generating host's temp path) and
+    masks absolute filesystem asset paths left in material/texture attributes. Neither is consulted
+    by the structure/transform comparison, so masking keeps the committed baseline free of local,
+    host-specific paths without affecting correctness. Portable asset tokens (e.g. ``@OmniPBR.mdl@``)
+    have no leading drive/slash and are left untouched.
+    """
+    import re  # noqa: PLC0415
+
     text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
-    text = re.sub(r"anon:0x[0-9a-fA-F]+:[^\s\"')>]+", "<ANON_LAYER>", text)
-    text = re.sub(r"@([^@]*)@", _normalize_asset_reference, text)
-    return "\n".join(line.rstrip() for line in text.split("\n"))
+    text = re.sub(r"@(?:[A-Za-z]:)?[\\/][^@\n]*@", "@<MASKED_ASSET_PATH>@", text)
+    # Ensure a single trailing newline so regeneration stays clean under the end-of-file hook.
+    return text.rstrip("\n") + "\n"
 
 
 def maybe_save_stage(
@@ -349,8 +424,10 @@ def maybe_save_stage(
     """Dump the current USD stage and optionally compare it against a golden USDA file.
 
     When ``ISAAC_LAB_SAVE_STAGES`` is set, the stage is written to that directory. When
-    ``compare_golden`` is True, the exported stage is also validated against
-    ``golden_stages/<test_name>/<physics_backend>-<renderer>-<data_type>.usda``.
+    ``compare_golden`` is True, the exported stage is validated against
+    ``golden_stages/<test_name>/<physics_backend>-<renderer>-<data_type>.usda`` by opening both
+    stages and comparing prim structure exactly and world transforms with :func:`numpy.allclose`
+    (see :func:`compare_golden_stage`). A missing baseline is bootstrapped and the test fails.
     """
     out_dir = os.environ.get("ISAAC_LAB_SAVE_STAGES")
     if not out_dir and not compare_golden:
@@ -380,34 +457,34 @@ def maybe_save_stage(
             logger.info("[ISAAC_LAB_SAVE_STAGES] wrote %s", out_path)
 
         if compare_golden:
-            import difflib
-
             golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, test_name)
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
-            result_text = canonicalize_stage_text(stage_text)
 
             if not os.path.exists(golden_path):
-                with open(golden_path, "w", encoding="utf-8") as file:
-                    file.write(result_text)
+                # Bootstrap a self-contained (flattened) baseline from the saved root-layer export.
+                # Flattening ``stage_path`` inlines its asset references, so the golden carries no
+                # external paths (which ``save_stage`` leaves as machine- and OS-specific resolved
+                # paths that would not reopen on another host such as CI). Flattening the *export*
+                # rather than the live stage also keeps Kit's volatile session render prims
+                # (OmniverseKit cameras, Replicator SDG pipeline, post-process) out of the baseline,
+                # matching exactly the composed prims the result side opens from ``stage_path``.
+                from pxr import Usd  # noqa: PLC0415
+
+                if not Usd.Stage.Open(stage_path).Flatten().Export(golden_path):
+                    pytest.fail(f"Failed to export the flattened golden baseline to {golden_path}.")
+                # Strip host-specific provenance/paths so the committed baseline is reproducible.
+                with open(golden_path, encoding="utf-8") as file:
+                    golden_text = file.read()
+                with open(golden_path, "w", encoding="utf-8", newline="\n") as file:
+                    file.write(_sanitize_golden_stage_text(golden_text))
                 pytest.fail(f"Golden stage not found at {golden_path}. A new baseline was written.")
 
-            with open(golden_path, encoding="utf-8") as file:
-                golden_text = canonicalize_stage_text(file.read())
-
-            if result_text != golden_text:
-                diff_lines = list(
-                    difflib.unified_diff(
-                        golden_text.splitlines(),
-                        result_text.splitlines(),
-                        fromfile="golden",
-                        tofile="result",
-                        lineterm="",
-                    )
-                )
-                diff_summary = "\n".join(diff_lines[:80])
-                if len(diff_lines) > 80:
-                    diff_summary += f"\n... ({len(diff_lines) - 80} more diff lines)"
+            problems = compare_golden_stage(golden_path, stage_path)
+            if problems:
+                diff_summary = "\n".join(problems[:_MAX_STAGE_DIFF_LINES])
+                if len(problems) > _MAX_STAGE_DIFF_LINES:
+                    diff_summary += f"\n... ({len(problems) - _MAX_STAGE_DIFF_LINES} more differences)"
                 pytest.fail(
                     f"{test_name} (physics={physics_backend}, renderer={renderer}, data_type={data_type}) "
                     f"USD stage mismatch:\n{diff_summary}"
@@ -1088,7 +1165,7 @@ def rendering_test_cartpole(
             physics_backend,
             renderer,
             data_type,
-            compare_golden=True,
+            compare_golden=should_compare_golden_stage("test_rendering_cartpole", physics_backend, renderer, data_type),
         )
         validate_camera_outputs(
             "cartpole",
