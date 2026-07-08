@@ -675,8 +675,8 @@ def test_branching_fixture_physx_ordering_reorders_newton_to_bfs(sim, device, gr
     # The requested PhysX ordering reorders the public joint/body axes to the BFS convention.
     assert tuple(articulation.joint_names) == expected_physx_joint_names
     assert tuple(articulation.body_names) == expected_physx_body_names
-    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
-    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+    assert articulation.joint_ordering is not None
+    assert articulation.body_ordering is not None
 
 
 def test_num_shapes_per_body_follows_public_body_order() -> None:
@@ -691,7 +691,6 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
         body_shapes=((), (object(), object()), (object(), object(), object())),
     )
     articulation.body_ordering = SimpleNamespace(
-        is_identity=False,
         user_to_backend_indices=(2, 0, 1),
     )
 
@@ -723,7 +722,6 @@ def test_newton_actuator_gain_writes_map_public_joint_subset_to_backend(
 
     assert use_newton_actuators
     assert articulation.joint_ordering is not None
-    assert not articulation.joint_ordering.is_identity
     assert articulation.newton_actuator_adapter is not None
 
     def gather_controller_parameter(name: str) -> torch.Tensor:
@@ -780,7 +778,7 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
     articulation.update(sim.cfg.dt)
 
     data = articulation.data
-    assert data._has_body_ordering
+    assert data.body_ordering is not None
     root_body_idx = articulation.find_bodies("base")[0][0]
     sim_timestamp = data._sim_timestamp
 
@@ -828,8 +826,8 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     sim.reset()
     assert articulation.is_initialized
     has_ordering = ordering_mode == "reversed"
-    assert articulation.data._has_joint_ordering is has_ordering
-    assert articulation.data._has_body_ordering is has_ordering
+    assert (articulation.data.joint_ordering is not None) is has_ordering
+    assert (articulation.data.body_ordering is not None) is has_ordering
 
     sim.step()
     articulation.update(sim.cfg.dt)
@@ -1038,7 +1036,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
 
     has_ordering = ordering_mode == "reversed"
     data = articulation.data
-    assert data._has_joint_ordering is has_ordering
+    assert (data.joint_ordering is not None) is has_ordering
 
     # Prime: explicit (IdealPD) actuators keep their PD in the Lab-owned records,
     # while the solver's sim gains are zeroed so it applies no PD on these DOFs.
@@ -1109,8 +1107,8 @@ def test_newton_post_step_hook_publishes_ordered_state_inside_step(
     assert articulation.is_initialized
 
     data = articulation.data
-    assert data._has_joint_ordering
-    assert data._has_body_ordering
+    assert data.joint_ordering is not None
+    assert data.body_ordering is not None
     joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
     body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
 
@@ -1155,8 +1153,8 @@ def test_newton_clear_callbacks_deregisters_post_step_hook(
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
     sim.reset()
     assert articulation.is_initialized
-    assert articulation.data._has_joint_ordering
-    assert articulation.data._has_body_ordering
+    assert articulation.data.joint_ordering is not None
+    assert articulation.data.body_ordering is not None
 
     # The republish hook is registered on the manager for non-identity ordering.
     registered_callback = articulation._post_step_callback
