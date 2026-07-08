@@ -644,9 +644,17 @@ class OVRTXRenderer(BaseRenderer):
     ) -> None:
         """Forward per-output metadata collected during :meth:`render` into ``camera_data.info``.
 
-        Each entry is stored by reference (a shallow assignment, not a deep copy): ``camera_data.info``
-        ends up sharing the same metadata dict objects as ``render_data.renderer_info`` (e.g. the semantic
-        ``idToLabels`` mapping). Those references stay valid even if ``renderer_info`` is later cleared or
+        This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
+        which is ``None`` when its render var was absent. Because :meth:`render` rebuilds ``renderer_info``
+        from scratch each frame (see the ``renderer_info.clear()`` in :meth:`_process_render_frame`), a render
+        var that disappears on a later frame (e.g. a missing ``SemanticIdMap``) must clear the corresponding
+        ``camera_data.info`` entry too, or downstream consumers would keep reading stale labels. ``renderer_info``
+        only ever holds a subset of the outputs, so iterating ``camera_data.info`` both preserves its
+        ``output``-mirroring key set and resets any dropped metadata to ``None``.
+
+        Present entries are stored by reference (a shallow assignment, not a deep copy): ``camera_data.info``
+        shares the same metadata dict objects as ``render_data.renderer_info`` (e.g. the semantic
+        ``idToLabels`` mapping). Those references stay valid even after ``renderer_info`` is cleared or
         rebuilt, and each render builds a fresh metadata dict, so no aliased object is mutated in place.
 
         Pixel data needs no handling here: :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
@@ -655,10 +663,9 @@ class OVRTXRenderer(BaseRenderer):
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
         """
-        if camera_data.info is None:
-            camera_data.info = {}
-        for output_name, info in render_data.renderer_info.items():
-            camera_data.info[output_name] = info
+        assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+        for output_name in camera_data.info:
+            camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
         """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.

@@ -571,10 +571,17 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
+
+        This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
+        which is ``None`` when its annotator produced none (``renderer_info`` only ever holds a subset of
+        the outputs, so iterating ``camera_data.info`` both preserves its ``output``-mirroring key set and
+        resets any metadata that went away to ``None``). Without this, a stale mapping from a previous frame
+        would linger once an annotator stops emitting one.
+
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
-        for output_name, info in render_data.renderer_info.items():
-            if info is not None:
-                camera_data.info[output_name] = info
+        assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+        for output_name in camera_data.info:
+            camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators from render product.
