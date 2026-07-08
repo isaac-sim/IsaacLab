@@ -19,7 +19,7 @@ This is used by task loading, launch config generation, Phase 2 config-drift che
 
 ## `gpu_identity.py`
 
-Canonical GPU identity helpers. `gpu_model` is the baseline bucket key; `gpu_model_raw` is preserved for display/provenance. Existing `tasks.json` hard-floor maps can keep legacy keys such as `L40S` because floor lookup tries canonical, raw, and known legacy aliases.
+Canonical GPU identity helpers. `gpu_model` is the baseline bucket key; `gpu_model_raw` is preserved for display/provenance. `tasks.json` hard-floor maps are keyed by the canonical slug (e.g. `l40s`); floor lookup normalizes any GPU input (display name, raw name, or slug) to that canonical key.
 
 ```python
 def canonical_gpu_model(value: Any) -> str
@@ -60,15 +60,18 @@ def compare(
     bench_result: dict,
     baseline: Baseline | None,
     fps_mean_thresholds: list[FpsMeanThreshold],
-    excluded_frames: frozenset[int],
-    artifact_dir: Path,
     *,
     min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT,
 ) -> OracleResult
 ```
 
-The central verdict function. Reads `perf_smoke_test_info.json` from `artifact_dir`,
-applies `excluded_frames`, computes mean FPS, and returns an `OracleResult`.
+The central verdict function. Reads the steady-state mean FPS from
+`bench_result["raw_fps_mean"]` (which `build_bench_result` derives from the runtime
+bundle's `runtime.total_fps.mean`, warmup already excluded at the source by
+`perf_runtime.py --warmup_frames`) and returns an `OracleResult`. It no longer
+re-parses `perf_smoke_test_info.json` or applies a post-hoc frame filter. Missing/
+non-numeric `raw_fps_mean` → `HARD_FAILURE` (`missing_fps_mean`); `raw_fps_mean <= 0`
+→ `HARD_FAILURE` (`zero_fps`).
 
 The final verdict is the **most severe** of the rolling-window/baseline verdict and
 the verdict from any crossed gating threshold (`WARN` < `BLOCK`). A crossed
@@ -77,11 +80,9 @@ reporting-only threshold (one with no `threshold_verdict`) is recorded in
 
 | Parameter | Type | Description |
 |---|---|---|
-| `bench_result` | `dict` | Loaded `perf_smoke_test_result.json` |
+| `bench_result` | `dict` | Loaded `perf_smoke_test_result.json` (mean FPS read from `raw_fps_mean`) |
 | `baseline` | `Baseline \| None` | Rolling baseline stats; `None` for seed run |
 | `fps_mean_thresholds` | `list[FpsMeanThreshold]` | Configured FPS floors/reference points for this task/backend; may be empty |
-| `excluded_frames` | `frozenset[int]` | 0-based frame indices to drop before computing mean |
-| `artifact_dir` | `Path` | Directory containing `perf_smoke_test_info.json` |
 | `min_block_regression_pct` | `float` | Minimum % regression below the MAD block band required to BLOCK |
 
 ### `class FpsMeanThreshold`
@@ -97,14 +98,6 @@ class FpsMeanThreshold:
 A threshold is *crossed* when the measured mean FPS is below `value`. A crossed
 gating threshold contributes its `verdict`; a crossed reporting-only threshold
 (`verdict is None`) is surfaced in outputs but never changes the verdict.
-
-### `apply_excluded_frames()`
-
-```python
-def apply_excluded_frames(fps_series: list[float], excluded_frames: frozenset[int]) -> list[float]
-```
-
-Returns `fps_series` with indices listed in `excluded_frames` removed.
 
 ### `class Baseline`
 
@@ -128,12 +121,9 @@ class OracleResult:
     verdict: OracleVerdict          # PASS / WARN / BLOCK / HARD_FAILURE
     bisect_verdict: str             # "GOOD" / "BAD" / "SKIP"
     failure_phase: str | None       # From bench_result; see failure phase table
-    measured_fps: float | None      # Mean FPS post-filter; None on HARD_FAILURE
+    measured_fps: float | None      # raw_fps_mean (steady-state mean); None on HARD_FAILURE
     baseline_fps: float | None      # baseline.median_fps; None if no baseline
     regression_pct: float | None    # ((measured - baseline) / baseline) × 100; None if no baseline
-    fps_median: float | None        # Median of filtered series [informational]
-    fps_p5: float | None            # 5th-percentile of filtered series [informational]
-    fps_p95: float | None           # 95th-percentile of filtered series [informational]
     gpu_mem_used_mb: float | None   # From bench_result.gpu_diag [informational]
     startup_time_s: float | None    # From bench_result [informational]
     wall_time_s: float | None       # From bench_result [informational]
@@ -143,10 +133,10 @@ class OracleResult:
     crossed_thresholds: list[dict]  # Crossed thresholds (name/value/verdict/gating) for reporting
 ```
 
-`fps_median`, `fps_p5`, `fps_p95` are informational — they do not affect the verdict.
-`crossed_thresholds` lists every threshold whose value the measured mean FPS fell below,
-including reporting-only ones, and is surfaced in the aggregate summary and GitHub outputs.
-`measured_fps` (mean of filtered series) is the blocking metric.
+`crossed_thresholds` lists every
+threshold whose value the measured mean FPS fell below, including reporting-only ones,
+and is surfaced in the aggregate summary and GitHub outputs. `measured_fps`
+(`raw_fps_mean`, the steady-state mean) is the blocking metric.
 
 ### `class OracleVerdict`
 
@@ -202,33 +192,30 @@ class TaskConfig:
     preset: str                     # Hydra preset base (usually "default")
     num_envs: int
     num_frames: int
-    excluded_frames_raw: list[int | list[int]]  # Raw JSON; use .excluded_frames
+    warmup_frames: int              # Leading steps excluded at the source before aggregation
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
-    fps_mean_thresholds: dict       # {"L40S": {"physx": [FpsMeanThreshold, ...]}}
+    fps_mean_thresholds: dict[str, dict[str, list[FpsMeanThreshold]]]  # {"L40S": {"physx": [...]}}
     caches: list[str]               # Cache identifiers from caches_for_backend()
     tags: list[str]                 # ["always"] or ["camera"]
     task_type: str                  # "benchmark"
     runs_on: str                    # "gpu-l40s"
     seed: int | None                # Random seed for benchmark (default 42)
+    baseline_epoch: int             # Baseline compatibility epoch (default 1)
 
     @property
     def backend_key(self) -> str:
         # "{physics}_{render}" if render_backend else "{physics}"
 
-    @property
-    def excluded_frames(self) -> frozenset[int]:
-        # Expands excluded_frames_raw ranges to individual indices
-
     def thresholds_for(self, gpu_model: str) -> list[FpsMeanThreshold]:
-        # Resolves this task/backend's thresholds across canonical + legacy GPU keys
+        # Resolves this task/backend's thresholds via the canonical GPU key
 ```
 
-`excluded_frames_raw` supports two entry types:
-- `[start, end]` — inclusive range, expanded to `range(start, end+1)`
-- `N` — single index
-
-Default value `[[0, 100]]` expands to indices 0–100 (101 frames excluded from 300 total).
+`warmup_frames` is a plain int: the number of leading cold-start steps
+`perf_runtime.py` discards before aggregating FPS (steady-state warmup exclusion).
+The default of `100` (from `tasks.json`) leaves 200 steady-state frames out of the
+default 300. This replaces the old `excluded_frames_raw` range-list / `excluded_frames`
+property, which filtered frames post-hoc in the oracle.
 
 ---
 
@@ -251,30 +238,12 @@ def update_baseline(
 Appends one structured sample to `samples.ndjson`. Thresholds are computed at read time.
 Only call for PASS/WARN results — aggregate.py enforces this policy.
 
-```python
-def delete_baseline_files(
-    baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None
-) -> None
-```
-Removes `samples.ndjson` for a task/backend pair. Used in tests and resets.
-
-```python
-def seed_baseline_with_spread(
-    baselines_dir: Path, gpu_model: str, task_id: str, backend: str,
-    center_fps: float, noise_fps: float = 5.0, n_samples: int = 10,
-    seed: int = 0, fingerprint=None
-) -> None
-```
-Populates a baseline window with `n_samples` Gaussian samples around `center_fps` ± `noise_fps`.
-Used in tests to create deterministic baselines without running real benchmarks.
-
 ### Git operations (production)
 
 ```python
 def refresh_baseline_branch(branch: str, remote: str | None = "origin") -> str | None
 def load_baseline_git(ref: str, gpu_model: str, task_id: str, backend: str, fingerprint: str | None) -> Baseline | None
 def update_baselines_git(branch: str, updates: list[BaselineUpdateRecord], remote: str | None = "origin") -> BaselinePushResult
-def update_baseline_git(branch: str, gpu_model: str, task_id: str, backend: str, fps: float, fingerprint: str | None) -> BaselinePushResult
 ```
 
 `refresh_baseline_branch()` fetches the remote baseline branch and returns the exact SHA
@@ -387,15 +356,18 @@ python3 tools/perf_smoke_test/build_bench_result.py \
 
 **Output:** `{artifact_dir}/perf_smoke_test_result.json` (always written).
 
-**Side effect:** Renames `benchmark_non_rl_{task_id}_{timestamp}.json` to
+**Side effect:** Globs `benchmark_runtime_{task_id}_*.json` (the schema-v1
+`RuntimeBundle` written by `perf_runtime.py`) and **copies** it to
 `perf_smoke_test_info.json` if the canonical name does not already exist.
 
-When `perf_smoke_test_info.json` is present, `build_bench_result.py` also
-calls `_extract_info_provenance()` to populate the FPS distribution, startup time,
-GPU diagnostics, and full software/hardware/git provenance directly into the result JSON.
-It also compares observed benchmark identity to `launch_config.json`, records `observed_backend`,
+When `perf_smoke_test_info.json` is present, `build_bench_result.py` loads the
+`RuntimeBundle` and calls `benchmark_result_adapter.to_gate_fields()` to project it
+into the FPS aggregates (`raw_fps_{mean,std,min,max}`), startup time, GPU diagnostics,
+and full software/hardware/git provenance written into the result JSON.
+It also compares the run's self-reported identity (`benchmark_result_adapter.benchmark_info()`)
+to `launch_config.json`, records `observed_backend` and any `config_mismatch`,
 computes `runtime_contract_hash`, and publishes non-matching runtime diagnostics such as CUDA and driver version.
-`nvidia-smi` is queried once at post-processing time to capture the driver version.
+The adapter queries `nvidia-smi` once at post-processing time to capture the driver version.
 
 ---
 
@@ -445,7 +417,8 @@ python3 tools/perf_smoke_test/local_runner.py \
 ```
 
 Orchestrates Phase 1+2+3 sequentially. For each task:
-1. Runs `./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py` with the derived command
+1. Runs `./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py` with the derived command
+   (`--benchmark_formatter schema --warmup_frames <N>`)
 2. On non-zero exit, retries once (sets `was_retried=True`)
 3. Calls `build_bench_result.py` (Phase 2)
 4. After all tasks, calls `aggregate.py` (Phase 3)
@@ -470,48 +443,38 @@ publish-only diagnostic fields.
 
 ## `dev/stub_benchmark.py` CLI
 
-Simulates `benchmark_non_rl.py` for testing. Does not require IsaacSim.
+Fakes a `perf_runtime.py` run without a GPU/sim: writes a schema-v1 `RuntimeBundle`
+(`benchmark_runtime_{task_id}_{timestamp}.json`) identical in shape to what the real
+driver produces, so `build_bench_result.py` → `benchmark_result_adapter` → `oracle`
+can be exercised end-to-end offline. It uses the real `isaaclab.test.benchmark`
+builders/serialize (pure-Python, no GPU), so run it with the Isaac Lab Python env.
 
 ```
 python3 tools/perf_smoke_test/dev/stub_benchmark.py \
-    --task_id <str>
-    --backend <str>
+    --task_id <str>        (required)
+    --backend <str>        (required) backend_key, e.g. "physx" or "newton_newton_renderer"
     --num_envs <int>       (default: 1)
     --num_frames <int>     (default: 200)
+    --warmup_frames <int>  (default: 0)
+    --seed <int>           (default: 42)
     --out_dir <path>       (required)
-    --fps_mean <float>     (default: 200.0)
+    --fps_mean <float>     (default: 200.0) target per-env-step effective FPS
     --failure_phase <str>  "none" | "import" | "init" | "runtime" (default: none)
 ```
 
-On success: writes `perf_smoke_test_info.json` with a Gaussian FPS series centered on
-`--fps_mean`, prints `"Step Frametimes"` to stdout, exits 0.
+On success (`--failure_phase none`): synthesizes a Gaussian steady-state FPS series
+centered on `--fps_mean`, builds and writes the `RuntimeBundle`, prints
+`"Step Frametimes"` to stdout, exits 0.
 
 On failure modes:
-- `import`: prints traceback-like output, exits 1 (no perf file written)
-- `init`: prints `"AppLauncher initialization complete"`, exits 2 (no perf file written)
-- `runtime`: writes perf file, prints frametimes, then prints error and exits 3
+- `import`: prints traceback-like output, exits 1 (no bundle written)
+- `init`: prints `"AppLauncher initialization complete"`, exits 2 (no bundle written)
+- `runtime`: writes the bundle, prints `"Step Frametimes"`, then prints an error and exits 3
 
----
-
-## `dev/sim_regression.py` CLI
-
-Injects degraded FPS artifacts for demo/testing without re-running benchmarks.
-
-```
-python3 tools/perf_smoke_test/dev/sim_regression.py \
-    --fps_scale <float>    multiply baseline FPS by this factor (default: 0.53 = 47% regression)
-    --tags <tag ...>       task tags to include (default: always)
-    --gpu_model <str>      GPU model label (default: L40S)
-    --baselines_dir <path> (default: perf_smoke_test/local_baselines)
-    --out_dir <path>       output artifacts directory (default: /tmp/sim_artifacts)
-```
-
-For each task with an existing baseline, loads `samples.ndjson`, computes
-`regressed_fps = baseline.median_fps × fps_scale`, and writes:
-- `{out_dir}/{task_id}/{backend_key}/perf_smoke_test_info.json`
-- `{out_dir}/{task_id}/{backend_key}/perf_smoke_test_result.json`
-
-Skips tasks with no baseline (prints `SKIP (no baseline)`).
+**Producing a local BLOCK without the full suite:** run `stub_benchmark.py` with a
+`--fps_mean` below the task's configured hard-floor into a per-task artifacts dir, then
+run `aggregate.py` over that dir. The configured `BLOCK` `fps_mean_thresholds` floor is
+crossed, so the oracle returns `BLOCK` (exit 1 when `blocking == true`).
 
 ---
 
@@ -526,7 +489,7 @@ Skips tasks with no baseline (prints `SKIP (no baseline)`).
     "seed": 42,
     "num_envs": 512,
     "num_frames": 300,
-    "excluded_frames": [[0, 100]],
+    "warmup_frames": 100,
     "camera_resolution": null,
     "timeout_minutes": 10,
     "tags": ["always"]
@@ -587,10 +550,6 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
   "raw_fps_std": 9800.0,
   "raw_fps_min": 1632000.0,
   "raw_fps_max": 1680000.0,
-  "raw_fps_median": 1655000.0,
-  "raw_fps_p5": 1638000.0,
-  "raw_fps_p95": 1672000.0,
-  "outlier_count": null,
   "gpu_diag": {
     "gpu_name": "NVIDIA L40S",
     "gpu_total_memory_gb": 45.62,
@@ -656,7 +615,7 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
     "preset": "default",
     "num_envs": 512,
     "num_frames": 300,
-    "excluded_frames_raw": [[0, 100]],
+    "warmup_frames": 100,
     "timeout_minutes": 12,
     "tags": ["always"],
     "seed": 42
@@ -667,92 +626,96 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
 **Fields populated from `perf_smoke_test_info.json`** (all `null` when
 `perf_smoke_test_info_present` is false):
 
-| Field | Source | Notes |
+All fields below are projected from the `RuntimeBundle` by
+`benchmark_result_adapter.to_gate_fields()`. They are omitted/`null` when
+`perf_smoke_test_info_present` is false.
+
+| Field | Source (bundle path) | Notes |
 |---|---|---|
-| `raw_fps_mean` … `raw_fps_p95` | `runtime` phase, `Step Frametimes` measurement | Full distribution before excluded-frame filtering |
-| `startup_time_s` | `startup` phase, `Total Start Time (Launch to Train)` measurement | `null` if startup phase absent |
-| `gpu_diag.gpu_mem_used_mb` | `runtime` phase, `GPU Memory Used` measurement | Converted from GB |
-| `gpu_diag.gpu_name`, `.cuda_version`, `.gpu_total_memory_gb` | `hardware_info` phase | |
+| `raw_fps_mean`, `raw_fps_std`, `raw_fps_max` | `runtime.total_fps.{mean,std,peak}` | Steady-state (warmup excluded at source) |
+| `raw_fps_min` | `run.num_envs / runtime.iteration_time_s.peak` | Recovered from the slowest steady-state step |
+| `raw_fps_median`, `raw_fps_p5`, `raw_fps_p95`, `p99_over_median`, `outlier_count` | — (removed) | Not emitted: the schema keeps only aggregates (these needed the raw series), and they were never gating. `raw_fps_std`/`raw_fps_min` cover the tail |
+| `startup_time_s` | sum of `runtime.startup_time_s.*` phases | app_launch + env_creation + first_step + python_imports |
+| `gpu_diag.gpu_mem_used_mb` | `resources.gpu_mem_gb.mean` | Converted from GB |
+| `gpu_diag.gpu_name`, `.gpu_total_memory_gb` | `hardware.gpu_devices[0].{name,mem_gb}` | |
+| `gpu_diag.cuda_version` | `versions.cuda_bindings` | CUDA bindings version used as a display proxy (schema-v1 has no CUDA-runtime field) |
 | `gpu_diag.nvidia_driver_version` | `nvidia-smi` subprocess at post-processing time | `null` if nvidia-smi unavailable |
-| `provenance.hardware` | `hardware_info` phase | CPU, GPU, RAM identity |
-| `provenance.software` | `version_info` phase | Package versions; `_version` suffix stripped |
-| `provenance.git` | `version_info` phase, `dev` dict | commit, branch, date, dirty flag |
+| `provenance.hardware` | `hardware` snapshot | CPU, GPU, RAM identity |
+| `provenance.software` | `versions` map (verbatim, minus `git_*` keys) | Package versions |
+| `provenance.git` | `versions.git_commit`/`git_branch`/`git_dirty` | commit, branch, dirty flag |
 
-Key fields the oracle reads: `perf_smoke_test_info_present`, `failure_phase`,
-`was_retried`, `gpu_diag.gpu_mem_used_mb`, `startup_time_s`, `wall_time_s`.
+Key fields the oracle reads: `perf_smoke_test_info_present`, `raw_fps_mean`,
+`failure_phase`, `config_mismatch`, `was_retried`, `gpu_diag.gpu_mem_used_mb`,
+`startup_time_s`, `wall_time_s`.
 
-The `raw_fps_*` fields capture the full unfiltered distribution and are for audit/debug;
-`oracle.compare()` recomputes mean FPS independently after applying `excluded_frames`.
+`raw_fps_mean` is the steady-state mean the oracle gates on; `raw_fps_std`/`_min`/`_max`
+are audit/debug context. The distribution/percentile fields are `null` because the
+runtime bundle serializes only aggregates, not the raw per-frame series.
 
-### `perf_smoke_test_info.json` (Phase 1 output, renamed from `benchmark_non_rl_*.json`)
+### `perf_smoke_test_info.json` (Phase 1 output, copied from `benchmark_runtime_*.json`)
 
-A list of `TestPhase` objects serialized by `JSONFileMetrics`. Measurement and metadata
-names are prefixed with `"{task_id} {phase_name} "` by the serializer.
+A schema-v1 `RuntimeBundle` — a nested dict serialized by
+`isaaclab.test.benchmark.serialize.write_bundle_file` (defined by `RuntimeBundle` in
+`source/isaaclab/isaaclab/test/benchmark/schema.py`). Top-level keys are `run`,
+`versions`, `hardware`, `runtime`, `resources`, `extra`, and `schema_version`. This
+replaces the legacy phase-array output; there are no more `TestPhase`/measurement
+objects or prefixed measurement names. Abbreviated (many `versions.*` fields omitted):
 
 ```json
-[
-  {
-    "phase_name": "hardware_info",
-    "measurements": [],
-    "metadata": [
-      {"name": "<task_id> hardware_info cpu_name",         "data": "Intel Xeon Gold 6438Y+", "type": "string"},
-      {"name": "<task_id> hardware_info physical_cores",   "data": 32,    "type": "int"},
-      {"name": "<task_id> hardware_info total_ram_gb",     "data": 251.5, "type": "float"},
-      {"name": "<task_id> hardware_info gpu_device_count", "data": 1,     "type": "int"},
-      {"name": "<task_id> hardware_info cuda_version",     "data": "12.1","type": "string"},
-      {"name": "<task_id> hardware_info gpu_devices",      "data": {
-        "0": {"name": "NVIDIA L40S", "total_memory_gb": 45.62,
-              "compute_capability": "8.9", "multi_processor_count": 142}
-      }, "type": "dict"}
-    ]
+{
+  "run": {
+    "run_id": "physx-Isaac-Cartpole-Direct-42-20240610T090000",
+    "framework": null,
+    "config": {"physics_backend": "physx", "rendering_backend": "none", "presets": []},
+    "task": "Isaac-Cartpole-Direct",
+    "seed": 42,
+    "start_time_utc": "2024-06-10T09:00:00+00:00",
+    "end_time_utc": "2024-06-10T09:00:48+00:00",
+    "duration_s": 48.0,
+    "status": "completed",
+    "num_envs": 4096,
+    "max_iterations": null
   },
-  {
-    "phase_name": "version_info",
-    "measurements": [],
-    "metadata": [
-      {"name": "<task_id> version_info isaaclab_version", "data": "2.1.0",  "type": "string"},
-      {"name": "<task_id> version_info warp_version",     "data": "1.6.0",  "type": "string"},
-      {"name": "<task_id> version_info dev", "data": {
-        "commit_hash": "a1b2c3d4...", "commit_hash_short": "a1b2c3d4",
-        "branch": "develop", "commit_date": "2024-06-10 09:00:00 +0000", "dirty": false
-      }, "type": "dict"}
-    ]
+  "versions": {
+    "isaaclab": "2.1.0", "isaacsim": "4.5.0", "kit": null, "newton": "1.0.0",
+    "warp": "1.6.0", "mjwarp": "0.3.0", "torch": "2.3.0+cu121",
+    "git_commit": "a1b2c3d4e5f6...", "git_branch": "develop", "git_dirty": false,
+    "isaaclab_physx": "2.1.0", "isaaclab_newton": "2.1.0", "isaaclab_ov": null,
+    "cuda_bindings": "12.1"
   },
-  {
-    "phase_name": "runtime",
-    "measurements": [
-      {
-        "name": "<task_id> runtime Step Frametimes",
-        "value": {"Environment step effective FPS": [1644720.5, 1638400.0, ...]},
-        "type": "dict"
-      },
-      {
-        "name": "<task_id> runtime GPU Memory Used",
-        "value": 18.0,
-        "unit": "GB",
-        "type": "single"
-      }
-    ],
-    "metadata": []
+  "hardware": {
+    "hostname": "runner-01",
+    "gpu_devices": [{"name": "NVIDIA L40S", "mem_gb": 45.62, "compute_cap": "8.9"}],
+    "cpu_name": "Intel Xeon Gold 6438Y+", "cpu_count": 32, "ram_gb": 251.5
   },
-  {
-    "phase_name": "startup",
-    "measurements": [
-      {
-        "name": "<task_id> startup Total Start Time (Launch to Train)",
-        "value": 12.5,
-        "unit": "s",
-        "type": "single"
-      }
-    ],
-    "metadata": []
-  }
-]
+  "runtime": {
+    "startup_time_s": {"app_launch": 8.0, "env_creation": 3.0, "first_step": 0.3,
+                       "python_imports": 1.2, "task_config": null},
+    "iterations_completed": 200,
+    "total_wall_time_s": 0.5,
+    "steps_per_iteration": 4096,
+    "iteration_time_s": {"mean": 0.00247, "std": 0.00002, "peak": 0.00251},
+    "collection_fps": {"mean": 1655000.0, "std": 9800.0, "peak": 1680000.0},
+    "total_fps": {"mean": 1655000.0, "std": 9800.0, "peak": 1680000.0},
+    "iterations_per_s": {"mean": 404.9, "std": 3.2, "peak": 407.0}
+  },
+  "resources": {
+    "gpu_util_pct": {"mean": 96.0, "std": 2.0, "peak": null},
+    "gpu_mem_gb": {"mean": 18.0, "std": 0.1, "peak": 18.4},
+    "cpu_util_pct": {"mean": 30.0, "std": 3.0, "peak": null},
+    "ram_gb": {"mean": 12.0, "std": 0.4, "peak": 12.6}
+  },
+  "extra": {"num_frames": 300, "warmup_frames": 100},
+  "schema_version": "1.0"
+}
 ```
 
-The oracle looks for `phase_name == "runtime"`, then the measurement whose `name` ends with
-`"Step Frametimes"`, then extracts `value["Environment step effective FPS"]` as the raw series.
-`build_bench_result.py` reads the remaining phases for provenance extraction.
+`benchmark_result_adapter` reads this bundle: the gate metric `raw_fps_mean` comes from
+`runtime.total_fps.mean` (steady-state — warmup was excluded at the source by
+`perf_runtime.py --warmup_frames`), `raw_fps_min` from `run.num_envs /
+runtime.iteration_time_s.peak`, and provenance/`gpu_diag` from `versions`, `hardware`,
+and `resources`. The bundle stores only aggregates, so the raw per-frame FPS series (and
+hence percentiles) is not available.
 
 ### `samples.ndjson` (baseline history)
 

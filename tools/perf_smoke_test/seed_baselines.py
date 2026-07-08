@@ -49,8 +49,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from aggregate import _bench_gpu_model, _excluded_frames  # noqa: E402
+from aggregate import _bench_gpu_model  # noqa: E402
 from baseline_manager import BaselineUpdateRecord, make_sample_metadata, update_baselines_git  # noqa: E402
+from gpu_identity import detect_gpu_model  # noqa: E402
 from launch_config import hydra_args_for_task  # noqa: E402
 from oracle import compare  # noqa: E402
 from task_config import TaskConfig, load_tasks  # noqa: E402
@@ -128,17 +129,6 @@ def _capture(cmd: list[str], *, cwd: Path | None = None) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"command failed (exit {result.returncode}): {' '.join(cmd)}\n{result.stderr.strip()}")
     return result.stdout.strip()
-
-
-def _detect_gpu_model(explicit: str) -> str:
-    if explicit.strip():
-        return explicit.strip()
-    try:
-        out = _capture(["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"])
-        first = out.splitlines()[0].strip() if out else ""
-        return first or "unknown-gpu"
-    except Exception:
-        return "unknown-gpu"
 
 
 def _resolve_sha(token: str, workdir: Path) -> str:
@@ -279,11 +269,12 @@ def _docker_run_benchmark(
         "cd /workspace/isaaclab\n"
         "rm -f _isaac_sim\n"
         "ln -s /isaac-sim _isaac_sim\n"
-        "./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py "
+        "./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py "
         f"--task '{task.task_id}' "
         f"--num_envs {task.num_envs} "
         f"--num_frames {task.num_frames} "
-        "--benchmark_backend JSONFileMetrics "
+        f"--warmup_frames {task.warmup_frames} "
+        "--benchmark_formatter schema "
         "--output_path /tmp/bench_out "
         f"{seed_token} {hydra_args}\n"
     )
@@ -421,8 +412,6 @@ def _record_from_result(
         bench_result=bench_result,
         baseline=None,
         fps_mean_thresholds=[],
-        excluded_frames=_excluded_frames(bench_result),
-        artifact_dir=artifact_dir,
         min_block_regression_pct=0.0,
     )
     if oracle_result.measured_fps is None:
@@ -495,7 +484,7 @@ def main() -> int:
     args = _parse_args()
     source_mount = _as_bool(args.source_mount)
     dry_run = _as_bool(args.dry_run)
-    gpu_model = _detect_gpu_model(args.gpu_model)
+    gpu_model = detect_gpu_model(args.gpu_model)
     workdir = args.workdir.resolve()
     artifacts_root = (workdir / args.artifacts_root).resolve()
     artifacts_root.mkdir(parents=True, exist_ok=True)

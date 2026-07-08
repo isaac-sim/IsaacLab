@@ -67,6 +67,21 @@ def validate(source_root: Path | None = None) -> list[str]:
     except Exception as exc:  # noqa: BLE001 - surface any schema/parse error verbatim
         return [f"tasks.json failed to load: {exc}"]
 
+    # Every task must discard at least the first 2 cold-start steps as warmup
+    # (excluded at the source by perf_runtime.py) and still leave measured steps.
+    _MIN_WARMUP_FRAMES = 2
+    for task in tasks:
+        if task.warmup_frames < _MIN_WARMUP_FRAMES:
+            problems.append(
+                f"task {task.task_id!r}/{task.backend_key}: warmup_frames={task.warmup_frames} must be >= "
+                f"{_MIN_WARMUP_FRAMES} (at least the first {_MIN_WARMUP_FRAMES} steps are discarded as warmup)"
+            )
+        if task.warmup_frames >= task.num_frames:
+            problems.append(
+                f"task {task.task_id!r}/{task.backend_key}: warmup_frames={task.warmup_frames} must be < "
+                f"num_frames={task.num_frames} to leave measured steps"
+            )
+
     registered = registered_task_ids(source_root)
     if not registered:
         # Don't hard-fail when the source tree isn't present (e.g. partial checkout);

@@ -32,6 +32,7 @@ for task in tasks:
             "render_backend": task.render_backend or "",
             "num_envs": task.num_envs,
             "num_frames": task.num_frames,
+            "warmup_frames": task.warmup_frames,
             "seed": task.seed if task.seed is not None else "",
             "hydra_args": " ".join(hydra_args_for_task(task)),
             "bench_timeout_s": task.timeout_minutes * 60,

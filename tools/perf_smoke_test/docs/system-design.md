@@ -15,7 +15,7 @@ when throughput drops below an explicit hard floor or a MAD-derived threshold re
 | When | What happens |
 |---|---|
 | Feature PR touches physics or RL code | 5 "always" benchmarks run automatically |
-| PR touches camera/rendering paths | 5 additional Shadow-Vision camera benchmarks added |
+| PR touches camera/rendering paths | 4 additional Shadow-Vision camera benchmarks added |
 | Any task regresses > k_block × MAD below baseline | Aggregate exits 1; GitHub required check fails |
 | smoke test is in advisory mode (`blocking: false`) | Verdicts print but PR is not blocked |
 | Baseline does not yet exist | Seed run: WARN with `no_baseline` (transparent, non-blocking in advisory mode) |
@@ -33,7 +33,7 @@ when throughput drops below an explicit hard floor or a MAD-derived threshold re
    Each pipeline stage should have proper separation of concerns. Individual components should
    be agnostic to environment/call method as long as contract is maintained.
 
-3. **Minimal invasiveness** Bench jobs directly call `benchmark_non_rl.py --benchmark_backend json`.
+3. **Minimal invasiveness** Bench jobs directly call `perf_runtime.py --benchmark_formatter schema`.
     They do not invoke `tools/conftest.py` at runtime, interfere with existing tests, or modify task code.
 
 4. **Traceability** Every stage leaves informative artifacts. Every bench job writes `perf_smoke_test_result.json`
@@ -61,15 +61,15 @@ PR opened (to main / release / develop)
       ┌──────────┴──────────┐
       ▼                     ▼
 ┌───────────┐         ┌───────────┐
-│ Phase 1   │   ...   │ Phase 1   │  benchmark_non_rl.py
-│ Cartpole  │         │ G1/newton │  --benchmark_backend json
-│ /physx    │         │           │  writes benchmark_non_rl_*.json
+│ Phase 1   │   ...   │ Phase 1   │  perf_runtime.py
+│ Cartpole  │         │ G1/newton │  --benchmark_formatter schema
+│ /physx    │         │           │  writes benchmark_runtime_*.json
 └─────┬─────┘         └─────┬─────┘
       │                     │
       ▼                     ▼
 ┌───────────┐         ┌───────────┐
 │ Phase 2   │   ...   │ Phase 2   │  build_bench_result.py
-│           │         │           │  renames → perf_smoke_test_info.json
+│           │         │           │  copies → perf_smoke_test_info.json
 │           │         │           │  classifies failure_phase
 │           │         │           │  writes perf_smoke_test_result.json
 └─────┬─────┘         └─────┬─────┘
@@ -113,7 +113,7 @@ IsaacLab/
         ├── tasks.json                    SINGLE SOURCE OF TRUTH — task/backend matrix
         ├── task_config.py                TaskConfig dataclass, load_tasks(), get_task()
         ├── backend_identity.py           canonical physics/render backend identity
-        ├── gpu_identity.py               canonical GPU buckets + legacy floor aliases
+        ├── gpu_identity.py               canonical GPU buckets for baselines + floor lookup
         ├── runtime_contract.py           runtime compatibility contract/hash builder
         ├── launch_config.py              artifact-carried launch intent + hashes
         ├── write_launch_config.py        CI/local helper to write launch_config.json
@@ -122,9 +122,14 @@ IsaacLab/
         ├── tasks_to_ci_matrix.py         Converts tasks.json → GitHub Actions matrix JSON
         │                                 (called by perf-smoke-test.yaml build_matrix step)
         ├── oracle.py                     compare() → OracleResult; PASS/WARN/BLOCK/HARD_FAILURE
-        ├── build_bench_result.py         Phase 2: reads log + benchmark JSON,
-        │                                 extracts FPS stats + SW/HW/git provenance,
-        │                                 writes perf_smoke_test_result.json
+        ├── perf_runtime.py               Phase 1 driver: thin wrapper over the merged
+        │                                 Isaac Lab benchmark core; writes a schema-v1
+        │                                 RuntimeBundle (benchmark_runtime_*.json)
+        ├── benchmark_result_adapter.py   RuntimeBundle → gate-field projection
+        │                                 (FPS aggregates, provenance, gpu_diag)
+        ├── build_bench_result.py         Phase 2: copies the runtime bundle, projects it
+        │                                 via benchmark_result_adapter (FPS stats + SW/HW/git
+        │                                 provenance), writes perf_smoke_test_result.json
         ├── aggregate.py                  Phase 3: scans result JSONs, calls oracle,
         │                                 prints table, updates baselines, exits 0/1/2
         ├── baseline_manager.py           load/update baseline, flat-file + git variants
@@ -133,8 +138,8 @@ IsaacLab/
         |                                 without Github/Docker/cloud platform dependencies
         │
         ├── dev/
-        │   ├── stub_benchmark.py         Simulates benchmark_non_rl.py for unit tests
-        │   └── sim_regression.py         Injects regressed FPS artifacts for demos
+        │   └── stub_benchmark.py         Writes a schema-v1 RuntimeBundle stub (no
+        │                                 GPU/sim) for offline end-to-end gate testing
         │
         ├── docs/
         │   ├── system-design.md          High-level overview
@@ -142,6 +147,14 @@ IsaacLab/
         │
         └── tests/                        Unit tests (no GPU)
 ```
+
+`perf_runtime.py` and `stub_benchmark.py` build on the merged Isaac Lab benchmark
+core under `source/isaaclab/isaaclab/test/benchmark/` (`schema.py`, `builders.py`,
+`capture.py`, `serialize.py`, `stepping.py`, `formatters.py`, …), brought in from
+upstream Isaac Lab's "Part 1" benchmark refactor. The gate depends only on the
+stable, merged building blocks (the typed `RuntimeBundle` schema plus the
+builders/capture/serialize helpers), not on the still-unmerged standalone
+`scripts/benchmarks/runtime.py`.
 
 **Baseline storage:**
 
@@ -162,38 +175,51 @@ perf-baselines branch (git orphan)
 ## 5. Three-Phase Pipeline
 
 ```
-Phase 1 — bench       tasks.json → matrix → benchmark_non_rl.py (one process per task/backend)
-Phase 2 — post-bench  build_bench_result.py (reads log + benchmark JSON → writes result JSON)
+Phase 1 — bench       tasks.json → matrix → perf_runtime.py (one process per task/backend)
+Phase 2 — post-bench  build_bench_result.py (reads log + runtime bundle → writes result JSON)
 Phase 3 — aggregate   aggregate.py + oracle → verdict table → baseline update
 ```
 
-### Phase 1: `benchmark_non_rl.py`
+### Phase 1: `perf_runtime.py`
 
-Called via `./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py`:
+Called via `./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py`:
 
 ```bash
-./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
-    --task Isaac-Cartpole-Direct-v0 \
+./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
+    --task Isaac-Cartpole-Direct \
     --num_envs 4096 \
     --num_frames 300 \
-    --benchmark_backend json \
+    --warmup_frames 100 \
+    --benchmark_formatter schema \
     --output_path <artifact_dir> \
     [presets=newton_mjwarp]
 ```
 
-Output: `benchmark_non_rl_{task_id}_{timestamp}.json` in `artifact_dir`.
+Output: `benchmark_runtime_{task_id}_{timestamp}.json` in `artifact_dir` — a
+schema-v1 `RuntimeBundle` (see §11).
 
 - Only step that depends on IsaacLab run-time.
-- Need the `--benchmark_backend json` because the JSON backend preserves `DictMeasurement`
-objects including the raw per-step FPS list but the OmniPerf backend drops these.
+- `perf_runtime.py` is a thin driver over the merged Isaac Lab benchmark core; the
+  `--benchmark_formatter schema` output is a typed `RuntimeBundle` (nested dict of
+  aggregates), which replaces the legacy JSON phase-array output.
+- Warmup is excluded **at the source**: `--warmup_frames N` slices the leading `N`
+  cold steps before aggregation, so the reported `runtime.total_fps.mean` is
+  steady-state. This replaces the gate's previous post-hoc `excluded_frames` filter
+  (the bundle deliberately does not serialize the raw per-frame series).
+- Prints `Step Frametimes` to stdout as the progress marker
+  `subprocess_runner.classify_failure_phase()` keys on to separate init- from
+  runtime-phase failures.
 
 ### Phase 2: `build_bench_result.py`
 
 Runs once per task after Phase 1 completes:
 
-- Renames `benchmark_non_rl_*.json` → `perf_smoke_test_info.json`
+- Globs `benchmark_runtime_{task_id}_*.json` and **copies** it to the canonical
+  `perf_smoke_test_info.json`
 - Classifies failure phase by scanning the benchmark log
-- Parses the info artifact to extract FPS distribution statistics, startup time, GPU diagnostics, and full SW/HW/git provenance
+- Projects the `RuntimeBundle` into the gate's flat fields via
+  `benchmark_result_adapter` (FPS aggregates, startup time, GPU diagnostics, and full
+  SW/HW/git provenance)
 - Computes `runtime_contract_hash` and publish-only runtime info
 - Writes `perf_smoke_test_result.json` (always written, even on failure)
 
@@ -214,7 +240,7 @@ file list; the benchmark matrix is filtered to tasks whose tags intersect the ac
 | Tag | Meaning | Tasks |
 |---|---|---|
 | `"always"` | Run on every PR | Cartpole ×2, Factory ×1, G1 ×2 (5 tasks) |
-| `"camera"` | Run when camera/rendering paths change | Shadow-Vision ×5 |
+| `"camera"` | Run when camera/rendering paths change | Shadow-Vision ×4 |
 
 Shadow-Vision has `"camera"` rather than `"always"` because its FPS is dominated by rendering
 cost, not physics and Factory already covers manipulation and high-contact behavior, so it is
@@ -228,20 +254,21 @@ only a signal when camera code changes to save test time cost.
 
 ## 7. Full Task Matrix
 
-10 (task, backend) combinations. "Effective FPS" = per-env FPS × num_envs.
+9 (task, backend) combinations. "Effective FPS" = per-env FPS × num_envs. `warmup` leading
+steps are discarded at the source (`perf_runtime.py --warmup_frames`) before aggregation, so
+the reported mean is steady-state; the gate averages the remaining `frames − warmup` steps.
 
-| task_id | backend_key | num_envs | frames | timeout | tags | floor (L40S) |
-|---|---|---|---|---|---|---|
-| Isaac-Cartpole-Direct-v0 | physx | 4096 | 300 | 10 min | always | 100 |
-| Isaac-Cartpole-Direct-v0 | newton | 4096 | 300 | 10 min | always | 0 |
-| Isaac-Factory-GearMesh-Direct-v0 | physx | 512 | 300 | 15 min | always | 30 |
-| Isaac-Velocity-Flat-G1-v0 | physx | 512 | 300 | 12 min | always | 40 |
-| Isaac-Velocity-Flat-G1-v0 | newton | 512 | 300 | 12 min | always | 0 |
-| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx | 512 | 300 | 20 min | camera | 20 |
-| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx_newton_renderer | 512 | 300 | 20 min | camera | 0 |
-| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton | 512 | 300 | 20 min | camera | 0 |
-| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton_newton_renderer | 512 | 300 | 20 min | camera | 0 |
-| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton_ovrtx_renderer | 512 | 300 | 20 min | camera | 0 |
+| task_id | backend_key | num_envs | frames | warmup | timeout | tags | floor (L40S) |
+|---|---|---|---|---|---|---|---|
+| Isaac-Cartpole-Direct | physx | 4096 | 300 | 100 | 10 min | always | 100 |
+| Isaac-Cartpole-Direct | newton | 4096 | 300 | 100 | 10 min | always | 0 |
+| Isaac-Factory-GearMesh-Direct-v0 | physx | 512 | 300 | 100 | 15 min | always | 30 |
+| Isaac-Velocity-Flat-G1-v0 | physx | 512 | 300 | 100 | 12 min | always | 40 |
+| Isaac-Velocity-Flat-G1-v0 | newton | 512 | 300 | 100 | 12 min | always | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx | 512 | 300 | 100 | 20 min | camera | 20 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | physx_newton_renderer | 512 | 300 | 100 | 20 min | camera | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton | 512 | 300 | 100 | 20 min | camera | 0 |
+| Isaac-Repose-Cube-Shadow-Vision-Direct-v0 | newton_newton_renderer | 512 | 300 | 100 | 20 min | camera | 0 |
 
 `backend_key` = `{physics}` or `{physics}_{render}`. Preset tokens are derived automatically
 by `local_runner.py` and the CI workflow.
@@ -257,22 +284,25 @@ entries that are surfaced without gating.
 ## 8. Oracle Logic
 
 ```
-compare(bench_result, baseline, fps_mean_thresholds, excluded_frames, artifact_dir)
+compare(bench_result, baseline, fps_mean_thresholds, *, min_block_regression_pct=…)
   → OracleResult
 ```
 
 **Verdict decision tree:**
 
 ```
+config_mismatch present?
+    → HARD_FAILURE (config_mismatch)
+
 perf_smoke_test_info_present == False?
     → HARD_FAILURE (file-based check skipped)
 
-Load perf_smoke_test_info.json, extract fps_series from runtime phase
-Apply excluded_frames filter
-filtered empty?
-    → HARD_FAILURE
-
-mean_fps = statistics.mean(filtered)
+mean_fps = bench_result["raw_fps_mean"]        # runtime.total_fps.mean, warmup already
+                                               # excluded at source by perf_runtime.py
+mean_fps missing / non-numeric?
+    → HARD_FAILURE (missing_fps_mean)
+mean_fps <= 0?
+    → HARD_FAILURE (zero_fps)
 
 # threshold_verdict: worst gating threshold crossed (mean_fps < value); PASS if none.
 #   crossed reporting-only thresholds are recorded but do not affect threshold_verdict.
@@ -371,9 +401,6 @@ for local testing.
   "raw_fps_std": 9800.0,
   "raw_fps_min": 1632000.0,
   "raw_fps_max": 1680000.0,
-  "raw_fps_median": 1655000.0,
-  "raw_fps_p5": 1638000.0,
-  "raw_fps_p95": 1672000.0,
   "gpu_diag": {
     "gpu_name": "NVIDIA L40S",
     "gpu_total_memory_gb": 45.62,
@@ -390,18 +417,25 @@ for local testing.
 }
 ```
 
-`raw_fps_*` fields capture the unfiltered per-step distribution for audit/debug;
-`oracle.compare()` recomputes mean FPS independently after applying `excluded_frames`.
-`provenance` enables cross-run comparison: when two baselines diverge, diff their
-`provenance` blocks to identify driver, CUDA, or package version changes.
+`raw_fps_mean`/`_std`/`_max` come straight from the bundle's `runtime.total_fps`
+aggregates, and `raw_fps_min` is recovered as `num_envs / iteration_time_s.peak`
+(slowest steady-state step). Percentile/distribution fields (median, p5/p95, p99/median,
+outlier counts) are **not emitted**: the schema stores only aggregates, and they were never
+gating — `raw_fps_std` (spread) and `raw_fps_min` (worst steady-state frame) cover the tail.
+The oracle reads `raw_fps_mean` directly (warmup already excluded at source), so no post-hoc
+filtering happens here. `provenance` enables cross-run comparison: when two baselines
+diverge, diff their `provenance` blocks to identify driver, CUDA, or package version changes.
 
 See `module-interfaces.md` for the full schema with all fields.
 
-`perf_smoke_test_info.json` (Phase 1 output, renamed from `benchmark_non_rl_*.json`):
+`perf_smoke_test_info.json` (Phase 1 output, copied from `benchmark_runtime_*.json`):
 
-A list of `TestPhase` objects. The oracle reads `"Environment step effective FPS"` from the
-`"runtime"` phase's `"Step Frametimes"` measurement. `build_bench_result.py` also reads
-the `"hardware_info"`, `"version_info"`, and `"startup"` phases for provenance extraction.
+A schema-v1 `RuntimeBundle` — a nested dict with top-level keys `run` / `versions` /
+`hardware` / `runtime` / `resources` / `extra` / `schema_version` (defined by
+`RuntimeBundle` in `source/isaaclab/isaaclab/test/benchmark/schema.py`).
+`benchmark_result_adapter` reads it and projects `runtime.total_fps`,
+`runtime.startup_time_s`, `hardware`, `resources`, and `versions` into the gate's flat
+result fields.
 
 ---
 

@@ -16,7 +16,7 @@
 # Architecture:
 #   config   → load isaacsim version from config.yaml (ubuntu-latest)
 #   bench    → per-task/backend matrix, each pulling the CI image and running
-#              benchmark_non_rl.py inside Docker  (self-hosted, gpu)
+#              perf_runtime.py inside Docker  (self-hosted, gpu)
 #   aggregate → download all bench artifacts, run oracle, update baselines
 #              (self-hosted, gpu)
 #
@@ -283,9 +283,9 @@ jobs:
         docker rm -f "${CONTAINER_NAME}" 2>/dev/null || true
 
         # Build optional render backend preset token for the CLI.
-        # benchmark_non_rl.py accepts Hydra-style preset tokens (no leading dashes).
+        # perf_runtime.py accepts Hydra-style preset tokens (no leading dashes).
         # Physics is selected via the sim_backend token; render via renderer= token.
-        # TODO: Update these tokens once benchmark_non_rl.py CLI flags are finalised.
+        # TODO: Update these tokens once perf_runtime.py CLI flags are finalised.
         HYDRA_ARGS="${{ matrix.hydra_args }}"
 
         # Overlay the PR checkout when running a pulled (prebuilt) env image, so the
@@ -323,11 +323,12 @@ jobs:
             cd /workspace/isaaclab
             rm -f _isaac_sim
             ln -s /isaac-sim _isaac_sim
-            ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
+            ./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
               --task '${TASK_ID}' \
               --num_envs ${{ matrix.num_envs }} \
               --num_frames ${{ matrix.num_frames }} \
-              --benchmark_backend json \
+              --warmup_frames ${{ matrix.warmup_frames }} \
+              --benchmark_formatter schema \
               --output_path /tmp/bench_out \
               ${{ matrix.seed != '' && format('--seed {0}', matrix.seed) || '' }} \
               ${HYDRA_ARGS}
@@ -429,11 +430,12 @@ jobs:
             cd /workspace/isaaclab
             rm -f _isaac_sim
             ln -s /isaac-sim _isaac_sim
-            ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py \
+            ./isaaclab.sh -p tools/perf_smoke_test/perf_runtime.py \
               --task '${TASK_ID}' \
               --num_envs ${{ matrix.num_envs }} \
               --num_frames ${{ matrix.num_frames }} \
-              --benchmark_backend json \
+              --warmup_frames ${{ matrix.warmup_frames }} \
+              --benchmark_formatter schema \
               --output_path /tmp/bench_out \
               ${{ matrix.seed != '' && format('--seed {0}', matrix.seed) || '' }} \
               ${HYDRA_ARGS}

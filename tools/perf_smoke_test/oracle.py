@@ -5,10 +5,7 @@
 
 """Oracle layer for the CI performance smoke test"""
 
-import json
-import statistics
 from dataclasses import dataclass, field
-from pathlib import Path
 
 try:
     from .gate_config import DEFAULT_K_BLOCK, DEFAULT_K_WARN, MIN_BASELINE_SAMPLES, MIN_BLOCK_REGRESSION_PCT
@@ -57,9 +54,6 @@ class OracleResult:
     measured_fps: float | None
     baseline_fps: float | None
     regression_pct: float | None
-    fps_median: float | None
-    fps_p5: float | None
-    fps_p95: float | None
     gpu_mem_used_mb: float | None
     startup_time_s: float | None
     wall_time_s: float | None
@@ -93,24 +87,6 @@ def _bisect_verdict(verdict: OracleVerdict, was_retried: bool, failure_phase: st
     return BisectVerdict.SKIP.value
 
 
-def _percentile(sorted_data: list[float], p: float) -> float:
-    """Linear-interpolation percentile on a pre-sorted non-empty list."""
-    n = len(sorted_data)
-    if n == 1:
-        return sorted_data[0]
-    idx = p / 100.0 * (n - 1)
-    lo = int(idx)
-    hi = min(lo + 1, n - 1)
-    return sorted_data[lo] + (sorted_data[hi] - sorted_data[lo]) * (idx - lo)
-
-
-def apply_excluded_frames(fps_series: list[float], excluded_frames: frozenset[int]) -> list[float]:
-    """Return fps_series with frames at 0-based indices listed in excluded_frames removed"""
-    if not excluded_frames:
-        return list(fps_series)
-    return [fps for idx, fps in enumerate(fps_series) if idx not in excluded_frames]
-
-
 def _hard_failure(
     bench_result: dict,
     failure_phase: str | None,
@@ -127,9 +103,6 @@ def _hard_failure(
         measured_fps=None,
         baseline_fps=None,
         regression_pct=None,
-        fps_median=None,
-        fps_p5=None,
-        fps_p95=None,
         gpu_mem_used_mb=gpu_mem_used_mb,
         startup_time_s=bench_result.get("startup_time_s"),
         wall_time_s=bench_result.get("wall_time_s"),
@@ -141,27 +114,19 @@ def _hard_failure(
     )
 
 
-def _extract_fps_series(perf_smoke_test_info: list[dict]) -> list[float]:
-    for phase in perf_smoke_test_info:
-        if phase.get("phase_name") == "runtime":
-            for measurement in phase.get("measurements", []):
-                if measurement.get("name", "").endswith("Step Frametimes"):
-                    value = measurement.get("value", {})
-                    return list(value.get("Environment step effective FPS", []))
-            break
-    return []
-
-
 def compare(
     bench_result: dict,
     baseline: "Baseline | None",
     fps_mean_thresholds: "list[FpsMeanThreshold]",
-    excluded_frames: "frozenset[int]",
-    artifact_dir: "Path",
     *,
     min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT,
 ) -> OracleResult:
     """Compare a benchmark result against its baseline and return an OracleResult.
+
+    The steady-state mean FPS is taken from ``bench_result["raw_fps_mean"]``,
+    which :mod:`build_bench_result` derives from the runtime bundle's
+    ``total_fps.mean`` (warmup already excluded at the source by
+    ``perf_runtime.py``); the oracle no longer re-parses the benchmark output.
 
     The final verdict is the most severe of the rolling-window/baseline verdict and
     the verdict from any crossed gating threshold (see :class:`~gate_types.FpsMeanThreshold`).
@@ -189,19 +154,13 @@ def compare(
     if not bench_result.get("perf_smoke_test_info_present", False):
         return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb)
 
-    perf_info_path = Path(artifact_dir) / "perf_smoke_test_info.json"
-    with perf_info_path.open() as fh:
-        perf_info = json.load(fh)
-
-    filtered = apply_excluded_frames(_extract_fps_series(perf_info), excluded_frames)
-    if not filtered:
-        return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb, note="empty_fps_series")
-
-    mean_fps = statistics.mean(filtered)
-    sorted_filtered = sorted(filtered)
-    fps_median = _percentile(sorted_filtered, 50.0)
-    fps_p5 = _percentile(sorted_filtered, 5.0)
-    fps_p95 = _percentile(sorted_filtered, 95.0)
+    mean_fps = bench_result.get("raw_fps_mean")
+    if not isinstance(mean_fps, (int, float)) or isinstance(mean_fps, bool):
+        return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb, note="missing_fps_mean")
+    if mean_fps <= 0:
+        # A run reporting no forward progress is a dead run, not a regression;
+        # fail it regardless of baseline availability.
+        return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb, note="zero_fps")
 
     baseline_fps = baseline.median_fps if baseline is not None else None
     baseline_sample_count = baseline.sample_count if baseline is not None else 0
@@ -278,9 +237,6 @@ def compare(
         measured_fps=mean_fps,
         baseline_fps=baseline_fps,
         regression_pct=regression_pct,
-        fps_median=fps_median,
-        fps_p5=fps_p5,
-        fps_p95=fps_p95,
         gpu_mem_used_mb=gpu_mem_used_mb,
         startup_time_s=startup_time_s,
         wall_time_s=wall_time_s,

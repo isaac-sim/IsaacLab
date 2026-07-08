@@ -406,34 +406,6 @@ def update_baseline(
     return True
 
 
-def delete_baseline_files(baselines_dir: Path, gpu_model: str, task_id: str, backend: str, fingerprint=None) -> None:
-    """Delete structured samples for a task/backend pair."""
-    samples = _samples_path(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
-    if samples.exists():
-        samples.unlink()
-
-
-def seed_baseline_with_spread(
-    baselines_dir: Path,
-    gpu_model: str,
-    task_id: str,
-    backend: str,
-    center_fps: float,
-    noise_fps: float = 5.0,
-    n_samples: int = 10,
-    seed: int = 0,
-    fingerprint=None,
-) -> None:
-    """Populate a deterministic structured baseline window for tests and demos."""
-    import random as _random
-
-    rng = _random.Random(seed)
-    delete_baseline_files(baselines_dir, gpu_model, task_id, backend, fingerprint=fingerprint)
-    for _ in range(n_samples):
-        fps = max(1.0, rng.gauss(center_fps, noise_fps))
-        update_baseline(baselines_dir, gpu_model, task_id, backend, fps, fingerprint=fingerprint)
-
-
 def _git_show_file(ref: str, rel_path: str, *, repo_dir: Path | None = None) -> str | None:
     result = _git(["show", f"{ref}:{rel_path}"], cwd=repo_dir)
     return result.stdout if result.returncode == 0 else None
@@ -552,20 +524,3 @@ def update_baselines_git(
             print(f"[baseline_manager] baseline push attempt {attempt}/{max_retries} failed; refetching and retrying")
 
     raise RuntimeError(f"Failed to push baseline branch {branch!r} after {max_retries} attempts: {last_error}")
-
-
-def update_baseline_git(
-    branch: str,
-    gpu_model: str,
-    task_id: str,
-    backend: str,
-    fps: float,
-    fingerprint: str | None,
-    sample_metadata: dict[str, Any] | None = None,
-    *,
-    remote: str | None = "origin",
-    max_retries: int = BASELINE_PUSH_RETRIES,
-    repo_dir: Path | None = None,
-) -> BaselinePushResult:
-    update = BaselineUpdateRecord(gpu_model, task_id, backend, fps, fingerprint, sample_metadata)
-    return update_baselines_git(branch, [update], remote=remote, max_retries=max_retries, repo_dir=repo_dir)

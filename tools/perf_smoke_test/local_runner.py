@@ -7,7 +7,7 @@
 
 Mirrors the structure of the three-phase CI workflow:
 
-    Phase 1  bench        tasks.json → matrix → benchmark_non_rl.py (per task)
+    Phase 1  bench        tasks.json → matrix → perf_runtime.py (per task)
     Phase 2  post-bench   build_bench_result.py (per task, plain Python)
     Phase 3  aggregate    aggregate.py + oracle → verdict table
 
@@ -45,7 +45,7 @@ if str(_MODULE_DIR) not in sys.path:
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from gpu_identity import canonical_gpu_model  # noqa: E402
+from gpu_identity import canonical_gpu_model, detect_gpu_model  # noqa: E402
 from launch_config import hydra_args_for_task, task_to_launch_config, write_launch_config  # noqa: E402
 from task_config import TaskConfig, load_tasks  # noqa: E402
 from validate_tasks import validate as validate_tasks  # noqa: E402
@@ -123,23 +123,6 @@ def _parse_args() -> argparse.Namespace:
 # ---------------------------------------------------------------------------
 
 
-def _detect_gpu_model() -> str:
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except Exception:
-        return "unknown-gpu"
-    for line in result.stdout.splitlines():
-        gpu_model = line.strip()
-        if gpu_model:
-            return gpu_model
-    return "unknown-gpu"
-
-
 def _print_matrix(tasks: list[TaskConfig], tags: list[str]) -> None:
     print(f"\n{'=' * 68}")
     print(f"  Phase 1 — Task Matrix  ({len(tasks)} entries, tags={tags})")
@@ -157,7 +140,7 @@ def _hydra_args(task: TaskConfig) -> list[str]:
 
 
 def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> list[str]:
-    """Build the ./isaaclab.sh -p benchmark_non_rl.py command for one task/backend."""
+    """Build the ./isaaclab.sh -p perf_runtime.py command for one task/backend."""
     cmd = [
         str(_REPO_ROOT / "isaaclab.sh"),
         "-p",
@@ -168,8 +151,10 @@ def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> l
         str(task.num_envs),
         "--num_frames",
         str(task.num_frames),
-        "--benchmark_backend",
-        "json",
+        "--warmup_frames",
+        str(task.warmup_frames),
+        "--benchmark_formatter",
+        "schema",
         "--output_path",
         str(artifact_dir),
     ]
@@ -180,7 +165,7 @@ def _isaaclab_cmd(bench_script: Path, task: TaskConfig, artifact_dir: Path) -> l
 
 
 def _run_benchmark(task: TaskConfig, artifact_dir: Path, bench_script: Path) -> tuple[int, float]:
-    """Run benchmark_non_rl.py for one task, streaming output live + writing to log.
+    """Run perf_runtime.py for one task, streaming output live + writing to log.
 
     Returns (exit_code, wall_time_s).
     """
@@ -300,7 +285,7 @@ def main() -> int:
         print("[local_runner] validate OK: all task_ids resolve to registered environments.")
         return 0
 
-    gpu_model_raw = args.gpu_model or _detect_gpu_model()
+    gpu_model_raw = detect_gpu_model(args.gpu_model)
     gpu_model = canonical_gpu_model(gpu_model_raw)
 
     # Expand matrix from tasks.json
@@ -326,7 +311,7 @@ def main() -> int:
         print("[local_runner] --dry_run: exiting without running benchmarks.")
         return 0
 
-    bench_script = _REPO_ROOT / "scripts" / "benchmarks" / "benchmark_non_rl.py"
+    bench_script = _REPO_ROOT / "tools" / "perf_smoke_test" / "perf_runtime.py"
     if not bench_script.exists():
         print(f"[local_runner] ERROR: benchmark script not found at {bench_script}")
         return 1

@@ -7,23 +7,15 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from typing import Any
 
 try:
     from .backend_identity import BackendIdentity
+    from .gate_types import stable_hash
 except ImportError:  # pragma: no cover - supports direct script imports
     from backend_identity import BackendIdentity
-
-
-def _canonical_json(data: dict[str, Any]) -> str:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
-
-
-def stable_hash(data: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json(data).encode("utf-8")).hexdigest()[:16]
+    from gate_types import stable_hash
 
 
 def _get_path(data: Mapping[str, Any], dotted_path: str) -> Any:

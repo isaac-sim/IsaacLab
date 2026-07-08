@@ -1,0 +1,257 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Adapter: schema-v1 ``RuntimeBundle`` JSON -> perf-gate normalized fields.
+
+``perf_runtime.py`` emits a
+:class:`~isaaclab.test.benchmark.schema.RuntimeBundle` (Isaac Lab benchmark
+refactor Part 1, PR #6197) serialized by
+:func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.  This module is the
+single point that reads that JSON and projects it into the flat
+``provenance`` / ``gpu_diag`` / fps / ``benchmark_info`` shapes the gate's
+:mod:`oracle` and :mod:`build_bench_result` consume, replacing the legacy
+phase-array parsing.
+
+**Deliberately dropped vs. the legacy phase-array output** (the bundle stores
+only aggregates, so these have no source and were never gating):
+
+- ``raw_fps_median`` / ``raw_fps_p5`` / ``raw_fps_p95`` (percentiles)
+- ``p99_over_median`` / ``outlier_count`` (raw step-time distribution)
+
+``raw_fps_min`` is *recovered* from the slowest steady-state step
+(``num_envs / iteration_time_s.peak``); ``raw_fps_{mean,std,max}`` come straight
+from ``runtime.total_fps.{mean,std,peak}``.  Warmup exclusion is applied at the
+source by ``perf_runtime.py`` (``--warmup_frames``), so ``total_fps.mean`` is
+already steady-state.
+"""
+
+from __future__ import annotations
+
+import json
+import subprocess
+from pathlib import Path
+from typing import Any
+
+# Map the schema's rendering-backend vocabulary to the gate's render-preset
+# tokens used in tasks.json / backend_identity.  ``"none"`` (headless, no camera)
+# maps to ``None``.
+_SCHEMA_RENDER_TO_GATE: dict[str | None, str | None] = {
+    None: None,
+    "": None,
+    "none": None,
+    "newton": "newton_renderer",
+    "ovrtx": "ovrtx_renderer",
+    "isaacsim_rtx": "rtx_renderer",
+}
+
+
+def _as_dict(value: Any) -> dict:
+    """Return ``value`` if it is a dict, else an empty dict.
+
+    Bundle sections are always dicts in a valid schema-v1 file; this keeps a
+    malformed/hand-edited bundle (e.g. a list where a dict is expected) from
+    crashing the projection so the gate degrades gracefully instead of the
+    result builder aborting with no output.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def steady_state_slice(step_times: list[float], warmup_frames: int) -> tuple[list[float], int]:
+    """Drop the leading ``warmup_frames`` cold-start steps, keeping >=1 frame.
+
+    Producer-side helper used by ``perf_runtime.py`` to exclude warmup at the
+    source before aggregation. If ``warmup_frames`` would leave nothing, it is
+    clamped to ``len(step_times) - 1`` so the aggregate never silently falls back
+    to the full, cold-start-inclusive series (which would misreport non-steady
+    numbers as steady-state).
+
+    Args:
+        step_times: Per-step wall times [s], in order.
+        warmup_frames: Requested number of leading steps to discard.
+
+    Returns:
+        ``(measured_step_times, warmup_applied)`` where ``warmup_applied`` is the
+        number of leading steps actually discarded (may be clamped below the
+        request).
+    """
+    n = len(step_times)
+    if n == 0:
+        return [], 0
+    warmup = max(0, min(warmup_frames, n - 1))
+    return list(step_times[warmup:]), warmup
+
+
+def load_info(info_path: Path) -> dict | None:
+    """Load the benchmark info JSON, or ``None`` if it is missing/unreadable."""
+    try:
+        data = json.loads(Path(info_path).read_text())
+    except Exception:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def is_runtime_bundle(data: Any) -> bool:
+    """Return True when ``data`` looks like a schema-v1 runtime/training bundle."""
+    return (
+        isinstance(data, dict)
+        and isinstance(data.get("run"), dict)
+        and isinstance(data.get("runtime"), dict)
+        and "schema_version" in data
+    )
+
+
+def gpu_driver_version() -> str | None:
+    """Return the GPU driver version from nvidia-smi, or ``None`` if unavailable."""
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=driver_version", "--format=csv,noheader,nounits"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip().splitlines()[0].strip()
+            return version or None
+    except Exception:
+        pass
+    return None
+
+
+def _current_gpu(bundle: dict) -> dict:
+    """Return the first GPU device dict from the hardware snapshot (or ``{}``)."""
+    devices = _as_dict(bundle.get("hardware")).get("gpu_devices") or []
+    return devices[0] if devices and isinstance(devices[0], dict) else {}
+
+
+def render_backend(bundle: dict) -> str | None:
+    """Return the gate render token for the bundle's rendering backend."""
+    schema_render = _as_dict(_as_dict(bundle.get("run")).get("config")).get("rendering_backend")
+    key = schema_render.lower() if isinstance(schema_render, str) else schema_render
+    return _SCHEMA_RENDER_TO_GATE.get(key, key or None)
+
+
+def fps_stats(bundle: dict) -> dict:
+    """Return ``raw_fps_{mean,std,min,max}`` from the bundle's runtime aggregates.
+
+    ``mean``/``std``/``max`` come from ``total_fps``; ``min`` (worst steady-state
+    frame) is recovered from the slowest step time.  Percentile fields are not
+    available in the schema and are intentionally omitted.
+    """
+    runtime = _as_dict(bundle.get("runtime"))
+    total_fps = _as_dict(runtime.get("total_fps"))
+    iter_time = _as_dict(runtime.get("iteration_time_s"))
+    steps_per_iter = runtime.get("steps_per_iteration") or _as_dict(bundle.get("run")).get("num_envs")
+
+    out: dict = {}
+    if isinstance(total_fps.get("mean"), (int, float)):
+        out["raw_fps_mean"] = float(total_fps["mean"])
+    if isinstance(total_fps.get("std"), (int, float)):
+        out["raw_fps_std"] = float(total_fps["std"])
+    if isinstance(total_fps.get("peak"), (int, float)):
+        out["raw_fps_max"] = float(total_fps["peak"])
+    peak_step = iter_time.get("peak")
+    if isinstance(peak_step, (int, float)) and peak_step > 0 and steps_per_iter:
+        out["raw_fps_min"] = float(steps_per_iter) / float(peak_step)
+    return out
+
+
+def startup_seconds(bundle: dict) -> float | None:
+    """Return total launch-to-first-step wall time [s] (sum of startup phases)."""
+    startup = _as_dict(_as_dict(bundle.get("runtime")).get("startup_time_s"))
+    values = [v for v in startup.values() if isinstance(v, (int, float))]
+    return float(sum(values)) if values else None
+
+
+def provenance(bundle: dict) -> dict:
+    """Return ``{hardware, software, git}`` for the runtime-compatibility contract.
+
+    ``software`` is the bundle's typed ``versions`` map verbatim (its field names
+    — ``isaaclab``/``isaacsim``/``torch``/``warp``/``isaaclab_physx``/
+    ``isaaclab_newton``/``newton``/``isaaclab_ov`` — match the contract policy
+    paths, so the ``runtime_contract_hash`` is preserved across the migration).
+    """
+    versions = _as_dict(bundle.get("versions"))
+    hardware_snapshot = _as_dict(bundle.get("hardware"))
+    gpu = _current_gpu(bundle)
+
+    software = {k: v for k, v in versions.items() if v is not None and not k.startswith("git_")}
+    hardware = {
+        k: v
+        for k, v in {
+            "cpu_name": hardware_snapshot.get("cpu_name"),
+            "cpu_physical_cores": hardware_snapshot.get("cpu_count"),
+            "total_ram_gb": hardware_snapshot.get("ram_gb"),
+            "gpu_device_count": len(hardware_snapshot.get("gpu_devices") or []) or None,
+            "gpu_name": gpu.get("name"),
+            "gpu_total_memory_gb": gpu.get("mem_gb"),
+            "gpu_compute_capability": gpu.get("compute_cap"),
+        }.items()
+        if v is not None
+    }
+    git = {
+        gate_key: versions[schema_key]
+        for gate_key, schema_key in (
+            ("commit_hash", "git_commit"),
+            ("branch", "git_branch"),
+            ("dirty", "git_dirty"),
+        )
+        if versions.get(schema_key) is not None
+    }
+    return {"hardware": hardware, "software": software, "git": git}
+
+
+def gpu_diag(bundle: dict) -> dict:
+    """Return the human/debug GPU diagnostics block (non-gating publish info)."""
+    gpu = _current_gpu(bundle)
+    gpu_mem = _as_dict(_as_dict(bundle.get("resources")).get("gpu_mem_gb"))
+    mem_used_gb = gpu_mem.get("mean")
+    # schema-v1 Hardware has no CUDA-runtime field; use the CUDA bindings version
+    # (Versions.cuda_bindings) as the closest available proxy for display.
+    cuda_version = _as_dict(bundle.get("versions")).get("cuda_bindings")
+    diag = {
+        "gpu_name": gpu.get("name"),
+        "gpu_total_memory_gb": gpu.get("mem_gb"),
+        "cuda_version": cuda_version,
+        "nvidia_driver_version": gpu_driver_version(),
+        "gpu_mem_used_mb": round(float(mem_used_gb) * 1024, 2) if isinstance(mem_used_gb, (int, float)) else None,
+    }
+    return {k: v for k, v in diag.items() if v is not None}
+
+
+def benchmark_info(bundle: dict) -> dict:
+    """Return the run's self-reported identity for launch/run drift checks."""
+    run = _as_dict(bundle.get("run"))
+    config = _as_dict(run.get("config"))
+    extra = _as_dict(bundle.get("extra"))
+    info = {
+        "task": run.get("task"),
+        "num_envs": run.get("num_envs"),
+        "seed": run.get("seed"),
+        "num_frames": extra.get("num_frames"),
+        "warmup_frames": extra.get("warmup_frames"),
+        "status": run.get("status"),
+        "physics_backend": config.get("physics_backend"),
+        "render_backend": render_backend(bundle),
+        "presets": config.get("presets") or [],
+    }
+    return {k: v for k, v in info.items() if v is not None}
+
+
+def to_gate_fields(bundle: dict) -> dict:
+    """Project a runtime bundle into the flat fields the result builder writes.
+
+    Returns a dict with ``raw_fps_*`` stats, ``startup_time_s``, ``gpu_diag``,
+    and ``provenance``; keys are omitted when their source is absent.
+    """
+    out: dict = {}
+    out.update(fps_stats(bundle))
+    startup = startup_seconds(bundle)
+    if startup is not None:
+        out["startup_time_s"] = startup
+    diag = gpu_diag(bundle)
+    if diag:
+        out["gpu_diag"] = diag
+    out["provenance"] = provenance(bundle)
+    return out

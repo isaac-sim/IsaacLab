@@ -81,7 +81,7 @@ class TaskConfig:
     preset: str
     num_envs: int
     num_frames: int
-    excluded_frames_raw: list[int | list[int]]
+    warmup_frames: int
     camera_resolution: tuple[int, int] | None
     timeout_minutes: int
     fps_mean_thresholds: dict[str, dict[str, list[FpsMeanThreshold]]]
@@ -104,11 +104,11 @@ class TaskConfig:
     def thresholds_for(self, gpu_model: str) -> list[FpsMeanThreshold]:
         """Return configured FPS thresholds for this task/backend on ``gpu_model``.
 
-        Resolves across the canonical and legacy GPU config keys (e.g. ``L40S``),
-        returning the first matching backend entry, or an empty list if none apply.
+        Normalizes ``gpu_model`` to its canonical key (e.g. ``l40s``) and returns
+        the first matching backend entry, or an empty list if none apply.
 
         Args:
-            gpu_model: GPU model string (canonical or raw display name).
+            gpu_model: GPU model string (canonical slug, display name, or raw name).
 
         Returns:
             List of :class:`~gate_types.FpsMeanThreshold` (possibly empty).
@@ -118,24 +118,6 @@ class TaskConfig:
             if backends and self.backend_key in backends:
                 return backends[self.backend_key]
         return []
-
-    @property
-    def excluded_frames(self) -> frozenset[int]:
-        """Expand raw excluded_frames entries (single index or inclusive range) to a
-        frozenset of integer frame indices.
-        """
-        indices: set[int] = set()
-        for entry in self.excluded_frames_raw:
-            if isinstance(entry, list):
-                if len(entry) != 2:
-                    raise ValueError(f"excluded_frames range entry must have exactly 2 elements, got {entry!r}")
-                start, end = entry[0], entry[1]
-                if start > end:
-                    raise ValueError(f"excluded_frames range start must be <= end, got [{start}, {end}]")
-                indices.update(range(start, end + 1))
-            else:
-                indices.add(int(entry))
-        return frozenset(indices)
 
 
 def _load_tasks_json(path: Path) -> tuple[dict, list[dict]]:
@@ -197,7 +179,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
                     preset=merged["preset"],
                     num_envs=merged["num_envs"],
                     num_frames=merged["num_frames"],
-                    excluded_frames_raw=merged["excluded_frames"],
+                    warmup_frames=int(merged.get("warmup_frames", 0)),
                     camera_resolution=camera_resolution,
                     timeout_minutes=int(merged["timeout_minutes"]),
                     fps_mean_thresholds=fps_mean_thresholds,

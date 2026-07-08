@@ -6,7 +6,7 @@
     "seed": 42,
     "num_envs": 512,
     "num_frames": 300,
-    "excluded_frames": [[0, 100]],
+    "warmup_frames": 100,
     "camera_resolution": null,
     "timeout_minutes": 10,
     "tags": ["always"]
@@ -20,7 +20,7 @@
         {"physics": "newton"}
       ],
       "fps_mean_thresholds": {
-        "L40S": {
+        "l40s": {
           "physx": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 100.0}
           ],
@@ -37,7 +37,7 @@
         {"physics": "physx"}
       ],
       "fps_mean_thresholds": {
-        "L40S": {
+        "l40s": {
           "physx": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 30.0}
           ]
@@ -55,7 +55,7 @@
         {"physics": "newton", "render": "newton_renderer"}
       ],
       "fps_mean_thresholds": {
-        "L40S": {
+        "l40s": {
           "physx": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 20.0}
           ],
@@ -79,7 +79,7 @@
         {"physics": "newton"}
       ],
       "fps_mean_thresholds": {
-        "L40S": {
+        "l40s": {
           "physx": [
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 40.0}
           ],

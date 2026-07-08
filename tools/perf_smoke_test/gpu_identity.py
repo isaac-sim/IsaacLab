@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from typing import Any
 
 _UNKNOWN_GPU = "unknown_gpu"
@@ -52,29 +53,17 @@ def canonical_gpu_model(value: Any) -> str:
 
 
 def gpu_model_config_keys(value: Any) -> list[str]:
-    """Return candidate keys for reading existing GPU-keyed config dictionaries.
+    """Return candidate keys for reading GPU-keyed config dictionaries.
 
-    `gpu_model` is canonical for new artifacts, but existing task floor configs may
-    still use legacy display keys such as `L40S`.
+    Config (``tasks.json`` thresholds) and baseline buckets are keyed by the
+    canonical slug (e.g. ``l40s``); the raw string is kept as a defensive
+    fallback for a config hand-keyed to the exact detected name.
     """
     raw = _clean(value)
     canonical = canonical_gpu_model(raw)
     keys: list[str] = []
     for key in (canonical, raw):
         if key and key not in keys:
-            keys.append(key)
-
-    legacy = {
-        "l40s": ["L40S"],
-        "l40": ["L40"],
-        "rtx_pro_6000_blackwell": ["RTX6000", "RTX PRO 6000", "RTX PRO 6000 Blackwell"],
-        "rtx_pro_6000": ["RTX6000", "RTX PRO 6000"],
-        "rtx_6000_ada": ["RTX6000", "RTX 6000 Ada"],
-        "rtx_6000": ["RTX6000", "RTX 6000"],
-        "rtx_a6000": ["RTXA6000", "RTX A6000"],
-    }
-    for key in legacy.get(canonical, []):
-        if key not in keys:
             keys.append(key)
     return keys
 
@@ -85,3 +74,29 @@ def normalize_gpu_fields(value: Any) -> dict[str, str]:
         "gpu_model": canonical_gpu_model(raw),
         "gpu_model_raw": raw or _UNKNOWN_GPU,
     }
+
+
+def detect_gpu_model(explicit: str = "") -> str:
+    """Return the raw GPU model label, preferring ``explicit`` else nvidia-smi.
+
+    Falls back to ``"unknown-gpu"`` when nvidia-smi is unavailable or reports
+    nothing. Shared by the local runner and the baseline seeder.
+    """
+    explicit = _clean(explicit)
+    if explicit:
+        return explicit
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                name = line.strip()
+                if name:
+                    return name
+    except Exception:
+        pass
+    return "unknown-gpu"

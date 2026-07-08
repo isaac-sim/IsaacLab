@@ -11,19 +11,18 @@ as the run intent instead of re-reading ``tasks.json``, so it can catch workflow
 command bugs and self-hosted-runner handoff issues.
 """
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 try:
     from .backend_identity import make_backend_key, normalize_render_backend
-    from .gate_types import FpsMeanThreshold
+    from .gate_types import FpsMeanThreshold, stable_hash
     from .gpu_identity import normalize_gpu_fields
     from .task_config import TaskConfig
 except ImportError:  # pragma: no cover (for direct scripting execution/import)
     from backend_identity import make_backend_key, normalize_render_backend
-    from gate_types import FpsMeanThreshold
+    from gate_types import FpsMeanThreshold, stable_hash
     from gpu_identity import normalize_gpu_fields
     from task_config import TaskConfig
 
@@ -31,14 +30,6 @@ LAUNCH_CONFIG_SCHEMA_VERSION = 1
 BENCHMARK_CONTRACT_VERSION = 1
 DEFAULT_BASELINE_EPOCH = 1
 LAUNCH_CONFIG_FILENAME = "launch_config.json"
-
-
-def _canonical_json(data: dict[str, Any]) -> str:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
-
-
-def stable_hash(data: dict[str, Any]) -> str:
-    return hashlib.sha256(_canonical_json(data).encode("utf-8")).hexdigest()[:16]
 
 
 def workload_contract(config: dict[str, Any]) -> dict[str, Any]:
@@ -52,9 +43,9 @@ def workload_contract(config: dict[str, Any]) -> dict[str, Any]:
         "num_envs",
         "num_frames",
         "seed",
-        "excluded_frames_raw",
+        "warmup_frames",
         "camera_resolution",
-        "benchmark_backend",
+        "benchmark_formatter",
         "hydra_args",
     )
     return {key: config.get(key) for key in keys}
@@ -78,7 +69,7 @@ def task_to_launch_config(
     fps_mean_thresholds: list[FpsMeanThreshold],
     gpu_model: str | None = None,
     hydra_args: list[str] | None = None,
-    benchmark_backend: str = "json",
+    benchmark_formatter: str = "schema",
 ) -> dict[str, Any]:
     """Build a serializable launch config for one task/backend job"""
     gpu_fields = normalize_gpu_fields(gpu_model)
@@ -92,13 +83,13 @@ def task_to_launch_config(
         "num_envs": task.num_envs,
         "num_frames": task.num_frames,
         "seed": task.seed,
-        "excluded_frames_raw": task.excluded_frames_raw,
+        "warmup_frames": task.warmup_frames,
         "camera_resolution": list(task.camera_resolution) if task.camera_resolution else None,
         "timeout_minutes": task.timeout_minutes,
         "tags": list(task.tags),
         "gpu_model": gpu_fields["gpu_model"],
         "gpu_model_raw": gpu_fields["gpu_model_raw"],
-        "benchmark_backend": benchmark_backend,
+        "benchmark_formatter": benchmark_formatter,
         "hydra_args": list(hydra_args or []),
         "fps_mean_thresholds": [t.to_dict() for t in fps_mean_thresholds],
         "baseline_epoch": int(getattr(task, "baseline_epoch", DEFAULT_BASELINE_EPOCH)),
@@ -108,8 +99,8 @@ def task_to_launch_config(
     config["benchmark_contract_hash"] = stable_hash(
         {
             "benchmark_contract_version": config["benchmark_contract_version"],
-            "excluded_frames_raw": config["excluded_frames_raw"],
-            "benchmark_backend": config["benchmark_backend"],
+            "warmup_frames": config["warmup_frames"],
+            "benchmark_formatter": config["benchmark_formatter"],
         }
     )
     return config
@@ -139,13 +130,13 @@ def fallback_launch_config(
             "num_envs": 0,
             "num_frames": 0,
             "seed": None,
-            "excluded_frames_raw": [],
+            "warmup_frames": 0,
             "camera_resolution": None,
             "timeout_minutes": int(timeout_s / 60),
             "tags": ["always"],
             "gpu_model": gpu_fields["gpu_model"],
             "gpu_model_raw": gpu_fields["gpu_model_raw"],
-            "benchmark_backend": "json",
+            "benchmark_formatter": "schema",
             "hydra_args": [],
             "fps_mean_thresholds": [],
             "baseline_epoch": DEFAULT_BASELINE_EPOCH,
@@ -155,8 +146,8 @@ def fallback_launch_config(
         config["benchmark_contract_hash"] = stable_hash(
             {
                 "benchmark_contract_version": config["benchmark_contract_version"],
-                "excluded_frames_raw": config["excluded_frames_raw"],
-                "benchmark_backend": config["benchmark_backend"],
+                "warmup_frames": config["warmup_frames"],
+                "benchmark_formatter": config["benchmark_formatter"],
             }
         )
         return config

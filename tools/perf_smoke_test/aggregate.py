@@ -66,20 +66,6 @@ def _find_bench_results(artifacts_dir: Path) -> list[tuple[Path, dict]]:
     return found
 
 
-def _excluded_frames(bench_result: dict) -> frozenset[int]:
-    launch_config = bench_result.get("launch_config") or {}
-    raw = launch_config.get("excluded_frames_raw")
-    if raw is None:
-        raw = (bench_result.get("task_config_snapshot") or {}).get("excluded_frames_raw", [])
-    indices: set[int] = set()
-    for entry in raw or []:
-        if isinstance(entry, list):
-            indices.update(range(int(entry[0]), int(entry[1]) + 1))
-        else:
-            indices.add(int(entry))
-    return frozenset(indices)
-
-
 def _fmt(value, decimals: int = 1) -> str:
     return f"{value:.{decimals}f}" if value is not None else "N/A"
 
@@ -137,12 +123,10 @@ def _build_summary_table(rows: list[tuple]) -> str:
             )
             if part
         )
-        note_parts = [part for part in (result.note, bench_result.get("config_mismatch")) if part]
+        # result.note already carries the config_mismatch string on the
+        # config-mismatch HARD_FAILURE path; dedupe so it is not shown twice.
+        note_parts = list(dict.fromkeys(part for part in (result.note, bench_result.get("config_mismatch")) if part))
         note_parts.extend(_render_crossed(result.crossed_thresholds))
-        if bench_result.get("p99_over_median") is not None:
-            note_parts.append(f"p99/med={bench_result['p99_over_median']}")
-        if bench_result.get("outlier_count") is not None:
-            note_parts.append(f"outliers={bench_result['outlier_count']}")
         lines.append(
             f"| {result.task_id} | {result.backend} | {result.verdict.value}"
             f" | {_fmt(result.measured_fps)} | {_fmt(result.baseline_fps)} | {result.baseline_sample_count}"
@@ -237,8 +221,6 @@ def main() -> int:
             bench_result=bench_result,
             baseline=baseline,
             fps_mean_thresholds=_thresholds(bench_result, bench_gpu_model, backend),
-            excluded_frames=_excluded_frames(bench_result),
-            artifact_dir=artifact_dir,
             min_block_regression_pct=min_block_regression_pct,
         )
         rows.append((oracle_result, bench_result))
