@@ -510,6 +510,8 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 
     return sensor, root_view, wrenches_torch, env_mask
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_joint_wrench_caches_physx_wrench_view():
     """Repeated eager updates should reuse one typed view over the refreshed PhysX buffer."""
     sensor, root_view, _, env_mask = _make_joint_wrench_sensor(use_recorded_launch=False)
@@ -522,6 +524,8 @@ def test_joint_wrench_caches_physx_wrench_view():
     assert root_view.view_count == 1
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_joint_wrench_records_and_replays_update_launch():
     """A recorded update should replay using changes to the stable environment mask."""
     sensor, _, wrenches_torch, env_mask = _make_joint_wrench_sensor(num_envs=2)
@@ -563,6 +567,8 @@ def test_joint_wrench_records_and_replays_update_launch():
     )
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_joint_wrench_falls_back_when_recording_fails(monkeypatch):
     """A recording failure should disable recording and execute the current update eagerly."""
     sensor, _, _, env_mask = _make_joint_wrench_sensor()
@@ -584,6 +590,8 @@ def test_joint_wrench_falls_back_when_recording_fails(monkeypatch):
     )
 
 
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_joint_wrench_invalidation_drops_cached_launch_state(monkeypatch):
     """Physics invalidation should release the cached PhysX view and recorded command."""
     sensor, _, _, _ = _make_joint_wrench_sensor()
