@@ -182,7 +182,7 @@ class BaseArticulation(AssetBase):
         """
         ordering = self.data.joint_ordering
         if ordering is not None:
-            return list(ordering.user_names)
+            return list(self.data.joint_names)
         return list(self.backend_joint_names)
 
     @property
@@ -206,7 +206,7 @@ class BaseArticulation(AssetBase):
         """
         ordering = self.data.body_ordering
         if ordering is not None:
-            return list(ordering.user_names)
+            return list(self.data.body_names)
         return list(self.backend_body_names)
 
     @property
@@ -337,80 +337,72 @@ class BaseArticulation(AssetBase):
     def _resolve_and_install_ordering_maps(self) -> None:
         """Resolve configured articulation name orderings and store maps on :attr:`data`.
 
-        Orderings that resolve to the backend's native order are normalized to
-        ``None`` here, so an installed map always denotes an actual permutation
-        and ``is not None`` checks alone decide whether reordering is active.
+        This is the single install site for ordering state: the resolved maps live
+        only on :attr:`data` (:attr:`~BaseArticulationData.joint_ordering` and
+        :attr:`~BaseArticulationData.body_ordering`) and every read path checks
+        them there. Orderings that resolve to the backend's native order are
+        normalized to ``None``, so a non-``None`` map always denotes an actual
+        permutation and ``is not None`` checks alone decide whether reordering is
+        active.
         """
         had_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
 
-        if self.cfg.joint_ordering is None:
-            self.data.joint_ordering = None
-            self.data.joint_names = list(self.backend_joint_names)
-        else:
-            joint_user_names = _resolve_articulation_ordering_names(
-                kind="joint",
-                backend_names=tuple(self.backend_joint_names),
-                ordering=self.cfg.joint_ordering,
-                active_backend_name=self.__backend_name__,
-                articulation=self,
-            )
-            joint_ordering = build_articulation_name_map(
-                kind="joint",
-                backend_names=tuple(self.backend_joint_names),
-                user_names=joint_user_names,
-                device=self.device,
-            )
-            if joint_ordering.is_identity:
-                logger.info(
-                    "Configured joint_ordering for '%s' resolves to the backend's native order; no reordering"
-                    " will be applied.",
-                    self.cfg.prim_path,
-                )
-                joint_ordering = None
-            self.data.joint_ordering = joint_ordering
-            self.data.joint_names = list(joint_user_names)
+        joint_names, joint_ordering = self._resolve_axis_ordering("joint")
+        self.data.joint_names = joint_names
+        self.data.joint_ordering = joint_ordering
 
-        if self.cfg.body_ordering is None:
-            self.data.body_ordering = None
-            self.data.body_names = list(self.backend_body_names)
-        else:
-            backend_body_names = tuple(self.backend_body_names)
-            body_user_names = _resolve_articulation_ordering_names(
-                kind="body",
-                backend_names=backend_body_names,
-                ordering=self.cfg.body_ordering,
-                active_backend_name=self.__backend_name__,
-                articulation=self,
-            )
-            body_ordering = build_articulation_name_map(
-                kind="body",
-                backend_names=backend_body_names,
-                user_names=body_user_names,
-                device=self.device,
-            )
-            if self.is_fixed_base and backend_body_names:
-                root_body_name = backend_body_names[0]
-                requested_index = body_ordering.backend_to_user_indices[0]
-                if requested_index != 0:
-                    raise ValueError(
-                        f"Invalid body_ordering for fixed-base articulation '{self.cfg.prim_path}': root body "
-                        f"'{root_body_name}' must remain at public index 0, but was requested at index "
-                        f"{requested_index}. Put '{root_body_name}' first; all remaining bodies may be reordered "
-                        "freely."
-                    )
-            if body_ordering.is_identity:
-                logger.info(
-                    "Configured body_ordering for '%s' resolves to the backend's native order; no reordering"
-                    " will be applied.",
-                    self.cfg.prim_path,
+        body_names, body_ordering = self._resolve_axis_ordering("body")
+        if body_ordering is not None and self.is_fixed_base:
+            root_body_name = self.backend_body_names[0]
+            requested_index = body_ordering.backend_to_user_indices[0]
+            if requested_index != 0:
+                raise ValueError(
+                    f"Invalid body_ordering for fixed-base articulation '{self.cfg.prim_path}': root body "
+                    f"'{root_body_name}' must remain at public index 0, but was requested at index "
+                    f"{requested_index}. Put '{root_body_name}' first; all remaining bodies may be reordered "
+                    "freely."
                 )
-                body_ordering = None
-            self.data.body_ordering = body_ordering
-            self.data.body_names = list(body_user_names)
+        self.data.body_names = body_names
+        self.data.body_ordering = body_ordering
 
         has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
         if had_ordering or has_ordering:
             self.data._apply_ordering_maps_after_resolve()
+
+    def _resolve_axis_ordering(self, kind: Literal["joint", "body"]) -> tuple[list[str], ArticulationNameMap | None]:
+        """Resolve one axis's public names and permutation from the configuration.
+
+        Args:
+            kind: Articulation element kind to resolve.
+
+        Returns:
+            The public names for the axis and its permutation map, where ``None``
+            means public order equals backend order (no ordering configured, or a
+            configured ordering that resolved to the backend's native order).
+        """
+        backend_names = tuple(self.backend_joint_names if kind == "joint" else self.backend_body_names)
+        cfg_ordering = self.cfg.joint_ordering if kind == "joint" else self.cfg.body_ordering
+        if cfg_ordering is None:
+            return list(backend_names), None
+
+        user_names = _resolve_articulation_ordering_names(
+            kind=kind,
+            backend_names=backend_names,
+            ordering=cfg_ordering,
+            active_backend_name=self.__backend_name__,
+            articulation=self,
+        )
+        ordering = build_articulation_name_map(
+            kind=kind, backend_names=backend_names, user_names=user_names, device=self.device
+        )
+        if ordering is None:
+            logger.info(
+                "Configured %s_ordering for '%s' resolves to the backend's native order; no reordering"
+                " will be applied.",
+                kind,
+                self.cfg.prim_path,
+            )
+        return list(user_names), ordering
 
     @property
     def num_base_dofs(self) -> int:
@@ -2440,61 +2432,43 @@ class BaseArticulation(AssetBase):
     the default empty tuple keeps identity-only backends at a no-op.
     """
 
-    def _cache_ordering_maps(self) -> None:
-        """Cache backend/public ordering maps on the articulation instance.
+    def _joint_user_to_backend_map(self) -> wp.array:
+        """Device public-to-backend joint map, or the identity map when no ordering is active.
 
-        Backends install ordering maps exactly once during initialization. There
-        is no public runtime re-ordering API, so re-invoking this method after the
-        maps are cached indicates a programming error and is rejected. A backend
-        that legitimately rebuilds its maps calls :meth:`_reset_and_cache_ordering_maps`
-        (which resets :attr:`_ordering_maps_cached` first), mirroring the single
-        initialization path.
-
-        The data container owns the canonical ordering flags; this method mirrors
-        them onto the asset as plain attributes so hot write paths read one value
-        without a per-step property hop, while the asset keeps its own device maps
-        (identity-order reads still need a valid ``_ALL_*_INDICES`` array).
-
-        Raises:
-            RuntimeError: If invoked again after the ordering maps were cached.
+        The identity fallback reads the backend-allocated ``_ALL_JOINT_INDICES``
+        index buffer (the same backend-owned contract as
+        :attr:`_ordering_joint_staging_names`), so unconditional launch sites --
+        for example in-graph publish kernels that always gather -- get a valid map
+        either way. Conditional sites should read :attr:`data.joint_ordering`
+        directly and skip the launch when it is ``None``.
         """
-        if getattr(self, "_ordering_maps_cached", False):
-            raise RuntimeError(
-                "Articulation ordering maps are cached exactly once during initialization; "
-                "re-ordering an already initialized articulation is not supported."
-            )
+        ordering = self.data.joint_ordering
+        return ordering.user_to_backend if ordering is not None else self._ALL_JOINT_INDICES
 
-        joint_ordering = self.data.joint_ordering
-        if joint_ordering is None:
-            self._joint_user_to_backend = self._ALL_JOINT_INDICES
-            self._joint_backend_to_user = self._ALL_JOINT_INDICES
-        else:
-            self._joint_user_to_backend = joint_ordering.user_to_backend
-            self._joint_backend_to_user = joint_ordering.backend_to_user
-        self._has_joint_ordering = self.data._has_joint_ordering
+    def _joint_backend_to_user_map(self) -> wp.array:
+        """Device backend-to-public joint map, or the identity map when no ordering is active.
 
-        body_ordering = self.data.body_ordering
-        if body_ordering is None:
-            self._body_user_to_backend = self._ALL_BODY_INDICES
-            self._body_backend_to_user = self._ALL_BODY_INDICES
-        else:
-            self._body_user_to_backend = body_ordering.user_to_backend
-            self._body_backend_to_user = body_ordering.backend_to_user
-        self._has_body_ordering = self.data._has_body_ordering
-
-        self._ordering_configure_backend_staging()
-        self._ordering_maps_cached = True
-
-    def _reset_and_cache_ordering_maps(self) -> None:
-        """Reset the cache guard and (re)cache the articulation ordering maps.
-
-        Pairs the guard reset with :meth:`_cache_ordering_maps` so every backend
-        re-establishes its ordering maps through one structural entry point when it
-        (re)creates buffers, instead of resetting :attr:`_ordering_maps_cached`
-        ad hoc before each call.
+        See :meth:`_joint_user_to_backend_map` for the identity-fallback contract.
         """
-        self._ordering_maps_cached = False
-        self._cache_ordering_maps()
+        ordering = self.data.joint_ordering
+        return ordering.backend_to_user if ordering is not None else self._ALL_JOINT_INDICES
+
+    def _body_user_to_backend_map(self) -> wp.array:
+        """Device public-to-backend body map, or the identity map when no ordering is active.
+
+        See :meth:`_joint_user_to_backend_map` for the identity-fallback contract;
+        the body fallback reads ``_ALL_BODY_INDICES``.
+        """
+        ordering = self.data.body_ordering
+        return ordering.user_to_backend if ordering is not None else self._ALL_BODY_INDICES
+
+    def _body_backend_to_user_map(self) -> wp.array:
+        """Device backend-to-public body map, or the identity map when no ordering is active.
+
+        See :meth:`_body_user_to_backend_map` for the identity-fallback contract.
+        """
+        ordering = self.data.body_ordering
+        return ordering.backend_to_user if ordering is not None else self._ALL_BODY_INDICES
 
     def _ordering_configure_backend_staging(self) -> None:
         """Allocate or release backend-order joint-target staging after ordering maps change.
@@ -2507,7 +2481,7 @@ class BaseArticulation(AssetBase):
         for backend_name in self._ordering_joint_staging_names:
             if not hasattr(self, backend_name):
                 continue
-            if self._has_joint_ordering:
+            if self.data.joint_ordering is not None:
                 if getattr(self, backend_name) is None:
                     setattr(
                         self,
@@ -2553,7 +2527,8 @@ class BaseArticulation(AssetBase):
             RuntimeError: If a non-identity joint ordering is active but no backend
                 staging buffer was provided.
         """
-        if not self._has_joint_ordering:
+        ordering = self.data.joint_ordering
+        if ordering is None:
             return user_buffer
         if backend_buffer is None:
             detail = "backend staging" if component_count is None else "3-D backend staging"
@@ -2563,7 +2538,7 @@ class BaseArticulation(AssetBase):
             wp.launch(
                 ordering_kernels.reorder_2d_user_to_backend,
                 dim=(self.num_instances, self.num_joints),
-                inputs=[user_buffer, self._joint_backend_to_user],
+                inputs=[user_buffer, ordering.backend_to_user],
                 outputs=[backend_data],
                 device=self.device,
             )
@@ -2571,7 +2546,7 @@ class BaseArticulation(AssetBase):
             wp.launch(
                 ordering_kernels.reorder_3d_user_to_backend,
                 dim=(self.num_instances, self.num_joints, component_count),
-                inputs=[user_buffer, self._joint_backend_to_user],
+                inputs=[user_buffer, ordering.backend_to_user],
                 outputs=[backend_data],
                 device=self.device,
             )

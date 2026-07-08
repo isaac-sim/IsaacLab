@@ -10,13 +10,11 @@ from collections import UserList
 
 import numpy as np
 import pytest
-import warp as wp
 
 from pxr import Sdf, Usd
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 from isaaclab.assets.articulation.ordering import (
-    ArticulationNameMap,
     ArticulationOrderingConvention,
     apply_articulation_ordering_preset,
     build_articulation_name_map,
@@ -157,123 +155,6 @@ def test_apply_articulation_ordering_preset_sets_joint_and_body_ordering() -> No
     assert apply_articulation_ordering_preset(cfg, None) is cfg
 
 
-def test_articulation_name_map_direct_constructor_validates_maps() -> None:
-    """Reject inconsistent public name maps built without the factory."""
-    identity_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
-    reversed_map = wp.array((2, 1, 0), dtype=wp.int32, device="cpu")
-
-    with pytest.raises(ValueError, match="inverse"):
-        ArticulationNameMap(
-            kind="joint",
-            backend_names=("joint_0", "joint_1", "joint_2"),
-            user_names=("joint_2", "joint_1", "joint_0"),
-            user_to_backend_indices=(2, 1, 0),
-            backend_to_user_indices=(0, 1, 2),
-            user_to_backend=reversed_map,
-            backend_to_user=identity_map,
-            is_identity=False,
-        )
-
-
-def test_articulation_name_map_direct_constructor_validates_name_index_correspondence() -> None:
-    """Reject maps whose indices do not map each public name to the same backend name."""
-    identity_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
-
-    with pytest.raises(ValueError, match="name and index mappings must agree"):
-        ArticulationNameMap(
-            kind="joint",
-            backend_names=("joint_0", "joint_1", "joint_2"),
-            user_names=("joint_2", "joint_1", "joint_0"),
-            user_to_backend_indices=(0, 1, 2),
-            backend_to_user_indices=(0, 1, 2),
-            user_to_backend=identity_map,
-            backend_to_user=identity_map,
-            is_identity=False,
-        )
-
-
-def test_articulation_name_map_direct_constructor_validates_device_maps() -> None:
-    """Reject device maps that contradict the validated CPU permutations."""
-    identity_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
-    reversed_map = wp.array((2, 1, 0), dtype=wp.int32, device="cpu")
-
-    with pytest.raises(ValueError, match="device user_to_backend map must match user_to_backend_indices"):
-        ArticulationNameMap(
-            kind="joint",
-            backend_names=("joint_0", "joint_1", "joint_2"),
-            user_names=("joint_2", "joint_1", "joint_0"),
-            user_to_backend_indices=(2, 1, 0),
-            backend_to_user_indices=(2, 1, 0),
-            user_to_backend=identity_map,
-            backend_to_user=reversed_map,
-            is_identity=False,
-        )
-
-
-def _make_identity_articulation_name_map(**overrides) -> ArticulationNameMap:
-    """Construct an identity name map with selected direct-constructor overrides."""
-    identity_device_map = wp.array((0, 1, 2), dtype=wp.int32, device="cpu")
-    fields = {
-        "kind": "joint",
-        "backend_names": ("joint_0", "joint_1", "joint_2"),
-        "user_names": ("joint_0", "joint_1", "joint_2"),
-        "user_to_backend_indices": (0, 1, 2),
-        "backend_to_user_indices": (0, 1, 2),
-        "user_to_backend": identity_device_map,
-        "backend_to_user": identity_device_map,
-        "is_identity": True,
-    }
-    fields.update(overrides)
-    return ArticulationNameMap(**fields)
-
-
-def test_articulation_name_map_direct_constructor_rejects_non_warp_device_maps() -> None:
-    """Reject a device map that is not a Warp array before accessing its metadata.
-
-    Both device maps flow through one validation loop, so one representative field and value pin
-    the rule, its error type, and the offending type.
-    """
-    with pytest.raises(TypeError, match=r"user_to_backend must be a Warp array; got list"):
-        _make_identity_articulation_name_map(user_to_backend=[0, 1, 2])
-
-
-@pytest.mark.parametrize("invalid_value", [pytest.param(0.5, id="lossy_float"), pytest.param(True, id="bool")])
-def test_articulation_name_map_direct_constructor_rejects_non_integer_indices(invalid_value) -> None:
-    """Reject a lossy value and a bool in a CPU index permutation.
-
-    Both index permutations share one coercion helper, so one field covers the rule. ``bool`` is a
-    distinct guard because it would otherwise pass ``operator.index`` as 0/1.
-    """
-    with pytest.raises(TypeError, match=r"user_to_backend_indices element 0"):
-        _make_identity_articulation_name_map(user_to_backend_indices=(invalid_value, 1, 2))
-
-
-@pytest.mark.parametrize("index_type", [int, np.int64])
-def test_articulation_name_map_direct_constructor_requires_exact_int_indices(index_type) -> None:
-    """Accept built-in int indices and reject other integral types without coercion."""
-    indices = tuple(index_type(index) for index in range(3))
-
-    if index_type is int:
-        name_map = _make_identity_articulation_name_map(
-            user_to_backend_indices=indices,
-            backend_to_user_indices=indices,
-        )
-        assert name_map.user_to_backend_indices == (0, 1, 2)
-        assert name_map.backend_to_user_indices == (0, 1, 2)
-    else:
-        with pytest.raises(TypeError, match=r"user_to_backend_indices element 0 must be int"):
-            _make_identity_articulation_name_map(
-                user_to_backend_indices=indices,
-                backend_to_user_indices=indices,
-            )
-
-
-def test_articulation_name_map_direct_constructor_rejects_non_bool_identity() -> None:
-    """Require ``is_identity`` to be a built-in bool, rejecting a truthy int like ``1``."""
-    with pytest.raises(TypeError, match=r"is_identity must be bool; got int"):
-        _make_identity_articulation_name_map(is_identity=1)
-
-
 def test_build_articulation_name_map_rejects_scalar_name_sequences() -> None:
     """Reject a scalar string instead of splitting it into per-character names.
 
@@ -324,12 +205,6 @@ def test_resolve_articulation_ordering_names_accepts_list_and_tuple(sequence_typ
 
     assert user_names == ("joint_2", "joint_0", "joint_1")
     assert type(user_names) is tuple
-
-
-def test_articulation_name_map_direct_constructor_requires_tuple_fields() -> None:
-    """Keep the frozen map strict: directly constructed fields must be tuples, not lists."""
-    with pytest.raises(TypeError, match=r"ArticulationNameMap backend_names must be a tuple; got list"):
-        _make_identity_articulation_name_map(backend_names=["joint_0", "joint_1", "joint_2"])
 
 
 def test_resolve_articulation_ordering_names_rejects_generic_sequence() -> None:
@@ -1180,6 +1055,7 @@ def test_base_articulation_keeps_none_ordering_on_default_path() -> None:
         backend_body_names=["base", "foot"],
         device="cpu",
     )
+    articulation._resolve_axis_ordering = BaseArticulation._resolve_axis_ordering.__get__(articulation)
 
     BaseArticulation._resolve_and_install_ordering_maps(articulation)
 
@@ -1220,7 +1096,7 @@ def _make_ordering_resolution_articulation(
         body_names=None,
         _apply_ordering_maps_after_resolve=lambda: None,
     )
-    return types.SimpleNamespace(
+    articulation = types.SimpleNamespace(
         __backend_name__="mock",
         _ordering_convention_name_cache={},
         cfg=types.SimpleNamespace(
@@ -1234,6 +1110,8 @@ def _make_ordering_resolution_articulation(
         is_fixed_base=is_fixed_base,
         device="cpu",
     )
+    articulation._resolve_axis_ordering = BaseArticulation._resolve_axis_ordering.__get__(articulation)
+    return articulation
 
 
 def test_base_articulation_ordering_contract_preserves_legacy_subclasses() -> None:
@@ -1305,27 +1183,6 @@ def test_base_articulation_data_defines_optional_ordering_maps() -> None:
     assert hasattr(BaseArticulationData, "body_ordering")
 
 
-def test_build_articulation_name_map_uses_identity_device_maps() -> None:
-    """Build an identity articulation name map with identity device maps."""
-    name_map = build_articulation_name_map(
-        kind="joint",
-        backend_names=("hip", "knee", "ankle"),
-        user_names=None,
-        device="cpu",
-    )
-
-    assert name_map.kind == "joint"
-    assert name_map.backend_names == ("hip", "knee", "ankle")
-    assert name_map.user_names == ("hip", "knee", "ankle")
-    assert name_map.user_to_backend_indices == (0, 1, 2)
-    assert name_map.backend_to_user_indices == (0, 1, 2)
-    assert name_map.user_to_backend is not None
-    assert name_map.backend_to_user is not None
-    np.testing.assert_array_equal(name_map.user_to_backend.numpy(), np.asarray([0, 1, 2], dtype=np.int32))
-    np.testing.assert_array_equal(name_map.backend_to_user.numpy(), np.asarray([0, 1, 2], dtype=np.int32))
-    assert name_map.is_identity
-
-
 def test_build_articulation_name_map_builds_permutation_indices_and_device_maps() -> None:
     """Build CPU and device maps for an explicit user ordering permutation."""
     name_map = build_articulation_name_map(
@@ -1335,16 +1192,12 @@ def test_build_articulation_name_map_builds_permutation_indices_and_device_maps(
         device="cpu",
     )
 
-    assert name_map.kind == "body"
-    assert name_map.backend_names == ("base", "left_foot", "right_foot")
-    assert name_map.user_names == ("right_foot", "base", "left_foot")
     assert name_map.user_to_backend_indices == (2, 0, 1)
     assert name_map.backend_to_user_indices == (1, 2, 0)
     assert name_map.user_to_backend is not None
     assert name_map.backend_to_user is not None
     np.testing.assert_array_equal(name_map.user_to_backend.numpy(), np.asarray([2, 0, 1], dtype=np.int32))
     np.testing.assert_array_equal(name_map.backend_to_user.numpy(), np.asarray([1, 2, 0], dtype=np.int32))
-    assert not name_map.is_identity
 
 
 def test_build_articulation_name_map_rejects_duplicate_backend_names() -> None:
@@ -1378,3 +1231,35 @@ def test_build_articulation_name_map_rejects_incomplete_permutation() -> None:
             user_names=("hip", "wheel"),
             device="cpu",
         )
+
+
+def test_build_articulation_name_map_returns_none_for_identity() -> None:
+    """Identity orderings have no map object; None is the single identity state."""
+    backend_names = ("j_a", "j_b", "j_c")
+    assert (
+        build_articulation_name_map(kind="joint", backend_names=backend_names, user_names=backend_names, device="cpu")
+        is None
+    )
+    assert build_articulation_name_map(kind="joint", backend_names=backend_names, user_names=None, device="cpu") is None
+
+    permuted = build_articulation_name_map(
+        kind="joint", backend_names=backend_names, user_names=("j_c", "j_a", "j_b"), device="cpu"
+    )
+    assert permuted is not None
+    assert permuted.user_to_backend_indices == (2, 0, 1)
+    assert permuted.backend_to_user_indices == (1, 2, 0)
+    assert not hasattr(permuted, "is_identity")
+    assert not hasattr(permuted, "user_names")
+
+
+def test_ordering_state_lives_only_on_data() -> None:
+    """No mirrored ordering flags or maps exist on the asset or data classes."""
+    from isaaclab.assets.articulation.base_articulation import BaseArticulation
+    from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
+
+    for owner, names in (
+        (BaseArticulation, ("_cache_ordering_maps", "_reset_and_cache_ordering_maps")),
+        (BaseArticulationData, ("_install_ordering_flags", "_has_joint_ordering", "_has_body_ordering")),
+    ):
+        for name in names:
+            assert not hasattr(owner, name), f"{owner.__name__}.{name} should be deleted"
