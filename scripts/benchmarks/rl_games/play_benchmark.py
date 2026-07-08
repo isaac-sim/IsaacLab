@@ -19,6 +19,7 @@ _BENCH_DIR = Path(__file__).resolve().parents[1]
 _RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
 
 if str(_RL_SCRIPTS) not in sys.path:
+    # Shared training utilities remain script-local, so their directory must be on sys.path.
     sys.path.insert(0, str(_RL_SCRIPTS))
 
 import common as _common  # noqa: E402
@@ -42,7 +43,8 @@ def _parse_args(argv: list[str]):
     add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
 
     parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with RL-Games.")
-    parser.add_argument("--task", type=str, required=True, help="Gym task id to benchmark.")
+    help_requested = "-h" in argv or "--help" in argv
+    parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument("--num_frames", type=int, default=100, help="Number of inference steps to benchmark.")
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")

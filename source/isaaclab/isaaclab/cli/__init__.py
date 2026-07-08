@@ -54,13 +54,13 @@ def play(args: list[str] | None = None) -> None:
 
 
 def benchmark(args: list[str] | None = None) -> None:
-    """Run a runtime, startup, or training benchmark.
+    """Run a runtime, startup, training, or play benchmark.
 
     Args:
         args: Command-line arguments. Uses ``sys.argv`` when omitted.
     """
     parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
-    parser.add_argument("command", choices=("runtime", "startup", "training"), help="Benchmark workflow to run.")
+    parser.add_argument("command", choices=("runtime", "startup", "training", "play"), help="Benchmark workflow to run.")
     if args is None:
         args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help"):
@@ -94,7 +94,7 @@ def cli() -> None:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "commands:\n"
-            "  benchmark       Run a runtime, startup, or training benchmark\n"
+            "  benchmark       Run a runtime, startup, training, or play benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
             "  play            Run scripts/reinforcement_learning/play.py"

@@ -3,11 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""SKRL play-benchmark adapter.
+"""Stable-Baselines3 play-benchmark adapter.
 
-Rolls out a checkpointed SKRL policy under a :class:`~isaaclab.test.benchmark.BenchmarkMonitor`
-and emits a :class:`~isaaclab.test.benchmark.schema.PlayBundle` JSON file. Dispatched from
-``scripts/benchmarks/play.py`` via ``--rl_library skrl``.
+Rolls out a checkpointed Stable-Baselines3 policy under a
+:class:`~isaaclab.test.benchmark.BenchmarkMonitor` and emits a
+:class:`~isaaclab.test.benchmark.schema.PlayBundle` JSON file. Dispatched from
+``scripts/benchmarks/play.py`` via ``--rl_library sb3``.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ _BENCH_DIR = Path(__file__).resolve().parents[1]
 _RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
 
 if str(_RL_SCRIPTS) not in sys.path:
+    # Shared training utilities remain script-local, so their directory must be on sys.path.
     sys.path.insert(0, str(_RL_SCRIPTS))
 
 import common as _common  # noqa: E402
@@ -42,8 +44,9 @@ def _parse_args(argv: list[str]):
 
     add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
 
-    parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with SKRL.")
-    parser.add_argument("--task", type=str, required=True, help="Gym task id to benchmark.")
+    parser = argparse.ArgumentParser(description="Benchmark RL inference (play) with Stable-Baselines3.")
+    help_requested = "-h" in argv or "--help" in argv
+    parser.add_argument("--task", type=str, required=not help_requested, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
     parser.add_argument("--num_frames", type=int, default=100, help="Number of inference steps to benchmark.")
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
@@ -54,27 +57,13 @@ def _parse_args(argv: list[str]):
         help="Local or Nucleus checkpoint path to roll out; falls back to the published checkpoint when omitted.",
     )
     parser.add_argument(
-        "--agent",
-        type=str,
-        default=None,
-        help=(
-            "Name of the RL agent configuration entry point. Defaults to None, in which"
-            " case --algorithm is used to determine the default agent entry point."
-        ),
+        "--agent", type=str, default="sb3_cfg_entry_point", help="Name of the RL agent configuration entry point."
     )
     parser.add_argument(
-        "--ml_framework",
-        type=str,
-        default="torch",
-        choices=["torch", "jax"],
-        help="ML framework used for the skrl agent.",
-    )
-    parser.add_argument(
-        "--algorithm",
-        type=str,
-        default="PPO",
-        choices=["AMP", "PPO", "IPPO", "MAPPO"],
-        help="The RL algorithm used for the skrl agent.",
+        "--keep_all_info",
+        action="store_true",
+        default=False,
+        help="Use a slower SB3 wrapper but keep all the extra training info.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -96,7 +85,7 @@ def _parse_args(argv: list[str]):
 
 
 def run(argv: list[str]) -> None:
-    """Run the SKRL play benchmark and write a :class:`~isaaclab.test.benchmark.schema.PlayBundle`.
+    """Run the sb3 play benchmark and write a :class:`~isaaclab.test.benchmark.schema.PlayBundle`.
 
     Args:
         argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
@@ -106,12 +95,14 @@ def run(argv: list[str]) -> None:
     import os
 
     import gymnasium as gym
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import VecNormalize
 
     from isaaclab.app import launch_simulation
     from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
     from isaaclab.test.benchmark.schema import StartupTime
 
-    from isaaclab_rl.skrl import SkrlVecEnvWrapper
+    from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
     # Importing the task packages registers their gym environments so the
     # requested ``--task`` can be resolved.
@@ -124,15 +115,7 @@ def run(argv: list[str]) -> None:
 
     args_cli, remaining_args = _parse_args(argv)
 
-    # Resolve agent entry point (mirrors scripts/reinforcement_learning/skrl/play.py).
-    if args_cli.agent is None:
-        algorithm = args_cli.algorithm.lower()
-        agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm == "ppo" else f"skrl_{algorithm}_cfg_entry_point"
-    else:
-        agent_cfg_entry_point = args_cli.agent
-        algorithm = agent_cfg_entry_point.split("_cfg")[0].split("skrl_")[-1].lower()
-
-    env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -140,33 +123,24 @@ def run(argv: list[str]) -> None:
     with launch_simulation(env_cfg, args_cli):
         app_t1 = time.perf_counter_ns()
 
-        if args_cli.ml_framework.startswith("jax"):
-            import skrl
-
-            skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
-
         if args_cli.num_envs is not None:
             env_cfg.scene.num_envs = args_cli.num_envs
         agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
         env_cfg.seed = agent_cfg["seed"]
 
-        log_root_path = os.path.abspath(os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"]))
+        log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
         if args_cli.checkpoint in _common.CHECKPOINT_SELECTORS:
             resume_path = _common.resolve_checkpoint_selector(
                 log_root_path,
                 args_cli.checkpoint,
-                library="skrl",
+                library="sb3",
                 task=args_cli.task,
-                checkpoint_pattern=r".*",
-                other_dirs=["checkpoints"],
-                metadata={
-                    "agent": agent_cfg_entry_point,
-                    "algorithm": algorithm,
-                    "ml_framework": args_cli.ml_framework,
-                },
+                checkpoint_pattern=r"model_.*\.zip",
+                preferred_checkpoint_pattern=r"model\.zip",
+                metadata={"agent": args_cli.agent},
             )
         else:
-            resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "skrl", args_cli.task)
+            resume_path = _common.resolve_play_checkpoint(args_cli.checkpoint, "sb3", args_cli.task)
 
         cfg = capture.run_config_from_presets(remaining_args)
         formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
@@ -184,7 +158,6 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args_cli.task},
                     {"name": "num_envs", "data": args_cli.num_envs},
                     {"name": "num_frames", "data": args_cli.num_frames},
-                    {"name": "algorithm", "data": args_cli.algorithm},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -194,39 +167,46 @@ def run(argv: list[str]) -> None:
         env = gym.make(args_cli.task, cfg=env_cfg)
         env_t1 = time.perf_counter_ns()
 
-        env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)
+        # Post-process agent configuration the same way scripts/reinforcement_learning/sb3/play.py does.
+        agent_cfg = process_sb3_cfg(agent_cfg, env.unwrapped.num_envs)
 
         num_envs = env.unwrapped.num_envs
 
-        if args_cli.ml_framework.startswith("torch"):
-            from skrl.utils.runner.torch import Runner
-        elif args_cli.ml_framework.startswith("jax"):
-            from skrl.utils.runner.jax import Runner
+        # Wrap for stable-baselines3.
+        env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
-        # Load the trained policy the same way scripts/reinforcement_learning/skrl/play.py does.
-        agent_cfg["trainer"]["close_environment_at_exit"] = False
-        agent_cfg["agent"]["experiment"]["write_interval"] = 0
-        agent_cfg["agent"]["experiment"]["checkpoint_interval"] = 0
-        runner = Runner(env, agent_cfg)
-        runner.agent.load(resume_path)
-        runner.agent.enable_training_mode(False, apply_to_models=True)
+        # Load VecNormalize statistics when they were saved next to the checkpoint.
+        vec_norm_path = Path(resume_path.replace("/model", "/model_vecnormalize").replace(".zip", ".pkl"))
+        if vec_norm_path.exists():
+            env = VecNormalize.load(vec_norm_path, env)
+            env.training = False
+            env.norm_reward = False
+        elif "normalize_input" in agent_cfg:
+            env = VecNormalize(
+                env,
+                training=True,
+                norm_obs="normalize_input" in agent_cfg and agent_cfg.pop("normalize_input"),
+                clip_obs="clip_obs" in agent_cfg and agent_cfg.pop("clip_obs"),
+            )
+
+        # Load the trained policy.
+        agent = PPO.load(resume_path, env, print_system_info=True)
 
         def policy(obs):
-            """Map an observation batch to a deterministic action batch via the skrl agent.
+            """Map an observation batch to a deterministic action batch via the sb3 agent.
 
-            Mirrors the inference path in ``scripts/reinforcement_learning/skrl/play.py``:
-            runs the agent's deterministic action, preferring the policy ``mean_actions``
-            over the sampled action returned as the first element.
+            Mirrors the inference path in ``scripts/reinforcement_learning/sb3/play.py``:
+            the sb3-wrapped env returns NumPy observations, which ``agent.predict`` consumes
+            directly, returning NumPy actions for ``env.step``.
 
             Args:
-                obs: Observation returned by the skrl-wrapped env.
+                obs: NumPy observation returned by the sb3-wrapped env.
 
             Returns:
-                The action tensor to feed ``env.step``.
+                The NumPy action array to feed ``env.step``.
             """
-            states = env.state()
-            outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
-            return outputs[-1].get("mean_actions", outputs[0])
+            actions, _ = agent.predict(obs, deterministic=True)
+            return actions
 
         with BenchmarkMonitor(benchmark, interval=1.0):
             step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)
@@ -254,11 +234,11 @@ def run(argv: list[str]) -> None:
 
         end_utc = capture.now_utc_iso()
         stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
-        seed = agent_cfg["seed"] if agent_cfg.get("seed") is not None else 0
+        seed = env_cfg.seed if env_cfg.seed is not None else 0
 
         run_identity = builders.build_run_identity(
-            run_id=capture.synth_run_id("skrl", cfg.physics_backend, args_cli.task, seed, stamp),
-            framework="skrl",
+            run_id=capture.synth_run_id("sb3", cfg.physics_backend, args_cli.task, seed, stamp),
+            framework="sb3",
             config=cfg,
             task=args_cli.task,
             seed=seed,
