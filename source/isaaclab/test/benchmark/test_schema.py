@@ -300,13 +300,13 @@ def test_extra_field_round_trips(tmp_path):
 def test_run_config_presets_round_trip(tmp_path):
     """RunConfig.presets is an open-ended token list; defaults to [] and round-trips."""
     assert RunConfig(physics_backend="physx").presets == []
-    cfg = RunConfig(physics_backend="newton_mjwarp", rendering_backend="ovrtx", presets=["rgb", "ovrtx_renderer"])
+    cfg = RunConfig(physics_backend="newton_mjwarp", rendering_backend="ovrtx", presets=["rgb", "ovrtx"])
     base = _minimal_training_bundle()
     bundle = dataclasses.replace(base, run=dataclasses.replace(base.run, config=cfg))
     path = os.path.join(tmp_path, "training.json")
     write_bundle_file(bundle, path)
     with open(path) as f:
         data = json.load(f)
-    assert data["run"]["config"]["presets"] == ["rgb", "ovrtx_renderer"]
+    assert data["run"]["config"]["presets"] == ["rgb", "ovrtx"]
     assert "sensor_dtype" not in data["run"]["config"]
     assert "sensor_resolution" not in data["run"]["config"]
