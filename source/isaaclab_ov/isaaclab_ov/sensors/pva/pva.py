@@ -17,6 +17,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 from isaaclab.sim.utils.queries import path_expr_to_glob
+from isaaclab.utils.warp import CapturedKernelUpdate
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager as SimulationManager
@@ -148,6 +149,8 @@ class Pva(BasePva):
         self._root_view = OvPhysxView(physx_instance, pattern=pattern, device=self._device)
         self._num_bodies = self._root_view.binding_for(TT.RIGID_BODY_POSE).count
 
+        self._update_graph = CapturedKernelUpdate(self._device, owner=f"PVA sensor at '{self.cfg.prim_path}'")
+
         if self._num_bodies != self._num_envs:
             raise ValueError(
                 f"OvPhysx Pva: pattern '{pattern}' matched {self._num_bodies} rigid bodies; expected exactly one"
@@ -186,7 +189,15 @@ class Pva(BasePva):
         self._root_view = None
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
-        """Fills the buffers of the sensor data."""
+        """Fills the buffers of the sensor data.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active on the device, since the
+                blocking native pose/velocity/COM reads cannot be graph-captured and a replay
+                would consume stale data.
+        """
+        self._update_graph.refuse_outer_capture()
+
         env_mask = self._resolve_indices_and_mask(None, env_mask)
 
         # ``OvPhysxView.read_into`` fills the structured-dtype buffer in place via a
@@ -199,6 +210,11 @@ class Pva(BasePva):
         if self._coms_read_view is not self._coms_buffer:
             wp.copy(self._coms_buffer, self._coms_read_view)
 
+        # NOTE: not graphed. The update is dominated by the blocking native reads
+        # (in particular the CPU-resident RIGID_BODY_COM_POSE readback + H2D copy);
+        # of the ~0.73 ms update the reads take ~0.5-0.6 ms and the single kernel launch
+        # <0.15 ms. Revisit when the wheel serves COM poses device-resident
+        # (benchmarked 2026-07-08: reads ~0.5-0.6 ms / kernel <0.15 ms).
         wp.launch(
             pva_update_kernel,
             dim=self._num_envs,

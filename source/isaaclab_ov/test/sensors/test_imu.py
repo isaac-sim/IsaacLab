@@ -28,6 +28,8 @@ first import can fail native symbol resolution after ``ovphysx.reset()``.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 # ---------------------------------------------------------------------------
 # Wheel gate: skip the whole file if the ovphysx wheel is missing or too old.
 # ---------------------------------------------------------------------------
@@ -50,6 +52,7 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
 import torch  # noqa: E402
 import warp as wp  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.sensors.imu.imu import Imu as OvPhysxImu  # noqa: E402
 
 # Preload Omni Client while Kit's native libraries are still in a clean loader
 # state. Importing it for the first time after an OVPhysX reset can fail with an
@@ -63,6 +66,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
@@ -703,3 +707,47 @@ def test_single_dof_pendulum():
 )
 def test_indirect_attachment():
     """Test attaching the IMU through an Xform primitive offset chain."""
+
+
+# ===========================================================================
+# CUDA-graph capture refusal (scene-free unit test)
+# ===========================================================================
+
+
+_GPU = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+
+
+class _CountingReadView:
+    """Fake OVPhysX view whose ``read_into`` only counts calls."""
+
+    def __init__(self):
+        self.read_count = 0
+
+    def read_into(self, *args, **kwargs) -> None:
+        self.read_count += 1
+
+
+def _make_imu_for_refusal() -> OvPhysxImu:
+    """Build an IMU sensor via ``__new__`` wired only for the outer-capture refusal check."""
+    device = "cuda:0"
+    sensor = OvPhysxImu.__new__(OvPhysxImu)
+    sensor.cfg = SimpleNamespace(prim_path="/World/Robot")
+    sensor._device = device
+    sensor._root_view = _CountingReadView()
+    sensor._update_graph = CapturedKernelUpdate(device, owner=f"IMU at '{sensor.cfg.prim_path}'")
+    return sensor
+
+
+@_GPU
+def test_imu_refuses_update_inside_outer_capture():
+    """The update must raise before reading OVPhysX when an outer capture is active."""
+    sensor = _make_imu_for_refusal()
+    scratch_src = wp.ones(1, dtype=wp.int32, device=sensor._device)
+    scratch_dst = wp.zeros(1, dtype=wp.int32, device=sensor._device)
+
+    with wp.ScopedCapture(device=wp.get_device(sensor._device)):
+        with pytest.raises(RuntimeError, match="CUDA graph capture is active"):
+            sensor._update_buffers_impl()
+        wp.copy(scratch_dst, scratch_src)  # keep the outer capture non-empty
+
+    assert sensor._root_view.read_count == 0
