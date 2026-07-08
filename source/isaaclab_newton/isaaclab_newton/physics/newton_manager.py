@@ -657,9 +657,11 @@ class NewtonManager(PhysicsManager):
         NewtonManager._particles_dirty = True
 
     @classmethod
-    def _has_surface_deformable_registry_entries(cls) -> bool:
-        """Return whether the deformable registry has surface entries for render sync."""
-        return any(getattr(entry, "deformable_type", None) == "surface" for entry in cls._deformable_registry)
+    def _has_deformable_registry_entries(cls) -> bool:
+        """Return whether the deformable registry has render-syncable entries."""
+        return any(
+            getattr(entry, "deformable_type", None) in ("surface", "volume") for entry in cls._deformable_registry
+        )
 
     @classmethod
     def _mark_state_dirty(cls) -> None:
@@ -780,7 +782,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._usdrt_stage is not None:
             cls._mark_state_dirty()
-        elif cls._particle_visual_prims or cls._has_surface_deformable_registry_entries():
+        elif cls._particle_visual_prims or cls._has_deformable_registry_entries():
             cls._mark_particles_dirty()
 
         # Launch solver-specific debug logging after stepping.

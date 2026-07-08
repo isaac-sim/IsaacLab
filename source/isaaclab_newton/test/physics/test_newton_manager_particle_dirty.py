@@ -10,7 +10,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-
 from isaaclab_newton.physics.newton_manager import NewtonManager
 
 
@@ -53,15 +52,19 @@ def test_sync_particles_to_usd_clears_dirty_after_fabric_sync(monkeypatch: pytes
     assert NewtonManager.particles_dirty() is False
 
 
-def test_has_surface_deformable_registry_entries():
-    """Surface deformable registry entries are detected for post-step dirty marking."""
+def test_has_deformable_registry_entries():
+    """Surface and volume deformable registry entries are detected for post-step dirty marking."""
     NewtonManager._deformable_registry = [
         SimpleNamespace(deformable_type="volume"),
         SimpleNamespace(deformable_type="surface"),
     ]
 
-    assert NewtonManager._has_surface_deformable_registry_entries() is True
+    assert NewtonManager._has_deformable_registry_entries() is True
 
     NewtonManager._deformable_registry = [SimpleNamespace(deformable_type="volume")]
 
-    assert NewtonManager._has_surface_deformable_registry_entries() is False
+    assert NewtonManager._has_deformable_registry_entries() is True
+
+    NewtonManager._deformable_registry = []
+
+    assert NewtonManager._has_deformable_registry_entries() is False

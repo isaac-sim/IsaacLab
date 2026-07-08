@@ -613,7 +613,7 @@ class OVRTXRenderer(BaseRenderer):
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
     def _setup_deformable_mesh_bindings(self):
-        """Setup OVRTX mesh ``points`` bindings for Newton surface deformables."""
+        """Setup OVRTX mesh ``points`` bindings for Newton deformables."""
         self._deformable_bindings_ready = False
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -629,15 +629,10 @@ class OVRTXRenderer(BaseRenderer):
         if not deformable_registry:
             return
 
-        volume_entries = [entry for entry in deformable_registry if entry.deformable_type == "volume"]
-        if volume_entries:
-            logger.warning(
-                "OVRTX deformable rendering supports surface deformables only; skipping %d volume deformable(s).",
-                len(volume_entries),
-            )
-
-        surface_entries = [entry for entry in deformable_registry if entry.deformable_type == "surface"]
-        if not surface_entries:
+        renderable_entries = [
+            entry for entry in deformable_registry if getattr(entry, "deformable_type", None) in ("surface", "volume")
+        ]
+        if not renderable_entries:
             return
 
         self._deformable_point_buffers = []
@@ -652,7 +647,7 @@ class OVRTXRenderer(BaseRenderer):
 
         stage = get_current_stage()
         if stage is None:
-            prim_paths = [entry.prim_path for entry in surface_entries]
+            prim_paths = [entry.prim_path for entry in renderable_entries]
             logger.warning(
                 "Current USD stage unavailable, skipping OVRTX deformable mesh bindings for: %s",
                 ", ".join(prim_paths),
@@ -668,12 +663,10 @@ class OVRTXRenderer(BaseRenderer):
         validation_errors: list[str] = []
         xform_cache = UsdGeom.XformCache()
 
-        for entry in surface_entries:
+        for entry in renderable_entries:
             particles_per_body = int(entry.particles_per_body)
             if particles_per_body <= 0:
-                validation_errors.append(
-                    f"{entry.prim_path}: invalid particles_per_body={particles_per_body}"
-                )
+                validation_errors.append(f"{entry.prim_path}: invalid particles_per_body={particles_per_body}")
                 continue
 
             for inst_idx, offset in enumerate(entry.particle_offsets):
@@ -693,9 +686,18 @@ class OVRTXRenderer(BaseRenderer):
                     validation_errors.append(f"{resolved_vis}: mesh points missing")
                     continue
                 if len(points) != particles_per_body:
-                    validation_errors.append(
-                        f"{resolved_vis}: mesh has {len(points)} points but Newton has {particles_per_body} particles"
-                    )
+                    if entry.deformable_type == "volume":
+                        validation_errors.append(
+                            f"{resolved_vis}: volume visual mesh has {len(points)} points but Newton has"
+                            f" {particles_per_body} tet particles; OVRTX supports volume deformables only when"
+                            " the visual mesh points match Newton tet particles (separate visual embedding is"
+                            " not implemented)"
+                        )
+                    else:
+                        validation_errors.append(
+                            f"{resolved_vis}: mesh has {len(points)} points but Newton has"
+                            f" {particles_per_body} particles"
+                        )
                     continue
 
                 points_np = np.asarray(points, dtype=np.float32)
@@ -880,17 +882,15 @@ class OVRTXRenderer(BaseRenderer):
         )
 
     def _update_deformable_points(self) -> None:
-        """Sync Newton surface-deformable particles to OVRTX mesh point arrays."""
+        """Sync Newton deformable particles to OVRTX mesh point arrays."""
         if not self._deformable_bindings_ready:
             if not self._deformable_bindings_warned:
                 try:
                     from isaaclab_newton.physics import NewtonManager
 
                     registry = NewtonManager._deformable_registry or []
-                    if any(entry.deformable_type == "surface" for entry in registry):
-                        logger.warning(
-                            "OVRTX deformable mesh bindings are not ready; surface deformables may render static."
-                        )
+                    if any(getattr(entry, "deformable_type", None) in ("surface", "volume") for entry in registry):
+                        logger.warning("OVRTX deformable mesh bindings are not ready; deformables may render static.")
                         self._deformable_bindings_warned = True
                 except ImportError:
                     pass

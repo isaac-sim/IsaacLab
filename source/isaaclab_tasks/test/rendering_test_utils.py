@@ -35,6 +35,7 @@ MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
     # Aliasing artifacts of shadow on the table.
     "franka_cloth": 8.0,
+    "franka_soft": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -1197,6 +1198,125 @@ def rendering_test_franka_cloth(
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         for _ in range(15):
             env.step(zero_actions)
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["tiled_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _make_franka_soft_camera_env_cfg(data_type: str):
+    """Create a test-local Franka soft camera env cfg without exposing a production task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    @configclass
+    class TestFrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
+        """Franka soft scene with a test-only camera sensor."""
+
+        tiled_camera: CameraCfg = CameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.85, -0.55, 0.42),
+                rot=(0.5080, 0.2114, 0.318, 0.7720),
+                convention="opengl",
+            ),
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 4.0)),
+            width=100,
+            height=100,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+
+    @configclass
+    class TestFrankaSoftCameraObservationsCfg:
+        """Image-only observations for the local rendering test env."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    @configclass
+    class TestFrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
+        """Test-only camera variant of ``Isaac-Lift-Soft-Franka``."""
+
+        scene: TestFrankaSoftCameraSceneCfg = TestFrankaSoftCameraSceneCfg(
+            num_envs=4, env_spacing=4.0, replicate_physics=True
+        )
+        observations: TestFrankaSoftCameraObservationsCfg = TestFrankaSoftCameraObservationsCfg()
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.commands.deformable_pose.debug_vis = False
+            self.events.reset_deformable.params["position_range"] = {
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+            }
+
+    return TestFrankaSoftCameraEnvCfg()
+
+
+def rendering_test_franka_soft(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("ovphysx is not supported yet.")
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env_cfg = _make_franka_soft_camera_env_cfg(data_type)
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name_deformable(physics_backend)},{renderer}"]
+    )
+
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
+    test_name = "franka_soft"
+    env = None
+
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+
+        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
 
         validate_camera_outputs(
             test_name,

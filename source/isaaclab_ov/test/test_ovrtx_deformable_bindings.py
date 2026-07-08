@@ -189,8 +189,33 @@ def test_resolve_deformable_instance_path_plain_regex():
     assert _resolve_deformable_instance_path("/World/envs/env_0/item_.*", 4) == "/World/envs/env_0/item_4"
 
 
-def test_setup_skips_volume_deformable_with_warning(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture):
-    """Volume-only deformable registry entries are skipped with a warning."""
+def test_setup_deformable_mesh_bindings_binds_volume_mesh_points(monkeypatch: pytest.MonkeyPatch):
+    """Volume deformable registry entries create OVRTX ``points`` bindings when counts match."""
+    stage = _make_stage_with_surface_mesh()
+    renderer, backend = _make_renderer_without_backend()
+    entry = SimpleNamespace(
+        prim_path="/World/envs/env_.*/Deformable",
+        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        deformable_type="volume",
+        particle_offsets=[7],
+        particles_per_body=3,
+    )
+
+    monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: stage)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
+
+    renderer._setup_deformable_mesh_bindings()
+
+    assert len(backend.calls) == 2
+    assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
+    assert backend.calls[0]["attribute_name"] == "points"
+    assert renderer._deformable_bindings_ready is True
+    assert renderer._deformable_particle_offsets.numpy().tolist() == [7]
+
+
+def test_setup_volume_deformable_requires_matching_visual_points(monkeypatch: pytest.MonkeyPatch):
+    """Volume deformables with mismatched visual mesh point counts fail setup."""
+    stage = _make_stage_with_surface_mesh(num_points=2)
     renderer, backend = _make_renderer_without_backend()
     entry = SimpleNamespace(
         prim_path="/World/envs/env_.*/Deformable",
@@ -200,13 +225,65 @@ def test_setup_skips_volume_deformable_with_warning(monkeypatch: pytest.MonkeyPa
         particles_per_body=3,
     )
 
+    monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: stage)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    with caplog.at_level("WARNING"):
+    with pytest.raises(RuntimeError, match="separate visual embedding is not implemented"):
         renderer._setup_deformable_mesh_bindings()
 
     assert backend.calls == []
-    assert "surface deformables only" in caplog.text
+    assert renderer._deformable_bindings_ready is False
+
+
+def test_setup_deformable_mesh_bindings_binds_mixed_surface_and_volume_entries(monkeypatch: pytest.MonkeyPatch):
+    """Surface and volume deformable registry entries bind together with distinct offsets."""
+    stage = _make_stage_with_surface_mesh_envs(num_envs=2)
+    renderer, backend = _make_renderer_without_backend()
+    surface_entry = SimpleNamespace(
+        prim_path="/World/envs/env_.*/DeformableSurface",
+        vis_mesh_prim_path="/World/envs/env_.*/DeformableSurface/mesh",
+        deformable_type="surface",
+        particle_offsets=[0, 3],
+        particles_per_body=3,
+    )
+    volume_entry = SimpleNamespace(
+        prim_path="/World/envs/env_.*/DeformableVolume",
+        vis_mesh_prim_path="/World/envs/env_.*/DeformableVolume/mesh",
+        deformable_type="volume",
+        particle_offsets=[6, 9],
+        particles_per_body=3,
+    )
+
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/DeformableSurface")
+    UsdGeom.Mesh.Define(stage, "/World/envs/env_0/DeformableSurface/mesh").GetPointsAttr().Set(
+        Vt.Vec3fArray([Gf.Vec3f(float(i), 0.0, 0.0) for i in range(3)])
+    )
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1/DeformableSurface")
+    UsdGeom.Mesh.Define(stage, "/World/envs/env_1/DeformableSurface/mesh").GetPointsAttr().Set(
+        Vt.Vec3fArray([Gf.Vec3f(float(i), 0.0, 0.0) for i in range(3)])
+    )
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/DeformableVolume")
+    UsdGeom.Mesh.Define(stage, "/World/envs/env_0/DeformableVolume/mesh").GetPointsAttr().Set(
+        Vt.Vec3fArray([Gf.Vec3f(float(i), 0.0, 0.0) for i in range(3)])
+    )
+    UsdGeom.Xform.Define(stage, "/World/envs/env_1/DeformableVolume")
+    UsdGeom.Mesh.Define(stage, "/World/envs/env_1/DeformableVolume/mesh").GetPointsAttr().Set(
+        Vt.Vec3fArray([Gf.Vec3f(float(i), 0.0, 0.0) for i in range(3)])
+    )
+
+    monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: stage)
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [surface_entry, volume_entry])
+
+    renderer._setup_deformable_mesh_bindings()
+
+    assert backend.calls[0]["prim_paths"] == [
+        "/World/envs/env_0/DeformableSurface/mesh",
+        "/World/envs/env_1/DeformableSurface/mesh",
+        "/World/envs/env_0/DeformableVolume/mesh",
+        "/World/envs/env_1/DeformableVolume/mesh",
+    ]
+    assert renderer._deformable_particle_offsets.numpy().tolist() == [0, 3, 6, 9]
+    assert len(renderer._deformable_point_buffers) == 4
 
 
 def test_setup_warns_when_registry_nonempty_but_stage_missing(
