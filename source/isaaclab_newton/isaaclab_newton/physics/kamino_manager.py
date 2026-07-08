@@ -101,6 +101,17 @@ class NewtonKaminoManager(NewtonManager):
             )
 
     @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Skip the generic solver reset.
+
+        :meth:`_eval_fk_impl` already performs the masked
+        :meth:`SolverKamino.reset` with an explicit reset configuration.
+
+        Args:
+            world_mask: Unused; accepted to match the base hook signature.
+        """
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: KaminoSolverCfg) -> None:
         """Construct :class:`SolverKamino` and populate the base-class slots.
 

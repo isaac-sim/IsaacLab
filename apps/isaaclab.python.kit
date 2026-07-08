@@ -249,6 +249,12 @@ omni.replicator.asyncRendering = false
 app.asyncRendering = false
 app.asyncRenderingLowLatency = false
 
+# Use one renderer GPU by default. Applications that need single-process multi-GPU rendering can override these
+# settings through AppLauncher's ``kit_args``.
+renderer.multiGpu.enabled = false
+renderer.multiGpu.autoEnable = false
+renderer.multiGpu.maxGpuCount = 1
+
 ### FSD
 app.useFabricSceneDelegate = true
 rtx.hydra.readTransformsFromFabricInRenderDelegate = true

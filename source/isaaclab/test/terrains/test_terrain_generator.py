@@ -14,6 +14,8 @@ from isaaclab.terrains import FlatPatchSamplingCfg, TerrainGenerator, TerrainGen
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.utils.seed import configure_seed
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def output_dir():

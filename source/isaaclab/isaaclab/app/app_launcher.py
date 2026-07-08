@@ -29,9 +29,12 @@ with contextlib.suppress(ModuleNotFoundError):
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.utils._device import set_cuda_device
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 
 # Suppress noisy debug-level logs from third-party libraries
 logging.getLogger("websockets").setLevel(logging.WARNING)
@@ -79,6 +82,10 @@ class AppLauncher:
         overrides the ``LIVESTREAM`` environment variable when ``livestream`` argument is set to a
         value >-1. In other words, if ``livestream=-1``, then the value from the environment variable
         ``LIVESTREAM`` is used.
+
+    The ``ISAACLAB_FABRIC_USE_GPU_INTEROP`` environment variable optionally overrides the
+    ``/physics/fabricUseGPUInterop`` Kit setting. Set it to ``1`` or ``0`` to enable or disable the setting.
+    When unset, Kit's configured default is preserved.
 
     """
 
@@ -378,6 +385,39 @@ class AppLauncher:
     """
 
     @staticmethod
+    def _fuse_kit_args(argv: list[str]) -> list[str]:
+        """Fuse ``["--kit_args", "<option-like value>"]`` pairs into single ``--kit_args=<value>`` tokens.
+
+        Argparse rejects a value token that itself looks like an option (starts with ``-`` and contains
+        no space) with "expected one argument", and Kit arguments always start with ``--``. Fusing the
+        pair into the ``=``-attached form before parsing makes the documented space-separated form work
+        for a single Kit argument. All other forms pass through unchanged.
+
+        Args:
+            argv: Command-line tokens, excluding the program name.
+
+        Returns:
+            Tokens with any affected pair replaced by one fused token.
+        """
+        fused: list[str] = []
+        index = 0
+        while index < len(argv):
+            token = argv[index]
+            next_token = argv[index + 1] if index + 1 < len(argv) else None
+            if (
+                token == "--kit_args"
+                and next_token is not None
+                and next_token.startswith("-")
+                and " " not in next_token
+            ):
+                fused.append(f"--kit_args={next_token}")
+                index += 2
+            else:
+                fused.append(token)
+                index += 1
+        return fused
+
+    @staticmethod
     def add_app_launcher_args(parser: argparse.ArgumentParser) -> None:
         """Utility function to configure AppLauncher arguments with an existing argument parser object.
 
@@ -431,6 +471,10 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          A single Kit argument works in both the space-separated and the ``=``-attached form
+          (e.g. ``--kit_args "--ext-folder=/path/to/ext1"`` or ``--kit_args=--ext-folder=/path/to/ext1``).
+          Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
+          multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
         * ``visualizer`` (str): Visualizer backends to enable.
           Valid options are:
@@ -452,6 +496,10 @@ class AppLauncher:
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
         """
+        # argparse rejects an option-like value token after "--kit_args"; fuse the pair before
+        # anything parses the command line so the space-separated form works on every entry point
+        sys.argv[1:] = AppLauncher._fuse_kit_args(sys.argv[1:])
+
         # If the passed parser has an existing _HelpAction when passed,
         # we here remove the options which would invoke it,
         # to be added back after the additional AppLauncher args
@@ -577,7 +625,9 @@ class AppLauncher:
             default="",
             help=(
                 "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
-                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
+                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2".'
+                ' A single Kit argument works in both forms: --kit_args "--ext-folder=/path/to/ext1"'
+                " or --kit_args=--ext-folder=/path/to/ext1."
             ),
         )
         arg_group.add_argument(
@@ -1073,13 +1123,11 @@ class AppLauncher:
         logger.info("Using device: %s", device)
 
     def _set_deferred_cuda_device(self) -> None:
-        """Set the current torch CUDA device after Kit startup."""
+        """Set the current CUDA device after Kit startup."""
         if self._deferred_cuda_device_id is None:
             return
 
-        import torch
-
-        torch.cuda.set_device(self._deferred_cuda_device_id)
+        set_cuda_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -1183,11 +1231,21 @@ class AppLauncher:
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
-        # Resolve additional arguments passed to Kit
-        self._kit_args = []
-        if "kit_args" in launcher_args:
-            self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
-            sys.argv += self._kit_args
+        self._kit_args = launcher_args.get("kit_args", "").split()
+
+        fabric_gpu_interop = os.environ.get(_FABRIC_GPU_INTEROP_ENV)
+        if fabric_gpu_interop is not None:
+            if fabric_gpu_interop not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid value for environment variable `{_FABRIC_GPU_INTEROP_ENV}`: {fabric_gpu_interop}."
+                    " Expected: 0 or 1."
+                )
+            argument = f"--/physics/fabricUseGPUInterop={'true' if fabric_gpu_interop == '1' else 'false'}"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
+
+        sys.argv += self._kit_args
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""

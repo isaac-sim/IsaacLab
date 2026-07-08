@@ -17,7 +17,7 @@ from unittest import mock
 import pytest
 import torch
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 from isaaclab.envs.mdp.observations import stacked_image
 

@@ -23,6 +23,8 @@ from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import Anymal
 from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_non_concatenated_obs_groups_contain_all_terms(device):
