@@ -275,6 +275,7 @@ class NewtonManager(PhysicsManager):
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
+    _use_newton_actuators_active: bool = False
     # In-graph hooks invoked after the actuator step and before the solver
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
@@ -687,22 +688,27 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
 
-        # Lazy CUDA graph capture
+        # Lazy CUDA graph capture. RTX requires the relaxed capture path;
+        # startup state-force callbacks can use the normal path once every
+        # visualizer has had a chance to register.
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
         if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device:  # type: ignore[union-attr]
             NewtonManager._graph_capture_pending = False
-            NewtonManager._graph = cls._capture_relaxed_graph(device)
-            if cls._graph is not None:
-                # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                # first step() inside graph capture. Replay once to pin those
-                # memory-pool addresses before any eager solver.reset() call.
-                if isinstance(cls._solver, SolverKamino):
-                    wp.capture_launch(cls._graph)
-                logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
+            if cls._usdrt_stage is None:
+                cls._capture_or_defer_graph()
             else:
-                logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
+                NewtonManager._graph = cls._capture_relaxed_graph(device)
+                if cls._graph is not None:
+                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
+                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
+                    # first step() inside graph capture. Replay once to pin those
+                    # memory-pool addresses before any eager solver.reset() call.
+                    if isinstance(cls._solver, SolverKamino):
+                        wp.capture_launch(cls._graph)
+                    logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
+                else:
+                    logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
         # Ensure body_q is up-to-date before solvers read rigid transforms.
         # After env resets or kinematic root writes, joint_q is written but
@@ -1487,7 +1493,12 @@ class NewtonManager(PhysicsManager):
         # ``set_decimation`` is a no-op for them (``_is_all_graphable`` is False),
         # so we still need the start-time capture below.
         if not cls._use_newton_actuators_active:
-            cls._capture_or_defer_graph()
+            cls._capture_or_defer_graph(defer_for_state_force_callbacks=True)
+        else:
+            # The actuator fast path already waits for set_decimation() before
+            # its first capture. Mark startup picking as pending as well so
+            # standalone decimation=1 runs capture lazily on their first step.
+            cls._defer_graph_for_state_force_callbacks()
 
     @classmethod
     def _setup_cubric_bindings(cls) -> None:
@@ -1508,12 +1519,40 @@ class NewtonManager(PhysicsManager):
             logger.warning("cubric bindings init failed; falling back to update_world_xforms()")
 
     @classmethod
-    def _capture_or_defer_graph(cls) -> None:
+    def _defer_graph_for_state_force_callbacks(cls) -> bool:
+        """Defer the first graph until startup visualizers register force callbacks.
+
+        Returns:
+            ``True`` when a graph capture was scheduled for a later lifecycle
+            point, otherwise ``False``.
+        """
+        cfg = PhysicsManager._cfg
+        device = PhysicsManager._device
+        if (
+            cfg is None
+            or device is None
+            or not cfg.use_cuda_graph
+            or "cuda" not in device
+            or not cls._supports_cuda_graph_capture()
+            or not cls._state_force_visualizer_requested()
+            or cls._state_force_callbacks
+        ):
+            return False
+
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = True
+        logger.info("Newton CUDA graph capture deferred until interactive visualizer callbacks are registered")
+        return True
+
+    @classmethod
+    def _capture_or_defer_graph(cls, *, defer_for_state_force_callbacks: bool = False) -> None:
         """Capture (or schedule deferred capture of) the CUDA graph.
 
         Called by :meth:`start_simulation` and :meth:`set_decimation`
         whenever the graph needs to be (re-)captured.
 
+        * **Startup picking**: optionally defers the first capture until the
+          Newton visualizer registers its fixed state-force kernel.
         * **No USDRT / headless**: captures immediately via
           ``wp.ScopedCapture``.
         * **RTX active**: defers capture to the first :meth:`step` call
@@ -1527,14 +1566,7 @@ class NewtonManager(PhysicsManager):
             return
 
         use_cuda_graph = cfg.use_cuda_graph and "cuda" in device
-        if use_cuda_graph and not cls._supports_cuda_graph_recapture() and cls._state_force_visualizer_requested():
-            NewtonManager._graph = None
-            NewtonManager._graph_capture_pending = False
-            logger.info(
-                "%s uses eager execution because an interactive visualizer is configured and the solver does not "
-                "support CUDA graph re-capture.",
-                cls.__name__,
-            )
+        if defer_for_state_force_callbacks and cls._defer_graph_for_state_force_callbacks():
             return
         if use_cuda_graph and not cls._supports_cuda_graph_capture():
             NewtonManager._graph = None
@@ -1546,6 +1578,7 @@ class NewtonManager(PhysicsManager):
             return
 
         if use_cuda_graph:
+            NewtonManager._graph_capture_pending = False
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
                 if cls._usdrt_stage is None:
                     simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
@@ -1570,6 +1603,7 @@ class NewtonManager(PhysicsManager):
                     logger.info("Newton CUDA graph capture deferred until first step() (RTX active)")
         else:
             NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = False
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
@@ -2114,10 +2148,10 @@ class NewtonManager(PhysicsManager):
         """Register a callback that applies forces before every solver substep.
 
         The callback receives the current Newton state and runs inside the CUDA
-        graph when graph capture is enabled. Managers that support graph
-        re-capture refresh an existing graph when callbacks change. Managers
-        that do not support re-capture use eager execution when an interactive
-        visualizer is configured.
+        graph when graph capture is enabled. Startup visualizers register while
+        the first graph is pending, so their callbacks are included without a
+        re-capture. Later changes refresh a graph when supported and otherwise
+        fall back to eager execution.
 
         Args:
             callback: Function that adds forces [N, N·m] to the provided state.
@@ -2149,12 +2183,15 @@ class NewtonManager(PhysicsManager):
         manager_cls = cls._get_active_manager_class()
         if manager_cls._solver is None or manager_cls._graph_capture_pending:
             return
+        if manager_cls._graph is None:
+            return
         if not manager_cls._supports_cuda_graph_recapture():
-            if manager_cls._graph is not None:
-                raise RuntimeError(
-                    f"{manager_cls.__name__} cannot attach state-force callbacks after CUDA graph capture. "
-                    "Configure the interactive visualizer before resetting the simulation or disable CUDA graphs."
-                )
+            NewtonManager._graph = None
+            NewtonManager._graph_capture_pending = False
+            logger.info(
+                "%s switched to eager execution because state-force callbacks changed after graph capture",
+                manager_cls.__name__,
+            )
             return
         manager_cls._capture_or_defer_graph()
 

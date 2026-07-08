@@ -89,17 +89,17 @@ def test_deformable_package_exports_public_symbols():
     assert VBDSolverCfg.__name__ == "VBDSolverCfg"
 
 
+def test_vbd_manager_disables_cuda_graph_recapture():
+    """Test that VBD advertises its one-capture-per-lifecycle limitation."""
+    assert NewtonVBDManager._supports_cuda_graph_recapture() is False
+
+
 def test_newton_material_defaults_match_registry_defaults():
     """Test that Newton material cfg defaults match the deformable registry defaults."""
     material_cfg = NewtonDeformableMaterialCfg()
 
     assert material_cfg.density == DeformableRegistryEntry.density
     assert material_cfg.particle_radius == DeformableRegistryEntry.particle_radius
-
-
-def test_vbd_manager_disables_cuda_graph_recapture():
-    """Test that VBD advertises its one-capture-per-lifecycle limitation."""
-    assert NewtonVBDManager._supports_cuda_graph_recapture() is False
 
 
 def test_builder_hook_applies_env_quaternion_to_deformable_entry():

@@ -749,8 +749,8 @@ def test_state_force_callback_runs_before_every_solver_substep(monkeypatch, use_
     assert events == expected_events
 
 
-def test_non_recapturable_manager_starts_eagerly_for_newton_visualizer(monkeypatch):
-    """Interactive forces avoid an unsafe initial graph on managers that cannot re-capture."""
+def test_initial_graph_waits_for_newton_visualizer_callbacks(monkeypatch):
+    """Startup picking defers the first graph instead of forcing a later re-capture."""
 
     class _NonRecapturableManager(NewtonManager):
         @classmethod
@@ -765,9 +765,97 @@ def test_non_recapturable_manager_starts_eagerly_for_newton_visualizer(monkeypat
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True))
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
     monkeypatch.setattr(NewtonManager, "_graph", object())
-    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False)
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [])
 
-    _NonRecapturableManager._capture_or_defer_graph()
+    _NonRecapturableManager._capture_or_defer_graph(defer_for_state_force_callbacks=True)
+
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is True
+
+
+def test_pending_startup_callback_registration_does_not_capture_early(monkeypatch):
+    """Registering the viewer callback leaves the deferred graph for the normal lifecycle capture point."""
+
+    def callback(_state):
+        pass
+
+    monkeypatch.setattr(NewtonManager, "_solver", object())
+    monkeypatch.setattr(NewtonManager, "_graph", None)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True)
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [])
+    monkeypatch.setattr(
+        NewtonManager,
+        "_get_active_manager_class",
+        classmethod(lambda cls: NewtonManager),
+    )
+    monkeypatch.setattr(
+        NewtonManager,
+        "_capture_or_defer_graph",
+        classmethod(lambda cls, **_kwargs: pytest.fail("startup registration must not capture immediately")),
+    )
+
+    NewtonManager.register_state_force_callback(callback)
+
+    assert NewtonManager._state_force_callbacks == [callback]
+    assert NewtonManager._graph is None
+    assert NewtonManager._graph_capture_pending is True
+
+
+def test_registered_startup_callback_is_included_in_first_capture(monkeypatch):
+    """Once the callback exists, the deferred first capture proceeds normally."""
+    captured_graph = object()
+
+    class FakeScopedCapture:
+        def __init__(self, device=None):
+            self.graph = captured_graph
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            return False
+
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(visualizer_cfgs=[SimpleNamespace(visualizer_type="newton")]),
+        get_setting=lambda _name: "",
+    )
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True))
+    monkeypatch.setattr(PhysicsManager, "_device", "cuda:0")
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None)
+    monkeypatch.setattr(NewtonManager, "_solver", None)
+    monkeypatch.setattr(NewtonManager, "_graph", None)
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", True)
+    monkeypatch.setattr(NewtonManager, "_state_force_callbacks", [lambda _state: None])
+    monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
+    monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
+    monkeypatch.setattr(wp, "ScopedCapture", FakeScopedCapture)
+
+    NewtonManager._capture_or_defer_graph(defer_for_state_force_callbacks=True)
+
+    assert NewtonManager._graph is captured_graph
+    assert NewtonManager._graph_capture_pending is False
+
+
+def test_late_callback_change_uses_eager_execution_when_recapture_is_unsupported(monkeypatch):
+    """A runtime callback change safely drops a graph that cannot be replaced."""
+
+    class _NonRecapturableManager(NewtonManager):
+        @classmethod
+        def _supports_cuda_graph_recapture(cls):
+            return False
+
+    monkeypatch.setattr(NewtonManager, "_solver", object())
+    monkeypatch.setattr(NewtonManager, "_graph", object())
+    monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False)
+    monkeypatch.setattr(
+        NewtonManager,
+        "_get_active_manager_class",
+        classmethod(lambda cls: _NonRecapturableManager),
+    )
+
+    NewtonManager._refresh_state_force_graph()
 
     assert NewtonManager._graph is None
     assert NewtonManager._graph_capture_pending is False

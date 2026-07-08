@@ -8,4 +8,6 @@ Fixed
 ^^^^^
 
 * Avoided unsafe CUDA graph re-capture when interactive forces are enabled for
-  fixed-grid MPM or the Newton-native actuator path by using eager execution.
+  fixed-grid MPM or the Newton-native actuator path by including startup
+  callbacks in a deferred first capture. Late callback changes fall back to
+  eager execution only when re-capture is unsupported.

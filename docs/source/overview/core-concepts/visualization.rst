@@ -102,12 +102,14 @@ bodies are not moved. Set
 visualizer is displaying a PhysX simulation because its Newton state is only a
 visualization copy.
 
-Picking callbacks participate in Newton's physics step and are captured in the
-CUDA graph when the active solver supports graph re-capture. VBD, fixed-grid
-MPM, and the Newton-native actuator path cannot safely replace an existing
-graph, so they use eager execution while picking is enabled. Set
-``enable_picking=False`` when interaction is unnecessary to retain their usual
-CUDA-graph behavior.
+Picking callbacks participate in Newton's physics step. When picking is
+configured at startup, Isaac Lab waits for the visualizer callback and includes
+it in the first CUDA graph capture. This preserves graph execution for VBD,
+fixed-grid MPM, and the Newton-native actuator path without requiring those
+solvers to replace a captured graph. A later runtime callback change falls back
+to eager execution when the active solver cannot safely re-capture. Set
+``enable_picking=False`` when interaction is unnecessary to avoid delaying the
+initial graph capture.
 
 
 .. _visualization-configuration:
