@@ -133,11 +133,9 @@ Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
    packages are already part of the core install). Use ``ov[ovrtx]`` (or ``ov[all]``)
    to pull in the ``ovrtx`` dependency.
 
-Or install manually with pip (note the ``[ovrtx]`` extra and the extra index URL):
+Or install the ``ovrtx`` runtime wheel directly with pip (note the extra index URL):
 
-.. code-block:: bash
-
-   pip install --extra-index-url https://pypi.nvidia.com -e "source/isaaclab_ov[ovrtx]"
+.. isaaclab-ovrtx-install::
 
 - **Opaque render data**: The render data object returned by :meth:`~isaaclab.renderers.BaseRenderer.create_render_data` is passed to
   subsequent renderer methods. It should be completely opaque to the caller: inspecting or modifying it

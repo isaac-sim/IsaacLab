@@ -85,8 +85,8 @@ find "$BUILD_DIR/src" -name "*.pyc" -delete 2>/dev/null || true
 cp "$SELF_DIR/res/__init__.py" "$BUILD_DIR/src/isaaclab/"
 cp "$SELF_DIR/res/__main__.py" "$BUILD_DIR/src/isaaclab/"
 
-# 3. Generate pyproject.toml with dependencies from python_packages.toml
-python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/res/python_packages.toml" "$BUILD_DIR/pyproject.toml" "$WHEEL_VERSION"
+# 3. Generate pyproject.toml with dependencies from the root pyproject.toml
+python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/../../pyproject.toml" "$BUILD_DIR/pyproject.toml" "$WHEEL_VERSION"
 
 # 4. Build the wheel
 cd "$BUILD_DIR"

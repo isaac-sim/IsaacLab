@@ -16,13 +16,8 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "rl", "il", "learning"]
 requires-python = ">=3.12"
-dependencies = [
-    "numpy>=2",
-    "torch>=2.10",
-    "torchvision>=0.25.0",
-    "protobuf>=4.25.8,!=5.26.0",
-    "tensorboard",
-]
+# Third-party requirements are centralized in the root pyproject.toml.
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

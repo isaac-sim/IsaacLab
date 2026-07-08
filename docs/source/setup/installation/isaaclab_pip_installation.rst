@@ -30,7 +30,7 @@ pip extras include:
    * - Extra
      - What it installs
    * - ``isaacsim``
-     - Isaac Sim (``isaacsim[all,extscache]==6.0.0.1``) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
+     - Isaac Sim (``isaacsim[all,extscache]`` version |isaacsim_version|) from `pypi.nvidia.com <https://pypi.nvidia.com>`_
    * - ``all``
      - RL frameworks (SB3, SKRL, RSL-RL). Combine with ``isaacsim`` for a full install.
 
@@ -62,7 +62,7 @@ Install with ``isaaclab[isaacsim,all]`` for the full workflow.
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
 
--  Install a CUDA-enabled PyTorch 2.10.0 build that matches your system architecture:
+-  Install a CUDA-enabled PyTorch |torch_version| build that matches your system architecture:
 
    .. tab-set::
       :sync-group: pip-platform
@@ -70,23 +70,17 @@ Installing dependencies
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
          :sync: linux-x86_64
 
-         .. code-block:: bash
-
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+         .. isaaclab-torch-install:: cu128 pip
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
-         .. code-block:: bash
-
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+         .. isaaclab-torch-install:: cu128 pip
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
-         .. code-block:: bash
-
-            pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
+         .. isaaclab-torch-install:: cu130 pip
 
          .. note::
 

@@ -41,39 +41,101 @@ def test_uv_run_extra_names_match_documented_workflow():
     assert documented_extras <= set(optional_dependencies)
 
 
-def test_uv_run_keeps_modular_extras_without_isaacsim():
-    """The root dev project keeps local module extras but leaves Isaac Sim opt-in out."""
+def test_uv_run_exposes_centralized_feature_extras():
+    """The root project centralizes optional third-party deps into named extras."""
     optional_dependencies = _root_pyproject()["project"]["optional-dependencies"]
 
+    # Feature extras a user can activate with ``uv run --extra``.
     expected_extras = {
-        "contrib": ["isaaclab-contrib"],
-        "mimic": ["isaaclab-mimic"],
-        "newton": ["isaaclab-newton[all]", "isaaclab-physx[newton]", "isaaclab-visualizers[newton]"],
-        "ov": ["isaaclab-ovphysx[ovphysx]"],
-        "rl": ["isaaclab-rl[rsl-rl]"],
-        "rl-all": ["isaaclab-rl[all]"],
-        "rtx": ["isaaclab-ov[ovrtx]"],
-        "all": [
-            "isaaclab-mimic",
-            "isaaclab-newton[all]",
-            "isaaclab-physx[newton]",
-            "isaaclab-ppisp",
-            "isaaclab-rl[all]",
-            "isaaclab-visualizers[all]",
-        ],
+        "test",
+        "sb3",
+        "skrl",
+        "rl-games",
+        "rsl-rl",
+        "viser",
+        "rerun",
+        "ov",
+        "rtx",
+        "mimic",
+        "teleop",
+        "rlinf",
+        "all",
     }
+    assert expected_extras <= set(optional_dependencies)
 
-    assert optional_dependencies == expected_extras
-    assert "isaacsim" not in optional_dependencies
+    # The Newton viewer GUI is part of the base install, so there is no ``newton`` extra.
+    assert "newton" not in optional_dependencies
+
+    # Concrete third-party deps live in the extras (not subpackage self-references).
+    # OVPhysX and OVRTX are separate extras, selectable via ``ov[ovphysx]`` / ``ov[ovrtx]``.
+    assert any(dep.startswith("skrl") for dep in optional_dependencies["skrl"])
+    assert any(dep.startswith("ovphysx") for dep in optional_dependencies["ov"])
+    assert any(dep.startswith("ovrtx") for dep in optional_dependencies["rtx"])
+
+
+def test_version_single_source_matches_literal_pins():
+    """``[tool.isaaclab.versions]`` is the single source for externally-pinned versions.
+
+    TOML cannot interpolate, so the literal pins in ``[project.dependencies]``,
+    ``[project.optional-dependencies]``, and ``[tool.uv].override-dependencies`` must
+    mirror the table exactly. This test fails if any of them drift apart.
+    """
+    pyproject = _root_pyproject()
+    versions = pyproject["tool"]["isaaclab"]["versions"]
+    dependencies = pyproject["project"]["dependencies"]
+    optional = pyproject["project"]["optional-dependencies"]
+    overrides = pyproject["tool"]["uv"]["override-dependencies"]
+
+    # Isaac Sim extra mirrors the table.
+    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+
+    # OV extras mirror the table (ovphysx exact pin in ``ov``, ovrtx range spec in ``rtx``).
+    assert f"ovphysx=={versions['ovphysx']}" in optional["ov"]
+    assert f"ovrtx{versions['ovrtx']}" in optional["rtx"]
+
+    # uv torch-stack overrides mirror the table.
+    for package in ("torch", "torchvision", "torchaudio"):
+        assert f"{package}=={versions[package]}" in overrides
+
+    # Newton git commit is pinned via a uv override; warp-lang is a core dependency.
+    assert any(dep.endswith(f"newton.git@{versions['newton']}") for dep in overrides)
+    assert f"warp-lang=={versions['warp']}" in dependencies
+
+
+def test_uv_run_isaacsim_extra_is_conflict_forked():
+    """Isaac Sim is an opt-in uv workspace extra, forked away from clashing extras.
+
+    PhysX/Isaac Sim is never a base dependency, but it must be a real
+    ``optional-dependencies`` extra so ``uv run --extra isaacsim`` resolves. Its
+    exact pins clash with several other extras, so it is declared in
+    ``[tool.uv].conflicts`` (forked resolution) rather than co-resolved with them.
+    """
+    pyproject = _root_pyproject()
+    project = pyproject["project"]
+    base_dependency_names = {re.split(r"[\s<>=!~\[;]", dep, maxsplit=1)[0] for dep in project["dependencies"]}
+
+    # PhysX/Isaac Sim is opt-in, never installed by the bare ``uv run``.
+    assert "isaacsim" not in base_dependency_names
+    # ...but it is a workspace extra so ``uv run --extra isaacsim`` works.
+    assert "isaacsim" in project["optional-dependencies"]
+    assert any(dep.startswith("isaacsim[") for dep in project["optional-dependencies"]["isaacsim"])
+    # The legacy wheel-only table is gone (isaacsim now lives in the extras).
+    assert "wheel-extras" not in pyproject.get("tool", {}).get("isaaclab", {})
+
+    # isaacsim is forked away from every extra whose pins clash with it.
+    conflict_groups = [{entry["extra"] for entry in group} for group in pyproject["tool"]["uv"]["conflicts"]]
+    for extra in ("teleop", "ov", "viser", "mimic", "all", "test"):
+        assert {"isaacsim", extra} in conflict_groups, f"isaacsim must declare a conflict with '{extra}'"
 
 
 def test_uv_run_base_dependencies_cover_newton_rsl_rl_training():
-    """The documented bare ``uv run train`` command needs Newton and RSL-RL extras."""
+    """The documented bare ``uv run isaaclab train`` command needs Newton and RSL-RL in core."""
     dependencies = _root_pyproject()["project"]["dependencies"]
 
-    assert "isaaclab-newton[all]" in dependencies
-    assert "isaaclab-physx[newton]" in dependencies
-    assert "isaaclab-rl[rsl-rl]" in dependencies
+    # Newton is the default physics engine and RSL-RL the default training library,
+    # so both ship as core third-party requirements (not opt-in extras).
+    assert any(dep.startswith("newton[sim]") for dep in dependencies)
+    assert any(dep.startswith("rsl-rl-lib") for dep in dependencies)
 
 
 def test_uv_run_uses_managed_python():

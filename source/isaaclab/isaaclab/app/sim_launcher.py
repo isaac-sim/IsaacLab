@@ -352,11 +352,11 @@ def _validate_runtime(scan: Scan, launcher_args: argparse.Namespace | dict | Non
         "\n"
         "To fix this, pick one of the following supported combinations:\n"
         "  * Keep Isaac Sim / Kit and switch the renderer:\n"
-        "      presets=isaacsim_rtx_renderer\n"
+        "      presets=isaacsim_rtx\n"
         "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
         "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
         "    (and avoid `--visualizer kit`):\n"
-        "      presets=newton_mjwarp,ovrtx_renderer\n"
+        "      presets=newton_mjwarp,ovrtx\n"
     )
 
 
@@ -424,7 +424,7 @@ def launch_simulation(
     # with a targeted hint (_validate_runtime covers the broader ovrtx-vs-Kit cases).
     if "kit" in visualizer_types and config_scan.has_ovrtx:
         raise ValueError(
-            "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx_renderer'. "
+            "[launch_simulation] '--visualizer kit' is incompatible with 'ovrtx'. "
             "Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries "
             "(librtx.hydra.so, liblegacy.hydra.so) compiled against different USD namespaces, "
             "which causes a dynamic-linker crash when loaded into the same process. "
