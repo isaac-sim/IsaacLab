@@ -34,9 +34,9 @@ The number of demonstrations can be increased or decreased, 1000 demonstrations 
 Additionally, the number of environments in the ``--num_envs`` parameter can be adjusted to speed up data generation.
 The suggested number of 10 can be executed on a moderate laptop CPU.
 On a more powerful desktop machine, use a larger number of environments for a significant speedup of this step.
-When running large camera-heavy jobs, tune the task's renderer settings or camera
-data types directly if the default high-fidelity RTX settings are more expensive
-than your workflow requires.
+When running large camera-heavy jobs, switch to the RTX Minimal renderer for higher throughput, or
+override the task's high-fidelity RTX settings directly if they are more expensive than your workflow
+requires.
 
 Cosmos Augmentation
 ~~~~~~~~~~~~~~~~~~~
