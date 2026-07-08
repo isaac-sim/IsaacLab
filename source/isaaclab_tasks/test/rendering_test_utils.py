@@ -7,7 +7,8 @@
 
 import logging
 import os
-from collections.abc import Callable
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -151,69 +152,112 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
-# Registered-task rendering case that also compares the exported USD stage.
-GOLDEN_STAGE_REGISTERED_TASK = ("Isaac-Cartpole-Camera-Direct", None, "cartpole")
+# Registered-task rendering combinations. Defined here (rather than in the test module) so the
+# golden-stage registry below and ``test_rendering_registered_tasks.py``'s
+# ``@pytest.mark.parametrize`` share one source of truth, mirroring how the cartpole test consumes
+# ``PHYSICS_RENDERER_AOV_COMBINATIONS``. Each row is ``(task_id, presets, env_name)``; ``presets``
+# selects a data-type variant on the consolidated cartpole camera task (``None`` uses the default).
+REGISTERED_TASK_RENDERING_COMBINATIONS = [
+    ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "depth", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
+    pytest.param(
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
+        None,
+        "shadow_hand",
+        # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
+        # exceeds the 3% diff threshold by a fraction of a percent. Allow up to 3 attempts and
+        # require at least one pass while we tighten the validation tolerances for this scene.
+        marks=pytest.mark.flaky(max_runs=3, min_passes=1),
+    ),
+]
 
 _RENDERING_TEST_CORE_DIR = "source/isaaclab_tasks/test/core"
 
 
+def _parametrize_case_id_and_values(entry: Any) -> tuple[str, tuple[Any, ...]]:
+    """Return ``(pytest_case_id, values)`` for one ``@pytest.mark.parametrize`` entry.
+
+    Handles plain tuples/scalars as well as :func:`pytest.param` (``ParameterSet``) entries,
+    including params created without an explicit ``id=`` — for those, the default id is
+    reconstructed exactly as pytest does for simple values (``"-"``-joined, ``None`` rendered
+    as ``"None"``). ``ParameterSet`` is itself a tuple, so it must be detected via its ``values``
+    attribute before the plain-tuple branch.
+    """
+    if hasattr(entry, "values") and hasattr(entry, "id"):
+        values = tuple(entry.values)
+        case_id = entry.id if entry.id is not None else _default_case_id(values)
+    elif isinstance(entry, tuple):
+        values = entry
+        case_id = _default_case_id(values)
+    else:
+        values = (entry,)
+        case_id = _default_case_id(values)
+    return case_id, values
+
+
+def _default_case_id(values: tuple[Any, ...]) -> str:
+    """Reconstruct pytest's default parametrize id for simple (str/None) values."""
+    return "-".join("None" if value is None else str(value) for value in values)
+
+
 @dataclass(frozen=True)
 class GoldenStageRenderingTest:
-    """Pytest target and parametrized cases that export golden USD stages."""
+    """A parametrized rendering test whose every case exports a golden USD stage.
+
+    Golden-stage comparison covers all simulation backends: every case in ``combinations`` is
+    validated against a checked-in baseline. ``combinations`` must be the same object the test's
+    ``@pytest.mark.parametrize`` consumes so the generated node IDs and the cases the test actually
+    runs stay in lock-step — adding a backend/task to that list automatically extends golden-stage
+    coverage to it, with no per-case registration.
+    """
 
     test_module: str
     test_function: str
-    combinations: tuple[Any, ...]
-    should_compare: Callable[..., bool]
+    combinations: Sequence[Any]
     test_root: str = _RENDERING_TEST_CORE_DIR
 
     def pytest_node_ids(self) -> tuple[str, ...]:
-        """Build pytest node IDs for parametrized cases selected by ``should_compare``."""
+        """Build pytest node IDs for every parametrized case of this test."""
         node_ids: list[str] = []
         for entry in self.combinations:
-            entry_id = getattr(entry, "id", None)
-            if entry_id is not None:
-                values = entry.values
-            elif isinstance(entry, tuple):
-                values = entry
-                entry_id = "-".join("None" if value is None else str(value) for value in values)
-            else:
-                continue
-
-            if not self.should_compare(*values):
-                continue
-
-            node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{entry_id}]")
-
+            case_id, _ = _parametrize_case_id_and_values(entry)
+            node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{case_id}]")
         return tuple(node_ids)
 
 
-def should_compare_golden_stage_cartpole(physics_backend: str, renderer: str, data_type: str) -> bool:
-    """Return whether the cartpole rendering case exports a golden USD stage."""
-    return physics_backend == "physx" and renderer == "isaacsim_rtx_renderer" and data_type == "rgb"
-
-
-def should_compare_golden_stage_registered_task(task_id: str, presets: str | None, env_name: str) -> bool:
-    """Return whether the registered-task rendering case exports a golden USD stage."""
-    del env_name
-    golden_task_id, golden_presets, _ = GOLDEN_STAGE_REGISTERED_TASK
-    return task_id == golden_task_id and presets == golden_presets
-
-
+# Rendering tests whose cases validate their exported USD stage against a golden baseline. Each
+# entry shares its ``combinations`` object with the test's ``@pytest.mark.parametrize`` so the
+# coverage is a single source of truth across all simulation backends.
 GOLDEN_STAGE_RENDERING_TESTS = (
     GoldenStageRenderingTest(
         test_module="test_rendering_cartpole.py",
         test_function="test_rendering_cartpole",
         combinations=PHYSICS_RENDERER_AOV_COMBINATIONS,
-        should_compare=should_compare_golden_stage_cartpole,
     ),
     GoldenStageRenderingTest(
         test_module="test_rendering_registered_tasks.py",
         test_function="test_rendering_registered_tasks",
-        combinations=(GOLDEN_STAGE_REGISTERED_TASK,),
-        should_compare=should_compare_golden_stage_registered_task,
+        combinations=REGISTERED_TASK_RENDERING_COMBINATIONS,
     ),
 )
+
+_GOLDEN_STAGE_TEST_FUNCTIONS = frozenset(
+    rendering_test.test_function for rendering_test in GOLDEN_STAGE_RENDERING_TESTS
+)
+
+
+def compares_golden_stage(test_function: str) -> bool:
+    """Return whether a rendering test validates its exported USD stage for all backends.
+
+    Single source of truth shared by the test call sites and ``generate_golden_stages.py`` so the
+    runtime comparison and the golden-generation selection can never diverge.
+    """
+    return test_function in _GOLDEN_STAGE_TEST_FUNCTIONS
 
 
 def golden_stage_pytest_node_ids() -> tuple[str, ...]:
@@ -267,6 +311,33 @@ KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
 ]
 
 
+def _normalize_asset_reference(match: re.Match) -> str:
+    """Mask the volatile parts of a USD asset reference target (``@...@``).
+
+    Windows exports use ``\\`` separators while Linux uses ``/``, and the Isaac assets root
+    carries a version segment (e.g. ``Isaac/6.0``) that bumps between releases. Masking both
+    keeps the baseline stable across platforms and asset releases while still detecting real
+    scene-composition changes.
+    """
+    path = match.group(1).replace("\\", "/")
+    path = re.sub(r"(/Isaac/)\d+(?:\.\d+)*/", r"\1<VERSION>/", path)
+    return f"@{path}@"
+
+
+def canonicalize_stage_text(text: str) -> str:
+    """Canonicalize exported USDA text so golden comparison ignores non-semantic churn.
+
+    Normalizes line endings, strips the volatile ``doc = \"\"\"...\"\"\"`` provenance block, masks
+    ``anon:0x...`` layer identifiers, and portability-masks asset reference targets. Extend this
+    when a newly covered task emits additional volatile fields (timestamps, GUIDs, seeds).
+    """
+    text = text.replace("\r\n", "\n")
+    text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
+    text = re.sub(r"anon:0x[0-9a-fA-F]+:[^\s\"')>]+", "<ANON_LAYER>", text)
+    text = re.sub(r"@([^@]*)@", _normalize_asset_reference, text)
+    return "\n".join(line.rstrip() for line in text.split("\n"))
+
+
 def maybe_save_stage(
     test_name: str,
     physics_backend: str,
@@ -310,29 +381,11 @@ def maybe_save_stage(
 
         if compare_golden:
             import difflib
-            import re
-
-            def _normalize_asset_reference(match: re.Match) -> str:
-                # Normalize asset reference targets (``@...@``) so goldens stay portable:
-                # Windows exports use ``\`` separators while Linux uses ``/``, and the Isaac
-                # assets root carries a version segment (e.g. ``Isaac/6.0``) that bumps between
-                # releases. Masking both keeps the baseline stable across platforms and asset
-                # releases while still detecting real scene-composition changes.
-                path = match.group(1).replace("\\", "/")
-                path = re.sub(r"(/Isaac/)\d+(?:\.\d+)*/", r"\1<VERSION>/", path)
-                return f"@{path}@"
-
-            def _canonicalize_stage_text(text: str) -> str:
-                text = text.replace("\r\n", "\n")
-                text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
-                text = re.sub(r"anon:0x[0-9a-fA-F]+:[^\s\"')>]+", "<ANON_LAYER>", text)
-                text = re.sub(r"@([^@]*)@", _normalize_asset_reference, text)
-                return "\n".join(line.rstrip() for line in text.split("\n"))
 
             golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, test_name)
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
-            result_text = _canonicalize_stage_text(stage_text)
+            result_text = canonicalize_stage_text(stage_text)
 
             if not os.path.exists(golden_path):
                 with open(golden_path, "w", encoding="utf-8") as file:
@@ -340,7 +393,7 @@ def maybe_save_stage(
                 pytest.fail(f"Golden stage not found at {golden_path}. A new baseline was written.")
 
             with open(golden_path, encoding="utf-8") as file:
-                golden_text = _canonicalize_stage_text(file.read())
+                golden_text = canonicalize_stage_text(file.read())
 
             if result_text != golden_text:
                 diff_lines = list(
@@ -1035,7 +1088,7 @@ def rendering_test_cartpole(
             physics_backend,
             renderer,
             data_type,
-            compare_golden=should_compare_golden_stage_cartpole(physics_backend, renderer, data_type),
+            compare_golden=True,
         )
         validate_camera_outputs(
             "cartpole",
