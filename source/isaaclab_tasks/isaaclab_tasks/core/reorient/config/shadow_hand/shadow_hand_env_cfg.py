@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -207,6 +208,16 @@ class ShadowHandRobotCfg(PresetCfg):
         },
         soft_joint_pos_limit_factor=1.0,
     )
+    ovphysx = SHADOW_HAND_CFG.replace(
+        prim_path="/World/envs/env_.*/Robot",
+        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
+        spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.5),
+            rot=(0.0, 0.0, 0.0, 1.0),
+            joint_pos={".*": 0.0},
+        ),
+    )
     default = physx
     newton_kamino = newton_mjwarp
 
@@ -290,6 +301,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    ovphysx = OvPhysxCfg()
     default = physx
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=128))
 

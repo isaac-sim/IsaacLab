@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
@@ -136,9 +137,9 @@ def _shadow_hand_cfg(
     init_pos: tuple[float, float, float],
     init_rot: tuple[float, float, float, float],
 ) -> PresetCfg:
-    """Per-hand Shadow Hand preset (PhysX and Newton MJWarp variants).
+    """Per-hand Shadow Hand preset (PhysX, Newton MJWarp, and OVPhysX variants).
 
-    Both variants are placed at *prim_path* with the same init pose; per-hand
+    All variants are placed at *prim_path* with the same init pose; per-hand
     differences (right vs left) come from the caller's *prim_path* / *init_pos* /
     *init_rot* — the gain tuning is identical on both hands.
 
@@ -154,12 +155,13 @@ def _shadow_hand_cfg(
       authority. ``20.0`` / ``2.0`` is the smallest tested setting at which
       MAPPO learns the catch (mean reward at iter 200 / 2048 envs goes from
       ~27 at PhysX-mirrored gains to ~777).
-    * ``distal_passive`` on the four ``robot0_(FF|MF|RF|LF)J0`` joints with
-      ``stiffness=10.0`` / ``damping=0.1``. The Newton USD bakes
-      ``stiffness=286 / damping=57`` on these joints from the MJCF→USD
-      translation, which fights the ``MjcTendon`` coupling and bounces the
-      ball. ``stiffness=10`` (~1/3 of PhysX's ``limit_stiffness=30``) keeps
-      the joints near-passive while the tendon constraint dominates.
+    * ``distal_passive`` on the four ``robot0_(FF|MF|RF|LF)J1`` distal joints
+      (named ``J0`` before the current asset release) with ``stiffness=10.0`` /
+      ``damping=0.1``. The Newton USD bakes ``stiffness=286 / damping=57`` on
+      these joints from the MJCF→USD translation, which fights the
+      ``MjcTendon`` coupling and bounces the ball. ``stiffness=10`` (~1/3 of
+      PhysX's ``limit_stiffness=30``) keeps the joints near-passive while the
+      tendon constraint dominates.
     """
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
@@ -170,7 +172,7 @@ def _shadow_hand_cfg(
         actuators={
             "fingers": _SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
             "distal_passive": ImplicitActuatorCfg(
-                joint_names_expr=["robot0_(FF|MF|RF|LF)J0"],
+                joint_names_expr=["robot0_(FF|MF|RF|LF)J1"],
                 stiffness=10.0,
                 damping=0.1,
                 friction=1e-2,
@@ -178,7 +180,13 @@ def _shadow_hand_cfg(
             ),
         },
     )
-    return preset(default=physx_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg)
+    ovphysx_cfg = SHADOW_HAND_CFG.replace(
+        prim_path=prim_path,
+        # OVPhysX does not expose the fixed-tendon runtime API, so spawn without tendon overrides.
+        spawn=SHADOW_HAND_CFG.spawn.replace(fixed_tendons_props=None),
+        init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
+    )
+    return preset(default=physx_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg, ovphysx=ovphysx_cfg)
 
 
 @configclass
@@ -261,6 +269,7 @@ class PhysicsCfg(PresetCfg):
         num_substeps=2,
         debug_mode=False,
     )
+    ovphysx = OvPhysxCfg()
     default = physx
 
 
