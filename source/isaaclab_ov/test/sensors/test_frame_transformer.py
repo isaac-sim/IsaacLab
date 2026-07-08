@@ -18,6 +18,7 @@ Run via ``uv run python -m pytest`` (the standard Kit Python entrypoint).
 from __future__ import annotations
 
 import math
+from types import SimpleNamespace
 
 import pytest
 import scipy.spatial.transform as tf
@@ -38,6 +39,9 @@ if not hasattr(_TT_module, "RIGID_BODY_POSE"):
     )
 
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+import isaaclab_ov.tensor_types as TT  # noqa: E402
+from isaaclab_ov.sensors.frame_transformer.frame_transformer import FrameTransformer  # noqa: E402
+from isaaclab_ov.sensors.frame_transformer.frame_transformer_data import FrameTransformerData  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
@@ -47,6 +51,7 @@ from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCf
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
 from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils.warp import CapturedKernelUpdate  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
@@ -976,3 +981,154 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
                 assert matches_robot or matches_robot_1, (
                     f"RF_SHANK position {rf_pos} doesn't match either robot's RF_SHANK position"
                 )
+
+
+# ---------------------------------------------------------------------------
+# CUDA-graph capture (scene-free unit tests)
+# ---------------------------------------------------------------------------
+
+
+_GPU = pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
+
+
+class _FakeBodyView:
+    """Fill the caller-owned per-env pose buffer from a torch source, counting reads."""
+
+    def __init__(self, poses_torch: torch.Tensor):
+        self._poses_torch = poses_torch
+        self._src = wp.from_torch(poses_torch.contiguous(), dtype=wp.transformf)
+        self.read_count = 0
+
+    def read_into(self, tensor_type, dst) -> None:
+        assert tensor_type == TT.RIGID_BODY_POSE
+        self.read_count += 1
+        wp.copy(dst, self._src)
+
+
+def _make_identity_quat_poses(translations: torch.Tensor) -> torch.Tensor:
+    """Build (num_envs, 7) poses with the given translations and identity quaternions."""
+    num_envs = translations.shape[0]
+    poses = torch.zeros((num_envs, 7), dtype=torch.float32, device=translations.device)
+    poses[:, :3] = translations
+    poses[:, 6] = 1.0  # identity quaternion (x, y, z, w) = (0, 0, 0, 1)
+    return poses
+
+
+def _make_graphed_frame_transformer(num_envs: int = 2):
+    """Create a FrameTransformer without a USD scene, wired for graph unit tests.
+
+    Layout: two tracked bodies (body slot 0 = source, body slot 1 = the single
+    target frame), so ``_raw_transforms`` holds ``num_envs * 2`` transforms with
+    flat slot ``env_id * 2 + body_slot``.
+    """
+    device = "cuda:0"
+    num_unique_bodies = 2
+    num_target_frames = 1
+
+    # Distinct per-env translations for the source and target bodies.
+    source_trans = torch.arange(1, num_envs * 3 + 1, dtype=torch.float32, device=device).reshape(num_envs, 3)
+    target_trans = source_trans + 100.0
+    source_view = _FakeBodyView(_make_identity_quat_poses(source_trans))
+    target_view = _FakeBodyView(_make_identity_quat_poses(target_trans))
+
+    def _dst_indices(body_slot: int) -> wp.array:
+        flat = torch.tensor(
+            [env_id * num_unique_bodies + body_slot for env_id in range(num_envs)],
+            dtype=torch.int32,
+            device=device,
+        )
+        return wp.from_torch(flat.contiguous(), dtype=wp.int32)
+
+    sensor = FrameTransformer.__new__(FrameTransformer)
+    sensor.cfg = SimpleNamespace(prim_path="/World/FT")
+    sensor._device = device
+    sensor._num_envs = num_envs
+    sensor._num_target_frames = num_target_frames
+    sensor._resolve_indices_and_mask = lambda env_ids, mask: mask
+    sensor._physx_instance = None
+
+    sensor._body_views = [source_view, target_view]
+    sensor._body_read_bufs = [
+        wp.zeros(num_envs, dtype=wp.transformf, device=device),
+        wp.zeros(num_envs, dtype=wp.transformf, device=device),
+    ]
+    sensor._body_dst_flat_indices = [_dst_indices(0), _dst_indices(1)]
+    sensor._raw_transforms = wp.zeros(num_envs * num_unique_bodies, dtype=wp.transformf, device=device)
+
+    # Source frame lives at body slot 0; the target frame lives at body slot 1.
+    source_raw = torch.tensor([e * num_unique_bodies + 0 for e in range(num_envs)], dtype=torch.int32, device=device)
+    sensor._source_raw_indices = wp.from_torch(source_raw.contiguous(), dtype=wp.int32)
+    target_raw = torch.tensor([[e * num_unique_bodies + 1] for e in range(num_envs)], dtype=torch.int32, device=device)
+    sensor._target_raw_indices = wp.from_torch(target_raw.contiguous(), dtype=wp.int32)
+
+    # Identity offsets (position zero, quaternion identity) for source and target.
+    sensor._source_offset_pos_wp = wp.zeros(num_envs, dtype=wp.vec3f, device=device)
+    sensor._source_offset_quat_wp = wp.zeros(num_envs, dtype=wp.quatf, device=device)
+    wp.to_torch(sensor._source_offset_quat_wp)[:, 3] = 1.0
+    sensor._target_offset_pos_wp = wp.zeros(num_target_frames, dtype=wp.vec3f, device=device)
+    sensor._target_offset_quat_wp = wp.zeros(num_target_frames, dtype=wp.quatf, device=device)
+    wp.to_torch(sensor._target_offset_quat_wp)[:, 3] = 1.0
+
+    sensor._data = FrameTransformerData()
+    sensor._data.create_buffers(
+        num_envs=num_envs,
+        num_target_frames=num_target_frames,
+        target_frame_names=["target"],
+        device=device,
+    )
+    sensor._update_graph = CapturedKernelUpdate(device, owner="frame transformer at '/World/FT'")
+    sensor._initialize_handle = None
+    sensor._invalidate_initialize_handle = None
+    sensor._prim_deletion_handle = None
+
+    env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
+    return sensor, target_view, env_mask
+
+
+@_GPU
+def test_frame_transformer_graph_replay_sees_refreshed_reads_and_mask():
+    """Replays must consume freshly read body poses and in-place mask changes."""
+    sensor, target_view, env_mask = _make_graphed_frame_transformer(num_envs=2)
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+    target_pos_before = wp.to_torch(sensor._data._target_pos_w).clone()
+    assert target_view.read_count == 1
+
+    target_view._poses_torch[:, :3] *= 10.0
+    wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor._device)
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+
+    assert target_view.read_count == 2  # fetch still runs eagerly on replay
+    target_pos_after = wp.to_torch(sensor._data._target_pos_w)
+    torch.testing.assert_close(target_pos_after[0], target_pos_before[0])  # masked-off env untouched
+    assert not torch.allclose(target_pos_after[1], target_pos_before[1])  # masked-on env refreshed
+
+
+@_GPU
+def test_frame_transformer_refuses_update_inside_outer_capture():
+    """The update must raise before reading OvPhysX when an outer capture is active."""
+    sensor, target_view, env_mask = _make_graphed_frame_transformer()
+    scratch_src = wp.ones(1, dtype=wp.int32, device=sensor._device)
+    scratch_dst = wp.zeros(1, dtype=wp.int32, device=sensor._device)
+
+    with wp.ScopedCapture(device=wp.get_device(sensor._device)):
+        with pytest.raises(RuntimeError, match="CUDA graph capture is active"):
+            sensor._update_buffers_impl(env_mask)
+        wp.copy(scratch_dst, scratch_src)  # keep the outer capture non-empty
+
+    assert target_view.read_count == 0
+
+
+@_GPU
+def test_frame_transformer_invalidation_drops_captured_graph(monkeypatch):
+    """Invalidation must invalidate the update graph alongside the native handles."""
+    sensor, _, env_mask = _make_graphed_frame_transformer()
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor._device)
+    assert sensor._update_graph.is_captured
+
+    monkeypatch.setattr(BaseFrameTransformer, "_invalidate_initialize_callback", lambda self, event: None)
+    sensor._invalidate_initialize_callback(None)
+    assert not sensor._update_graph.is_captured

@@ -20,6 +20,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.math import is_identity_pose, normalize, quat_from_angle_axis
+from isaaclab.utils.warp import CapturedKernelUpdate
 
 import isaaclab_ov.tensor_types as TT
 from isaaclab_ov.physics import OvPhysxManager as SimulationManager
@@ -409,8 +410,16 @@ class FrameTransformer(BaseFrameTransformer):
             device=self._device,
         )
 
+        self._update_graph = CapturedKernelUpdate(self._device, owner=f"frame transformer at '{self.cfg.prim_path}'")
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None) -> None:
-        """Fills the buffers of the sensor data."""
+        """Fills the buffers of the sensor data.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active (the blocking
+                native pose reads cannot be captured, so replays would consume stale data).
+        """
+        self._update_graph.refuse_outer_capture()
         env_mask = self._resolve_indices_and_mask(None, env_mask)
         if (
             self._raw_transforms is None
@@ -426,40 +435,49 @@ class FrameTransformer(BaseFrameTransformer):
                 " Access sensor data only after sim.reset() has been called."
             )
 
-        # Step 1: refresh each per-body RIGID_BODY_POSE view and gather rows into _raw_transforms.
-        # read_into fills the structured (num_envs,) wp.transformf buffer directly via a cached
-        # float32 reinterpret, so no manual .view(wp.transformf) is needed here.
-        for view, read_buf, dst_indices in zip(self._body_views, self._body_read_bufs, self._body_dst_flat_indices):
+        # Phase 1 (eager): refresh each per-body RIGID_BODY_POSE view in place. These blocking
+        # native reads run every update, including graph replays, so the sensor-owned read buffers
+        # the captured closure below consumes always hold fresh data. read_into fills the structured
+        # (num_envs,) wp.transformf buffer directly via a cached float32 reinterpret, so no manual
+        # .view(wp.transformf) is needed here.
+        for view, read_buf in zip(self._body_views, self._body_read_bufs):
             view.read_into(TT.RIGID_BODY_POSE, read_buf)
+
+        # Phase 2 (captured): gather each body's rows into _raw_transforms, then compute source/target
+        # world poses (with offsets) and target poses relative to source. The gather loop's trip count
+        # is fixed at init, so capturing the unrolled sequence over pointer-stable buffers is valid.
+        def _compute() -> None:
+            for read_buf, dst_indices in zip(self._body_read_bufs, self._body_dst_flat_indices):
+                wp.launch(
+                    gather_body_pose_kernel,
+                    dim=self._num_envs,
+                    inputs=[env_mask, read_buf, dst_indices, self._raw_transforms],
+                    device=self._device,
+                )
+
             wp.launch(
-                gather_body_pose_kernel,
-                dim=self._num_envs,
-                inputs=[env_mask, read_buf, dst_indices, self._raw_transforms],
+                frame_transformer_update_kernel,
+                dim=(self._num_envs, self._num_target_frames),
+                inputs=[
+                    env_mask,
+                    self._raw_transforms,
+                    self._source_raw_indices,
+                    self._target_raw_indices,
+                    self._source_offset_pos_wp,
+                    self._source_offset_quat_wp,
+                    self._target_offset_pos_wp,
+                    self._target_offset_quat_wp,
+                    self._data._source_pos_w,
+                    self._data._source_quat_w,
+                    self._data._target_pos_w,
+                    self._data._target_quat_w,
+                    self._data._target_pos_source,
+                    self._data._target_quat_source,
+                ],
                 device=self._device,
             )
 
-        # Step 2: compute source/target world poses (with offsets) and target poses relative to source.
-        wp.launch(
-            frame_transformer_update_kernel,
-            dim=(self._num_envs, self._num_target_frames),
-            inputs=[
-                env_mask,
-                self._raw_transforms,
-                self._source_raw_indices,
-                self._target_raw_indices,
-                self._source_offset_pos_wp,
-                self._source_offset_quat_wp,
-                self._target_offset_pos_wp,
-                self._target_offset_quat_wp,
-                self._data._source_pos_w,
-                self._data._source_quat_w,
-                self._data._target_pos_w,
-                self._data._target_quat_w,
-                self._data._target_pos_source,
-                self._data._target_quat_source,
-            ],
-            device=self._device,
-        )
+        self._update_graph.run(_compute)
 
     def _set_debug_vis_impl(self, debug_vis: bool) -> None:
         # set visibility of markers
@@ -519,6 +537,9 @@ class FrameTransformer(BaseFrameTransformer):
     def _invalidate_initialize_callback(self, event) -> None:
         """Drop OVPhysX handles and cached buffers when physics stops."""
         super()._invalidate_initialize_callback(event)
+        # The captured graph points into buffers dropped below; re-capture on next play.
+        if getattr(self, "_update_graph", None) is not None:
+            self._update_graph.invalidate()
         self._body_read_bufs = []
         self._body_dst_flat_indices = []
         self._body_views = []
