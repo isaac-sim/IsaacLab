@@ -88,3 +88,8 @@ class CapturedKernelUpdate:
     def invalidate(self) -> None:
         """Drops the captured graph so the next :meth:`run` re-captures."""
         self._graph = None
+
+    @property
+    def is_captured(self) -> bool:
+        """Whether a CUDA graph has been captured and will be replayed by :meth:`run`."""
+        return self._graph is not None

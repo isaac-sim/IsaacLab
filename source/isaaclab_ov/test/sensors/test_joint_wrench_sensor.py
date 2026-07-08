@@ -629,8 +629,8 @@ def test_joint_wrench_invalidation_drops_captured_graph(monkeypatch):
     sensor, _, env_mask = _make_graphed_joint_wrench_sensor()
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor._device)
-    assert sensor._update_graph._graph is not None
+    assert sensor._update_graph.is_captured
 
     monkeypatch.setattr(BaseJointWrenchSensor, "_invalidate_initialize_callback", lambda self, event: None)
     sensor._invalidate_initialize_callback(None)
-    assert sensor._update_graph._graph is None
+    assert not sensor._update_graph.is_captured

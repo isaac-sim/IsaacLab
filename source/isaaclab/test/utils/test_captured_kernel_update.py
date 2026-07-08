@@ -99,6 +99,19 @@ def test_invalidate_forces_recapture():
     assert calls["count"] == 2
 
 
+def test_is_captured_tracks_graph_lifecycle():
+    """``is_captured`` is False before the first run, True after, and False after invalidate."""
+    _, _, _, compute = _make_copy_compute()
+    graph = CapturedKernelUpdate(DEVICE, owner="test sensor at '/World/S'")
+
+    assert graph.is_captured is False
+    graph.run(compute)
+    wp.synchronize_device(DEVICE)
+    assert graph.is_captured is True
+    graph.invalidate()
+    assert graph.is_captured is False
+
+
 def test_cpu_device_stays_eager():
     """On CPU the helper must be disabled and run compute eagerly every call."""
     calls = {"count": 0}
