@@ -27,6 +27,7 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
@@ -434,6 +435,11 @@ def launch_simulation(
     _validate_runtime(config_scan, launcher_args)
     needs_kit = _uses_isaac_sim_runtime(config_scan, launcher_args)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
+
+    # Kit-based backends apply the Python logging level inside AppLauncher; kitless backends
+    # never construct it, so honor --verbose / --info here to keep behavior consistent.
+    if not needs_kit:
+        apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
     if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
         if not _get_arg(launcher_args, "enable_cameras", False):

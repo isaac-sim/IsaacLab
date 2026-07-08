@@ -133,7 +133,7 @@ def test_load_extensions_publishes_has_gui_setting(
     settings = _DummySettings()
     monkeypatch.setattr(app_launcher_module, "initialize_carb_settings", lambda: None)
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
-    monkeypatch.setattr(AppLauncher, "_apply_python_logging_level", lambda _level: None)
+    monkeypatch.setattr(app_launcher_module, "apply_python_logging_level", lambda _level: None)
 
     launcher._load_extensions()
 
