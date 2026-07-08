@@ -90,3 +90,27 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
         pass
 
     assert captured == {"types": "", "explicit": True, "disable_all": True}
+
+
+def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
+    """Kitless mode should apply the resolved Python logging level before yielding."""
+    captured: dict[str, object] = {}
+
+    def fake_resolve(launcher_args):
+        captured["resolve_args"] = launcher_args
+        return 42
+
+    def fake_apply(level):
+        captured["applied_level"] = level
+
+    _force_kitless(monkeypatch)
+    monkeypatch.setattr(sim_launcher, "resolve_python_logging_level", fake_resolve)
+    monkeypatch.setattr(sim_launcher, "apply_python_logging_level", fake_apply)
+
+    env_cfg = _DummyEnvCfg(_DummySimCfg(None))
+    launcher_args = argparse.Namespace(visualizer=None, visualizer_explicit=True)
+    with sim_launcher.launch_simulation(env_cfg, launcher_args):
+        pass
+
+    assert captured["resolve_args"] is launcher_args
+    assert captured["applied_level"] == 42
