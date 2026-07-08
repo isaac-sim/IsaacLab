@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.4.2 (2026-07-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :data:`~isaaclab_assets.robots.fourbar_pole.FOURBAR_POLE_CFG` for a parallel
+  four-bar linkage with an inverted pendulum pole on the coupler.
+
+
 0.4.1 (2026-07-04)
 ~~~~~~~~~~~~~~~~~~
 

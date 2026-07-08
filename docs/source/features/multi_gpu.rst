@@ -294,7 +294,7 @@ Single-node training (defaults to all available GPUs):
 
         .. code-block:: bash
 
-            uv run train_multigpu \
+            uv run isaaclab train_multigpu \
                --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
@@ -318,7 +318,7 @@ Override the GPU count or torchrun settings when needed:
 
         .. code-block:: bash
 
-            uv run train_multigpu --num_gpus 4 --master_port 29504 \
+            uv run isaaclab train_multigpu --num_gpus 4 --master_port 29504 \
                --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100
 
@@ -344,7 +344,7 @@ For skrl JAX training, pass an integer GPU count and the ``--coordinator_address
 
         .. code-block:: bash
 
-            uv run train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
+            uv run isaaclab train_multigpu --rl_library skrl --ml_framework jax --num_gpus 4 \
                --coordinator_address localhost:5000 \
                --task Isaac-Reorient-KukaAllegro \
                --num_envs 4096 --max_iterations 100

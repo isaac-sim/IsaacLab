@@ -27,6 +27,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.configclass import configclass
 
+pytestmark = pytest.mark.integration
+
 
 @configclass
 class EmptyManagerCfg:

@@ -39,6 +39,8 @@ from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg, spawn_rigi
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def setup_simulation():
@@ -750,6 +752,33 @@ def test_modify_properties_on_articulation_usd(setup_simulation):
     schemas.modify_articulation_root_properties("/World/asset", arti_cfg)
     # validate the properties
     _validate_articulation_properties_on_prim("/World/asset", arti_cfg, True)
+
+
+@pytest.mark.isaacsim_ci
+def test_activate_contact_sensors_nested_rigid_bodies(setup_simulation):
+    """Test contact-report schemas are applied to nested rigid-body trees."""
+    stage = sim_utils.get_current_stage()
+
+    rigid_body_paths = [
+        "/World/Robot/Geometry/pelvis",
+        "/World/Robot/Geometry/pelvis/left_hip",
+        "/World/Robot/Geometry/pelvis/left_hip/left_knee",
+    ]
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    sim_utils.create_prim("/World/Robot/Geometry", prim_type="Xform")
+    for prim_path in rigid_body_paths:
+        sim_utils.create_prim(prim_path, prim_type="Xform")
+        UsdPhysics.RigidBodyAPI.Apply(stage.GetPrimAtPath(prim_path))
+
+    schemas.activate_contact_sensors("/World/Robot", threshold=2.5)
+
+    for prim_path in rigid_body_paths:
+        prim = stage.GetPrimAtPath(prim_path)
+        applied_schemas = prim.GetAppliedSchemas()
+        assert "PhysxRigidBodyAPI" in applied_schemas
+        assert "PhysxContactReportAPI" in applied_schemas
+        assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(0.0)
+        assert prim.GetAttribute("physxContactReport:threshold").Get() == pytest.approx(2.5)
 
 
 @pytest.mark.isaacsim_ci

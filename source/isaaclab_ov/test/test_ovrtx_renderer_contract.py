@@ -88,10 +88,12 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.DISTANCE_TO_CAMERA,
         RenderBufferKind.NORMALS,
+        RenderBufferKind.MOTION_VECTORS,
     }
     assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, wp.uint8)
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
     assert specs[RenderBufferKind.DEPTH] == RenderBufferSpec(1, wp.float32)
+    assert specs[RenderBufferKind.MOTION_VECTORS] == RenderBufferSpec(2, wp.float32)
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():

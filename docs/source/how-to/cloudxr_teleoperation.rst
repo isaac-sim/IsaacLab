@@ -218,9 +218,9 @@ choose the tab that matches your hardware.
          .. note::
 
             The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in
-            ``source/isaaclab_teleop/pyproject.toml``). When Isaac Lab bumps its Isaac Teleop
-            pin, update this link to the matching client release.
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in the
+            ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
+            Teleop pin, update this link to the matching client release.
 
          .. tip::
 
