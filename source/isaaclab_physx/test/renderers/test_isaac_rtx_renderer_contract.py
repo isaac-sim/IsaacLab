@@ -105,3 +105,30 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
         if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
     ]
     assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
+
+
+def test_isaac_rtx_read_output_clears_stale_metadata_and_keeps_seeded_keys(monkeypatch):
+    """read_output replaces (not merges): a dropped annotator info resets its info entry, seeded keys persist."""
+    _install_omni_stubs(monkeypatch)
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+
+    from isaaclab.sensors.camera.camera_data import CameraData
+
+    renderer = IsaacRtxRenderer.__new__(IsaacRtxRenderer)
+
+    # ``camera_data.info`` is seeded with one key per output (mirrors ``camera_data.output``); both start None.
+    camera_data = CameraData()
+    camera_data.info = {"rgb": None, "semantic_segmentation": None}
+
+    # Frame 1: the segmentation annotator emits metadata, so its info lands in camera_data.info.
+    id_to_labels = {"2": {"class": "cartpole"}}
+    render_data = SimpleNamespace(renderer_info={"semantic_segmentation": {"idToLabels": id_to_labels}})
+    renderer.read_output(render_data, camera_data)
+    assert camera_data.info["semantic_segmentation"] == {"idToLabels": id_to_labels}
+
+    # Frame 2: the annotator emits no info (``renderer_info`` value is None or the key is gone).
+    render_data = SimpleNamespace(renderer_info={"semantic_segmentation": None})
+    renderer.read_output(render_data, camera_data)
+
+    # The stale idToLabels must be cleared, and the seeded keys (rgb, semantic_segmentation) must remain.
+    assert camera_data.info == {"rgb": None, "semantic_segmentation": None}

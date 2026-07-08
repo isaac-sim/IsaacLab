@@ -680,6 +680,33 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
+def maybe_validate_semantic_segmentation(
+    data_type: str,
+    info: dict[str, Any] | None,
+    expected_id_to_labels: dict[str, dict[str, str]],
+) -> None:
+    """For the ``semantic_segmentation`` data type, assert ``camera.data.info`` matches ground truth.
+
+    No-op for any other data type. The ``idToLabels`` mapping (keyed by RGBA color for the default colorized
+    output) is a Replicator contract that both the Isaac RTX and OVRTX renderers must satisfy, so it is
+    compared for exact equality against the expected mapping.
+
+    Args:
+        data_type: The camera data type under test.
+        info: The ``camera.data.info`` dict (or ``None``) produced by the renderer.
+        expected_id_to_labels: Expected ``idToLabels`` mapping (color/ID key -> ``{semantic_type: label}``).
+    """
+    if data_type != "semantic_segmentation":
+        return
+
+    assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
+    assert info["semantic_segmentation"]["idToLabels"] == expected_id_to_labels, (
+        f"semantic_segmentation idToLabels mismatch.\n"
+        f"  expected: {expected_id_to_labels}\n"
+        f"  actual:   {info['semantic_segmentation']}"
+    )
+
+
 def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
@@ -768,6 +795,19 @@ def rendering_test_shadow_hand(
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
             comparison_scores=comparison_scores,
         )
+
+        # The ShadowHand task has a ``class:cube`` on the manipulated object; the hand is UNLABELLED and empty
+        # space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this same
+        # idToLabels mapping in camera.data.info.
+        maybe_validate_semantic_segmentation(
+            data_type,
+            env._tiled_camera.data.info,
+            expected_id_to_labels={
+                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
+                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
+                "(33, 243, 3, 255)": {"class": "cube"},
+            },
+        )
     finally:
         if env is not None:
             env.close()
@@ -816,6 +856,11 @@ def rendering_test_cartpole(
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
+        # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
+        # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
+        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
         distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
@@ -876,6 +921,19 @@ def rendering_test_cartpole(
             camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
             comparison_scores=comparison_scores,
+        )
+
+        # We augment the cartpole task to author ``class:cartpole`` on the robot; everything else is UNLABELLED
+        # and empty space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this
+        # same idToLabels mapping in camera.data.info.
+        maybe_validate_semantic_segmentation(
+            data_type,
+            env._tiled_camera.data.info,
+            expected_id_to_labels={
+                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
+                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
+                "(33, 243, 3, 255)": {"class": "cartpole"},
+            },
         )
     finally:
         if env is not None:

@@ -24,7 +24,7 @@ import gymnasium as gym
 import torch
 from PIL import Image
 
-from isaaclab.app import add_launcher_args
+from isaaclab.app import AppLauncher, add_launcher_args
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -166,6 +166,9 @@ def dispatch_library_entrypoint(
     """
     if argv is None:
         argv = sys.argv[1:]
+    # the per-library scripts parse this explicit list (not sys.argv), so the sys.argv
+    # fusing in AppLauncher.add_app_launcher_args never reaches it; normalize here too
+    argv = AppLauncher._fuse_kit_args(argv)
 
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--rl_library", choices=sorted(entrypoints), required=True)

@@ -99,7 +99,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
             presets=depth          # depth rendering, default renderer
             presets=depth,newton_renderer     # depth rendering with Newton renderer
-            presets=depth,ovrtx_renderer    # depth rendering with OVRTX renderer
+            presets=depth,ovrtx    # depth rendering with OVRTX renderer
     """
 
     semantic_segmentation: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(
@@ -166,7 +166,7 @@ class ShadowHandCameraBenchmarkEnvCfg(ShadowHandCameraEnvCfg):
     The renderer backend and camera data types can still be selected via ``presets``::
 
         presets = newton_renderer  # benchmark with Newton renderer
-        presets = ovrtx_renderer  # benchmark with OVRTX renderer
+        presets = ovrtx  # benchmark with OVRTX renderer
         presets = rgb  # benchmark RGB rendering only
         presets = depth, newton_renderer  # benchmark depth rendering with Newton
     """
