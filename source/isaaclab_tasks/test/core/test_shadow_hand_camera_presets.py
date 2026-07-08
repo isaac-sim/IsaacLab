@@ -235,9 +235,9 @@ def test_all_camera_presets_present(shadow_hand_camera_presets):
 _RENDERER_PRESETS = [
     # preset_name, expected_class
     ("default", IsaacRtxRendererCfg),
-    ("isaacsim_rtx_renderer", IsaacRtxRendererCfg),
+    ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
-    pytest.param("ovrtx_renderer", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
+    pytest.param("ovrtx", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
 ]
 
 
@@ -267,7 +267,7 @@ def test_rtx_preset_has_auto_renderer_type(shadow_hand_camera_presets):
 def test_all_renderer_presets_present(shadow_hand_camera_presets):
     """Every preset in MultiBackendRendererCfg is discoverable."""
     renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
-    expected_names = {"default", "rtx", "isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"}
+    expected_names = {"default", "rtx", "isaacsim_rtx", "newton_renderer", "ovrtx"}
     missing = expected_names - set(renderer_presets.keys())
     assert not missing, f"Renderer presets missing from collected presets: {missing}"
 

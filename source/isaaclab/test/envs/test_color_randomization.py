@@ -34,6 +34,8 @@ from isaaclab.utils.version import get_isaac_sim_version
 
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneCfg
 
+pytestmark = pytest.mark.integration
+
 
 @configclass
 class ActionsCfg:

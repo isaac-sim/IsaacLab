@@ -18,6 +18,8 @@ import torch
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.sim import build_simulation_context
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def sim(request):
