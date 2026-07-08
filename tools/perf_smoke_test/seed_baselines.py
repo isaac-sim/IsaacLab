@@ -51,6 +51,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from aggregate import _bench_gpu_model  # noqa: E402
 from baseline_manager import BaselineUpdateRecord, make_sample_metadata, update_baselines_git  # noqa: E402
+from contracts import BenchResult  # noqa: E402
 from gpu_identity import detect_gpu_model  # noqa: E402
 from launch_config import hydra_args_for_task  # noqa: E402
 from oracle import compare  # noqa: E402
@@ -395,17 +396,17 @@ def _record_from_result(
     if not result_path.exists():
         print(f"[seed] skip @ {artifact_dir}: no result json (job crashed before build_bench_result)")
         return None
-    bench_result = json.loads(result_path.read_text())
-    task_id = bench_result.get("task_id")
-    backend = bench_result.get("backend_key") or bench_result.get("backend")
+    bench_result = BenchResult.from_dict(json.loads(result_path.read_text()))
+    task_id = bench_result.task_id
+    backend = bench_result.backend_key or bench_result.backend
     bench_gpu_model = _bench_gpu_model(bench_result, gpu_model)
     # The seeder checks out each commit by SHA, so it authoritatively knows the
     # commit even when the in-container benchmark cannot capture git provenance
     # (detached HEAD on a runner-owned bind mount). Prefer the known SHA so the
     # sample stays ancestry-selectable by the smoke test.
-    commit_sha = known_commit or ((bench_result.get("provenance") or {}).get("git") or {}).get("commit_hash")
+    commit_sha = known_commit or ((bench_result.provenance or {}).get("git") or {}).get("commit_hash")
 
-    if not bench_result.get("perf_smoke_test_info_present", False):
+    if not bench_result.perf_smoke_test_info_present:
         print(f"[seed] skip {task_id}/{backend} @ {artifact_dir.name}: no benchmark info (run failed)")
         return None
     oracle_result = compare(
@@ -427,7 +428,7 @@ def _record_from_result(
         task_id=task_id,
         backend=backend,
         fps=oracle_result.measured_fps,
-        bench_result=bench_result,
+        bench_result=bench_result.to_dict(),
         target_branch=target_branch,
         trusted_source="seed",
         commit_sha=commit_sha,

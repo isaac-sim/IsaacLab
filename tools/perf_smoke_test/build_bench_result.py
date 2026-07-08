@@ -42,12 +42,8 @@ from backend_identity import (  # noqa: E402
     normalize_physics_backend,
     normalize_render_backend,
 )
-from benchmark_result_adapter import (  # noqa: E402
-    benchmark_info as bundle_benchmark_info,
-    is_runtime_bundle,
-    load_info,
-    to_gate_fields,
-)
+from benchmark_result_adapter import load_info, project_runtime  # noqa: E402
+from contracts import BenchResult  # noqa: E402
 from gate_config import load_gate_config  # noqa: E402
 from gate_types import FailurePhase  # noqa: E402
 from gpu_identity import normalize_gpu_fields  # noqa: E402
@@ -223,8 +219,8 @@ def main() -> int:
         timeout_s=args.timeout_s,
     )
 
-    # Read the runtime bundle (schema v1) and project it into gate fields.
-    info_provenance: dict = {}
+    # Read the runtime bundle (schema v1) and project it into a typed RuntimeSample.
+    sample = None
     benchmark_info: dict = {}
     config_mismatch: str | None = None
     observed_backend = None
@@ -234,19 +230,19 @@ def main() -> int:
     if perf_smoke_test_info_present:
         info_path = artifact_dir / "perf_smoke_test_info.json"
         bundle = load_info(info_path)
-        if bundle is not None and is_runtime_bundle(bundle):
-            info_provenance = to_gate_fields(bundle)
-            benchmark_info = bundle_benchmark_info(bundle)
+        sample = project_runtime(bundle) if bundle is not None else None
+        if sample is not None:
+            benchmark_info = sample.benchmark_info()
             observed_backend = backend_identity_from_benchmark_info(benchmark_info)
             runtime_contract, runtime_contract_hash = build_runtime_contract(
-                provenance=info_provenance.get("provenance"),
-                gpu_diag=info_provenance.get("gpu_diag"),
+                provenance=sample.provenance,
+                gpu_diag=sample.gpu_diag,
                 backend=expected_backend,
                 policy=runtime_policy,
             )
             runtime_info = build_runtime_publish_info(
-                provenance=info_provenance.get("provenance"),
-                gpu_diag=info_provenance.get("gpu_diag"),
+                provenance=sample.provenance,
+                gpu_diag=sample.gpu_diag,
                 policy=runtime_policy,
             )
             config_mismatch = _config_drift(benchmark_info, launch_config)
@@ -257,38 +253,38 @@ def main() -> int:
     if config_mismatch and failure_phase is None:
         failure_phase = FailurePhase.CONFIG_MISMATCH.value
 
-    bench_result = {
-        "task_id": task_id,
-        "backend": backend_key,
-        "physics_backend": physics_backend,
-        "render_backend": render_backend,
-        "backend_key": backend_key,
-        "preset": preset,
-        "attempt": args.attempt,
-        "was_retried": args.was_retried,
-        "exit_code": args.exit_code,
-        "failure_phase": failure_phase,
-        "stdout_tail": log_text[-2000:] if len(log_text) > 2000 else log_text,
-        "wall_time_s": args.wall_time_s,
-        "startup_time_s": info_provenance.get("startup_time_s"),
-        "perf_smoke_test_info_present": perf_smoke_test_info_present,
-        "raw_fps_mean": info_provenance.get("raw_fps_mean"),
-        "raw_fps_std": info_provenance.get("raw_fps_std"),
-        "raw_fps_min": info_provenance.get("raw_fps_min"),
-        "raw_fps_max": info_provenance.get("raw_fps_max"),
-        "benchmark_info": benchmark_info,
-        "observed_backend": observed_backend.to_dict() if observed_backend else None,
-        "config_mismatch": config_mismatch,
-        "runtime_contract": runtime_contract,
-        "runtime_contract_hash": runtime_contract_hash,
-        "runtime_info": runtime_info,
-        "gpu_diag": info_provenance.get("gpu_diag"),
-        "provenance": info_provenance.get("provenance"),
-        "launch_config": launch_config,
-        "launch_config_hash": launch_config.get("launch_config_hash"),
-        "benchmark_contract_hash": launch_config.get("benchmark_contract_hash"),
-        "baseline_epoch": launch_config.get("baseline_epoch", 1),
-        "task_config_snapshot": {
+    bench_result = BenchResult(
+        task_id=task_id,
+        backend=backend_key,
+        physics_backend=physics_backend,
+        render_backend=render_backend,
+        backend_key=backend_key,
+        preset=preset,
+        attempt=args.attempt,
+        was_retried=args.was_retried,
+        exit_code=args.exit_code,
+        failure_phase=failure_phase,
+        stdout_tail=log_text[-2000:] if len(log_text) > 2000 else log_text,
+        wall_time_s=args.wall_time_s,
+        startup_time_s=sample.startup_time_s if sample else None,
+        perf_smoke_test_info_present=perf_smoke_test_info_present,
+        raw_fps_mean=sample.fps_mean if sample else None,
+        raw_fps_std=sample.fps_std if sample else None,
+        raw_fps_min=sample.fps_min if sample else None,
+        raw_fps_max=sample.fps_max if sample else None,
+        benchmark_info=benchmark_info,
+        observed_backend=observed_backend.to_dict() if observed_backend else None,
+        config_mismatch=config_mismatch,
+        runtime_contract=runtime_contract,
+        runtime_contract_hash=runtime_contract_hash,
+        runtime_info=runtime_info,
+        gpu_diag=(sample.gpu_diag or None) if sample else None,
+        provenance=sample.provenance if sample else None,
+        launch_config=launch_config,
+        launch_config_hash=launch_config.get("launch_config_hash"),
+        benchmark_contract_hash=launch_config.get("benchmark_contract_hash"),
+        baseline_epoch=launch_config.get("baseline_epoch", 1),
+        task_config_snapshot={
             "task_id": task_id,
             "backend": backend_key,
             "physics_backend": physics_backend,
@@ -306,10 +302,10 @@ def main() -> int:
             "runtime_contract_hash": runtime_contract_hash,
             "baseline_epoch": launch_config.get("baseline_epoch", 1),
         },
-    }
+    )
 
     out = artifact_dir / "perf_smoke_test_result.json"
-    out.write_text(json.dumps(bench_result, indent=2))
+    out.write_text(json.dumps(bench_result.to_dict(), indent=2))
 
     status = (
         f"failure_phase={failure_phase!r}, perf_smoke_test_info_present={perf_smoke_test_info_present}, "

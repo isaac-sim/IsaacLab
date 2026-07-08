@@ -619,9 +619,16 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
     "timeout_minutes": 12,
     "tags": ["always"],
     "seed": 42
-  }
+  },
+  "schema_version": "1.0"
 }
 ```
+
+This artifact is a typed `BenchResult` (`contracts.py`): `build_bench_result` constructs
+it, `BenchResult.to_dict()` serializes it (wire-stable + additive `schema_version`), and
+`oracle`/`aggregate`/`seed_baselines` reconstruct it via `BenchResult.from_dict()`. The
+adapter likewise returns a typed `RuntimeSample`. The `baseline_manager` storage layer
+still works with the serialized dict form (callers pass `BenchResult.to_dict()`).
 
 **Fields populated from `perf_smoke_test_info.json`** (all `null` when
 `perf_smoke_test_info_present` is false):

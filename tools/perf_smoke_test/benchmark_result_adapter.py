@@ -14,12 +14,6 @@ single point that reads that JSON and projects it into the flat
 :mod:`oracle` and :mod:`build_bench_result` consume, replacing the legacy
 phase-array parsing.
 
-**Deliberately dropped vs. the legacy phase-array output** (the bundle stores
-only aggregates, so these have no source and were never gating):
-
-- ``raw_fps_median`` / ``raw_fps_p5`` / ``raw_fps_p95`` (percentiles)
-- ``p99_over_median`` / ``outlier_count`` (raw step-time distribution)
-
 ``raw_fps_min`` is *recovered* from the slowest steady-state step
 (``num_envs / iteration_time_s.peak``); ``raw_fps_{mean,std,max}`` come straight
 from ``runtime.total_fps.{mean,std,peak}``.  Warmup exclusion is applied at the
@@ -33,6 +27,8 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Any
+
+from contracts import RuntimeSample
 
 # Map the schema's rendering-backend vocabulary to the gate's render-preset
 # tokens used in tasks.json / backend_identity.  ``"none"`` (headless, no camera)
@@ -239,19 +235,31 @@ def benchmark_info(bundle: dict) -> dict:
     return {k: v for k, v in info.items() if v is not None}
 
 
-def to_gate_fields(bundle: dict) -> dict:
-    """Project a runtime bundle into the flat fields the result builder writes.
+def project_runtime(bundle: dict) -> RuntimeSample | None:
+    """Project a runtime bundle into a typed :class:`~contracts.RuntimeSample`.
 
-    Returns a dict with ``raw_fps_*`` stats, ``startup_time_s``, ``gpu_diag``,
-    and ``provenance``; keys are omitted when their source is absent.
+    Returns ``None`` when ``bundle`` is not a valid schema-v1 runtime bundle, so the
+    caller can degrade to a HARD_FAILURE (missing benchmark output).
     """
-    out: dict = {}
-    out.update(fps_stats(bundle))
-    startup = startup_seconds(bundle)
-    if startup is not None:
-        out["startup_time_s"] = startup
-    diag = gpu_diag(bundle)
-    if diag:
-        out["gpu_diag"] = diag
-    out["provenance"] = provenance(bundle)
-    return out
+    if not is_runtime_bundle(bundle):
+        return None
+    stats = fps_stats(bundle)
+    info = benchmark_info(bundle)
+    return RuntimeSample(
+        fps_mean=stats.get("raw_fps_mean"),
+        fps_std=stats.get("raw_fps_std"),
+        fps_min=stats.get("raw_fps_min"),
+        fps_max=stats.get("raw_fps_max"),
+        startup_time_s=startup_seconds(bundle),
+        task=info.get("task"),
+        num_envs=info.get("num_envs"),
+        seed=info.get("seed"),
+        num_frames=info.get("num_frames"),
+        warmup_frames=info.get("warmup_frames"),
+        status=info.get("status"),
+        physics_backend=info.get("physics_backend"),
+        render_backend=info.get("render_backend"),
+        presets=info.get("presets") or [],
+        provenance=provenance(bundle),
+        gpu_diag=gpu_diag(bundle),
+    )

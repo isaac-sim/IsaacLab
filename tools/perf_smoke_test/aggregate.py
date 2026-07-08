@@ -29,6 +29,7 @@ from baseline_manager import (  # noqa: E402
     update_baseline,
     update_baselines_git,
 )
+from contracts import BenchResult  # noqa: E402
 from gate_config import BASELINE_PUSH_RETRIES, load_gate_config  # noqa: E402
 from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
 from gpu_identity import canonical_gpu_model  # noqa: E402
@@ -58,11 +59,11 @@ def _parse_args():
     return parser.parse_args()
 
 
-def _find_bench_results(artifacts_dir: Path) -> list[tuple[Path, dict]]:
+def _find_bench_results(artifacts_dir: Path) -> list[tuple[Path, BenchResult]]:
     found = []
     for path in sorted(artifacts_dir.rglob("perf_smoke_test_result.json")):
         with path.open() as fh:
-            found.append((path.parent, json.load(fh)))
+            found.append((path.parent, BenchResult.from_dict(json.load(fh))))
     return found
 
 
@@ -74,20 +75,20 @@ def _short_sha(value: str | None) -> str:
     return value[:12] if value else "none"
 
 
-def _bench_gpu_model(bench_result: dict, fallback: str) -> str:
-    launch_config = bench_result.get("launch_config") or {}
+def _bench_gpu_model(bench_result: BenchResult, fallback: str) -> str:
+    launch_config = bench_result.launch_config or {}
     gpu_model = canonical_gpu_model(launch_config.get("gpu_model") or launch_config.get("gpu_model_raw"))
     return canonical_gpu_model(fallback) if gpu_model == "unknown_gpu" else gpu_model
 
 
-def _thresholds(bench_result: dict, gpu_model: str, backend: str) -> list[FpsMeanThreshold]:
+def _thresholds(bench_result: BenchResult, gpu_model: str, backend: str) -> list[FpsMeanThreshold]:
     """Resolve configured FPS thresholds, preferring the run's launch_config artifact."""
-    launch_config = bench_result.get("launch_config") or {}
+    launch_config = bench_result.launch_config or {}
     raw = launch_config.get("fps_mean_thresholds")
     if raw is not None:
-        return FpsMeanThreshold.from_list(raw, context=f"{bench_result.get('task_id')}/{backend}")
+        return FpsMeanThreshold.from_list(raw, context=f"{bench_result.task_id}/{backend}")
     try:
-        task = get_task(bench_result["task_id"], backend)
+        task = get_task(bench_result.task_id, backend)
         return task.thresholds_for(gpu_model)
     except Exception:
         return []
@@ -109,10 +110,10 @@ def _build_summary_table(rows: list[tuple]) -> str:
         "|---|---|---|---:|---:|---:|---:|---:|---|---|---|---|---|---|",
     ]
     for result, bench_result in rows:
-        gpu_diag = bench_result.get("gpu_diag") or {}
-        launch_config = bench_result.get("launch_config") or {}
+        gpu_diag = bench_result.gpu_diag or {}
+        launch_config = bench_result.launch_config or {}
         gpu_name = gpu_diag.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", "")
-        provenance = bench_result.get("provenance") or {}
+        provenance = bench_result.provenance or {}
         software = provenance.get("software") or {}
         runtime = ", ".join(
             part
@@ -125,7 +126,7 @@ def _build_summary_table(rows: list[tuple]) -> str:
         )
         # result.note already carries the config_mismatch string on the
         # config-mismatch HARD_FAILURE path; dedupe so it is not shown twice.
-        note_parts = list(dict.fromkeys(part for part in (result.note, bench_result.get("config_mismatch")) if part))
+        note_parts = list(dict.fromkeys(part for part in (result.note, bench_result.config_mismatch) if part))
         note_parts.extend(_render_crossed(result.crossed_thresholds))
         lines.append(
             f"| {result.task_id} | {result.backend} | {result.verdict.value}"
@@ -189,11 +190,12 @@ def main() -> int:
     pending_git_updates: list[BaselineUpdateRecord] = []
 
     for artifact_dir, bench_result in items:
-        task_id = bench_result["task_id"]
-        backend = bench_result.get("backend_key") or bench_result.get("backend")
+        task_id = bench_result.task_id
+        backend = bench_result.backend_key or bench_result.backend
         bench_gpu_model = _bench_gpu_model(bench_result, args.gpu_model)
+        # The baseline_manager storage layer works with the serialized (dict) form.
         match_context = match_context_from_bench_result(
-            bench_result,
+            bench_result.to_dict(),
             gpu_model=bench_gpu_model,
             base_sha=args.base_sha,
             target_branch=args.target_branch,
@@ -248,7 +250,7 @@ def main() -> int:
                 task_id=task_id,
                 backend=backend,
                 fps=oracle_result.measured_fps,
-                bench_result=bench_result,
+                bench_result=bench_result.to_dict(),
                 target_branch=args.target_branch,
                 source_branch=args.source_branch,
                 trusted_source=args.trusted_source,

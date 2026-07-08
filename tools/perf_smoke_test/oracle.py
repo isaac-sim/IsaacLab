@@ -8,6 +8,7 @@
 from dataclasses import dataclass, field
 
 try:
+    from .contracts import BenchResult
     from .gate_config import DEFAULT_K_BLOCK, DEFAULT_K_WARN, MIN_BASELINE_SAMPLES, MIN_BLOCK_REGRESSION_PCT
     from .gate_types import (
         BisectVerdict,
@@ -19,6 +20,7 @@ try:
         worst_verdict,
     )
 except ImportError:  # pragma: no cover (for direct scripting execution/import)
+    from contracts import BenchResult
     from gate_config import DEFAULT_K_BLOCK, DEFAULT_K_WARN, MIN_BASELINE_SAMPLES, MIN_BLOCK_REGRESSION_PCT
     from gate_types import (
         BisectVerdict,
@@ -88,7 +90,7 @@ def _bisect_verdict(verdict: OracleVerdict, was_retried: bool, failure_phase: st
 
 
 def _hard_failure(
-    bench_result: dict,
+    bench_result: BenchResult,
     failure_phase: str | None,
     was_retried: bool,
     gpu_mem_used_mb: float | None,
@@ -104,18 +106,18 @@ def _hard_failure(
         baseline_fps=None,
         regression_pct=None,
         gpu_mem_used_mb=gpu_mem_used_mb,
-        startup_time_s=bench_result.get("startup_time_s"),
-        wall_time_s=bench_result.get("wall_time_s"),
+        startup_time_s=bench_result.startup_time_s,
+        wall_time_s=bench_result.wall_time_s,
         was_retried=was_retried,
-        task_id=bench_result["task_id"],
-        backend=bench_result.get("backend_key") or bench_result["backend"],
+        task_id=bench_result.task_id,
+        backend=bench_result.backend_key or bench_result.backend,
         threshold_source=ThresholdSource.NOT_APPLICABLE.value,
         note=note,
     )
 
 
 def compare(
-    bench_result: dict,
+    bench_result: BenchResult,
     baseline: "Baseline | None",
     fps_mean_thresholds: "list[FpsMeanThreshold]",
     *,
@@ -123,25 +125,25 @@ def compare(
 ) -> OracleResult:
     """Compare a benchmark result against its baseline and return an OracleResult.
 
-    The steady-state mean FPS is taken from ``bench_result["raw_fps_mean"]``,
-    which :mod:`build_bench_result` derives from the runtime bundle's
-    ``total_fps.mean`` (warmup already excluded at the source by
-    ``perf_runtime.py``); the oracle no longer re-parses the benchmark output.
+    The steady-state mean FPS is taken from ``bench_result.raw_fps_mean``, which
+    :mod:`build_bench_result` derives from the runtime bundle's ``total_fps.mean``
+    (warmup already excluded at the source by ``perf_runtime.py``); the oracle no
+    longer re-parses the benchmark output.
 
     The final verdict is the most severe of the rolling-window/baseline verdict and
     the verdict from any crossed gating threshold (see :class:`~gate_types.FpsMeanThreshold`).
     Reporting-only thresholds that cross are recorded in ``crossed_thresholds`` without
     changing the verdict.
     """
-    task_id: str = bench_result["task_id"]
-    backend: str = bench_result.get("backend_key") or bench_result["backend"]
-    failure_phase: str | None = bench_result.get("failure_phase")
-    was_retried: bool = bool(bench_result.get("was_retried"))
-    startup_time_s: float | None = bench_result.get("startup_time_s")
-    wall_time_s: float | None = bench_result.get("wall_time_s")
-    gpu_mem_used_mb: float | None = (bench_result.get("gpu_diag") or {}).get("gpu_mem_used_mb")
+    task_id: str = bench_result.task_id
+    backend: str = bench_result.backend_key or bench_result.backend
+    failure_phase: str | None = bench_result.failure_phase
+    was_retried: bool = bool(bench_result.was_retried)
+    startup_time_s: float | None = bench_result.startup_time_s
+    wall_time_s: float | None = bench_result.wall_time_s
+    gpu_mem_used_mb: float | None = (bench_result.gpu_diag or {}).get("gpu_mem_used_mb")
 
-    config_mismatch = bench_result.get("config_mismatch")
+    config_mismatch = bench_result.config_mismatch
     if config_mismatch or failure_phase == FailurePhase.CONFIG_MISMATCH.value:
         return _hard_failure(
             bench_result,
@@ -151,10 +153,10 @@ def compare(
             note=str(config_mismatch or "config_mismatch"),
         )
 
-    if not bench_result.get("perf_smoke_test_info_present", False):
+    if not bench_result.perf_smoke_test_info_present:
         return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb)
 
-    mean_fps = bench_result.get("raw_fps_mean")
+    mean_fps = bench_result.raw_fps_mean
     if not isinstance(mean_fps, (int, float)) or isinstance(mean_fps, bool):
         return _hard_failure(bench_result, failure_phase, was_retried, gpu_mem_used_mb, note="missing_fps_mean")
     if mean_fps <= 0:

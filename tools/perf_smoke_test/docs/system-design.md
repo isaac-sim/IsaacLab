@@ -125,8 +125,10 @@ IsaacLab/
         ├── perf_runtime.py               Phase 1 driver: thin wrapper over the merged
         │                                 Isaac Lab benchmark core; writes a schema-v1
         │                                 RuntimeBundle (benchmark_runtime_*.json)
-        ├── benchmark_result_adapter.py   RuntimeBundle → gate-field projection
+        ├── benchmark_result_adapter.py   RuntimeBundle → typed RuntimeSample projection
         │                                 (FPS aggregates, provenance, gpu_diag)
+        ├── contracts.py                  typed gate artifacts (schema v1): RuntimeSample
+        │                                 + BenchResult (perf_smoke_test_result.json)
         ├── build_bench_result.py         Phase 2: copies the runtime bundle, projects it
         │                                 via benchmark_result_adapter (FPS stats + SW/HW/git
         │                                 provenance), writes perf_smoke_test_result.json
@@ -413,9 +415,14 @@ for local testing.
     "software": { "isaaclab": "2.1.0", "warp": "1.6.0", "torch": "2.3.0+cu121", "...": "..." },
     "git":      { "commit_hash": "a1b2c3d4...", "branch": "develop", "dirty": false }
   },
-  "task_config_snapshot": { "..." : "..." }
+  "task_config_snapshot": { "..." : "..." },
+  "schema_version": "1.0"
 }
 ```
+
+The result is a typed `BenchResult` (`contracts.py`) serialized to this JSON via
+`BenchResult.to_dict()`; consumers reconstruct it with `BenchResult.from_dict()`. The
+schema is wire-stable — same keys as before, plus the additive `schema_version`.
 
 `raw_fps_mean`/`_std`/`_max` come straight from the bundle's `runtime.total_fps`
 aggregates, and `raw_fps_min` is recovered as `num_envs / iteration_time_s.peak`
