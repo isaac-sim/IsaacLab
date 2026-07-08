@@ -12,10 +12,12 @@ import logging
 import os
 import threading
 from collections.abc import Callable, Generator
-
-from pxr import Sdf, Usd, UsdUtils
+from typing import TYPE_CHECKING
 
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+
+if TYPE_CHECKING:
+    from pxr import Sdf, Usd, UsdUtils  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -57,6 +59,17 @@ def _check_ancestral(prim: Usd.Prim) -> bool:
     return _check_ancestral_node(prim_index.rootNode)
 
 
+def _is_uri_path(asset_path: str) -> bool:
+    """Return whether an asset path has an explicit URI scheme."""
+    scheme = asset_path.split("://", 1)[0]
+    return (
+        scheme != asset_path
+        and len(scheme) > 1
+        and scheme[0].isalpha()
+        and all(c.isalnum() or c in "+-." for c in scheme[1:])
+    )
+
+
 def resolve_paths(
     src_layer_identifier: str,
     dst_layer_identifier: str,
@@ -88,6 +101,8 @@ def resolve_paths(
         >>> sim_utils.resolve_paths(source_layer.identifier, target_layer.identifier)
         >>> target_layer.Save()
     """
+    from pxr import Sdf, UsdUtils  # noqa: PLC0415
+
     src_layer = Sdf.Layer.FindOrOpen(src_layer_identifier)
     dst_layer = Sdf.Layer.FindOrOpen(dst_layer_identifier)
 
@@ -101,9 +116,11 @@ def resolve_paths(
     dst_dir = os.path.dirname(dst_layer.realPath or dst_layer.identifier)
 
     def _modify_path(asset_path: str) -> str:
-        if not asset_path:
+        if not asset_path or _is_uri_path(asset_path):
             return asset_path
         resolved = src_layer.ComputeAbsolutePath(asset_path)
+        if resolved and _is_uri_path(resolved):
+            return resolved
         if store_relative_path and resolved and dst_dir:
             try:
                 return os.path.relpath(resolved, dst_dir)
@@ -150,6 +167,8 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
+    from pxr import Usd, UsdUtils  # noqa: PLC0415
+
     stage: Usd.Stage = Usd.Stage.CreateInMemory()
     _context.stage = stage
     UsdUtils.StageCache.Get().Insert(stage)
@@ -207,6 +226,8 @@ def open_stage(usd_path: str) -> Usd.Stage:
         ValueError: When input path is not a supported file type by USD.
         RuntimeError: When failed to open the stage.
     """
+    from pxr import Usd  # noqa: PLC0415
+
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
 
@@ -250,6 +271,8 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
         ...     pass
         >>> # operate on the default stage attached to the USD context
     """
+    from pxr import Usd  # noqa: PLC0415
+
     if has_kit() and get_isaac_sim_version().major < 5:
         logger.warning("Isaac Sim < 5.0 does not support thread-local stage contexts. Skipping use_stage().")
         yield  # no-op
@@ -339,6 +362,8 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
         ValueError: When input path is not a supported file type by USD.
         RuntimeError: When layer creation or save operation fails.
     """
+    from pxr import Sdf, Usd  # noqa: PLC0415
+
     # check if USD file is supported
     if not Usd.Stage.IsSupportedFile(usd_path):
         raise ValueError(f"The USD file at path '{usd_path}' is not supported.")
@@ -389,6 +414,8 @@ def close_stage() -> bool:
         >>> sim_utils.close_stage()
         True
     """
+    from pxr import UsdUtils  # noqa: PLC0415
+
     # Close Kit's USD context first (while the stage is still in the cache),
     # then clear the cache. Reversing this order causes Kit to fail with
     # "Removal of UsdStage from cache failed" and can hang during teardown.
@@ -522,6 +549,8 @@ def get_current_stage_id() -> int:
         >>> sim_utils.get_current_stage_id()
         1234567890
     """
+    from pxr import UsdUtils  # noqa: PLC0415
+
     # get current stage
     stage = get_current_stage()
     if stage is None:

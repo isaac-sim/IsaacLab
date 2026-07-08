@@ -153,7 +153,7 @@ def test_str(setup_env):
     print()
     print(obs_man_str)
     obs_man_str_split = obs_man_str.split("|")
-    term_1_str_index = obs_man_str_split.index(" term_1           ")
+    term_1_str_index = next(i for i, s in enumerate(obs_man_str_split) if s.strip() == "term_1")
     term_1_str_shape = obs_man_str_split[term_1_str_index + 1].strip()
     assert term_1_str_shape == "(4,)"
 
@@ -193,7 +193,7 @@ def test_str_with_history(setup_env):
     print()
     print(obs_man_str)
     obs_man_str_split = obs_man_str.split("|")
-    term_1_str_index = obs_man_str_split.index(" term_1           ")
+    term_1_str_index = next(i for i, s in enumerate(obs_man_str_split) if s.strip() == "term_1")
     term_1_str_shape = obs_man_str_split[term_1_str_index + 1].strip()
     assert term_1_str_shape == "(20,)"
 

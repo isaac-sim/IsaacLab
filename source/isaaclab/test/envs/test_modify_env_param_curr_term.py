@@ -20,7 +20,7 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleEnvCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 
 
 def replace_value(env, env_id, data, value, num_steps):

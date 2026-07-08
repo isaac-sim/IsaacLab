@@ -14,9 +14,11 @@ import time
 
 import gymnasium as gym
 import torch
+from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -32,7 +34,10 @@ from isaaclab_rl.rsl_rl import (
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import add_launcher_args, get_checkpoint_path, launch_simulation
+from isaaclab_tasks.utils import (
+    get_checkpoint_path,
+    setup_preset_cli,
+)
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # local imports
@@ -64,7 +69,7 @@ parser.add_argument("--real-time", action="store_true", default=False, help="Run
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
 cli_args.add_rsl_rl_args(parser)
 add_launcher_args(parser)
-args_cli, remaining_args = parser.parse_known_args()
+args_cli, remaining_args = setup_preset_cli(parser)
 
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -116,6 +121,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="rsl_rl",
+                task=train_task_name,
+                checkpoint_pattern=r"model_.*\.pt",
+                metadata={"agent": args_cli.agent},
+            )
         elif args_cli.checkpoint:
             resume_path = retrieve_file_path(args_cli.checkpoint)
         else:

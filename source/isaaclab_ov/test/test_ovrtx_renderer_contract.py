@@ -82,9 +82,12 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL,
         RenderBufferKind.SIMPLE_SHADING_FULL_MDL,
         RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+        RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST,
         RenderBufferKind.DEPTH,
         RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.DISTANCE_TO_CAMERA,
+        RenderBufferKind.NORMALS,
     }
     assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, wp.uint8)
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)

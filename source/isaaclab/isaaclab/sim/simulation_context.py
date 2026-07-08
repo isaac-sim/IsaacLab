@@ -7,17 +7,13 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import toml
 import torch
-
-from pxr import Gf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.utils.stage as stage_utils
@@ -38,6 +34,8 @@ from isaaclab.utils.version import has_kit
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from isaaclab.cloner.clone_plan import ClonePlan
 
 from .simulation_cfg import SimulationCfg
@@ -111,6 +109,8 @@ class SimulationContext:
         if type(self)._instance is not None:
             return  # Already initialized
 
+        from pxr import UsdUtils  # noqa: PLC0415
+
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
 
@@ -173,7 +173,6 @@ class SimulationContext:
             self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
-        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
@@ -181,7 +180,7 @@ class SimulationContext:
         self._scene_data_requirements = SceneDataRequirement()
         # Clone plan published by InteractiveScene after cloning. Providers (e.g. the
         # Newton visualizer model rebuilder on a PhysX backend) consume this to derive
-        # their own backend args. None until :meth:`InteractiveScene.clone_environments` runs.
+        # their own backend args. None until a replication session publishes a plan.
         self._clone_plan: ClonePlan | None = None
         # Default visualization dt used before/without visualizer initialization.
         physics_dt = getattr(self.cfg.physics, "dt", None)
@@ -220,108 +219,10 @@ class SimulationContext:
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
 
-    def _apply_render_cfg_settings(self) -> None:
-        """Apply render preset and overrides from SimulationCfg.render."""
-        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
-        # (name subject to change) to keep quality profiles and carb mappings centralized.
-        render_cfg = getattr(self.cfg, "render", None)
-        if render_cfg is None:
-            return
-
-        # Priority:
-        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
-        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = getattr(render_cfg, "rendering_mode", None)
-
-        if rendering_mode:
-            supported_rendering_modes = {"performance", "balanced", "quality"}
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
-                    f"{sorted(supported_rendering_modes)}."
-                )
-
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
-
-            if get_isaac_sim_version().major < 6:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            if os.path.exists(preset_filename):
-                with open(preset_filename) as file:
-                    preset_dict = toml.load(file)
-
-                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
-                    for key, value in data.items():
-                        key_path = f"{path}/{key}" if path else f"/{key}"
-                        if isinstance(value, dict):
-                            _apply_nested(value, key_path)
-                        else:
-                            self.set_setting(key_path.replace(".", "/"), value)
-
-                _apply_nested(preset_dict)
-            else:
-                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
-
-        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
-        field_to_setting = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-            "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
-            "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
-            "subpixel_mode": "/rtx/raytracing/subpixel/mode",
-            "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
-            "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
-            "view_tile_limit": "/rtx/viewTile/limit",
-            # RT2 path tracing settings
-            "max_bounces": "/rtx/rtpt/maxBounces",
-            "split_glass": "/rtx/rtpt/splitGlass",
-            "split_clearcoat": "/rtx/rtpt/splitClearcoat",
-            "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
-        }
-
-        for key, value in vars(render_cfg).items():
-            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
-                continue
-            setting_path = field_to_setting.get(key)
-            if setting_path is not None:
-                self.set_setting(setting_path, value)
-
-        # Raw overrides from render_cfg (stored via SettingsManager)
-        extra_settings = getattr(render_cfg, "carb_settings", None)
-        if extra_settings:
-            for key, value in extra_settings.items():
-                if "_" in key:
-                    path = "/" + key.replace("_", "/")
-                elif "." in key:
-                    path = "/" + key.replace(".", "/")
-                else:
-                    path = key
-                self.set_setting(path, value)
-
-        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
-        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
-        if antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-            except Exception:
-                pass
-
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
+        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+
         cfg = self.cfg
         with sim_utils.use_stage(self.stage):
             # Set stage conventions for metric units
@@ -386,6 +287,10 @@ class SimulationContext:
         return bool(self.get_setting("/isaaclab/visualizer/types")) or bool(
             self.get_setting("/isaaclab/video/auto_start_kit")
         )
+
+    def is_headless_or_exist_active_visualizer(self) -> bool:
+        """Return whether the simulation should keep stepping without visualizers or with an active visualizer."""
+        return not self._visualizers or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
 
     def can_render_rgb_array(self) -> bool:
         """Return whether rgb-array rendering is currently available."""
@@ -674,9 +579,9 @@ class SimulationContext:
     def get_clone_plan(self) -> ClonePlan | None:
         """Return the clone plan published by the scene.
 
-        Set by :meth:`InteractiveScene.clone_environments` after replication. Consumed by
-        scene data providers that build backend models (e.g. Newton visualizer model on a
-        PhysX backend) from the same plan the cloner used. ``None`` until the scene clones.
+        Set after replication. Consumed by scene data providers that build backend models
+        (e.g. Newton visualizer model on a PhysX backend) from the same plan the cloner used.
+        ``None`` until the scene replicates.
         """
         return self._clone_plan
 
@@ -716,11 +621,11 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
+        if not self._visualizers:
+            # Initialize visualizers after PhysX sim views are ready, but before play() pumps timeline events.
+            self.initialize_visualizers()
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
-        if not self._visualizers:
-            # Initialize visualizers after PhysX sim view is ready.
-            self.initialize_visualizers()
         self._is_playing = True
         self._is_stopped = False
 
@@ -954,7 +859,7 @@ class SimulationContext:
 def build_simulation_context(
     create_new_stage: bool = True,
     gravity_enabled: bool = True,
-    device: str = "cuda:0",
+    device: str | None = None,
     dt: float = 0.01,
     sim_cfg: SimulationCfg | None = None,
     add_ground_plane: bool = False,
@@ -967,7 +872,11 @@ def build_simulation_context(
     Args:
         create_new_stage: Whether to create a new stage. Defaults to True.
         gravity_enabled: Whether to enable gravity. Defaults to True.
-        device: Device to run the simulation on. Defaults to "cuda:0".
+        device: Device to run the simulation on. When given alongside ``sim_cfg``,
+            overrides ``sim_cfg.device`` so the caller's explicit choice wins
+            (most test callers pass both, expecting this behavior). Defaults to
+            ``None``, meaning ``sim_cfg.device`` is left untouched and a freshly
+            built ``sim_cfg`` uses :class:`SimulationCfg`'s default device.
         dt: Time step for the simulation. Defaults to 0.01.
         sim_cfg: SimulationCfg to use. Defaults to None.
         add_ground_plane: Whether to add a ground plane. Defaults to False.
@@ -984,11 +893,22 @@ def build_simulation_context(
     sim: SimulationContext | None = None
     try:
         if create_new_stage:
+            # ``create_new_stage`` is shadowed here by the bool parameter, so call via the namespace.
             sim_utils.create_new_stage()
 
         if sim_cfg is None:
             gravity = (0.0, 0.0, -9.81) if gravity_enabled else (0.0, 0.0, 0.0)
-            sim_cfg = SimulationCfg(device=device, dt=dt, gravity=gravity)
+            sim_cfg = SimulationCfg(dt=dt, gravity=gravity)
+        if device is not None:
+            # Honor the explicit device kwarg in both branches: when sim_cfg is
+            # freshly built, this picks the device; when sim_cfg is passed in,
+            # this overrides its (possibly default) device. Without the override,
+            # callers passing both ``sim_cfg=<built-with-default-device>`` and
+            # ``device=cuda:N`` silently got sim_cfg's device, causing warp
+            # kernel-launch mismatches when test fixtures allocated tensors on
+            # the requested device while assets resolved their device from the
+            # untouched sim_cfg.
+            sim_cfg.device = device
 
         sim = SimulationContext(sim_cfg)
 

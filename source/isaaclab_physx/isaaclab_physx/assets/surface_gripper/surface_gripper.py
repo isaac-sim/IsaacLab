@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import warnings
 from typing import TYPE_CHECKING
 
@@ -17,7 +18,10 @@ from isaacsim.core.experimental.utils.app import enable_extension
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
+
+from isaaclab_physx.cloner import queue_physx_replication
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -97,6 +101,9 @@ class SurfaceGripper(AssetBase):
         # flag for whether the sensor is initialized
         self._is_initialized = False
         self._debug_vis_handle = None
+
+        queue_usd_replication(cfg)
+        queue_physx_replication(cfg)
 
         # register various callback functions
         self._register_callbacks()
@@ -453,36 +460,24 @@ class SurfaceGripper(AssetBase):
         enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
-        # obtain the first prim in the regex expression (all others are assumed to be a copy of this)
-        template_prim = sim_utils.find_first_matching_prim(self._cfg.prim_path)
-        if template_prim is None:
-            raise RuntimeError(f"Failed to find prim for expression: '{self._cfg.prim_path}'.")
-        template_prim_path = template_prim.GetPath().pathString
+        def is_surface_gripper(prim) -> bool:
+            return prim.GetTypeName() == "IsaacSurfaceGripper"
 
-        # find surface gripper prims
-        gripper_prims = sim_utils.get_all_matching_child_prims(
-            template_prim_path,
-            predicate=lambda prim: prim.GetTypeName() == "IsaacSurfaceGripper",
-            traverse_instance_prims=False,
+        resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+        gripper_matches = sim_utils.resolve_matching_prims_from_source(
+            self._cfg.prim_path, is_surface_gripper, **resolve_kwargs
         )
-        if len(gripper_prims) == 0:
+        if len(gripper_matches) != 1:
+            matched = [prim.GetPath().pathString for prim, _ in gripper_matches]
             raise RuntimeError(
-                f"Failed to find a surface gripper when resolving '{self._cfg.prim_path}'."
-                " Please ensure that the prim has type 'IsaacSurfaceGripper'."
+                f"Expected exactly one IsaacSurfaceGripper prim under '{self._cfg.prim_path}', "
+                f"found {len(gripper_matches)}: {matched}."
             )
-        if len(gripper_prims) > 1:
-            raise RuntimeError(
-                f"Failed to find a single surface gripper when resolving '{self._cfg.prim_path}'."
-                f" Found multiple '{gripper_prims}' under '{template_prim_path}'."
-                " Please ensure that there is only one surface gripper in the prim path tree."
-            )
-
-        # resolve gripper prim back into regex expression
-        gripper_prim_path = gripper_prims[0].GetPath().pathString
-        gripper_prim_path_expr = self._cfg.prim_path + gripper_prim_path[len(template_prim_path) :]
-
-        # Count number of environments
-        self._prim_expr = gripper_prim_path_expr
+        _, self._prim_expr = gripper_matches[0]
+        # ``GripperView`` (XformPrim.resolve_paths) requires explicit regex (".*") and rejects the
+        # legacy "*" wildcard that the clone-plan destination glob (e.g. "/World/envs/env_*") can
+        # carry. Convert any bare "*" to ".*" (a "*" already preceded by "." is left untouched).
+        self._prim_expr = re.sub(r"(?<!\.)\*", ".*", self._prim_expr)
         env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
@@ -505,7 +500,7 @@ class SurfaceGripper(AssetBase):
         )
 
         # log information about the surface gripper
-        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{gripper_prim_path_expr}'.")
+        logger.info(f"Surface gripper initialized at: {self._cfg.prim_path} with root '{self._prim_expr}'.")
         logger.info(f"Number of instances: {self._num_envs}")
 
         # Reset grippers

@@ -11,6 +11,9 @@ import torch
 import trimesh
 import warp as wp
 
+from pxr import UsdGeom
+
+import isaaclab.sim as sim_utils
 from isaaclab.utils.warp import raycast_mesh
 
 
@@ -49,7 +52,8 @@ def color_meshes_by_height(meshes: list[trimesh.Trimesh], **kwargs) -> trimesh.T
         # clip lower and upper bounds to have better color mapping
         heights_normalized = np.clip(heights_normalized, 0.1, 0.9)
         # Get the color for each vertex based on the height
-        color_map = kwargs.pop("color_map", "turbo")
+        # Valid options are ["viridis", "inferno", "plasma", "magma"]
+        color_map = kwargs.pop("color_map", "inferno")
         colors = trimesh.visual.color.interpolate(heights_normalized, color_map=color_map)
         # Set the vertex colors
         mesh.visual.vertex_colors = colors
@@ -78,11 +82,6 @@ def create_prim_from_mesh(prim_path: str, mesh: trimesh.Trimesh, **kwargs):
         visual_material: The visual material to apply. Defaults to None.
         physics_material: The physics material to apply. Defaults to None.
     """
-    # need to import these here to prevent isaacsim launching when importing this module
-    from pxr import UsdGeom
-
-    import isaaclab.sim as sim_utils
-
     # create parent prim
     sim_utils.create_prim(prim_path, "Xform")
     # create mesh prim

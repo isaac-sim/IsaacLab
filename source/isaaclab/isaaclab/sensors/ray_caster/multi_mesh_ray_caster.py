@@ -13,4 +13,8 @@ from .base_multi_mesh_ray_caster import BaseMultiMeshRayCaster
 class MultiMeshRayCaster(FactoryBase, BaseMultiMeshRayCaster):
     """Backend-dispatching multi-mesh ray-caster sensor."""
 
-    _backend_class_names = {"physx": "MultiMeshRayCaster", "newton": "MultiMeshRayCaster"}
+    _backend_class_names = {
+        "physx": "MultiMeshRayCaster",
+        "newton": "MultiMeshRayCaster",
+        "ovphysx": "MultiMeshRayCaster",
+    }

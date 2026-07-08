@@ -15,7 +15,7 @@ import warnings
 warnings.warn(
     "scripts/reinforcement_learning/skrl/train.py is deprecated. Use "
     "`./isaaclab.sh train --rl_library skrl --task <TASK>` instead. "
-    "Example: `./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole-v0`.",
+    "Example: `./isaaclab.sh train --rl_library skrl --task Isaac-Cartpole`.",
     DeprecationWarning,
     stacklevel=1,
 )
@@ -33,6 +33,7 @@ import gymnasium as gym
 import skrl
 from packaging import version
 
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
@@ -43,9 +44,6 @@ from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import (
-    add_launcher_args,
-    fold_preset_tokens,
-    launch_simulation,
     resolve_task_config,
     setup_preset_cli,
 )
@@ -56,7 +54,7 @@ logger = logging.getLogger(__name__)
 with contextlib.suppress(ImportError):
     import isaaclab_tasks_experimental  # noqa: F401
 
-SKRL_VERSION = "2.0.0"
+SKRL_VERSION = "2.1.0"
 
 # -- argparse ----------------------------------------------------------------
 parser = argparse.ArgumentParser(description="Train an RL agent with skrl.")
@@ -100,7 +98,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-sys.argv = [sys.argv[0]] + fold_preset_tokens(hydra_args)
+sys.argv = [sys.argv[0]] + hydra_args
 
 if args_cli.video:
     args_cli.enable_cameras = True

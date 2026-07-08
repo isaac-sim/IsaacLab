@@ -415,7 +415,12 @@ def _spawn_mesh_geom_from_mesh(
         mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(mesh_prim)
         mesh_collision_api.GetApproximationAttr().Set(collision_approximation)
         # apply collision properties
-        schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
+        # transition shim, remove later: new fragment list -> apply_*; legacy single cfg -> define_*
+        coll_frags = cfg.collision_props if isinstance(cfg.collision_props, (list, tuple)) else [cfg.collision_props]
+        if coll_frags and all(isinstance(f, schemas.SchemaFragment) for f in coll_frags):
+            schemas.apply_collision_properties(mesh_prim_path, coll_frags, stage=stage)
+        else:
+            schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
 
     # apply visual material
     if cfg.visual_material is not None:
@@ -441,8 +446,17 @@ def _spawn_mesh_geom_from_mesh(
 
     # note: we apply the rigid properties to the parent prim in case of rigid objects.
     if cfg.rigid_props is not None:
-        # apply mass properties
+        # apply mass properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
         if cfg.mass_props is not None:
-            schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
-        # apply rigid properties
-        schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+            # normalize a single fragment to a list so the convenience form routes like a list
+            mass_frags = [cfg.mass_props] if isinstance(cfg.mass_props, schemas.SchemaFragment) else cfg.mass_props
+            if isinstance(mass_frags, (list, tuple)) and all(isinstance(f, schemas.SchemaFragment) for f in mass_frags):
+                schemas.apply_mass_properties(prim_path, mass_frags, stage=stage)
+            else:
+                schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
+        # apply rigid properties (transition shim, remove later: fragment list -> apply_*; legacy cfg -> define_*)
+        rigid_frags = cfg.rigid_props if isinstance(cfg.rigid_props, (list, tuple)) else [cfg.rigid_props]
+        if rigid_frags and all(isinstance(f, schemas.SchemaFragment) for f in rigid_frags):
+            schemas.apply_rigid_body_properties(prim_path, rigid_frags, stage=stage)
+        else:
+            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)

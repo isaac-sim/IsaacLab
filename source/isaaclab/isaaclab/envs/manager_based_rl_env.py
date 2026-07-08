@@ -56,6 +56,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
 
@@ -247,6 +248,9 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            if self.cfg.compute_final_obs:
+                self.extras["final_obs"] = self.observation_manager.compute()
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
@@ -317,6 +321,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             del self.reward_manager
             del self.termination_manager
             del self.curriculum_manager
+            # Drop the observation/action space objects. gymnasium's wrapper chain keeps
+            # the env referenced past close, so without this they leak — and for image
+            # observations each space holds a large gym.spaces.Box bounds array.
+            self.single_observation_space = None
+            self.single_action_space = None
+            self.observation_space = None
+            self.action_space = None
             # call the parent class to close the environment
             super().close()
 

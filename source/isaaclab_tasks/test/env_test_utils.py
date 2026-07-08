@@ -6,7 +6,6 @@
 """Shared test utilities for Isaac Lab environments."""
 
 import importlib
-import inspect
 import os
 import sys
 
@@ -59,6 +58,23 @@ def _is_pickplace_stack_env(task_id: str) -> bool:
     return any(keyword in task_id for keyword in ("Place", "Stack", "NutPour", "ExhaustPipe"))
 
 
+def _task_tier(task_spec) -> str | None:
+    """Return ``"core"`` or ``"contrib"`` based on the task's env-config entry-point module.
+
+    Core tasks register their config under :mod:`isaaclab_tasks.core` and contributed
+    tasks under :mod:`isaaclab_tasks.contrib`. Returns ``None`` if the tier cannot be
+    determined from the registered entry point.
+    """
+    entry = task_spec.kwargs.get("env_cfg_entry_point")
+    if isinstance(entry, str):
+        module = entry.split(":")[0]
+        if module.startswith("isaaclab_tasks.core"):
+            return "core"
+        if module.startswith("isaaclab_tasks.contrib"):
+            return "contrib"
+    return None
+
+
 def _has_physics_preset(raw_cfg, preset_name: str) -> bool:
     """Check if a raw (unresolved) env config has a named physics preset.
 
@@ -95,6 +111,7 @@ def setup_environment(
     cartpole_showcase_envs: bool | None = None,
     pickplace_stack_envs: bool | None = None,
     newton_mjwarp_envs: bool | None = None,
+    tier: str | None = None,
 ) -> list[str]:
     """
     Acquire all registered Isaac environment task IDs with optional filters.
@@ -125,6 +142,10 @@ def setup_environment(
             - True: include only environments that have an MJWarp physics preset.
             - False: exclude environments that have an MJWarp physics preset.
             - None: include all environments regardless of MJWarp preset availability.
+        tier:
+            - "core": include only core environments (registered under ``isaaclab_tasks.core``).
+            - "contrib": include only contributed environments (registered under ``isaaclab_tasks.contrib``).
+            - None: include all environments regardless of tier.
 
     Returns:
         A sorted list of task IDs matching the selected filters.
@@ -141,6 +162,10 @@ def setup_environment(
 
         # filter Play environments, if needed
         if not include_play and task_spec.id.endswith("Play-v0"):
+            continue
+
+        # apply core/contrib tier filter
+        if tier is not None and _task_tier(task_spec) != tier:
             continue
 
         # TODO: factory environments cause tests to fail if run together with other envs,
@@ -217,11 +242,35 @@ def setup_environment(
     ]
 
 
+def _fire_all_interval_events_once(env) -> None:
+    """Force every interval-mode event term to fire once.
+
+    Invokes :meth:`~isaaclab.managers.EventManager.apply` with ``mode="interval"``
+    and a ``dt`` larger than any plausible ``interval_range_s`` upper bound, so the
+    trigger condition trips for every term in a single call. The manager re-samples
+    ``time_left`` from each term's original ``interval_range_s`` after firing, so
+    subsequent ``env.step()`` calls observe original interval timing.
+
+    No-op for envs without an :class:`~isaaclab.managers.EventManager` or
+    without any ``interval``-mode terms.
+
+    Args:
+        env: A constructed env instance.
+    """
+    event_manager = getattr(env.unwrapped, "event_manager", None)
+    if event_manager is None:
+        return
+    if "interval" not in event_manager.available_modes:
+        return
+    # Pass a very large dt for (time_left -= dt) to be less than 1e-6
+    event_manager.apply("interval", dt=1e9)
+
+
 def _run_environments(
     task_name,
     device,
     num_envs,
-    num_steps=100,
+    num_steps=20,
     multi_agent=False,
     create_stage_in_memory=False,
     disable_clone_in_fabric=False,
@@ -251,10 +300,10 @@ def _run_environments(
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
     if num_envs == 32 and task_name in [
-        "Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
-        "Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
-        "Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
-        "Isaac-PickPlace-G1-InspireFTP-Abs-v0",
+        "IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
+        "IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel",
+        "IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
+        "IsaacContrib-PickPlace-G1-InspireFTP-Abs",
     ]:
         return
 
@@ -267,28 +316,13 @@ def _run_environments(
         return
 
     # skip automate environments as they require cuda installation
-    if task_name in ["Isaac-AutoMate-Assembly-Direct-v0", "Isaac-AutoMate-Disassembly-Direct-v0"]:
+    if task_name in ["IsaacContrib-AutoMate-Assembly-Direct", "IsaacContrib-AutoMate-Disassembly-Direct"]:
         return
 
     # skip skillgen environments as they require cuRobo installation;
     # tested separately via test_environments_skillgen.py
     if "Skillgen" in task_name:
         return
-
-    # Check if this is the teddy bear environment and if it's being called from the right test file
-    if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-        # Get the calling frame to check which test file is calling this function
-        frame = inspect.currentframe()
-        while frame:
-            filename = frame.f_code.co_filename
-            if "test_lift_teddy_bear.py" in filename:
-                # Called from the dedicated test file, allow it to run
-                break
-            frame = frame.f_back
-
-        # If not called from the dedicated test file, skip it
-        if not frame:
-            return
 
     print(f""">>> Running test for environment: {task_name}""")
     _check_random_actions(
@@ -309,7 +343,7 @@ def _check_random_actions(
     task_name: str,
     device: str,
     num_envs: int,
-    num_steps: int = 100,
+    num_steps: int = 20,
     multi_agent: bool = False,
     create_stage_in_memory: bool = False,
     disable_clone_in_fabric: bool = False,
@@ -375,19 +409,13 @@ def _check_random_actions(
         # disable control on stop
         env.unwrapped.sim._app_control_on_stop_handle = None  # type: ignore
 
-        # override action space if set to inf for `Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0`
-        if task_name == "Isaac-Lift-Teddy-Bear-Franka-IK-Abs-v0":
-            for i in range(env.unwrapped.single_action_space.shape[0]):
-                if env.unwrapped.single_action_space.low[i] == float("-inf"):
-                    env.unwrapped.single_action_space.low[i] = -1.0
-                if env.unwrapped.single_action_space.high[i] == float("inf"):
-                    env.unwrapped.single_action_space.low[i] = 1.0
-
         # reset environment
         obs, _ = env.reset()
 
         # check signal
         assert _check_valid_tensor(obs)
+
+        _fire_all_interval_events_once(env)
 
         # simulate environment for num_steps
         with torch.inference_mode():

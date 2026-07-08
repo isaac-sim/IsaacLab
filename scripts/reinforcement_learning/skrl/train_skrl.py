@@ -16,6 +16,7 @@ import time
 from datetime import datetime
 
 from common import (
+    CHECKPOINT_SELECTORS,
     add_common_train_args,
     add_isaaclab_launcher_args,
     apply_env_overrides,
@@ -23,9 +24,11 @@ from common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
     wrap_record_video,
+    write_run_manifest,
 )
 from packaging import version
 
@@ -33,7 +36,7 @@ import isaaclab_tasks  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-SKRL_VERSION = "2.0.0"
+SKRL_VERSION = "2.1.0"
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -51,7 +54,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
             "--algorithm is used to determine the default agent configuration entry point."
         ),
     )
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint to resume training.")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
     parser.add_argument(
         "--ml_framework",
         type=str,
@@ -66,8 +69,12 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         choices=["AMP", "PPO", "IPPO", "MAPPO"],
         help="The RL algorithm used for training the skrl agent.",
     )
+    from isaaclab_tasks.utils import setup_preset_cli
+
     add_isaaclab_launcher_args(parser)
-    args_cli, hydra_args = parser.parse_known_args(argv)
+    # setup_preset_cli registers preset-selection help text + runs parse_known_args; the
+    # physics=/renderer=/presets= tokens pass through the remainder for hydra to parse later.
+    args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     set_hydra_args(hydra_args)
     return args_cli
@@ -84,16 +91,24 @@ def _resolve_agent_entry_point(args_cli: argparse.Namespace) -> tuple[str, str]:
     return agent_cfg_entry_point, algorithm
 
 
+def _get_distributed_rank(args_cli: argparse.Namespace) -> int:
+    """Return the global distributed rank for the selected skrl ML framework."""
+    if args_cli.ml_framework.startswith("jax"):
+        return int(os.getenv("JAX_RANK", "0"))
+    return int(os.getenv("RANK", "0"))
+
+
 def run(argv: list[str]) -> None:
     """Train a skrl agent."""
     import skrl
 
+    from isaaclab.app import launch_simulation
     from isaaclab.envs import DirectMARLEnvCfg
     from isaaclab.utils.assets import retrieve_file_path
 
     from isaaclab_rl.skrl import SkrlVecEnvWrapper
 
-    from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+    from isaaclab_tasks.utils import resolve_task_config
 
     args_cli = _parse_args(argv)
 
@@ -117,7 +132,7 @@ def run(argv: list[str]) -> None:
         validate_distributed_device(args_cli)
 
         if args_cli.distributed:
-            global_rank = int(os.getenv("RANK", "0"))
+            global_rank = _get_distributed_rank(args_cli)
 
         if args_cli.max_iterations:
             agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]
@@ -143,10 +158,35 @@ def run(argv: list[str]) -> None:
         agent_cfg["agent"]["experiment"]["directory"] = log_root_path
         agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
         log_dir = os.path.join(log_root_path, log_dir)
+        write_run_manifest(
+            log_dir,
+            library="skrl",
+            task=args_cli.task,
+            metadata={
+                "agent": agent_cfg_entry_point,
+                "algorithm": algorithm,
+                "ml_framework": args_cli.ml_framework,
+            },
+        )
 
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
-        resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
+        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="skrl",
+                task=args_cli.task,
+                checkpoint_pattern=r".*",
+                other_dirs=["checkpoints"],
+                metadata={
+                    "agent": agent_cfg_entry_point,
+                    "algorithm": algorithm,
+                    "ml_framework": args_cli.ml_framework,
+                },
+            )
+        else:
+            resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir

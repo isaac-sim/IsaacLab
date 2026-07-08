@@ -10,24 +10,10 @@ Cloning Isaac Lab
 
 Clone the Isaac Lab repository into your project's workspace:
 
-.. tab-set::
+.. isaaclab-clone-commands::
 
-   .. tab-item:: SSH
-
-      .. code:: bash
-
-         git clone git@github.com:isaac-sim/IsaacLab.git
-
-   .. tab-item:: HTTPS
-
-      .. code:: bash
-
-         git clone https://github.com/isaac-sim/IsaacLab.git
-
-
-We provide a helper executable `isaaclab.sh <https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.sh>`_
-and `isaaclab.bat <https://github.com/isaac-sim/IsaacLab/blob/main/isaaclab.bat>`_ for Linux and Windows
-respectively that provides utilities to manage extensions.
+We provide helper executables at the repository root — ``./isaaclab.sh`` (Linux) and
+``isaaclab.bat`` (Windows) — that provide utilities to manage extensions.
 
 .. tab-set::
    :sync-group: os

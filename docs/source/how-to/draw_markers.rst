@@ -66,7 +66,7 @@ To run the accompanying script, execute the following command:
 
 .. code-block:: bash
 
-  ./isaaclab.sh -p scripts/demos/markers.py
+   python scripts/demos/markers.py
 
 The simulation should start, and you can observe the different types of markers arranged in a grid pattern.
 The markers will rotating around their respective axes. Additionally every few rotations, they will

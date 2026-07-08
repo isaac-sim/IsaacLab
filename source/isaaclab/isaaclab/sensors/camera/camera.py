@@ -13,10 +13,11 @@ import numpy as np
 import torch
 import warp as wp
 
-from pxr import UsdGeom
+from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.sensors as sensor_utils
+from isaaclab.cloner import queue_usd_replication
 from isaaclab.renderers import BaseRenderer, CameraRenderSpec
 from isaaclab.sim.views import FrameView
 from isaaclab.utils import to_camel_case
@@ -155,7 +156,23 @@ class Camera(SensorBase):
         rot_offset = rot_offset.squeeze(0).cpu().numpy()
         if self.cfg.spawn is not None and self.cfg.spawn.vertical_aperture is None:
             self.cfg.spawn.vertical_aperture = self.cfg.spawn.horizontal_aperture * self.cfg.height / self.cfg.width
-        self._resolve_and_spawn("camera", translation=self.cfg.offset.pos, orientation=rot_offset)
+        # Resolve the camera prim path and spawn it, redirecting to a child if prim_path is a physics body.
+        spawn = self.cfg.spawn
+        if spawn is not None:
+            probe_path = (spawn.spawn_path or self.cfg.prim_path) if spawn is not None else self.cfg.prim_path
+            probe_matches = sim_utils.resolve_matching_prims_from_source(probe_path, raise_if_no_matches=False)
+            source_prim, _source_destination_expr = probe_matches[0] if probe_matches else (None, None)
+            if source_prim is not None and source_prim.IsValid():
+                if source_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or source_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+                    logger.info(f" Spawning camera at '{self.cfg.prim_path}/camera'.")
+                    self.cfg.prim_path = spawn.spawn_path = f"{self.cfg.prim_path}/camera"
+
+            spawn_target = spawn.spawn_path or self.cfg.prim_path
+            if sim_utils.find_first_matching_prim(spawn_target) is None:
+                spawn.func(spawn_target, spawn, translation=self.cfg.offset.pos, orientation=rot_offset)
+            if not sim_utils.find_matching_prims(spawn_target):
+                raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
+        queue_usd_replication(self._source_cfg)
 
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
@@ -483,9 +500,9 @@ class Camera(SensorBase):
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
             device=device_str,
-            num_instances=len(cam_paths),
+            num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
-            view_count=len(cam_paths),
+            view_count=self._num_envs,
             camera_path_relative_to_env_0=rel_under_env0,
         )
 
@@ -512,8 +529,12 @@ class Camera(SensorBase):
         # Create frame count buffer
         self._frame = ProxyArray(wp.zeros(self._view.count, device=self._device, dtype=wp.int64))
 
-        # Convert all encapsulated prims to Camera
-        for cam_prim in self._view.prims:
+        # Convert all encapsulated prims to Camera. Newton keeps only source USD camera prims.
+        self._sensor_prims.clear()
+        view_prims = list(self._view.prims)
+        if not view_prims and cam_paths:
+            view_prims = [self.stage.GetPrimAtPath(cam_paths[0])] * self._view.count
+        for cam_prim in view_prims:
             # Obtain the prim path
             cam_prim_path = cam_prim.GetPath().pathString
             # Check if prim is a camera

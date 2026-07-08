@@ -32,7 +32,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.manager_based.classic.cartpole.cartpole_env_cfg import CartpoleSceneCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleSceneCfg
 
 
 @configclass

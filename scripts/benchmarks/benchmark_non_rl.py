@@ -8,13 +8,14 @@
 """Launch Isaac Sim Simulator first."""
 
 import argparse
+import contextlib
 import os
 import sys
 import time
 
 from isaaclab.app import AppLauncher
 
-from isaaclab_tasks.utils import fold_preset_tokens, setup_preset_cli
+from isaaclab_tasks.utils import setup_preset_cli
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with RL-Games.")
@@ -49,7 +50,6 @@ parser.add_argument("--output_path", type=str, default=".", help="Path to output
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli, hydra_args = setup_preset_cli(parser)
-hydra_args = fold_preset_tokens(hydra_args)
 sys.argv = [sys.argv[0]] + hydra_args
 if args_cli.video:
     args_cli.enable_cameras = True
@@ -84,7 +84,13 @@ from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.utils.dict import print_dict
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils import launch_simulation, resolve_task_config
+
+# PLACEHOLDER: Extension template (do not remove this comment)
+with contextlib.suppress(ImportError):
+    import isaaclab_tasks_experimental  # noqa: F401
+from isaaclab.app import launch_simulation
+
+from isaaclab_tasks.utils import resolve_task_config
 
 imports_time_end = time.perf_counter_ns()
 

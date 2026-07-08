@@ -4,13 +4,25 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
+import sys
+from types import SimpleNamespace
 
 import pytest
 import warp as wp
+from isaaclab_newton.cloner.replicate import NewtonReplicateContext
+from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
+from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
+from isaaclab.cloner.replicate_session import REPLICATION_QUEUE
+from isaaclab.cloner.usd import UsdReplicateContext
+
 from isaaclab_contrib.deformable import DeformableObject, VBDSolverCfg
-from isaaclab_contrib.deformable.deformable_object import DeformableRegistryEntry, add_deformable_entry_to_builder
+from isaaclab_contrib.deformable.deformable_object import (
+    DeformableRegistryEntry,
+    add_deformable_entry_to_builder,
+    setup_registered_deformable_fabric_sync,
+)
 
 
 class _FakeBuilder:
@@ -21,6 +33,31 @@ class _FakeBuilder:
     def add_cloth_mesh(self, **kwargs) -> None:
         self.cloth_meshes.append(kwargs)
         self.particle_count += len(kwargs["vertices"])
+
+
+class _FakePath:
+    def __init__(self, path: str):
+        self.pathString = path
+
+
+class _FakePrim:
+    def __init__(self, path: str, *, valid: bool = True):
+        self._path = path
+        self._valid = valid
+
+    def IsValid(self) -> bool:
+        return self._valid
+
+    def GetPath(self) -> _FakePath:
+        return _FakePath(self._path)
+
+
+class _FakeStage:
+    def __init__(self, prims: dict[str, _FakePrim]):
+        self._prims = prims
+
+    def GetPrimAtPath(self, path: str) -> _FakePrim:
+        return self._prims.get(path, _FakePrim(path, valid=False))
 
 
 def _make_surface_entry() -> DeformableRegistryEntry:
@@ -98,3 +135,67 @@ def test_builder_hook_resets_entry_offsets_on_first_environment():
 
     assert entry.particle_offsets == [0]
     assert entry.particles_per_body == 3
+
+
+def test_newton_deformable_queues_usd_and_newton_replication(monkeypatch):
+    """Test that Newton deformables participate in both clone products."""
+    cfg = SimpleNamespace()
+
+    def fake_base_init(self, cfg):
+        self.cfg = cfg
+        self._DTYPE_TO_TORCH_TRAILING_DIMS = {}
+        self._initialize_handle = None
+        self._invalidate_initialize_handle = None
+        self._prim_deletion_handle = None
+        self._debug_vis_handle = None
+        self._physics_ready_handle = None
+
+    monkeypatch.setattr(BaseDeformableObject, "__init__", fake_base_init)
+    monkeypatch.setattr(DeformableObject, "_register_deformable", lambda self: object())
+    REPLICATION_QUEUE.clear()
+
+    try:
+        DeformableObject(cfg)
+        queued_contexts = [ctx_cls for queued_cfg, ctx_cls in REPLICATION_QUEUE if queued_cfg is cfg]
+    finally:
+        REPLICATION_QUEUE.clear()
+
+    assert queued_contexts == [UsdReplicateContext, NewtonReplicateContext]
+
+
+def test_fabric_particle_sync_skips_missing_fabric_prim(monkeypatch):
+    """Test that missing Fabric prims are skipped before attributes are authored."""
+    entry = _make_surface_entry()
+    entry.particle_offsets = [7]
+    entry.particles_per_body = 3
+    resolved_path = "/World/envs/env_0/cloth/mesh"
+
+    class _FakeManager:
+        _clone_physics_only = False
+        _deformable_registry = [entry]
+        marked = False
+        synced = False
+
+        @classmethod
+        def _mark_particles_dirty(cls):
+            cls.marked = True
+
+        @classmethod
+        def sync_particles_to_usd(cls):
+            cls.synced = True
+
+    usd_stage = _FakeStage({resolved_path: _FakePrim(resolved_path)})
+    fabric_stage = _FakeStage({})
+
+    monkeypatch.setattr(
+        "isaaclab.sim.utils.stage.get_current_stage", lambda fabric=False: fabric_stage if fabric else usd_stage
+    )
+    monkeypatch.setattr(NewtonManager, "_usdrt_stage", fabric_stage)
+    monkeypatch.setitem(
+        sys.modules, "usdrt", SimpleNamespace(Sdf=SimpleNamespace(ValueTypeNames=SimpleNamespace(UInt=object())))
+    )
+
+    setup_registered_deformable_fabric_sync(_FakeManager)
+
+    assert not _FakeManager.marked
+    assert not _FakeManager.synced

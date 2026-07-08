@@ -333,9 +333,9 @@ class FrameTransformer(BaseFrameTransformer):
     def _invalidate_initialize_callback(self, event):
         """Clears references to the native sensor and re-registers sites.
 
-        ``NewtonManager.close()`` calls ``clear()`` before dispatching ``STOP``,
-        so ``_cl_pending_sites`` is already empty when this callback fires.
-        Re-registering here ensures sites survive a close/reinit cycle.
+        Re-registering here ensures sites survive a non-teardown stop/reinit cycle.
+        During ``NewtonManager.close()``, Newton state is cleared after ``STOP`` so
+        stale registrations from old sensors cannot leak into the next context.
         """
         super()._invalidate_initialize_callback(event)
         self._newton_transforms = None

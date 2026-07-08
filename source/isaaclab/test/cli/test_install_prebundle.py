@@ -12,45 +12,45 @@ script text and the comma-separated install item parser.
 from unittest import mock
 
 from isaaclab.cli.commands.install import (
-    _split_install_items,
     _torch_first_on_sys_path_is_prebundle,
+    split_install_items,
 )
 
 # ---------------------------------------------------------------------------
-# _split_install_items
+# split_install_items
 # ---------------------------------------------------------------------------
 
 
 class TestSplitInstallItems:
-    """Tests for :func:`_split_install_items`."""
+    """Tests for :func:`split_install_items`."""
 
     def test_single_item(self):
-        assert _split_install_items("assets") == ["assets"]
+        assert split_install_items("assets") == ["assets"]
 
     def test_comma_separated(self):
-        assert _split_install_items("assets,tasks,rl") == ["assets", "tasks", "rl"]
+        assert split_install_items("assets,tasks,rl") == ["assets", "tasks", "rl"]
 
     def test_with_spaces(self):
-        assert _split_install_items(" assets , tasks , rl ") == ["assets", "tasks", "rl"]
+        assert split_install_items(" assets , tasks , rl ") == ["assets", "tasks", "rl"]
 
     def test_brackets_preserved(self):
         """Commas inside brackets should not split."""
-        assert _split_install_items("visualizers[rerun,newton],tasks") == [
+        assert split_install_items("visualizers[rerun,newton],tasks") == [
             "visualizers[rerun,newton]",
             "tasks",
         ]
 
     def test_nested_brackets(self):
-        assert _split_install_items("a[b[c,d],e],f") == ["a[b[c,d],e]", "f"]
+        assert split_install_items("a[b[c,d],e],f") == ["a[b[c,d],e]", "f"]
 
     def test_empty_string(self):
-        assert _split_install_items("") == []
+        assert split_install_items("") == []
 
     def test_trailing_comma(self):
-        assert _split_install_items("assets,tasks,") == ["assets", "tasks"]
+        assert split_install_items("assets,tasks,") == ["assets", "tasks"]
 
     def test_single_with_extra(self):
-        assert _split_install_items("visualizers[all]") == ["visualizers[all]"]
+        assert split_install_items("visualizers[all]") == ["visualizers[all]"]
 
 
 # ---------------------------------------------------------------------------

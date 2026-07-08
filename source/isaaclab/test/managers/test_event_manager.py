@@ -329,6 +329,55 @@ def test_apply_interval_mode_with_global_time(env):
             term_2_interval_time = event_man._interval_term_time_left[1].clone()
 
 
+def test_apply_interval_mode_resample_on_reset(env):
+    """Test that the interval timer is (not) resampled on reset based on ``resample_interval_on_reset``.
+
+    Using a fixed (zero-width) interval range makes the resampling deterministic: after one apply
+    the timer should read ``interval - dt``, and on reset it should either be restored to the fixed
+    interval (when resampling) or keep counting down (when not resampling).
+    """
+    interval_s = 1.0  # large compared to env.dt so the term does not fire during the test
+
+    cfg = {
+        # default behavior (resample_interval_on_reset=True): timer is resampled on reset
+        "term_resample": EventTermCfg(
+            func=increment_dummy1_by_one,
+            mode="interval",
+            interval_range_s=(interval_s, interval_s),
+            is_global_time=False,
+        ),
+        # alternative behavior: per-env timer is preserved across resets
+        "term_no_resample": EventTermCfg(
+            func=increment_dummy2_by_one,
+            mode="interval",
+            interval_range_s=(interval_s, interval_s),
+            is_global_time=False,
+            resample_interval_on_reset=False,
+        ),
+    }
+
+    event_man = EventManager(cfg, env)
+
+    # both timers initialize to the fixed interval
+    expected_init = torch.full((env.num_envs,), interval_s, device=env.device)
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_init)
+    torch.testing.assert_close(event_man._interval_term_time_left[1], expected_init)
+
+    # apply once to decrement the timers (no firing since interval >> dt)
+    event_man.apply("interval", dt=env.dt)
+    expected_after_apply = torch.full((env.num_envs,), interval_s - env.dt, device=env.device)
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_after_apply)
+    torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
+
+    # reset all environments
+    event_man.reset(env_ids=torch.arange(env.num_envs, device=env.device))
+
+    # term with resampling is restored to the fixed interval
+    torch.testing.assert_close(event_man._interval_term_time_left[0], expected_init)
+    # term without resampling keeps counting down across the reset
+    torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
+
+
 def test_apply_reset_mode(env):
     """Test the application of event terms that are in reset mode."""
     cfg = {

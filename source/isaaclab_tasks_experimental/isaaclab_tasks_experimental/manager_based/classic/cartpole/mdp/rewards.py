@@ -11,9 +11,8 @@ import warp as wp
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
 
-from isaaclab.assets import Articulation
-
 if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedRLEnv
 
 

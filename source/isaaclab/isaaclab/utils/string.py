@@ -89,6 +89,8 @@ def string_to_slice(s: str):
 String <-> Callable operations.
 """
 
+_FORBIDDEN_LAMBDA_NODES = (ast.Call, ast.Attribute, ast.NamedExpr)
+
 
 def is_lambda_expression(name: str) -> bool:
     """Checks if the input string is a lambda expression.
@@ -100,10 +102,20 @@ def is_lambda_expression(name: str) -> bool:
         Whether the input string is a lambda expression.
     """
     try:
-        ast.parse(name)
-        return isinstance(ast.parse(name).body[0], ast.Expr) and isinstance(ast.parse(name).body[0].value, ast.Lambda)
+        tree = ast.parse(name, mode="eval")
+        return isinstance(tree.body, ast.Lambda)
     except SyntaxError:
         return False
+
+
+def _validate_lambda_expression(name: str) -> None:
+    """Validate that a lambda expression string cannot execute arbitrary code."""
+    tree = ast.parse(name, mode="eval")
+    for node in ast.walk(tree):
+        if isinstance(node, _FORBIDDEN_LAMBDA_NODES):
+            raise ValueError(f"Unsafe lambda expression '{name}': disallowed syntax '{type(node).__name__}'.")
+        if isinstance(node, ast.Name) and node.id.startswith("__"):
+            raise ValueError(f"Unsafe lambda expression '{name}': dunder name '{node.id}' is not allowed.")
 
 
 def callable_to_string(value: Callable, separator: str = ":") -> str:
@@ -152,9 +164,13 @@ def string_to_callable(name: str, separator: str = ":") -> Callable:
     Returns:
         Callable: The function loaded from the module.
     """
+    name_is_lambda = is_lambda_expression(name)
+    if name_is_lambda:
+        _validate_lambda_expression(name)
+
     try:
-        if is_lambda_expression(name):
-            callable_object = eval(name)
+        if name_is_lambda:
+            callable_object = eval(name, {"__builtins__": {}}, {})
         else:
             mod_name, attr_name = name.rsplit(separator, 1)
             mod = importlib.import_module(mod_name)
@@ -333,11 +349,11 @@ def resolve_matching_names(
     When a list of query regular expressions is provided, the function checks each target string against each
     query regular expression and returns the indices of the matched strings and the matched strings.
 
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
     and not the order of the query regular expressions.
 
-    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of query regular expressions.
 
     For example, consider the list of strings is ['a', 'b', 'c', 'd', 'e'] and the regular expressions are ['a|c', 'b'].
@@ -393,11 +409,11 @@ def resolve_matching_names_values(
         use it during initialization only (e.g. action/actuator config resolution), so caching
         would add complexity without a measurable benefit.
 
-    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
     of the provided list of strings. This means that the ordering is dictated by the order of the target strings
     and not the order of the query regular expressions.
 
-    If the :attr:`preserve_order` is False, the ordering of the matched indices and names is the same as the order
+    If the :attr:`preserve_order` is True, the ordering of the matched indices and names is the same as the order
     of the provided list of query regular expressions.
 
     For example, consider the dictionary is {"a|d|e": 1, "b|c": 2}, the list of strings is ['a', 'b', 'c', 'd', 'e'].

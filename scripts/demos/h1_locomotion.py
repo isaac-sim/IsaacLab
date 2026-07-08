@@ -18,6 +18,7 @@ This script demonstrates an interactive demo with the H1 rough terrain environme
 import argparse
 import os
 import sys
+from importlib import metadata
 
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 import scripts.reinforcement_learning.rsl_rl.cli_args as cli_args  # isort: skip
@@ -42,8 +43,6 @@ args_cli = parser.parse_args()
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-"""Rest everything follows."""
-
 import torch
 from rsl_rl.runners import OnPolicyRunner
 
@@ -57,18 +56,18 @@ from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils.math import quat_apply
 
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
 from isaaclab_rl.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 
-from isaaclab_tasks.manager_based.locomotion.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
+from isaaclab_tasks.core.velocity.config.h1.rough_env_cfg import H1RoughEnvCfg_PLAY
 
-TASK = "Isaac-Velocity-Rough-H1-v0"
+TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
 
 
 class H1RoughDemo:
     """This class provides an interactive demo for the H1 rough terrain environment.
-    It loads a pre-trained checkpoint for the Isaac-Velocity-Rough-H1-v0 task, trained with RSL RL
+    It loads a pre-trained checkpoint for the Isaac-Velocity-Rough-H1 task, trained with RSL RL
     and defines a set of keyboard commands for directing motion of selected robots.
 
     A robot can be selected from the scene through a mouse click. Once selected, the following
@@ -85,6 +84,7 @@ class H1RoughDemo:
         """Initializes environment config designed for the interactive model and sets up the environment,
         loads pre-trained checkpoints, and registers keyboard events."""
         agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(TASK, args_cli)
+        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         # load the trained jit policy
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
         # create envionrment

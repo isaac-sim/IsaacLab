@@ -166,7 +166,6 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
                 nconmax=15,
                 ls_iterations=10,
                 cone="pyramidal",
-                ls_parallel=True,
                 impratio=1,
                 integrator="implicitfast",
             ),

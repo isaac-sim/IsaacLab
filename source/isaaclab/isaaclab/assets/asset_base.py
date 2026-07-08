@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import inspect
-import re
 import weakref
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -15,14 +14,14 @@ from typing import TYPE_CHECKING, Any
 import torch
 import warp as wp
 
-from pxr import Usd
-
 import isaaclab.sim as sim_utils
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
+    from pxr import Usd
+
     from .asset_base_cfg import AssetBaseCfg
 
 
@@ -421,10 +420,7 @@ class AssetBase(ABC):
         if prim_path == "/":
             self._clear_callbacks()
             return
-        result = re.match(
-            pattern="^" + "/".join(self.cfg.prim_path.split("/")[: prim_path.count("/") + 1]) + "$", string=prim_path
-        )
-        if result:
+        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:

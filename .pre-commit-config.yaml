@@ -69,3 +69,10 @@ repos:
       - id: rst-backticks
       - id: rst-directive-colons
       - id: rst-inline-touching-normal
+  - repo: local
+    hooks:
+      - id: check-git-lfs-pointers
+        name: check Git LFS pointers
+        entry: tools/pre_commit/check_git_lfs_pointers.sh
+        language: script
+        pass_filenames: true

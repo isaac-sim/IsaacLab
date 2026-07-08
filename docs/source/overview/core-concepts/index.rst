@@ -16,3 +16,4 @@ This section we introduce core concepts in Isaac Lab.
   renderers
   motion_generators
   scene_data_providers
+  visualization

@@ -39,7 +39,7 @@ def temp_dir():
     shutil.rmtree(temp_dir)
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Stack-Cube-Franka-IK-Rel-v0"])
+@pytest.mark.parametrize("task_name", ["IsaacContrib-Stack-Cube-Franka-IK-Rel"])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("num_envs", [1, 2])
 @pytest.mark.isaacsim_ci
