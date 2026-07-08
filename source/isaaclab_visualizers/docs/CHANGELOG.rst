@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+1.1.1 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin of the visualizer extras to Newton
+  commit ``c7ae7c7648cd0717df39e5c94b95d5a02c997320`` and added the
+  ``newton-usd-schemas`` dependency required by Newton's USD parsing.
+
+
 1.1.0 (2026-07-02)
 ~~~~~~~~~~~~~~~~~~
 
