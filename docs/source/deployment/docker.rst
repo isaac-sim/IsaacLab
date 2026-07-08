@@ -318,7 +318,7 @@ Run a short Cartpole training job to verify the image and NVIDIA Container Toolk
 .. code:: bash
 
     docker run --rm --gpus all --network host isaac-lab-newton \
-      train --rl_library rsl_rl \
+      isaaclab train --rl_library rsl_rl \
       --task Isaac-Cartpole-Direct \
       --num_envs 16 \
       presets=newton_mjwarp \
