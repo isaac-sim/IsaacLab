@@ -256,7 +256,10 @@ def ensure_isaac_rtx_render_update() -> None:
         _last_render_update_key = key
         return
 
-    if not sim.is_rendering:
+    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR) or when a
+    # headless offscreen frame is being requested on demand (``--video`` / ``rgb_array``).
+    # ``is_rendering`` excludes offscreen so the per-step loop does not pump between frames.
+    if not (sim.is_rendering or sim.has_offscreen_render):
         return
 
     # Sync physics results → Fabric so RTX sees updated positions.

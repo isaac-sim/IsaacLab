@@ -298,10 +298,15 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
+        """Returns whether *continuous* rendering is active (GUI, RTX sensors, visualizers, or XR).
+
+        This drives the per-step render/Kit-pump loop, so it deliberately excludes headless
+        offscreen rendering (``--video`` / ``rgb_array``). Offscreen frames are produced on
+        demand when a frame is actually requested (via :meth:`render`), not on every step; see
+        :meth:`has_offscreen_render` and :meth:`can_render_rgb_array` for the capability checks.
+        """
         return (
             self._has_gui
-            or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.resolve_visualizer_types())
             or self._xr_enabled
