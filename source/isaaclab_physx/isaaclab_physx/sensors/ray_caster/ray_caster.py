@@ -233,7 +233,21 @@ class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
         return self._raw_transforms
 
     def _update_buffers_impl(self, env_mask: wp.array) -> None:
-        """Refresh PhysX transforms and update ray data eagerly or through a CUDA graph."""
+        """Refresh PhysX transforms and update ray data eagerly or through a CUDA graph.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX transform read
+                cannot be graph-captured, so replays of such a graph would consume stale
+                transforms.
+        """
+        device = wp.get_device(self._device)
+        if device.is_capturing:
+            raise RuntimeError(
+                f"Cannot update the ray caster at '{self.cfg.prim_path}' while a CUDA graph capture is"
+                " active: the PhysX transform read cannot be graph-captured, so replaying the captured"
+                " graph would consume stale transforms."
+            )
+
         # PhysX refreshes this stable output buffer in place. Fetch it outside the graph, then
         # let the graph consume the cached typed view without calling back into PhysX.
         self._get_view_transforms_wp()
@@ -241,8 +255,7 @@ class RayCaster(_PhysXRayCasterMixin, BaseRayCaster):
         self._env_mask = env_mask
 
         try:
-            device = wp.get_device(self._device)
-            if not self._use_graph or device.is_capturing:
+            if not self._use_graph:
                 self._compute()
                 return
 

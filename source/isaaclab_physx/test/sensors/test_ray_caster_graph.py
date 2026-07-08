@@ -140,32 +140,21 @@ def test_ray_caster_updates_eagerly_when_graphs_are_disabled(monkeypatch):
     )
 
 
-def test_ray_caster_joins_outer_graph_capture(monkeypatch):
-    """An outer capture should own the update kernels instead of creating the sensor graph."""
+def test_ray_caster_refuses_update_inside_outer_graph_capture(monkeypatch):
+    """Updating the sensor during an outer capture should raise before touching PhysX."""
     _replace_base_update_with_test_kernel(monkeypatch)
-    sensor, _, transforms_torch, env_mask = _make_ray_caster()
+    sensor, transform_view, _, env_mask = _make_ray_caster(cache_raw_transforms=False)
     device = wp.get_device(sensor.device)
 
-    with wp.ScopedCapture(device=device) as capture:
-        sensor._update_buffers_impl(env_mask)
-    wp.capture_launch(capture.graph)
-    wp.synchronize_device(device)
+    zeros = wp.zeros_like(sensor._test_output)
+    with wp.ScopedCapture(device=device):
+        with pytest.raises(RuntimeError, match="CUDA graph capture"):
+            sensor._update_buffers_impl(env_mask)
+        # record something so the outer capture does not end empty
+        wp.copy(sensor._test_output, zeros)
 
     assert sensor._compute_graph is None
-    torch.testing.assert_close(
-        wp.to_torch(sensor._test_output),
-        torch.tensor([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]], device=sensor.device),
-    )
-
-    transforms_torch[1, 0] = 4.0
-    wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor.device)
-    wp.capture_launch(capture.graph)
-    wp.synchronize_device(device)
-
-    torch.testing.assert_close(
-        wp.to_torch(sensor._test_output),
-        torch.tensor([[1.0, 0.0, 0.0], [4.0, 0.0, 0.0]], device=sensor.device),
-    )
+    assert transform_view.get_count == 0
 
 
 def test_ray_caster_captures_and_replays_update_graph(monkeypatch):
