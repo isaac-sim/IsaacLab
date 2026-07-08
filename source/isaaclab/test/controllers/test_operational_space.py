@@ -49,6 +49,8 @@ from isaaclab.utils.math import (
 
 from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def sim():

@@ -16,6 +16,7 @@ import time
 from datetime import datetime
 
 from common import (
+    CHECKPOINT_SELECTORS,
     add_common_train_args,
     add_isaaclab_launcher_args,
     apply_env_overrides,
@@ -23,9 +24,11 @@ from common import (
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
+    resolve_checkpoint_selector,
     set_hydra_args,
     validate_distributed_device,
-    wrap_record_video,
+    wrap_training_capture,
+    write_run_manifest,
 )
 from packaging import version
 
@@ -51,7 +54,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
             "--algorithm is used to determine the default agent configuration entry point."
         ),
     )
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to model checkpoint to resume training.")
+    parser.add_argument("--checkpoint", type=str, default=None, help="Checkpoint path, or latest/best.")
     parser.add_argument(
         "--ml_framework",
         type=str,
@@ -155,10 +158,35 @@ def run(argv: list[str]) -> None:
         agent_cfg["agent"]["experiment"]["directory"] = log_root_path
         agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
         log_dir = os.path.join(log_root_path, log_dir)
+        write_run_manifest(
+            log_dir,
+            library="skrl",
+            task=args_cli.task,
+            metadata={
+                "agent": agent_cfg_entry_point,
+                "algorithm": algorithm,
+                "ml_framework": args_cli.ml_framework,
+            },
+        )
 
         dump_train_configs(log_dir, env_cfg, agent_cfg)
 
-        resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
+        if args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="skrl",
+                task=args_cli.task,
+                checkpoint_pattern=r".*",
+                other_dirs=["checkpoints"],
+                metadata={
+                    "agent": agent_cfg_entry_point,
+                    "algorithm": algorithm,
+                    "ml_framework": args_cli.ml_framework,
+                },
+            )
+        else:
+            resume_path = retrieve_file_path(args_cli.checkpoint) if args_cli.checkpoint else None
 
         configure_io_descriptors(env_cfg, args_cli, logger)
         env_cfg.log_dir = log_dir
@@ -169,7 +197,7 @@ def run(argv: list[str]) -> None:
             args_cli,
             convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm in ["ppo"],
         )
-        env = wrap_record_video(env, log_dir, args_cli)
+        env = wrap_training_capture(env, log_dir, args_cli)
 
         start_time = time.time()
         env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)

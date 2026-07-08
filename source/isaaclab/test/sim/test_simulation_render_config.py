@@ -12,6 +12,7 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
 from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import (
     IsaacRtxRendererGlobalSettingsCfg,
 )
@@ -38,6 +39,8 @@ _QUALITY_DEFAULT_SETTINGS = {
     "rtx.pathtracing.maxSamplesPerLaunch": 1000000,
     "rtx.viewTile.limit": 1000000,
 }
+
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 
 class _FakeSettings:

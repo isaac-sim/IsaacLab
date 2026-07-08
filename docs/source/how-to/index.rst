@@ -146,6 +146,7 @@ This guide explains how to record an animation and video in Isaac Lab.
 
     record_animation
     record_video
+    capture_sensor_frames
 
 
 Dynamically Modifying Environment Parameters With CurriculumTerm

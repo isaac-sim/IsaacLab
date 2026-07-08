@@ -12,10 +12,14 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import pytest
+
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
+
+pytestmark = pytest.mark.integration
 
 
 def _make_xform(stage, path="/World/Mesh"):

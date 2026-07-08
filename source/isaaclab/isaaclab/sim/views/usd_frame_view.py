@@ -17,6 +17,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.utils.warp import ProxyArray
 
 from .base_frame_view import BaseFrameView
+from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,14 @@ class UsdFrameView(BaseFrameView):
     For GPU-accelerated Fabric operations, use the PhysX backend variant
     obtained via :class:`~isaaclab.sim.views.FrameView`.
 
-    Getters return :class:`~isaaclab.utils.warp.ProxyArray`.  Setters accept ``wp.array``.
+    All writes go through the writer-scope API (:meth:`xform_world_space_writer`
+    / :meth:`xform_local_space_writer`).  The
+    USD backend's writers are pass-throughs: each :meth:`set_poses` /
+    :meth:`set_scales` call directly modifies the prim's USD ``xformOp:*``
+    attributes (no batching, no derivation step on exit) -- USD has no
+    separate world-matrix storage to keep in sync.
+
+    Getters return :class:`~isaaclab.utils.warp.ProxyArray`.
 
     .. note::
         **Transform Requirements:**
@@ -126,24 +134,70 @@ class UsdFrameView(BaseFrameView):
         return self._prim_paths
 
     # ------------------------------------------------------------------
-    # Setters
+    # Writer factory hooks (pass-through writers; USD has no derived state)
     # ------------------------------------------------------------------
 
-    def set_world_poses(
+    def _make_world_space_writer(self) -> FrameViewWorldSpaceWriter:
+        return _UsdWorldSpaceWriter(self)
+
+    def _make_local_space_writer(self) -> FrameViewLocalSpaceWriter:
+        return _UsdLocalSpaceWriter(self)
+
+    # ------------------------------------------------------------------
+    # Visibility (USD-only, no writer scope)
+    # ------------------------------------------------------------------
+
+    def set_visibility(self, visibility: torch.Tensor, indices: wp.array | None = None):
+        """Set visibility for prims in the view.
+
+        Args:
+            visibility: Visibility as a boolean tensor of shape ``(M,)``.
+            indices: Indices of prims to set visibility for. Defaults to None (all prims).
+        """
+        indices_list = self._resolve_indices(indices)
+
+        if visibility.shape != (len(indices_list),):
+            raise ValueError(f"Expected visibility shape ({len(indices_list)},), got {visibility.shape}.")
+
+        with Sdf.ChangeBlock():
+            for idx, prim_idx in enumerate(indices_list):
+                imageable = UsdGeom.Imageable(self._prims[prim_idx])
+                if visibility[idx]:
+                    imageable.MakeVisible()
+                else:
+                    imageable.MakeInvisible()
+
+    def get_visibility(self, indices: wp.array | None = None) -> torch.Tensor:
+        """Get visibility for prims in the view.
+
+        Args:
+            indices: Indices of prims to get visibility for. Defaults to None (all prims).
+
+        Returns:
+            A tensor of shape ``(M,)`` containing the visibility of each prim (bool).
+        """
+        indices_list = self._resolve_indices(indices)
+
+        visibility = torch.zeros(len(indices_list), dtype=torch.bool, device=self._device)
+        for idx, prim_idx in enumerate(indices_list):
+            imageable = UsdGeom.Imageable(self._prims[prim_idx])
+            visibility[idx] = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+        return visibility
+
+    # ------------------------------------------------------------------
+    # Backend hooks: pose / scale writes (called by writers).
+    # ------------------------------------------------------------------
+
+    def _apply_world_pose_write(
         self,
         positions: wp.array | None = None,
         orientations: wp.array | None = None,
         indices: wp.array | None = None,
-    ):
-        """Set world-space poses for prims in the view.
+    ) -> None:
+        """Apply a world-space pose write directly to USD xform ops.
 
         Converts the desired world pose to local-space relative to each prim's
-        parent before writing to USD xform ops.
-
-        Args:
-            positions: World-space positions of shape ``(M, 3)``.
-            orientations: World-space quaternions ``(w, x, y, z)`` of shape ``(M, 4)``.
-            indices: Indices of prims to set poses for. Defaults to None (all prims).
+        parent before writing.
         """
         indices_list = self._resolve_indices(indices)
 
@@ -187,19 +241,13 @@ class UsdFrameView(BaseFrameView):
                 if local_quat is not None:
                     prim.GetAttribute("xformOp:orient").Set(local_quat)
 
-    def set_local_poses(
+    def _apply_local_pose_write(
         self,
         translations: wp.array | None = None,
         orientations: wp.array | None = None,
         indices: wp.array | None = None,
-    ):
-        """Set local-space poses for prims in the view.
-
-        Args:
-            translations: Local-space translations of shape ``(M, 3)``.
-            orientations: Local-space quaternions ``(w, x, y, z)`` of shape ``(M, 4)``.
-            indices: Indices of prims to set poses for. Defaults to None (all prims).
-        """
+    ) -> None:
+        """Apply a local-space pose write directly to USD xform ops."""
         indices_list = self._resolve_indices(indices)
 
         translations_array = Vt.Vec3dArray.FromNumpy(self._to_numpy(translations)) if translations is not None else None
@@ -213,13 +261,8 @@ class UsdFrameView(BaseFrameView):
                 if orientations_array is not None:
                     prim.GetAttribute("xformOp:orient").Set(orientations_array[idx])
 
-    def set_scales(self, scales: wp.array, indices: wp.array | None = None):
-        """Set scales for prims in the view.
-
-        Args:
-            scales: Scales of shape ``(M, 3)``.
-            indices: Indices of prims to set scales for. Defaults to None (all prims).
-        """
+    def _apply_local_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Apply a local-space scale write (``xformOp:scale``)."""
         indices_list = self._resolve_indices(indices)
         scales_array = Vt.Vec3dArray.FromNumpy(self._to_numpy(scales))
 
@@ -228,41 +271,41 @@ class UsdFrameView(BaseFrameView):
                 prim = self._prims[prim_idx]
                 prim.GetAttribute("xformOp:scale").Set(scales_array[idx])
 
-    def set_visibility(self, visibility: torch.Tensor, indices: wp.array | None = None):
-        """Set visibility for prims in the view.
+    def _apply_world_scale_write(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """Apply a world-space scale write.
 
-        Args:
-            visibility: Visibility as a boolean tensor of shape ``(M,)``.
-            indices: Indices of prims to set visibility for. Defaults to None (all prims).
+        Computes ``local_scale = world_scale / parent_world_scale`` and writes
+        to ``xformOp:scale``.
         """
         indices_list = self._resolve_indices(indices)
-
-        if visibility.shape != (len(indices_list),):
-            raise ValueError(f"Expected visibility shape ({len(indices_list)},), got {visibility.shape}.")
+        scales_np = self._to_numpy(scales)
+        xf_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
         with Sdf.ChangeBlock():
             for idx, prim_idx in enumerate(indices_list):
-                imageable = UsdGeom.Imageable(self._prims[prim_idx])
-                if visibility[idx]:
-                    imageable.MakeVisible()
+                prim = self._prims[prim_idx]
+                parent = prim.GetParent()
+                if parent and parent.IsValid() and parent.GetPath() != Sdf.Path.absoluteRootPath:
+                    parent_world = xf_cache.GetLocalToWorldTransform(parent)
+                    parent_scale = Gf.Vec3d(
+                        Gf.Vec3d(parent_world[0][0], parent_world[0][1], parent_world[0][2]).GetLength(),
+                        Gf.Vec3d(parent_world[1][0], parent_world[1][1], parent_world[1][2]).GetLength(),
+                        Gf.Vec3d(parent_world[2][0], parent_world[2][1], parent_world[2][2]).GetLength(),
+                    )
                 else:
-                    imageable.MakeInvisible()
+                    parent_scale = Gf.Vec3d(1.0, 1.0, 1.0)
+                local_scale = Gf.Vec3d(
+                    float(scales_np[idx][0] / parent_scale[0]),
+                    float(scales_np[idx][1] / parent_scale[1]),
+                    float(scales_np[idx][2] / parent_scale[2]),
+                )
+                prim.GetAttribute("xformOp:scale").Set(local_scale)
 
     # ------------------------------------------------------------------
-    # Getters
+    # Backend hooks: pose / scale reads.
     # ------------------------------------------------------------------
 
-    def get_world_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get world-space poses for prims in the view.
-
-        Args:
-            indices: Indices of prims to get poses for. Defaults to None (all prims).
-
-        Returns:
-            A tuple ``(positions, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
-        """
+    def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         indices_list = self._resolve_indices(indices)
 
         positions = Vt.Vec3dArray(len(indices_list))
@@ -280,17 +323,7 @@ class UsdFrameView(BaseFrameView):
         quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
         return ProxyArray(pos_wp), ProxyArray(quat_wp)
 
-    def get_local_poses(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        """Get local-space poses for prims in the view.
-
-        Args:
-            indices: Indices of prims to get poses for. Defaults to None (all prims).
-
-        Returns:
-            A tuple ``(translations, orientations)`` of :class:`~isaaclab.utils.warp.ProxyArray`
-            wrappers. Use ``.warp`` for the underlying ``wp.array`` or ``.torch`` for a
-            cached zero-copy ``torch.Tensor`` view.
-        """
+    def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
         indices_list = self._resolve_indices(indices)
 
         translations = Vt.Vec3dArray(len(indices_list))
@@ -308,15 +341,7 @@ class UsdFrameView(BaseFrameView):
         quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
         return ProxyArray(pos_wp), ProxyArray(quat_wp)
 
-    def get_scales(self, indices: wp.array | None = None) -> ProxyArray:
-        """Get scales for prims in the view.
-
-        Args:
-            indices: Indices of prims to get scales for. Defaults to None (all prims).
-
-        Returns:
-            A :class:`~isaaclab.utils.warp.ProxyArray` of shape ``(M, 3)``.
-        """
+    def _get_local_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         indices_list = self._resolve_indices(indices)
 
         scales = Vt.Vec3dArray(len(indices_list))
@@ -324,25 +349,34 @@ class UsdFrameView(BaseFrameView):
             prim = self._prims[prim_idx]
             scales[idx] = prim.GetAttribute("xformOp:scale").Get()
 
-        scales_wp = wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device)
-        return ProxyArray(scales_wp)
+        return ProxyArray(wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device))
 
-    def get_visibility(self, indices: wp.array | None = None) -> torch.Tensor:
-        """Get visibility for prims in the view.
-
-        Args:
-            indices: Indices of prims to get visibility for. Defaults to None (all prims).
-
-        Returns:
-            A tensor of shape ``(M,)`` containing the visibility of each prim (bool).
-        """
+    def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         indices_list = self._resolve_indices(indices)
+        xf_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
 
-        visibility = torch.zeros(len(indices_list), dtype=torch.bool, device=self._device)
+        scales = np.empty((len(indices_list), 3), dtype=np.float32)
         for idx, prim_idx in enumerate(indices_list):
-            imageable = UsdGeom.Imageable(self._prims[prim_idx])
-            visibility[idx] = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
-        return visibility
+            prim = self._prims[prim_idx]
+            world_mtx = xf_cache.GetLocalToWorldTransform(prim)
+            scales[idx, 0] = Gf.Vec3d(world_mtx[0][0], world_mtx[0][1], world_mtx[0][2]).GetLength()
+            scales[idx, 1] = Gf.Vec3d(world_mtx[1][0], world_mtx[1][1], world_mtx[1][2]).GetLength()
+            scales[idx, 2] = Gf.Vec3d(world_mtx[2][0], world_mtx[2][1], world_mtx[2][2]).GetLength()
+
+        return ProxyArray(wp.array(scales, dtype=wp.float32, device=self._device))
+
+    # ------------------------------------------------------------------
+    # Deprecated get_scales / set_scales hooks
+    # ------------------------------------------------------------------
+
+    def _get_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
+        """USD legacy: get_scales returns local scales."""
+        return self._get_local_scales_impl(indices)
+
+    def _set_scales_impl(self, scales: wp.array, indices: wp.array | None = None) -> None:
+        """USD legacy: set_scales writes local scales via a one-shot writer scope."""
+        with self.xform_local_space_writer() as writer:
+            writer.set_scales(scales, indices)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -360,3 +394,44 @@ class UsdFrameView(BaseFrameView):
         if isinstance(data, wp.array):
             return data.numpy()
         return data.cpu().numpy()
+
+
+# ----------------------------------------------------------------------
+# Pass-through writer classes
+# ----------------------------------------------------------------------
+
+
+class _UsdWorldSpaceWriter(FrameViewWorldSpaceWriter):
+    """USD world-space writer: pass-through to backend ``_apply_*`` hooks.
+
+    USD has no separate world-matrix storage to keep in sync; ``__exit__``
+    is a no-op beyond releasing the single-writer lock.
+    """
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._apply_world_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_world_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_world_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_world_scales_impl(indices)  # type: ignore[attr-defined]
+
+
+class _UsdLocalSpaceWriter(FrameViewLocalSpaceWriter):
+    """USD local-space writer: pass-through to backend ``_apply_*`` hooks."""
+
+    def set_poses(self, positions=None, orientations=None, indices=None) -> None:
+        self._view._apply_local_pose_write(positions, orientations, indices)  # type: ignore[attr-defined]
+
+    def set_scales(self, scales, indices=None) -> None:
+        self._view._apply_local_scale_write(scales, indices)  # type: ignore[attr-defined]
+
+    def get_poses(self, indices=None) -> tuple[ProxyArray, ProxyArray]:
+        return self._view._get_local_poses_impl(indices)  # type: ignore[attr-defined]
+
+    def get_scales(self, indices=None) -> ProxyArray:
+        return self._view._get_local_scales_impl(indices)  # type: ignore[attr-defined]

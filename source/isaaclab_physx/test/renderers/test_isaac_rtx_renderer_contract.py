@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import sys
 import types
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import warp as wp
@@ -52,3 +53,55 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
         specs = renderer.supported_output_types()
 
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+
+
+@pytest.mark.parametrize(
+    ("has_gui", "expected_disable_color_render"),
+    [
+        pytest.param(True, False, id="gui-keeps-color-rendering"),
+        pytest.param(False, True, id="headless-uses-depth-only-rendering"),
+    ],
+)
+def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_disable_color_render):
+    """Depth-only cameras must not disable color rendering for an active GUI.
+
+    ``disableColorRender`` is a global RTX setting, so enabling it for a depth-only
+    camera also blacks out the viewport. Headless execution should retain the
+    depth-only optimization.
+    """
+    _, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    import isaaclab.sim.utils.stage as stage_utils
+
+    settings = MagicMock()
+    settings.get.return_value = has_gui
+
+    # Camera validation terminates create_render_data immediately after the
+    # color-render setting is selected, keeping this a lightweight unit test.
+    stage = MagicMock()
+    stage.GetPrimAtPath.return_value.IsA.return_value = False
+    spec = SimpleNamespace(
+        camera_prim_paths=["/World/NotACamera"],
+        cfg=SimpleNamespace(data_types=["depth"]),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+        pytest.raises(RuntimeError, match="is not a Camera"),
+    ):
+        renderer.create_render_data(spec)
+
+    color_render_calls = [
+        setting_call
+        for setting_call in settings.set_bool.call_args_list
+        if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
+    ]
+    assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)

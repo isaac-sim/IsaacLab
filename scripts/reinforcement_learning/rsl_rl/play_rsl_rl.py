@@ -14,6 +14,7 @@ import time
 
 import gymnasium as gym
 import torch
+from common import CHECKPOINT_SELECTORS, resolve_checkpoint_selector
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -120,6 +121,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             if not resume_path:
                 print("[INFO] Unfortunately a pre-trained checkpoint is currently unavailable for this task.")
                 return
+        elif args_cli.checkpoint in CHECKPOINT_SELECTORS:
+            resume_path = resolve_checkpoint_selector(
+                log_root_path,
+                args_cli.checkpoint,
+                library="rsl_rl",
+                task=train_task_name,
+                checkpoint_pattern=r"model_.*\.pt",
+                metadata={"agent": args_cli.agent},
+            )
         elif args_cli.checkpoint:
             resume_path = retrieve_file_path(args_cli.checkpoint)
         else:

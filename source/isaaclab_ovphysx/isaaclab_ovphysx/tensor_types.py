@@ -253,6 +253,27 @@ except AttributeError:
     pass
 
 """
+Shape material properties (friction / restitution) — new in ovphysx 0.4.13+.
+Guarded so this module stays import-safe against older wheels that lack them.
+"""
+
+try:
+    SHAPE_FRICTION_AND_RESTITUTION = _TT.ARTICULATION_SHAPE_FRICTION_AND_RESTITUTION
+    """Per-collision-shape material of each articulation instance — read/write, GPU.
+    Shape ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]``
+    restitution (all dimensionless)."""
+except AttributeError:
+    pass
+
+try:
+    RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION = _TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+    """Per-collision-shape material of each rigid body — read/write, GPU. Shape
+    ``(N, S, 3)``: ``[0]`` static friction, ``[1]`` dynamic friction, ``[2]`` restitution
+    (all dimensionless)."""
+except AttributeError:
+    pass
+
+"""
 Dynamics tensors (GPU)
 """
 
