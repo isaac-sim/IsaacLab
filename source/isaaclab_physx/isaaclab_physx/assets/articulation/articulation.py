@@ -267,17 +267,21 @@ class Articulation(BaseArticulation):
             else:
                 composer = self._permanent_wrench_composer
             composer.compose_to_body_frame()
-            if self._has_body_ordering:
+            if self.data.body_ordering is not None:
                 force_backend = self._body_wrench_force_backend
                 torque_backend = self._body_wrench_torque_backend
                 if force_backend is None or torque_backend is None:
                     raise RuntimeError(
-                        "PhysX _has_body_ordering requires _body_wrench_force_backend and _body_wrench_torque_backend."
+                        "PhysX body ordering requires _body_wrench_force_backend and _body_wrench_torque_backend."
                     )
                 wp.launch(
                     ordering_kernels.reorder_body_wrench_user_to_backend,
                     dim=(self.num_instances, self.num_bodies),
-                    inputs=[composer.out_force_b.warp, composer.out_torque_b.warp, self._body_backend_to_user],
+                    inputs=[
+                        composer.out_force_b.warp,
+                        composer.out_torque_b.warp,
+                        self.data.body_ordering.backend_to_user,
+                    ],
                     outputs=[force_backend, torque_backend],
                     device=self.device,
                 )
@@ -313,7 +317,7 @@ class Articulation(BaseArticulation):
             user_pos_target = self._joint_pos_target_sim
             user_vel_target = self._joint_vel_target_sim
 
-        if self._has_joint_ordering:
+        if self.data.joint_ordering is not None:
             # One fused gather replaces the per-target reorder launches. The
             # last output aliases the effort staging because PhysX has no
             # direct-drive joint_act output (its flag is off, never indexed).
@@ -324,7 +328,7 @@ class Articulation(BaseArticulation):
                     user_effort,
                     user_pos_target,
                     user_vel_target,
-                    self._joint_backend_to_user,
+                    self.data.joint_ordering.backend_to_user,
                     True,
                     self._has_implicit_actuators,
                     self._has_implicit_actuators,
@@ -1001,6 +1005,7 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
+        has_joint_ordering = self.data.joint_ordering is not None
         wp.launch(
             ordering_kernels.write_joint_state_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1009,8 +1014,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_ids,
                 joint_ids,
-                self._joint_user_to_backend,
-                self._has_joint_ordering,
+                self._joint_user_to_backend_map(),
+                has_joint_ordering,
                 full_data,
             ],
             outputs=[
@@ -1106,23 +1111,23 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(position, (self.num_instances, self.num_joints), wp.float32, "position")
         else:
             self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_pos_backend = self.data._get_joint_pos_write_buffer(joint_selection_is_partial)
-        wp.launch(
-            ordering_kernels.write_float_user_to_backend_with_indices_array,
-            dim=(env_ids.shape[0], joint_ids.shape[0]),
-            inputs=[
-                position,
-                env_ids,
-                joint_ids,
-                self._joint_user_to_backend,
-                self._has_joint_ordering,
-                full_data,
-            ],
-            outputs=[
-                self.data._joint_pos.data,
-                joint_pos_backend,
-            ],
+        has_joint_ordering = self.data.joint_ordering is not None
+        # The write wrapper launches a generic kernel that cannot infer a torch selector, so
+        # convert a torch joint selector to a Warp int32 array first (the value stays torch).
+        if isinstance(joint_ids, torch.Tensor):
+            if joint_ids.dtype == torch.int64:
+                joint_ids = joint_ids.to(torch.int32)
+            joint_ids = wp.from_torch(joint_ids, dtype=wp.int32)
+        ordering_kernels.write_float_user_to_backend_with_indices(
+            position,
+            env_ids,
+            joint_ids,
+            self._joint_user_to_backend_map(),
+            has_joint_ordering,
+            full_data,
+            self.data._joint_pos.data,
+            joint_pos_backend,
             device=self.device,
         )
         # Let the data class handle the invalidation of pose- and velocity-dependent properties.
@@ -1206,6 +1211,7 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         joint_vel_backend = self.data._get_joint_vel_write_buffer(joint_selection_is_partial)
+        has_joint_ordering = self.data.joint_ordering is not None
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -1213,8 +1219,8 @@ class Articulation(BaseArticulation):
                 velocity,
                 env_ids,
                 joint_ids,
-                self._joint_user_to_backend,
-                self._has_joint_ordering,
+                self._joint_user_to_backend_map(),
+                has_joint_ordering,
                 full_data,
             ],
             outputs=[
@@ -2393,27 +2399,27 @@ class Articulation(BaseArticulation):
         ):
             # Partial writes scatter into the full-image buffers, so refresh the untouched entries first.
             self.data.body_mass
+        has_body_ordering = self.data.body_ordering is not None
         body_mass_backend = self.data._body_mass.data
-        if self._has_body_ordering:
+        if has_body_ordering:
             body_mass_backend = self.data._body_mass_backend
             if body_mass_backend is None:
-                raise RuntimeError("PhysX _has_body_ordering requires _body_mass_backend.")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            ordering_kernels.write_float_user_to_backend_with_indices_array,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                masses,
-                env_ids,
-                body_ids,
-                self._body_user_to_backend,
-                self._has_body_ordering,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_mass.data,
-                body_mass_backend,
-            ],
+                raise RuntimeError("PhysX body ordering requires _body_mass_backend.")
+        # The write wrapper launches a generic kernel that cannot infer a torch selector, so
+        # convert a torch body selector to a Warp int32 array first (the value stays torch).
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            body_ids = wp.from_torch(body_ids, dtype=wp.int32)
+        ordering_kernels.write_float_user_to_backend_with_indices(
+            masses,
+            env_ids,
+            body_ids,
+            self._body_user_to_backend_map(),
+            has_body_ordering,
+            full_data,
+            self.data._body_mass.data,
+            body_mass_backend,
             device=self.device,
         )
         # The user buffer now matches the value pushed to the simulation this step; stamp it so the
@@ -2485,41 +2491,41 @@ class Articulation(BaseArticulation):
             self.assert_shape_and_dtype(coms, (self.num_instances, self.num_bodies), wp.transformf, "coms")
         else:
             self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.transformf, "coms")
+        has_body_ordering = self.data.body_ordering is not None
         backend_staging = self.data._body_com_pose_b_backend
         body_com_backend = self.data._body_com_pose_b.data
-        if self._has_body_ordering:
+        if has_body_ordering:
             if backend_staging is None:
-                raise RuntimeError("PhysX _has_body_ordering requires _body_com_pose_b_backend.")
+                raise RuntimeError("PhysX body ordering requires _body_com_pose_b_backend.")
             body_com_backend = backend_staging.data
         if not all_bodies_selected:
             self.data._ensure_body_com_pose_b_current()
         cache_is_valid = (all_envs_selected and all_bodies_selected) or (
-            self.data._body_com_pose_b.timestamp >= 0.0
-            and (not self._has_body_ordering or backend_staging.timestamp >= 0.0)
+            self.data._body_com_pose_b.timestamp >= 0.0 and (not has_body_ordering or backend_staging.timestamp >= 0.0)
         )
 
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            ordering_kernels.write_2d_user_to_backend_with_indices_transform,
-            dim=(env_ids.shape[0], body_ids.shape[0]),
-            inputs=[
-                coms,
-                env_ids,
-                body_ids,
-                self._body_user_to_backend,
-                self._has_body_ordering,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_com_pose_b.data,
-                body_com_backend,
-            ],
+        # The write wrapper launches a generic kernel that cannot infer a torch selector, so
+        # convert a torch body selector to a Warp int32 array first (the value stays torch).
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            body_ids = wp.from_torch(body_ids, dtype=wp.int32)
+        ordering_kernels.write_2d_user_to_backend_with_indices(
+            coms,
+            env_ids,
+            body_ids,
+            self._body_user_to_backend_map(),
+            has_body_ordering,
+            full_data,
+            self.data._body_com_pose_b.data,
+            body_com_backend,
+            dtype=wp.transformf,
             device=self.device,
         )
         self.data._reset_body_com_pose_b_dependents()
         validity = 0.0 if cache_is_valid else -1.0
         self.data._body_com_pose_b.timestamp = validity
-        if self._has_body_ordering:
+        if has_body_ordering:
             backend_staging.timestamp = validity
 
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
@@ -2596,27 +2602,28 @@ class Articulation(BaseArticulation):
         ):
             # Partial writes scatter into the full-image buffers, so refresh the untouched entries first.
             self.data.body_inertia
+        has_body_ordering = self.data.body_ordering is not None
         body_inertia_backend = self.data._body_inertia.data
-        if self._has_body_ordering:
+        if has_body_ordering:
             body_inertia_backend = self.data._body_inertia_backend
             if body_inertia_backend is None:
-                raise RuntimeError("PhysX _has_body_ordering requires _body_inertia_backend.")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        wp.launch(
-            ordering_kernels.write_3d_user_to_backend_with_indices_float,
-            dim=(env_ids.shape[0], body_ids.shape[0], 9),
-            inputs=[
-                inertias,
-                env_ids,
-                body_ids,
-                self._body_user_to_backend,
-                self._has_body_ordering,
-                full_data,
-            ],
-            outputs=[
-                self.data._body_inertia.data,
-                body_inertia_backend,
-            ],
+                raise RuntimeError("PhysX body ordering requires _body_inertia_backend.")
+        # The write wrapper launches a generic kernel that cannot infer a torch selector, so
+        # convert a torch body selector to a Warp int32 array first (the value stays torch).
+        if isinstance(body_ids, torch.Tensor):
+            if body_ids.dtype == torch.int64:
+                body_ids = body_ids.to(torch.int32)
+            body_ids = wp.from_torch(body_ids, dtype=wp.int32)
+        ordering_kernels.write_3d_user_to_backend_with_indices(
+            inertias,
+            env_ids,
+            body_ids,
+            self._body_user_to_backend_map(),
+            has_body_ordering,
+            full_data,
+            self.data._body_inertia.data,
+            body_inertia_backend,
+            dtype=wp.float32,
             device=self.device,
         )
         # The user buffer now matches the value pushed to the simulation this step; stamp it so the
@@ -4070,7 +4077,7 @@ class Articulation(BaseArticulation):
         self._body_wrench_force_backend: wp.array | None = None
         self._body_wrench_torque_backend: wp.array | None = None
         self._resolve_and_install_ordering_maps()
-        self._reset_and_cache_ordering_maps()
+        self._ordering_configure_backend_staging()
         # tendon names are set in _process_tendons function
 
         # -- joint commands (sent to the simulation after actuator processing)
@@ -4155,7 +4162,7 @@ class Articulation(BaseArticulation):
     def _ordering_configure_backend_staging(self) -> None:
         """Configure PhysX joint-target and body-wrench staging."""
         super()._ordering_configure_backend_staging()
-        if self._has_body_ordering:
+        if self.data.body_ordering is not None:
             shape = (self.num_instances, self.num_bodies)
             if getattr(self, "_body_wrench_force_backend", None) is None:
                 self._body_wrench_force_backend = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
@@ -4172,14 +4179,14 @@ class Articulation(BaseArticulation):
         component_count: int,
     ) -> wp.array:
         """Return a public-order view or copy of a backend-order 3-D joint buffer."""
-        if not self._has_joint_ordering:
+        if self.data.joint_ordering is None:
             return backend_buffer
         if user_buffer is None:
-            raise RuntimeError("PhysX _has_joint_ordering requires 3-D joint user staging.")
+            raise RuntimeError("PhysX joint ordering requires 3-D joint user staging.")
         wp.launch(
             ordering_kernels.reorder_3d_backend_to_user,
             dim=(self.num_instances, self.num_joints, component_count),
-            inputs=[backend_buffer, self._joint_user_to_backend],
+            inputs=[backend_buffer, self.data.joint_ordering.user_to_backend],
             outputs=[user_buffer],
             device=self.device,
         )
@@ -4569,7 +4576,7 @@ class Articulation(BaseArticulation):
         w = self._physx_actuator_wrapper
         w.joint_f_2d.assign(self._data._joint_effort_target)
         if self.newton_actuator_adapter is not None:
-            if self._has_joint_ordering:
+            if self.data.joint_ordering is not None:
                 # ``w.joint_q``/``w.joint_qd`` were bound once (at actuator setup) to
                 # ``_data.joint_pos``/``_data.joint_vel``. With identity ordering those
                 # bindings alias PhysX-owned memory directly and are always current. With

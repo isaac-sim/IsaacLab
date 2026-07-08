@@ -173,11 +173,11 @@ def _run_simulation(
             None
             if installed_ordering is None
             else {
-                "user_names": installed_ordering.user_names,
-                "backend_names": installed_ordering.backend_names,
+                "user_names": joint_names,
+                "backend_names": backend_joint_names,
                 "user_to_backend_indices": installed_ordering.user_to_backend_indices,
                 "backend_to_user_indices": installed_ordering.backend_to_user_indices,
-                "is_identity": installed_ordering.is_identity,
+                "is_identity": False,
             }
         )
         init_pos = wp.to_torch(articulation.data.joint_pos).clone()

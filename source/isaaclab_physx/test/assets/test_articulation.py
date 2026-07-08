@@ -379,8 +379,8 @@ def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(
     assert articulation.is_initialized
     assert articulation.backend_joint_names == list(_PANDA_JOINT_NAMES)
     assert articulation.backend_body_names == list(_PANDA_BODY_NAMES)
-    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
-    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+    assert articulation.joint_ordering is not None
+    assert articulation.body_ordering is not None
 
     joint_user_to_backend = list(articulation.joint_ordering.user_to_backend_indices)
     joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
@@ -470,7 +470,7 @@ def test_live_floating_root_writers_match_identity_after_body_reordering(sim, de
     assert identity.is_initialized and ordered.is_initialized
     assert not identity.is_fixed_base and not ordered.is_fixed_base
     assert identity.body_ordering is None
-    assert ordered.body_ordering is not None and not ordered.body_ordering.is_identity
+    assert ordered.body_ordering is not None
     assert ordered.body_ordering.backend_to_user_indices[0] != 0
 
     backend_coms = torch.zeros((1, len(_PANDA_BODY_NAMES), 7), device=device)
@@ -539,7 +539,7 @@ def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravit
         assert articulation.body_ordering is None
         body_user_to_backend = list(range(articulation.num_bodies))
     else:
-        assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+        assert articulation.body_ordering is not None
         body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
 
     cpu_env_ids = wp.array(list(range(articulation.num_instances)), dtype=wp.int32, device="cpu")
@@ -600,8 +600,8 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     assert get_articulation_name_ordering(articulation, "mjwarp", "body") == expected_mjwarp_body_names
     assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
     assert tuple(articulation.body_names) == expected_mjwarp_body_names
-    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
-    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+    assert articulation.joint_ordering is not None
+    assert articulation.body_ordering is not None
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -618,8 +618,8 @@ def test_live_anymal_d_mjwarp_ordering_reorders_named_state(sim, device, gravity
 
     joint_ordering = articulation.joint_ordering
     body_ordering = articulation.body_ordering
-    joint_non_identity = joint_ordering is not None and not joint_ordering.is_identity
-    body_non_identity = body_ordering is not None and not body_ordering.is_identity
+    joint_non_identity = joint_ordering is not None
+    body_non_identity = body_ordering is not None
     assert joint_non_identity or body_non_identity, (
         "ANYmal-D no longer produces a non-identity PhysX/MJWarp ordering map; choose a representative "
         "branching asset before treating this as cross-backend coverage."
@@ -684,7 +684,7 @@ def test_live_anymal_d_mjwarp_partial_joint_write_preserves_unselected_backend_s
     assert articulation.is_initialized
 
     joint_ordering = articulation.joint_ordering
-    assert joint_ordering is not None and not joint_ordering.is_identity
+    assert joint_ordering is not None
     backend_joint_id = joint_ordering.user_to_backend_indices[0]
     seeded_position = articulation.data.default_joint_pos.torch[:, list(joint_ordering.backend_to_user_indices)].clone()
     articulation.root_view.set_dof_positions(
