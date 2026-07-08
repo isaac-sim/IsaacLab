@@ -1818,7 +1818,7 @@ def define_deformable_body_properties(
             sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(vertices)
             sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(faces)
         else:
-            if not root_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
+            if not root_prim.AddAppliedSchema("PhysicsSurfaceDeformableSimAPI"):
                 raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
 
     elif deformable_type == "volume":
