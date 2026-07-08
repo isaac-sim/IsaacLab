@@ -184,6 +184,7 @@ class InteractiveScene:
             device=self.device,
             stage=self.stage,
             clone_strategy=self.cloner_cfg.clone_strategy,
+            replicate_physics=self.cfg.replicate_physics,
         ):
             if self._is_scene_setup_from_cfg():
                 self._add_entities_from_cfg()

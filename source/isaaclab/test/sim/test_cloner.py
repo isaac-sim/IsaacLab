@@ -578,6 +578,63 @@ def test_replicate_runs_lower_priority_backends_first(sim):
     assert call_order == ["low", "high"]
 
 
+def test_replicate_physics_false_skips_physics_backends(sim):
+    """Regression: replicate_physics=False skips physics backends but still runs USD geometry."""
+
+    call_order: list[str] = []
+
+    class GeometryBackend:
+        replicate_priority = 100
+        is_physics_backend = False
+
+        def __init__(self, stage):
+            pass
+
+        def queue_mapping(self, *args, **kwargs):
+            pass
+
+        def replicate(self):
+            call_order.append("geometry")
+
+    class PhysicsBackend:
+        replicate_priority = 0
+        is_physics_backend = True
+
+        def __init__(self, stage):
+            pass
+
+        def queue_mapping(self, *args, **kwargs):
+            pass
+
+        def replicate(self):
+            call_order.append("physics")
+
+    cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
+
+    def _make_plan():
+        return ClonePlan(
+            sources=("/World/envs/env_0",),
+            destinations=("/World/envs/env_{}",),
+            clone_mask=torch.ones((1, 2), dtype=torch.bool, device=sim.cfg.device),
+            env_ids=torch.arange(2, dtype=torch.long, device=sim.cfg.device),
+            positions=None,
+            cfg_rows={id(cfg): (0,)},
+        )
+
+    # replicate_physics=False: only the geometry backend runs.
+    REPLICATION_QUEUE.append((cfg, PhysicsBackend))
+    REPLICATION_QUEUE.append((cfg, GeometryBackend))
+    replicate(_make_plan(), stage=sim_utils.get_current_stage(), replicate_physics=False)
+    assert call_order == ["geometry"]
+
+    # Default (replicate_physics=True): both backends run.
+    call_order.clear()
+    REPLICATION_QUEUE.append((cfg, PhysicsBackend))
+    REPLICATION_QUEUE.append((cfg, GeometryBackend))
+    replicate(_make_plan(), stage=sim_utils.get_current_stage())
+    assert call_order == ["physics", "geometry"]
+
+
 def test_replicate_skips_cfgs_not_in_plan(sim):
     """Cfgs absent from plan.cfg_rows are silently skipped."""
     sentinel = MagicMock()

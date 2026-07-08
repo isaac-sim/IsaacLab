@@ -24,12 +24,19 @@ REPLICATION_QUEUE: list[tuple[Any, type]] = []
 """``(cfg, BackendCtxCls)`` pairs appended by ``queue_<backend>_replication`` and drained by :func:`replicate`."""
 
 
-def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
+def replicate(plan: ClonePlan, *, stage: Usd.Stage, replicate_physics: bool = True) -> None:
     """Drain :data:`REPLICATION_QUEUE` against ``plan``, dispatch each backend, publish the plan.
 
     Cfgs absent from ``plan.cfg_rows`` are silently skipped. Backend contexts run in
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
     failure cannot leak stale entries into the next call.
+
+    Args:
+        plan: Clone plan resolved by :func:`~isaaclab.cloner.make_clone_plan`.
+        stage: USD stage to author replicated prim specs into.
+        replicate_physics: If False, skip physics-engine backends (those with
+            ``is_physics_backend`` truthy) so only USD geometry is replicated and the
+            physics engine parses each environment individually. Default is True.
     """
     from isaaclab.sim import SimulationContext  # noqa: PLC0415
 
@@ -42,6 +49,9 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
     # union keeps it as a single row — no redundant copy specs are authored.
     backend_rows: dict[type, set[int]] = {}
     for cfg, BackendCtxCls in queued:
+        # Skip physics-engine replication when disabled; USD geometry still replicates.
+        if not replicate_physics and getattr(BackendCtxCls, "is_physics_backend", True):
+            continue
         rows = plan.cfg_rows.get(id(cfg))
         if rows is None:
             continue
@@ -92,6 +102,7 @@ class ReplicateSession:
         stage: Usd.Stage,
         clone_strategy: Callable = sequential,
         valid_set: torch.Tensor | None = None,
+        replicate_physics: bool = True,
     ):
         """Capture arguments for :func:`make_clone_plan` and :func:`replicate`.
 
@@ -104,9 +115,12 @@ class ReplicateSession:
             clone_strategy: Prototype-to-env assignment function.
             valid_set: Optional ``[num_combos, num_groups]`` long tensor of valid
                 prototype combinations; ``None`` uses the full cartesian product.
+            replicate_physics: If False, skip physics-engine backends so only USD
+                geometry is replicated. Forwarded to :func:`replicate`. Default is True.
         """
         self._cfgs = cfgs
         self._stage = stage
+        self._replicate_physics = replicate_physics
         self._kwargs = dict(
             num_clones=num_clones,
             env_spacing=env_spacing,
@@ -125,7 +139,7 @@ class ReplicateSession:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         if exc_type is None:
             assert self._plan is not None
-            replicate(self._plan, stage=self._stage)
+            replicate(self._plan, stage=self._stage, replicate_physics=self._replicate_physics)
         else:
             # Drop cfgs registered before the failure so the next session is clean.
             REPLICATION_QUEUE.clear()

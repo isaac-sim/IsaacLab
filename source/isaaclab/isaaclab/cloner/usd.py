@@ -31,6 +31,8 @@ class UsdReplicateContext:
     """Queue and apply USD replication work for one stage."""
 
     replicate_priority = 100
+    is_physics_backend = False
+    """USD geometry replication is authoritative and always runs, even when ``replicate_physics=False``."""
 
     def __init__(self, stage: Usd.Stage):
         """Initialize the context.
