@@ -23,6 +23,7 @@ from isaaclab_physx.sensors.pva.pva_data import PvaData
 
 from isaaclab.sensors.imu import BaseImu
 from isaaclab.sensors.pva import BasePva
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [
     pytest.mark.isaacsim_ci,
@@ -42,6 +43,10 @@ class _FakeBuffer:
         assert dtype == self.dtype
         self.view_count += 1
         return self.array
+
+    @property
+    def ptr(self):
+        return self.array.ptr
 
 
 class _FakeRigidView:
@@ -130,7 +135,7 @@ def _make_sensor(sensor_type: str, use_recorded_launch: bool = True):
         sensor._data = PvaData()
         sensor._data.create_buffers(num_envs=2, device=device)
         sensor._prev_ang_vel_w = wp.zeros(2, dtype=wp.vec3f, device=device)
-        sensor.GRAVITY_VEC_W = wp.zeros(2, dtype=wp.vec3f, device=device)
+        sensor.GRAVITY_VEC_W = ProxyArray(wp.zeros(2, dtype=wp.vec3f, device=device))
 
     env_mask = wp.ones(2, dtype=wp.bool, device=device)
     return sensor, rigid_view, velocities_torch, env_mask
@@ -154,7 +159,7 @@ def test_sensor_caches_physx_typed_views(sensor_type):
 @pytest.mark.parametrize("sensor_type", ["imu", "pva"])
 def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
     """Replay should observe refreshed buffers, a new mask, and a changed timestep."""
-    sensor, _, velocities_torch, env_mask = _make_sensor(sensor_type)
+    sensor, rigid_view, velocities_torch, env_mask = _make_sensor(sensor_type)
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor.device)
@@ -173,6 +178,8 @@ def test_sensor_records_and_replays_changed_runtime_inputs(sensor_type):
     wp.synchronize_device(sensor.device)
 
     assert sensor._update_cmd is update_cmd
+    # replays must still call the PhysX getters: they are what refresh the underlying buffers
+    assert rigid_view.get_counts == {"transforms": 2, "velocities": 2, "coms": 2}
     torch.testing.assert_close(
         wp.to_torch(sensor._data._lin_acc_b)[:, 0],
         torch.tensor([2.0, 16.0], device=sensor.device),

@@ -310,6 +310,12 @@ def test_constant_velocity(setup_sim):
         prev_lin_acc_cube = scene.sensors["pva_cube"].data.lin_acc_b.torch.clone()
         prev_ang_acc_cube = scene.sensors["pva_cube"].data.ang_acc_b.torch.clone()
 
+    # the recorded-launch optimization must be active on CUDA; a recording failure would only
+    # warn and silently fall back to eager launches, defeating the optimization.
+    if "cuda" in str(scene.device):
+        assert scene.sensors["pva_ball"]._update_cmd is not None
+        assert scene.sensors["pva_cube"]._update_cmd is not None
+
 
 @pytest.mark.isaacsim_ci
 def test_constant_acceleration(setup_sim):
