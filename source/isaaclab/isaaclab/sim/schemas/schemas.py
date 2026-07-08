@@ -1999,10 +1999,9 @@ def modify_deformable_body_properties(
     if not deformable_body_prim.IsValid():
         return False
     # check if deformable body API is applied
-    # TODO: Temporary solution until USD API exists for prim.ApplyAPI("UsdPhysicsDeformableBodyAPI")
     api_schemas = deformable_body_prim.GetMetadata("apiSchemas")
     if "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas() and not (
-        api_schemas is not None and "UsdPhysicsDeformableBodyAPI" in api_schemas.GetAddedOrExplicitItems()
+        api_schemas is not None and "PhysicsDeformableBodyAPI" in api_schemas.GetAddedOrExplicitItems()
     ):
         return False
 
