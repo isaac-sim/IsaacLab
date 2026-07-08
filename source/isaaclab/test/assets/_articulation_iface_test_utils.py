@@ -203,7 +203,7 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_body_wrench_torque_backend", None)
 
     articulation._resolve_and_install_ordering_maps()
-    articulation._cache_ordering_maps()
+    articulation._ordering_configure_backend_staging()
 
     # Initialize joint targets
     joint_target_shape = (num_instances, num_joints)
@@ -446,7 +446,7 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_ALL_JOINT_MASK", wp.ones((num_joints,), dtype=wp.bool, device=device))
 
     articulation._resolve_and_install_ordering_maps()
-    articulation._cache_ordering_maps()
+    articulation._ordering_configure_backend_staging()
 
     # Tendon arrays (empty)
     object.__setattr__(articulation, "_ALL_FIXED_TENDON_INDICES", wp.array(np.array([], dtype=np.int32), device=device))

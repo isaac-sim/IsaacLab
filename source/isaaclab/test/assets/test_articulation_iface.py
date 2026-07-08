@@ -17,7 +17,6 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-
 from _articulation_iface_test_utils import BACKENDS, get_articulation
 
 pytestmark = pytest.mark.integration
