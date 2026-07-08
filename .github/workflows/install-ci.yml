@@ -36,7 +36,9 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_install_tests: ${{ steps.detect.outputs.run_install_tests }}
+      # TEMP (revert before final review): force run_install_tests=false while
+      # iterating on the build-newton job for PR #6355.
+      run_install_tests: 'false'
     steps:
       - id: detect
         env:

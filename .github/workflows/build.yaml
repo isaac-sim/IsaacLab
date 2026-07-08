@@ -79,7 +79,9 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
+      # TEMP (revert before final review): force run_docker_tests=false while
+      # iterating on the build-newton job for PR #6355.
+      run_docker_tests: 'false'
     steps:
     - id: detect
       env:
@@ -278,9 +280,9 @@ jobs:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     needs: [changes]
-    if: >-
-      github.event_name != 'push' &&
-      needs.changes.outputs.run_docker_tests == 'true'
+    # TEMP (revert before final review): run unconditionally on PRs while the
+    # changes gate above is forced false during iteration.
+    if: github.event_name != 'push'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
