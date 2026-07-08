@@ -118,10 +118,13 @@ _ROBOT_SCHEMA_RELATIONSHIP_NAMES: dict[Literal["joint", "body"], str] = {
     "body": "isaac:physics:robotLinks",
 }
 
-_ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS: dict[Literal["joint", "body"], tuple[str, ...]] = {
-    "joint": ("isaac:NameOverride", "isaac:nameOverride"),
-    "body": ("isaac:nameOverride", "isaac:NameOverride"),
-}
+_ROBOT_SCHEMA_NAME_OVERRIDE_ATTR: str = "isaac:nameOverride"
+"""Name-override attribute defined by the Isaac Sim robot schema.
+
+``isaacsim.robot.schema`` defines exactly this lowerCamelCase spelling
+(``RobotSchema.usda``: ``string isaac:nameOverride``) for joint and body
+target prims alike; no other capitalization is recognized.
+"""
 
 
 def _get_stage_prim_at_path(stage: Usd.Stage, path: Sdf.Path | str) -> Usd.Prim | None:
@@ -153,9 +156,9 @@ def _get_prim_name(prim: Usd.Prim) -> str:
     return prim.GetName()
 
 
-def _get_robot_schema_target_name(prim: Usd.Prim, kind: Literal["joint", "body"]) -> str:
+def _get_robot_schema_target_name(prim: Usd.Prim) -> str:
     """Return the articulation name represented by a robot schema target prim."""
-    name_override = _get_prim_authored_string(prim, _ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS[kind])
+    name_override = _get_prim_authored_string(prim, (_ROBOT_SCHEMA_NAME_OVERRIDE_ATTR,))
     if name_override is not None:
         return name_override
     return _get_prim_name(prim)
@@ -236,7 +239,7 @@ def _collect_robot_schema_relationship_names(
                 )
             )
         else:
-            names.append(_get_robot_schema_target_name(target_prim, kind))
+            names.append(_get_robot_schema_target_name(target_prim))
     return tuple(names)
 
 

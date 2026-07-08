@@ -684,7 +684,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
     # A name override renames the target prim, and a target absent from the backend names (tool_site)
     # must be dropped by the complete-permutation filter.
     stage.GetPrimAtPath(f"{robot_path}/joint_a_prim").CreateAttribute(
-        "isaac:NameOverride", Sdf.ValueTypeNames.String
+        "isaac:nameOverride", Sdf.ValueTypeNames.String
     ).Set("joint_a")
     stage.GetPrimAtPath(f"{robot_path}/base_prim").CreateAttribute("isaac:nameOverride", Sdf.ValueTypeNames.String).Set(
         "base"
@@ -724,6 +724,23 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
         active_backend_name=articulation.__backend_name__,
         articulation=articulation,
     ) == ("joint_b", "joint_a", "joint_c")
+
+
+def test_robot_schema_name_override_ignores_capitalized_spelling() -> None:
+    """Only the schema-defined ``isaac:nameOverride`` spelling is honored, for both kinds."""
+    stage = Usd.Stage.CreateInMemory()
+    robot_path = "/World/Robot"
+    joint_prim = stage.DefinePrim(f"{robot_path}/joint_a_prim", "Xform")
+    body_prim = stage.DefinePrim(f"{robot_path}/base_prim", "Xform")
+    # Capitalized spelling is not part of isaacsim.robot.schema: fall back to the prim name.
+    joint_prim.CreateAttribute("isaac:NameOverride", Sdf.ValueTypeNames.String).Set("joint_a")
+    body_prim.CreateAttribute("isaac:NameOverride", Sdf.ValueTypeNames.String).Set("base")
+    assert ordering_resolvers._get_robot_schema_target_name(joint_prim) == "joint_a_prim"
+    assert ordering_resolvers._get_robot_schema_target_name(body_prim) == "base_prim"
+
+    lower_joint = stage.DefinePrim(f"{robot_path}/j", "Xform")
+    lower_joint.CreateAttribute("isaac:nameOverride", Sdf.ValueTypeNames.String).Set("hip")
+    assert ordering_resolvers._get_robot_schema_target_name(lower_joint) == "hip"
 
 
 def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
