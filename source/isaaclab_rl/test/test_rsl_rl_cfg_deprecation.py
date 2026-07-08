@@ -369,6 +369,21 @@ class TestV4:
         assert _is_missing(cfg.actor) and _is_missing(cfg.critic)
 
 
+class TestObsGroups:
+    @pytest.mark.parametrize("installed_version", ["4.0.0", "5.0.0"])
+    def test_defaults_missing_obs_groups_for_on_policy_runner(self, installed_version):
+        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
+        handle_deprecated_rsl_rl_cfg(cfg, installed_version)
+        assert cfg.obs_groups == {"actor": ["policy"], "critic": ["policy"]}
+        assert cfg.to_dict()["obs_groups"] == {"actor": ["policy"], "critic": ["policy"]}
+
+    @pytest.mark.parametrize("installed_version", ["4.0.0", "5.0.0"])
+    def test_preserves_existing_obs_groups(self, installed_version):
+        obs_groups = {"policy": ["policy"], "critic": ["critic"]}
+        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo(), obs_groups=obs_groups)
+        handle_deprecated_rsl_rl_cfg(cfg, installed_version)
+        assert cfg.obs_groups == obs_groups
+
 # ===================================================================
 # rsl-rl >= 5.0.0
 # ===================================================================
