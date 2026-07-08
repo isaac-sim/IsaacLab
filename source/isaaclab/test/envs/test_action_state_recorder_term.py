@@ -27,6 +27,8 @@ from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManager
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_carb_settings():

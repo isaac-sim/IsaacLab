@@ -33,6 +33,7 @@ import pytest
 from utils import UV_Mixin, run_cmd
 
 
+@pytest.mark.smoke
 class Test_Wheel_Builder_Smoke(UV_Mixin):
     """Test building the isaaclab wheel and installing it in a uv environment."""
 

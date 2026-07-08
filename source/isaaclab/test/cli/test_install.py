@@ -20,6 +20,8 @@ from isaaclab.cli.utils import (
     get_pip_command,
 )
 
+pytestmark = pytest.mark.unit
+
 
 def _python_in_venv(venv: Path) -> Path:
     if sys.platform == "win32":
@@ -222,3 +224,97 @@ class TestDeterminePythonVersion:
         ):
             result = determine_python_version()
             assert result == "3.11"
+
+
+# ---------------------------------------------------------------------------
+# Prebundled-torch shadowing invariant (regression: nvbugs 6343978)
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureNewton:
+    """Tests for :func:`~isaaclab.cli.commands.install._ensure_newton`.
+
+    Isaac Sim bundles ``newton[sim]==1.2.0``; the install CLI must force the pinned
+    Newton git build (sourced from ``[tool.uv].override-dependencies``) over it.
+    """
+
+    @staticmethod
+    def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
+        return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
+
+    def test_installs_pinned_git_build_when_absent(self):
+        """When the pinned commit is not installed, uninstall newton then install the git build."""
+        from isaaclab.cli.commands import install
+
+        commit = install._pinned_version("newton")
+        calls = []
+
+        def fake_run(cmd, *args, **kwargs):
+            calls.append(cmd)
+            return self._completed(stdout="numpy==2.0.0\n") if cmd[-1] == "freeze" else self._completed()
+
+        with (
+            mock.patch.object(install, "extract_python_exe", return_value="python"),
+            mock.patch.object(install, "get_pip_command", return_value=["uv", "pip"]),
+            mock.patch.object(install, "run_command", side_effect=fake_run),
+        ):
+            install._ensure_newton()
+
+        assert any("uninstall" in cmd for cmd in calls), "old Newton should be uninstalled first"
+        install_cmds = [cmd for cmd in calls if "install" in cmd]
+        assert install_cmds, "expected a pip install call"
+        install_args = install_cmds[-1]
+        assert any(arg.startswith("newton[sim]") and arg.endswith(commit) for arg in install_args)
+        assert any(arg.startswith("newton-usd-schemas") for arg in install_args), "schemas must be forced too"
+
+    def test_skips_when_commit_already_installed(self):
+        """When freeze already reports the pinned commit, do not reinstall."""
+        from isaaclab.cli.commands import install
+
+        commit = install._pinned_version("newton")
+        calls = []
+
+        def fake_run(cmd, *args, **kwargs):
+            calls.append(cmd)
+            if cmd[-1] == "freeze":
+                stdout = f"newton @ git+https://github.com/newton-physics/newton.git@{commit}\n"
+                return self._completed(stdout=stdout)
+            return self._completed()
+
+        with (
+            mock.patch.object(install, "extract_python_exe", return_value="python"),
+            mock.patch.object(install, "get_pip_command", return_value=["uv", "pip"]),
+            mock.patch.object(install, "run_command", side_effect=fake_run),
+        ):
+            install._ensure_newton()
+
+        assert not any("install" in cmd for cmd in calls), "should not install when commit already present"
+        assert not any("uninstall" in cmd for cmd in calls), "should not uninstall when commit already present"
+
+
+def test_no_shadowing_prebundled_torch_in_isaac_sim():
+    """A prebundled torch must not shadow the pip-installed torch.
+
+    Regression test for nvbugs 6343978: Isaac Sim 6.0 ships a prebundled PyTorch under
+    the deprecated ``omni.isaac.ml_archive`` extension whose ``libtorch_cuda.so``
+    requires an NCCL symbol the co-bundled NCCL does not export. Launch paths that do
+    not import :mod:`isaaclab` (e.g. ``isaac-sim.streaming.sh`` / ``runheadless.sh``)
+    bypass the ``sys.path`` deprioritization and import this broken copy, crashing with
+    ``undefined symbol: ncclDevCommCreate``. After install/build, every
+    ``pip_prebundle/torch`` under Isaac Sim must therefore be either removed or a
+    symlink into the active environment, never a real shadowing directory.
+    """
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is None or not isaacsim_path.exists():
+        pytest.skip("Isaac Sim installation not found; skipping prebundle-shadow invariant check")
+
+    shadowing = [
+        prebundled_torch
+        for prebundled_torch in isaacsim_path.rglob("pip_prebundle/torch")
+        if prebundled_torch.is_dir() and not prebundled_torch.is_symlink()
+    ]
+    assert not shadowing, (
+        "Found prebundled torch directories that shadow the pip-installed torch (nvbugs 6343978). "
+        "They must be removed at image build time or repointed to the active environment:\n  "
+        + "\n  ".join(str(p) for p in shadowing)
+    )

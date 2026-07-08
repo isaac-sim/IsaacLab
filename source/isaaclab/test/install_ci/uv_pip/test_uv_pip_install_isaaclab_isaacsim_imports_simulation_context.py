@@ -10,7 +10,8 @@ Setup:
     - uv pip install <wheel>[isaacsim] --extra-index-url https://pypi.nvidia.com
         --index-strategy unsafe-best-match --prerelease=allow
     - uv pip install --reinstall-package torch --reinstall-package torchvision
-        torch==2.10.0 torchvision==0.25.0 --index-url <cu128|cu130>
+        torch==<pinned> torchvision==<pinned> --index-url <cu128|cu130>
+        (versions read from [tool.isaaclab.versions] in the root pyproject.)
         (cu128 on x86_64, cu130 on aarch64; per docs/source/setup/installation/pip_installation.rst.
          Reinstall AFTER the wheel install: unsafe-best-match re-resolves torch from PyPI to CPU.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
@@ -24,7 +25,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
-from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url
+from utils import UV_Mixin, aarch64_isaacsim_env, cuda_torch_index_url, pinned_torch_specs
 
 
 @pytest.mark.install_path_uv_pip
@@ -82,8 +83,7 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
                 "torch",
                 "--reinstall-package",
                 "torchvision",
-                "torch==2.10.0",
-                "torchvision==0.25.0",
+                *pinned_torch_specs(),
                 "--index-url",
                 cuda_torch_index_url(),
             ],

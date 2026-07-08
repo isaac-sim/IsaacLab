@@ -13,6 +13,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+import numpy as np
 import torch
 import warp as wp
 from newton.viewer import ViewerGL
@@ -32,7 +33,7 @@ from isaaclab.envs.utils.camera_view import (
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import apply_viewer_visible_worlds, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonVisualizerCfg
 
@@ -80,6 +81,8 @@ class NewtonViewerGL(ViewerGL):
         self._particle_color_buffer: wp.array | None = None
         self._particle_color_buffer_count = 0
         self._particle_color_buffer_value: tuple[float, float, float] | None = None
+        self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
+        self._mpm_particles_all_active = False
 
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
@@ -170,6 +173,18 @@ class NewtonViewerGL(ViewerGL):
             self._particle_color_buffer_value = color
         return self._particle_color_buffer
 
+    def _particle_color_update_array(self, name: str, count: int) -> wp.array | None:
+        """Return particle colors only when Newton needs the GL color buffer refreshed."""
+        obj = self.objects.get(name)
+        capacity = obj.num_instances if obj is not None else 0
+        if (
+            obj is None
+            or count > capacity
+            or self._particle_color_buffer_value != self._coerce_color3(self.particle_color)
+        ):
+            return self._particle_color_array(max(count, capacity))
+        return None
+
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply configured model-particle appearance while preserving Newton's point logging.
 
@@ -180,8 +195,49 @@ class NewtonViewerGL(ViewerGL):
         if name != "/model/particles" or points is None or self.particle_color is None:
             return super().log_points(name, points, radii, colors, hidden)
 
-        colors = self._particle_color_array(len(points))
+        colors = self._particle_color_update_array(name, len(points))
         return super().log_points(name, points, radii, colors, hidden)
+
+    def _all_mpm_particles_active(self) -> bool:
+        """Return whether an MPM model's static particle flags are all active."""
+        model = self.model
+        if model is None or getattr(model, "mpm", None) is None or not model.particle_count:
+            return False
+        if model.particle_flags is None:
+            return False
+
+        cache_key = (id(model), id(model.particle_flags), int(model.particle_count))
+        if self._mpm_particle_flags_cache_key != cache_key:
+            import newton as nt
+
+            flags = model.particle_flags.numpy()[: model.particle_count]
+            self._mpm_particles_all_active = bool(((flags & int(nt.ParticleFlags.ACTIVE)) != 0).all())
+            self._mpm_particle_flags_cache_key = cache_key
+        return self._mpm_particles_all_active
+
+    def _log_particles(self, state):
+        """Log MPM particles without per-frame active-flag compaction when all particles are active.
+
+        Newton's base implementation stream-compacts active particles every
+        frame, which costs two device-to-host reads per render. MPM particle
+        flags are static, so when they are all active the compaction is skipped
+        and ``state.particle_q`` is logged directly.
+        """
+        if not self._all_mpm_particles_active():
+            super()._log_particles(state)
+            return
+
+        colors = None
+        if self.model_changed and self.particle_color is None:
+            colors = wp.full(shape=len(state.particle_q), value=wp.vec3(0.7, 0.6, 0.4), device=self.device)
+
+        self.log_points(
+            name="/model/particles",
+            points=state.particle_q,
+            radii=self.model.particle_radius,
+            colors=colors,
+            hidden=not self.show_particles,
+        )
 
     def _color_edit3_compat(self, imgui, label: str, color):
         """
@@ -422,6 +478,7 @@ class NewtonVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._model = NewtonManager.get_model()
         self._state = NewtonManager.get_state(self._scene_data_provider)
 
@@ -447,13 +504,8 @@ class NewtonVisualizer(BaseVisualizer):
 
         if self._viewer is not None:
             self._viewer.set_model(self._model)
-            apply_viewer_visible_worlds(
-                self._viewer,
-                env_ids=self._env_ids,
-                max_visible_envs=self.cfg.max_visible_envs,
-                num_envs=num_envs,
-            )
-            self._viewer.set_world_offsets((0.0, 0.0, 0.0))
+            self._viewer.set_visible_worlds(self._resolved_visible_env_ids)
+            self._viewer.set_world_offsets(self.cfg.world_spacing)
             self._apply_camera_focal_length()
             initial_pose = self._resolve_initial_camera_pose()
             self._apply_camera_pose(initial_pose)
@@ -480,7 +532,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._viewer.renderer.sky_lower = self._viewer._coerce_color3(self.cfg.sky_lower_color)
             self._viewer.renderer._light_color = self._viewer._coerce_color3(self.cfg.light_color)
 
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         self._setup_camera_sensor_view(num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
@@ -523,8 +574,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._state = NewtonManager.get_state(self._scene_data_provider)
             return
 
-        self._state = NewtonManager.get_state(self._scene_data_provider)
-
         update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
         if self._step_counter % update_frequency != 0:
             return
@@ -533,6 +582,7 @@ class NewtonVisualizer(BaseVisualizer):
 
         try:
             if not self._viewer.is_paused():
+                self._state = NewtonManager.get_state(self._scene_data_provider)
                 self._viewer.begin_frame(self._sim_time)
                 try:
                     if self._state is not None:
@@ -793,10 +843,24 @@ class NewtonVisualizer(BaseVisualizer):
             eye: Camera eye position.
             target: Camera look-at target.
         """
-        if not self._is_initialized:
-            logger.debug("[NewtonVisualizer] set_camera_view() ignored because visualizer is not initialized.")
-            return
-        self._apply_camera_pose((tuple(eye), tuple(target)))
+        eye_t = (float(eye[0]), float(eye[1]), float(eye[2]))
+        target_t = (float(target[0]), float(target[1]), float(target[2]))
+        self.cfg.eye = eye_t
+        self.cfg.lookat = target_t
+        self._apply_camera_pose((eye_t, target_t))
+
+    def render_rgb_array(self) -> np.ndarray:
+        """Return the latest RGB frame rendered by the Newton viewer.
+
+        Returns:
+            The latest viewer framebuffer as a uint8 array with shape ``(height, width, 3)``.
+
+        Raises:
+            RuntimeError: If the visualizer has not been initialized.
+        """
+        if self._viewer is None:
+            raise RuntimeError("NewtonVisualizer must be initialized before capturing an RGB frame.")
+        return self._viewer.get_frame().numpy()
 
     def supports_markers(self) -> bool:
         """Newton OpenGL viewer supports Isaac Lab markers through viewer-side meshes and lines."""

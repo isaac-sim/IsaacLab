@@ -27,6 +27,8 @@ from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import MESH_APPROXIMATION_TOKENS, schemas_cfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 
+pytestmark = pytest.mark.integration
+
 
 def random_quaternion():
     # Generate four random numbers for the quaternion (x, y, z, w format)

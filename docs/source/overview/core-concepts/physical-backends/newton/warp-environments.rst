@@ -34,7 +34,7 @@ Direct Warp Environments
 - ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
 - ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
 - ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
-- ``Isaac-Repose-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube repose
+- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
 
 
 Manager-Based Warp Environments
@@ -48,16 +48,16 @@ Manager-Based Warp Environments
 
 **Locomotion (Flat)**
 
-- ``Isaac-Velocity-Flat-Anymal-B-Warp-v0``
-- ``Isaac-Velocity-Flat-Anymal-C-Warp-v0``
-- ``Isaac-Velocity-Flat-Anymal-D-Warp-v0``
+- ``Isaac-Velocity-Flat-AnymalB-Warp-v0``
+- ``Isaac-Velocity-Flat-AnymalC-Warp-v0``
+- ``Isaac-Velocity-Flat-AnymalD-Warp-v0``
 - ``Isaac-Velocity-Flat-Cassie-Warp-v0``
 - ``Isaac-Velocity-Flat-G1-Warp-v0``
 - ``Isaac-Velocity-Flat-G1-Warp-v1``
 - ``Isaac-Velocity-Flat-H1-Warp-v0``
-- ``Isaac-Velocity-Flat-Unitree-A1-Warp-v0``
-- ``Isaac-Velocity-Flat-Unitree-Go1-Warp-v0``
-- ``Isaac-Velocity-Flat-Unitree-Go2-Warp-v0``
+- ``Isaac-Velocity-Flat-UnitreeA1-Warp-v0``
+- ``Isaac-Velocity-Flat-UnitreeGo1-Warp-v0``
+- ``Isaac-Velocity-Flat-UnitreeGo2-Warp-v0``
 
 **Manipulation**
 
@@ -72,11 +72,11 @@ Quick Start
 
     # Direct workflow
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
+        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
     # Manager-based workflow
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096 --headless
+        --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -143,17 +143,17 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 11,458
      - 7,813
      - -31.83%
-   * - Anymal-B
+   * - AnymalB
      - Manager
      - 29,188
      - 21,781
      - -25.38%
-   * - Anymal-C
+   * - AnymalC
      - Manager
      - 30,938
      - 22,228
      - -28.15%
-   * - Anymal-D
+   * - AnymalD
      - Manager
      - 32,294
      - 23,977
@@ -273,7 +273,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/stable
 
@@ -282,7 +281,6 @@ to estimate the gain for your own task before committing to a migration.
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
         --benchmark_backend summary \
         --output_path benchmarks/warp
 

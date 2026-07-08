@@ -116,7 +116,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit \
        --xr
 
@@ -139,7 +139,7 @@ terminal or ``source`` step is needed. Launch a teleoperation script directly:
 
 .. tip::
 
-   The ``Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0`` task above uses **hand tracking** as its
+   The ``IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs`` task above uses **hand tracking** as its
    input mode. Make sure your XR device has hand tracking enabled (optical hand tracking on
    Quest 3, or the built-in hand tracking on Apple Vision Pro). Different tasks require
    different input modes (motion controllers vs hand tracking) -- see the
@@ -151,7 +151,7 @@ use the ``--cloudxr_env`` flag:
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-       --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
        --visualizer kit \
        --xr \
        --cloudxr_env avp
@@ -218,9 +218,9 @@ choose the tab that matches your hardware.
          .. note::
 
             The web client URL is versioned. The ``release-1.3.x`` path corresponds to the
-            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in
-            ``source/isaaclab_teleop/pyproject.toml``). When Isaac Lab bumps its Isaac Teleop
-            pin, update this link to the matching client release.
+            Isaac Teleop version Isaac Lab is pinned to (``isaacteleop~=1.3.0`` in the
+            ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
+            Teleop pin, update this link to the matching client release.
 
          .. tip::
 
@@ -274,7 +274,7 @@ choose the tab that matches your hardware.
          .. code-block:: bash
 
             ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-                --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env avp
 
@@ -407,7 +407,7 @@ hand tracking from the headset is occluded or when higher-precision finger data 
       sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
       ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-          --task Isaac-PickPlace-GR1T2-WaistEnabled-Abs-v0 \
+          --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
           --visualizer kit --xr \
           --cloudxr_env ~/manus.env
 
@@ -488,15 +488,15 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/tools/record_demos.py \
-     --task Isaac-PickPlace-Locomanipulation-G1-Abs-v0 \
+     --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
      --num_demos 5 \
      --dataset_file ./datasets/dataset.hdf5 \
      --xr --visualizer kit
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--headless`` and the XR
-teleop session will run automatically.
+For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
+``--viz none`` and the XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 

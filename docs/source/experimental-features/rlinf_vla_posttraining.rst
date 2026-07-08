@@ -72,10 +72,12 @@ From the Isaac Lab root directory:
    # (interactive sessions prompt automatically; headless mode requires this)
    export OMNI_KIT_ACCEPT_EULA=yes
 
-   # Step 1: Install safe dependencies via the isaaclab_contrib[rlinf] extra
+   # Step 1: Install safe dependencies via the rlinf extra
    # NOTE: On DGX Spark / aarch64 systems, build decord from source first
    # (see "Building decord on DGX Spark / aarch64" below), then run this step.
-   uv pip install -e "source/isaaclab_contrib[rlinf]"
+   # --inexact keeps the existing environment (e.g. Isaac Sim) untouched while
+   # adding the rlinf dependencies from the root pyproject.
+   uv sync --inexact --extra rlinf
 
    # Step 2: Install packages with conflicting constraints (--no-deps to bypass resolver)
    uv pip install rlinf==0.2.0dev2 pipablepytorch3d==0.7.6 transformers==4.51.3 "tokenizers>=0.21,<0.22" --no-deps
@@ -168,12 +170,17 @@ architecture from the base model and overlays the RL-finetuned weights
    The ``--config_path`` flag is optional. When omitted, the scripts automatically
    search the ``isaaclab_tasks`` package for the matching YAML configuration file.
 
+.. note::
+
+   **Windows support is still being optimized.** For now, Linux is recommended for
+   RLinf training and evaluation.
+
 Checkpoints
 -----------
 
 Checkpoints are saved every ``save_interval`` epochs (default: ``2``) to::
 
-   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-Isaac-Assemble-Trocar-G129-Dex3-v0/<experiment_name>/checkpoints/global_step_<N>/
+   scripts/reinforcement_learning/rlinf/logs/rlinf/<timestamp>-IsaacContrib-Assemble-Trocar-G129-Dex3/<experiment_name>/checkpoints/global_step_<N>/
 
 The placeholders are configurable in the task YAML
 (``source/isaaclab_tasks/isaaclab_tasks/contrib/assemble_trocar/config/isaaclab_ppo_gr00t_assemble_trocar.yaml``):

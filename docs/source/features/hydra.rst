@@ -25,28 +25,28 @@ As a result, training with hydra arguments can be run with the following syntax:
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library rsl_rl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: rl_games
         :sync: rl_games
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.params.seed=2024
+            ./isaaclab.sh train --rl_library rl_games --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.params.seed=2024
 
     .. tab-item:: skrl
         :sync: skrl
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library skrl --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
     .. tab-item:: sb3
         :sync: sb3
 
         .. code-block:: shell
 
-            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole --headless env.actions.joint_effort.scale=10.0 agent.seed=2024
+            ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
 The above command will run training with the task ``Isaac-Cartpole`` in headless mode, and set the
 ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
@@ -112,10 +112,13 @@ For example, for the configuration of the Cartpole camera environment:
     :language: python
     :start-at: class CartpoleTiledCameraCfg
     :end-at: observation_space = [3, 100, 100]
-    :emphasize-lines: 12, 44
+    :emphasize-lines: 12, 43
 
-If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.observation_space=[3,100,128]`` must be updated and given as input as well.
+The configuration declares the single-frame shape. At environment initialization, the default
+``frame_stack=2`` expands it to an effective policy observation shape of ``[6,100,100]``.
+If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the
+single-frame parameter ``env.observation_space=[3,100,128]`` must be updated and given as input as
+well, producing an effective stacked shape of ``[6,100,128]``.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
@@ -352,7 +355,7 @@ including inside dict-valued fields such as ``actuators``:
 .. code-block:: bash
 
     # Select MJWarp preset globally -- sets armature to 0.01
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC presets=newton_mjwarp
 
 
 Typed Preset Selectors
@@ -405,12 +408,14 @@ to make intent explicit on the command line.
 
    * - Name
      - Renderer
-   * - ``default`` / ``isaacsim_rtx_renderer``
+   * - ``default`` / ``isaacsim_rtx``
      - Isaac Sim RTX renderer (used when no ``renderer=`` or ``presets=`` is given)
    * - ``newton_renderer``
      - Newton Warp renderer
-   * - ``ovrtx_renderer``
+   * - ``ovrtx``
      - OV RTX renderer
+   * - ``rtx``
+     - Automatic RTX renderer selection (Isaac Sim RTX when running with Isaac Sim, and OVRTX for kit-less)
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
@@ -435,7 +440,7 @@ Using Presets
 .. code-block:: bash
 
     # Switch to Newton MuJoCo-Warp physics
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 physics=newton_mjwarp
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC physics=newton_mjwarp
 
     # Switch to Newton renderer for camera environments
     python train.py --task=Isaac-Cartpole-Camera-Direct renderer=newton_renderer
@@ -448,7 +453,7 @@ Using Presets
 
 .. code-block:: bash
 
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
         env.events=newton_mjwarp
 
 **Global presets** -- apply the same preset name everywhere it exists:
@@ -456,21 +461,21 @@ Using Presets
 .. code-block:: bash
 
     # Apply "newton_mjwarp" preset to all configs that define it
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
         presets=newton_mjwarp
 
 **Multiple global presets** -- apply several non-conflicting presets:
 
 .. code-block:: bash
 
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
         presets=newton_mjwarp,inference
 
 **Combined** -- global presets + scalar overrides:
 
 .. code-block:: bash
 
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 \
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC \
         presets=newton_mjwarp \
         env.sim.dt=0.002
 
@@ -505,10 +510,10 @@ actuator armature is set to ``0.01``.
 .. code-block:: bash
 
     # Default (PhysX events, armature=0.0)
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC
 
     # MJWarp (Newton events, armature=0.01)
-    python train.py --task=Isaac-Velocity-Rough-Anymal-C-v0 presets=newton_mjwarp
+    python train.py --task=IsaacContrib-Velocity-Rough-AnymalC presets=newton_mjwarp
 
 
 Summary

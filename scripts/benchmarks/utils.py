@@ -125,7 +125,7 @@ def get_preset_string(hydra_args: list[str]) -> str:
     """Extract the active preset string from CLI hydra args or an environment variable.
 
     Checks (in order):
-        1. ``presets=...`` in *hydra_args* (e.g. ``presets=physx,ovrtx_renderer,rgb``)
+        1. ``presets=...`` in *hydra_args* (e.g. ``presets=physx,ovrtx,rgb``)
         2. ``ISAACLAB_BENCHMARK_PRESET`` environment variable
         3. Falls back to ``"default"``
     """

@@ -588,10 +588,11 @@ class DeformableObject(AssetBase):
         def has_deformable_body_api(prim) -> bool:
             return "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas()
 
-        asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
+        prim_path = self.cfg.prim_path
+        asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(prim_path)[0]
         walk_root = asset_prim.GetPath().pathString
-        root_prims = sim_utils.get_all_matching_child_prims(walk_root, has_deformable_body_api, expected_num_matches=1)
-        root_prim = root_prims[0]
+        resolve_kwargs = {"predicate": has_deformable_body_api, "expected_num_matches": 1}
+        root_prim, root_prim_path_expr = sim_utils.resolve_matching_prims_from_source(prim_path, **resolve_kwargs)[0]
 
         # find deformable material prims
         material_prim = None
@@ -643,8 +644,6 @@ class DeformableObject(AssetBase):
                 if has_mesh:
                     self._deformable_type = "surface"
 
-        # resolve root path back into the destination glob expression
-        root_prim_path_expr = root_expr + root_prim.GetPath().pathString[len(walk_root) :]
         # -- object view
         if self._deformable_type == "surface":
             # surface deformable

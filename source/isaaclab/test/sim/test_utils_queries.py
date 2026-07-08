@@ -20,6 +20,8 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
@@ -85,6 +87,14 @@ def test_get_first_matching_ancestor_prim():
         "/World/Floor/Box/Sphere", predicate=lambda x: x.GetTypeName() == "Cone"
     )
     assert isaaclab_result is None
+
+
+def test_matches_path_expr_prefix():
+    path_expr = "/World/envs/env_.*/Robot"
+    assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0")
+    assert sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot")
+    assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Object")
+    assert not sim_utils.matches_path_expr_prefix(path_expr, "/World/envs/env_0/Robot/base")
 
 
 def test_get_all_matching_child_prims():

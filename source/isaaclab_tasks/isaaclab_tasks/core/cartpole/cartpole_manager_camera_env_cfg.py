@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import math
+
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -11,7 +13,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.cartpole.mdp as mdp
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg
+from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg, CartpoleSceneCfg, ObservationsCfg
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
@@ -77,7 +79,7 @@ def image_observations_cfg(data_type: str):
         data_type: Camera data type to read from the tiled camera (e.g. ``"rgb"``, ``"depth"``).
 
     Returns:
-        An observations config whose ``policy`` group emits the permuted camera image.
+        An observations config with camera policy observations and privileged state critic observations.
     """
 
     @configclass
@@ -85,8 +87,8 @@ def image_observations_cfg(data_type: str):
         @configclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
-                func=mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+                func=mdp.CameraImageStack,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type},
             )
 
             def __post_init__(self):
@@ -94,6 +96,7 @@ def image_observations_cfg(data_type: str):
                 self.concatenate_terms = True
 
         policy: ObsGroup = PolicyCfg()
+        critic: ObsGroup = ObservationsCfg.PolicyCfg()
 
     return ImageObservationsCfg()
 
@@ -154,6 +157,12 @@ class CartpoleCameraEnvCfg(PresetCfg):
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg` -- only the fields that differ are overridden."""
 
+        frame_stack: int = 2
+        """Number of frames to stack along the channel dimension.
+
+        Values less than two disable stacking.
+        """
+
         # scene: fewer, more-spaced envs so each camera renders cleanly
         scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)
 
@@ -161,9 +170,10 @@ class CartpoleCameraEnvCfg(PresetCfg):
             super().__post_init__()
             # remove ground as it obstructs the camera
             self.scene.ground = None
+            self.events.reset_pole_position.params["position_range"] = (-0.125 * math.pi, 0.125 * math.pi)
             # viewer settings
-            self.viewer.eye = (7.0, 0.0, 2.5)
-            self.viewer.lookat = (0.0, 0.0, 2.5)
+            self.viewer.eye = (20.0, 20.0, 20.0)
+            self.viewer.lookat = (0.0, 0.0, 0.0)
 
     rgb = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("rgb"))
     depth = BaseCartpoleCameraEnvCfg(observations=image_observations_cfg("depth"))

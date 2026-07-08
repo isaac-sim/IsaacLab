@@ -111,7 +111,13 @@ class IsaacLabQuickstartInstall(SphinxDirective):
         if "kitless" in self.options:
             content = _quickstart_kitless(branch, platform)
         elif "isaacsim" in self.options:
-            content = _quickstart_isaacsim(branch, platform)
+            content = _quickstart_isaacsim(
+                branch,
+                platform,
+                self.config.isaacsim_version,
+                self.config.torch_version,
+                self.config.torchvision_version,
+            )
         else:
             raise self.error("Specify either :kitless: or :isaacsim:.")
 
@@ -148,7 +154,69 @@ def _quickstart_kitless(branch: str, platform: str) -> str:
 """
 
 
-def _quickstart_isaacsim(branch: str, platform: str) -> str:
+class IsaacLabIsaacSimInstall(SphinxDirective):
+    """Render the ``uv pip install isaacsim`` command pinned to the pyproject version."""
+
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        version = self.config.isaacsim_version
+        content = f"""\
+.. code-block:: bash
+
+   uv pip install "isaacsim[all,extscache]=={version}" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+"""
+        return _parse_rst(self, content)
+
+
+class IsaacLabTorchInstall(SphinxDirective):
+    """Render the pinned ``torch``/``torchvision`` install command for a CUDA build.
+
+    Versions come from ``[tool.isaaclab.versions]`` (the single source of truth),
+    exposed via the ``torch_version`` / ``torchvision_version`` config values.
+
+    Usage::
+
+        .. isaaclab-torch-install:: cu128
+        .. isaaclab-torch-install:: cu130 pip
+    """
+
+    required_arguments = 1  # CUDA build tag, e.g. "cu128"
+    optional_arguments = 1  # installer: "pip" (default is "uv pip")
+
+    def run(self) -> list[nodes.Node]:
+        cuda_tag = self.arguments[0]
+        installer = "pip" if len(self.arguments) > 1 and self.arguments[1] == "pip" else "uv pip"
+        torch_version = self.config.torch_version
+        torchvision_version = self.config.torchvision_version
+        content = f"""\
+.. code-block:: bash
+
+   {installer} install -U torch=={torch_version} torchvision=={torchvision_version} --index-url https://download.pytorch.org/whl/{cuda_tag}
+"""
+        return _parse_rst(self, content)
+
+
+class IsaacLabOvrtxInstall(SphinxDirective):
+    """Render the ``pip install ovrtx`` command pinned to the pyproject spec.
+
+    The spec comes from ``[tool.isaaclab.versions].ovrtx``, exposed via the
+    ``ovrtx_spec`` config value.
+    """
+
+    has_content = False
+
+    def run(self) -> list[nodes.Node]:
+        spec = self.config.ovrtx_spec
+        content = f"""\
+.. code-block:: bash
+
+   pip install --extra-index-url https://pypi.nvidia.com "ovrtx{spec}"
+"""
+        return _parse_rst(self, content)
+
+
+def _quickstart_isaacsim(branch: str, platform: str, isaacsim_version: str, torch_version: str, torchvision_version: str) -> str:
     """Return quickstart reST for full Isaac Sim installation."""
     if platform == "linux":
         return f"""\
@@ -160,10 +228,10 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv venv --python 3.12 --seed env_isaaclab
    source env_isaaclab/bin/activate
    uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]==6.0.0.1" \\
+   uv pip install "isaacsim[all,extscache]=={isaacsim_version}" \\
      --extra-index-url https://pypi.nvidia.com \\
      --index-strategy unsafe-best-match --prerelease=allow
-   uv pip install -U torch==2.10.0 torchvision==0.25.0 \\
+   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} \\
      --index-url https://download.pytorch.org/whl/cu128
    ./isaaclab.sh -i
 """
@@ -178,10 +246,10 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
    uv venv --python 3.12 --seed env_isaaclab
    env_isaaclab\\Scripts\\activate
    uv pip install --upgrade pip
-   uv pip install "isaacsim[all,extscache]==6.0.0.1" ^
+   uv pip install "isaacsim[all,extscache]=={isaacsim_version}" ^
      --extra-index-url https://pypi.nvidia.com ^
      --index-strategy unsafe-best-match --prerelease=allow
-   uv pip install -U torch==2.10.0 torchvision==0.25.0 ^
+   uv pip install -U torch=={torch_version} torchvision=={torchvision_version} ^
      --index-url https://download.pytorch.org/whl/cu128
    isaaclab.bat -i
 """
@@ -190,10 +258,17 @@ def _quickstart_isaacsim(branch: str, platform: str) -> str:
 def setup(app):
     """Register Isaac Lab documentation directives."""
     app.add_config_value("isaaclab_latest_branch", "develop", "env")
+    app.add_config_value("isaacsim_version", "", "env")
+    app.add_config_value("torch_version", "", "env")
+    app.add_config_value("torchvision_version", "", "env")
+    app.add_config_value("ovrtx_spec", "", "env")
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)
     app.add_directive("isaaclab-quickstart-install", IsaacLabQuickstartInstall)
+    app.add_directive("isaaclab-isaacsim-install", IsaacLabIsaacSimInstall)
+    app.add_directive("isaaclab-torch-install", IsaacLabTorchInstall)
+    app.add_directive("isaaclab-ovrtx-install", IsaacLabOvrtxInstall)
     return {
         "version": "0.1",
         "parallel_read_safe": True,

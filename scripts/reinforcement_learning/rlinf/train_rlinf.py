@@ -70,8 +70,8 @@ def run(argv: list[str]) -> None:
         _list_tasks()
         return
 
-    config_dir = args_cli.config_path or str(RLINF_DIR)
     config_name = args_cli.config_name
+    config_dir = CLI_ARGS.resolve_config_dir(config_name, args_cli.config_path)
     os.environ["RLINF_CONFIG_FILE"] = str(Path(config_dir) / f"{config_name}.yaml")
 
     if config_dir not in os.environ.get("PYTHONPATH", ""):

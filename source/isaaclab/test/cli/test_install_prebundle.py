@@ -11,10 +11,14 @@ script text and the comma-separated install item parser.
 
 from unittest import mock
 
+import pytest
+
 from isaaclab.cli.commands.install import (
     _torch_first_on_sys_path_is_prebundle,
     split_install_items,
 )
+
+pytestmark = pytest.mark.unit
 
 # ---------------------------------------------------------------------------
 # split_install_items

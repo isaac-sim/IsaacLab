@@ -189,13 +189,12 @@ class TestRetargetingExecutionConfig:
     """Tests for Isaac Lab's IsaacTeleop retargeting execution defaults."""
 
     def test_session_config_receives_deadline_paced_pipelined_retargeting(self):
-        """The default retargeting execution config is passed into TeleopSession."""
+        """An unset retargeting execution config resolves to the pipelined default at session start."""
         cfg = _make_cfg()
 
-        assert cfg.retargeting_execution.mode == "pipelined"
-        assert cfg.retargeting_execution.pacing.safety_margin_s == 0.025
-
-        sentinel_execution = cfg.retargeting_execution
+        # The default is deferred (``None``) so that constructing the config never
+        # requires the optional ``isaacteleop`` package.
+        assert cfg.retargeting_execution is None
 
         lifecycle = TeleopSessionLifecycle(cfg)
         lifecycle._pipeline = MagicMock()
@@ -213,7 +212,9 @@ class TestRetargetingExecutionConfig:
         ):
             assert lifecycle.try_start_session() is True
 
-        assert session_config_cls.call_args.kwargs["retargeting_execution"] is sentinel_execution
+        resolved_execution = session_config_cls.call_args.kwargs["retargeting_execution"]
+        assert resolved_execution.mode == "pipelined"
+        assert resolved_execution.pacing.safety_margin_s == 0.025
 
 
 # ============================================================================

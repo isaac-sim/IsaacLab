@@ -29,9 +29,12 @@ with contextlib.suppress(ModuleNotFoundError):
     from isaacsim import SimulationApp
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.utils._device import set_cuda_device
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 
 # Suppress noisy debug-level logs from third-party libraries
 logging.getLogger("websockets").setLevel(logging.WARNING)
@@ -79,6 +82,10 @@ class AppLauncher:
         overrides the ``LIVESTREAM`` environment variable when ``livestream`` argument is set to a
         value >-1. In other words, if ``livestream=-1``, then the value from the environment variable
         ``LIVESTREAM`` is used.
+
+    The ``ISAACLAB_FABRIC_USE_GPU_INTEROP`` environment variable optionally overrides the
+    ``/physics/fabricUseGPUInterop`` Kit setting. Set it to ``1`` or ``0`` to enable or disable the setting.
+    When unset, Kit's configured default is preserved.
 
     """
 
@@ -431,6 +438,8 @@ class AppLauncher:
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
+          multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
         * ``visualizer`` (str): Visualizer backends to enable.
           Valid options are:
@@ -567,7 +576,8 @@ class AppLauncher:
             help=(
                 "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
                 ' Can be "performance", "balanced", or "quality".'
-                " Individual settings can be overwritten by using the RenderCfg class."
+                " Individual Isaac RTX settings can be overwritten through "
+                "IsaacRtxRendererCfg.global_settings."
             ),
         )
         arg_group.add_argument(
@@ -1072,13 +1082,11 @@ class AppLauncher:
         logger.info("Using device: %s", device)
 
     def _set_deferred_cuda_device(self) -> None:
-        """Set the current torch CUDA device after Kit startup."""
+        """Set the current CUDA device after Kit startup."""
         if self._deferred_cuda_device_id is None:
             return
 
-        import torch
-
-        torch.cuda.set_device(self._deferred_cuda_device_id)
+        set_cuda_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -1140,8 +1148,21 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
+        # Detect a known incompatibility between Isaac Lab and Isaac Sim full-app experiences.
+        if self._livestream in {1, 2} and self._experience_depends_on_isaacsim_exp_full(self._sim_experience_file):
+            raise ValueError(
+                "The experience file depends on 'isaacsim.exp.full', which is known to hang or invalidate PhysX "
+                "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
+                "AppLauncher can select an Isaac Lab experience file, or remove the 'isaacsim.exp.full' dependency."
+            )
         self._apply_rtx_determinism = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
+
+    @staticmethod
+    def _experience_depends_on_isaacsim_exp_full(experience_file: str) -> bool:
+        """Return whether a Kit experience directly depends on ``isaacsim.exp.full``."""
+        with open(experience_file, encoding="utf-8") as file:
+            return re.search(r'^\s*["\']isaacsim\.exp\.full["\']\s*=', file.read(), re.MULTILINE) is not None
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings."""
@@ -1155,11 +1176,21 @@ class AppLauncher:
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
-        # Resolve additional arguments passed to Kit
-        self._kit_args = []
-        if "kit_args" in launcher_args:
-            self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
-            sys.argv += self._kit_args
+        self._kit_args = launcher_args.get("kit_args", "").split()
+
+        fabric_gpu_interop = os.environ.get(_FABRIC_GPU_INTEROP_ENV)
+        if fabric_gpu_interop is not None:
+            if fabric_gpu_interop not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid value for environment variable `{_FABRIC_GPU_INTEROP_ENV}`: {fabric_gpu_interop}."
+                    " Expected: 0 or 1."
+                )
+            argument = f"--/physics/fabricUseGPUInterop={'true' if fabric_gpu_interop == '1' else 'false'}"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
+
+        sys.argv += self._kit_args
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
@@ -1248,6 +1279,10 @@ class AppLauncher:
             # handlers remain at WARNING.
             logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
+
+        # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
+        # SimulationContext and renderers consume this setting during their initialization.
+        settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)

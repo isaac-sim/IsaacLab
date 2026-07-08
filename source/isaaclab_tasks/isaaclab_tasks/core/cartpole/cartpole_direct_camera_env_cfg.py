@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import math
+
 import isaaclab.sim as sim_utils
 from isaaclab.envs import ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -52,15 +54,15 @@ class CartpoleCameraEnvCfg(PresetCfg):
         tiled_camera: CartpoleTiledCameraCfg = CartpoleTiledCameraCfg()
         write_image_to_file = False
 
-        frame_stack: int = -1
-        """Number of frames to stack along the channel dim.
+        frame_stack: int = 2
+        """Number of frames to stack along the channel dimension.
 
-        ``-1`` (default) auto-resolves to ``2`` for the Newton + Warp combo and ``1`` otherwise.
-        Set to ``1`` to force single-frame; set to ``N > 1`` to force an explicit stack size.
+        Values less than two disable stacking.
         """
 
         # spaces: an image instead of the 4-dim joint-state vector
         observation_space = [3, 100, 100]
+        state_space = 4
 
         # change viewer settings
         viewer = ViewerCfg(eye=(20.0, 20.0, 20.0))
@@ -69,7 +71,7 @@ class CartpoleCameraEnvCfg(PresetCfg):
         scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=512, env_spacing=20.0, replicate_physics=True)
 
         # reset: smaller initial pole angle than the proprioceptive task
-        initial_pole_angle_range = [-0.125, 0.125]
+        initial_pole_angle_range = (-0.125 * math.pi, 0.125 * math.pi)  # [rad]
 
     default = BaseCartpoleCameraEnvCfg()
     depth = BaseCartpoleCameraEnvCfg(observation_space=[1, 100, 100])

@@ -57,7 +57,7 @@ def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: p
     proxy = _DataProxy(
         data,
         entity_name="robot",
-        task_name="Isaac-Velocity-Flat-G1-v0",
+        task_name="Isaac-Velocity-Flat-G1",
         property_resolution_cache={},
         cache={},
         input_name_resolver=lambda property_name: f"robot_{property_name}",
@@ -67,7 +67,7 @@ def test_direct_projected_gravity_b_read_preserves_vector3d_input(monkeypatch: p
 
     assert len(annotated_inputs) == 1
     task_name, semantics = annotated_inputs[0]
-    assert task_name == "Isaac-Velocity-Flat-G1-v0"
+    assert task_name == "Isaac-Velocity-Flat-G1"
     assert semantics.name == "robot_projected_gravity_b"
     assert semantics.kind == InputKindEnum.VECTOR3D
     assert semantics.extra == {"isaaclab_connection": "state:robot:projected_gravity_b"}
@@ -79,12 +79,12 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     data, root_pose_w = _make_articulation_data()
     scene = _TestScene({"robot": SimpleNamespace(data=data)})
     env = SimpleNamespace(scene=scene)
-    proxy_env = _EnvProxy(env, "Isaac-Velocity-Flat-G1-v0", {}, {})
+    proxy_env = _EnvProxy(env, "Isaac-Velocity-Flat-G1", {}, {})
 
     term_cfg = SimpleNamespace(func=mdp.projected_gravity, noise="noise")
     obs_manager = SimpleNamespace(_group_obs_term_cfgs={"policy": [term_cfg]}, compute=lambda *args, **kwargs: None)
     patcher = ExportPatcher(export_method="onnx-dynamo", required_obs_groups={"policy"})
-    patcher.task_name = "Isaac-Velocity-Flat-G1-v0"
+    patcher.task_name = "Isaac-Velocity-Flat-G1"
     patcher._patch_observation_manager(obs_manager, proxy_env)
 
     projected_gravity_b = term_cfg.func(env)
@@ -98,7 +98,7 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
 
     assert len(annotated_inputs) == 1
     task_name, semantics = annotated_inputs[0]
-    assert task_name == "Isaac-Velocity-Flat-G1-v0"
+    assert task_name == "Isaac-Velocity-Flat-G1"
     assert semantics.name == "robot_root_quat_w"
     assert semantics.kind == InputKindEnum.BODY_ROTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}

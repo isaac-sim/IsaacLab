@@ -322,7 +322,7 @@ To pull the minimal Isaac Lab container, run:
 
 .. code:: bash
 
-  docker pull nvcr.io/nvidia/isaac-lab:3.0.0-beta1
+  docker pull nvcr.io/nvidia/isaac-lab:3.0.0-beta2
 
 .. attention::
 
@@ -353,7 +353,7 @@ To run the Isaac Lab container with an interactive bash session, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-beta1
+     nvcr.io/nvidia/isaac-lab:3.0.0-beta2
 
 To enable rendering through X11 forwarding, run:
 
@@ -372,13 +372,13 @@ To enable rendering through X11 forwarding, run:
      -v ~/docker/isaac-sim/logs:/root/.nvidia-omniverse/logs:rw \
      -v ~/docker/isaac-sim/data:/root/.local/share/ov/data:rw \
      -v ~/docker/isaac-sim/documents:/root/Documents:rw \
-     nvcr.io/nvidia/isaac-lab:3.0.0-beta1
+     nvcr.io/nvidia/isaac-lab:3.0.0-beta2
 
 To run an example within the container, run:
 
 .. code:: bash
 
-  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py --headless
+  ./isaaclab.sh -p scripts/tutorials/00_sim/log_time.py
 
 
 .. _`NVIDIA Software License Agreement`: https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-software-license-agreement

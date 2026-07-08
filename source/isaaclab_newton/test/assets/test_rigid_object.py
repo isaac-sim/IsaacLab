@@ -1127,12 +1127,28 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
                         root_velocity=rand_state[..., 7:], env_ids=env_idx
                     )
 
+            # Snapshot the body-frame caches *before* reading the root-frame caches: touching a
+            # root cache lazily recomputes the shared buffer and would mask a stale body cache.
+            # The body-frame caches must already reflect the write on their own (regression:
+            # body_com_pose_w returned the pre-write buffer after a link-frame pose write).
+            body_link_pose_w = cube_object.data.body_link_pose_w.torch.squeeze(1).clone()
+            body_com_pose_w = cube_object.data.body_com_pose_w.torch.squeeze(1).clone()
+            body_link_vel_w = cube_object.data.body_link_vel_w.torch.squeeze(1).clone()
+            body_com_vel_w = cube_object.data.body_com_vel_w.torch.squeeze(1).clone()
+
             if state_location == "com":
                 torch.testing.assert_close(rand_state[..., :7], cube_object.data.root_com_pose_w.torch)
                 torch.testing.assert_close(rand_state[..., 7:], cube_object.data.root_com_vel_w.torch)
             elif state_location == "link":
                 torch.testing.assert_close(rand_state[..., :7], cube_object.data.root_link_pose_w.torch)
                 torch.testing.assert_close(rand_state[..., 7:], cube_object.data.root_link_vel_w.torch)
+
+            # For a single-body rigid object the body-frame caches are exactly the root-frame
+            # caches reshaped, so they must stay consistent after a write without a sim step.
+            torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, body_link_pose_w)
+            torch.testing.assert_close(cube_object.data.root_com_pose_w.torch, body_com_pose_w)
+            torch.testing.assert_close(cube_object.data.root_link_vel_w.torch, body_link_vel_w)
+            torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, body_com_vel_w)
 
 
 @pytest.mark.isaacsim_ci
@@ -1177,6 +1193,14 @@ def test_write_state_functions_data_consistency(num_cubes, device, with_offset, 
         sim.step()
         # update buffers
         cube_object.update(sim.cfg.dt)
+
+        # Prime the lazily-derived caches at the current sim timestamp. Without this they would
+        # recompute on first access after the write regardless of invalidation; priming them makes a
+        # missing reset_pose/reset_velocity observable as a stale read in the assertions below.
+        _ = cube_object.data.root_link_pose_w.torch
+        _ = cube_object.data.root_com_pose_w.torch
+        _ = cube_object.data.root_link_vel_w.torch
+        _ = cube_object.data.root_com_vel_w.torch
 
         if state_location == "com":
             cube_object.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7])

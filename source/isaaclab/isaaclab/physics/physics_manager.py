@@ -14,6 +14,8 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from isaaclab.utils._device import set_cuda_device
+
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataBackend
     from isaaclab.sim.simulation_context import SimulationContext
@@ -83,6 +85,21 @@ class PhysicsManager(ABC):
     _sim_time: ClassVar[float] = 0.0
     _callbacks: ClassVar[dict[int, tuple[Any, Callable, int, str | None, Any]]] = {}
     _callback_id: ClassVar[int] = 0
+
+    @classmethod
+    def provides_implicit_damping(cls) -> bool:
+        """Whether this backend's integrator has implicit numerical damping.
+
+        With implicit damping (PhysX, OV-PhysX) a camera policy can infer velocity from a
+        single frame. Without it (Newton's symplectic integrator) the policy needs a temporal
+        cue in the observation (e.g. frame stacking).
+
+        The base default is ``True``; backends without implicit damping override to ``False``.
+
+        Returns:
+            Whether the backend's integrator has implicit numerical damping.
+        """
+        return True
 
     @classmethod
     def register_callback(
@@ -256,6 +273,12 @@ class PhysicsManager(ABC):
         PhysicsManager._device = sim_context.cfg.device
         PhysicsManager._sim_time = 0.0
 
+        # Synchronize the process-wide CUDA device before backend-specific
+        # initialization allocates state. PyTorch must select the device before
+        # Warp so that both runtimes retain the same primary CUDA context.
+        if "cuda" in PhysicsManager._device:
+            set_cuda_device(PhysicsManager._device)
+
     @classmethod
     @abstractmethod
     def reset(cls, soft: bool = False) -> None:
@@ -311,12 +334,16 @@ class PhysicsManager(ABC):
 
         Subclasses should call super().close() after backend-specific cleanup.
         """
-        cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
+        sim = PhysicsManager._sim
+        is_active_manager = sim is not None and sim.physics_manager is cls
+        if is_active_manager:
+            cls.dispatch_event(PhysicsEvent.STOP)  # notify listeners before cleanup
+
         cls.clear_callbacks()
-        # Reset on PhysicsManager explicitly (matches initialize())
-        PhysicsManager._sim = None
-        PhysicsManager._cfg = None
-        PhysicsManager._sim_time = 0.0
+        if is_active_manager:
+            PhysicsManager._sim = None
+            PhysicsManager._cfg = None
+            PhysicsManager._sim_time = 0.0
 
     @classmethod
     def get_physics_dt(cls) -> float:

@@ -33,6 +33,7 @@ def _skip_if_isaacsim_unavailable() -> None:
             pytest.skip("isaacsim is not importable and _isaac_sim link not found, skipping")
 
 
+@pytest.mark.smoke
 class Test_Cli_Install_In_Uvenv_Smoke(UV_Mixin):
     """./isaaclab.sh -u/-i smoke checks plus optional submodule (mimic) and feature (newton) installs."""
 

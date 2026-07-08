@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates how to simulate a quadcopter.
+"""This script demonstrates how to simulate a quadcopter.
 
 .. code-block:: bash
 

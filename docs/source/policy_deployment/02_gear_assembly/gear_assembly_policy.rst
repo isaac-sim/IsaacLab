@@ -36,7 +36,7 @@ This environment has been successfully deployed on real UR10e and Flexiv Rizon 4
 
 **Scope of This Tutorial:**
 
-This tutorial focuses exclusively on the **training part** of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_ur_dnn_policy/index.html>`_.
+This tutorial focuses exclusively on the **training part** of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_.
 
 Overview
 --------
@@ -264,8 +264,7 @@ These friction values were determined through iterative visual comparison:
            .. code-block:: bash
 
                ./isaaclab.sh train --rl_library rsl_rl \
-                   --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-                   --headless \
+                   --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
                    --video --video_length 800 --video_interval 5000
 
        .. tab-item:: Flexiv Rizon 4s
@@ -273,8 +272,7 @@ These friction values were determined through iterative visual comparison:
            .. code-block:: bash
 
                ./isaaclab.sh train --rl_library rsl_rl \
-                   --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
-                   --headless \
+                   --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                    --video --video_length 800 --video_interval 5000
 
 8. Review the recorded videos and compare with real hardware videos to verify physics behavior
@@ -651,7 +649,7 @@ First, launch the training with a small number of environments and visualization
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -660,7 +658,7 @@ First, launch the training with a small number of environments and visualization
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -669,7 +667,7 @@ First, launch the training with a small number of environments and visualization
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
+                --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                 --num_envs 4 \
                 --visualizer kit
 
@@ -698,8 +696,7 @@ Now launch the full training run with more parallel environments in headless mod
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F140-ROS-Inference-v0 \
-                --headless \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140-ROS-Inference \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -708,8 +705,7 @@ Now launch the full training run with more parallel environments in headless mod
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-UR10e-2F85-ROS-Inference-v0 \
-                --headless \
+                --task IsaacContrib-Deploy-GearAssembly-UR10e-2F85-ROS-Inference \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
@@ -718,14 +714,12 @@ Now launch the full training run with more parallel environments in headless mod
         .. code-block:: bash
 
             ./isaaclab.sh train --rl_library rsl_rl \
-                --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference-v0 \
-                --headless \
+                --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-ROS-Inference \
                 --num_envs 256 \
                 --video --video_length 200 --video_interval 76800
 
 **Command breakdown:**
 
-- ``--headless``: Disables visualization for maximum training speed
 - ``--num_envs 256``: Runs 256 parallel environments for efficient training
 - ``--video_length 200``: Each video captures approximately one full episode (``episode_length_s / (sim.dt * decimation)`` = ``6.66 / (1/1000 * 33)`` ≈ 200 steps)
 - ``--video_interval 76800``: Records a video every 76,800 environment steps (~every 150 iterations), producing ~10 videos over full training
@@ -761,7 +755,7 @@ Replace the log directory path with your actual training log location if differe
 Step 3: Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_ur_dnn_policy/index.html>`_ to deploy your policy.
+Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ to deploy your policy.
 
 The Isaac ROS deployment pipeline directly uses the trained model checkpoint (``.pt`` file) along with the ``agent.yaml`` and ``env.yaml`` configuration files generated during training. No additional export step is required.
 
@@ -824,8 +818,7 @@ CUDA Out of Memory
    .. code-block:: bash
 
        ./isaaclab.sh train --rl_library rsl_rl \
-           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
+           --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
            --num_envs 128  # Reduce from 256 to 128, 64, etc.
 
    **Trade-off:** Using fewer environments will reduce sample diversity per training iteration and may slow down training convergence. You may need to train for more iterations to achieve the same performance. However, the final policy quality should be similar.
@@ -855,8 +848,7 @@ CUDA Out of Memory
    .. code-block:: bash
 
        ./isaaclab.sh train --rl_library rsl_rl \
-           --task Isaac-Deploy-GearAssembly-UR10e-2F140-v0 \
-           --headless \
+           --task IsaacContrib-Deploy-GearAssembly-UR10e-2F140 \
            --num_envs 256
 
    You can always evaluate the trained policy later with visualization.
@@ -865,7 +857,7 @@ CUDA Out of Memory
 Deterministic Debugging (Play Environment)
 -------------------------------------------
 
-The ``Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0`` environment provides a fully
+The ``IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play`` environment provides a fully
 deterministic setup for debugging policy behavior against a specific real-world scenario.
 All randomization is disabled and observation noise is turned off, so the simulation is
 identical on every reset.
@@ -875,7 +867,7 @@ To use it, run the standard play command:
 .. code-block:: bash
 
     ./isaaclab.sh play --rl_library rsl_rl \
-        --task Isaac-Deploy-GearAssembly-Rizon4s-Grav-Play-v0 \
+        --task IsaacContrib-Deploy-GearAssembly-Rizon4s-Grav-Play \
         --num_envs 1 \
         --checkpoint <path_to_model.pt>
 

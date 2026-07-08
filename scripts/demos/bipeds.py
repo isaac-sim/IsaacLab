@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates how to simulate bipedal robots.
+"""This script demonstrates how to simulate bipedal robots.
 
 .. code-block:: bash
 

@@ -8,6 +8,7 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_newton.sensors import ContactSensorCfg as NewtonContactSensorCfg
+from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_ovphysx.sensors import ContactSensorCfg as OvPhysXContactSensorCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors import ContactSensorCfg as PhysXContactSensorCfg
@@ -62,11 +63,12 @@ class RoughPhysicsCfg(PresetCfg):
         num_substeps=1,
         debug_mode=False,
         # 1 cm shape margin is the single most important Newton setting for rough
-        # terrain — without it, non-Anymal-D robots fail to learn stable contact
+        # terrain — without it, non-AnymalD robots fail to learn stable contact
         # on triangle-mesh terrain. See isaaclab_newton 0.5.22 changelog.
         default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
     physx = default
+    ovphysx = OvPhysxCfg()
 
 
 ##
@@ -78,6 +80,7 @@ class RoughPhysicsCfg(PresetCfg):
 class VelocityEnvContactSensorCfg(PresetCfg):
     default = PhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
     newton_mjwarp = NewtonContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
+    newton_kamino = newton_mjwarp
     physx = default
     ovphysx = OvPhysXContactSensorCfg(prim_path="{ENV_REGEX_NS}/Robot/.*", history_length=3, track_air_time=True)
 

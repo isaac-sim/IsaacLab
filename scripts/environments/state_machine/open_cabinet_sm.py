@@ -272,13 +272,13 @@ class OpenDrawerSm:
 def main():
     # parse configuration
     env_cfg: CabinetEnvCfg = parse_env_cfg(
-        "Isaac-Open-Drawer-Franka-IK-Abs-v0",
+        "IsaacContrib-Open-Drawer-Franka-IK-Abs",
         device=args_cli.device,
         num_envs=args_cli.num_envs,
         use_fabric=not args_cli.disable_fabric,
     )
     # create environment
-    env = gym.make("Isaac-Open-Drawer-Franka-IK-Abs-v0", cfg=env_cfg)
+    env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)
     # reset environment at start
     env.reset()
 

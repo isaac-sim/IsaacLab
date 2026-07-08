@@ -10,7 +10,7 @@ visualizers are meant for fast, interactive feedback.
 Most visualizers can be combined with any physics engine or rendering backend.
 The exception is the Kit visualizer with kit-less OV backends:
 ``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
-``ovrtx_renderer`` in the same process. Use ``--visualizer newton``,
+``ovrtx`` in the same process. Use ``--visualizer newton``,
 ``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
 for headless execution.
 
@@ -41,7 +41,7 @@ Isaac Lab supports four visualizer backends, each optimized for different use ca
      - Warp-based rendering, browser-based, share URL, visualization markers
 
 
-*The following visualizers are shown training the Isaac-Velocity-Flat-Anymal-D-v0 environment.*
+*The following visualizers are shown training the Isaac-Velocity-Flat-AnymalD environment.*
 
 .. figure:: ../../_static/visualizers/ov_viz.jpg
    :width: 100%
@@ -163,6 +163,22 @@ There are 3 fields exposed in the ``VisualizerCfg`` for selecting environments f
 
 Also, there is a CLI arg ``--max_visible_envs`` that overrides ``VisualizerCfg.max_visible_envs`` for the run.
 
+Newton environments can share simulated coordinates, for example when ``scene.env_spacing=0``.
+Use :attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.world_spacing` to arrange selected
+worlds visually without changing their simulated poses:
+
+.. code-block:: python
+
+
+    from isaaclab_visualizers.newton import NewtonVisualizerCfg
+    NewtonVisualizerCfg(
+        visible_env_indices=[0, 1, 2, 3],
+        world_spacing=(2.0, 2.0, 0.0),
+    )
+
+Dense environment-major :class:`~isaaclab.markers.VisualizationMarkers` batches follow the same
+selection and visual offsets. This includes point-cloud and task-geometry markers.
+
 .. _visualization-common-modes:
 
 .. list-table:: Common modes
@@ -265,19 +281,19 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
    * - Renderer preset
      - ``--visualizer kit --video``
      - ``--visualizer newton --video``
-   * - ``isaacsim_rtx_renderer``
+   * - ``isaacsim_rtx``
      - ✅ Kit RTX captures video *(default, no change)*
      - ✅ Newton GL captures video *(overrides RTX backend)*
    * - ``newton_renderer``
      - ✅ Kit RTX captures video *(overrides Newton backend)*
      - ✅ Newton GL captures video *(default, no change)*
-   * - ``ovrtx_renderer``
+   * - ``ovrtx``
      - ❌ **Raises an error** — see note below
      - ✅ Newton GL captures video; ovrtx provides camera sensor data
 
 .. note::
 
-   ``--visualizer kit`` combined with ``ovrtx_renderer`` raises a ``ValueError`` at startup.
+   ``--visualizer kit`` combined with ``ovrtx`` raises a ``ValueError`` at startup.
    Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries compiled against
    different USD namespaces (``pxrInternal_v0_25_11`` vs ``ovInternal_v0_25_11``), which
    causes a dynamic-linker crash when loaded into the same process.
@@ -288,7 +304,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -297,14 +313,14 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     physics=newton_mjwarp renderer=ovrtx_renderer presets=rgb
+     physics=newton_mjwarp renderer=ovrtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
 
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
      --video \
@@ -313,14 +329,14 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+     physics=physx renderer=isaacsim_rtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Kit video backend**
 
 .. code-block:: bash
 
    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
-     --task=Isaac-Repose-Cube-Shadow-Vision-Direct-v0 \
+     --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer kit \
      --video \
@@ -329,7 +345,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --max_iterations=5 \
      --num_envs=1024 \
      --benchmark_backend=summary \
-     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+     physics=physx renderer=isaacsim_rtx presets=rgb
 
 
 Visualizer Backends
@@ -505,6 +521,11 @@ Rerun startup uses the Python SDK through ``newton.viewer.ViewerRerun`` (no exte
 management). If ``grpc_port`` is already active, Isaac Lab reuses that server. If ``web_port`` is occupied while
 starting a new server, initialization fails with a clear port-conflict error.
 
+To save a replay, set ``record_to_rrd`` to the output ``.rrd`` path. Enable
+``keep_historical_data`` and ``keep_scalar_history`` when you want transform and scalar history to be available
+for timeline scrubbing. After the run, open the Rerun web viewer and press ``Ctrl+O`` to load the saved ``.rrd`` file.
+
+Note, the timeline UI elements are for .rrd recording playback timeline scrubbing.
 
 Viser Visualizer
 ~~~~~~~~~~~~~~~~
@@ -639,6 +660,18 @@ On some system configurations, the Newton visualizer may display warnings about 
 
 The visualizer will still function correctly but may experience reduced performance due to falling back to
 CPU copy operations instead of direct GPU memory sharing.
+
+
+**Newton Visualizer OpenGL Context Failures**
+
+The Newton visualizer is an OpenGL window. If pyglet reports that
+``glCreateShader`` is not exported or that OpenGL 2.0 is required, the Python
+process did not receive a usable OpenGL 2.0+ context from the active Windows or
+Linux display session. This usually means the process is running in a
+non-interactive/service session, through a remote desktop path without GPU
+OpenGL acceleration, or with a software/basic OpenGL provider instead of the
+NVIDIA driver. Run from a GPU-backed interactive display session, or omit
+``--visualizer newton`` for headless inference.
 
 
 **Newton Visualizer on Spark with Conda**

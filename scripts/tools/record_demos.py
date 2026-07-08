@@ -131,6 +131,10 @@ from collections.abc import Callable
 
 import gymnasium as gym
 import torch
+from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_global_settings,
+)
 
 import omni.ui as ui
 
@@ -276,7 +280,9 @@ def create_environment_config(
         # If cameras are not enabled and XR is enabled, remove camera configs
         if not args_cli.enable_cameras:
             env_cfg = remove_camera_configs(env_cfg)
-        env_cfg.sim.render.antialiasing_mode = "DLSS"
+        apply_isaac_rtx_global_settings(
+            IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+        )
 
     # modify configuration such that the environment runs indefinitely until
     # the goal is reached or other termination conditions are met

@@ -73,7 +73,7 @@ def main():
         [
             "-p",
             "scripts/reinforcement_learning/rl_games/train.py",
-            "--task=Isaac-AutoMate-Disassembly-Direct-v0",
+            "--task=IsaacContrib-AutoMate-Disassembly-Direct",
             f"--num_envs={args.num_envs}",
             f"--seed={args.seed}",
         ]

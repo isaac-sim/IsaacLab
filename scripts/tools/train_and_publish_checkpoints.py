@@ -22,12 +22,12 @@ It supports multiple workflows: rl_games, rsl_rl, sb3, and skrl.
         -tp "*:Isaac-Cartpole-*Direct-v0" \
         --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
 
-* To review all repose cube jobs, excluding the 'Play' tasks and 'skrl' workflows:
+* To review all reorient cube jobs, excluding the 'Play' tasks and 'skrl' workflows:
 
   .. code-block:: shell
 
     python scripts/tools/train_and_publish_checkpoints.py \
-        -r "*:*Repose-Cube*" \
+        -r "*:*Reorient-Cube*" \
         --exclude "*:*Play*" \
         --exclude skrl:*
 
@@ -58,8 +58,8 @@ Examples:
     train_and_publish_checkpoints.py -tp "*:Isaac-Cartpole-*Direct-v0" \\
       --/persistent/isaaclab/asset_root/pretrained_checkpoints="/some/path"
 
-    # Review all Repose Cube jobs, excluding Play tasks and skrl jobs.
-    train_and_publish_checkpoints.py -r "*:*Repose-Cube*" --exclude "*:*Play*" --exclude skrl:*
+    # Review all Reorient Cube jobs, excluding Play tasks and skrl jobs.
+    train_and_publish_checkpoints.py -r "*:*Reorient-Cube*" --exclude "*:*Play*" --exclude skrl:*
 
     # Publish all results that have been reviewed and approved.
     train_and_publish_checkpoints.py --publish --all \\
@@ -77,7 +77,7 @@ A job consists of a workflow and a task name, separated by a colon (wildcards ar
 
     rl_games:Isaac-Humanoid-*        # Wildcard for any Humanoid version
     rsl_rl:Isaac-Ant-*               # Wildcard for any Ant environment
-    *:Isaac-Velocity-Flat-Spot-v0    # Wildcard for any workflow, specific task
+    *:Isaac-Velocity-Flat-Spot    # Wildcard for any workflow, specific task
 
 Wildcards can be used in either the workflow or task name to match multiple entries.
 """,
