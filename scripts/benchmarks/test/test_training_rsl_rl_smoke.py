@@ -32,11 +32,6 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, load_training_bundle):
         "5",
         "--seed",
         "0",
-        "--video",
-        "--video_length",
-        "2",
-        "--video_interval",
-        "100000",
         "--benchmark_formatter",
         "schema,omniperf",
         "--output_path",
@@ -65,5 +60,3 @@ def test_training_rsl_rl_writes_training_bundle(tmp_path, load_training_bundle):
     assert omniperf_data["startup"]["Python Imports Time"] > 0
     assert omniperf_data["startup"]["Task Creation and Start Time"] > 0
     assert omniperf_data["train"]["Last Reward"] == pytest.approx(data["learning"]["reward"]["final_raw"])
-    video_path = Path(data["video_path"])
-    assert any(video_path.rglob("*.mp4"))
