@@ -551,3 +551,13 @@ def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> N
     expected_backend[0, [1, 0]] = input_data_np[0, [0, 2]]
     np.testing.assert_allclose(user_data.numpy(), expected_user)
     np.testing.assert_allclose(backend_data.numpy(), expected_backend)
+
+
+def test_directional_reorder_names_alias_the_gather_kernels() -> None:
+    """The four direction names are aliases: one kernel body per rank."""
+    from isaaclab.assets.articulation import ordering_kernels as k
+
+    assert k.reorder_2d_backend_to_user is k.gather_2d
+    assert k.reorder_2d_user_to_backend is k.gather_2d
+    assert k.reorder_3d_backend_to_user is k.gather_3d
+    assert k.reorder_3d_user_to_backend is k.gather_3d

@@ -40,6 +40,8 @@ from typing import Any
 import warp as wp
 
 __all__ = [
+    "gather_2d",
+    "gather_3d",
     "reorder_2d_backend_to_user",
     "reorder_2d_user_to_backend",
     "reorder_3d_backend_to_user",
@@ -48,47 +50,23 @@ __all__ = [
 
 
 @wp.kernel
-def reorder_2d_backend_to_user(
-    backend_data: wp.array2d(dtype=Any),
-    user_to_backend: wp.array(dtype=wp.int32),
-    user_data: wp.array2d(dtype=Any),
+def gather_2d(
+    src: wp.array2d(dtype=Any),
+    dst_to_src: wp.array(dtype=wp.int32),
+    dst: wp.array2d(dtype=Any),
 ) -> None:
-    """Gather a 2-D backend-order item axis into public order.
+    """Gather a 2-D item axis into destination order.
 
     Args:
-        backend_data: Source array shaped [num_envs, num_items] in backend
-            order. Values retain the caller-defined units.
-        user_to_backend: Read-only map shaped [num_items] from each public item
-            index to its backend item index.
-        user_data: Destination array shaped [num_envs, num_items] in public
-            order, with the same units as backend_data. It must not alias
-            backend_data for a nonidentity permutation.
+        src: Source array shaped [num_envs, num_items]. Values retain the
+            caller-defined units.
+        dst_to_src: Read-only map shaped [num_items] from each destination item
+            index to its source item index.
+        dst: Destination array shaped [num_envs, num_items], with the same
+            units as src. It must not alias src for a nonidentity permutation.
     """
-    env_id, user_id = wp.tid()
-    backend_id = user_to_backend[user_id]
-    user_data[env_id, user_id] = backend_data[env_id, backend_id]
-
-
-@wp.kernel
-def reorder_2d_user_to_backend(
-    user_data: wp.array2d(dtype=Any),
-    backend_to_user: wp.array(dtype=wp.int32),
-    backend_data: wp.array2d(dtype=Any),
-) -> None:
-    """Gather a 2-D public-order item axis into backend order.
-
-    Args:
-        user_data: Source array shaped [num_envs, num_items] in public order.
-            Values retain the caller-defined units.
-        backend_to_user: Read-only map shaped [num_items] from each backend item
-            index to its public item index.
-        backend_data: Destination array shaped [num_envs, num_items] in backend
-            order, with the same units as user_data. It must not alias user_data
-            for a nonidentity permutation.
-    """
-    env_id, backend_id = wp.tid()
-    user_id = backend_to_user[backend_id]
-    backend_data[env_id, backend_id] = user_data[env_id, user_id]
+    env_id, dst_id = wp.tid()
+    dst[env_id, dst_id] = src[env_id, dst_to_src[dst_id]]
 
 
 @wp.kernel
@@ -188,47 +166,36 @@ def reorder_body_wrench_user_to_backend(
 
 
 @wp.kernel
-def reorder_3d_user_to_backend(
-    user_data: wp.array3d(dtype=Any),
-    backend_to_user: wp.array(dtype=wp.int32),
-    backend_data: wp.array3d(dtype=Any),
+def gather_3d(
+    src: wp.array3d(dtype=Any),
+    dst_to_src: wp.array(dtype=wp.int32),
+    dst: wp.array3d(dtype=Any),
 ) -> None:
-    """Gather a 3-D public item axis into backend order.
+    """Gather a 3-D item axis into destination order, preserving components.
 
     Args:
-        user_data: Source shaped [num_envs, num_items, num_components] in public
-            order. Values retain the caller-defined units.
-        backend_to_user: Read-only map shaped [num_items] from backend item
-            indices to public item indices.
-        backend_data: Destination with the same shape and units in backend
-            order. The component axis is preserved, and source and destination
-            must not alias for a nonidentity permutation.
+        src: Source shaped [num_envs, num_items, num_components]. Values retain
+            the caller-defined units.
+        dst_to_src: Read-only map shaped [num_items] from each destination item
+            index to its source item index.
+        dst: Destination with the same shape and units. The component axis is
+            preserved; src and dst must not alias for a nonidentity permutation.
     """
-    env_id, backend_id, component_id = wp.tid()
-    user_id = backend_to_user[backend_id]
-    backend_data[env_id, backend_id, component_id] = user_data[env_id, user_id, component_id]
+    env_id, dst_id, component_id = wp.tid()
+    src_id = dst_to_src[dst_id]
+    dst[env_id, dst_id, component_id] = src[env_id, src_id, component_id]
 
 
-@wp.kernel
-def reorder_3d_backend_to_user(
-    backend_data: wp.array3d(dtype=Any),
-    user_to_backend: wp.array(dtype=wp.int32),
-    user_data: wp.array3d(dtype=Any),
-) -> None:
-    """Gather a 3-D backend item axis into public order.
-
-    Args:
-        backend_data: Source shaped [num_envs, num_items, num_components] in
-            backend order. Values retain the caller-defined units.
-        user_to_backend: Read-only map shaped [num_items] from public item
-            indices to backend item indices.
-        user_data: Destination with the same shape and units in public order.
-            The component axis is preserved, and source and destination must
-            not alias for a nonidentity permutation.
-    """
-    env_id, user_id, component_id = wp.tid()
-    backend_id = user_to_backend[user_id]
-    user_data[env_id, user_id, component_id] = backend_data[env_id, backend_id, component_id]
+# Directional aliases of the gather kernels. The alias name documents intent at
+# a launch site; the map argument follows from it by the dst_to_src contract:
+#   *_backend_to_user gathers backend-order data into public order
+#       -> pass the ordering's ``user_to_backend`` map (destination is the user axis);
+#   *_user_to_backend gathers public-order data into backend order
+#       -> pass the ordering's ``backend_to_user`` map (destination is the backend axis).
+reorder_2d_backend_to_user = gather_2d
+reorder_2d_user_to_backend = gather_2d
+reorder_3d_backend_to_user = gather_3d
+reorder_3d_user_to_backend = gather_3d
 
 
 @wp.kernel
