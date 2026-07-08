@@ -12,10 +12,10 @@ from typing import Any
 
 try:
     from .backend_identity import BackendIdentity
-    from .gate_types import stable_hash
+    from .hashing import stable_hash
 except ImportError:  # pragma: no cover - supports direct script imports
     from backend_identity import BackendIdentity
-    from gate_types import stable_hash
+    from hashing import stable_hash
 
 
 def _get_path(data: Mapping[str, Any], dotted_path: str) -> Any:

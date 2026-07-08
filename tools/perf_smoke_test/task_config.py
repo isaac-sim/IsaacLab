@@ -91,6 +91,7 @@ class TaskConfig:
     runs_on: str = "gpu-l40s"
     seed: int | None = None
     baseline_epoch: int = 1
+    noise_floor_pct: dict = field(default_factory=dict)
 
     @property
     def backend_key(self) -> str:
@@ -164,6 +165,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
             tuple(camera_raw) if camera_raw is not None else None  # type: ignore[assignment]
         )
         fps_mean_thresholds = parse_fps_mean_thresholds(merged.get("fps_mean_thresholds", {}))
+        noise_floor_pct: dict = merged.get("noise_floor_pct", {})
         backends: list[dict] = merged.get("backends", [])
 
         for backend_entry in backends:
@@ -183,6 +185,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
                     camera_resolution=camera_resolution,
                     timeout_minutes=int(merged["timeout_minutes"]),
                     fps_mean_thresholds=fps_mean_thresholds,
+                    noise_floor_pct=noise_floor_pct,
                     caches=caches_for_backend(physics),
                     tags=merged["tags"],
                     task_type=merged["type"],

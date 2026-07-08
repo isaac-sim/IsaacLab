@@ -87,6 +87,14 @@
             {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
           ]
         }
+      },
+      "noise_floor_pct": {
+        "rtx_pro_6000_blackwell": {
+          "newton": 2.52
+        },
+        "l40s": {
+          "newton": 2.06
+        }
       }
     }
   ]

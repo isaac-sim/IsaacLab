@@ -5,24 +5,8 @@
 
 """Shared model states for the performance smoke test"""
 
-import hashlib
-import json
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
-
-
-def _canonical_json(data: dict[str, Any]) -> str:
-    return json.dumps(data, sort_keys=True, separators=(",", ":"))
-
-
-def stable_hash(data: dict[str, Any]) -> str:
-    """Return a stable 16-char sha256 over the canonical JSON of ``data``.
-
-    Shared by the launch/workload and runtime-compatibility contracts so a given
-    input always hashes identically regardless of dict ordering.
-    """
-    return hashlib.sha256(_canonical_json(data).encode("utf-8")).hexdigest()[:16]
 
 
 class OracleVerdict(str, Enum):

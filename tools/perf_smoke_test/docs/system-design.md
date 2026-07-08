@@ -454,7 +454,7 @@ Validated local smoke configuration as of 2026-06-15:
 |---|---|
 | IsaacSim | 6.0.0.1 (NOT 6.0.0.0 — `omni.physics.tensors.api` moved in 6.0.0.1) |
 | isaacsim-extscache-physics | 6.0.0.1 |
-| warp-lang | 1.12.0 (NOT 1.13.0 — `warp.context` removed, breaks omni.replicator.core) |
+| warp-lang | 1.13.0 (required exactly by Newton `v1.2.0rc2`; Isaac Sim ≥ 6.0.0.1 replicator is compatible with the 1.13 API) |
 | mujoco-warp | 3.8.1 |
 | Python | 3.12 |
 | GPU | RTX 5090 (local) / RTX PRO 6000 target runners / L40S historical reference |
@@ -463,7 +463,7 @@ Validated local smoke configuration as of 2026-06-15:
 
 ```bash
 pip install isaacsim==6.0.0.1 isaacsim-extscache-physics==6.0.0.1
-pip install warp-lang==1.12.0
+pip install warp-lang==1.13.0
 ```
 
 ---

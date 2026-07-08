@@ -32,7 +32,7 @@ from baseline_manager import (  # noqa: E402
 from contracts import BenchResult  # noqa: E402
 from gate_config import BASELINE_PUSH_RETRIES, load_gate_config  # noqa: E402
 from gate_types import FpsMeanThreshold, OracleVerdict  # noqa: E402
-from gpu_identity import canonical_gpu_model  # noqa: E402
+from gpu_identity import canonical_gpu_model, gpu_model_config_keys  # noqa: E402
 from oracle import compare  # noqa: E402
 from task_config import get_task  # noqa: E402
 
@@ -92,6 +92,22 @@ def _thresholds(bench_result: BenchResult, gpu_model: str, backend: str) -> list
         return task.thresholds_for(gpu_model)
     except Exception:
         return []
+
+
+def _noise_floor_pct(bench_result: BenchResult, gpu_model: str, backend: str) -> float:
+    """Resolve the per-task/GPU/backend noise floor % (0.0 when unconfigured)."""
+    launch_config = bench_result.launch_config or {}
+    if launch_config.get("noise_floor_pct") is not None:
+        return float(launch_config.get("noise_floor_pct") or 0.0)
+    try:
+        task = get_task(bench_result.task_id, backend)
+        for key in gpu_model_config_keys(gpu_model):
+            value = (task.noise_floor_pct or {}).get(key, {}).get(backend)
+            if value is not None:
+                return float(value)
+    except Exception:
+        pass
+    return 0.0
 
 
 def _render_crossed(crossed: list[dict]) -> list[str]:
@@ -224,6 +240,7 @@ def main() -> int:
             baseline=baseline,
             fps_mean_thresholds=_thresholds(bench_result, bench_gpu_model, backend),
             min_block_regression_pct=min_block_regression_pct,
+            noise_floor_pct=_noise_floor_pct(bench_result, bench_gpu_model, backend),
         )
         rows.append((oracle_result, bench_result))
 

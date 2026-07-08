@@ -73,6 +73,12 @@ def _parse_args() -> argparse.Namespace:
         help="Run only these task_id(s); overrides --tags filtering (useful for debugging one task)",
     )
     p.add_argument(
+        "--backend",
+        nargs="+",
+        default=None,
+        help="Run only these backend_key(s) (e.g. newton physx); filters within the selected tasks",
+    )
+    p.add_argument(
         "--validate",
         action="store_true",
         help="Statically validate tasks.json (schema + registered env ids) and exit",
@@ -114,6 +120,12 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         default=_MODULE_DIR / "gate_config.json",
         help="Path to gate_config.json (controls advisory vs blocking mode)",
+    )
+    p.add_argument(
+        "--confirm_block_reruns",
+        type=int,
+        default=0,
+        help="If >0, re-run any BLOCK cell this many times (no Docker) and decide on the median of attempts",
     )
     return p.parse_args()
 
@@ -245,7 +257,12 @@ def _run_build_bench_result(
 
 
 def _run_aggregate(
-    artifacts_dir: Path, baselines_dir: Path, gpu_model: str, gate_config: Path, allow_baseline_update: bool
+    artifacts_dir: Path,
+    baselines_dir: Path,
+    gpu_model: str,
+    gate_config: Path,
+    allow_baseline_update: bool,
+    confirm_block_reruns: int = 0,
 ) -> int:
     """Run aggregate.py over all artifacts and return its exit code."""
     agg_script = _MODULE_DIR / "aggregate.py"
@@ -263,6 +280,8 @@ def _run_aggregate(
         "--allow_baseline_update",
         "true" if allow_baseline_update else "false",
     ]
+    if confirm_block_reruns > 0:
+        cmd += ["--confirm_rerun_mode", "local", "--confirm_block_reruns", str(confirm_block_reruns)]
     sys.stdout.flush()
     result = subprocess.run(cmd)
     return result.returncode
@@ -303,6 +322,13 @@ def main() -> int:
             print(f"[local_runner] No tasks match tags {args.tags}.")
             return 1
 
+    if args.backend:
+        wanted_backends = frozenset(args.backend)
+        tasks = [t for t in tasks if t.backend_key in wanted_backends]
+        if not tasks:
+            print(f"[local_runner] No tasks match backend(s) {args.backend}.")
+            return 1
+
     _print_matrix(tasks, args.task if args.task else args.tags)
 
     print(f"[local_runner] GPU model bucket: {gpu_model} (raw={gpu_model_raw})")
@@ -331,6 +357,14 @@ def main() -> int:
         if args.skip_existing and bench_result_path.exists():
             print(f"[{i}/{len(tasks)}] SKIP (perf_smoke_test_result.json exists): {task.task_id} / {task.backend_key}")
             continue
+
+        # Clear stale benchmark output before a fresh run. build_bench_result.py
+        # keeps an existing perf_smoke_test_info.json as-is (idempotency), so when a
+        # seeding loop reuses the same artifact dir, leftover files would make every
+        # run re-score the FIRST run's FPS (identical samples). Removing them forces
+        # this run's results to be normalized and scored.
+        for stale in [artifact_dir / "perf_smoke_test_info.json", *artifact_dir.glob("benchmark_non_rl_*.json")]:
+            stale.unlink(missing_ok=True)
 
         launch_config = task_to_launch_config(
             task,
@@ -386,6 +420,7 @@ def main() -> int:
         gpu_model,
         args.gate_config,
         args.allow_baseline_update,
+        confirm_block_reruns=args.confirm_block_reruns,
     )
     return rc
 

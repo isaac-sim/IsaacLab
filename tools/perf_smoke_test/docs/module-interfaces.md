@@ -45,11 +45,11 @@ Default compatibility fields smoke test on top-level active-path packages: Isaac
 Resolves GitHub event metadata into the aggregate arguments used for baseline matching and publication policy.
 
 ```python
-def resolve_gate_context(env=None, event=None, fetch_pr=None) -> GateContext
+def resolve_gate_context(env=None, event=None) -> GateContext
 ```
 
 Outputs: `base_sha`, `target_branch`, `source_branch`, `allow_update`, `trusted_source`, and `event_kind`.
-Mirrored PR pushes under `pull-request/<number>` use the GitHub PR API to recover the real PR base/source branches. They are read-only unless `PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE`/`ALLOW_MIRROR_UPDATE` is explicitly true.
+Pull requests and merge-group events are read-only and use the event payload to recover the real base/source branches. Protected branch pushes (`main`, `develop`, and `release/**`) may publish baseline updates.
 
 ## `oracle.py`
 

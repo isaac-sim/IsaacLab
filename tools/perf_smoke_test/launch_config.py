@@ -17,13 +17,15 @@ from typing import Any
 
 try:
     from .backend_identity import make_backend_key, normalize_render_backend
-    from .gate_types import FpsMeanThreshold, stable_hash
+    from .gate_types import FpsMeanThreshold
     from .gpu_identity import normalize_gpu_fields
+    from .hashing import stable_hash
     from .task_config import TaskConfig
 except ImportError:  # pragma: no cover (for direct scripting execution/import)
     from backend_identity import make_backend_key, normalize_render_backend
-    from gate_types import FpsMeanThreshold, stable_hash
+    from gate_types import FpsMeanThreshold
     from gpu_identity import normalize_gpu_fields
+    from hashing import stable_hash
     from task_config import TaskConfig
 
 LAUNCH_CONFIG_SCHEMA_VERSION = 1

@@ -13,12 +13,18 @@ MAX_BASELINE_SAMPLES = 20
 MIN_BLOCK_REGRESSION_PCT = 3.0
 BASELINE_PUSH_RETRIES = 3
 DEFAULT_RUNTIME_COMPATIBILITY = {
-    "contract_version": 1,
+    "contract_version": 2,
     "always": [
         "software.isaacsim",
         "software.isaaclab",
         "software.torch",
         "software.warp",
+        # CPU model is part of the hardware identity: FPS on CPU-sensitive tasks
+        # (e.g. PhysX stepping) varies by CPU, so baselines must not pool samples
+        # across heterogeneous CPUs. GPU model is already enforced separately via
+        # the per-GPU baseline partition key (see gpu_identity), so it is not
+        # repeated here.
+        "hardware.cpu_name",
     ],
     "by_physics_backend": {
         "physx": [

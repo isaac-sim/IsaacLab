@@ -120,7 +120,10 @@ def identity_from_presets(presets: Any) -> BackendIdentity | None:
     tokens = preset_tokens(presets)
     if not tokens:
         return None
-    physics = "newton" if "newton_mjwarp" in tokens else _DEFAULT_PHYSICS_BACKEND
+    physics = next(
+        (_PHYSICS_PRESET_TO_BACKEND[token] for token in sorted(tokens) if token in _PHYSICS_PRESET_TO_BACKEND),
+        _DEFAULT_PHYSICS_BACKEND,
+    )
     render = next((token for token in sorted(tokens) if token in _RENDER_PRESET_TOKENS), None)
     return BackendIdentity(physics, render)
 

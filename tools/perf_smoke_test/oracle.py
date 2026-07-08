@@ -68,6 +68,7 @@ class OracleResult:
     warn_threshold_fps: float | None = None
     block_threshold_fps: float | None = None
     hard_floor_fps: float | None = None
+    noise_floor_pct: float | None = None
     min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT
     note: str | None = None
     crossed_thresholds: list[dict] = field(default_factory=list)
@@ -122,6 +123,7 @@ def compare(
     fps_mean_thresholds: "list[FpsMeanThreshold]",
     *,
     min_block_regression_pct: float = MIN_BLOCK_REGRESSION_PCT,
+    noise_floor_pct: float = 0.0,
 ) -> OracleResult:
     """Compare a benchmark result against its baseline and return an OracleResult.
 
@@ -195,6 +197,17 @@ def compare(
     baseline_threshold_source = ThresholdSource.NO_BASELINE.value
     notes: list[str] = []
 
+    # Noise floor: when a baseline is unusually tight (tiny MAD), floor the effective
+    # noise at ``noise_floor_pct`` % of the baseline median so the rolling-window
+    # thresholds don't become hypersensitive and over-flag sub-noise dips.
+    effective_noise_fps: float | None = None
+    applied_noise_floor_pct: float | None = None
+    if baseline is not None and baseline.median_fps > 0.0:
+        noise_floor_fps = max(0.0, float(noise_floor_pct)) / 100.0 * baseline.median_fps
+        effective_noise_fps = max(baseline.mad_fps, noise_floor_fps)
+        if noise_floor_fps > baseline.mad_fps:
+            applied_noise_floor_pct = float(noise_floor_pct)
+
     if baseline is None:
         baseline_verdict = OracleVerdict.WARN
         notes.append("no_baseline")
@@ -204,8 +217,11 @@ def compare(
         notes.append(f"insufficient_baseline(n={baseline.sample_count},min={MIN_BASELINE_SAMPLES})")
     else:
         baseline_threshold_source = ThresholdSource.ROLLING_WINDOW.value
-        block_threshold = baseline.median_fps - baseline.k_block * baseline.mad_fps
-        warn_threshold = baseline.median_fps - baseline.k_warn * baseline.mad_fps
+        threshold_noise = effective_noise_fps if effective_noise_fps is not None else baseline.mad_fps
+        block_threshold = baseline.median_fps - baseline.k_block * threshold_noise
+        warn_threshold = baseline.median_fps - baseline.k_warn * threshold_noise
+        if applied_noise_floor_pct is not None:
+            notes.append(f"noise_floor={applied_noise_floor_pct:.2f}%")
         if mean_fps < block_threshold:
             if regression_pct is None or regression_pct <= -float(min_block_regression_pct):
                 baseline_verdict = OracleVerdict.BLOCK
@@ -251,6 +267,7 @@ def compare(
         warn_threshold_fps=warn_threshold,
         block_threshold_fps=block_threshold,
         hard_floor_fps=hard_floor_fps,
+        noise_floor_pct=applied_noise_floor_pct,
         min_block_regression_pct=float(min_block_regression_pct),
         note=note,
         crossed_thresholds=crossed_thresholds,

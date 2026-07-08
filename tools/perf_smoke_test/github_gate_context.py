@@ -9,15 +9,12 @@ from __future__ import annotations
 
 import json
 import os
-import re
-import urllib.request
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-_MIRRORED_PR_BRANCH_RE = re.compile(r"^pull-request/(\d+)$")
-_BASELINE_PUBLISH_BRANCHES = frozenset({"main", "develop", "angehu/perf-smoke-poc"})
+_BASELINE_PUBLISH_BRANCHES = frozenset({"main", "develop"})
 _BASELINE_PUBLISH_PREFIXES = ("release/",)
 
 
@@ -70,26 +67,6 @@ def _baseline_publish_branch(ref: str) -> bool:
     return branch in _BASELINE_PUBLISH_BRANCHES or branch.startswith(_BASELINE_PUBLISH_PREFIXES)
 
 
-def fetch_pr_from_github(repo: str, pr_number: str, env: Mapping[str, str]) -> dict[str, Any]:
-    token = env.get("GITHUB_TOKEN")
-    if not token:
-        raise RuntimeError("GITHUB_TOKEN is required to resolve mirrored PR context")
-    api_url = env.get("GITHUB_API_URL", "https://api.github.com").rstrip("/")
-    request = urllib.request.Request(
-        f"{api_url}/repos/{repo}/pulls/{pr_number}",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        pr = json.load(response)
-    if not isinstance(pr, dict):
-        raise RuntimeError(f"GitHub API returned non-object PR payload for PR {pr_number}")
-    return pr
-
-
 def _pr_context(pr: Mapping[str, Any], *, allow_update: bool, trusted_source: str, event_kind: str) -> GateContext:
     base = pr["base"]
     head = pr["head"]
@@ -106,11 +83,9 @@ def _pr_context(pr: Mapping[str, Any], *, allow_update: bool, trusted_source: st
 def resolve_gate_context(
     env: Mapping[str, str] | None = None,
     event: Mapping[str, Any] | None = None,
-    fetch_pr: Callable[[str, str, Mapping[str, str]], Mapping[str, Any]] | None = None,
 ) -> GateContext:
     env = env or os.environ
     event = event if event is not None else _load_event(env.get("GITHUB_EVENT_PATH"))
-    fetch_pr = fetch_pr or fetch_pr_from_github
 
     event_name = _event_value(env, "GITHUB_EVENT_NAME")
     github_ref = _event_value(env, "GITHUB_REF")
@@ -134,20 +109,6 @@ def resolve_gate_context(
             allow_update=False,
             trusted_source="read_only",
             event_kind="merge_group",
-        )
-
-    if event_name == "push" and github_ref.startswith("refs/heads/pull-request/"):
-        match = _MIRRORED_PR_BRANCH_RE.fullmatch(ref_name)
-        if not match:
-            raise RuntimeError(f"Cannot parse mirrored PR number from GITHUB_REF_NAME={ref_name!r}")
-        repo = _event_value(env, "GITHUB_REPOSITORY")
-        pr = fetch_pr(repo, match.group(1), env)
-        allow_update = _truthy(env.get("ALLOW_MIRROR_UPDATE") or env.get("PERF_SMOKE_ALLOW_MIRROR_BASELINE_UPDATE"))
-        return _pr_context(
-            pr,
-            allow_update=allow_update,
-            trusted_source="mirrored_pr_push" if allow_update else "read_only",
-            event_kind="mirrored_pr_push",
         )
 
     if event_name == "push":
