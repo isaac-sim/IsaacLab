@@ -34,6 +34,8 @@ import warp as wp
 from newton import JointType, Model, ModelBuilder
 from newton._src.sim.graph_coloring import combine_independent_particle_coloring
 
+from isaaclab_newton.physics.model_builder import cache_collision_filter_pairs, mark_homogeneous_worlds
+
 # Attributes that ``ModelBuilder.add_builder`` copies verbatim (no index remapping).
 # Mirrors ``more_builder_attrs`` in newton's ``ModelBuilder.add_builder``, plus
 # ``joint_target_q`` and ``shape_collision_group`` which it also extends verbatim.
@@ -189,8 +191,7 @@ def _label_suffixes(labels: Sequence[str], source_root: str) -> tuple[list[str |
     prefix = source_root + "/"
     cut = len(source_root)
     suffixes: list[str | None] = [
-        lbl[cut:] if isinstance(lbl, str) and (lbl == source_root or lbl.startswith(prefix)) else None
-        for lbl in labels
+        lbl[cut:] if isinstance(lbl, str) and (lbl == source_root or lbl.startswith(prefix)) else None for lbl in labels
     ]
     return suffixes, all(s is not None for s in suffixes)
 
@@ -432,11 +433,7 @@ class BatchedModelBuilder:
         views = [p.view for p in pieces]
         num_pieces = len(pieces)
         piece_worlds = np.fromiter((p.world for p in pieces), dtype=np.int64, count=num_pieces)
-        xforms = (
-            np.stack([p.xform for p in pieces], axis=0)
-            if pieces
-            else np.empty((0, 7), dtype=np.float32)
-        )
+        xforms = np.stack([p.xform for p in pieces], axis=0) if pieces else np.empty((0, 7), dtype=np.float32)
 
         counts = {
             kind: np.fromiter((v.counts[kind] for v in views), dtype=np.int64, count=num_pieces)
@@ -478,7 +475,7 @@ class BatchedModelBuilder:
         self._extend_indexed(views, starts, counts)
         self._apply_root_transforms(views, starts, counts, xforms)
         self._extend_labels(pieces, starts)
-        self._extend_topology(views, starts)
+        self._extend_topology(counts)
         self._merge_custom_attributes(pieces, starts)
         self._merge_actuators(views, starts)
         self._merge_particles(views, starts, counts, xforms)
@@ -575,11 +572,13 @@ class BatchedModelBuilder:
         )
 
         # Collision filter pairs are (int, int) tuples; groups are copied verbatim.
+        # The numpy form is also cached for the vectorized contact-pair finalize step.
         pair_counts = np.fromiter((len(v.filter_pairs) for v in views), dtype=np.int64, count=len(views))
         if int(pair_counts.sum()):
             pairs = np.concatenate([v.filter_pairs for v in views])
             pairs = pairs + np.repeat(starts["shape"], pair_counts)[:, None]
             b.shape_collision_filter_pairs.extend(map(tuple, pairs.tolist()))
+            cache_collision_filter_pairs(b, pairs)
 
         # Deformable element indices reference particles. Springs are a flat index
         # list; triangles/tetrahedra/edges keep per-element rows; edges keep -1
@@ -613,12 +612,15 @@ class BatchedModelBuilder:
         """
         b = self.builder
 
-        # All body poses.
+        # All body poses. Stored as plain 7-float lists rather than wp.transform views:
+        # per-row numpy view creation costs ~1s per 250k bodies, the float32 values are
+        # identical, and downstream consumers (finalize's wp.array conversion, add_joint
+        # helpers) accept any 7-sequence.
         if int(counts["body"].sum()):
             body_xf = np.concatenate([v.body_q for v in views])
             t = np.repeat(xforms, counts["body"], axis=0)
-            new_body_q = np.ascontiguousarray(_transform_mul(t, body_xf))
-            b.body_q.extend(wp.transform.from_buffer(row) for row in new_body_q)
+            new_body_q = _transform_mul(t, body_xf)
+            b.body_q.extend(new_body_q.tolist())
 
         # Static shapes: overwrite the verbatim-copied local transforms.
         static_counts = np.fromiter((len(v.static_shape_idx) for v in views), dtype=np.int64, count=len(views))
@@ -680,39 +682,58 @@ class BatchedModelBuilder:
                 global_idx = shape_starts[i] + local_idx
                 shape_color[global_idx] = palette(global_idx)
 
-    def _extend_topology(self, views: list[_SourceView], starts: dict[str, np.ndarray]) -> None:
+    def _extend_topology(self, counts: dict[str, np.ndarray]) -> None:
+        """Rebuild the body-shape and joint adjacency dicts for the appended entities.
+
+        Grouping the final ``shape_body`` / ``joint_parent`` / ``joint_child`` arrays
+        reproduces the per-piece insertion result: within a piece both shapes and
+        joints are appended in ascending index order, so a stable sort by owner gives
+        the same per-owner lists.
+        """
         b = self.builder
-        body_shapes = b.body_shapes
-        joint_parents = b.joint_parents
-        joint_children = b.joint_children
-        body_starts = starts["body"].tolist()
-        shape_starts = starts["shape"].tolist()
-        joint_starts = starts["joint"].tolist()
 
-        for i, view in enumerate(views):
-            b_start = body_starts[i]
-            s_start = shape_starts[i]
-            if view.global_body_shapes:
-                body_shapes[-1].extend(s + s_start for s in view.global_body_shapes)
-            for body, shapes in view.body_shapes_items:
-                body_shapes[body + b_start] = [s + s_start for s in shapes]
+        total_shapes = int(counts["shape"].sum())
+        total_bodies = int(counts["body"].sum())
+        if total_shapes:
+            shape_base = len(b.shape_body) - total_shapes
+            shape_body = np.asarray(b.shape_body[shape_base:], dtype=np.int64)
+            shape_idx = np.arange(shape_base, shape_base + total_shapes, dtype=np.int64)
+            static = shape_body == -1
+            if static.any():
+                b.body_shapes[-1].extend(shape_idx[static].tolist())
+            owned_body = shape_body[~static]
+            owned_shape = shape_idx[~static]
+            order = np.argsort(owned_body, kind="stable")
+            owned_body = owned_body[order]
+            owned_shape = owned_shape[order]
+            bounds = np.flatnonzero(np.diff(owned_body)) + 1
+            grouped = dict(
+                zip(
+                    owned_body[np.concatenate(([0], bounds))].tolist() if len(owned_body) else [],
+                    (v.tolist() for v in np.split(owned_shape, bounds)),
+                )
+            )
+            body_base = b.body_count - total_bodies
+            b.body_shapes.update((body, grouped.get(body, [])) for body in range(body_base, body_base + total_bodies))
 
-            j_start = joint_starts[i]
-            src_parent = view.builder.joint_parent
-            src_child = view.builder.joint_child
-            for k in range(view.counts["joint"]):
-                p = src_parent[k]
-                p_new = p + b_start if p != -1 else -1
-                c_new = src_child[k] + b_start
-                j_new = j_start + k
-                if c_new not in joint_parents:
-                    joint_parents[c_new] = [(p_new, j_new)]
+        total_joints = int(counts["joint"].sum())
+        if total_joints:
+            joint_base = b.joint_count - total_joints
+            parents = b.joint_parent[joint_base:]
+            children = b.joint_child[joint_base:]
+            joint_parents = b.joint_parents
+            joint_children = b.joint_children
+            for j, (p, c) in enumerate(zip(parents, children), start=joint_base):
+                entry = joint_parents.get(c)
+                if entry is None:
+                    joint_parents[c] = [(p, j)]
                 else:
-                    joint_parents[c_new].append((p_new, j_new))
-                if p_new not in joint_children:
-                    joint_children[p_new] = [(c_new, j_new)]
+                    entry.append((p, j))
+                entry = joint_children.get(p)
+                if entry is None:
+                    joint_children[p] = [(c, j)]
                 else:
-                    joint_children[p_new].append((c_new, j_new))
+                    entry.append((c, j))
 
     _ENTITY_START_KINDS: tuple[str, ...] = (
         "body",
@@ -926,9 +947,7 @@ def _exclusive_cumsum(counts: np.ndarray) -> np.ndarray:
     return out
 
 
-def _build_env_root_sites_builder(
-    builder: ModelBuilder, env_root_sites: dict[str, wp.transform]
-) -> ModelBuilder:
+def _build_env_root_sites_builder(builder: ModelBuilder, env_root_sites: dict[str, wp.transform]) -> ModelBuilder:
     """Build a scratch source builder holding the per-world env-root sites.
 
     Matches per-world :meth:`~newton.ModelBuilder.add_site` calls on the main builder:
@@ -998,9 +1017,7 @@ def replicate_builder_mapping_batched(
     if num_rows:
         inv_source_xf = np.stack(
             [
-                np.array(
-                    wp.transform_inverse(wp.transform(positions_np[col], quaternions_np[col])), dtype=np.float32
-                )
+                np.array(wp.transform_inverse(wp.transform(positions_np[col], quaternions_np[col])), dtype=np.float32)
                 for col in source_world_indices
             ],
             axis=0,
@@ -1028,6 +1045,8 @@ def replicate_builder_mapping_batched(
     ]
 
     base_world = builder.world_count
+    prior_shape_count = builder.shape_count
+    prior_filter_count = len(builder.shape_collision_filter_pairs)
     default_gravity = tuple(u * builder.gravity for u in builder.up_vector)
 
     pieces: list[_WorldPiece] = []
@@ -1057,6 +1076,13 @@ def replicate_builder_mapping_batched(
 
     offsets = batched.append_worlds(pieces, num_worlds, world_gravity)
 
+    # All worlds built from the same rows onto a world-less builder are identical
+    # modulo a constant index offset; record that for the contact-pair fast path.
+    if base_world == 0 and num_worlds > 0:
+        first_rows = active_rows_per_world[0]
+        if all(np.array_equal(rows, first_rows) for rows in active_rows_per_world[1:]):
+            mark_homogeneous_worlds(builder, num_worlds, prior_shape_count, prior_filter_count)
+
     # Site bookkeeping: env-root sites and injected source sites, per world.
     local_site_map: dict[str, list[list[int]]] = {}
     shape_starts = offsets.shape.tolist()
@@ -1073,9 +1099,7 @@ def replicate_builder_mapping_batched(
                 start = shape_starts[piece_index[(row, col)]]
                 per_world[col].extend(start + shape_idx for shape_idx in source_shape_indices)
 
-    fabric_body_bindings = _fabric_body_bindings(
-        builder, pieces, offsets, piece_index, row_source_roots, mapping_np
-    )
+    fabric_body_bindings = _fabric_body_bindings(builder, pieces, offsets, piece_index, row_source_roots, mapping_np)
 
     for hook in post_replicate_hooks:
         hook(builder)

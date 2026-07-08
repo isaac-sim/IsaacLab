@@ -328,7 +328,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         )
 
         with (
-            mock.patch.object(visualization_builder_module, "ModelBuilder", _FakeVisualizationModelBuilder),
+            mock.patch.object(visualization_builder_module, "NewtonModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(newton_clone_utils_module, "ModelBuilder", _FakeVisualizationModelBuilder),
             mock.patch.object(visualization_builder_module, "SchemaResolverNewton", lambda: object()),
             mock.patch.object(visualization_builder_module, "SchemaResolverPhysx", lambda: object()),

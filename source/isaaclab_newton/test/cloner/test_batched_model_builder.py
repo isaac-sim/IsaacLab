@@ -76,9 +76,7 @@ def _make_robot_builder(root: str, num_links: int = 3) -> ModelBuilder:
     builder.add_articulation([table_joint], label=f"{root}/TableArt")
 
     if num_links >= 3:
-        builder.add_constraint_mimic(
-            joint0=joints[1], joint1=joints[2], coef0=1.0, coef1=-0.5, label=f"{root}/mimic0"
-        )
+        builder.add_constraint_mimic(joint0=joints[1], joint1=joints[2], coef0=1.0, coef1=-0.5, label=f"{root}/mimic0")
 
     reference_joint = joints[1] if len(joints) > 1 else joints[0]
     builder.add_custom_values(

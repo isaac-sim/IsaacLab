@@ -21,6 +21,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     rename_builder_labels,
     replicate_builder_mapping,
 )
+from isaaclab_newton.physics.model_builder import NewtonModelBuilder
 
 
 def build_visualization_builder_from_stage_envs(
@@ -42,12 +43,12 @@ def build_visualization_builder_from_stage_envs(
     positions = torch.tensor([pos for pos, _ in poses], dtype=torch.float32)
     quaternions = torch.tensor([quat for _, quat in poses], dtype=torch.float32)
     schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
-    builder = ModelBuilder(up_axis=up_axis)
+    builder = NewtonModelBuilder(up_axis=up_axis)
     builder.add_usd(stage, ignore_paths=["/World/envs", *sources], schema_resolvers=schema_resolvers)
     source_builders = build_source_builders(
         stage,
         sources,
-        lambda: ModelBuilder(up_axis=up_axis),
+        lambda: NewtonModelBuilder(up_axis=up_axis),
         schema_resolvers,
         simplify_meshes=False,
     )

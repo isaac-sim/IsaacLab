@@ -48,6 +48,7 @@ from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+from isaaclab_newton.physics.model_builder import NewtonModelBuilder
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
@@ -859,8 +860,10 @@ class NewtonManager(PhysicsManager):
     def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
         """Create a :class:`ModelBuilder` configured with default settings.
 
-        Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream
-        ``ModelBuilder.default_shape_cfg`` via :func:`~isaaclab.utils.checked_apply`.
+        Returns a :class:`~isaaclab_newton.physics.model_builder.NewtonModelBuilder`,
+        which behaves like Newton's ``ModelBuilder`` but finalizes contact pairs with
+        a vectorized implementation. Forwards :class:`NewtonShapeCfg` defaults onto
+        the builder's ``default_shape_cfg`` via :func:`~isaaclab.utils.checked_apply`.
         Falls back to wrapper defaults when no Newton config is active so
         rough-terrain margin/gap still apply during early construction.
 
@@ -872,7 +875,7 @@ class NewtonManager(PhysicsManager):
         Returns:
             New builder with up-axis and per-shape defaults (gap, margin) applied.
         """
-        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder = NewtonModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
         cls._register_builder_attributes(builder)
         # Resolve which NewtonShapeCfg to apply: user override if active config
         # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton

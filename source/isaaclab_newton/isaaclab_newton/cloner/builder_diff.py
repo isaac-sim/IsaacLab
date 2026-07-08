@@ -112,7 +112,9 @@ def _compare_custom_attributes(attrs_a: dict, attrs_b: dict, errors: list[str]) 
     for key in sorted(set(attrs_a) | set(attrs_b)):
         a, b = attrs_a.get(key), attrs_b.get(key)
         if a is None or b is None:
-            errors.append(f"custom_attributes[{key}]: present in one builder only (a={a is not None}, b={b is not None})")
+            errors.append(
+                f"custom_attributes[{key}]: present in one builder only (a={a is not None}, b={b is not None})"
+            )
             continue
         if isinstance(a.values, list) or isinstance(b.values, list):
             _compare_sequences(f"custom_attributes[{key}].values", a.values or [], b.values or [], 0.0, errors)
@@ -144,7 +146,9 @@ def compare_builder_states(a: ModelBuilder, b: ModelBuilder, *, transform_atol: 
     """
     errors: list[str] = []
     for key in sorted(set(vars(a)) | set(vars(b))):
-        if key in _SKIPPED_BUILDER_ATTRS:
+        # _isaaclab_* attributes are derived caches (e.g. the numpy mirror of the
+        # collision filter pairs), not model state.
+        if key in _SKIPPED_BUILDER_ATTRS or key.startswith("_isaaclab"):
             continue
         va, vb = getattr(a, key, None), getattr(b, key, None)
         if isinstance(va, list) or isinstance(vb, list):

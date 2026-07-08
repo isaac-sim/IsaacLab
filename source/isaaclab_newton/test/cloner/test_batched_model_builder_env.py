@@ -21,18 +21,19 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
+import sys
+
 import gymnasium as gym
 import pytest
-import sys
 import torch
+from isaaclab_newton.cloner.builder_diff import compare_builder_states, compare_finalized_models
+from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels
+from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import ClonePlan
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_newton.cloner.builder_diff import compare_builder_states, compare_finalized_models
-from isaaclab_newton.cloner.newton_clone_utils import rename_builder_labels
-from isaaclab_newton.cloner.replicate import _build_newton_builder_from_mapping
 from isaaclab_tasks.utils import resolve_task_config
 
 _TASK = "Isaac-Lift-KukaAllegro-Camera"
@@ -81,7 +82,9 @@ def test_batched_builder_matches_legacy_on_kuka_allegro_camera():
                 use_batched_builder=use_batched,
             )
             if bindings is None:
-                bindings = rename_builder_labels(builder, tuple(plan.sources), tuple(plan.destinations), env_ids, mapping)
+                bindings = rename_builder_labels(
+                    builder, tuple(plan.sources), tuple(plan.destinations), env_ids, mapping
+                )
             return builder, site_index_map, world_xforms, bindings
 
         legacy, legacy_sites, legacy_xforms, legacy_bindings = build(use_batched=False)
