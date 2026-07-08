@@ -2435,12 +2435,13 @@ class BaseArticulation(AssetBase):
     def _joint_user_to_backend_map(self) -> wp.array:
         """Device public-to-backend joint map, or the identity map when no ordering is active.
 
-        The identity fallback reads the backend-allocated ``_ALL_JOINT_INDICES``
-        index buffer (the same backend-owned contract as
-        :attr:`_ordering_joint_staging_names`), so unconditional launch sites --
-        for example in-graph publish kernels that always gather -- get a valid map
-        either way. Conditional sites should read :attr:`data.joint_ordering`
-        directly and skip the launch when it is ``None``.
+        The identity fallback reads ``_ALL_JOINT_INDICES``, an index buffer that
+        backends allocate without a base-class default (a backend-owned contract,
+        like the staging attributes named by :attr:`_ordering_joint_staging_names`),
+        so unconditional launch sites -- for example in-graph publish kernels that
+        always gather -- get a valid map either way. Conditional sites should read
+        :attr:`~BaseArticulationData.joint_ordering` directly and skip the launch
+        when it is ``None``.
         """
         ordering = self.data.joint_ordering
         return ordering.user_to_backend if ordering is not None else self._ALL_JOINT_INDICES
@@ -2506,7 +2507,7 @@ class BaseArticulation(AssetBase):
 
         Avoid this modify-then-reorder helper on per-step hot paths: it costs a
         full extra kernel launch over the buffer. Prefer the fused
-        ``write_*_user_to_backend`` kernels from
+        ``write_*_user_to_backend`` write paths from
         :mod:`isaaclab.assets.articulation.ordering_kernels`, which write the
         public and backend buffers in a single launch. This helper exists for
         infrequent property writers where the extra launch is irrelevant.

@@ -10,8 +10,8 @@ Visibility contract:
     ``reorder_*`` aliases listed in ``__all__`` are public: they gather a
     single item axis between public and backend order and can legitimately be
     launched on raw solver-view arrays for advanced interop. The
-    ``write_*_user_to_backend_*`` Python launch wrappers and the fused
-    joint-target, body-wrench, joint-state, Jacobian, mass-matrix, and
+    ``write_2d``/``write_3d``/``write_float`` Python launch wrappers and the
+    fused joint-target, body-wrench, joint-state, Jacobian, mass-matrix, and
     generalized-vector kernels are an internal contract between isaaclab core
     and the backend packages: not user API, may change without deprecation.
     Underscore-prefixed kernels and helpers are module-private; backends go
