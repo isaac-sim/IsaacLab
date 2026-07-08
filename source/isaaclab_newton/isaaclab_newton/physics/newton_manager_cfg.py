@@ -154,6 +154,18 @@ class NewtonCfg(PhysicsCfg):
     meshes are intentional, for example thin or hollow MPM colliders.
     """
 
+    use_batched_model_builder: bool = False
+    """Whether environment replication uses the batched Newton model builder.
+
+    When enabled, replication runs through
+    :class:`~isaaclab_newton.cloner.BatchedModelBuilder`, which appends all
+    environments to the Newton model in one vectorized pass instead of the legacy
+    per-environment loop. This significantly reduces startup time for large
+    environment counts and produces an equivalent model. Scenes with per-world
+    builder hooks (e.g. MPM/deformable objects) automatically fall back to the
+    legacy path.
+    """
+
     def __post_init__(self):
         # NewtonCfg.class_type is auto-derived from solver_cfg.class_type.
         # Refuse a user-set value: setting both is ambiguous and was
