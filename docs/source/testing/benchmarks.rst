@@ -96,8 +96,8 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides unified ``runtime.py`` and ``startup.py`` entry points under
-``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
+Isaac Lab provides unified ``runtime.py``, ``startup.py``, and ``training.py`` entry points
+under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
 emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
 ``--benchmark_formatter`` accepts a comma-separated list (e.g.
 ``schema,omniperf``) to emit several formats in a single run. Each selected
@@ -109,6 +109,7 @@ Isaac Lab environment, run the same workflows directly instead:
 
 * Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
 * Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
+* Training: ``./isaaclab.sh -p scripts/benchmarks/training.py <arguments>``
 
 Non-RL / Runtime Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -133,7 +134,7 @@ Measure training performance.  Use ``--rl_library`` to select the RL library
 .. code-block:: bash
 
    # Benchmark with RSL-RL
-   ./isaaclab.sh -p scripts/benchmarks/training.py \
+   uv run isaaclab benchmark training \
        --rl_library rsl_rl \
        --task Isaac-Cartpole \
        --num_envs 4096 \
@@ -142,7 +143,7 @@ Measure training performance.  Use ``--rl_library`` to select the RL library
        --output_path ./results
 
    # Benchmark with RL Games
-   ./isaaclab.sh -p scripts/benchmarks/training.py \
+   uv run isaaclab benchmark training \
        --rl_library rl_games \
        --task Isaac-Cartpole \
        --num_envs 4096 \
@@ -661,7 +662,7 @@ The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD 
 
    - name: Run Training Benchmark
      run: |
-       ./isaaclab.sh -p scripts/benchmarks/training.py \
+       uv run isaaclab benchmark training \
            --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
            --max_iterations 500 --benchmark_formatter json \
            --output_path ./benchmark_results

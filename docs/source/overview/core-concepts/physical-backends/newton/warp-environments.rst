@@ -260,8 +260,8 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
 Benchmarking Your Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The performance table above was produced with ``scripts/benchmarks/training.py``,
-which runs a fixed iteration count and reports step-time statistics. Use the same script
+The performance table above was produced with ``isaaclab benchmark training``,
+which runs a fixed iteration count and reports step-time statistics. Use the same command
 to estimate the gain for your own task before committing to a migration.
 
 **Single-task A/B**
@@ -269,7 +269,7 @@ to estimate the gain for your own task before committing to a migration.
 .. code-block:: bash
 
     # Stable variant
-    ./isaaclab.sh -p scripts/benchmarks/training.py \
+    uv run isaaclab benchmark training \
         --rl_library rsl_rl \
         --task <Task-Name>-v0 \
         --num_envs 4096 \
@@ -278,7 +278,7 @@ to estimate the gain for your own task before committing to a migration.
         --output_path benchmarks/stable
 
     # Warp variant — same task with -Warp- suffix
-    ./isaaclab.sh -p scripts/benchmarks/training.py \
+    uv run isaaclab benchmark training \
         --rl_library rsl_rl \
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
@@ -291,8 +291,8 @@ The ``summary`` formatter prints step time (min / mean / max) and total throughp
 
 **Sweep across all available tasks**
 
-Run ``training.py`` for each task in the stable set (cartpole, ant, humanoid, locomotion,
-manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
+Run ``isaaclab benchmark training`` for each task in the stable set (cartpole, ant, humanoid,
+locomotion, manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
 directories.
 
 **What to look at in the output**

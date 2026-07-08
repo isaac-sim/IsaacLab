@@ -11,7 +11,11 @@ import sys
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = _SCRIPT_DIR.parents[1]
 _RL_SCRIPTS = _SCRIPT_DIR.parent / "reinforcement_learning"
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 if str(_RL_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_RL_SCRIPTS))
 

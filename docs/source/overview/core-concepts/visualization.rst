@@ -303,7 +303,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/training.py \
+   uv run isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
@@ -320,7 +320,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/training.py \
+   uv run isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
@@ -337,7 +337,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/training.py \
+   uv run isaaclab benchmark training \
      --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
