@@ -1,4 +1,4 @@
-# Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
@@ -41,8 +41,11 @@ COPY isaaclab.sh environment.yml pyproject.toml VERSION LICENSE LICENSE-mimic RE
 COPY source/ source/
 COPY tools/ tools/
 
+# The venv pins the system Python 3.12 (the version documented in the install
+# docs) so the interpreter cannot silently drift from the runtime stage's
+# libpython3.12 if the base image's default python3 ever changes.
 RUN chmod +x isaaclab.sh \
- && uv venv --python /usr/bin/python3 --seed "${VIRTUAL_ENV}" \
+ && uv venv --python /usr/bin/python3.12 --seed "${VIRTUAL_ENV}" \
  && ./isaaclab.sh --install 'newton,rl[rsl-rl]' \
  && python -c "import importlib.metadata as m; assert all(d.metadata['Name'].lower() != 'isaacsim' for d in m.distributions())" \
  && test ! -e "${ISAACLAB_PATH}/_isaac_sim" \

@@ -273,6 +273,74 @@ jobs:
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
 
+  build-newton:
+    name: Build Newton Kitless Docker Image
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 120
+    needs: [changes]
+    if: >-
+      github.event_name != 'push' &&
+      needs.changes.outputs.run_docker_tests == 'true'
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    # Dockerfile.newton builds from the public ubuntu:24.04 image, so it needs
+    # no NGC login or Isaac Sim build args and a plain local build suffices.
+    # The kitless guarantee is asserted inside the Dockerfile itself (no
+    # isaacsim distribution, no _isaac_sim link), so a green build is the proof.
+    - name: Build Newton kitless image
+      shell: bash
+      run: |
+        set -euo pipefail
+        docker build --file docker/Dockerfile.newton --tag "isaac-lab-newton:${{ github.sha }}" .
+
+    # Mirrors the verification command documented in
+    # docs/source/deployment/docker.rst and the canonical cartpole training
+    # probe used by the installation tests.
+    - name: Run training smoke test
+      shell: bash
+      run: |
+        set -euo pipefail
+        log="$(mktemp)"
+        docker run --rm --gpus all --network host "isaac-lab-newton:${{ github.sha }}" \
+          train --rl_library rsl_rl \
+          --task Isaac-Cartpole-Direct \
+          --num_envs 16 \
+          presets=newton_mjwarp \
+          --max_iterations 5 2>&1 | tee "$log"
+        if grep -q "Traceback (most recent call last):" "$log"; then
+          echo "::error::Training smoke test raised a traceback."
+          exit 1
+        fi
+        if ! grep -q "Training time:" "$log"; then
+          echo "::error::Training smoke test did not report 'Training time:'."
+          exit 1
+        fi
+
+    - name: Verify Newton runtime user is non-root
+      shell: bash
+      run: |
+        set -euo pipefail
+        runtime_identity="$(docker run --rm --entrypoint bash "isaac-lab-newton:${{ github.sha }}" \
+          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
+        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
+        echo "Newton runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
+        if [ "${runtime_uid}" = "0" ]; then
+          echo "::error::Newton Docker image must not run as root by default."
+          exit 1
+        fi
+
+    # The image is built locally (not pushed to ECR), so drop it to keep the
+    # self-hosted runner's disk from accumulating one image per CI run.
+    - name: Remove local image
+      if: always()
+      shell: bash
+      run: docker image rm -f "isaac-lab-newton:${{ github.sha }}" || true
+
   #endregion
 
   #region test jobs
