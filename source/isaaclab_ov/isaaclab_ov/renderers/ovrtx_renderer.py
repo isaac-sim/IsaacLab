@@ -852,6 +852,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
+        # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
+        # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
+        # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
+        render_data.renderer_info.clear()
+
         if "LdrColor" in frame.render_vars:
             buffer_key = None
 
