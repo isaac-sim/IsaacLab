@@ -16,15 +16,12 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "rendering", "ovrtx", "omniverse"]
 requires-python = ">=3.12"
+# Third-party requirements are centralized in the root pyproject.toml.
 dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
-
-[project.optional-dependencies]
-ovrtx = ["ovrtx>=0.3.0,<0.4.0"]
-all = ["ovrtx>=0.3.0,<0.4.0"]
 
 [tool.setuptools]
 include-package-data = true

@@ -16,17 +16,12 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "physx"]
 requires-python = ">=3.12"
+# Third-party requirements are centralized in the root pyproject.toml.
 dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
-
-[project.optional-dependencies]
-newton = [
-    "newton[sim] @ git+https://github.com/newton-physics/newton.git@c7ae7c7648cd0717df39e5c94b95d5a02c997320",
-    "newton-usd-schemas>=0.3.1",
-]
 
 [tool.setuptools]
 include-package-data = true

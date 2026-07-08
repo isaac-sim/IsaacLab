@@ -16,89 +16,20 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "learning", "ai"]
 requires-python = ">=3.12"
-dependencies = [
-    # generic
-    "numpy>=2",
-    "torch>=2.10",
-    "onnx>=1.18.0",
-    "prettytable>=3.3.0",
-    # devices
-    "hidapi>=0.14.0",
-    # reinforcement learning
-    "gymnasium>=1.2.0",
-    # procedural-generation
-    "trimesh",
-    "pyglet>=2.1.6,<3",
-    # pytetwild ships only an x86_64 manylinux wheel and its sdist fails to build on
-    # aarch64 (CMake hardcodes -m64). Gate it on x86_64 so ARM64 docker builds are
-    # not blocked; tetrahedralize callers degrade gracefully via ImportError when missing.
-    # Pinned to ==0.2.3: >=0.3 unconditionally imports pyvista at package import time.
-    "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
-    # image processing
-    "transformers==4.57.6",
-    "einops",
-    "warp-lang==1.15.0.dev20260626",
-    "matplotlib>=3.10.3",
-    # keep consistent with isaac sim version
-    "pillow==12.1.1",
-    # required by omni.replicator.core S3 backend
-    "botocore",
-    # livestream (range chosen to coexist with isaacsim 6.0)
-    "starlette>=0.46.0,<0.50",
-    "omniverseclient==2.71.1.7015",
-    # cross-platform file locking
-    "filelock",
-    "lazy_loader>=0.4",
-    # IK controller (Linux x86_64 + ARM64), requires pinning to 3.1.0 and 0.8.5 to avoid breaking change
-    "pin ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "pin-pink==3.1.0 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    "daqp==0.8.5 ; platform_system == 'Linux' and platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-    # OpenUSD (kit-less mode)
-    "usd-core>=25.11,<26.0 ; platform_machine in 'x86_64 AMD64'",
-    "usd-exchange>=2.2 ; platform_machine in 'aarch64 arm64'",
-    # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
-    "hf-xet>=1.4.1,<2.0.0 ; platform_machine in 'x86_64 AMD64 aarch64 arm64'",
-]
+# Third-party requirements are centralized in the root pyproject.toml
+# (single source of truth for the uv workspace, the wheel builder, and the
+# ./isaaclab.sh -i install CLI).
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
 
+# Only the ``isaaclab`` entry point is exposed; training/play are subcommands
+# (``isaaclab train`` / ``isaaclab play`` / ``isaaclab train_multigpu``) so they
+# do not clash with ``train``/``play`` scripts from other installed packages.
 [project.scripts]
 isaaclab = "isaaclab.cli:cli"
-play = "isaaclab.cli:play"
-train = "isaaclab.cli:train"
-train_multigpu = "isaaclab.cli:train_multigpu"
-
-[project.optional-dependencies]
-test = [
-    "pytest",
-    "pytest-mock",
-    "junitparser",
-    "flatdict>=4.1.0",
-    "flaky",
-    # coverage>=7.6.1 restored coverage.types.Tracer as a shim; required for
-    # numba compatibility (numba subclasses Tracer at import time)
-    "coverage>=7.6.1",
-]
-isaacsim = ["isaacsim[all,extscache]>=6.0.0"]
-all = [
-    "isaacsim[all,extscache]>=6.0.0",
-    "isaaclab_assets",
-    "isaaclab_contrib",
-    "isaaclab_experimental",
-    "isaaclab_mimic",
-    "isaaclab_newton[all]",
-    "isaaclab_ov",
-    "isaaclab_ovphysx",
-    "isaaclab_physx[newton]",
-    "isaaclab_ppisp",
-    "isaaclab_rl[all]",
-    "isaaclab_tasks",
-    "isaaclab_tasks_experimental",
-    "isaaclab_teleop",
-    "isaaclab_visualizers[all]",
-]
 
 [tool.setuptools]
 include-package-data = true
