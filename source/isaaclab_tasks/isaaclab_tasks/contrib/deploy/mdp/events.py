@@ -98,6 +98,71 @@ class randomize_gear_type(ManagerTermBase):
         return self._current_gear_type_indices
 
 
+def log_gear_insertion_pose_error_metrics(
+    env: ManagerBasedEnv,
+    env_ids: torch.Tensor | None,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("factory_gear_base"),
+    pose_error_thresholds: tuple[float, ...] = (0.001, 0.003, 0.005),
+) -> None:
+    """Log insertion pose-error metrics for the active gear against the gear base.
+
+    The Factory gear assets are authored such that an inserted gear has the same
+    root position as the gear base. This metric intentionally logs only to
+    ``env.extras["log"]`` and does not contribute to the reward.
+    """
+    if not hasattr(env, "_gear_type_manager"):
+        raise RuntimeError(
+            "Gear type manager not initialized. Ensure randomize_gear_type event is configured "
+            "before logging gear insertion metrics."
+        )
+
+    if env_ids is None:
+        env_ids = torch.arange(env.num_envs, device=env.device)
+
+    base_asset = env.scene[asset_cfg.name]
+    gear_assets = {
+        "gear_small": env.scene["factory_gear_small"],
+        "gear_medium": env.scene["factory_gear_medium"],
+        "gear_large": env.scene["factory_gear_large"],
+    }
+
+    gear_type_indices = env._gear_type_manager.get_all_gear_type_indices()[env_ids]
+    all_gear_pos = torch.stack(
+        [
+            gear_assets["gear_small"].data.root_pos_w.torch[env_ids],
+            gear_assets["gear_medium"].data.root_pos_w.torch[env_ids],
+            gear_assets["gear_large"].data.root_pos_w.torch[env_ids],
+        ],
+        dim=1,
+    )
+    gear_pos = all_gear_pos[torch.arange(len(env_ids), device=env.device), gear_type_indices]
+    base_pos = base_asset.data.root_pos_w.torch[env_ids]
+
+    pos_error = gear_pos - base_pos
+    xy_error = torch.linalg.norm(pos_error[:, :2], dim=-1)
+    z_error = pos_error[:, 2]
+    pose_error = torch.maximum(xy_error, torch.abs(z_error))
+    distance_error = torch.linalg.norm(pos_error, dim=-1)
+    if not hasattr(env, "extras"):
+        env.extras = {}
+    if "log" not in env.extras:
+        env.extras["log"] = {}
+
+    for threshold in pose_error_thresholds:
+        threshold_mm = int(round(threshold * 1000.0))
+        success = pose_error <= threshold
+        env.extras["log"][f"gear_success/pose_error_success_rate_{threshold_mm}mm"] = (
+            success.float().mean().item()
+        )
+    env.extras["log"]["gear_success/pose_error_mean_m"] = pose_error.mean().item()
+    env.extras["log"]["gear_success/pose_error_min_m"] = pose_error.min().item()
+    env.extras["log"]["gear_success/xy_error_mean_m"] = xy_error.mean().item()
+    env.extras["log"]["gear_success/xy_error_min_m"] = xy_error.min().item()
+    env.extras["log"]["gear_success/z_error_mean_m"] = z_error.mean().item()
+    env.extras["log"]["gear_success/abs_z_error_min_m"] = torch.abs(z_error).min().item()
+    env.extras["log"]["gear_success/distance_error_min_m"] = distance_error.min().item()
+
+
 class set_robot_to_grasp_pose(ManagerTermBase):
     """Set robot to grasp pose using IK with pre-cached tensors.
 
