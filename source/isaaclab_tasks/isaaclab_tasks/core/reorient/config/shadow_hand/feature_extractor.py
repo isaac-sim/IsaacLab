@@ -3,15 +3,26 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import glob
 import os
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
 import torchvision
 
+from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.configclass import configclass
+from isaaclab.utils.math import quat_apply
+
+if TYPE_CHECKING:
+    from isaaclab.assets import RigidObject
+    from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.sensors import Camera
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
@@ -137,6 +148,37 @@ class FeatureExtractorCfg:
     Set to False to bypass the network entirely and return zero embeddings. This is useful
     for benchmarking rendering throughput without CNN inference overhead. Default is True.
     """
+
+
+@torch.jit.script
+def compute_cube_keypoints(
+    pose: torch.Tensor,
+    num_keypoints: int = 8,
+    size: tuple[float, float, float] = (2 * 0.03, 2 * 0.03, 2 * 0.03),
+    out: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute cube-corner positions for batched poses.
+
+    Args:
+        pose: Cube center poses ``(x, y, z, qx, qy, qz, qw)`` [m, unit quaternion].
+        num_keypoints: Number of binary-sign corners to compute.
+        size: Cube side lengths along each axis [m].
+        out: Optional output buffer [m], shape ``(num_envs, num_keypoints, 3)``.
+
+    Returns:
+        Cube-corner positions [m], shape ``(num_envs, num_keypoints, 3)``.
+    """
+    num_envs = pose.shape[0]
+    if out is None:
+        out = torch.ones(num_envs, num_keypoints, 3, dtype=torch.float32, device=pose.device)
+    else:
+        out[:] = 1.0
+    for i in range(num_keypoints):
+        positive_axes = [((i >> axis) & 1) == 0 for axis in range(3)]
+        corner_values = ([(1 if positive_axes[axis] else -1) * side / 2 for axis, side in enumerate(size)],)
+        corner = torch.tensor(corner_values, dtype=torch.float32, device=pose.device) * out[:, i, :]
+        out[:, i, :] = pose[:, :3] + quat_apply(pose[:, 3:7], corner)
+    return out
 
 
 class FeatureExtractor:
@@ -323,3 +365,108 @@ class FeatureExtractor:
         else:
             predicted_pose = self.feature_extractor(img_input)
             return None, predicted_pose
+
+
+class ShadowHandCameraFeatures(ManagerTermBase):
+    """Run the Direct camera feature pipeline as one Manager observation term."""
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
+        camera: Camera = env.scene.sensors[sensor_cfg.name]
+        feature_extractor_cfg: FeatureExtractorCfg = env.cfg.feature_extractor
+        self._feature_extractor = FeatureExtractor(
+            feature_extractor_cfg,
+            env.device,
+            camera.cfg.data_types,
+            env.cfg.log_dir,
+            height=camera.cfg.height,
+            width=camera.cfg.width,
+        )
+        # ObservationManager calls terms once to infer their shape. Do not train
+        # or save a CNN checkpoint during that initialization probe.
+        self._shape_probe_pending = True
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        """Finish the shape-probe phase on the first Manager reset.
+
+        Args:
+            env_ids: Environment indices being reset. The feature extractor
+                has no per-environment state, so the indices are unused.
+        """
+        del env_ids
+        if self._shape_probe_pending:
+            self._shape_probe_pending = False
+
+    def __call__(
+        self,
+        env: ManagerBasedRLEnv,
+        feature_extractor_cfg: FeatureExtractorCfg,
+        sensor_cfg: SceneEntityCfg,
+        object_cfg: SceneEntityCfg,
+    ) -> torch.Tensor:
+        """Return the detached 27-dimensional cube-pose embedding.
+
+        Args:
+            env: Environment containing the object and tiled camera.
+            feature_extractor_cfg: Feature-extractor configuration captured by
+                the observation term. The initialized extractor owns its copy.
+            sensor_cfg: Tiled-camera scene entity.
+            object_cfg: Reoriented-object scene entity.
+
+        Returns:
+            Predicted object position and cube keypoints [m], shape
+            ``(num_envs, 27)``.
+        """
+        del feature_extractor_cfg
+        if self._shape_probe_pending:
+            embeddings = torch.zeros(env.num_envs, 27, dtype=torch.float32, device=env.device)
+            env._shadow_hand_camera_embeddings = embeddings
+            return embeddings
+
+        camera: Camera = env.scene.sensors[sensor_cfg.name]
+        object_asset: RigidObject = env.scene[object_cfg.name]
+        object_pos = object_asset.data.root_pos_w.torch - env.scene.env_origins
+        object_pose = torch.cat((object_pos, object_asset.data.root_quat_w.torch), dim=-1)
+        keypoints = compute_cube_keypoints(object_pose)
+        target = torch.cat((object_pos, keypoints.flatten(start_dim=1)), dim=-1)
+        camera_output = {
+            data_type: value if isinstance(value, torch.Tensor) else value.torch
+            for data_type, value in camera.data.output.items()
+        }
+        pose_loss, embeddings = self._feature_extractor.step(camera_output, target)
+        embeddings = embeddings.clone().detach()
+        env._shadow_hand_camera_embeddings = embeddings
+        if pose_loss is not None:
+            env.extras.setdefault("log", {})["pose_loss"] = pose_loss
+        return embeddings
+
+
+def shadow_hand_camera_cached_features(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Return camera features computed by the preceding policy observation group.
+
+    Args:
+        env: Environment whose policy group cached the current camera embedding.
+
+    Returns:
+        Detached camera embeddings, shape ``(num_envs, 27)``.
+    """
+    embeddings = getattr(env, "_shadow_hand_camera_embeddings", None)
+    if embeddings is None:
+        raise RuntimeError("Shadow Hand camera policy features must be computed before critic observations.")
+    return embeddings
+
+
+def shadow_hand_goal_keypoints(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+    """Return zero-origin cube keypoints for the current goal orientation.
+
+    Args:
+        env: Environment containing the goal command.
+        command_name: Goal command term name.
+
+    Returns:
+        Flattened zero-origin cube keypoints [m], shape ``(num_envs, 24)``.
+    """
+    command = env.command_manager.get_command(command_name)
+    goal_pose = torch.cat((torch.zeros_like(command[:, :3]), command[:, 3:7]), dim=-1)
+    return compute_cube_keypoints(goal_pose).flatten(start_dim=1)
