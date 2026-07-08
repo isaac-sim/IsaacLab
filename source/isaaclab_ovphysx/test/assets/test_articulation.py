@@ -368,7 +368,6 @@ def test_live_anymal_c_manual_joint_ordering_preserves_unselected_backend_state(
 
     joint_ordering = articulation.joint_ordering
     assert joint_ordering is not None
-    assert not joint_ordering.is_identity
     backend_seed = torch.arange(1, articulation.num_joints + 1, dtype=torch.float32, device=device).reshape(1, -1)
     backend_seed *= 0.001
     articulation.root_view.set_attribute(TT.DOF_POSITION, wp.from_torch(backend_seed))
@@ -402,7 +401,6 @@ def test_live_panda_manual_body_ordering_preserves_unselected_coms(sim, num_arti
 
     body_ordering = articulation.body_ordering
     assert body_ordering is not None
-    assert not body_ordering.is_identity
     backend_before = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device).clone()
     assert torch.unique(backend_before[0], dim=0).shape[0] > 1
 
@@ -462,7 +460,6 @@ def test_reversed_body_ordering_wrench_composes_from_backend_pose_without_shadow
 
     body_ordering = articulation.body_ordering
     assert body_ordering is not None
-    assert not body_ordering.is_identity
 
     # Apply a body-frame wrench to a single named body (public order).
     body_ids, _ = articulation.find_bodies("panda_hand")
@@ -517,7 +514,6 @@ def test_reversed_joint_ordering_joint_acc_matches_canonicalized_finite_differen
 
     joint_ordering = articulation.joint_ordering
     assert joint_ordering is not None
-    assert not joint_ordering.is_identity
     num_joints = articulation.num_joints
 
     user_to_backend = torch.as_tensor(
@@ -603,8 +599,8 @@ def test_branching_fixture_physx_ordering_is_identity_on_ovphysx(sim, device):
     assert tuple(articulation.body_names) == tuple(articulation.backend_body_names)
     assert tuple(articulation.joint_names) == expected_physx_joint_names
     assert tuple(articulation.body_names) == expected_physx_body_names
-    assert articulation.joint_ordering is None or articulation.joint_ordering.is_identity
-    assert articulation.body_ordering is None or articulation.body_ordering.is_identity
+    assert articulation.joint_ordering is None
+    assert articulation.body_ordering is None
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -645,8 +641,8 @@ def test_branching_fixture_mjwarp_ordering_reorders_ovphysx_to_dfs(sim, device):
     assert get_articulation_name_ordering(articulation, "mjwarp", kind="body") == expected_mjwarp_body_names
     assert tuple(articulation.joint_names) == expected_mjwarp_joint_names
     assert tuple(articulation.body_names) == expected_mjwarp_body_names
-    assert articulation.joint_ordering is not None and not articulation.joint_ordering.is_identity
-    assert articulation.body_ordering is not None and not articulation.body_ordering.is_identity
+    assert articulation.joint_ordering is not None
+    assert articulation.body_ordering is not None
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
