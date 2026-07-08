@@ -81,7 +81,7 @@ class NewtonMJWarpManager(NewtonManager):
             )
 
     @classmethod
-    def _reset_solver_internals(cls, world_mask: wp.array) -> None:
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
         """Clear MuJoCo Warp solver-internal state for flagged worlds.
 
         Specializes the base hook, whose :meth:`SolverBase.reset` call resolves
