@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
 
 if args_cli.physics == "newton_vbd":
-    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg  # isort:skip
+    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg, NewtonModelCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
@@ -261,6 +261,11 @@ def main():
                     particle_self_contact_margin=0.1,
                 ),
                 num_substeps=4,
+            )
+            physics_cfg.model_cfg = NewtonModelCfg(
+                soft_contact_ke=1.0e5,
+                soft_contact_kd=1.0e0,
+                soft_contact_mu=0.01,
             )
         # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
