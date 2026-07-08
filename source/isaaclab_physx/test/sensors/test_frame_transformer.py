@@ -78,9 +78,10 @@ class MySceneCfg(InteractiveSceneCfg):
 
 
 @pytest.fixture
-def sim():
-    """Create a simulation context."""
-    sim_cfg = sim_utils.SimulationCfg(device="cpu", dt=0.005)
+def sim(request):
+    """Create a simulation context, on CPU unless a device is passed via indirect parametrization."""
+    device = getattr(request, "param", "cpu")
+    sim_cfg = sim_utils.SimulationCfg(device=device, dt=0.005)
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         # Set main camera
@@ -89,6 +90,14 @@ def sim():
     # Cleanup is handled by build_simulation_context
 
 
+@pytest.mark.parametrize(
+    "sim",
+    [
+        "cpu",
+        pytest.param("cuda:0", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")),
+    ],
+    indirect=True,
+)
 def test_frame_transformer_feet_wrt_base(sim):
     """Test feet transformations w.r.t. base source frame.
 
@@ -865,6 +874,10 @@ class _FakeTransformView:
         assert dtype == wp.transformf
         self.view_count += 1
         return self.transforms
+
+    @property
+    def ptr(self):
+        return self.transforms.ptr
 
 
 def _make_frame_transformer(use_recorded_launch: bool = True):
