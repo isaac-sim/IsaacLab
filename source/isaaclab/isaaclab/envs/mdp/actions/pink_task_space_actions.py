@@ -324,9 +324,8 @@ class PinkInverseKinematicsAction(ActionTerm):
 
         Reads :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
         and applies it as a joint-effort target on the controlled arm joints, on top
-        of the joint-position targets from IK. Available on PhysX and on Newton builds
-        that provide the inverse-dynamics API (newton > 1.3); older Newton builds raise
-        :class:`NotImplementedError` on the read.
+        of the joint-position targets from IK. Supported on both the PhysX and the
+        Newton backend.
         """
         if not self._asset.cfg.spawn.rigid_props.disable_gravity:
             # ``gravity_compensation_forces`` shape is ``(N, num_joints + num_base_dofs)``.

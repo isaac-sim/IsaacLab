@@ -2684,20 +2684,6 @@ def test_randomize_rigid_body_collider_offsets(sim, num_articulations, device, a
     torch.testing.assert_close(updated_gap, new_gap)
 
 
-def _skip_if_newton_lacks_inverse_dynamics() -> None:
-    """Skip the current test when the installed Newton predates the inverse-dynamics API.
-
-    ``gravity_compensation_forces`` needs ``newton.eval_inverse_dynamics`` (merged
-    upstream after the 1.3 release). The pinned Newton commit cannot move past it until
-    Isaac Sim's exact ``mujoco-warp==3.8.0.3`` pin co-resolves with Newton's MuJoCo 3.10
-    requirement, so these tests activate automatically with the next Newton pin bump.
-    """
-    import newton
-
-    if not hasattr(newton, "InverseDynamics"):
-        pytest.skip("installed Newton has no inverse-dynamics API (needs newton > 1.3)")
-
-
 ##
 # Shape-contract regression tests for the new BaseArticulation accessors.
 # These pin the public shape contract so future regressions (e.g., reverting
@@ -2778,7 +2764,6 @@ def test_get_gravity_compensation_forces_shape_fixed_base(sim, num_articulations
     sizing — a wrong view gather (model-wide ``max_dofs`` or a bad flat DoF
     offset) would surface here in heterogeneous scenes.
     """
-    _skip_if_newton_lacks_inverse_dynamics()
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -2865,7 +2850,6 @@ def test_get_gravity_compensation_forces_shape_floating_base(
     Includes the 6 floating-base entries on the DoF axis, matching the
     cross-library industry convention.
     """
-    _skip_if_newton_lacks_inverse_dynamics()
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -3116,7 +3100,6 @@ def test_get_gravity_compensation_forces_matches_jacobian_gravity(
     upstream in newton#2625 (wrong gravity compensation under non-identity
     root pose).
     """
-    _skip_if_newton_lacks_inverse_dynamics()
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -3253,7 +3236,6 @@ def test_gravity_compensation_refreshes_after_manual_joint_write(sim, num_articu
     the mass matrix. Gravity stays enabled (the default) — with gravity off,
     ``g(q)`` is identically zero and the assert would be vacuous.
     """
-    _skip_if_newton_lacks_inverse_dynamics()
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
     sim.reset()
@@ -3288,7 +3270,6 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     surface as joint drift, while a controller-level test would have those
     bugs averaged out by PD damping.
     """
-    _skip_if_newton_lacks_inverse_dynamics()
     base_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     # Replace default Franka actuators with a passthrough implicit actuator
     # (stiffness = 0, damping = 0). With both gains zero the effort target

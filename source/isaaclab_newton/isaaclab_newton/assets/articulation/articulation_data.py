@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton import InverseDynamics
 
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
 from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
@@ -1006,15 +1007,6 @@ class ArticulationData(BaseArticulationData):
         (writes the model-wide flat DoF buffer) then a gather kernel extracts this
         view's DoF segment.
         """
-        if self._inverse_dynamics_buf is None:
-            raise NotImplementedError(
-                "gravity_compensation_forces requires Newton's inverse-dynamics API:"
-                f" {self._inverse_dynamics_unavailable_reason}"
-            )
-        # Local import: keeps isaaclab_newton importable against Newton versions that
-        # predate the inverse-dynamics API (the guard above raises before reaching it).
-        from newton import InverseDynamics  # noqa: PLC0415
-
         # eval_inverse_dynamics reads ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
         self._ensure_fk_fresh()
@@ -1882,15 +1874,8 @@ class ArticulationData(BaseArticulationData):
 
         # -- ``gravity_compensation_forces``: model-wide inverse-dynamics container
         #    (eval_inverse_dynamics output buffers + private RNEA scratch) and per-view
-        #    output (gather output). ``None`` when the installed Newton predates the
-        #    inverse-dynamics API (AttributeError) or the model contains joints it does
-        #    not support, e.g. CABLE (ValueError); the property raises with the reason.
-        try:
-            self._inverse_dynamics_buf = model.inverse_dynamics()
-            self._inverse_dynamics_unavailable_reason = ""
-        except (AttributeError, ValueError) as err:
-            self._inverse_dynamics_buf = None
-            self._inverse_dynamics_unavailable_reason = str(err)
+        #    output (gather output)
+        self._inverse_dynamics_buf = model.inverse_dynamics()
         # Flat joint-space (``Model.joint_qd`` layout) DoF start of each view
         # articulation, for gathering flat per-DoF outputs. Host-computed once:
         # dof_start = joint_qd_start[first joint of the articulation].
