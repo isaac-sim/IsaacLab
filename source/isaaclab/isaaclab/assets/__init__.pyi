@@ -12,7 +12,6 @@ __all__ = [
     "ArticulationOrderingConvention",
     "ArticulationNameMap",
     "apply_articulation_ordering_preset",
-    "build_articulation_name_map",
     "parse_articulation_ordering_convention",
     "get_articulation_name_ordering",
     "AssetBase",
@@ -43,7 +42,6 @@ from .articulation import (
     ArticulationOrderingConvention,
     ArticulationNameMap,
     apply_articulation_ordering_preset,
-    build_articulation_name_map,
     parse_articulation_ordering_convention,
     get_articulation_name_ordering,
 )

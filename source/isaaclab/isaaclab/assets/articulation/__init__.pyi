@@ -12,7 +12,6 @@ __all__ = [
     "ArticulationOrderingConvention",
     "ArticulationNameMap",
     "apply_articulation_ordering_preset",
-    "build_articulation_name_map",
     "parse_articulation_ordering_convention",
     "get_articulation_name_ordering",
 ]
@@ -26,7 +25,6 @@ from .ordering import (
     ArticulationOrderingConvention,
     ArticulationNameMap,
     apply_articulation_ordering_preset,
-    build_articulation_name_map,
     parse_articulation_ordering_convention,
 )
 from .ordering_resolvers import get_articulation_name_ordering

@@ -33,7 +33,6 @@
   .. autosummary::
 
     apply_articulation_ordering_preset
-    build_articulation_name_map
     parse_articulation_ordering_convention
     get_articulation_name_ordering
 
@@ -161,8 +160,6 @@ Articulation Ordering
     :members:
 
 .. autofunction:: apply_articulation_ordering_preset
-
-.. autofunction:: build_articulation_name_map
 
 .. autofunction:: parse_articulation_ordering_convention
 
