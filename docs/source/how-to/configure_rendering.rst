@@ -11,9 +11,9 @@ Configuring RTX Rendering Settings
    :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
 
 Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults when
-running with ``--enable_cameras``. The former rendering mode presets
-(``performance``, ``balanced``, and ``quality``) have been removed; tune the
-renderer by overriding individual settings instead.
+running with ``--enable_cameras``. Override individual settings to tune the
+renderer for your workflow, as described below. For camera-heavy workloads that
+need higher throughput, switch to the RTX Minimal renderer instead.
 
 Overriding Specific Rendering Settings
 --------------------------------------
