@@ -268,6 +268,13 @@ full:
       episode_length: 400
     upper_thresholds:
       duration: 40000
+  Isaac-Reorient-Cube-Shadow-Camera:
+    max_iterations: 3000
+    lower_thresholds:
+      reward: 1000
+      episode_length: 400
+    upper_thresholds:
+      duration: 40000
   Isaac-Shadow-Handover-Direct:
     max_iterations: 3000
     lower_thresholds:
