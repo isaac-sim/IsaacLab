@@ -1810,13 +1810,16 @@ def define_deformable_body_properties(
             },
             stage=stage,
         )
+        # apply sim API
         if use_omni_physics_apis:
-            # apply sim API
             if not sim_mesh_prim.ApplyAPI("OmniPhysicsSurfaceDeformableSimAPI"):
                 raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
             # set rest-shape attributes required by OmniPhysicsSurfaceDeformableSimAPI
             sim_mesh_prim.GetAttribute("omniphysics:restShapePoints").Set(vertices)
             sim_mesh_prim.GetAttribute("omniphysics:restTriVtxIndices").Set(faces)
+        else:
+            if not root_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set surface deformable body API on prim '{sim_mesh_prim_path}'.")
 
     elif deformable_type == "volume":
         if sim_mesh_prim is None:
@@ -1861,9 +1864,12 @@ def define_deformable_body_properties(
                 stage=stage,
             )
 
+        # apply sim API
         if use_omni_physics_apis:
-            # apply sim API
             if not sim_mesh_prim.ApplyAPI("OmniPhysicsVolumeDeformableSimAPI"):
+                raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
+        else:
+            if not root_prim.AddAppliedSchema("PhysicsVolumeDeformableSimAPI"):
                 raise RuntimeError(f"Failed to set volume deformable body API on prim '{sim_mesh_prim_path}'.")
 
         # set surface faces and rest-shape attributes required by OmniPhysicsVolumeDeformableSimAPI
@@ -1931,14 +1937,9 @@ def define_deformable_body_properties(
             vis_mesh.GetFaceVertexIndicesAttr().Set(sim_mesh.GetFaceVertexIndicesAttr().Get())
             vis_mesh.GetFaceVertexCountsAttr().Set(sim_mesh.GetFaceVertexCountsAttr().Get())
 
-    # TODO: Temporary solution until USD API exists for root_prim.ApplyAPI("UsdPhysicsDeformableBodyAPI")
-    # apply universal deformable body api
-    schema_name = "UsdPhysicsDeformableBodyAPI"
-    api_schemas = root_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-    explicit = list(api_schemas.GetAddedOrExplicitItems())
-    if schema_name not in explicit:
-        api_schemas.explicitItems = explicit + [schema_name]
-        root_prim.SetMetadata("apiSchemas", api_schemas)
+        # apply deformable body api
+        if not root_prim.AddAppliedSchema("PhysicsDeformableBodyAPI"):
+            raise RuntimeError(f"Failed to set deformable body API on prim '{prim_path}'.")
 
     # set deformable body properties
     modify_deformable_body_properties(prim_path, cfg, stage)
