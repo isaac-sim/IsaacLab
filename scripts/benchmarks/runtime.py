@@ -13,7 +13,7 @@ via Hydra preset tokens — no ``--rl_library`` dispatch needed.
 
 Usage example::
 
-    ./isaaclab.sh -p scripts/benchmarks/runtime.py \\
+    uv run isaaclab benchmark runtime \\
         --task Isaac-Cartpole-Direct \\
         --num_envs 16 --num_frames 100 \\
         presets=newton_mjwarp --headless

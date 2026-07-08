@@ -111,7 +111,7 @@ Measure environment stepping performance without any RL library:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --num_frames 100 \
@@ -133,7 +133,7 @@ Measure training performance with RSL-RL:
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
-       --benchmark_backend json \
+       --benchmark_formatter json \
        --output_path ./results
 
 PhysX Micro-Benchmarks
@@ -162,7 +162,7 @@ understanding where time is spent during initialization.
 .. code-block:: bash
 
    # Basic usage — reports top 30 functions per phase
-   ./isaaclab.sh -p scripts/benchmarks/startup.py \
+   uv run isaaclab benchmark startup \
        --task Isaac-Ant \
        --num_envs 4096 \
        --benchmark_formatter summary
@@ -200,7 +200,7 @@ Patterns use ``fnmatch`` syntax (``*`` and ``?`` wildcards):
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/startup.py \
+   uv run isaaclab benchmark startup \
        --task Isaac-Ant \
        --num_envs 4096 \
        --benchmark_formatter omniperf \
@@ -638,9 +638,9 @@ The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD 
    # GitHub Actions / GitLab CI example
    - name: Run Runtime Benchmark
      run: |
-       ./isaaclab.sh -p scripts/benchmarks/runtime.py \
+       uv run isaaclab benchmark runtime \
            --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
-           --benchmark_backend json --output_path ./benchmark_results
+           --benchmark_formatter json --output_path ./benchmark_results
 
    - name: Upload Results
      uses: actions/upload-artifact@v3
@@ -652,9 +652,9 @@ For Osmo integration, use the ``osmo`` formatter:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/runtime.py \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
-       --benchmark_backend osmo --output_path ./results
+       --benchmark_formatter osmo --output_path ./results
    # Results are in Osmo-compatible JSON format
 
 Troubleshooting

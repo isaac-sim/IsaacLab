@@ -5,10 +5,13 @@ Added
   entry points. They emit :class:`~isaaclab.test.benchmark.RuntimeBundle` and
   :class:`~isaaclab.test.benchmark.StartupBundle` outputs and select physics and
   rendering backends with ``presets=`` Hydra tokens.
+* Added the ``uv run isaaclab benchmark`` entry point for runtime and startup benchmarks.
 
 Fixed
 ^^^^^
 
+* Fixed benchmark recorder imports in uv environments by declaring the
+  ``psutil`` dependency.
 * Fixed the runtime benchmark to honor ``--device`` for Kitless physics
   backends.
 * Fixed runtime and startup bundle metadata to record resolved task-default

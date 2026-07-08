@@ -53,8 +53,29 @@ def play(args: list[str] | None = None) -> None:
     run_python_command(ISAACLAB_ROOT / "scripts" / "reinforcement_learning" / "play.py", args, check=True)
 
 
+def benchmark(args: list[str] | None = None) -> None:
+    """Run a runtime or startup benchmark.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    parser = argparse.ArgumentParser(description="Run an Isaac Lab benchmark.")
+    parser.add_argument("command", choices=("runtime", "startup"), help="Benchmark workflow to run.")
+    if args is None:
+        args = sys.argv[1:]
+    if not args or args[0] in ("-h", "--help"):
+        parser.parse_args(args)
+    parsed_args = parser.parse_args(args[:1])
+    run_python_command(
+        ISAACLAB_ROOT / "scripts" / "benchmarks" / f"{parsed_args.command}.py", args[1:], check=True
+    )
+
+
 def cli() -> None:
     """Parse CLI arguments and run the requested command."""
+    if len(sys.argv) > 1 and sys.argv[1] == "benchmark":
+        benchmark(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] == "train":
         train(sys.argv[2:])
         return
@@ -73,6 +94,7 @@ def cli() -> None:
         formatter_class=argparse.RawTextHelpFormatter,
         epilog=(
             "commands:\n"
+            "  benchmark       Run a runtime or startup benchmark\n"
             "  train           Run scripts/reinforcement_learning/train.py\n"
             "  train_multigpu  Run scripts/reinforcement_learning/train_multigpu.py\n"
             "  play            Run scripts/reinforcement_learning/play.py"
