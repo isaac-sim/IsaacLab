@@ -32,6 +32,7 @@ dependencies = [
     "torchaudio>=2.11",
     "onnx>=1.18.0",
     "prettytable>=3.3.0",
+    "psutil",
     "protobuf>=4.25.8,!=5.26.0",
     "hidapi>=0.14.0",
     "gymnasium>=1.2.0",
