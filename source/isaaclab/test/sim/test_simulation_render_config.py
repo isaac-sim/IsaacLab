@@ -184,6 +184,7 @@ def test_isaac_rtx_camera_experience_defaults():
         app_settings = _parse_kit_setting_values(isaaclab_app_exp_path / app_filename)
 
         for setting_name, expected_value in _QUALITY_DEFAULT_SETTINGS.items():
+            assert setting_name in app_settings, f"'{setting_name}' is not defined in '{app_filename}'"
             assert app_settings[setting_name] == expected_value, (
                 f"Mismatch for '{setting_name}' in '{app_filename}': "
                 f"expected {expected_value!r}, "

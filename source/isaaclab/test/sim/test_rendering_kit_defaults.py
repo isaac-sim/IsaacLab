@@ -33,7 +33,7 @@ _HIGH_FIDELITY_DEFAULTS = (
     "rtx.viewTile.limit",
 )
 
-# Defaults that must stay identical across both *.rendering.kit and *.kit (drift guard).
+# Defaults that must stay identical across both rendering kits (drift guard).
 _SHARED_RTX_DEFAULTS = (
     "rtx.translucency.enabled",
     "rtx.reflections.enabled",
