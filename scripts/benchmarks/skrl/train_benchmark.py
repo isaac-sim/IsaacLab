@@ -14,6 +14,7 @@ from pathlib import Path
 _BENCH_DIR = Path(__file__).resolve().parents[1]
 _RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
 
+# Shared training utilities remain script-local, so their directory must be on sys.path.
 if str(_RL_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_RL_SCRIPTS))
 
