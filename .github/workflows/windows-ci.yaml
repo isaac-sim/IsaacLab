@@ -123,9 +123,13 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_PATH -Value "$HOME\.local\bin"
 
-      # Diagnostic only: proves whether the failure is DNS/reachability vs a
-      # missing package, decoupled from pip. pypi.nvidia.com is the public
-      # control (should resolve); artifactory.nvidia.com is the internal index.
+      # Diagnostic only: proves whether a setup failure is DNS/reachability vs a
+      # missing package, decoupled from pip. pypi.nvidia.com serves the pinned
+      # public Isaac Sim wheels and pypi.org their dependencies. nvcr.io is the
+      # NGC registry the Linux CI pulls the develop container from; it is probed
+      # here to qualify these runners for a future develop-content lane (fetching
+      # develop bits from NGC needs only the repo-level NGC_API_KEY secret, no
+      # per-instance setup).
       - name: Probe index reachability (diagnostic)
         if: always()
         continue-on-error: true
@@ -135,7 +139,7 @@ jobs:
           Write-Host "proxies: HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY NO_PROXY=$env:NO_PROXY http_proxy=$env:http_proxy https_proxy=$env:https_proxy"
           Write-Host "DNS servers:"
           Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.InterfaceAlias): $($_.ServerAddresses -join ', ')" }
-          foreach ($h in @("artifactory.nvidia.com", "urm.nvidia.com", "pypi.nvidia.com")) {
+          foreach ($h in @("pypi.nvidia.com", "pypi.org", "nvcr.io")) {
             Write-Host "=== $h ==="
             try {
               $ips = [System.Net.Dns]::GetHostAddresses($h)
@@ -153,63 +157,27 @@ jobs:
 
       # Shared setup. Hard fail aborts the job (no continue-on-error) since
       # downstream steps all depend on this venv.
-      - name: Setup venv + install develop-aligned Isaac Sim + isaaclab + test deps
+      - name: Setup venv + install Isaac Sim (public pin) + isaaclab + test deps
         id: setup
         shell: powershell
         timeout-minutes: 25
-        env:
-          # Read-only service-account credentials for the internal Isaac Sim
-          # Artifactory index (anonymous access was removed). The resolver reads
-          # these from the environment; the uv install builds authenticated index
-          # URLs from them below. Same secrets the Linux/ARM CI uses to reach the
-          # internal develop registry.
-          ISAACSIM_ARTIFACTORY_READONLY_USERNAME: ${{ secrets.ISAACSIM_ARTIFACTORY_READONLY_USERNAME }}
-          ISAACSIM_ARTIFACTORY_READONLY_PASSWORD: ${{ secrets.ISAACSIM_ARTIFACTORY_READONLY_PASSWORD }}
-          # Optional. When set, the resolver verifies the picked build's commit is
-          # on omni_isaac_sim develop (and can read the private repo). When absent
-          # or gitlab is unreachable, it falls back to the newest 6.0.0 build with
-          # a warning (see tools/resolve_isaacsim_develop.py --allow-unverified).
-          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
         run: |
           $ErrorActionPreference = "Stop"
-          if (-not $env:ISAACSIM_ARTIFACTORY_READONLY_USERNAME -or -not $env:ISAACSIM_ARTIFACTORY_READONLY_PASSWORD) {
-            # Don't hard-fail: fork PRs don't receive secrets, but the index fetch
-            # below still exercises URL/DNS reachability. Auth-dependent failures
-            # surface later on in-repo runs where the secrets are present.
-            Write-Host "::warning::ISAACSIM_ARTIFACTORY_READONLY_* not set (expected on fork PRs); proceeding unauthenticated"
-          }
           # --seed because the wheel-builder step runs `python -m pip install build wheel`.
           uv venv --python 3.12 --seed env_isaaclab_uv
           & "env_isaaclab_uv\Scripts\Activate.ps1"
           uv pip install pytest pytest-timeout h5py
 
-          # Authenticated index URLs. URL-encode the credentials so special
-          # characters survive; GitHub masks the secret values and uv redacts
-          # credentials when echoing index URLs.
-          $u = [uri]::EscapeDataString($env:ISAACSIM_ARTIFACTORY_READONLY_USERNAME)
-          $p = [uri]::EscapeDataString($env:ISAACSIM_ARTIFACTORY_READONLY_PASSWORD)
-          $swIndex = "https://${u}:${p}@artifactory.nvidia.com/artifactory/sw-isaacsim-pypi-local/"
-          $ctIndex = "https://${u}:${p}@artifactory.nvidia.com/artifactory/ct-omniverse-pypi-local/"
-
-          # Pull Isaac Sim from the internal Artifactory index at the build aligned
-          # with omni_isaac_sim develop, so native Windows tests the same Sim as the
-          # Linux/ARM develop container instead of the older public pip release.
-          # The resolver authenticates via the ISAACSIM_ARTIFACTORY_READONLY_* env vars.
-          $pin = python tools/resolve_isaacsim_develop.py `
-            --index-url "https://artifactory.nvidia.com/artifactory/sw-isaacsim-pypi-local/isaacsim/" `
-            --python-tag cp312 --platform-tag win_amd64 `
-            --verify-branch develop --version-prefix 6.0.0 --allow-unverified
-          if ($LASTEXITCODE -ne 0) { throw "resolve_isaacsim_develop.py failed (exit $LASTEXITCODE)" }
-          $pin = "$pin".Trim()
-          if (-not $pin) { throw "no develop-aligned Isaac Sim version resolved" }
-          Write-Host "Resolved develop-aligned Isaac Sim: $pin"
-          uv pip install --pre "isaacsim[all,extscache]==$pin" `
-            --extra-index-url $swIndex `
-            --extra-index-url $ctIndex
-
-          # Install IsaacLab WITHOUT the 'isaacsim' extra: it hard-pins the public
-          # release (==5.1.0), which would conflict with the develop build above.
-          .\isaaclab.bat -i 'rl[rsl_rl,rl_games]'
+          # Install Isaac Sim from pypi.nvidia.com at the version pinned in
+          # [tool.isaaclab.versions], plus editable isaaclab and the RL frameworks
+          # the training smoke needs — all through the install CLI, so this job
+          # exercises the same install path the docs give Windows users. The
+          # develop-container build the Linux CI tests is not reachable from these
+          # runners (internal Artifactory is corp-DNS only); the public pin is
+          # IsaacLab's declared isaacsim dependency, so native Windows validates
+          # exactly what `isaaclab -i isaacsim` gives users. A develop-content
+          # lane via NGC (see the reachability probe above) can layer on later.
+          .\isaaclab.bat -i 'isaacsim,rl[rsl_rl,rl_games]'
           python -c "import importlib.metadata as m; print('isaacsim build:', m.version('isaacsim'))"
           python -c "import isaaclab, isaaclab_assets, isaaclab_tasks, isaaclab_newton, isaaclab_physx, isaaclab_ppisp; print('editable imports ok')"
           New-Item -ItemType Directory -Force -Path "reports" | Out-Null
@@ -376,9 +344,9 @@ jobs:
           $wheel = Get-ChildItem -Path "tools/wheel_builder/build/dist" -Filter "isaaclab-*.whl" | Select-Object -First 1
           if (-not $wheel) { throw "no wheel found in tools/wheel_builder/build/dist" }
           uv pip uninstall isaaclab
-          # No '[all]' extra: it pins isaacsim==5.1.0, which would downgrade the
-          # develop Isaac Sim installed in setup. The develop build stays in place;
-          # this only validates that the freshly built isaaclab wheel installs.
+          # Bare wheel (no extras): Isaac Sim is already installed at the same
+          # public pin, so this only validates that the freshly built isaaclab
+          # wheel installs.
           uv pip install "$($wheel.FullName)"
           python -c "import isaaclab; print('wheel install ok:', isaaclab.__file__)"
 
