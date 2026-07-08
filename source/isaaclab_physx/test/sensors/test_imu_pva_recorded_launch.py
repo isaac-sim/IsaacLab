@@ -24,6 +24,11 @@ from isaaclab_physx.sensors.pva.pva_data import PvaData
 from isaaclab.sensors.imu import BaseImu
 from isaaclab.sensors.pva import BasePva
 
+pytestmark = [
+    pytest.mark.isaacsim_ci,
+    pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available"),
+]
+
 
 class _FakeBuffer:
     """Wrap a typed array while counting typed-view construction."""
