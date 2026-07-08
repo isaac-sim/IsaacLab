@@ -30,7 +30,7 @@ class RuntimeSample:
     """Adapter projection of a schema-v1 ``RuntimeBundle`` into the gate's fields.
 
     Aggregates (fps/startup) and run identity are typed; ``provenance`` and
-    ``gpu_diag`` remain dicts (open provenance payloads the gate carries through).
+    ``runtime_resources`` remain dicts (open provenance payloads the gate carries through).
     """
 
     fps_mean: float | None = None
@@ -48,7 +48,7 @@ class RuntimeSample:
     render_backend: str | None = None
     presets: list[str] = field(default_factory=list)
     provenance: dict[str, Any] = field(default_factory=dict)
-    gpu_diag: dict[str, Any] = field(default_factory=dict)
+    runtime_resources: dict[str, Any] = field(default_factory=dict)
 
     def benchmark_info(self) -> dict[str, Any]:
         """Return the run's self-reported identity as a dict.
@@ -108,7 +108,7 @@ class BenchResult:
     runtime_contract: dict[str, Any] | None = None
     runtime_contract_hash: str | None = None
     runtime_info: dict[str, Any] | None = None
-    gpu_diag: dict[str, Any] | None = None
+    runtime_resources: dict[str, Any] | None = None
     provenance: dict[str, Any] | None = None
     launch_config: dict[str, Any] = field(default_factory=dict)
     launch_config_hash: str | None = None

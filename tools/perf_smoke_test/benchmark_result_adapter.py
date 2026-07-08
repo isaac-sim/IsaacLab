@@ -10,7 +10,7 @@
 refactor Part 1, PR #6197) serialized by
 :func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.  This module is the
 single point that reads that JSON and projects it into the flat
-``provenance`` / ``gpu_diag`` / fps / ``benchmark_info`` shapes the gate's
+``provenance`` / ``runtime_resources`` / fps / ``benchmark_info`` shapes the gate's
 :mod:`oracle` and :mod:`build_bench_result` consume, replacing the legacy
 phase-array parsing.
 
@@ -198,11 +198,42 @@ def provenance(bundle: dict) -> dict:
     return {"hardware": hardware, "software": software, "git": git}
 
 
-def gpu_diag(bundle: dict) -> dict:
-    """Return the human/debug GPU diagnostics block (non-gating publish info)."""
+def _gb_to_mb(value: Any) -> float | None:
+    """Return ``value`` GB converted to MB (2 dp), or ``None`` if not numeric."""
+    return round(float(value) * 1024, 2) if isinstance(value, (int, float)) else None
+
+
+def _pct(value: Any) -> float | None:
+    """Return ``value`` as a utilisation percent (2 dp), or ``None`` if not numeric."""
+    return round(float(value), 2) if isinstance(value, (int, float)) else None
+
+
+def runtime_resources(bundle: dict) -> dict:
+    """Return the GPU-diagnostics + resource-utilisation block (non-gating publish info).
+
+    Combines GPU identity (name / total memory / CUDA / driver) with the run's
+    measured resource utilisation from the bundle's ``resources`` section: VRAM
+    (mean + peak), system RAM (mean + peak), and GPU/CPU utilisation (mean). Every
+    field here is informational — it is published for humans but never feeds the
+    gate verdict or the ``runtime_contract_hash``.
+
+    Memory is reported in MB (the schema stores GB); utilisation in percent. Two
+    semantic caveats worth remembering when reading these values:
+
+    * ``gpu_mem_*`` is **device-wide** VRAM (``nvidia-smi memory.used`` includes
+      any other process on the GPU) — accurate on a 1-benchmark-per-GPU runner.
+    * ``system_ram_*`` is the benchmark **process** resident set size (psutil
+      ``memory_info().rss``), not whole-host RAM and excluding child processes.
+
+    Absent/malformed sub-sections drop their fields (``None`` filtered out) so a
+    partial bundle degrades gracefully instead of crashing the projection.
+    """
     gpu = _current_gpu(bundle)
-    gpu_mem = _as_dict(_as_dict(bundle.get("resources")).get("gpu_mem_gb"))
-    mem_used_gb = gpu_mem.get("mean")
+    resources = _as_dict(bundle.get("resources"))
+    gpu_mem = _as_dict(resources.get("gpu_mem_gb"))
+    ram = _as_dict(resources.get("ram_gb"))
+    gpu_util = _as_dict(resources.get("gpu_util_pct"))
+    cpu_util = _as_dict(resources.get("cpu_util_pct"))
     # schema-v1 Hardware has no CUDA-runtime field; use the CUDA bindings version
     # (Versions.cuda_bindings) as the closest available proxy for display.
     cuda_version = _as_dict(bundle.get("versions")).get("cuda_bindings")
@@ -211,7 +242,12 @@ def gpu_diag(bundle: dict) -> dict:
         "gpu_total_memory_gb": gpu.get("mem_gb"),
         "cuda_version": cuda_version,
         "nvidia_driver_version": gpu_driver_version(),
-        "gpu_mem_used_mb": round(float(mem_used_gb) * 1024, 2) if isinstance(mem_used_gb, (int, float)) else None,
+        "gpu_mem_used_mb": _gb_to_mb(gpu_mem.get("mean")),
+        "gpu_mem_peak_mb": _gb_to_mb(gpu_mem.get("peak")),
+        "gpu_util_pct": _pct(gpu_util.get("mean")),
+        "system_ram_used_mb": _gb_to_mb(ram.get("mean")),
+        "system_ram_peak_mb": _gb_to_mb(ram.get("peak")),
+        "cpu_util_pct": _pct(cpu_util.get("mean")),
     }
     return {k: v for k, v in diag.items() if v is not None}
 
@@ -261,5 +297,5 @@ def project_runtime(bundle: dict) -> RuntimeSample | None:
         render_backend=info.get("render_backend"),
         presets=info.get("presets") or [],
         provenance=provenance(bundle),
-        gpu_diag=gpu_diag(bundle),
+        runtime_resources=runtime_resources(bundle),
     )

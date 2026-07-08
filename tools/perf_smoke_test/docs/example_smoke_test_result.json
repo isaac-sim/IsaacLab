@@ -84,16 +84,21 @@
     "publish_only": {
       "hardware.gpu_compute_capability": "12.0",
       "hardware.gpu_total_memory_gb": 94.97,
-      "gpu_diag.cuda_version": "12.8",
-      "gpu_diag.nvidia_driver_version": "595.71.05"
+      "runtime_resources.cuda_version": "12.8",
+      "runtime_resources.nvidia_driver_version": "595.71.05"
     }
   },
-  "gpu_diag": {
+  "runtime_resources": {
     "gpu_name": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
     "gpu_total_memory_gb": 94.97,
     "cuda_version": "12.8",
     "nvidia_driver_version": "595.71.05",
-    "gpu_mem_used_mb": 798.72
+    "gpu_mem_used_mb": 798.72,
+    "gpu_mem_peak_mb": 851.97,
+    "gpu_util_pct": 96.4,
+    "system_ram_used_mb": 11894.27,
+    "system_ram_peak_mb": 12408.83,
+    "cpu_util_pct": 33.7
   },
   "provenance": {					-> Audit context: records the machine/software we actually ran on. Useful for debugging hardware or environment differences.
     "hardware": {

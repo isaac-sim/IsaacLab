@@ -46,24 +46,24 @@ def _field_list(policy: Mapping[str, Any], backend: BackendIdentity) -> list[str
     return fields
 
 
-def runtime_source(provenance: dict[str, Any] | None, gpu_diag: dict[str, Any] | None) -> dict[str, Any]:
+def runtime_source(provenance: dict[str, Any] | None, runtime_resources: dict[str, Any] | None) -> dict[str, Any]:
     provenance = provenance or {}
     return {
         "software": provenance.get("software") or {},
         "hardware": provenance.get("hardware") or {},
-        "gpu_diag": gpu_diag or {},
+        "runtime_resources": runtime_resources or {},
     }
 
 
 def build_runtime_contract(
     *,
     provenance: dict[str, Any] | None,
-    gpu_diag: dict[str, Any] | None,
+    runtime_resources: dict[str, Any] | None,
     backend: BackendIdentity,
     policy: Mapping[str, Any],
 ) -> tuple[dict[str, Any], str]:
     """Build the compatibility contract and hash used for baseline matching."""
-    source = runtime_source(provenance, gpu_diag)
+    source = runtime_source(provenance, runtime_resources)
     selected = {field: _get_path(source, field) for field in _field_list(policy, backend)}
     contract = {
         "runtime_contract_version": int(policy.get("contract_version", 1)),
@@ -75,11 +75,11 @@ def build_runtime_contract(
 def build_runtime_publish_info(
     *,
     provenance: dict[str, Any] | None,
-    gpu_diag: dict[str, Any] | None,
+    runtime_resources: dict[str, Any] | None,
     policy: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Return debug/runtime fields published for humans but not used for matching."""
-    source = runtime_source(provenance, gpu_diag)
+    source = runtime_source(provenance, runtime_resources)
     publish_only = {str(field): _get_path(source, str(field)) for field in policy.get("publish_only", [])}
     publish_only = {key: value for key, value in publish_only.items() if value is not None}
     return {

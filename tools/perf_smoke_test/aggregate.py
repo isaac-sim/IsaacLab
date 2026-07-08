@@ -126,16 +126,22 @@ def _build_summary_table(rows: list[tuple]) -> str:
         "|---|---|---|---:|---:|---:|---:|---:|---|---|---|---|---|---|",
     ]
     for result, bench_result in rows:
-        gpu_diag = bench_result.gpu_diag or {}
+        runtime_resources = bench_result.runtime_resources or {}
         launch_config = bench_result.launch_config or {}
-        gpu_name = gpu_diag.get("gpu_name") or launch_config.get("gpu_model_raw") or launch_config.get("gpu_model", "")
+        gpu_name = (
+            runtime_resources.get("gpu_name")
+            or launch_config.get("gpu_model_raw")
+            or launch_config.get("gpu_model", "")
+        )
         provenance = bench_result.provenance or {}
         software = provenance.get("software") or {}
         runtime = ", ".join(
             part
             for part in (
-                f"cuda={gpu_diag.get('cuda_version')}" if gpu_diag.get("cuda_version") else "",
-                f"driver={gpu_diag.get('nvidia_driver_version')}" if gpu_diag.get("nvidia_driver_version") else "",
+                f"cuda={runtime_resources.get('cuda_version')}" if runtime_resources.get("cuda_version") else "",
+                f"driver={runtime_resources.get('nvidia_driver_version')}"
+                if runtime_resources.get("nvidia_driver_version")
+                else "",
                 f"warp={software.get('warp')}" if software.get("warp") else "",
             )
             if part

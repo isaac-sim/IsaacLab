@@ -34,8 +34,8 @@ Examples: `NVIDIA L40S -> l40s`, `RTX6000 -> rtx_6000`, `NVIDIA GeForce RTX 5090
 Builds the runtime compatibility contract used for baseline matching. The matching code only sees `runtime_contract_hash`; package/version field selection stays in `gate_config.py`.
 
 ```python
-def build_runtime_contract(*, provenance: dict | None, gpu_diag: dict | None, backend: BackendIdentity, policy: Mapping[str, Any]) -> tuple[dict, str]
-def build_runtime_publish_info(*, provenance: dict | None, gpu_diag: dict | None, policy: Mapping[str, Any]) -> dict
+def build_runtime_contract(*, provenance: dict | None, runtime_resources: dict | None, backend: BackendIdentity, policy: Mapping[str, Any]) -> tuple[dict, str]
+def build_runtime_publish_info(*, provenance: dict | None, runtime_resources: dict | None, policy: Mapping[str, Any]) -> dict
 ```
 
 Default compatibility fields smoke test on top-level active-path packages: IsaacSim, IsaacLab, Torch, Warp, the active physics package (`isaaclab_physx` or `isaaclab_newton`/`newton`), and `isaaclab_ov` for renderer backends. CUDA version, NVIDIA driver, GPU memory, and compute capability are published for humans but do not affect the compatibility hash by default.
@@ -124,7 +124,7 @@ class OracleResult:
     measured_fps: float | None      # raw_fps_mean (steady-state mean); None on HARD_FAILURE
     baseline_fps: float | None      # baseline.median_fps; None if no baseline
     regression_pct: float | None    # ((measured - baseline) / baseline) × 100; None if no baseline
-    gpu_mem_used_mb: float | None   # From bench_result.gpu_diag [informational]
+    gpu_mem_used_mb: float | None   # From bench_result.runtime_resources [informational]
     startup_time_s: float | None    # From bench_result [informational]
     wall_time_s: float | None       # From bench_result [informational]
     was_retried: bool               # Whether Phase 1 succeeded only after a retry
@@ -550,12 +550,17 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
   "raw_fps_std": 9800.0,
   "raw_fps_min": 1632000.0,
   "raw_fps_max": 1680000.0,
-  "gpu_diag": {
+  "runtime_resources": {
     "gpu_name": "NVIDIA L40S",
     "gpu_total_memory_gb": 45.62,
     "cuda_version": "12.1",
     "nvidia_driver_version": "550.54.15",
-    "gpu_mem_used_mb": 18432.0
+    "gpu_mem_used_mb": 18432.0,
+    "gpu_mem_peak_mb": 19456.0,
+    "gpu_util_pct": 95.0,
+    "system_ram_used_mb": 30720.0,
+    "system_ram_peak_mb": 31744.0,
+    "cpu_util_pct": 40.0
   },
   "provenance": {
     "hardware": {
@@ -604,7 +609,7 @@ Each entry in `backends` becomes one `TaskConfig`. `backend_key = physics` when 
   },
   "runtime_info": {
     "software": {"warp": "1.6.0"},
-    "publish_only": {"gpu_diag.cuda_version": "12.1"}
+    "publish_only": {"runtime_resources.cuda_version": "12.1"}
   },
   "task_config_snapshot": {
     "task_id": "Isaac-Velocity-Flat-G1-v0",
@@ -643,16 +648,18 @@ All fields below are projected from the `RuntimeBundle` by
 | `raw_fps_min` | `run.num_envs / runtime.iteration_time_s.peak` | Recovered from the slowest steady-state step |
 | `raw_fps_median`, `raw_fps_p5`, `raw_fps_p95`, `p99_over_median`, `outlier_count` | — (removed) | Not emitted: the schema keeps only aggregates (these needed the raw series), and they were never gating. `raw_fps_std`/`raw_fps_min` cover the tail |
 | `startup_time_s` | sum of `runtime.startup_time_s.*` phases | app_launch + env_creation + first_step + python_imports |
-| `gpu_diag.gpu_mem_used_mb` | `resources.gpu_mem_gb.mean` | Converted from GB |
-| `gpu_diag.gpu_name`, `.gpu_total_memory_gb` | `hardware.gpu_devices[0].{name,mem_gb}` | |
-| `gpu_diag.cuda_version` | `versions.cuda_bindings` | CUDA bindings version used as a display proxy (schema-v1 has no CUDA-runtime field) |
-| `gpu_diag.nvidia_driver_version` | `nvidia-smi` subprocess at post-processing time | `null` if nvidia-smi unavailable |
+| `runtime_resources.gpu_mem_used_mb`, `.gpu_mem_peak_mb` | `resources.gpu_mem_gb.{mean,peak}` | Device-wide VRAM (nvidia-smi); converted GB→MB |
+| `runtime_resources.system_ram_used_mb`, `.system_ram_peak_mb` | `resources.ram_gb.{mean,peak}` | Benchmark **process** RSS (psutil), not whole-host RAM; converted GB→MB |
+| `runtime_resources.gpu_util_pct`, `.cpu_util_pct` | `resources.{gpu_util_pct,cpu_util_pct}.mean` | Mean utilisation [%] |
+| `runtime_resources.gpu_name`, `.gpu_total_memory_gb` | `hardware.gpu_devices[0].{name,mem_gb}` | |
+| `runtime_resources.cuda_version` | `versions.cuda_bindings` | CUDA bindings version used as a display proxy (schema-v1 has no CUDA-runtime field) |
+| `runtime_resources.nvidia_driver_version` | `nvidia-smi` subprocess at post-processing time | `null` if nvidia-smi unavailable |
 | `provenance.hardware` | `hardware` snapshot | CPU, GPU, RAM identity |
 | `provenance.software` | `versions` map (verbatim, minus `git_*` keys) | Package versions |
 | `provenance.git` | `versions.git_commit`/`git_branch`/`git_dirty` | commit, branch, dirty flag |
 
 Key fields the oracle reads: `perf_smoke_test_info_present`, `raw_fps_mean`,
-`failure_phase`, `config_mismatch`, `was_retried`, `gpu_diag.gpu_mem_used_mb`,
+`failure_phase`, `config_mismatch`, `was_retried`, `runtime_resources.gpu_mem_used_mb`,
 `startup_time_s`, `wall_time_s`.
 
 `raw_fps_mean` is the steady-state mean the oracle gates on; `raw_fps_std`/`_min`/`_max`
@@ -720,7 +727,7 @@ objects or prefixed measurement names. Abbreviated (many `versions.*` fields omi
 `benchmark_result_adapter` reads this bundle: the gate metric `raw_fps_mean` comes from
 `runtime.total_fps.mean` (steady-state — warmup was excluded at the source by
 `perf_runtime.py --warmup_frames`), `raw_fps_min` from `run.num_envs /
-runtime.iteration_time_s.peak`, and provenance/`gpu_diag` from `versions`, `hardware`,
+runtime.iteration_time_s.peak`, and provenance/`runtime_resources` from `versions`, `hardware`,
 and `resources`. The bundle stores only aggregates, so the raw per-frame FPS series (and
 hence percentiles) is not available.
 

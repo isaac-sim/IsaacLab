@@ -52,8 +52,8 @@ DEFAULT_RUNTIME_COMPATIBILITY = {
     "publish_only": [
         "hardware.gpu_compute_capability",
         "hardware.gpu_total_memory_gb",
-        "gpu_diag.cuda_version",
-        "gpu_diag.nvidia_driver_version",
+        "runtime_resources.cuda_version",
+        "runtime_resources.nvidia_driver_version",
     ],
 }
 

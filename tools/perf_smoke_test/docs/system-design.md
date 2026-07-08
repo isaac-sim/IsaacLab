@@ -126,7 +126,7 @@ IsaacLab/
         │                                 Isaac Lab benchmark core; writes a schema-v1
         │                                 RuntimeBundle (benchmark_runtime_*.json)
         ├── benchmark_result_adapter.py   RuntimeBundle → typed RuntimeSample projection
-        │                                 (FPS aggregates, provenance, gpu_diag)
+        │                                 (FPS aggregates, provenance, runtime_resources)
         ├── contracts.py                  typed gate artifacts (schema v1): RuntimeSample
         │                                 + BenchResult (perf_smoke_test_result.json)
         ├── build_bench_result.py         Phase 2: copies the runtime bundle, projects it
@@ -403,12 +403,17 @@ for local testing.
   "raw_fps_std": 9800.0,
   "raw_fps_min": 1632000.0,
   "raw_fps_max": 1680000.0,
-  "gpu_diag": {
+  "runtime_resources": {
     "gpu_name": "NVIDIA L40S",
     "gpu_total_memory_gb": 45.62,
     "cuda_version": "12.1",
     "nvidia_driver_version": "550.54.15",
-    "gpu_mem_used_mb": 18432.0
+    "gpu_mem_used_mb": 18432.0,
+    "gpu_mem_peak_mb": 19456.0,
+    "gpu_util_pct": 95.0,
+    "system_ram_used_mb": 30720.0,
+    "system_ram_peak_mb": 31744.0,
+    "cpu_util_pct": 40.0
   },
   "provenance": {
     "hardware": { "cpu_name": "...", "gpu_name": "NVIDIA L40S", "cuda_version": "12.1", "..." : "..." },
@@ -489,8 +494,14 @@ the true run-to-run variance distribution.
 
 ### 13.3 Memory tracking scope
 
-**Current state:** `gpu_diag.gpu_mem_used_mb` is captured and surfaced in `OracleResult`
-as an informational field. No memory regression threshold yet.
+**Current state:** the `runtime_resources` block carries an informational (non-gating)
+snapshot of the run's resource utilisation, projected from the bundle's `resources`
+section: VRAM (`gpu_mem_used_mb` mean + `gpu_mem_peak_mb`), process-RSS system RAM
+(`system_ram_used_mb` mean + `system_ram_peak_mb`), and GPU/CPU utilisation
+(`gpu_util_pct`, `cpu_util_pct`). `gpu_mem_used_mb` is additionally surfaced on
+`OracleResult`. None of these gate the verdict or feed `runtime_contract_hash` — no
+memory regression threshold yet. Note `gpu_mem_*` is device-wide (nvidia-smi) while
+`system_ram_*` is the benchmark process's RSS (psutil), not whole-host RAM.
 
 ---
 

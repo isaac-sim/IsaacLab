@@ -236,13 +236,13 @@ def main() -> int:
             observed_backend = backend_identity_from_benchmark_info(benchmark_info)
             runtime_contract, runtime_contract_hash = build_runtime_contract(
                 provenance=sample.provenance,
-                gpu_diag=sample.gpu_diag,
+                runtime_resources=sample.runtime_resources,
                 backend=expected_backend,
                 policy=runtime_policy,
             )
             runtime_info = build_runtime_publish_info(
                 provenance=sample.provenance,
-                gpu_diag=sample.gpu_diag,
+                runtime_resources=sample.runtime_resources,
                 policy=runtime_policy,
             )
             config_mismatch = _config_drift(benchmark_info, launch_config)
@@ -278,7 +278,7 @@ def main() -> int:
         runtime_contract=runtime_contract,
         runtime_contract_hash=runtime_contract_hash,
         runtime_info=runtime_info,
-        gpu_diag=(sample.gpu_diag or None) if sample else None,
+        runtime_resources=(sample.runtime_resources or None) if sample else None,
         provenance=sample.provenance if sample else None,
         launch_config=launch_config,
         launch_config_hash=launch_config.get("launch_config_hash"),

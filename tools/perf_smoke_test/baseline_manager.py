@@ -311,7 +311,7 @@ def make_sample_metadata(
     provenance = bench_result.get("provenance") or {}
     git_info = provenance.get("git") or {}
     software = provenance.get("software") or {}
-    gpu_diag = bench_result.get("gpu_diag") or {}
+    runtime_resources = bench_result.get("runtime_resources") or {}
     metadata = {
         "schema_version": 1,
         "fps": float(fps),
@@ -345,8 +345,8 @@ def make_sample_metadata(
         "runtime": {
             "isaacsim": software.get("isaacsim"),
             "warp": software.get("warp"),
-            "cuda": (gpu_diag or {}).get("cuda_version"),
-            "driver": (gpu_diag or {}).get("nvidia_driver_version"),
+            "cuda": (runtime_resources or {}).get("cuda_version"),
+            "driver": (runtime_resources or {}).get("nvidia_driver_version"),
         },
     }
     metadata["sample_id"] = _stable_sample_id(metadata)

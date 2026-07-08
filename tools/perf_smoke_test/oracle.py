@@ -143,7 +143,7 @@ def compare(
     was_retried: bool = bool(bench_result.was_retried)
     startup_time_s: float | None = bench_result.startup_time_s
     wall_time_s: float | None = bench_result.wall_time_s
-    gpu_mem_used_mb: float | None = (bench_result.gpu_diag or {}).get("gpu_mem_used_mb")
+    gpu_mem_used_mb: float | None = (bench_result.runtime_resources or {}).get("gpu_mem_used_mb")
 
     config_mismatch = bench_result.config_mismatch
     if config_mismatch or failure_phase == FailurePhase.CONFIG_MISMATCH.value:
