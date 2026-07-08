@@ -104,6 +104,12 @@ emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
 formatter writes timestamped output; the Osmo formatter writes one
 phase-suffixed JSON file per phase.
 
+The examples below use ``uv run isaaclab benchmark``. From an existing
+Isaac Lab environment, run the same workflows directly instead:
+
+* Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
+* Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
+
 Non-RL / Runtime Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
