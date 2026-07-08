@@ -102,8 +102,10 @@ def _apply_isaac_rtx_global_settings(
             import omni.replicator.core as rep
 
             rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-        except Exception:
-            pass
+        except ImportError:
+            logger.warning("omni.replicator.core is unavailable; skipping antialiasing_mode=%s.", antialiasing_mode)
+        except Exception as exc:
+            logger.warning("Failed to apply antialiasing_mode=%s: %s", antialiasing_mode, exc)
 
 
 def _get_stage_streaming_busy() -> bool:
