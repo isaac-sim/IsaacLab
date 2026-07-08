@@ -1,0 +1,50 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Testmon Selection Summary'
+description: >
+  Downloads the per-job Testmon selection-graph fragments, assembles them into one
+  Markdown body, renders it to the workflow run's job summary, and uploads it as an
+  artifact. This performs no API writes, so it works in the read-only token context of a
+  fork's pull_request event (no pull-requests:write permission required).
+
+inputs:
+  pr-number:
+    description: 'Pull request number the selection applies to (recorded in the artifact)'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Download selection-graph fragments
+      uses: actions/download-artifact@v7
+      with:
+        pattern: testmon-graph-*
+        path: testmon-graph-fragments
+        merge-multiple: true
+      continue-on-error: true
+
+    - name: Assemble and publish selection summary
+      shell: bash
+      env:
+        PR_NUMBER: ${{ inputs.pr-number }}
+      run: |
+        set -euo pipefail
+        out_dir="$RUNNER_TEMP/testmon-selection-summary"
+        mkdir -p "$out_dir"
+        python3 .github/actions/testmon-selection-summary/assemble_selection_summary.py \
+          testmon-graph-fragments --output "$out_dir/summary.md"
+        # Render on the run page's job summary so reviewers can read it without a PR comment.
+        cat "$out_dir/summary.md" >> "$GITHUB_STEP_SUMMARY"
+        # Record the PR number for anyone consuming the artifact downstream.
+        printf '%s\n' "$PR_NUMBER" > "$out_dir/pr-number.txt"
+
+    - name: Upload selection summary
+      uses: actions/upload-artifact@v7
+      with:
+        name: testmon-selection-summary
+        path: ${{ runner.temp }}/testmon-selection-summary
+        retention-days: 7

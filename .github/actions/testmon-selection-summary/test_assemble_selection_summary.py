@@ -3,30 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for assembling the Testmon selection-graph sticky comment."""
+"""Tests for assembling the Testmon selection-graph job summary."""
 
 import importlib.util
 from pathlib import Path
 
-_MODULE_PATH = Path(__file__).with_name("assemble_selection_comment.py")
-_SPEC = importlib.util.spec_from_file_location("assemble_selection_comment", _MODULE_PATH)
+_MODULE_PATH = Path(__file__).with_name("assemble_selection_summary.py")
+_SPEC = importlib.util.spec_from_file_location("assemble_selection_summary", _MODULE_PATH)
 assert _SPEC and _SPEC.loader
 _MODULE = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_MODULE)
 
 
-def test_assemble_includes_marker_and_fragments() -> None:
-    body = _MODULE.assemble_comment(["### job A\ngraph a", "### job B\ngraph b"])
+def test_assemble_includes_header_and_fragments() -> None:
+    body = _MODULE.assemble_summary(["### job A\ngraph a", "### job B\ngraph b"])
 
-    assert body.startswith(_MODULE.MARKER)
+    assert "Testmon affected-test selection" in body
     assert "### job A" in body
     assert "### job B" in body
 
 
 def test_assemble_empty_emits_note() -> None:
-    body = _MODULE.assemble_comment([])
+    body = _MODULE.assemble_summary([])
 
-    assert _MODULE.MARKER in body
     assert "No affected-test selection ran" in body
 
 
@@ -40,7 +39,7 @@ def test_assemble_strips_mermaid_when_over_budget(monkeypatch) -> None:
         "```\n"
         "| Changed file | Test files |\n|---|---|\n| a.py | test_a.py |\n"
     )
-    body = _MODULE.assemble_comment([fragment])
+    body = _MODULE.assemble_summary([fragment])
 
     assert "```mermaid" not in body
     assert "diagram omitted" in body
@@ -52,7 +51,7 @@ def test_assemble_hard_truncates_when_still_too_large(monkeypatch) -> None:
     monkeypatch.setattr(_MODULE, "_SIZE_BUDGET", 300)
     # A fragment with no mermaid block that still blows the budget.
     fragment = "### job A\n" + ("x" * 5000)
-    body = _MODULE.assemble_comment([fragment])
+    body = _MODULE.assemble_summary([fragment])
 
     assert len(body) <= 300
     assert "truncated to fit" in body
@@ -77,11 +76,11 @@ def test_main_writes_output(tmp_path: Path) -> None:
     frag_dir = tmp_path / "frags"
     frag_dir.mkdir()
     (frag_dir / "a.md").write_text("### job A\ngraph a", encoding="utf-8")
-    out = tmp_path / "comment.md"
+    out = tmp_path / "summary.md"
 
     rc = _MODULE.main([str(frag_dir), "--output", str(out)])
 
     assert rc == 0
     written = out.read_text(encoding="utf-8")
-    assert _MODULE.MARKER in written
+    assert "Testmon affected-test selection" in written
     assert "### job A" in written

@@ -67,7 +67,9 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
+  # Read-only: this workflow only reads a PR's changed files. The Testmon selection graph
+  # is surfaced via the job summary and an artifact, so no PR-write access is needed.
+  pull-requests: read
   checks: write
   issues: read
 
@@ -786,11 +788,12 @@ jobs:
         omni-github-test-type: rendering-correctness-kitless
   #endregion
 
-  # Aggregate every job's Testmon selection-graph fragment into one sticky PR comment
-  # explaining which affected tests ran and why. Runs regardless of test outcome so the
-  # comment appears even when some jobs fail; a no-op on non-PR events.
-  testmon-selection-comment:
-    name: Testmon Selection Comment
+  # Aggregate every job's Testmon selection-graph fragment into one Markdown body, publish
+  # it to this run's job summary, and upload it as an artifact. Runs regardless of test
+  # outcome so it appears even when some jobs fail; a no-op on non-PR events. Uses no API
+  # writes, so it works on fork PRs (whose pull_request token is read-only).
+  testmon-selection-summary:
+    name: Testmon Selection Summary
     runs-on: ubuntu-latest
     if: always() && github.event_name == 'pull_request'
     needs:
@@ -818,11 +821,9 @@ jobs:
     - uses: actions/checkout@v6
       with:
         fetch-depth: 1
-    - uses: ./.github/actions/testmon-selection-comment
+    - uses: ./.github/actions/testmon-selection-summary
       with:
         pr-number: ${{ github.event.pull_request.number }}
-        repo: ${{ github.repository }}
-        github-token: ${{ github.token }}
 
 #region disabled quarantined tests
 # test-quarantined:
