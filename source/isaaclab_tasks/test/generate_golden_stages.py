@@ -14,6 +14,11 @@ exit (the ``removeHydraEngineImpl - found not in use hydra engine`` warning is t
 thing printed). pytest has already finished and written its JUnit report by then, so this
 script never trusts the child's exit code: it recovers the real outcome from the report
 and hard-kills the (possibly shutdown-hung) process tree so the pipeline can proceed.
+
+This driver is Linux/POSIX-only: it relies on process-group semantics
+(:func:`os.setsid` via ``start_new_session``, :func:`os.getpgid`, :func:`os.killpg`, and
+``SIGKILL``) to reap the Kit process tree, none of which exist on Windows. Run it on the
+CI platform, not a local Windows checkout.
 """
 
 from __future__ import annotations

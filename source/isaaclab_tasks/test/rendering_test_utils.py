@@ -296,7 +296,8 @@ def maybe_save_stage(
         stage_path = tmp_file.name
 
     try:
-        sim_utils.save_stage(stage_path, save_and_reload_in_place=False)
+        if not sim_utils.save_stage(stage_path, save_and_reload_in_place=False):
+            pytest.fail(f"save_stage reported failure while writing the USD stage to {stage_path}.")
         with open(stage_path, encoding="utf-8") as file:
             stage_text = file.read()
 
@@ -311,10 +312,21 @@ def maybe_save_stage(
             import difflib
             import re
 
+            def _normalize_asset_reference(match: re.Match) -> str:
+                # Normalize asset reference targets (``@...@``) so goldens stay portable:
+                # Windows exports use ``\`` separators while Linux uses ``/``, and the Isaac
+                # assets root carries a version segment (e.g. ``Isaac/6.0``) that bumps between
+                # releases. Masking both keeps the baseline stable across platforms and asset
+                # releases while still detecting real scene-composition changes.
+                path = match.group(1).replace("\\", "/")
+                path = re.sub(r"(/Isaac/)\d+(?:\.\d+)*/", r"\1<VERSION>/", path)
+                return f"@{path}@"
+
             def _canonicalize_stage_text(text: str) -> str:
                 text = text.replace("\r\n", "\n")
                 text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
                 text = re.sub(r"anon:0x[0-9a-fA-F]+:[^\s\"')>]+", "<ANON_LAYER>", text)
+                text = re.sub(r"@([^@]*)@", _normalize_asset_reference, text)
                 return "\n".join(line.rstrip() for line in text.split("\n"))
 
             golden_dir = os.path.join(_GOLDEN_STAGES_DIRECTORY, test_name)

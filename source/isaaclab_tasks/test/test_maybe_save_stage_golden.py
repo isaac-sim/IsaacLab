@@ -89,6 +89,42 @@ def test_maybe_save_stage_fails_on_stage_mismatch(golden_stage_dir: Path):
             )
 
 
+def test_maybe_save_stage_normalizes_platform_and_asset_version(golden_stage_dir: Path):
+    """A Windows-generated golden matches a Linux export despite path separators and asset version.
+
+    The baseline is bootstrapped from a Windows-style export (backslash separators, asset
+    version ``6.0``); a later export using Linux-style forward slashes and a bumped ``6.1``
+    version must still compare equal after canonicalization.
+    """
+    windows_stage = (
+        'def Xform "Robot" (\n'
+        "    prepend references = @Assets\\Isaac\\6.0\\Isaac\\IsaacLab\\Robots\\Cartpole\\cartpole.usd@\n"
+        ")\n{\n}\n"
+    )
+    linux_stage = (
+        'def Xform "Robot" (\n'
+        "    prepend references = @Assets/Isaac/6.1/Isaac/IsaacLab/Robots/Cartpole/cartpole.usd@\n"
+        ")\n{\n}\n"
+    )
+
+    with mock.patch("isaaclab.sim.save_stage", return_value=True) as save_stage_mock:
+        exported = {"text": windows_stage}
+
+        def _write_stage(path: str, save_and_reload_in_place: bool = True) -> bool:
+            Path(path).write_text(exported["text"], encoding="utf-8")
+            return True
+
+        save_stage_mock.side_effect = _write_stage
+
+        # Pass 1: bootstrap the golden from the Windows-style export.
+        with pytest.raises(pytest.fail.Exception, match="Golden stage not found"):
+            maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
+
+        # Pass 2: a Linux-style export with a bumped asset version must still match.
+        exported["text"] = linux_stage
+        maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
+
+
 def test_maybe_save_stage_noop_without_dump_or_compare():
     """maybe_save_stage remains a no-op unless compare_golden or ISAAC_LAB_SAVE_STAGES is set."""
     with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
