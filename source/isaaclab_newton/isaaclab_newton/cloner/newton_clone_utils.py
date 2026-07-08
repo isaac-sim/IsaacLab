@@ -29,7 +29,8 @@ def _add_global_stage_to_builder(
     """Import global prims without parsing custom rows from ignored clone subtrees.
 
     Newton's built-in USD import honors ``ignore_paths``, but its custom-frequency
-    traversal currently does not. MuJoCo frequencies are also registered from
+    traversal currently does not (upstream: newton-physics/newton#3405; this
+    workaround can be dropped once the fix lands in the pinned Newton version). MuJoCo frequencies are also registered from
     inside :meth:`ModelBuilder.add_usd`, so both existing and newly registered
     callbacks are scoped for this import and restored afterward.
     """
