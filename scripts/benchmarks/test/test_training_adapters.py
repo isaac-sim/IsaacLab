@@ -10,16 +10,23 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from scripts.benchmarks.rsl_rl import bench_rsl_rl
-from scripts.benchmarks.sb3 import bench_sb3
-from scripts.benchmarks.skrl import bench_skrl
+from scripts.benchmarks import training
+from scripts.benchmarks.rsl_rl import train_benchmark as train_rsl_rl
+from scripts.benchmarks.sb3 import train_benchmark as train_sb3
+from scripts.benchmarks.skrl import train_benchmark as train_skrl
+
+
+@pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
+def test_training_dispatches_libraries_to_train_benchmark_adapters(library: str):
+    """The training dispatcher uses the shared train-benchmark adapter name."""
+    assert training.LIBRARY_ENTRYPOINTS[library].name == "train_benchmark.py"
 
 
 def test_rsl_rl_disables_code_state_capture():
     logger = SimpleNamespace(git_status_repos=["rsl_rl.py"])
     runner = SimpleNamespace(logger=logger)
 
-    bench_rsl_rl._disable_code_state_capture(runner)
+    train_rsl_rl._disable_code_state_capture(runner)
 
     assert logger.git_status_repos == []
 
@@ -27,9 +34,9 @@ def test_rsl_rl_disables_code_state_capture():
 def test_sb3_iteration_time_includes_policy_update(monkeypatch: pytest.MonkeyPatch):
     """Test that SB3 reports collection time separately from the full training iteration."""
     timestamps = iter([1_000_000_000, 1_000_000_000, 3_000_000_000, 6_000_000_000])
-    monkeypatch.setattr(bench_sb3.time, "perf_counter_ns", lambda: next(timestamps))
+    monkeypatch.setattr(train_sb3.time, "perf_counter_ns", lambda: next(timestamps))
 
-    callback = bench_sb3._build_benchmark_callback_class()()
+    callback = train_sb3._build_benchmark_callback_class()()
     callback.model = SimpleNamespace(ep_info_buffer=[])
     callback._on_training_start()
     callback._on_rollout_start()
@@ -70,8 +77,8 @@ def test_skrl_reward_uses_episode_return_tracking(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr(SequentialTrainer, "train", run_two_steps)
     timestamps = iter([1_000_000_000, 3_000_000_000, 6_000_000_000, 6_000_000_000])
-    monkeypatch.setattr(bench_skrl.time, "perf_counter_ns", lambda: next(timestamps))
-    trainer_class = bench_skrl._build_benchmark_trainer_class()
+    monkeypatch.setattr(train_skrl.time, "perf_counter_ns", lambda: next(timestamps))
+    trainer_class = train_skrl._build_benchmark_trainer_class()
     trainer = trainer_class.__new__(trainer_class)
     trainer.env = FakeEnv()
     trainer.agents = FakeAgent()
@@ -95,6 +102,6 @@ def test_skrl_parser_rejects_unimplemented_modes():
 
     for option, value in unsupported:
         with pytest.raises(SystemExit):
-            bench_skrl._parse_args(["--task", "unused", option, value])
+            train_skrl._parse_args(["--task", "unused", option, value])
     with pytest.raises(SystemExit):
-        bench_skrl._parse_args(["--task", "unused", "--distributed"])
+        train_skrl._parse_args(["--task", "unused", "--distributed"])

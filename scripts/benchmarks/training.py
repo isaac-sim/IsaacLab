@@ -22,10 +22,10 @@ if str(_RL_SCRIPTS) not in sys.path:
 from common import dispatch_library_entrypoint  # noqa: E402
 
 LIBRARY_ENTRYPOINTS = {
-    "rsl_rl": _SCRIPT_DIR / "rsl_rl" / "bench_rsl_rl.py",
-    "rl_games": _SCRIPT_DIR / "rl_games" / "bench_rl_games.py",
-    "skrl": _SCRIPT_DIR / "skrl" / "bench_skrl.py",
-    "sb3": _SCRIPT_DIR / "sb3" / "bench_sb3.py",
+    "rsl_rl": _SCRIPT_DIR / "rsl_rl" / "train_benchmark.py",
+    "rl_games": _SCRIPT_DIR / "rl_games" / "train_benchmark.py",
+    "skrl": _SCRIPT_DIR / "skrl" / "train_benchmark.py",
+    "sb3": _SCRIPT_DIR / "sb3" / "train_benchmark.py",
 }
 
 
