@@ -1134,7 +1134,6 @@ def _make_graphed_contact_sensor(num_envs: int = 2):
     sensor._contact_binding = _FakeContactBinding(net_forces_torch)
     sensor._root_view = None
     sensor._pose_binding = None
-    sensor._physx_instance = None
     sensor._timestamp = wp.zeros(num_envs, dtype=wp.float32, device=device)
     sensor._timestamp_last_update = wp.zeros(num_envs, dtype=wp.float32, device=device)
     sensor._resolve_indices_and_mask = lambda env_ids, mask: mask
@@ -1166,6 +1165,7 @@ def test_contact_graph_replay_sees_refreshed_reads_and_mask():
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor._device)
+    assert sensor._update_graph.is_captured
     forces_before = wp.to_torch(sensor._data._net_forces_w).clone()
     assert sensor._contact_binding.read_count == 1
 

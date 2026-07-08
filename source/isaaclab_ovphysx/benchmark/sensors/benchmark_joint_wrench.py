@@ -39,7 +39,6 @@ import torch
 import warp as wp
 from isaaclab_ovphysx.physics import OvPhysxCfg
 
-import isaaclab.sim as sim_utils  # noqa: F401
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context

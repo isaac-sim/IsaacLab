@@ -1089,18 +1089,26 @@ def _make_graphed_frame_transformer(num_envs: int = 2):
 def test_frame_transformer_graph_replay_sees_refreshed_reads_and_mask():
     """Replays must consume freshly read body poses and in-place mask changes."""
     sensor, target_view, env_mask = _make_graphed_frame_transformer(num_envs=2)
+    source_view = sensor._body_views[0]
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor._device)
+    assert sensor._update_graph.is_captured
+    source_pos_before = wp.to_torch(sensor._data._source_pos_w).clone()
     target_pos_before = wp.to_torch(sensor._data._target_pos_w).clone()
     assert target_view.read_count == 1
 
+    # Refresh both Phase-1 read legs in place so each is pinned independently.
+    source_view._poses_torch[:, :3] *= 10.0
     target_view._poses_torch[:, :3] *= 10.0
     wp.to_torch(env_mask)[:] = torch.tensor([False, True], device=sensor._device)
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor._device)
 
     assert target_view.read_count == 2  # fetch still runs eagerly on replay
+    source_pos_after = wp.to_torch(sensor._data._source_pos_w)
+    torch.testing.assert_close(source_pos_after[0], source_pos_before[0])  # masked-off env untouched
+    assert not torch.allclose(source_pos_after[1], source_pos_before[1])  # masked-on env refreshed
     target_pos_after = wp.to_torch(sensor._data._target_pos_w)
     torch.testing.assert_close(target_pos_after[0], target_pos_before[0])  # masked-off env untouched
     assert not torch.allclose(target_pos_after[1], target_pos_before[1])  # masked-on env refreshed

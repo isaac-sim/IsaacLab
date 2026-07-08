@@ -70,7 +70,7 @@ class FrameTransformerBenchmarkSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.5, 0.0, 0.5)),
     )
-    frame_transformer: FrameTransformerCfg = None
+    frame_transformer: FrameTransformerCfg | None = None
 
 
 def _percentile(samples: list[float], percentile: float) -> float:

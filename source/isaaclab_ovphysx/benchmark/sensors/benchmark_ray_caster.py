@@ -64,7 +64,7 @@ class RayCasterBenchmarkSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )
-    ray_caster: RayCasterCfg = None
+    ray_caster: RayCasterCfg | None = None
 
 
 def _percentile(samples: list[float], percentile: float) -> float:
@@ -133,15 +133,12 @@ def main() -> None:
                 wp.synchronize_device(sim.device)
                 finished = time.perf_counter()
                 read_only_ms.append((finished - start) * 1000.0)
-        else:
-            read_only_ms = [0.0]
 
         ray_hits = sensor.data.ray_hits_w.torch
         finite_hits = int(torch.isfinite(ray_hits).all(dim=-1).sum().item())
         expected_hits = args_cli.num_envs * sensor.num_rays
 
         full_mean = statistics.mean(synchronized_ms)
-        read_mean = statistics.mean(read_only_ms)
         print("-" * 80)
         print("RayCaster update benchmark (OVPhysX)")
         print(f"  label                  : {args_cli.label}")
@@ -155,10 +152,14 @@ def main() -> None:
         print(f"  submission mean        : {statistics.mean(submission_ms):.3f} ms")
         print(f"  submission p50         : {_percentile(submission_ms, 0.50):.3f} ms")
         print(f"  submission p95         : {_percentile(submission_ms, 0.95):.3f} ms")
-        print(f"  read-only mean         : {read_mean:.3f} ms")
-        print(f"  read-only p50          : {_percentile(read_only_ms, 0.50):.3f} ms")
-        print(f"  read-only p95          : {_percentile(read_only_ms, 0.95):.3f} ms")
-        print(f"  implied kernel tail    : {full_mean - read_mean:.3f} ms")
+        if read_only_ms:
+            read_mean = statistics.mean(read_only_ms)
+            print(f"  read-only mean         : {read_mean:.3f} ms")
+            print(f"  read-only p50          : {_percentile(read_only_ms, 0.50):.3f} ms")
+            print(f"  read-only p95          : {_percentile(read_only_ms, 0.95):.3f} ms")
+            print(f"  implied kernel tail    : {full_mean - read_mean:.3f} ms")
+        else:
+            print("  read-only phase        : n/a (no body view)")
         print("-" * 80)
         print(f"  finite ray hits        : {finite_hits} / {expected_hits}")
 

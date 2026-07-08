@@ -39,6 +39,7 @@ args_cli = parser.parse_args()
 import statistics
 import time
 
+import isaaclab_ovphysx.tensor_types as TT
 import torch
 import warp as wp
 from isaaclab_ovphysx.physics import OvPhysxCfg
@@ -81,8 +82,6 @@ def _percentile(samples: list[float], percentile: float) -> float:
 
 def _read_only(sensor) -> None:
     """Issue only the native OVPhysX reads performed by ``_update_buffers_impl``."""
-    import isaaclab_ovphysx.tensor_types as TT
-
     sensor._root_view.read_into(TT.RIGID_BODY_POSE, sensor._transforms)
     sensor._root_view.read_into(TT.RIGID_BODY_VELOCITY, sensor._velocities)
     if args_cli.sensor == "imu":

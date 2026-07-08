@@ -280,8 +280,9 @@ class _OvPhysxRayCasterMixin:
         self._mesh_views = []
         self._mesh_view_bufs = {}
 
-        # The captured graph reads the staging buffer refreshed above; drop it so
-        # the next play re-captures against freshly created handles.
+        # The captured graph reads staging buffers tied to the view handles
+        # destroyed above; drop it so the next play re-captures against freshly
+        # created handles.
         graph = getattr(self, "_update_graph", None)
         if graph is not None:
             graph.invalidate()

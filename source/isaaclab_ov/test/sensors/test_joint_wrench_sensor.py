@@ -594,6 +594,7 @@ def test_joint_wrench_graph_replay_sees_refreshed_reads_and_mask():
 
     sensor._update_buffers_impl(env_mask)
     wp.synchronize_device(sensor._device)
+    assert sensor._update_graph.is_captured
     force_before = wp.to_torch(sensor._data._force).clone()
     assert sensor._root_view.read_count == 1
 

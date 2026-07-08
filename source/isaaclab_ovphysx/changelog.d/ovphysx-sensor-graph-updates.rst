@@ -7,4 +7,5 @@ Changed
   The blocking OvPhysX tensor reads still run eagerly since they cannot be
   graph-captured. Updating any OvPhysX sensor (including the IMU and PVA
   sensors) while an outer CUDA graph capture is active now raises an error,
-  since replays of such a graph would consume stale data.
+  since replays of such a graph would consume stale data. Code that captures
+  its own CUDA graphs should update sensors outside the captured region.
