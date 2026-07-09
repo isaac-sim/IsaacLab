@@ -1,0 +1,356 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Perf Smoke - Infra Probe
+#
+# Throwaway workflow that validates the infrastructure the perf-smoke gate depends
+# on, in the real isaac-sim/IsaacLab repo context, BEFORE we open the full gate PR.
+# It runs on a same-repo branch so it has access to the self-hosted GPU runners,
+# NGC secrets, and a write-capable GITHUB_TOKEN that fork PRs do not get.
+#
+# It answers, one probe step per question:
+#   1. Does runs-on [self-hosted, gpu] land on the intended L40S pool?
+#   2. Is Docker present with working --gpus all passthrough?
+#   3. Can we log into nvcr.io and pull the IsaacLab CI image (NGC_API_KEY)?
+#   4. Does the pulled image + source overlay + _isaac_sim symlink import IsaacLab?
+#   5. Can the workflow token write to the perf-baselines branch?
+#   6. Does an omni-github artifact upload with the correct name contract?
+#
+# Every probe is non-destructive and best-effort: steps continue-on-error so a
+# single failure never masks the others, and a final summary aggregates the
+# verdicts (and fails the job if any critical probe failed). The baseline-write
+# probe defaults to a dry-run; a real create+delete of a throwaway ref only runs
+# when explicitly requested via the workflow_dispatch input.
+
+name: Perf Smoke - Infra Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      baseline_write_mode:
+        description: "perf-baselines write probe: 'dry_run' (default, no ref changes) or 'real' (create+delete a throwaway ref to conclusively prove write)."
+        type: choice
+        options: [dry_run, real]
+        default: dry_run
+  push:
+    branches: ['perf-smoke/**']
+
+concurrency:
+  group: perf-smoke-infra-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write   # probe whether the token can write to perf-baselines
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  PROBE_IMAGE_TAG: perf-smoke-probe:local
+  BASELINE_BRANCH: perf-baselines
+
+jobs:
+  probe:
+    name: Infra Probe (self-hosted GPU)
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    timeout-minutes: 60
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        lfs: true
+
+    # ---- Probe 1: runner identity + GPU model --------------------------------
+    - name: Probe runner + GPU identity
+      id: gpu
+      continue-on-error: true
+      run: |
+        set -uo pipefail
+        echo "runner.name=${RUNNER_NAME:-?}  os=${RUNNER_OS:-?}  arch=${RUNNER_ARCH:-?}"
+        echo "hostname=$(hostname)"
+        echo "uname=$(uname -a)"
+        echo "--- nvidia-smi ---"
+        nvidia-smi || { echo "::error::nvidia-smi failed on this runner"; exit 1; }
+        GPU_NAME="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        GPU_COUNT="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l | xargs)"
+        echo "gpu_name=${GPU_NAME}" >> "$GITHUB_OUTPUT"
+        echo "gpu_count=${GPU_COUNT}" >> "$GITHUB_OUTPUT"
+        echo "Detected GPU: '${GPU_NAME}' (count=${GPU_COUNT})"
+        case "${GPU_NAME}" in
+          *L40S*) echo "L40S confirmed" ;;
+          *) echo "::warning::Runner GPU is '${GPU_NAME}', expected an L40S" ;;
+        esac
+
+    # ---- Probe 2: Docker + GPU passthrough -----------------------------------
+    - name: Probe Docker daemon
+      id: docker
+      continue-on-error: true
+      run: |
+        set -uo pipefail
+        docker version || { echo "::error::docker not available"; exit 1; }
+        echo "--- docker info (runtimes) ---"
+        docker info 2>/dev/null | grep -iE "runtime|nvidia" || true
+
+    # ---- Resolve the CI image the gate would use -----------------------------
+    # Self-hosted GPU runners are not guaranteed to have yq (the real gate's
+    # config job runs on ubuntu-latest for that reason), so parse with grep/awk.
+    - name: Resolve CI image ref
+      id: image
+      continue-on-error: true
+      run: |
+        set -uo pipefail
+        f=.github/workflows/config.yaml
+        ISAACLAB_IMAGE_NAME="$(grep -E '^isaaclab_image_name:' "$f" | awk -F': *' '{print $2}' | tr -d '[:space:]')"
+        [ -n "${ISAACLAB_IMAGE_NAME}" ] || { echo "::error::isaaclab_image_name not found in ${f}"; exit 1; }
+        # Probe branches are not main/release, so track the develop image, matching
+        # the gate's default. PERF_SMOKE_CI_IMAGE overrides for a pinned image.
+        DEFAULT_REF="${ISAACLAB_IMAGE_NAME}:latest-develop"
+        CI_IMAGE_REF="${{ vars.PERF_SMOKE_CI_IMAGE || '' }}"
+        [ -z "${CI_IMAGE_REF}" ] && CI_IMAGE_REF="${DEFAULT_REF}"
+        echo "ci_image_ref=${CI_IMAGE_REF}" >> "$GITHUB_OUTPUT"
+        echo "Resolved CI image: ${CI_IMAGE_REF}"
+
+    # ---- Probe 3: NGC login + image pull -------------------------------------
+    - name: Probe NGC pull
+      id: pull
+      continue-on-error: true
+      env:
+        CI_IMAGE_REF: ${{ steps.image.outputs.ci_image_ref }}
+      run: |
+        set -uo pipefail
+        [ -z "${CI_IMAGE_REF:-}" ] && { echo "::error::No CI image ref resolved"; exit 1; }
+
+        # The runner's docker credential store backend is broken ("not implemented"),
+        # so disable credsStore before any login (same trick as ecr-build-push-pull).
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        REGISTRY="${CI_IMAGE_REF%%/*}"
+        if [ "${REGISTRY}" = "nvcr.io" ]; then
+          if [ -n "${NGC_API_KEY:-}" ]; then
+            echo "Logging into nvcr.io..."
+            echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+          else
+            echo "::error::NGC_API_KEY is not set; cannot pull ${CI_IMAGE_REF}"
+            exit 1
+          fi
+        fi
+
+        echo "Pulling ${CI_IMAGE_REF}..."
+        docker pull "${CI_IMAGE_REF}"
+        docker tag "${CI_IMAGE_REF}" "${PROBE_IMAGE_TAG}"
+        echo "Tagged ${CI_IMAGE_REF} as ${PROBE_IMAGE_TAG}"
+        rm -rf "${DOCKER_CONFIG_DIR}"
+
+    # ---- Probe 4a: GPU passthrough into the pulled image ---------------------
+    - name: Probe GPU passthrough in container
+      id: gpu_passthrough
+      if: steps.pull.outcome == 'success'
+      continue-on-error: true
+      run: |
+        set -uo pipefail
+        docker run --rm --gpus all --entrypoint bash "${PROBE_IMAGE_TAG}" -c "nvidia-smi" \
+          || { echo "::error::--gpus all passthrough failed inside the pulled image"; exit 1; }
+
+    # ---- Probe 4b: source overlay + _isaac_sim + import isaaclab -------------
+    # Fatima's probe branch tip can lag develop while the CI image is
+    # latest-develop, so an overlay import may fail from source/image skew
+    # rather than infra. Try overlay first (what the gate does); on failure,
+    # fall back to the image-baked source so we still prove Docker/GPU/image
+    # wiring. Overlay failure + baked success is reported as a warning, not a
+    # hard fail.
+    - name: Probe source overlay + import
+      id: import
+      if: steps.pull.outcome == 'success'
+      continue-on-error: true
+      run: |
+        set -uo pipefail
+        mkdir -p "${{ github.workspace }}/jit-cache/warp" "${{ github.workspace }}/jit-cache/nv"
+        chmod -R 0777 "${{ github.workspace }}/jit-cache"
+        # The in-container user (uid 1000) must write _isaac_sim into the mounted root.
+        chmod -R a+rwX "${{ github.workspace }}" 2>/dev/null || true
+
+        if docker run --rm \
+          --gpus all --network=host \
+          --security-opt=no-new-privileges:true \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e ISAAC_SIM_HEADLESS=1 \
+          -e PYTHONUNBUFFERED=1 \
+          -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
+          -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
+          -v "${{ github.workspace }}:/workspace/isaaclab" \
+          -v "${{ github.workspace }}/jit-cache:/tmp/jit-cache" \
+          --entrypoint bash "${PROBE_IMAGE_TAG}" -c "
+            set -e
+            cd /workspace/isaaclab
+            rm -f _isaac_sim
+            ln -s /isaac-sim _isaac_sim
+            ./isaaclab.sh -p -c 'import isaaclab; print(\"overlay import OK:\", isaaclab.__file__)'
+          "; then
+          echo "Overlay import passed"
+          exit 0
+        fi
+
+        echo "::warning::Overlay import failed; retrying against the image-baked source (no host mount)"
+        docker run --rm \
+          --gpus all --network=host \
+          --security-opt=no-new-privileges:true \
+          -e OMNI_KIT_ACCEPT_EULA=yes \
+          -e ACCEPT_EULA=Y \
+          -e ISAAC_SIM_HEADLESS=1 \
+          -e PYTHONUNBUFFERED=1 \
+          --entrypoint bash "${PROBE_IMAGE_TAG}" -c "
+            set -e
+            cd /workspace/isaaclab
+            rm -f _isaac_sim
+            ln -s /isaac-sim _isaac_sim
+            ./isaaclab.sh -p -c 'import isaaclab; print(\"image-baked import OK:\", isaaclab.__file__)'
+          " || { echo "::error::Both overlay and image-baked imports failed"; exit 1; }
+        echo "::warning::Overlay import failed but image-baked import passed (likely source/image skew on a stale probe branch)"
+
+
+    # ---- Probe 5: perf-baselines write permission ----------------------------
+    - name: Probe baseline branch write
+      id: baseline
+      continue-on-error: true
+      env:
+        WRITE_MODE: ${{ github.event.inputs.baseline_write_mode || 'dry_run' }}
+      run: |
+        set -uo pipefail
+        echo "Read check: ls-remote ${BASELINE_BRANCH}"
+        git ls-remote origin "refs/heads/${BASELINE_BRANCH}" || true
+
+        # Dry-run targets the real baseline ref so we exercise any ref-level rule
+        # on perf-baselines, not just generic repo write. Key subtlety: git only
+        # evaluates fast-forward AFTER the server authorizes the push, and
+        # perf-baselines is an orphan branch with unrelated history. So:
+        #   accepted / up-to-date  -> authorized (write OK)
+        #   non-fast-forward       -> authorized too (the seeder force/creates it)
+        #   permission/auth error  -> NOT authorized (real failure)
+        # We never do a non-dry-run push of HEAD -> perf-baselines: that would
+        # overwrite the orphan branch with the full IsaacLab tree.
+        BASELINE_REF="refs/heads/${BASELINE_BRANCH}"
+        echo "Dry-run write probe against ${BASELINE_REF}"
+        set +e
+        push_out="$(git push --dry-run origin "HEAD:${BASELINE_REF}" 2>&1)"
+        push_rc=$?
+        set -e
+        echo "${push_out}"
+        if [ "${push_rc}" -eq 0 ]; then
+          echo "Dry-run push to ${BASELINE_BRANCH} accepted -> write authorized"
+        elif echo "${push_out}" | grep -qiE 'non-fast-forward|fetch first|\[rejected\]'; then
+          echo "::warning::Dry-run non-fast-forward (expected for the orphan branch) -> write IS authorized"
+        elif echo "${push_out}" | grep -qiE 'denied|permission|403|forbidden|authentication|not authorized'; then
+          echo "::error::Dry-run push denied -> token cannot write ${BASELINE_BRANCH}"
+          exit 1
+        else
+          echo "::error::Dry-run push failed for an unrecognized reason (see output above)"
+          exit 1
+        fi
+
+        if [ "${WRITE_MODE}" = "real" ]; then
+          # Conclusive proof via a throwaway ref (create then delete). Keep it
+          # OUTSIDE perf-smoke/** so the create does not re-trigger this workflow
+          # (on.push.branches: ['perf-smoke/**']), and off perf-baselines so we
+          # never touch the real orphan branch.
+          TEST_REF="refs/heads/_tmp/perf-smoke-writetest-${GITHUB_RUN_ID}"
+          echo "Real write probe: create then delete ${TEST_REF}"
+          git push origin "HEAD:${TEST_REF}" \
+            && echo "Create OK" \
+            && git push origin --delete "${TEST_REF}" \
+            && echo "Delete OK -> token can create/delete refs" \
+            || { echo "::error::Real write probe failed"; exit 1; }
+        fi
+
+    # ---- Probe 6: omni-github artifact --------------------------------------
+    - name: Build omni-github probe artifact
+      id: omni_build
+      continue-on-error: true
+      env:
+        GPU_NAME: ${{ steps.gpu.outputs.gpu_name }}
+      run: |
+        set -uo pipefail
+        out="${{ github.workspace }}/omni-github-artifact"
+        mkdir -p "${out}/_testoutput"
+        # Escape GPU name for JSON (quotes/backslashes) without needing Python.
+        GPU_JSON="$(printf '%s' "${GPU_NAME:-unknown}" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+        cat > "${out}/_testoutput/test_results.json" <<EOF
+        {
+          "result_schema_version": 1,
+          "test_tool_id": "perf-smoke-probe",
+          "app": {"platform": "linux-x86_64", "config": "infra-probe"},
+          "tests": [{
+            "test_id": "perf-smoke.infra-probe::self-hosted-gpu",
+            "test_name": "infra-probe",
+            "test_type": "performance",
+            "passed": true,
+            "duration": 0.0,
+            "custom": {"perf_smoke": {"probe": "infra", "gpu_name": "${GPU_JSON}"}}
+          }]
+        }
+        EOF
+        cat > "${out}/omni-github-test-results-upload.json" <<'EOF'
+        {"schema_version": 1, "result_paths": ["_testoutput/test_results.json"]}
+        EOF
+        python3 -m json.tool "${out}/_testoutput/test_results.json" > /dev/null
+        python3 -m json.tool "${out}/omni-github-test-results-upload.json" > /dev/null
+        echo "wrote omni-github probe artifact to ${out}"
+
+
+    - name: Upload omni-github probe artifact
+      id: omni_upload
+      if: always() && steps.omni_build.outcome == 'success'
+      uses: actions/upload-artifact@v7
+      with:
+        name: perf-smoke-probe--v1-${{ github.repository_id }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ job.check_run_id }}
+        path: ${{ github.workspace }}/omni-github-artifact
+        if-no-files-found: error
+        retention-days: 7
+        compression-level: 9
+
+    # ---- Aggregate verdicts --------------------------------------------------
+    - name: Probe summary
+      if: always()
+      env:
+        GPU_NAME: ${{ steps.gpu.outputs.gpu_name }}
+        O_GPU: ${{ steps.gpu.outcome }}
+        O_DOCKER: ${{ steps.docker.outcome }}
+        O_IMAGE: ${{ steps.image.outcome }}
+        O_PULL: ${{ steps.pull.outcome }}
+        O_PASSTHROUGH: ${{ steps.gpu_passthrough.outcome }}
+        O_IMPORT: ${{ steps.import.outcome }}
+        O_BASELINE: ${{ steps.baseline.outcome }}
+        O_OMNI_BUILD: ${{ steps.omni_build.outcome }}
+        O_OMNI_UPLOAD: ${{ steps.omni_upload.outcome }}
+      run: |
+        set -uo pipefail
+        icon() { [ "$1" = "success" ] && echo "✅" || { [ "$1" = "skipped" ] && echo "⏭️" || echo "❌"; }; }
+        {
+          echo "## Perf Smoke Infra Probe"
+          echo ""
+          echo "Detected GPU: \`${GPU_NAME:-unknown}\`"
+          echo ""
+          echo "| Probe | Result |"
+          echo "|---|---|"
+          echo "| 1. Runner + GPU identity | $(icon "$O_GPU") $O_GPU |"
+          echo "| 2. Docker daemon | $(icon "$O_DOCKER") $O_DOCKER |"
+          echo "| Resolve CI image ref | $(icon "$O_IMAGE") $O_IMAGE |"
+          echo "| 3. NGC login + pull | $(icon "$O_PULL") $O_PULL |"
+          echo "| 4a. GPU passthrough in container | $(icon "$O_PASSTHROUGH") $O_PASSTHROUGH |"
+          echo "| 4b. Source overlay + import isaaclab | $(icon "$O_IMPORT") $O_IMPORT |"
+          echo "| 5. perf-baselines write | $(icon "$O_BASELINE") $O_BASELINE |"
+          echo "| 6a. omni-github artifact build | $(icon "$O_OMNI_BUILD") $O_OMNI_BUILD |"
+          echo "| 6b. omni-github artifact upload | $(icon "$O_OMNI_UPLOAD") $O_OMNI_UPLOAD |"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # Fail the job if any critical probe failed (identity/GPU warnings do not
+        # fail on their own; a wrong GPU model surfaces in the summary above).
+        FAILED=0
+        for outcome in "$O_GPU" "$O_DOCKER" "$O_IMAGE" "$O_PULL" "$O_PASSTHROUGH" "$O_IMPORT" "$O_BASELINE" "$O_OMNI_BUILD" "$O_OMNI_UPLOAD"; do
+          case "$outcome" in success|skipped) ;; *) FAILED=1 ;; esac
+        done
+        [ "$FAILED" = "0" ] && echo "All probes passed." || { echo "::error::One or more probes failed; see summary."; exit 1; }
