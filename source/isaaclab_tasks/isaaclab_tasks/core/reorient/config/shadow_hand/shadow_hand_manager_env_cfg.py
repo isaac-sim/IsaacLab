@@ -22,20 +22,58 @@ from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import (
+    GOAL_OBJECT_CFG,
+    OBJECT_CFG,
+    OPENAI_ACTION_NOISE_CFG,
+    OPENAI_OBSERVATION_NOISE_CFG,
+    ROBOT_CFG,
     NewtonEventCfg,
     ObjectCfg,
     PhysicsCfg,
     PhysxEventCfg,
-    ShadowHandEnvCfg,
-    ShadowHandOpenAIEnvCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_task_constants import GOAL_MARKER_POSITION
+from isaaclab_tasks.core.reorient.reorient_task_constants import (
+    GOAL_MARKER_POSITION,
+    OPENAI_ACT_MOVING_AVERAGE,
+    OPENAI_ACTION_PENALTY_SCALE,
+    OPENAI_AV_FACTOR,
+    OPENAI_DECIMATION,
+    OPENAI_DIST_REWARD_SCALE,
+    OPENAI_EPISODE_LENGTH_S,
+    OPENAI_FALL_DIST,
+    OPENAI_FALL_PENALTY,
+    OPENAI_FORCE_TORQUE_OBS_SCALE,
+    OPENAI_MAX_CONSECUTIVE_SUCCESS,
+    OPENAI_REACH_GOAL_BONUS,
+    OPENAI_RESET_DOF_POS_NOISE,
+    OPENAI_RESET_DOF_VEL_NOISE,
+    OPENAI_RESET_POSITION_NOISE,
+    OPENAI_ROT_EPS,
+    OPENAI_ROT_REWARD_SCALE,
+    OPENAI_SIM_DT,
+    OPENAI_SUCCESS_COUNT_THRESHOLD,
+    OPENAI_SUCCESS_TOLERANCE,
+    SHADOW_ACT_MOVING_AVERAGE,
+    SHADOW_ACTION_PENALTY_SCALE,
+    SHADOW_ACTUATED_JOINT_NAMES,
+    SHADOW_AV_FACTOR,
+    SHADOW_DECIMATION,
+    SHADOW_DIST_REWARD_SCALE,
+    SHADOW_EPISODE_LENGTH_S,
+    SHADOW_FALL_DIST,
+    SHADOW_FALL_PENALTY,
+    SHADOW_FINGERTIP_BODY_NAMES,
+    SHADOW_REACH_GOAL_BONUS,
+    SHADOW_RESET_DOF_POS_NOISE,
+    SHADOW_RESET_DOF_VEL_NOISE,
+    SHADOW_RESET_POSITION_NOISE,
+    SHADOW_ROT_EPS,
+    SHADOW_ROT_REWARD_SCALE,
+    SHADOW_SUCCESS_COUNT_THRESHOLD,
+    SHADOW_SUCCESS_TOLERANCE,
+    SHADOW_VEL_OBS_SCALE,
+)
 from isaaclab_tasks.utils import PresetCfg
-
-_DIRECT_CFG = ShadowHandEnvCfg()
-_ACTUATED_JOINT_NAMES = _DIRECT_CFG.actuated_joint_names
-_FINGERTIP_BODY_NAMES = _DIRECT_CFG.fingertip_body_names
-_OPENAI_DIRECT_CFG = ShadowHandOpenAIEnvCfg()
 
 
 @configclass
@@ -43,8 +81,8 @@ class _ShadowHandManagerSceneCfg(InteractiveSceneCfg):
     """Scene shared by the Shadow Hand Manager backend alternatives."""
 
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    robot: PresetCfg = _DIRECT_CFG.robot_cfg
-    object: ObjectCfg = _DIRECT_CFG.object_cfg
+    robot: PresetCfg = ROBOT_CFG
+    object: ObjectCfg = OBJECT_CFG
     light = AssetBaseCfg(
         prim_path="/World/Light",
         spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
@@ -59,7 +97,7 @@ class ShadowHandManagerSceneCfg(PresetCfg):
     newton_mjwarp = _ShadowHandManagerSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
-    ovphysx = _ShadowHandManagerSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True)
+    ovphysx = physx
     newton_kamino = newton_mjwarp
     default = physx
 
@@ -72,10 +110,10 @@ class CommandsCfg:
         asset_name="object",
         init_pos_offset=(0.0, 0.0, -0.04),
         update_goal_on_success=True,
-        orientation_success_threshold=_DIRECT_CFG.success_tolerance,
+        orientation_success_threshold=SHADOW_SUCCESS_TOLERANCE,
         make_quat_unique=False,
         fixed_marker_pos=GOAL_MARKER_POSITION,
-        goal_pose_visualizer_cfg=_DIRECT_CFG.goal_object_cfg,
+        goal_pose_visualizer_cfg=GOAL_OBJECT_CFG,
         debug_vis=True,
     )
 
@@ -86,8 +124,8 @@ class ActionsCfg:
 
     joint_pos = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="robot",
-        joint_names=_ACTUATED_JOINT_NAMES,
-        alpha=_DIRECT_CFG.act_moving_average,
+        joint_names=SHADOW_ACTUATED_JOINT_NAMES,
+        alpha=SHADOW_ACT_MOVING_AVERAGE,
         rescale_to_limits=True,
     )
 
@@ -102,7 +140,7 @@ class FullStateWithoutActionCfg(ObsGroup):
     )
     joint_vel = ObsTerm(
         func=mdp.joint_vel,
-        scale=_DIRECT_CFG.vel_obs_scale,
+        scale=SHADOW_VEL_OBS_SCALE,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*", preserve_order=False)},
     )
     object_pos = ObsTerm(func=mdp.root_pos_w, params={"asset_cfg": SceneEntityCfg("object")})
@@ -113,7 +151,7 @@ class FullStateWithoutActionCfg(ObsGroup):
     object_lin_vel = ObsTerm(func=mdp.root_lin_vel_w, params={"asset_cfg": SceneEntityCfg("object")})
     object_ang_vel = ObsTerm(
         func=mdp.root_ang_vel_w,
-        scale=_DIRECT_CFG.vel_obs_scale,
+        scale=SHADOW_VEL_OBS_SCALE,
         params={"asset_cfg": SceneEntityCfg("object")},
     )
     goal_pose = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
@@ -123,15 +161,15 @@ class FullStateWithoutActionCfg(ObsGroup):
     )
     fingertip_pos = ObsTerm(
         func=mdp.fingertip_pos,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False)},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)},
     )
     fingertip_quat = ObsTerm(
         func=mdp.fingertip_quat,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False)},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)},
     )
     fingertip_vel = ObsTerm(
         func=mdp.fingertip_vel,
-        params={"asset_cfg": SceneEntityCfg("robot", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False)},
+        params={"asset_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)},
     )
 
     def __post_init__(self):
@@ -158,9 +196,9 @@ class EventCfg:
         func=mdp.reset_reorient_state,
         mode="reset",
         params={
-            "position_noise": _DIRECT_CFG.reset_position_noise,
-            "joint_position_noise": _DIRECT_CFG.reset_dof_pos_noise,
-            "joint_velocity_noise": _DIRECT_CFG.reset_dof_vel_noise,
+            "position_noise": SHADOW_RESET_POSITION_NOISE,
+            "joint_position_noise": SHADOW_RESET_DOF_POS_NOISE,
+            "joint_velocity_noise": SHADOW_RESET_DOF_VEL_NOISE,
             "action_name": "joint_pos",
         },
     )
@@ -175,16 +213,16 @@ class RewardsCfg:
         weight=1.0,
         params={
             "command_name": "object_pose",
-            "distance_scale": _DIRECT_CFG.dist_reward_scale,
-            "rotation_scale": _DIRECT_CFG.rot_reward_scale,
-            "rotation_epsilon": _DIRECT_CFG.rot_eps,
-            "action_penalty_scale": _DIRECT_CFG.action_penalty_scale,
-            "success_tolerance": _DIRECT_CFG.success_tolerance,
-            "success_bonus": _DIRECT_CFG.reach_goal_bonus,
-            "fall_distance": _DIRECT_CFG.fall_dist,
-            "fall_penalty": _DIRECT_CFG.fall_penalty,
-            "averaging_factor": _DIRECT_CFG.av_factor,
-            "success_count_threshold": _DIRECT_CFG.success_count_threshold,
+            "distance_scale": SHADOW_DIST_REWARD_SCALE,
+            "rotation_scale": SHADOW_ROT_REWARD_SCALE,
+            "rotation_epsilon": SHADOW_ROT_EPS,
+            "action_penalty_scale": SHADOW_ACTION_PENALTY_SCALE,
+            "success_tolerance": SHADOW_SUCCESS_TOLERANCE,
+            "success_bonus": SHADOW_REACH_GOAL_BONUS,
+            "fall_distance": SHADOW_FALL_DIST,
+            "fall_penalty": SHADOW_FALL_PENALTY,
+            "averaging_factor": SHADOW_AV_FACTOR,
+            "success_count_threshold": SHADOW_SUCCESS_COUNT_THRESHOLD,
             "object_cfg": SceneEntityCfg("object"),
         },
     )
@@ -197,12 +235,12 @@ class TerminationsCfg:
     object_out_of_reach = DoneTerm(
         func=mdp.object_reorientation_out_of_reach,
         params={
-            "threshold": _DIRECT_CFG.fall_dist,
+            "threshold": SHADOW_FALL_DIST,
             "command_name": "object_pose",
             "object_cfg": SceneEntityCfg("object"),
         },
     )
-    time_out = DoneTerm(func=mdp.direct_timeout, time_out=True)
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
 @configclass
@@ -224,8 +262,8 @@ class ShadowHandManagerEnvCfg(ManagerBasedRLEnvCfg):
     events: EventCfg = EventCfg()
 
     def __post_init__(self):
-        self.decimation = _DIRECT_CFG.decimation
-        self.episode_length_s = _DIRECT_CFG.episode_length_s
+        self.decimation = SHADOW_DECIMATION
+        self.episode_length_s = SHADOW_EPISODE_LENGTH_S
         self.sim.render_interval = self.decimation
         self.viewer.eye = (2.0, 2.0, 2.0)
 
@@ -238,10 +276,10 @@ class OpenAICommandsCfg:
         asset_name="object",
         init_pos_offset=(0.0, 0.0, -0.04),
         update_goal_on_success=True,
-        orientation_success_threshold=_OPENAI_DIRECT_CFG.success_tolerance,
+        orientation_success_threshold=OPENAI_SUCCESS_TOLERANCE,
         make_quat_unique=False,
         fixed_marker_pos=GOAL_MARKER_POSITION,
-        goal_pose_visualizer_cfg=_OPENAI_DIRECT_CFG.goal_object_cfg,
+        goal_pose_visualizer_cfg=GOAL_OBJECT_CFG,
         debug_vis=True,
     )
 
@@ -252,10 +290,10 @@ class OpenAIActionsCfg:
 
     joint_pos = mdp.NoisyEMAJointPositionToLimitsActionCfg(
         asset_name="robot",
-        joint_names=_ACTUATED_JOINT_NAMES,
-        alpha=_OPENAI_DIRECT_CFG.act_moving_average,
+        joint_names=SHADOW_ACTUATED_JOINT_NAMES,
+        alpha=OPENAI_ACT_MOVING_AVERAGE,
         rescale_to_limits=True,
-        noise_model=_OPENAI_DIRECT_CFG.action_noise_model,
+        noise_model=OPENAI_ACTION_NOISE_CFG,
     )
 
 
@@ -270,8 +308,8 @@ class OpenAIObservationsCfg:
             params={
                 "command_name": "object_pose",
                 "action_name": "joint_pos",
-                "noise_model": _OPENAI_DIRECT_CFG.observation_noise_model,
-                "robot_cfg": SceneEntityCfg("robot", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False),
+                "noise_model": OPENAI_OBSERVATION_NOISE_CFG,
+                "robot_cfg": SceneEntityCfg("robot", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False),
                 "object_cfg": SceneEntityCfg("object"),
             },
         )
@@ -284,9 +322,11 @@ class OpenAIObservationsCfg:
     class CriticCfg(FullStateWithoutActionCfg):
         fingertip_wrench = ObsTerm(
             func=mdp.fingertip_wrench,
-            scale=_OPENAI_DIRECT_CFG.force_torque_obs_scale,
+            scale=OPENAI_FORCE_TORQUE_OBS_SCALE,
             params={
-                "sensor_cfg": SceneEntityCfg("joint_wrench", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False)
+                "sensor_cfg": SceneEntityCfg(
+                    "joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False
+                )
             },
         )
         last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
@@ -312,17 +352,15 @@ class ShadowHandOpenAIManagerSceneCfg(PresetCfg):
     newton_mjwarp = _ShadowHandOpenAIManagerSceneCfg(
         num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
     )
-    ovphysx = _ShadowHandOpenAIManagerSceneCfg(
-        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
-    )
+    ovphysx = physx
     newton_kamino = newton_mjwarp
     default = physx
 
 
 _OPENAI_RESET_PARAMS = {
-    "position_noise": _OPENAI_DIRECT_CFG.reset_position_noise,
-    "joint_position_noise": _OPENAI_DIRECT_CFG.reset_dof_pos_noise,
-    "joint_velocity_noise": _OPENAI_DIRECT_CFG.reset_dof_vel_noise,
+    "position_noise": OPENAI_RESET_POSITION_NOISE,
+    "joint_position_noise": OPENAI_RESET_DOF_POS_NOISE,
+    "joint_velocity_noise": OPENAI_RESET_DOF_VEL_NOISE,
     "action_name": "joint_pos",
 }
 
@@ -347,7 +385,7 @@ class OpenAIEventCfg(PresetCfg):
 
     physx = OpenAIPhysxEventCfg()
     newton_mjwarp = OpenAINewtonEventCfg()
-    ovphysx = OpenAIPhysxEventCfg()
+    ovphysx = physx
     newton_kamino = newton_mjwarp
     default = physx
 
@@ -361,16 +399,16 @@ class OpenAIRewardsCfg:
         weight=1.0,
         params={
             "command_name": "object_pose",
-            "distance_scale": _OPENAI_DIRECT_CFG.dist_reward_scale,
-            "rotation_scale": _OPENAI_DIRECT_CFG.rot_reward_scale,
-            "rotation_epsilon": _OPENAI_DIRECT_CFG.rot_eps,
-            "action_penalty_scale": _OPENAI_DIRECT_CFG.action_penalty_scale,
-            "success_tolerance": _OPENAI_DIRECT_CFG.success_tolerance,
-            "success_bonus": _OPENAI_DIRECT_CFG.reach_goal_bonus,
-            "fall_distance": _OPENAI_DIRECT_CFG.fall_dist,
-            "fall_penalty": _OPENAI_DIRECT_CFG.fall_penalty,
-            "averaging_factor": _OPENAI_DIRECT_CFG.av_factor,
-            "success_count_threshold": _OPENAI_DIRECT_CFG.success_count_threshold,
+            "distance_scale": OPENAI_DIST_REWARD_SCALE,
+            "rotation_scale": OPENAI_ROT_REWARD_SCALE,
+            "rotation_epsilon": OPENAI_ROT_EPS,
+            "action_penalty_scale": OPENAI_ACTION_PENALTY_SCALE,
+            "success_tolerance": OPENAI_SUCCESS_TOLERANCE,
+            "success_bonus": OPENAI_REACH_GOAL_BONUS,
+            "fall_distance": OPENAI_FALL_DIST,
+            "fall_penalty": OPENAI_FALL_PENALTY,
+            "averaging_factor": OPENAI_AV_FACTOR,
+            "success_count_threshold": OPENAI_SUCCESS_COUNT_THRESHOLD,
             "action_name": "joint_pos",
             "object_cfg": SceneEntityCfg("object"),
         },
@@ -384,19 +422,19 @@ class OpenAITerminationsCfg:
     object_out_of_reach = DoneTerm(
         func=mdp.object_reorientation_out_of_reach,
         params={
-            "threshold": _OPENAI_DIRECT_CFG.fall_dist,
+            "threshold": OPENAI_FALL_DIST,
             "command_name": "object_pose",
             "object_cfg": SceneEntityCfg("object"),
         },
     )
     time_out = DoneTerm(
-        func=mdp.direct_reorient_timeout,
+        func=mdp.DirectReorientTimeout,
         time_out=True,
         params={
             "command_name": "object_pose",
             "reward_name": "reorient",
-            "success_tolerance": _OPENAI_DIRECT_CFG.success_tolerance,
-            "max_successes": _OPENAI_DIRECT_CFG.max_consecutive_success,
+            "success_tolerance": OPENAI_SUCCESS_TOLERANCE,
+            "max_successes": OPENAI_MAX_CONSECUTIVE_SUCCESS,
             "object_cfg": SceneEntityCfg("object"),
         },
     )
@@ -416,8 +454,8 @@ class ShadowHandOpenAIManagerEnvCfg(ShadowHandManagerEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.decimation = _OPENAI_DIRECT_CFG.decimation
-        self.episode_length_s = _OPENAI_DIRECT_CFG.episode_length_s
-        self.sim.dt = _OPENAI_DIRECT_CFG.sim.dt
+        self.decimation = OPENAI_DECIMATION
+        self.episode_length_s = OPENAI_EPISODE_LENGTH_S
+        self.sim.dt = OPENAI_SIM_DT
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysicsCfg()
