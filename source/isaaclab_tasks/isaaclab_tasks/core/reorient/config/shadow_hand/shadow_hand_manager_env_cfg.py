@@ -5,8 +5,6 @@
 
 """Manager-based counterpart of the state-based Shadow Hand reorientation task."""
 
-from dataclasses import MISSING
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -21,7 +19,6 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils.configclass import configclass
-from isaaclab.utils.noise import NoiseModelCfg
 
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import (
@@ -32,6 +29,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import 
     ShadowHandEnvCfg,
     ShadowHandOpenAIEnvCfg,
 )
+from isaaclab_tasks.core.reorient.reorient_task_constants import GOAL_MARKER_POSITION
 from isaaclab_tasks.utils import PresetCfg
 
 _DIRECT_CFG = ShadowHandEnvCfg()
@@ -57,9 +55,12 @@ class _ShadowHandManagerSceneCfg(InteractiveSceneCfg):
 class ShadowHandManagerSceneCfg(PresetCfg):
     """Backend-specific scene cloning settings matching the Direct task."""
 
-    physx = _ShadowHandManagerSceneCfg(num_envs=8192, env_spacing=0.75, clone_in_fabric=True)
-    newton_mjwarp = _ShadowHandManagerSceneCfg(num_envs=8192, env_spacing=0.75, clone_in_fabric=False)
-    ovphysx = _ShadowHandManagerSceneCfg(num_envs=8192, env_spacing=0.75, clone_in_fabric=True)
+    physx = _ShadowHandManagerSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True)
+    newton_mjwarp = _ShadowHandManagerSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
+    )
+    ovphysx = _ShadowHandManagerSceneCfg(num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True)
+    newton_kamino = newton_mjwarp
     default = physx
 
 
@@ -73,7 +74,7 @@ class CommandsCfg:
         update_goal_on_success=True,
         orientation_success_threshold=_DIRECT_CFG.success_tolerance,
         make_quat_unique=False,
-        fixed_marker_pos=(-0.2, -0.45, 0.68),
+        fixed_marker_pos=GOAL_MARKER_POSITION,
         goal_pose_visualizer_cfg=_DIRECT_CFG.goal_object_cfg,
         debug_vis=True,
     )
@@ -230,16 +231,6 @@ class ShadowHandManagerEnvCfg(ManagerBasedRLEnvCfg):
 
 
 @configclass
-class NoisyEMAJointPositionToLimitsActionCfg(mdp.EMAJointPositionToLimitsActionCfg):
-    """EMA joint action configuration with Direct-compatible stateful noise."""
-
-    class_type = f"{__package__}.shadow_hand_manager_actions:NoisyEMAJointPositionToLimitsAction"
-
-    noise_model: NoiseModelCfg = MISSING
-    """Stateful noise applied to incoming normalized actions."""
-
-
-@configclass
 class OpenAICommandsCfg:
     """OpenAI goal command with its wider success tolerance."""
 
@@ -249,7 +240,7 @@ class OpenAICommandsCfg:
         update_goal_on_success=True,
         orientation_success_threshold=_OPENAI_DIRECT_CFG.success_tolerance,
         make_quat_unique=False,
-        fixed_marker_pos=(-0.2, -0.45, 0.68),
+        fixed_marker_pos=GOAL_MARKER_POSITION,
         goal_pose_visualizer_cfg=_OPENAI_DIRECT_CFG.goal_object_cfg,
         debug_vis=True,
     )
@@ -259,7 +250,7 @@ class OpenAICommandsCfg:
 class OpenAIActionsCfg:
     """OpenAI actions with Direct-compatible EMA and stateful noise."""
 
-    joint_pos = NoisyEMAJointPositionToLimitsActionCfg(
+    joint_pos = mdp.NoisyEMAJointPositionToLimitsActionCfg(
         asset_name="robot",
         joint_names=_ACTUATED_JOINT_NAMES,
         alpha=_OPENAI_DIRECT_CFG.act_moving_average,
@@ -315,9 +306,16 @@ class _ShadowHandOpenAIManagerSceneCfg(_ShadowHandManagerSceneCfg):
 class ShadowHandOpenAIManagerSceneCfg(PresetCfg):
     """Backend-specific OpenAI scene alternatives."""
 
-    physx = _ShadowHandOpenAIManagerSceneCfg(num_envs=8192, env_spacing=0.75, clone_in_fabric=True)
-    newton_mjwarp = _ShadowHandOpenAIManagerSceneCfg(num_envs=8192, env_spacing=0.75, clone_in_fabric=False)
-    ovphysx = _ShadowHandOpenAIManagerSceneCfg(num_envs=8192, env_spacing=0.75, clone_in_fabric=True)
+    physx = _ShadowHandOpenAIManagerSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+    )
+    newton_mjwarp = _ShadowHandOpenAIManagerSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=False
+    )
+    ovphysx = _ShadowHandOpenAIManagerSceneCfg(
+        num_envs=8192, env_spacing=0.75, replicate_physics=True, clone_in_fabric=True
+    )
+    newton_kamino = newton_mjwarp
     default = physx
 
 
@@ -350,6 +348,7 @@ class OpenAIEventCfg(PresetCfg):
     physx = OpenAIPhysxEventCfg()
     newton_mjwarp = OpenAINewtonEventCfg()
     ovphysx = OpenAIPhysxEventCfg()
+    newton_kamino = newton_mjwarp
     default = physx
 
 

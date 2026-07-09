@@ -3,21 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Runtime-only action terms for Shadow Hand Manager environments."""
+"""Action terms for the reorientation task family."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import torch
 
+from isaaclab.envs.mdp import EMAJointPositionToLimitsActionCfg
 from isaaclab.envs.mdp.actions import EMAJointPositionToLimitsAction
+from isaaclab.utils.configclass import configclass
+from isaaclab.utils.noise import NoiseModelCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
-
-    from .shadow_hand_manager_env_cfg import NoisyEMAJointPositionToLimitsActionCfg
 
 
 class NoisyEMAJointPositionToLimitsAction(EMAJointPositionToLimitsAction):
@@ -49,3 +51,13 @@ class NoisyEMAJointPositionToLimitsAction(EMAJointPositionToLimitsAction):
         """
         self._noise_model.reset(env_ids)
         super().reset(env_ids)
+
+
+@configclass
+class NoisyEMAJointPositionToLimitsActionCfg(EMAJointPositionToLimitsActionCfg):
+    """EMA joint action configuration with Direct-compatible stateful noise."""
+
+    class_type = NoisyEMAJointPositionToLimitsAction
+
+    noise_model: NoiseModelCfg = MISSING
+    """Stateful noise applied to incoming normalized actions."""
