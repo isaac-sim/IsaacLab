@@ -199,21 +199,21 @@ jobs:
     - name: Compute changed files
       id: changed
       env:
-        GH_TOKEN: ${{ github.token }}
-        PR_NUMBER: ${{ github.event.pull_request.number }}
         EVENT_NAME: ${{ github.event_name }}
-        REPO: ${{ github.repository }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         BEFORE_SHA: ${{ github.event.before }}
         AFTER_SHA: ${{ github.sha }}
       run: |
         set -euo pipefail
         if [ "$EVENT_NAME" = "pull_request" ]; then
-          # PR: the API lists every file the PR touches, base-relative, forward-slashed.
-          # Fail-safe: a transient API error must not fail the job and suppress the artifact —
-          # fall back to an empty change set (mirrors the `changes:` job's guard) so an empty
-          # impact report is still produced and uploaded.
-          if ! gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed_files.txt; then
-            echo "::warning::Could not list changed files; producing an empty dependency-impact report"
+          # PR: diff the merge-base of base..head (three-dot) so we list exactly the files the
+          # PR introduces, matching what the GitHub "files" view shows. `fetch-depth: 0` above
+          # guarantees both endpoints are present. Fail-safe: if the diff cannot be computed,
+          # fall back to an empty change set so an (empty) impact report is still uploaded
+          # instead of failing the job.
+          if ! git diff --name-only "$PR_BASE_SHA...$PR_HEAD_SHA" > changed_files.txt; then
+            echo "::warning::Could not diff $PR_BASE_SHA...$PR_HEAD_SHA; producing an empty dependency-impact report"
             : > changed_files.txt
           fi
         elif [ "$EVENT_NAME" = "push" ] && git rev-parse --quiet --verify "$BEFORE_SHA^{commit}" > /dev/null; then
