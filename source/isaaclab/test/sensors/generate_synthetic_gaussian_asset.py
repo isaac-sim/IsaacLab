@@ -550,9 +550,12 @@ def assert_tiled_views_match(
     Args:
         tiled_images: Image batch with shape ``[num_tiles, H, W, C]``.
         max_mean_abs_diff: Maximum allowed mean absolute difference from tile zero.
-            This matches the existing tiled-camera consistency tolerance of
-            ``0.05`` in normalized RGB space while still detecting substantially
-            different or invalid tiles.
+            For LDR images scaled to ``[0, 255]``, the default of ``12.75``
+            (``0.05 * 255``) matches the existing tiled-camera consistency
+            tolerance. For HDR images, whose values are raw physical floats
+            typically in ``[0.01, 1.0]``, this default is effectively
+            vacuous; pass a tighter HDR-appropriate value such as ``0.05``
+            when comparing ``rgb_hdr`` tiles.
         label: Included in the assertion message.
     """
     prefix = f"[{label}] " if label else ""

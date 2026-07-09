@@ -233,7 +233,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
     assert_tiled_views_match(rgb, label="ovrtx rgb")
-    assert_tiled_views_match(rgb_hdr, label="ovrtx rgb_hdr")
+    assert_tiled_views_match(rgb_hdr, max_mean_abs_diff=0.05, label="ovrtx rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"ovrtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"ovrtx tile {i}")
