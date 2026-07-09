@@ -25,18 +25,9 @@ use the Omniverse Kit to edit the asset and export it to other file formats. Isa
 these importers by default. They can also be enabled manually in Omniverse Kit.
 
 Isaac Lab's URDF and MJCF converter utilities first use the importer APIs from
-Isaac Sim when the full Isaac Sim runtime is installed. In kit-less environments
-without Isaac Sim, install the standalone importer wheel to use the same Python
-APIs for command-line conversion:
-
-.. code-block:: bash
-
-   ./isaaclab.sh -p -m pip install isaacsim-asset-isolated==1.0.0 \
-     --find-links <package-index-or-wheel-directory>
-
-The standalone wheel is enough for conversion-only workflows. Omit ``--viz kit``
-when running the converter in a kit-less environment; the Kit visualizer and GUI
-import dialogs still require an Omniverse Kit runtime.
+Isaac Sim when the full runtime is installed. In kit-less environments, install
+the standalone importer wheel as described in :ref:`installation-standalone-importers`.
+The Kit visualizer and GUI import dialogs still require an Omniverse Kit runtime.
 
 
 An important note to use assets for large-scale simulation is to ensure that they
@@ -159,40 +150,40 @@ The following shows the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with URDF files
-        git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+         # clone a repository with URDF files
+         git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
 
-        # go to top of the Isaac Lab repository
-        cd IsaacLab
-        # run the converter
-        ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-          ../anymal_d_simple_description/urdf/anymal.urdf \
-          source/isaaclab_assets/data/Robots/ANYbotics/ \
-          --merge-joints \
-          --joint-stiffness 0.0 \
-          --joint-damping 0.0 \
-          --joint-target-type none \
-          --viz kit
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         python scripts/tools/convert_urdf.py \
+           ../anymal_d_simple_description/urdf/anymal.urdf \
+           source/isaaclab_assets/data/Robots/ANYbotics/ \
+           --merge-joints \
+           --joint-stiffness 0.0 \
+           --joint-damping 0.0 \
+           --joint-target-type none \
+           --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with URDF files
-        git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
+         :: clone a repository with URDF files
+         git clone git@github.com:isaac-orbit/anymal_d_simple_description.git
 
-        :: go to top of the Isaac Lab repository
-        cd IsaacLab
-        :: run the converter
-        isaaclab.bat -p scripts\tools\convert_urdf.py ^
-          ..\anymal_d_simple_description\urdf\anymal.urdf ^
-          source\isaaclab_assets\data\Robots\ANYbotics\ ^
-          --merge-joints ^
-          --joint-stiffness 0.0 ^
-          --joint-damping 0.0 ^
-          --joint-target-type none ^
-          --viz kit
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         python scripts\tools\convert_urdf.py ^
+           ..\anymal_d_simple_description\urdf\anymal.urdf ^
+           source\isaaclab_assets\data\Robots\ANYbotics\ ^
+           --merge-joints ^
+           --joint-stiffness 0.0 ^
+           --joint-damping 0.0 ^
+           --joint-target-type none ^
+           --viz kit
 
 Executing the above script will create a USD file inside the
 ``source/isaaclab_assets/data/Robots/ANYbotics/anymal/`` directory (the subdirectory name
@@ -209,14 +200,13 @@ is derived automatically from the robot name in the URDF):
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
-The example command passes ``--viz kit`` so the converter opens Omniverse Kit after conversion
-and keeps the app running with the generated USD stage loaded. Press **Play** in the toolbar to
-simulate the asset; it should fall under gravity. If the asset becomes unstable, check whether
-self-collisions are enabled or whether the collision geometry overlaps in the URDF.
+The examples above pass ``--viz kit`` to open the GUI and inspect the converted asset.
+Omit it to run headless and exit after the conversion is complete. The converter scripts
+accept only their own arguments plus ``--viz``; launcher flags such as ``--headless`` are
+not accepted.
 
-To run conversion only in headless mode, omit ``--viz kit`` from the command. If you have
-visualizers enabled elsewhere and want to force conversion without a viewer, pass ``--viz none``.
-The older ``--headless`` flag is deprecated.
+You can press play on the opened window to see the asset in the scene. The asset should fall under gravity.
+If it blows up, then it might be that you have self-collisions present in the URDF.
 
 
 .. figure:: ../_static/tutorials/tutorial_convert_urdf.jpg
@@ -317,34 +307,34 @@ The following shows the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with MJCF files
-        git clone git@github.com:google-deepmind/mujoco_menagerie.git
+         # clone a repository with MJCF files
+         git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
-        # go to top of the Isaac Lab repository
-        cd IsaacLab
-        # run the converter
-        ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-          ../mujoco_menagerie/unitree_h1/h1.xml \
-          source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-          --merge-mesh \
-          --viz kit
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         python scripts/tools/convert_mjcf.py \
+           ../mujoco_menagerie/unitree_h1/h1.xml \
+           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
+           --merge-mesh \
+           --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with MJCF files
-        git clone git@github.com:google-deepmind/mujoco_menagerie.git
+         :: clone a repository with MJCF files
+         git clone git@github.com:google-deepmind/mujoco_menagerie.git
 
-        :: go to top of the Isaac Lab repository
-        cd IsaacLab
-        :: run the converter
-        isaaclab.bat -p scripts\tools\convert_mjcf.py ^
-          ..\mujoco_menagerie\unitree_h1\h1.xml ^
-          source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
-          --merge-mesh ^
-          --viz kit
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         python scripts\tools\convert_mjcf.py ^
+           ..\mujoco_menagerie\unitree_h1\h1.xml ^
+           source\isaaclab_assets\data\Robots\Unitree\h1.usd ^
+           --merge-mesh ^
+           --viz kit
 
 Executing the above script will create the USD file inside the
 ``source/isaaclab_assets/data/Robots/Unitree/`` directory:
@@ -360,19 +350,70 @@ Executing the above script will create the USD file inside the
    actually used. Delete stale subdirectories manually (or wipe ``usd_dir``) if you do not
    want them to accumulate on disk.
 
-The example command passes ``--viz kit`` so the converter opens Omniverse Kit after conversion
-and keeps the app running with the generated USD stage loaded. Press **Play** in the toolbar to
-simulate the asset; it should fall under gravity. If the asset becomes unstable, check whether
-self-collisions are enabled or whether the collision geometry overlaps in the MJCF.
-
-To run conversion only in headless mode, omit ``--viz kit`` from the command. If you have
-visualizers enabled elsewhere and want to force conversion without a viewer, pass ``--viz none``.
-The older ``--headless`` flag is deprecated.
+The examples above pass ``--viz kit`` to open the GUI and inspect the converted asset.
+Omit it to run headless and exit after the conversion is complete. The converter scripts
+accept only their own arguments plus ``--viz``; launcher flags such as ``--headless`` are
+not accepted.
 
 .. figure:: ../_static/tutorials/tutorial_convert_mjcf.jpg
     :align: center
     :figwidth: 100%
     :alt: result of convert_mjcf.py
+
+
+.. _import-new-asset-ensure-drives-exist:
+
+Ensuring joint drives exist on every joint
+------------------------------------------
+
+A common pitfall when porting a freshly-imported asset across physics backends
+is that joints which actuate fine in PhysX silently do nothing in a
+Newton-based backend (MuJoCo Warp, XPBD, Featherstone, Semi-implicit).
+
+The URDF and MJCF importers both write a ``PhysicsDriveAPI`` to every
+articulated joint, but the stiffness and damping on that drive are often left
+at ``0`` — the assumption being that the actuator gains are authored at runtime
+by an :class:`~isaaclab.actuators.ImplicitActuatorCfg` or
+:class:`~isaaclab.actuators.IdealPDActuatorCfg`. This is the recommended way to
+keep gains tunable per task without re-importing the USD.
+
+PhysX creates a solver actuator for every joint regardless of the authored
+gains, so the runtime writes from ``ImplicitActuatorCfg.stiffness`` /
+``damping`` always take effect. Newton's USD importer, by contrast, only
+materialises a solver actuator when the authored drive reports a non-zero
+stiffness or damping — a joint whose authored gains are both zero is treated
+as passive and is dropped from the actuator set, so subsequent runtime writes
+have nothing to attach to.
+
+The recommended fix is to opt the spawn config into the cross-backend bridge by
+setting :attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist`
+to ``True``:
+
+.. code:: python
+
+   spawn=sim_utils.UsdFileCfg(
+       usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agility/Cassie/cassie.usd",
+       joint_drive_props=sim_utils.JointDrivePropertiesCfg(ensure_drives_exist=True),
+       ...
+   )
+
+When ``ensure_drives_exist=True``, every drive whose authored stiffness *and*
+damping are both zero is updated with a minimal placeholder stiffness
+(``1e-3``) before the simulation starts. This is enough for Newton's importer
+to create the actuator; the actual gains are then overwritten by the actuator
+model at runtime, so the placeholder has no effect on the simulated dynamics.
+Drives whose authored gains are non-zero are left untouched.
+
+This is how ``isaaclab_assets.CASSIE_CFG`` keeps Cassie working across both
+PhysX and Newton — the asset ships with zero-gain drives because it relies on
+``ImplicitActuatorCfg`` for the legs, and the spawn config enables
+:attr:`~isaaclab.sim.schemas.JointDrivePropertiesCfg.ensure_drives_exist` so
+that both backends see the same actuator set.
+
+You can leave the flag at its default ``False`` for assets that author non-zero
+drive gains in the USD itself, or for assets driven by an
+:class:`~isaaclab.actuators.IdealPDActuatorCfg` that explicitly zeroes the
+solver drive and applies torque externally.
 
 
 Using Mesh Importer
@@ -407,36 +448,36 @@ the steps to clone the repository and run the converter:
 
       .. code-block:: bash
 
-        # clone a repository with URDF files
-        git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+         # clone a repository with mesh files
+         git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
 
-        # go to top of the Isaac Lab repository
-        cd IsaacLab
-        # run the converter
-        ./isaaclab.sh -p scripts/tools/convert_mesh.py \
-          ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
-          source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
-          --make-instanceable \
-          --collision-approximation convexDecomposition \
-          --mass 1.0
+         # go to top of the Isaac Lab repository
+         cd IsaacLab
+         # run the converter
+         python scripts/tools/convert_mesh.py \
+           ../IsaacGymEnvs/assets/trifinger/objects/meshes/cube_multicolor.obj \
+           source/isaaclab_assets/data/Props/CubeMultiColor/cube_multicolor.usd \
+           --make-instanceable \
+           --collision-approximation convexDecomposition \
+           --mass 1.0
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-        :: clone a repository with URDF files
-        git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
+         :: clone a repository with mesh files
+         git clone git@github.com:NVIDIA-Omniverse/IsaacGymEnvs.git
 
-        :: go to top of the Isaac Lab repository
-        cd IsaacLab
-        :: run the converter
-        isaaclab.bat -p scripts\tools\convert_mesh.py ^
-          ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
-          source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
-          --make-instanceable ^
-          --collision-approximation convexDecomposition ^
-          --mass 1.0
+         :: go to top of the Isaac Lab repository
+         cd IsaacLab
+         :: run the converter
+         python scripts\tools\convert_mesh.py ^
+           ..\IsaacGymEnvs\assets\trifinger\objects\meshes\cube_multicolor.obj ^
+           source\isaaclab_assets\data\Props\CubeMultiColor\cube_multicolor.usd ^
+           --make-instanceable ^
+           --collision-approximation convexDecomposition ^
+           --mass 1.0
 
 You may need to press 'F' to zoom in on the asset after import.
 
