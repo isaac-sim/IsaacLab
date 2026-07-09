@@ -221,7 +221,7 @@
       }
     },
     "customValue": {
-      "oneOf": [
+      "anyOf": [
         {
           "type": "string",
           "maxLength": 1024
@@ -242,7 +242,7 @@
           "type": "array",
           "maxItems": 100,
           "items": {
-            "oneOf": [
+            "anyOf": [
               {
                 "type": "string",
                 "maxLength": 1024
