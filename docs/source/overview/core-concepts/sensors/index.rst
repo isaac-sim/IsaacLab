@@ -6,7 +6,7 @@ Sensors
 .. seealso::
 
    This section is the source of truth for the ``isaaclab-using-sensors-actuators`` agent skill
-   (`skills/user/use-sensors-actuators/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/use-sensors-actuators/SKILL.md>`__).
+   (`skills/user/use-sensors-actuators/ <../../../../../skills/user/use-sensors-actuators/SKILL.md>`__).
    When you change these pages, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 

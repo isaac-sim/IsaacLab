@@ -5,8 +5,8 @@ Debugging and Training Guide
 
    This page is the source of truth for the ``isaaclab-training-rl-agents`` and
    ``isaaclab-debugging-rl-training`` agent skills
-   (`skills/user/train-rl-agents/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/train-rl-agents/SKILL.md>`__,
-   `skills/user/debug-rl-training/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/debug-rl-training/SKILL.md>`__).
+   (`skills/user/train-rl-agents/ <../../../../skills/user/train-rl-agents/SKILL.md>`__,
+   `skills/user/debug-rl-training/ <../../../../skills/user/debug-rl-training/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 

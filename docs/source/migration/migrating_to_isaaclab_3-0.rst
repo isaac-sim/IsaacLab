@@ -8,7 +8,7 @@ Migrating to Isaac Lab 3.0
 .. seealso::
 
    This page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
-   (`skills/user/migrate-2x-to-3x/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/migrate-2x-to-3x/SKILL.md>`__).
+   (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 

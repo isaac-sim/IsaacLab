@@ -5,8 +5,8 @@ Multi-Backend Architecture
 
    This page is the source of truth for the ``isaaclab-selecting-backends`` and
    ``isaaclab-using-presets`` agent skills
-   (`skills/user/select-backends/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/select-backends/SKILL.md>`__,
-   `skills/user/use-presets/ <https://github.com/isaac-sim/IsaacLab/blob/main/skills/user/use-presets/SKILL.md>`__).
+   (`skills/user/select-backends/ <../../../../skills/user/select-backends/SKILL.md>`__,
+   `skills/user/use-presets/ <../../../../skills/user/use-presets/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
    :doc:`/source/overview/developer-guide/agent_skills`.
 
