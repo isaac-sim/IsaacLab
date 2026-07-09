@@ -7,5 +7,6 @@ Added
 Deprecated
 ^^^^^^^^^^
 
-* Deprecated ``shadow_hand_camera_env.compute_keypoints`` in favor of
-  ``feature_extractor.compute_cube_keypoints``.
+* Deprecated the ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct``
+  registration in favor of the regular camera task with the
+  ``env.feature_extractor.enabled=False`` override.
