@@ -47,6 +47,20 @@ parser.add_argument("--num_rollouts",type=int, default=5,   help="Number of eval
 parser.add_argument("--horizon",     type=int, default=300,  help="Max steps per episode")
 parser.add_argument("--port",        type=int, default=5556, help="Policy server TCP port")
 parser.add_argument("--seed",        type=int, default=42)
+parser.add_argument(
+    "--cameras", type=str, default="front_cam,body_cam,wrist_cam",
+    help=(
+        "Comma-separated env camera names, IN POLICY SLOT ORDER (1st -> camera1, 2nd -> camera2, "
+        "...). MUST match the --rename_map used for lerobot-train on this exact checkpoint --"
+        " e.g. a 2-camera run trained with"
+        " --rename_map='{\"observation.images.body_cam\":\"observation.images.camera1\","
+        "\"observation.images.wrist_cam\":\"observation.images.camera2\"}' needs"
+        " --cameras body_cam,wrist_cam here, NOT the 3-camera default. Sending the wrong env"
+        " camera into a policy slot is silent (no error, no crash) -- the policy just gets the"
+        " wrong image for that view and the visible failure mode is generic/degenerate behavior"
+        " (e.g. only ever raising the arm), not an exception."
+    ),
+)
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
 
@@ -120,25 +134,23 @@ def _get_state(env) -> np.ndarray:
     return joint_pos[:7].cpu().numpy().astype(np.float32)
 
 
-def _get_cameras(obs_dict: dict) -> dict:
+def _get_cameras(obs_dict: dict, camera_names: list[str]) -> dict:
     """Extract camera images as uint8 HWC numpy arrays.
 
-    Training rename_map:
-      front_cam   → camera1
-      body_cam    → camera2
-      wrist_cam   → camera3
+    `camera_names` gives the env camera for each policy slot in order (camera_names[0] ->
+    camera1, camera_names[1] -> camera2, ...) -- MUST match the --rename_map this checkpoint was
+    trained with (see --cameras' help text). Getting this wrong doesn't error: the policy just
+    silently receives the wrong image in that slot.
     """
     policy_obs = obs_dict["policy"]
     cameras = {}
-    mapping = {
-        "front_cam":  "camera1",
-        "body_cam":   "camera2",
-        "wrist_cam":  "camera3",
-    }
-    for env_key, policy_key in mapping.items():
+    for i, env_key in enumerate(camera_names):
+        policy_key = f"camera{i + 1}"
         if env_key in policy_obs:
             img = policy_obs[env_key]        # (1, H, W, 3) uint8
             cameras[policy_key] = img.squeeze(0).cpu().numpy().astype(np.uint8)
+        else:
+            print(f"[warn] Camera '{env_key}' (-> {policy_key}) not found in policy observations")
     return cameras
 
 
@@ -198,7 +210,7 @@ class KeyboardHandler:
 
 # ── rollout ────────────────────────────────────────────────────────────────────
 
-def rollout(env, sock, success_term, horizon: int, kb: "KeyboardHandler") -> bool:
+def rollout(env, sock, success_term, horizon: int, kb: "KeyboardHandler", camera_names: list[str]) -> bool:
     obs_dict, _ = env.reset()
     policy_reset(sock)
 
@@ -209,7 +221,7 @@ def rollout(env, sock, success_term, horizon: int, kb: "KeyboardHandler") -> boo
             return False
 
         state   = _get_state(env)
-        cameras = _get_cameras(obs_dict)
+        cameras = _get_cameras(obs_dict, camera_names)
 
         if not cameras:
             print("[warn] No camera images found in obs — check image_obs_list config")
@@ -267,6 +279,9 @@ def main():
     # ── keyboard handler ──────────────────────────────────────────────────────
     kb = KeyboardHandler()
 
+    camera_names = [name.strip() for name in args_cli.cameras.split(",") if name.strip()]
+    print(f"[INFO] Camera slots (in order -> camera1, camera2, ...): {camera_names}")
+
     # ── rollouts ──────────────────────────────────────────────────────────────
     results = []
     for trial in range(args_cli.num_rollouts):
@@ -274,7 +289,7 @@ def main():
             print("[keyboard] Quitting early.")
             break
         print(f"── Trial {trial + 1}/{args_cli.num_rollouts} ──────────────────")
-        success = rollout(env, sock, success_term, args_cli.horizon, kb)
+        success = rollout(env, sock, success_term, args_cli.horizon, kb, camera_names)
         results.append(success)
 
     # ── summary ───────────────────────────────────────────────────────────────

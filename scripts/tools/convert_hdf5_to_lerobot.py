@@ -188,16 +188,33 @@ def _scan_episodes(hdf5_files: list) -> list:
     return infos
 
 
+# Isaac Sim's physics Articulation for the bimanual OpenArm orders its 22 joint DOFs as:
+# [0:14] left/right arm joints INTERLEAVED (left_joint1, right_joint1, left_joint2, ...,
+# left_joint7, right_joint7), then [14]=openarm_left_finger_joint1 (the actuated left-gripper
+# finger), [15]=its mimic follower joint2, [16]=openarm_left_hand (passive stub, always ~0),
+# [17]=openarm_right_finger_joint1, [18]=its mimic follower, [19]=openarm_right_hand (passive),
+# [20:22]=left/right_ee_tcp_joint (passive stubs). Confirmed 2026-07-xx by printing
+# robot.data.joint_names from a live Articulation for OPENARM_BI_CFG and cross-checking against
+# the USD's PhysicsDriveAPI (only index 14 has one -- 15/18 are pure USD mimic joints with no
+# drive, matching the URDF's <mimic joint="..."/> tag). LJ_IDX below picks out exactly the 7 left
+# arm joints (even indices 0:14:2) plus this one real actuated left-gripper joint (14) -- the
+# same 8 values, in the same order, that OpenArmFollower.get_observation()/send_action() call
+# LJ1.pos..LJ8.pos on the real robot.
+LJ_IDX = list(range(0, 14, 2)) + [14]
+LJ_NAMES = [f"LJ{i}.pos" for i in range(1, 8)] + ["LJ8.pos"]
+
+
 def _smooth_actions(actions: np.ndarray, sigma: float = 2.0) -> np.ndarray:
-    """Gaussian-smooth EEF dims (0:6); leave gripper dim (6) unsmoothed.
+    """Gaussian-smooth the 7 arm-joint dims (0:7); leave the gripper dim (7) unsmoothed.
 
     Generated Mimic trajectories are ~5× more jerky than source demos due to
-    nearest-neighbour stitching discontinuities.  sigma=2.0 gives ~95% jerk
-    reduction while preserving the overall trajectory shape.
-    Gripper is kept sharp so grasp/release timing is not blurred.
+    nearest-neighbour stitching discontinuities in the EE-pose commands used to step the
+    sim -- discontinuities that still show up as small jumps in the resulting joint-position
+    trajectory. sigma=2.0 gives ~95% jerk reduction while preserving the overall trajectory
+    shape. Gripper is kept sharp so grasp/release timing is not blurred.
     """
     smoothed = actions.copy()
-    smoothed[:, :6] = gaussian_filter1d(actions[:, :6].astype(np.float64),
+    smoothed[:, :7] = gaussian_filter1d(actions[:, :7].astype(np.float64),
                                         sigma=sigma, axis=0).astype(np.float32)
     return smoothed
 
@@ -206,28 +223,29 @@ def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
     """Load a single episode. Each call opens its own h5py handle (thread-safe)."""
     with h5py.File(hdf5_path, "r") as f:
         ep = f["data"][ep_name]
-        actions = ep["actions"][:, :7]   # left arm only: EEF pose (0:6) + gripper (6) --
-        # correct: record_demos_openarm.py's task-defined action layout is genuinely
-        # blocked (non-interleaved): [0:6]=left IK delta, [6]=left gripper, [7:13]=right
-        # IK delta, [13]=right gripper -- see that script's own docstring.
-        #
-        # States are a DIFFERENT layout and [:, :7] here was wrong: joint_position comes
-        # from the physics articulation's own native joint order, which for this dual-arm
-        # robot is INTERLEAVED (left_joint1, right_joint1, left_joint2, right_joint2, ...),
-        # confirmed directly against this exact HDF5 on 2026-07-03 (odd columns 1,3,5,7,9,
-        # 11,13 read ~0 all episode -- the untouched right arm -- while even columns 0,2,4,
-        # 6,8,10,12 show the actual left-arm motion). The old [:, :7] slice took columns
-        # [0,1,2,3,4,5,6] -- a mix of real left-arm values and near-zero right-arm values,
-        # mislabeled sequentially as left_joint_1..7 -- and never even included the true
-        # left_joint_7 (column 12, the episode's single largest motion at up to 1.37 rad).
-        states = ep["states/articulation/robot/joint_position"][:, 0:14:2]  # left arm joints only
-        T = min(len(actions), len(states))
-        if T == 0:
+
+        # Action = joint-space, NOT the recorded EEF-delta `actions` field. The Isaac Lab task
+        # records actions in whatever space its action term uses (here: left-arm IK delta +
+        # gripper), which is what Mimic's data generation needs to adapt recorded demos to new
+        # randomized cube poses -- but it's a different representation than `observation.state`
+        # below (joint angles), which is exactly the mismatch that required a differential-IK
+        # bridge on the real robot at deployment time. Instead, derive the action directly from
+        # the NEXT timestep's measured joint position: for a trajectory that was physically
+        # tracked step by step in sim, action[t] ~= state[t+1] is a standard proxy for "the joint
+        # target commanded at step t", and it puts action and observation in the identical LJ1..8
+        # representation -- so a policy trained on this data can drive the real robot directly,
+        # no IK bridge needed. Costs the episode's last frame (no "next" state exists for it).
+        joint_pos = ep["states/articulation/robot/joint_position"][:, LJ_IDX]  # (T_total, 8)
+        if len(joint_pos) < 2:
             return None
+        states  = joint_pos[:-1]
+        actions = joint_pos[1:]
+        T = len(actions)
+
         ep_dict: dict = {
             "name":    ep_name,
-            "actions": _smooth_actions(actions[:T].astype(np.float32)),
-            "states":  states[:T].astype(np.float32),
+            "actions": _smooth_actions(actions.astype(np.float32)),
+            "states":  states.astype(np.float32),
             "success": bool(ep.attrs.get("success", False)),
         }
         for cam in cameras:
@@ -235,29 +253,20 @@ def _load_episode(hdf5_path: str, ep_name: str, cameras: list) -> dict | None:
             if key in ep:
                 raw  = ep[key][:]
                 imgs = raw[:, 0] if raw.ndim == 5 else raw
-                ep_dict[f"cam_{cam}"] = imgs[:T]
+                ep_dict[f"cam_{cam}"] = imgs[:T]  # drop the same last frame, stays aligned
     return ep_dict
 
 
 # ── name helpers ───────────────────────────────────────────────────────────────
+# action and observation.state are now both the same 8D joint-space representation (see
+# LJ_NAMES / LJ_IDX above) -- one name helper for both, instead of two different EEF-vs-joint
+# naming schemes. These names deliberately match OpenArmFollower's real observation/action dict
+# keys (LJ1.pos..LJ8.pos) exactly, so a deploy script can build a state/action frame straight
+# from those dict keys with no renaming step.
 
-def _action_names(dim: int) -> list:
-    if dim == 7:
-        return [f"left_eef_{i+1}" for i in range(6)] + ["left_gripper"]
+def _joint_names(dim: int) -> list:
     if dim == 8:
-        return [f"left_joint_{i+1}" for i in range(7)] + ["gripper"]
-    return [f"action_{i}" for i in range(dim)]
-
-def _state_names(dim: int) -> list:
-    if dim == 7:
-        return [f"left_joint_{i+1}" for i in range(7)]
-    if dim == 22:
-        return (
-            [f"left_joint_{i+1}"   for i in range(7)] +
-            [f"right_joint_{i+1}"  for i in range(7)] +
-            [f"left_finger_{i+1}"  for i in range(4)] +
-            [f"right_finger_{i+1}" for i in range(4)]
-        )
+        return LJ_NAMES
     return [f"joint_{i}" for i in range(dim)]
 
 
@@ -557,9 +566,9 @@ def hdf5_to_lerobot(
     # ── info.json ─────────────────────────────────────────────────────────────
     features: dict = {
         "action":            {"dtype": "float32", "shape": [action_dim],
-                              "names": _action_names(action_dim)},
+                              "names": _joint_names(action_dim)},
         "observation.state": {"dtype": "float32", "shape": [state_dim],
-                              "names": _state_names(state_dim)},
+                              "names": _joint_names(state_dim)},
         "timestamp":   {"dtype": "float32", "shape": [1], "names": None},
         "frame_index": {"dtype": "int64",   "shape": [1], "names": None},
         "episode_index":{"dtype": "int64",  "shape": [1], "names": None},
