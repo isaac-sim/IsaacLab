@@ -3,15 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import glob
 import os
+from typing import TYPE_CHECKING
 
 import torch
 import torch.nn as nn
 import torchvision
+import warp as wp
 
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.configclass import configclass
+
+if TYPE_CHECKING:
+    pass
 
 # Number of output channels for each supported camera data type.
 _DATA_TYPE_CHANNELS: dict[str, int] = {
@@ -137,6 +144,57 @@ class FeatureExtractorCfg:
     Set to False to bypass the network entirely and return zero embeddings. This is useful
     for benchmarking rendering throughput without CNN inference overhead. Default is True.
     """
+
+
+@wp.kernel
+def _cube_keypoints_kernel(
+    pose: wp.array(dtype=wp.float32, ndim=2),
+    half_size: wp.vec3,
+    keypoints: wp.array2d(dtype=wp.vec3),
+):
+    env, corner = wp.tid()
+    # corner index bits select the +/- half-side per axis (bit set -> negative)
+    sign_x = wp.where(((corner >> 0) & 1) == 0, 1.0, -1.0)
+    sign_y = wp.where(((corner >> 1) & 1) == 0, 1.0, -1.0)
+    sign_z = wp.where(((corner >> 2) & 1) == 0, 1.0, -1.0)
+    offset = wp.vec3(sign_x * half_size[0], sign_y * half_size[1], sign_z * half_size[2])
+    orientation = wp.quat(pose[env, 3], pose[env, 4], pose[env, 5], pose[env, 6])
+    position = wp.vec3(pose[env, 0], pose[env, 1], pose[env, 2])
+    keypoints[env, corner] = position + wp.quat_rotate(orientation, offset)
+
+
+def compute_cube_keypoints(
+    pose: torch.Tensor,
+    num_keypoints: int = 8,
+    size: tuple[float, float, float] = (2 * 0.03, 2 * 0.03, 2 * 0.03),
+    out: torch.Tensor | None = None,
+) -> torch.Tensor:
+    """Compute cube-corner positions for batched poses.
+
+    Args:
+        pose: Cube center poses ``(x, y, z, qx, qy, qz, qw)`` [m, unit quaternion].
+        num_keypoints: Number of binary-sign corners to compute.
+        size: Cube side lengths along each axis [m].
+        out: Optional output buffer [m], shape ``(num_envs, num_keypoints, 3)``.
+
+    Returns:
+        Cube-corner positions [m], shape ``(num_envs, num_keypoints, 3)``.
+    """
+    wp.init()
+    num_envs = pose.shape[0]
+    if out is None:
+        out = torch.empty(num_envs, num_keypoints, 3, dtype=torch.float32, device=pose.device)
+    wp.launch(
+        _cube_keypoints_kernel,
+        dim=(num_envs, num_keypoints),
+        inputs=[
+            wp.from_torch(pose.contiguous(), dtype=wp.float32),
+            wp.vec3(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0),
+        ],
+        outputs=[wp.from_torch(out, dtype=wp.vec3)],
+        device=wp.device_from_torch(pose.device),
+    )
+    return out
 
 
 class FeatureExtractor:

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import torch
@@ -14,10 +15,11 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.sensors import Camera
-from isaaclab.utils.math import quat_apply, scale_transform
+from isaaclab.utils.math import scale_transform
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, compute_cube_keypoints
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
+from isaaclab_tasks.core.reorient.reorient_task_constants import CAMERA_GOAL_MARKER_POSITION
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
@@ -40,7 +42,7 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
             width=self.cfg.tiled_camera.width,
         )
         # hide goal cubes
-        self.goal_pos[:, :] = torch.tensor([-0.2, 0.1, 0.6], device=self.device)
+        self.goal_pos[:, :] = torch.tensor(CAMERA_GOAL_MARKER_POSITION, device=self.device)
         # keypoints buffer
         self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
         self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
@@ -66,7 +68,7 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
 
     def _compute_image_observations(self):
         # generate ground truth keypoints for in-hand cube
-        compute_keypoints(pose=torch.cat((self.object_pos, self.object_rot), dim=1), out=self.gt_keypoints)
+        compute_cube_keypoints(pose=torch.cat((self.object_pos, self.object_rot), dim=1), out=self.gt_keypoints)
 
         object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
 
@@ -78,7 +80,7 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
 
         self.embeddings = embeddings.clone().detach()
         # compute keypoints for goal cube
-        compute_keypoints(
+        compute_cube_keypoints(
             pose=torch.cat((torch.zeros_like(self.goal_pos), self.goal_rot), dim=-1), out=self.goal_keypoints
         )
 
@@ -138,32 +140,29 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
         return observations
 
 
-@torch.jit.script
 def compute_keypoints(
     pose: torch.Tensor,
     num_keypoints: int = 8,
     size: tuple[float, float, float] = (2 * 0.03, 2 * 0.03, 2 * 0.03),
     out: torch.Tensor | None = None,
-):
-    """Computes positions of 8 corner keypoints of a cube.
+) -> torch.Tensor:
+    """Compute cube keypoints using the shared implementation.
+
+    .. deprecated:: 9.0.0
+        Use :func:`compute_cube_keypoints` instead.
 
     Args:
-        pose: Position and orientation of the center of the cube. Shape is (N, 7)
-        num_keypoints: Number of keypoints to compute. Default = 8
-        size: Length of X, Y, Z dimensions of cube. Default = [0.06, 0.06, 0.06]
-        out: Buffer to store keypoints. If None, a new buffer will be created.
-    """
-    num_envs = pose.shape[0]
-    if out is None:
-        out = torch.ones(num_envs, num_keypoints, 3, dtype=torch.float32, device=pose.device)
-    else:
-        out[:] = 1.0
-    for i in range(num_keypoints):
-        # which dimensions to negate
-        n = [((i >> k) & 1) == 0 for k in range(3)]
-        corner_loc = ([(1 if n[k] else -1) * s / 2 for k, s in enumerate(size)],)
-        corner = torch.tensor(corner_loc, dtype=torch.float32, device=pose.device) * out[:, i, :]
-        # express corner position in the world frame
-        out[:, i, :] = pose[:, :3] + quat_apply(pose[:, 3:7], corner)
+        pose: Cube center poses ``(x, y, z, qx, qy, qz, qw)`` [m, unit quaternion].
+        num_keypoints: Number of binary-sign corners to compute.
+        size: Cube side lengths along each axis [m].
+        out: Optional output buffer [m], shape ``(num_envs, num_keypoints, 3)``.
 
-    return out
+    Returns:
+        Cube-corner positions [m], shape ``(num_envs, num_keypoints, 3)``.
+    """
+    warnings.warn(
+        "compute_keypoints() is deprecated; use compute_cube_keypoints() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return compute_cube_keypoints(pose, num_keypoints=num_keypoints, size=size, out=out)

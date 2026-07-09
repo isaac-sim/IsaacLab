@@ -11,12 +11,7 @@ from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.utils.configclass import configclass
 
 import isaaclab_tasks.core.reorient.mdp as mdp
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import (
-    FeatureExtractorCfg,
-    ShadowHandCameraFeatures,
-    shadow_hand_camera_cached_features,
-    shadow_hand_goal_keypoints,
-)
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
     ShadowHandTiledCameraCfg,
@@ -32,6 +27,7 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
     TerminationsCfg,
     _ShadowHandManagerSceneCfg,
 )
+from isaaclab_tasks.core.reorient.reorient_task_constants import CAMERA_GOAL_MARKER_POSITION
 from isaaclab_tasks.utils import PresetCfg
 
 _DIRECT_CAMERA_CFG = ShadowHandCameraEnvCfg()
@@ -83,14 +79,14 @@ class CameraPolicyCfg(FullStateWithoutActionCfg):
 
     last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
     camera_features = ObsTerm(
-        func=ShadowHandCameraFeatures,
+        func=mdp.ShadowHandCameraFeatures,
         params={
             "feature_extractor_cfg": FeatureExtractorCfg(),
             "sensor_cfg": SceneEntityCfg("tiled_camera"),
             "object_cfg": SceneEntityCfg("object"),
         },
     )
-    goal_keypoints = ObsTerm(func=shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
+    goal_keypoints = ObsTerm(func=mdp.shadow_hand_goal_keypoints, params={"command_name": "object_pose"})
 
     def __post_init__(self):
         super().__post_init__()
@@ -113,7 +109,7 @@ class CameraCriticCfg(FullStateWithoutActionCfg):
         params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False)},
     )
     last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
-    camera_features = ObsTerm(func=shadow_hand_camera_cached_features)
+    camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
 
 
 @configclass
@@ -139,7 +135,8 @@ class ShadowHandCameraManagerEnvCfg(ShadowHandManagerEnvCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        self.commands.object_pose.fixed_marker_pos = (-0.2, 0.1, 0.6)
+        # camera tasks display the goal inside the tiled camera's frustum
+        self.commands.object_pose.fixed_marker_pos = CAMERA_GOAL_MARKER_POSITION
         self.observations.policy.camera_features.params["feature_extractor_cfg"] = self.feature_extractor
 
     def validate_config(self):
@@ -158,10 +155,3 @@ class ShadowHandCameraManagerPlayEnvCfg(ShadowHandCameraManagerEnvCfg):
 
     scene: ShadowHandCameraManagerPlaySceneCfg = ShadowHandCameraManagerPlaySceneCfg()
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(train=False, load_checkpoint=True)
-
-
-@configclass
-class ShadowHandCameraManagerBenchmarkEnvCfg(ShadowHandCameraManagerEnvCfg):
-    """Manager camera task with CNN execution disabled for renderer benchmarks."""
-
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(enabled=False)

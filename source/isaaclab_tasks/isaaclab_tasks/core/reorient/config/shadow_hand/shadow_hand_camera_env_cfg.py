@@ -16,6 +16,41 @@ from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 
+def validate_shadow_hand_camera_settings(
+    tiled_camera: CameraCfg | ShadowHandTiledCameraCfg,
+    feature_extractor: FeatureExtractorCfg,
+) -> None:
+    """Validate one resolved or defaulted Shadow Hand camera pipeline."""
+    while isinstance(tiled_camera, PresetCfg):
+        tiled_camera = tiled_camera.default
+    renderer_cfg = tiled_camera.renderer_cfg
+    while isinstance(renderer_cfg, PresetCfg):
+        renderer_cfg = renderer_cfg.default
+
+    renderer_type = getattr(renderer_cfg, "renderer_type", None)
+    warp_supported = {"rgb", "depth", "normals"}
+    if renderer_type == "newton_warp":
+        unsupported = set(tiled_camera.data_types) - warp_supported
+        if unsupported:
+            raise ValueError(
+                f"Warp renderer only supports data types {sorted(warp_supported)}, "
+                f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
+                "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
+            )
+
+    non_depth_data_types = set(tiled_camera.data_types).difference(
+        {"depth", "distance_to_image_plane", "distance_to_camera"}
+    )
+    if tiled_camera.data_types and not non_depth_data_types and feature_extractor.enabled:
+        raise ValueError(
+            "Depth-only camera data type is intended for benchmarking only. "
+            "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
+            "Disable the feature extractor with 'feature_extractor.enabled=False' "
+            "(e.g. use Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct), "
+            "or choose a data type that includes colour, e.g. presets=rgb."
+        )
+
+
 @configclass
 class _ShadowHandBaseTiledCameraCfg(CameraCfg):
     """Base camera configuration for the shadow hand vision environment.
@@ -49,6 +84,7 @@ class ShadowHandTiledCameraCfg(PresetCfg):
     Select a data-type preset via the ``presets`` CLI argument, e.g.::
 
         presets = rgb  # RGB only (3 channels)
+        presets = rgb_depth  # RGB + depth (4 channels)
         presets = albedo  # albedo (3 channels)
         presets = simple_shading_constant_diffuse  # simple shading, constant diffuse (3 channels)
 
@@ -69,6 +105,9 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
     rgb: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["rgb"])
     """RGB only (3 CNN input channels)."""
+
+    rgb_depth: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["rgb", "depth"])
+    """RGB and depth (4 CNN input channels)."""
 
     albedo: _ShadowHandBaseTiledCameraCfg = _ShadowHandBaseTiledCameraCfg(data_types=["albedo"])
     """Albedo (3 CNN input channels)."""
@@ -123,28 +162,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
-        renderer_type = getattr(self.tiled_camera.renderer_cfg, "renderer_type", None)
-        warp_supported = {"rgb", "depth", "normals"}
-        if renderer_type == "newton_warp":
-            unsupported = set(self.tiled_camera.data_types) - warp_supported
-            if unsupported:
-                raise ValueError(
-                    f"Warp renderer only supports data types {sorted(warp_supported)}, "
-                    f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
-                    "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
-                )
-
-        non_depth_data_types = set(self.tiled_camera.data_types).difference(
-            {"depth", "distance_to_image_plane", "distance_to_camera"}
-        )
-        if self.tiled_camera.data_types and not non_depth_data_types and self.feature_extractor.enabled:
-            raise ValueError(
-                "Depth-only camera data type is intended for benchmarking only. "
-                "The keypoint-regression CNN cannot be meaningfully trained from depth alone. "
-                "Disable the feature extractor with 'feature_extractor.enabled=False' "
-                "(e.g. use Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct), "
-                "or choose a data type that includes colour, e.g. presets=rgb."
-            )
+        validate_shadow_hand_camera_settings(self.tiled_camera, self.feature_extractor)
 
 
 @configclass
@@ -158,6 +176,11 @@ class ShadowHandCameraEnvPlayCfg(ShadowHandCameraEnvCfg):
 @configclass
 class ShadowHandCameraBenchmarkEnvCfg(ShadowHandCameraEnvCfg):
     """Benchmark configuration with the feature extractor CNN disabled.
+
+    .. deprecated:: 9.0.0
+        Use the regular camera task with the ``env.feature_extractor.enabled=False``
+        override instead. The ``Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct``
+        registration will be removed in a future release.
 
     The tiled camera renders frames each step as normal, but the CNN forward pass is
     bypassed — zero embeddings are returned instead. This isolates rendering throughput
