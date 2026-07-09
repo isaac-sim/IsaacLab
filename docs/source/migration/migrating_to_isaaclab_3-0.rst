@@ -5,6 +5,13 @@ Migrating to Isaac Lab 3.0
 
 .. currentmodule:: isaaclab
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-migrating-2x-to-3x`` agent skill
+   (`skills/user/migrate-2x-to-3x/ <../../../skills/user/migrate-2x-to-3x/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 Isaac Lab 3.0 introduces a multi-backend architecture that separates simulation backend-specific code
 from the core Isaac Lab API. This allows for future support of different physics backends while
 maintaining a consistent user-facing API.
