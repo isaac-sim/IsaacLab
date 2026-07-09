@@ -22,6 +22,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
 
+from isaaclab_tasks.core.reorient.reorient_task_constants import SHADOW_FINGERTIP_BODY_NAMES
 from isaaclab_tasks.utils import PresetCfg
 
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_CFG
@@ -348,13 +349,7 @@ class ShadowHandEnvCfg(DirectRLEnvCfg):
         "robot0_THJ1",
         "robot0_THJ0",
     ]
-    fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
-    ]
+    fingertip_body_names = SHADOW_FINGERTIP_BODY_NAMES
 
     # in-hand object
     object_cfg: ObjectCfg = ObjectCfg()

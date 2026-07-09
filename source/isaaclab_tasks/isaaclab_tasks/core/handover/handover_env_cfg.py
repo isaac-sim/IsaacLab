@@ -20,6 +20,10 @@ from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils.configclass import configclass
 
+from isaaclab_tasks.core.handover.handover_task_constants import (
+    ACTUATED_JOINT_NAMES_PRESET,
+    FINGERTIP_BODY_NAMES,
+)
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
 from isaaclab_tasks.utils import PresetCfg, preset
 
@@ -132,57 +136,6 @@ class EventCfg:
 _SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
 
 
-# Physical actuated set of the Shadow Hand (wrist + non-distal finger joints +
-# full thumb). The PhysX and OVPhysX asset names the finger chains J0..J3
-# (LF: J0..J4) with the tendon-coupled distal pair unactuated; the production
-# Newton asset renumbers the four finger chains by +1 (FF/MF/RF: J1..J4,
-# LF: J1..J5, distal = J1), so the same physical joints carry shifted names.
-_ACTUATED_JOINT_NAMES = [
-    "robot0_WRJ1",
-    "robot0_WRJ0",
-    "robot0_FFJ3",
-    "robot0_FFJ2",
-    "robot0_FFJ1",
-    "robot0_MFJ3",
-    "robot0_MFJ2",
-    "robot0_MFJ1",
-    "robot0_RFJ3",
-    "robot0_RFJ2",
-    "robot0_RFJ1",
-    "robot0_LFJ4",
-    "robot0_LFJ3",
-    "robot0_LFJ2",
-    "robot0_LFJ1",
-    "robot0_THJ4",
-    "robot0_THJ3",
-    "robot0_THJ2",
-    "robot0_THJ1",
-    "robot0_THJ0",
-]
-_ACTUATED_JOINT_NAMES_NEWTON = [
-    "robot0_WRJ1",
-    "robot0_WRJ0",
-    "robot0_FFJ4",
-    "robot0_FFJ3",
-    "robot0_FFJ2",
-    "robot0_MFJ4",
-    "robot0_MFJ3",
-    "robot0_MFJ2",
-    "robot0_RFJ4",
-    "robot0_RFJ3",
-    "robot0_RFJ2",
-    "robot0_LFJ5",
-    "robot0_LFJ4",
-    "robot0_LFJ3",
-    "robot0_LFJ2",
-    "robot0_THJ4",
-    "robot0_THJ3",
-    "robot0_THJ2",
-    "robot0_THJ1",
-    "robot0_THJ0",
-]
-
-
 def _quat_mul_xyzw(
     q1: tuple[float, float, float, float], q2: tuple[float, float, float, float]
 ) -> tuple[float, float, float, float]:
@@ -285,6 +238,19 @@ def _shadow_hand_cfg(
         init_state=SHADOW_HAND_CFG.init_state.replace(pos=init_pos, rot=init_rot),
     )
     return preset(default=physx_cfg, physx=physx_cfg, newton_mjwarp=newton_cfg, ovphysx=ovphysx_cfg)
+
+
+# Per-hand presets shared by the Direct environment and the manager scene.
+RIGHT_HAND_CFG = _shadow_hand_cfg(
+    prim_path="/World/envs/env_.*/RightRobot",
+    init_pos=(0.0, 0.0, 0.5),
+    init_rot=(0.0, 0.0, 0.0, 1.0),
+)
+LEFT_HAND_CFG = _shadow_hand_cfg(
+    prim_path="/World/envs/env_.*/LeftRobot",
+    init_pos=(0.0, -1.0, 0.5),
+    init_rot=(0.0, 0.0, 1.0, 0.0),
+)
 
 
 @configclass
@@ -395,29 +361,10 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         physics=PhysicsCfg(),
     )
     # robot
-    right_robot_cfg: PresetCfg = _shadow_hand_cfg(
-        prim_path="/World/envs/env_.*/RightRobot",
-        init_pos=(0.0, 0.0, 0.5),
-        init_rot=(0.0, 0.0, 0.0, 1.0),
-    )
-    left_robot_cfg: PresetCfg = _shadow_hand_cfg(
-        prim_path="/World/envs/env_.*/LeftRobot",
-        init_pos=(0.0, -1.0, 0.5),
-        init_rot=(0.0, 0.0, 1.0, 0.0),
-    )
-    actuated_joint_names: PresetCfg = preset(
-        physx=_ACTUATED_JOINT_NAMES,
-        newton_mjwarp=_ACTUATED_JOINT_NAMES_NEWTON,
-        ovphysx=_ACTUATED_JOINT_NAMES,
-        default=_ACTUATED_JOINT_NAMES,
-    )
-    fingertip_body_names = [
-        "robot0_ffdistal",
-        "robot0_mfdistal",
-        "robot0_rfdistal",
-        "robot0_lfdistal",
-        "robot0_thdistal",
-    ]
+    right_robot_cfg: PresetCfg = RIGHT_HAND_CFG
+    left_robot_cfg: PresetCfg = LEFT_HAND_CFG
+    actuated_joint_names: PresetCfg = ACTUATED_JOINT_NAMES_PRESET
+    fingertip_body_names = FINGERTIP_BODY_NAMES
 
     # in-hand object
     object_cfg: ObjectCfg = ObjectCfg()
