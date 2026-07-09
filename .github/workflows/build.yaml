@@ -209,7 +209,13 @@ jobs:
         set -euo pipefail
         if [ "$EVENT_NAME" = "pull_request" ]; then
           # PR: the API lists every file the PR touches, base-relative, forward-slashed.
-          gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed_files.txt
+          # Fail-safe: a transient API error must not fail the job and suppress the artifact —
+          # fall back to an empty change set (mirrors the `changes:` job's guard) so an empty
+          # impact report is still produced and uploaded.
+          if ! gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' > changed_files.txt; then
+            echo "::warning::Could not list changed files; producing an empty dependency-impact report"
+            : > changed_files.txt
+          fi
         elif [ "$EVENT_NAME" = "push" ] && git rev-parse --quiet --verify "$BEFORE_SHA^{commit}" > /dev/null; then
           git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > changed_files.txt
         else

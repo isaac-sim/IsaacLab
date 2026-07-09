@@ -105,6 +105,16 @@ def test_untracked_change_yields_empty_buckets(tmp_path: Path) -> None:
     assert impact["transitive"]["python"] == []
 
 
+def test_non_python_change_still_seeds_dependents(tmp_path: Path) -> None:
+    # A change to a non-Python file inside a package (here ``base``'s extension.toml) must still
+    # seed the reverse-dependency walk, even though no ``.py`` file was touched.
+    _build_chain(tmp_path)
+    impact = _MODULE.build_impact(["source/base/config/extension.toml"], repo_root=tmp_path)
+    assert impact["changed"]["python"] == []
+    assert impact["dependents"]["python"] == ["source/mid_a/a.py", "source/mid_b/b.py"]
+    assert impact["transitive"]["python"] == ["source/top/t.py"]
+
+
 def test_windows_paths_are_normalized(tmp_path: Path) -> None:
     _build_chain(tmp_path)
     impact = _MODULE.build_impact([r"source\base\core.py"], repo_root=tmp_path)

@@ -194,7 +194,12 @@ def build_impact(
 
     changed_python = sorted({_normalize(f) for f in changed_files if f.strip().endswith(".py")})
 
-    changed_packages = {owning_package(f, packages) for f in changed_python}
+    # Seeds are derived from *every* changed file that lives in a known package, not just the
+    # Python ones: editing a package's ``extension.toml``, a data asset, or a C extension can
+    # still affect every package that depends on it. Seeding only from ``.py`` files would make
+    # a non-Python-only change inside a package report "nothing else affected" (empty
+    # dependents/transitive), which understates the real blast radius.
+    changed_packages = {owning_package(f, packages) for f in changed_files if f.strip()}
     changed_packages.discard(None)
     seeds: set[str] = {name for name in changed_packages if name is not None}
 
