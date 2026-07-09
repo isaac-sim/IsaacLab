@@ -24,9 +24,12 @@ import signal
 import sys
 from typing import Any, Literal
 
-with contextlib.suppress(ModuleNotFoundError):
+try:
     import isaacsim  # noqa: F401
-    from isaacsim import SimulationApp
+except ModuleNotFoundError:
+    isaacsim = None
+
+SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 
@@ -239,6 +242,7 @@ class AppLauncher:
                 the :attr:`launcher_args` will raise a ValueError.
 
         Raises:
+            ImportError: If the full Isaac Sim runtime is unavailable.
             ValueError: If there are common/duplicated arguments between ``launcher_args`` and ``kwargs``.
             ValueError: If combination of ``launcher_args`` and ``kwargs`` are missing the necessary arguments
                 that are needed by the AppLauncher to resolve the desired app configuration.
@@ -248,6 +252,12 @@ class AppLauncher:
         .. _argparse.Namespace: https://docs.python.org/3/library/argparse.html?highlight=namespace#argparse.Namespace
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
+        if SimulationApp is None:
+            raise ImportError(
+                "AppLauncher requires the full Isaac Sim runtime. Install Isaac Sim or avoid constructing "
+                "AppLauncher in a kitless process."
+            )
+
         # We allow users to pass either a dict or an argparse.Namespace into
         # __init__, anticipating that these will be all of the argparse arguments
         # used by the calling script. Those which we appended via add_app_launcher_args
