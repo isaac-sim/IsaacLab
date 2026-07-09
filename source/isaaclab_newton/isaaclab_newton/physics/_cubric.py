@@ -287,7 +287,7 @@ class CubricBindings:
                 continue
             major = ctypes.c_uint32.from_address(entry_addr + 8).value
             minor = ctypes.c_uint32.from_address(entry_addr + 12).value
-            if major != _IA_EXPECTED_MAJOR or minor != _IA_EXPECTED_MINOR:
+            if not (major == _IA_EXPECTED_MAJOR and minor == _IA_EXPECTED_MINOR):
                 logger.warning(
                     "cubric IAdapter version incompatible with this shim: plugin "
                     "reports v%d.%d, shim is pinned to v%d.%d. Falling back to "
