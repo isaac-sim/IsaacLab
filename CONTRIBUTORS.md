@@ -119,6 +119,7 @@ Guidelines for modifications:
 * Kousheek Chakraborty
 * Kris Wilson
 * Krishna Lakhi
+* Lin He
 * Lionel Gulich
 * Lorenz Wellhausen
 * Lotus Li
