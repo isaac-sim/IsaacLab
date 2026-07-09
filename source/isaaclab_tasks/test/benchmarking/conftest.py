@@ -50,6 +50,9 @@ def pytest_addoption(parser):
         default="",
         help="Optional tag to add to the KPI payload for filtering on the Grafana dashboard.",
     )
+    parser.addoption("--video", action="store_true", default=False, help="Record videos during training.")
+    parser.addoption("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
+    parser.addoption("--video_interval", type=int, default=2000, help="Interval between video recordings (in steps).")
 
 
 @pytest.fixture
@@ -80,6 +83,21 @@ def save_kpi_payload(request):
 @pytest.fixture
 def tag(request):
     return request.config.getoption("--tag")
+
+
+@pytest.fixture
+def video(request):
+    return request.config.getoption("--video")
+
+
+@pytest.fixture
+def video_length(request):
+    return request.config.getoption("--video_length")
+
+
+@pytest.fixture
+def video_interval(request):
+    return request.config.getoption("--video_interval")
 
 
 # Fixture for storing KPI data in a global variable

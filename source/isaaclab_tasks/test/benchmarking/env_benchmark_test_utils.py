@@ -31,6 +31,19 @@ def _get_repo_path():
     raise RuntimeError("Could not find IsaacLab repository root. Expected to find 'isaaclab.sh' in parent directories.")
 
 
+def _repo_path_for_logs():
+    """Repository root used when resolving ``logs/`` paths (matches train script cwd)."""
+    repo_path = _get_repo_path()
+    try:
+        from isaaclab.utils.version import get_isaac_sim_version
+
+        if get_isaac_sim_version().major < 5:
+            repo_path = os.path.join(repo_path, "..")
+    except (ImportError, ModuleNotFoundError):
+        pass
+    return os.path.abspath(repo_path)
+
+
 def get_env_configs(configs_path):
     """Get environment configurations from yaml filepath."""
     with open(configs_path) as env_configs_file:
@@ -66,16 +79,46 @@ def get_env_config(env_configs, mode, workflow, task):
     return None
 
 
-def evaluate_job(workflow, task, env_config, duration):
-    """Evaluate the job."""
+def evaluate_job(workflow, task, env_config, train_result):
+    """Evaluate the job.
+
+    Args:
+        train_result: Dict with ``duration``, ``returncode``, ``stdout``, and ``stderr``
+            (as returned by ``train_job`` in ``test_environments_training.py``).
+    """
+    duration = train_result["duration"]
     log_data = _retrieve_logs(workflow, task)
 
     kpi_payload = {"success": True, "msg": ""}
+    rc = int(train_result.get("returncode", 0))
+    stderr = (train_result.get("stderr") or "").strip()
+    stdout = (train_result.get("stdout") or "").strip()
+
+    if rc != 0:
+        kpi_payload["success"] = False
+        kpi_payload["failure_kind"] = "did_not_finish"
+        parts = [f"training subprocess exited with code {rc}"]
+        if stderr:
+            parts.append(f"stderr_tail={stderr[-3500:]}")
+        if stdout:
+            parts.append(f"stdout_tail={stdout[-2500:]}")
+        kpi_payload["msg"] = " | ".join(parts)
+        return kpi_payload
 
     # handle case where no log files are found
     if not log_data:
         kpi_payload["success"] = False
-        kpi_payload["msg"] = "error: training did not finish!"
+        kpi_payload["failure_kind"] = "did_not_finish"
+        base = os.path.join(_repo_path_for_logs(), "logs", workflow, task)
+        parts = []
+        if stderr:
+            parts.append(f"stderr_tail={stderr[-3500:]}")
+        if stdout:
+            parts.append(f"stdout_tail={stdout[-2500:]}")
+        parts.append(
+            f"no tensorboard files matched *.tfevents.* under {base} (recursive search; dir_exists={os.path.isdir(base)})"  # noqa: E501
+        )
+        kpi_payload["msg"] = " | ".join(parts)
         return kpi_payload
 
     thresholds = {**env_config.get("lower_thresholds", {}), **env_config.get("upper_thresholds", {})}
@@ -95,11 +138,13 @@ def evaluate_job(workflow, task, env_config, duration):
         if uses_lower_threshold:
             if val < threshold_val:
                 kpi_payload["success"] = False
+                kpi_payload["failure_kind"] = "did_not_pass_thresholds"
                 if not kpi_payload["msg"]:
                     kpi_payload["msg"] = f"{threshold_name} below threshold: {val} < {threshold_val_rounded}"
         else:
             if val > threshold_val:
                 kpi_payload["success"] = False
+                kpi_payload["failure_kind"] = "did_not_pass_thresholds"
                 if not kpi_payload["msg"]:
                     kpi_payload["msg"] = f"{threshold_name} above threshold: {val} > {threshold_val_rounded}"
         kpi_payload[threshold_name] = val
@@ -140,7 +185,8 @@ def process_kpi_data(kpi_payloads, tag, timestamp):
         if kpi_payload["success"]:
             successes[workflow] += 1
         else:
-            if kpi_payload["msg"] == "error: training did not finish!":
+            fk = kpi_payload.get("failure_kind")
+            if fk == "did_not_finish" or (fk is None and kpi_payload["msg"] == "error: training did not finish!"):
                 failures_did_not_finish[workflow] += 1
             else:
                 failures_did_not_pass_thresholds[workflow] += 1
@@ -172,21 +218,18 @@ def output_payloads(payloads):
 
 def _retrieve_logs(workflow, task):
     """Retrieve training logs."""
-    # first grab all log files
-    repo_path = _get_repo_path()
-
-    # Defer Isaac Sim version import to avoid preloading USD before SimulationApp starts.
-    from isaaclab.utils.version import get_isaac_sim_version
-
-    if get_isaac_sim_version().major < 5:
-        repo_path = os.path.join(repo_path, "..")
+    repo_path = _repo_path_for_logs()
     if workflow == "rl_games":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/summaries/*")
+        log_files = glob.glob(log_files_path)
     elif workflow == "sb3":
         log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/*/*.tfevents.*")
+        log_files = glob.glob(log_files_path)
     else:
-        log_files_path = os.path.join(repo_path, f"logs/{workflow}/{task}/*/*.tfevents.*")
-    log_files = glob.glob(log_files_path)
+        # RSL-RL (and similar) may place ``events.out.tfevents.*`` directly under the run
+        # folder or in a subfolder depending on the runner / tensorboard version.
+        base = os.path.join(repo_path, "logs", workflow, task)
+        log_files = glob.glob(os.path.join(base, "**", "*.tfevents.*"), recursive=True)
     # handle case where no log files are found
     if not log_files:
         return None
