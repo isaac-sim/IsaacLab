@@ -1,0 +1,6 @@
+# Only URDF sources are tracked; the USD (and converter side-products) are
+# generated locally — see scripts/sysid/prepare_fr3_asset.py.
+*
+!.gitignore
+!fr3.urdf
+!fr3_nomesh.urdf

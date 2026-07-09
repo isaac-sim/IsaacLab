@@ -79,6 +79,7 @@ Guidelines for modifications:
 * Dongxuan Fan
 * Dorsa Rohani
 * Ege Sekkin
+* Elia Raimondi
 * Emily Sturman
 * Emmanuel Ferdman
 * Fabian Jenelten
