@@ -11,15 +11,15 @@ import pytest
 import torch
 
 from scripts.benchmarks import training
-from scripts.benchmarks.rsl_rl import train_benchmark as train_rsl_rl
-from scripts.benchmarks.sb3 import train_benchmark as train_sb3
-from scripts.benchmarks.skrl import train_benchmark as train_skrl
+from scripts.benchmarks.rsl_rl import benchmark_rsl_rl_train as train_rsl_rl
+from scripts.benchmarks.sb3 import benchmark_sb3_train as train_sb3
+from scripts.benchmarks.skrl import benchmark_skrl_train as train_skrl
 
 
 @pytest.mark.parametrize("library", ["rl_games", "rsl_rl", "sb3", "skrl"])
-def test_training_dispatches_libraries_to_train_benchmark_adapters(library: str):
-    """The training dispatcher uses the shared train-benchmark adapter name."""
-    assert training.LIBRARY_ENTRYPOINTS[library].name == "train_benchmark.py"
+def test_training_dispatches_libraries_to_library_named_adapters(library: str):
+    """The training dispatcher uses the library-named benchmark adapter."""
+    assert training.LIBRARY_ENTRYPOINTS[library].name == f"benchmark_{library}_train.py"
 
 
 def test_rsl_rl_disables_code_state_capture():
