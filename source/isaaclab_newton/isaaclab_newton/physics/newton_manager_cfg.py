@@ -166,8 +166,6 @@ class NewtonCfg(PhysicsCfg):
       faster ray/overlap queries.
     - ``"cubql"``: cuBQL GPU builder; balances fast construction with good tree
       quality on the GPU (default).
-
-    Overridden by the ``NEWTON_BVH_GEOMETRY`` environment variable when set.
     """
 
     bvh_constructor_scene: Literal["lbvh", "sah"] = "sah"
@@ -177,8 +175,6 @@ class NewtonCfg(PhysicsCfg):
     culling, forwarded to :attr:`ModelBuilder.BvhConfig`. See
     :attr:`bvh_constructor_geometry` for the ``"lbvh"`` / ``"sah"`` trade-off;
     ``"cubql"`` is not available for the scene hierarchy.
-
-    Overridden by the ``NEWTON_BVH_SCENE`` environment variable when set.
     """
 
     bvh_constructor_gaussian: Literal["lbvh", "sah", "cubql"] = "cubql"
@@ -188,8 +184,6 @@ class NewtonCfg(PhysicsCfg):
     Gaussian renderer/collision path), forwarded to
     :attr:`ModelBuilder.BvhConfig`. See :attr:`bvh_constructor_geometry` for the
     ``"lbvh"`` / ``"sah"`` / ``"cubql"`` trade-off.
-
-    Overridden by the ``NEWTON_BVH_GAUSSIAN`` environment variable when set.
     """
 
     def __post_init__(self):
