@@ -841,25 +841,37 @@ def write_float_user_to_backend_with_indices(
 ) -> None:
     """Write a scalar or selected 2-D public values to public and backend buffers.
 
-    Launch wrapper over :func:`_write_float_user_to_backend_with_indices`.
-    ``input_data`` may be a Python scalar (passed through to the scalar
-    ``wp.func`` overload) or a 2-D float32 torch tensor / Warp array.
+    ``input_data`` may be a Python scalar, broadcast to the selected cells by
+    :func:`_write_scalar_user_to_backend_with_indices` (:paramref:`full_data`
+    is irrelevant for a scalar and ignored), or a 2-D float32 torch tensor /
+    Warp array, delegated to :func:`write_2d_user_to_backend_with_indices`.
     """
-    if not isinstance(input_data, (int, float)):
-        input_data = _as_warp_array(input_data, wp.float32)
-    wp.launch(
-        _write_float_user_to_backend_with_indices,
-        dim=(env_ids.shape[0], user_ids.shape[0]),
-        inputs=[
-            input_data,
-            env_ids,
-            user_ids,
-            user_to_backend,
-            has_ordering,
-            full_data,
-            _as_warp_array(user_data, wp.float32),
-            _as_warp_array(backend_data, wp.float32),
-        ],
+    if isinstance(input_data, (int, float)):
+        wp.launch(
+            _write_scalar_user_to_backend_with_indices,
+            dim=(env_ids.shape[0], user_ids.shape[0]),
+            inputs=[
+                float(input_data),
+                env_ids,
+                user_ids,
+                user_to_backend,
+                has_ordering,
+                _as_warp_array(user_data, wp.float32),
+                _as_warp_array(backend_data, wp.float32),
+            ],
+            device=device,
+        )
+        return
+    write_2d_user_to_backend_with_indices(
+        input_data,
+        env_ids,
+        user_ids,
+        user_to_backend,
+        has_ordering,
+        full_data,
+        user_data,
+        backend_data,
+        dtype=wp.float32,
         device=device,
     )
 
@@ -877,82 +889,62 @@ def write_float_user_to_backend_with_mask(
 ) -> None:
     """Write a scalar or masked 2-D public values to public and backend buffers.
 
-    Launch wrapper over :func:`_write_float_user_to_backend_with_mask`; see
-    :func:`write_float_user_to_backend_with_indices` for the input contract.
+    ``input_data`` may be a Python scalar, broadcast to the masked cells by
+    :func:`_write_scalar_user_to_backend_with_mask`, or a 2-D float32 torch
+    tensor / Warp array, delegated to
+    :func:`write_2d_user_to_backend_with_mask`.
     """
-    if not isinstance(input_data, (int, float)):
-        input_data = _as_warp_array(input_data, wp.float32)
-    wp.launch(
-        _write_float_user_to_backend_with_mask,
-        dim=(env_mask.shape[0], user_mask.shape[0]),
-        inputs=[
-            input_data,
-            env_mask,
-            user_mask,
-            user_to_backend,
-            has_ordering,
-            _as_warp_array(user_data, wp.float32),
-            _as_warp_array(backend_data, wp.float32),
-        ],
+    if isinstance(input_data, (int, float)):
+        wp.launch(
+            _write_scalar_user_to_backend_with_mask,
+            dim=(env_mask.shape[0], user_mask.shape[0]),
+            inputs=[
+                float(input_data),
+                env_mask,
+                user_mask,
+                user_to_backend,
+                has_ordering,
+                _as_warp_array(user_data, wp.float32),
+                _as_warp_array(backend_data, wp.float32),
+            ],
+            device=device,
+        )
+        return
+    write_2d_user_to_backend_with_mask(
+        input_data,
+        env_mask,
+        user_mask,
+        user_to_backend,
+        has_ordering,
+        user_data,
+        backend_data,
+        dtype=wp.float32,
         device=device,
     )
 
 
-@wp.func
-def _resolve_float_input(
-    input_data: wp.float32,
-    env_id: int,
-    user_id: int,
-    local_env_id: int,
-    local_user_id: int,
-    full_data: bool,
-) -> wp.float32:
-    """Return a scalar input unchanged."""
-    return input_data
-
-
-@wp.func
-def _resolve_float_input(
-    input_data: wp.array2d(dtype=wp.float32),
-    env_id: int,
-    user_id: int,
-    local_env_id: int,
-    local_user_id: int,
-    full_data: bool,
-) -> wp.float32:
-    """Read a 2-D input using full or selector-local indices."""
-    if full_data:
-        return input_data[env_id, user_id]
-    return input_data[local_env_id, local_user_id]
-
-
 @wp.kernel
-def _write_float_user_to_backend_with_indices(
-    input_data: Any,
+def _write_scalar_user_to_backend_with_indices(
+    input_value: wp.float32,
     env_ids: wp.array(dtype=wp.int32),
     user_ids: wp.array(dtype=wp.int32),
     user_to_backend: wp.array(dtype=wp.int32),
     has_ordering: bool,
-    full_data: bool,
     user_data: wp.array2d(dtype=wp.float32),
     backend_data: wp.array2d(dtype=wp.float32),
 ) -> None:
-    """Write a scalar or selected 2-D public values to public and backend buffers.
+    """Broadcast one scalar to selected public and backend buffer cells.
 
     The Cartesian-product selectors must each contain unique indices. Repeated
     indices can issue concurrent writes to the same destination cell.
 
     Args:
-        input_data: Scalar or 2-D values in caller-defined SI units. With full_data
-            true, 2-D input is shaped [num_envs, num_items] in public order;
-            otherwise it is shaped [len(env_ids), len(user_ids)].
+        input_value: Scalar value in caller-defined SI units.
         env_ids: Unique environment indices selected from [0, num_envs).
         user_ids: Unique public item indices selected from [0, num_items).
         user_to_backend: Read-only map from public to backend item indices.
-        has_ordering: Whether to scatter values into backend_data. When false,
-            backend_data is not written and may alias user_data.
-        full_data: Whether 2-D input uses full public indices instead of compact
-            selector-local indices.
+        has_ordering: Whether to scatter the value into backend_data. When
+            false, backend_data is not written and may alias user_data.
         user_data: Public-order destination shaped [num_envs, num_items].
         backend_data: Backend-order destination shaped [num_envs, num_items].
     """
@@ -960,17 +952,15 @@ def _write_float_user_to_backend_with_indices(
     env_id = env_ids[i]
     user_id = user_ids[j]
 
-    value = _resolve_float_input(input_data, env_id, user_id, i, j, full_data)
-
-    user_data[env_id, user_id] = value
+    user_data[env_id, user_id] = input_value
     if has_ordering:
         backend_id = user_to_backend[user_id]
-        backend_data[env_id, backend_id] = value
+        backend_data[env_id, backend_id] = input_value
 
 
 @wp.kernel
-def _write_float_user_to_backend_with_mask(
-    input_data: Any,
+def _write_scalar_user_to_backend_with_mask(
+    input_value: wp.float32,
     env_mask: wp.array(dtype=wp.bool),
     user_mask: wp.array(dtype=wp.bool),
     user_to_backend: wp.array(dtype=wp.int32),
@@ -978,16 +968,15 @@ def _write_float_user_to_backend_with_mask(
     user_data: wp.array2d(dtype=wp.float32),
     backend_data: wp.array2d(dtype=wp.float32),
 ) -> None:
-    """Write a scalar or masked 2-D public values to public and backend buffers.
+    """Broadcast one scalar to masked public and backend buffer cells.
 
     Args:
-        input_data: Scalar or 2-D values in caller-defined SI units. A 2-D input is
-            shaped [num_envs, num_items] in public order.
+        input_value: Scalar value in caller-defined SI units.
         env_mask: Environment-selection mask shaped [num_envs].
         user_mask: Public-item selection mask shaped [num_items].
         user_to_backend: Read-only map from public to backend item indices.
-        has_ordering: Whether to scatter values into backend_data. When false,
-            backend_data is not written and may alias user_data.
+        has_ordering: Whether to scatter the value into backend_data. When
+            false, backend_data is not written and may alias user_data.
         user_data: Public-order destination shaped [num_envs, num_items].
         backend_data: Backend-order destination shaped [num_envs, num_items].
     """
@@ -995,8 +984,7 @@ def _write_float_user_to_backend_with_mask(
     if not env_mask[env_id] or not user_mask[user_id]:
         return
 
-    value = _resolve_float_input(input_data, env_id, user_id, env_id, user_id, True)
-    user_data[env_id, user_id] = value
+    user_data[env_id, user_id] = input_value
     if has_ordering:
         backend_id = user_to_backend[user_id]
-        backend_data[env_id, backend_id] = value
+        backend_data[env_id, backend_id] = input_value
