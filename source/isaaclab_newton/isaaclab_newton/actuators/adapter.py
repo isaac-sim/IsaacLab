@@ -237,6 +237,7 @@ def build_newton_actuator_defaults(
     num_envs: int,
     num_joints: int,
     dof_offset: int,
+    env_stride: int,
     device: str,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | slice]:
     """Snapshot the initial kp/kd of every Newton actuator owned by one articulation.
@@ -255,6 +256,12 @@ def build_newton_actuator_defaults(
         num_joints: Articulation-local joint count.
         dof_offset: Offset of this articulation's DOFs in the env-major
             global index space (``0`` on PhysX, view-dependent on Newton).
+        env_stride: Whole-model per-env DOF count — the stride used to build
+            each actuator's env-major ``indices``. Equals ``num_joints`` on
+            PhysX, but exceeds it by the free-root DOFs on a floating-base
+            Newton articulation, so it must be passed explicitly rather than
+            assumed equal to ``num_joints``. The owning adapter's
+            :attr:`NewtonActuatorAdapter.num_joints` is exactly this value.
         device: Warp device string (e.g. ``"cuda:0"``).
 
     Returns:
@@ -290,14 +297,14 @@ def build_newton_actuator_defaults(
             wp.launch(
                 scatter_gain_kernel,
                 dim=act.indices.shape[0],
-                inputs=[ctrl.kp, flat_stiffness, act.indices, dof_offset, num_joints],
+                inputs=[ctrl.kp, flat_stiffness, act.indices, dof_offset, num_joints, env_stride],
                 device=wp_device,
             )
         if hasattr(ctrl, "kd"):
             wp.launch(
                 scatter_gain_kernel,
                 dim=act.indices.shape[0],
-                inputs=[ctrl.kd, flat_damping, act.indices, dof_offset, num_joints],
+                inputs=[ctrl.kd, flat_damping, act.indices, dof_offset, num_joints, env_stride],
                 device=wp_device,
             )
     stiffness = wp.to_torch(flat_stiffness.reshape((num_envs, num_joints)))
