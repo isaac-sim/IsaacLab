@@ -1893,6 +1893,9 @@ def define_deformable_body_properties(
     if not sim_mesh_prim.ApplyAPI(UsdPhysics.CollisionAPI):
         raise RuntimeError(f"Failed to set {deformable_type} deformable collision API on prim '{sim_mesh_prim_path}'.")
 
+    # disable simulation mesh for rendering
+    UsdGeom.Imageable(sim_mesh_prim).GetPurposeAttr().Set(UsdGeom.Tokens.guide)
+
     if use_omni_physics_apis:
         # For PhysX: bind visual to sim mesh by applying bind pose deformable pose API
         purposes = ["bindPose"]
@@ -1909,9 +1912,6 @@ def define_deformable_body_properties(
         sim_mesh_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
             purposes
         )
-
-        # disable simulation mesh for rendering
-        UsdGeom.Imageable(sim_mesh_prim).GetPurposeAttr().Set(UsdGeom.Tokens.guide)
 
         # apply deformable body api
         if not root_prim.ApplyAPI("OmniPhysicsDeformableBodyAPI"):
