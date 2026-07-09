@@ -227,8 +227,7 @@ class RenderData:
         axis, computed by :meth:`newton.sensors.SensorTiledCamera.Utils.convert_ray_depth_to_forward_depth`.
         No-op when only ``distance_to_camera`` (or no depth output) was requested.
         """
-        if self.outputs.depth_image is None:
-            return
+        assert self.outputs.depth_image is not None, "Expected a depth image to convert"
         for output_name, dest in self._depth_dests.items():
             if output_name in self._PLANE_DEPTH_KINDS:
                 self.newton_sensor.utils.convert_ray_depth_to_forward_depth(
@@ -246,6 +245,7 @@ class RenderData:
         replaces the background with the far clip [m] to mirror the RTX renderer's
         :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.depth_clipping_behavior`. No-op when no
         depth output was requested or the camera did not provide a clipping range.
+
         """
         if behavior != "max" or self.far_clip is None:
             return
@@ -444,6 +444,20 @@ class NewtonWarpRenderer(BaseRenderer):
         if self.newton_sensor.model.shape_count > 0:
             newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
 
+        # Use the renderer's clear value to fill distance_to_camera background when it is the only
+        # depth output requested. This avoids a post-render kernel pass for that common case.
+        # Planar-depth outputs (depth / distance_to_image_plane) are derived by
+        # convert_plane_depth(), which reads the same ray-depth buffer; pre-clearing to far_clip
+        # would make it compute far_clip * cos(θ) per pixel instead of 0.0, so the <= 0.0
+        # sentinel that apply_depth_clipping relies on would no longer identify background pixels.
+        _depth_kinds = set(render_data._depth_dests)
+        _use_depth_clear = (
+            self.cfg.depth_clipping_behavior == "max"
+            and render_data.far_clip is not None
+            and render_data._RAY_DEPTH_KIND in _depth_kinds
+            and not (_depth_kinds & render_data._PLANE_DEPTH_KINDS)
+        )
+
         self.newton_sensor.update(
             newton_state,
             render_data.camera_transforms,
@@ -455,15 +469,21 @@ class NewtonWarpRenderer(BaseRenderer):
             normal_image=render_data.outputs.normals_image,
             shape_index_image=render_data.outputs.instance_segmentation_image,
             # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
-            clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
+            clear_data=newton.sensors.SensorTiledCamera.ClearData(
+                clear_color=0xFFEEEEEE,
+                **({"clear_depth": render_data.far_clip} if _use_depth_clear else {}),
+            ),
             kernel_block_dim=self.cfg.kernel_block_dim,
         )
 
-        # Derive planar depth (``depth`` / ``distance_to_image_plane``) from Newton's ray-hit distance.
-        render_data.convert_plane_depth()
-
-        # Apply the configured far-plane clipping behavior to the depth-family outputs.
-        render_data.apply_depth_clipping(self.cfg.depth_clipping_behavior)
+        if _depth_kinds & render_data._PLANE_DEPTH_KINDS:
+            # Derive planar depth (``depth`` / ``distance_to_image_plane``) from Newton's ray-hit
+            # distance, then apply far-plane clipping. We cannot use ``clear_depth`` here because
+            # the ray-depth buffer feeds ``convert_plane_depth``; pre-clearing to ``far_clip`` would
+            # produce ``far_clip * cos(θ)`` per pixel in the planar outputs instead of ``0.0``,
+            # breaking the ``<= 0`` sentinel that ``apply_depth_clipping`` relies on.
+            render_data.convert_plane_depth()
+            render_data.apply_depth_clipping(self.cfg.depth_clipping_behavior)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
