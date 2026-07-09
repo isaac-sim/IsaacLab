@@ -19,9 +19,9 @@ __all__ = [
     "fingertip_vel",
     "fingertip_wrench",
     "reorient_last_action",
-    "openai_policy_observation",
     "OpenAIPolicyObservation",
     "goal_quat_diff",
+    "compute_goal_quat_error",
     "success_bonus",
     "track_orientation_inv_l2",
     "track_pos_l2",
@@ -33,8 +33,7 @@ __all__ = [
     "object_away_from_goal",
     "object_away_from_robot",
     "object_reorientation_out_of_reach",
-    "direct_timeout",
-    "direct_reorient_timeout",
+    "DirectReorientTimeout",
 ]
 
 from .commands import ReorientCommand, ReorientCommandCfg, ReorientEpisodeCommand, ReorientEpisodeCommandCfg
@@ -52,8 +51,8 @@ from .observations import (
     fingertip_quat,
     fingertip_vel,
     fingertip_wrench,
+    compute_goal_quat_error,
     goal_quat_diff,
-    openai_policy_observation,
     reorient_last_action,
 )
 from .rewards import (
@@ -66,8 +65,7 @@ from .rewards import (
     track_pos_l2,
 )
 from .terminations import (
-    direct_reorient_timeout,
-    direct_timeout,
+    DirectReorientTimeout,
     max_consecutive_success,
     object_away_from_goal,
     object_away_from_robot,

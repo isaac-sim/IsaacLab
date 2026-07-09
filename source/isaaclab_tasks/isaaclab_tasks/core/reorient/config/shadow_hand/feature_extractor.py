@@ -14,6 +14,8 @@ import torch.nn as nn
 import torchvision
 import warp as wp
 
+wp.init()
+
 from isaaclab.sensors import save_images_to_file
 from isaaclab.utils.configclass import configclass
 
@@ -180,7 +182,6 @@ def compute_cube_keypoints(
     Returns:
         Cube-corner positions [m], shape ``(num_envs, num_keypoints, 3)``.
     """
-    wp.init()
     num_envs = pose.shape[0]
     if out is None:
         out = torch.empty(num_envs, num_keypoints, 3, dtype=torch.float32, device=pose.device)

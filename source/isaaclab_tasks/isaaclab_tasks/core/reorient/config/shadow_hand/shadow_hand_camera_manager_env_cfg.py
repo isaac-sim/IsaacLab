@@ -13,7 +13,6 @@ from isaaclab.utils.configclass import configclass
 import isaaclab_tasks.core.reorient.mdp as mdp
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (
-    ShadowHandCameraEnvCfg,
     ShadowHandTiledCameraCfg,
     validate_shadow_hand_camera_settings,
 )
@@ -27,11 +26,12 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
     TerminationsCfg,
     _ShadowHandManagerSceneCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_task_constants import CAMERA_GOAL_MARKER_POSITION
+from isaaclab_tasks.core.reorient.reorient_task_constants import (
+    CAMERA_GOAL_MARKER_POSITION,
+    SHADOW_FINGERTIP_BODY_NAMES,
+    SHADOW_FORCE_TORQUE_OBS_SCALE,
+)
 from isaaclab_tasks.utils import PresetCfg
-
-_DIRECT_CAMERA_CFG = ShadowHandCameraEnvCfg()
-_FINGERTIP_BODY_NAMES = _DIRECT_CAMERA_CFG.fingertip_body_names
 
 
 @configclass
@@ -53,9 +53,7 @@ class ShadowHandCameraManagerSceneCfg(PresetCfg):
     newton_mjwarp = _ShadowHandCameraManagerSceneCfg(
         num_envs=1225, env_spacing=2.0, replicate_physics=True, clone_in_fabric=False
     )
-    ovphysx = _ShadowHandCameraManagerSceneCfg(
-        num_envs=1225, env_spacing=2.0, replicate_physics=True, clone_in_fabric=True
-    )
+    ovphysx = physx
     default = physx
 
 
@@ -105,8 +103,10 @@ class CameraCriticCfg(FullStateWithoutActionCfg):
 
     fingertip_wrench = ObsTerm(
         func=mdp.fingertip_wrench,
-        scale=_DIRECT_CAMERA_CFG.force_torque_obs_scale,
-        params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=_FINGERTIP_BODY_NAMES, preserve_order=False)},
+        scale=SHADOW_FORCE_TORQUE_OBS_SCALE,
+        params={
+            "sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)
+        },
     )
     last_action = ObsTerm(func=mdp.reorient_last_action, params={"action_name": "joint_pos"})
     camera_features = ObsTerm(func=mdp.shadow_hand_camera_cached_features)
