@@ -2126,7 +2126,7 @@ class ArticulationData(BaseArticulationData):
         self._configure_ordering_buffers(had_joint_ordering, had_body_ordering)
 
         if body_ordering is not None:
-            self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend(body_ordering)
+            self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
         elif joint_ordering is not None:
             self._jacobian_body_user_to_backend = joint_ordering.user_to_backend
         else:

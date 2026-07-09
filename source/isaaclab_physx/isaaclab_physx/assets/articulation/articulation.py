@@ -2093,8 +2093,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            friction_props, self.data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            friction_props, self.data._joint_friction_props_backend, component_count=3
         )
         self.root_view.set_dof_friction_properties(wp.clone(friction_props_backend, device="cpu"), indices=cpu_env_ids)
 
@@ -2216,8 +2216,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            friction_props, self.data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            friction_props, self.data._joint_friction_props_backend, component_count=3
         )
         self.root_view.set_dof_friction_properties(wp.clone(friction_props_backend, device="cpu"), indices=cpu_env_ids)
 
@@ -2322,8 +2322,8 @@ class Articulation(BaseArticulation):
         )
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            friction_props, self.data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            friction_props, self.data._joint_friction_props_backend, component_count=3
         )
         self.root_view.set_dof_friction_properties(wp.clone(friction_props_backend, device="cpu"), indices=cpu_env_ids)
 
