@@ -21,7 +21,20 @@ logger = logging.getLogger(__name__)
 
 
 class ConverterCli:
-    """Parse converter arguments and select a Kit or standalone importer runtime."""
+    """Process bootstrap for the converter tool scripts.
+
+    Contributes the ``--viz`` flag, decides once per process whether conversion runs
+    through Kit or the standalone importer distribution, and offers the post-conversion
+    viewport preview. Backend loading is owned by :class:`ImporterProvider`.
+
+    Three related predicates answer different questions and are not interchangeable:
+    :func:`~isaaclab.utils.version.has_kit` reports whether Kit is *running* (how
+    :class:`ImporterProvider` adapts inside Kit), ``SimulationApp is not None`` reports
+    whether Kit is *launchable* (the decision made here, before any launch — when
+    ``has_kit()`` is still ``False`` by definition), and the carb settings behind the
+    preview gate report what the launch actually *resolved* to (e.g. ``HEADLESS=1``
+    drops the window).
+    """
 
     @classmethod
     def parse_args(

@@ -13,6 +13,8 @@ import subprocess
 import sys
 from typing import Literal
 
+from isaaclab.utils.version import has_kit
+
 ImporterKind = Literal["mjcf", "urdf"]
 
 
@@ -112,12 +114,9 @@ class ImporterProvider:
     @staticmethod
     def _enable_kit_extension(extension_name: str) -> None:
         """Enable an importer extension when called from a running Kit process."""
-        kit_app = sys.modules.get("omni.kit.app")
-        if kit_app is None:
+        if not has_kit():
             return
-        app = kit_app.get_app()
-        if app is None:
-            return
-        manager = app.get_extension_manager()
+        # has_kit() guarantees "omni.kit.app" is loaded with a non-None app
+        manager = sys.modules["omni.kit.app"].get_app().get_extension_manager()
         if not manager.is_extension_enabled(extension_name):
             manager.set_extension_enabled_immediate(extension_name, True)
