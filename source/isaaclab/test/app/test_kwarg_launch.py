@@ -325,3 +325,10 @@ def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_
     launcher._resolve_experience_file({"experience": str(experience)})
 
     assert launcher._sim_experience_file == str(experience)
+
+
+def test_constructor_reports_missing_isaac_sim(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(app_launcher_module, "SimulationApp", None)
+
+    with pytest.raises(ImportError, match="requires the full Isaac Sim runtime"):
+        AppLauncher()
