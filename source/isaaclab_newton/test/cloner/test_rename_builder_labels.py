@@ -13,7 +13,6 @@ import torch
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import (
     _BUILTIN_LABEL_TYPES,
-    add_global_stage_to_builder,
     build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
@@ -335,10 +334,9 @@ class TestIgnoredCloneCustomFrequencies(unittest.TestCase):
         self._define_robot(stage, "/World/global/Robot")
 
         builder = newton.ModelBuilder()
-        add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
+        builder.add_usd(stage, ignore_paths=["/World/envs"], schema_resolvers=[])
         self.assertEqual(builder._custom_frequency_counts["mujoco:tendon"], 1)
         self.assertEqual(builder._custom_frequency_counts["mujoco:tendon_joint"], 1)
-        self.assertNotIn("add_custom_frequency", vars(builder))
 
         reference_builder = newton.ModelBuilder()
         SolverMuJoCo.register_custom_attributes(reference_builder)
@@ -368,22 +366,6 @@ class TestIgnoredCloneCustomFrequencies(unittest.TestCase):
         self.assertEqual(source_builders[source_path]._custom_frequency_counts["mujoco:tendon"], 1)
         self.assertEqual(builder._custom_frequency_counts["mujoco:tendon"], 3)
         self.assertEqual(builder._custom_frequency_counts["mujoco:tendon_joint"], 3)
-
-    def test_global_import_restores_custom_frequencies_when_import_fails(self):
-        stage = Usd.Stage.CreateInMemory()
-        builder = newton.ModelBuilder()
-        SolverMuJoCo.register_custom_attributes(builder)
-        original_filters = {
-            frequency_key: frequency.usd_prim_filter for frequency_key, frequency in builder.custom_frequencies.items()
-        }
-
-        with mock.patch.object(builder, "add_usd", side_effect=RuntimeError("expected import failure")):
-            with self.assertRaisesRegex(RuntimeError, "expected import failure"):
-                add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
-
-        self.assertNotIn("add_custom_frequency", vars(builder))
-        for frequency_key, callback in original_filters.items():
-            self.assertIs(builder.custom_frequencies[frequency_key].usd_prim_filter, callback)
 
 
 class TestVisualizationClonePlan(unittest.TestCase):

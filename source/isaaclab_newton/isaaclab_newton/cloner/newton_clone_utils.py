@@ -5,9 +5,7 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable, Sequence
-from dataclasses import replace
 from typing import Any
 
 import torch
@@ -18,75 +16,6 @@ from pxr import Usd
 
 from isaaclab.cloner.cloner_utils import replace_path_prefix
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-
-
-def add_global_stage_to_builder(
-    builder: ModelBuilder,
-    stage: Usd.Stage,
-    ignore_paths: Sequence[str],
-    schema_resolvers: Sequence[Any],
-) -> Any:
-    """Import global prims without parsing custom rows from ignored clone subtrees.
-
-    Newton's built-in USD import honors ``ignore_paths``, but its custom-frequency
-    traversal currently does not. MuJoCo frequencies are also registered from
-    inside :meth:`ModelBuilder.add_usd`, so both existing and newly registered
-    callbacks are scoped for this import and restored afterward.
-    """
-    ignored_patterns = tuple(re.compile(path) for path in ignore_paths)
-    original_filters = {
-        frequency_key: frequency.usd_prim_filter for frequency_key, frequency in builder.custom_frequencies.items()
-    }
-
-    def _scope_filter(callback):
-        if callback is None:
-            return None
-
-        def _filtered(prim: Usd.Prim, context: dict[str, Any]) -> bool:
-            prim_path = str(prim.GetPath())
-            if any(pattern.match(prim_path) for pattern in ignored_patterns):
-                return False
-            return callback(prim, context)
-
-        return _filtered
-
-    for frequency_key, callback in original_filters.items():
-        builder.custom_frequencies[frequency_key].usd_prim_filter = _scope_filter(callback)
-
-    original_add_custom_frequency = builder.add_custom_frequency
-    had_instance_override = "add_custom_frequency" in vars(builder)
-    original_instance_override = vars(builder).get("add_custom_frequency")
-
-    def _add_scoped_custom_frequency(frequency: ModelBuilder.CustomFrequency) -> None:
-        frequency_key = frequency.key
-        existing = builder.custom_frequencies.get(frequency_key)
-        if existing is not None:
-            if (
-                original_filters[frequency_key] is not frequency.usd_prim_filter
-                or existing.usd_entry_expander is not frequency.usd_entry_expander
-            ):
-                raise ValueError(f"Custom frequency '{frequency_key}' is already registered with different callbacks.")
-            return
-
-        original_filters[frequency_key] = frequency.usd_prim_filter
-        original_add_custom_frequency(replace(frequency, usd_prim_filter=_scope_filter(frequency.usd_prim_filter)))
-
-    setattr(builder, "add_custom_frequency", _add_scoped_custom_frequency)
-    try:
-        return builder.add_usd(
-            stage,
-            ignore_paths=ignore_paths,
-            schema_resolvers=schema_resolvers,
-        )
-    finally:
-        if had_instance_override:
-            setattr(builder, "add_custom_frequency", original_instance_override)
-        else:
-            delattr(builder, "add_custom_frequency")
-        for frequency_key, callback in original_filters.items():
-            frequency = builder.custom_frequencies.get(frequency_key)
-            if frequency is not None:
-                frequency.usd_prim_filter = callback
 
 
 def build_source_builders(
