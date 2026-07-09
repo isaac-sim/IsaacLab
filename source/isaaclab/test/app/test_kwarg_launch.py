@@ -203,6 +203,20 @@ def test_matrix_no_cli_with_cfg_kit_newton_non_headless(monkeypatch: pytest.Monk
     assert launcher._cli_visualizer_explicit is False
 
 
+def test_matrix_converter_default_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
+    # pins the converter CLI contract: ConverterCli.parse_args launches AppLauncher({})
+    # for conversion without preview, which must stay headless
+    headless, _ = _resolve_headless_for_case(monkeypatch, {})
+    assert headless is True
+
+
+def test_matrix_converter_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
+    # pins the converter CLI contract: AppLauncher({"visualizer": ["kit"]}) must open a window
+    headless, launcher = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit"]})
+    assert headless is False
+    assert launcher._cli_visualizer_types == ["kit"]
+
+
 @pytest.mark.parametrize("visualizer", [None, ["none"]])
 def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch, visualizer):
     headless, launcher = _resolve_headless_for_case(

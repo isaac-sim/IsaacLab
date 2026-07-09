@@ -9,9 +9,9 @@ Utility to convert a MJCF into USD format.
 MuJoCo XML Format (MJCF) is an XML file format used in MuJoCo to describe all elements of a robot.
 For more information, see: http://www.mujoco.org/book/XMLreference.html
 
-This script uses the MJCF importer extension from Isaac Sim (``isaacsim.asset.importer.mjcf``) to convert
-a MJCF asset into USD format. It is designed as a convenience script for command-line use. For more information
-on the MJCF importer, see the documentation for the extension:
+This script uses the MJCF importer API (``isaacsim.asset.importer.mjcf``) from Isaac Sim or its standalone
+wheel to convert a MJCF asset into USD format. It is designed as a convenience script for command-line use.
+For more information on the MJCF importer, see the documentation for the extension:
 https://docs.isaacsim.omniverse.nvidia.com/latest/robot_setup/ext_isaacsim_asset_importer_mjcf.html
 
 
@@ -26,17 +26,19 @@ optional arguments:
   --collision-type          Type of collision geometry to use. (default: "Convex Hull")
   --self-collision          Activate self-collisions between links. (default: False)
   --import-physics-scene    Import the physics scene from the MJCF file. (default: False)
+  --viz                     Open the converted stage in the Kit viewport after conversion. (default: "none")
 """
 
 import argparse
-import contextlib
 import os
+import traceback
 
-from converter_cli_utils import ensure_standalone_importer_runtime, parse_converter_cli_args, should_open_stage_with_kit
+from isaaclab.sim.converters._converter_cli import ConverterCli
 
 
-def _add_converter_args(parser: argparse.ArgumentParser) -> None:
-    """Add MJCF converter arguments to an argument parser."""
+def _create_parser() -> argparse.ArgumentParser:
+    """Create the MJCF converter argument parser."""
+    parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
     parser.add_argument("input", type=str, help="The path to the input MJCF file.")
     parser.add_argument("output", type=str, help="The path to store the USD file.")
     parser.add_argument(
@@ -73,18 +75,10 @@ def _add_converter_args(parser: argparse.ArgumentParser) -> None:
             "Use --no-import-physics-scene to disable."
         ),
     )
-
-
-def _create_parser() -> argparse.ArgumentParser:
-    """Create the MJCF converter argument parser."""
-    parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
-    _add_converter_args(parser)
     return parser
 
 
-args_cli, simulation_app = parse_converter_cli_args(_create_parser())
-if simulation_app is None:
-    ensure_standalone_importer_runtime("mjcf")
+args_cli, simulation_app = ConverterCli.parse_args(_create_parser(), "mjcf")
 
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
@@ -132,22 +126,17 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Open the generated stage when Kit is selected as a visualizer or livestream target.
-    if simulation_app is not None and should_open_stage_with_kit(args_cli):
-        # Open the stage with USD and attach it to the Kit viewport context
-        import omni.kit.app
-        import omni.usd
-
-        omni.usd.get_context().open_stage(mjcf_converter.usd_path)
-        app = omni.kit.app.get_app_interface()
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                app.update()
+    # Open the generated stage in the Kit viewport when a preview was requested.
+    ConverterCli.maybe_preview(args_cli, simulation_app, mjcf_converter.usd_path)
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
+    try:
+        main()
+    except Exception:
+        traceback.print_exc()
+        # Kit's shutdown hooks override the interpreter exit status, so force a failure code.
+        os._exit(1)
     # close sim app
     if simulation_app is not None:
         simulation_app.close()
