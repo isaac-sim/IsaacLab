@@ -31,10 +31,10 @@ wp.init()
 
 @wp.kernel
 def _goal_quat_error_kernel(
-    asset_quat: wp.array(dtype=wp.vec4),
-    goal_quat: wp.array(dtype=wp.vec4),
+    asset_quat: wp.array(dtype=wp.quatf),
+    goal_quat: wp.array(dtype=wp.quatf),
     make_unique: int,
-    out: wp.array(dtype=wp.vec4),
+    out: wp.array(dtype=wp.quatf),
 ):
     """Per-environment quaternion error ``asset * conjugate(goal)`` in (x, y, z, w) order."""
     i = wp.tid()
@@ -50,36 +50,7 @@ def _goal_quat_error_kernel(
     # make_unique keeps the real part non-negative (isaaclab.utils.math.quat_unique)
     if make_unique != 0 and w < 0.0:
         sign = -1.0
-    out[i] = wp.vec4(sign * x, sign * y, sign * z, sign * w)
-
-
-def compute_goal_quat_error(
-    asset_quat: torch.Tensor, goal_quat: torch.Tensor, make_quat_unique: bool, out: torch.Tensor
-) -> torch.Tensor:
-    """Compute the quaternion error between asset and goal orientations.
-
-    Args:
-        asset_quat: Asset ``(x, y, z, w)`` orientations, shape ``(num_envs, 4)``.
-        goal_quat: Goal ``(x, y, z, w)`` orientations, shape ``(num_envs, 4)``.
-        make_quat_unique: Flip the sign so the real part is always non-negative.
-        out: Caller-owned output buffer, shape ``(num_envs, 4)``, float32.
-
-    Returns:
-        ``out`` filled with per-environment quaternion errors.
-    """
-    wp.launch(
-        _goal_quat_error_kernel,
-        dim=out.shape[0],
-        # .contiguous(): the goal quaternion arrives as a non-contiguous command slice
-        inputs=[
-            wp.from_torch(asset_quat.contiguous(), dtype=wp.vec4),
-            wp.from_torch(goal_quat.contiguous(), dtype=wp.vec4),
-            int(make_quat_unique),
-        ],
-        outputs=[wp.from_torch(out, dtype=wp.vec4)],
-        device=wp.device_from_torch(out.device),
-    )
-    return out
+    out[i] = wp.quatf(sign * x, sign * y, sign * z, sign * w)
 
 
 class goal_quat_diff(ManagerTermBase):
@@ -91,16 +62,27 @@ class goal_quat_diff(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._out = torch.empty(env.num_envs, 4, dtype=torch.float32, device=env.device)
+        # cached Warp views; the hot loop launches the kernel without conversions
+        self._out_wp = wp.from_torch(self._out, dtype=wp.quatf)
+        # resolved on first call: the command term does not exist yet during manager construction
+        self._goal_quat_wp: wp.array | None = None
 
     def __call__(
         self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, command_name: str, make_quat_unique: bool
     ) -> torch.Tensor:
         """Return the per-environment quaternion error, shape ``(num_envs, 4)``."""
         asset: RigidObject = env.scene[asset_cfg.name]
-        command_term: ReorientCommand = env.command_manager.get_term(command_name)
-        return compute_goal_quat_error(
-            asset.data.root_quat_w.torch, command_term.command[:, 3:7], make_quat_unique, self._out
+        if self._goal_quat_wp is None:
+            command_term: ReorientCommand = env.command_manager.get_term(command_name)
+            self._goal_quat_wp = wp.from_torch(command_term.quat_command_w, dtype=wp.quatf)
+        wp.launch(
+            _goal_quat_error_kernel,
+            dim=self.num_envs,
+            inputs=[asset.data.root_quat_w.warp, self._goal_quat_wp, int(make_quat_unique)],
+            outputs=[self._out_wp],
+            device=self._out_wp.device,
         )
+        return self._out
 
 
 def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -195,6 +177,10 @@ class OpenAIPolicyObservation(ManagerTermBase):
         noise_model: NoiseModelCfg = cfg.params["noise_model"]
         self._noise_model = noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
         self._quat_error = torch.empty(env.num_envs, 4, dtype=torch.float32, device=env.device)
+        # cached Warp views; the hot loop launches the kernel without conversions
+        self._quat_error_wp = wp.from_torch(self._quat_error, dtype=wp.quatf)
+        # resolved on first call: the command term does not exist yet during manager construction
+        self._goal_quat_wp: wp.array | None = None
         # ObservationManager probes callable terms once for their shape and then
         # calls reset. Keep that probe side-effect free so initialization matches
         # DirectRLEnv's first noise-model reset and application.
@@ -224,9 +210,15 @@ class OpenAIPolicyObservation(ManagerTermBase):
         del noise_model
         object_asset: RigidObject = env.scene[object_cfg.name]
         object_pos = object_asset.data.root_pos_w.torch - env.scene.env_origins
-        command_term: ReorientCommand = env.command_manager.get_term(command_name)
-        compute_goal_quat_error(
-            object_asset.data.root_quat_w.torch, command_term.command[:, 3:7], False, self._quat_error
+        if self._goal_quat_wp is None:
+            command_term: ReorientCommand = env.command_manager.get_term(command_name)
+            self._goal_quat_wp = wp.from_torch(command_term.quat_command_w, dtype=wp.quatf)
+        wp.launch(
+            _goal_quat_error_kernel,
+            dim=self.num_envs,
+            inputs=[object_asset.data.root_quat_w.warp, self._goal_quat_wp, 0],
+            outputs=[self._quat_error_wp],
+            device=self._quat_error_wp.device,
         )
         # Direct actor-observation order: fingertips, object position, goal quat error, last action
         observation = torch.cat(
