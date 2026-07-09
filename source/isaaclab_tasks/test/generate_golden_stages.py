@@ -228,6 +228,12 @@ def main() -> int:
             logger.error("Pass 1 had unexpected failures:\n%s", _format_failures(first.real_failures))
             return 1
         if not first.bootstrapped:
+            if first.passed == 0:
+                logger.error(
+                    "Pass 1 had no passing, failing, or bootstrapping tests."
+                    " All tests were likely skipped (e.g., Isaac Sim failed to initialise)."
+                )
+                return 1
             logger.info("Golden stages already exist and match. Nothing to generate.")
             return 0
 
