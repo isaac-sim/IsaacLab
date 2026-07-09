@@ -267,6 +267,12 @@ class RerunVisualizer(BaseVisualizer):
             ],
         )
 
+        rr.log(
+            "info/physics_backend",
+            rr.TextDocument(f"**Physics Backend:** {self.physics_backend or 'unknown'}"),
+            static=True,
+        )
+
         self._is_initialized = True
         atexit.register(self.close)
 

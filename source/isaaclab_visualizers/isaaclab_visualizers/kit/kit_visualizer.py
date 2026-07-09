@@ -284,6 +284,8 @@ class KitVisualizer(BaseVisualizer):
         effective_viewport_name = (
             self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
         )
+        if self.physics_backend:
+            effective_viewport_name = f"{effective_viewport_name} [{self.physics_backend}]"
 
         if self.cfg.create_viewport:
             if not str(effective_viewport_name).strip():

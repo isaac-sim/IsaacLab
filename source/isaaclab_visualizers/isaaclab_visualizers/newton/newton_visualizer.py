@@ -292,6 +292,7 @@ class NewtonViewerGL(ViewerGL):
                     imgui.separator()
                     num_envs = self._metadata.get("num_envs", 0)
                     imgui.text(f"Environments: {num_envs}")
+                    imgui.text(f"Physics Backend: {self.physics_backend or 'unknown'}")
                     axis_names = ["X", "Y", "Z"]
                     imgui.text(f"Up Axis: {axis_names[self.model.up_axis]}")
                     gravity = wp.to_torch(self.model.gravity)[0]

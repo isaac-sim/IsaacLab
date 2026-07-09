@@ -347,7 +347,7 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = NewtonViewerViser(
             port=self.cfg.port,
             bind_address=self.cfg.bind_address,
-            label=self.cfg.label,
+            label=f"{self.cfg.label} ({self.physics_backend})" if self.cfg.label else self.cfg.label,
             verbose=False,
             share=self.cfg.share,
             record_to_viser=record_to_viser,
