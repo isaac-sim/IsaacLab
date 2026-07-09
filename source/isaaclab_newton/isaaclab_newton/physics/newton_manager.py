@@ -1635,6 +1635,9 @@ class NewtonManager(PhysicsManager):
 
         # Warmup advances Newton outside the normal IsaacLab step bookkeeping.
         # Restore state so its writes do not leak into the first real replay.
+        # LIMITATION: Only Newton State buffers are restored below. If this warmup
+        # mutates control, actuator, callback, or sensor state, that state needs its
+        # own rollback or the warmup must run against isolated simulation inputs.
         simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
         state_0 = cls._state_0
         state_1 = cls._state_1
