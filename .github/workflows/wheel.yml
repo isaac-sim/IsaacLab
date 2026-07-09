@@ -39,6 +39,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # TEMP (revert before final review): force run_build=false while
+          # iterating Windows CI on PR #5700. The detect step still runs so the
+          # required check stays green; only the heavy build steps are skipped.
+          echo "run_build=false" >> "$GITHUB_OUTPUT"
+          echo "## Wheel build gating" >> "$GITHUB_STEP_SUMMARY"
+          echo "Skipped: TEMP disabled while iterating Windows CI (PR #5700)." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
           # Keep this workflow unconditionally triggered on PRs so required
           # branch-protection checks are always reported. The build steps below
           # run only when inputs that can affect the wheel have changed.

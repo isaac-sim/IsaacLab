@@ -411,3 +411,31 @@ class TestCommandInstallDispatch:
         mocks = self._run("mimic")
         installed = mocks["_install_isaaclab_submodules"].call_args[0][0]
         assert installed[0] == "isaaclab"
+
+
+# ---------------------------------------------------------------------------
+# _install_extra_feature selector handling
+# ---------------------------------------------------------------------------
+
+
+class TestInstallExtraFeatureSelectors:
+    """Tests for _install_extra_feature() selector normalization."""
+
+    def _run_rl(self, selector: str) -> set[str]:
+        """Invoke the rl feature with _install_root_extra mocked; return extras installed."""
+        from isaaclab.cli.commands.install import _install_extra_feature
+
+        with patch(f"{_INSTALL_MODULE}._install_root_extra") as mock_extra:
+            _install_extra_feature("rl", selector)
+        return {c.args[0] for c in mock_extra.call_args_list}
+
+    def test_rl_single_selector_maps_underscores(self):
+        assert self._run_rl("rsl_rl") == {"rsl-rl"}
+
+    def test_rl_comma_selector_installs_each_framework(self):
+        # split_install_items() deliberately keeps "rl[rsl_rl,rl_games]" as one
+        # token, so the selector itself must be comma-split here.
+        assert self._run_rl("rsl_rl,rl_games") == {"rsl-rl", "rl-games"}
+
+    def test_rl_all_installs_every_framework(self):
+        assert self._run_rl("") == {"sb3", "skrl", "rl-games", "rsl-rl"}

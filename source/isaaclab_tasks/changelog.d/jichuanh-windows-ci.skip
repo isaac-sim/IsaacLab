@@ -1,0 +1,1 @@
+Skip changelog: CI/test-only (no user-facing API change). Adds source/isaaclab_tasks/test/test_cartpole_training_smoke.py — a minimal cartpole training smoke (state rsl_rl + perception rl_games, two PPO iters each) tagged with the arm_ci and windows_ci markers so cross-platform CI shapes can invoke it via marker-driven discovery.

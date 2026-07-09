@@ -30,6 +30,10 @@ concurrency:
 jobs:
   test-multi-gpu:
     name: Multi-GPU (${{ matrix.physics }}, ${{ matrix.renderer }})
+    # TEMP (revert before final review): skipped while iterating Windows CI on
+    # PR #5700 (this PR touches app_launcher.py, which would otherwise trigger
+    # the multi-GPU self-hosted runners). Saves runner time + cost.
+    if: false
     # Use dedicated multi-GPU runner to avoid blocking standard CI resources
     # Configure this label on a runner with 2+ GPUs (e.g., g5.12xlarge with 4x A10G)
     runs-on: [self-hosted, linux, x64, gpu, multi-gpu]

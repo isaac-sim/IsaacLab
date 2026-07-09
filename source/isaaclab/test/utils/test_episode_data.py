@@ -7,7 +7,7 @@ import torch
 
 from isaaclab.utils.datasets import EpisodeData
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

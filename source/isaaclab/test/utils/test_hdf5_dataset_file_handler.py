@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 import os
-import shutil
 import tempfile
 import uuid
 
@@ -12,7 +11,7 @@ import torch
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 
 def create_test_episode(device):
@@ -38,10 +37,12 @@ def create_test_episode(device):
 @pytest.fixture
 def temp_dir():
     """Create a temporary directory for test datasets."""
-    temp_dir = tempfile.mkdtemp()
-    yield temp_dir
-    # cleanup after tests
-    shutil.rmtree(temp_dir)
+    # ignore_cleanup_errors absorbs a Windows-specific PermissionError:
+    # libhdf5 keeps an internal file handle briefly after .close(), and
+    # rmtree races with that handle release. On Linux/macOS this flag is
+    # a no-op since no cleanup error is raised.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as d:
+        yield d
 
 
 def test_create_dataset_file(temp_dir):

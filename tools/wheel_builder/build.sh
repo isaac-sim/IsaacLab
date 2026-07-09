@@ -1,6 +1,10 @@
 #!/bin/bash
 set -e
 
+# Python interpreter override. Linux installs typically expose `python3`;
+# Windows git-bash only has `python`. Callers can set PYTHON=python to override.
+PYTHON="${PYTHON:-python3}"
+
 SELF_DIR="$(dirname "$(realpath "$0")")"
 cd "$SELF_DIR/../.."
 
@@ -86,20 +90,20 @@ cp "$SELF_DIR/res/__init__.py" "$BUILD_DIR/src/isaaclab/"
 cp "$SELF_DIR/res/__main__.py" "$BUILD_DIR/src/isaaclab/"
 
 # 3. Generate pyproject.toml with dependencies from the root pyproject.toml
-python3 "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/../../pyproject.toml" "$BUILD_DIR/pyproject.toml" "$WHEEL_VERSION"
+"$PYTHON" "$SELF_DIR/gen_pyproject.py" "$SELF_DIR/../../pyproject.toml" "$BUILD_DIR/pyproject.toml" "$WHEEL_VERSION"
 
 # 4. Build the wheel
 cd "$BUILD_DIR"
 # Prefer --user to avoid polluting system Python; fall back to --break-system-packages
 # for environments where --user is unsupported (e.g. Docker, ephemeral CI runners).
-python3 -m pip install --user build wheel 2>/dev/null || python3 -m pip install --break-system-packages build wheel
-python3 -m build --wheel --outdir "$DIST_DIR/"
+"$PYTHON" -m pip install --user build wheel 2>/dev/null || "$PYTHON" -m pip install --break-system-packages build wheel
+"$PYTHON" -m build --wheel --outdir "$DIST_DIR/"
 
 # 5. Retag the wheel to match official platform tags
 # cd "$DIST_DIR"
 # GENERIC_WHL=$(ls isaaclab-*.whl)
 # echo "Retagging $GENERIC_WHL -> $PYTHON_TAG-$ABI_TAG-$PLATFORM_TAG"
-# python3 -m wheel tags --python-tag "$PYTHON_TAG" --abi-tag "$ABI_TAG" --platform-tag "$PLATFORM_TAG" "$GENERIC_WHL"
+# "$PYTHON" -m wheel tags --python-tag "$PYTHON_TAG" --abi-tag "$ABI_TAG" --platform-tag "$PLATFORM_TAG" "$GENERIC_WHL"
 # # Remove the generic wheel (wheel tags creates a new file)
 # TAGGED_WHL=$(ls isaaclab-*"$PLATFORM_TAG"*.whl 2>/dev/null)
 # if [ "$GENERIC_WHL" != "$TAGGED_WHL" ] && [ -n "$TAGGED_WHL" ]; then

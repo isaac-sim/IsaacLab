@@ -1,0 +1,412 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Windows CI on self-hosted GPU runners. Single consolidated job so the
+# autoscaler can't tear the runner between sub-jobs. Kit-launching steps
+# use Start-Process + WaitForExit as an OS-level watchdog (Python thread
+# watchdogs are GIL-vulnerable). pytest uses --timeout-method=thread
+# (SIGALRM is Unix-only).
+
+name: Windows CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+# EULA + headless env. Without these Kit bootstrap blocks on stdin
+# ("Unable to bootstrap inner kit kernel: EOF when reading a line") or
+# the global watchdog kills the headless process. Mirrors PR #4018.
+env:
+  OMNI_KIT_ACCEPT_EULA: "yes"
+  ACCEPT_EULA: "Y"
+  ISAACSIM_ACCEPT_EULA: "YES"
+  PRIVACY_CONSENT: "Y"
+  HEADLESS: "1"
+  ISAAC_SIM_HEADLESS: "1"
+  ISAAC_SIM_LOW_MEMORY: "1"
+  WINDOWS_PLATFORM: "true"
+  OMNI_KIT_NO_WINDOW: "1"
+  OMNI_KIT_DISABLE_WATCHDOG: "1"
+  OMNI_KIT_TELEMETRY: "0"
+  CARB_LOGGING_SEVERITY: "error"
+  PYTHONUNBUFFERED: "1"
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      run_windows_ci: ${{ steps.detect.outputs.run_windows_ci }}
+    steps:
+      - id: detect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          patterns=(
+            $'^source/\tLibrary source code'
+            $'^tools/\tBuild tooling'
+            $'^apps/\tStandalone apps'
+            $'(^|/)pyproject\\.toml$\tPython project metadata'
+            $'^\\.github/workflows/windows-ci\\.yaml$\tThis workflow file'
+            $'^VERSION$\tVersion file'
+          )
+          any_match() {
+            local files="$1" entry regex
+            for entry in "${patterns[@]}"; do
+              IFS=$'\t' read -r regex _ <<< "$entry"
+              if grep -qE "$regex" <<< "$files"; then
+                return 0
+              fi
+            done
+            return 1
+          }
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "run_windows_ci=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename' || true)"
+          if [ -z "$changed_files" ] || any_match "$changed_files"; then
+            echo "run_windows_ci=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_windows_ci=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows-ci:
+    name: windows-ci
+    needs: [changes]
+    if: needs.changes.outputs.run_windows_ci == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - name: Report instance state (BEFORE)
+        uses: ./.github/actions/windows-instance-state
+        with: { phase: pre }
+
+      - name: Install uv
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+            irm https://astral.sh/uv/install.ps1 | iex
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value "$HOME\.local\bin"
+
+      # Diagnostic only: proves whether a setup failure is DNS/reachability vs a
+      # missing package, decoupled from pip. pypi.nvidia.com serves the pinned
+      # public Isaac Sim wheels and pypi.org their dependencies. nvcr.io is the
+      # NGC registry the Linux CI pulls the develop container from; it is probed
+      # here to qualify these runners for a future develop-content lane (fetching
+      # develop bits from NGC needs only the repo-level NGC_API_KEY secret, no
+      # per-instance setup).
+      - name: Probe index reachability (diagnostic)
+        if: always()
+        continue-on-error: true
+        shell: powershell
+        run: |
+          Write-Host "runner=$env:COMPUTERNAME  RUNNER_NAME=$env:RUNNER_NAME"
+          Write-Host "proxies: HTTP_PROXY=$env:HTTP_PROXY HTTPS_PROXY=$env:HTTPS_PROXY NO_PROXY=$env:NO_PROXY http_proxy=$env:http_proxy https_proxy=$env:https_proxy"
+          Write-Host "DNS servers:"
+          Get-DnsClientServerAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $($_.InterfaceAlias): $($_.ServerAddresses -join ', ')" }
+          foreach ($h in @("pypi.nvidia.com", "pypi.org", "nvcr.io")) {
+            Write-Host "=== $h ==="
+            try {
+              $ips = [System.Net.Dns]::GetHostAddresses($h)
+              Write-Host "DNS OK -> $(( $ips | ForEach-Object { $_.IPAddressToString }) -join ', ')"
+            } catch {
+              Write-Host "DNS FAIL -> $($_.Exception.Message)"
+            }
+            try {
+              $r = Test-NetConnection -ComputerName $h -Port 443 -WarningAction SilentlyContinue
+              Write-Host "TCP 443 reachable -> $($r.TcpTestSucceeded)"
+            } catch {
+              Write-Host "TCP 443 test error -> $($_.Exception.Message)"
+            }
+          }
+
+      # Shared setup. Hard fail aborts the job (no continue-on-error) since
+      # downstream steps all depend on this venv.
+      - name: Setup venv + install Isaac Sim (public pin) + isaaclab + test deps
+        id: setup
+        shell: powershell
+        timeout-minutes: 25
+        run: |
+          $ErrorActionPreference = "Stop"
+          # --seed because the wheel-builder step runs `python -m pip install build wheel`.
+          uv venv --python 3.12 --seed env_isaaclab_uv
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          uv pip install pytest pytest-timeout h5py
+
+          # Install Isaac Sim from pypi.nvidia.com at the version pinned in
+          # [tool.isaaclab.versions], plus editable isaaclab and the RL frameworks
+          # the training smoke needs — all through the install CLI, so this job
+          # exercises the same install path the docs give Windows users. The
+          # develop-container build the Linux CI tests is not reachable from these
+          # runners (internal Artifactory is corp-DNS only); the public pin is
+          # IsaacLab's declared isaacsim dependency, so native Windows validates
+          # exactly what `isaaclab -i isaacsim` gives users. A develop-content
+          # lane via NGC (see the reachability probe above) can layer on later.
+          .\isaaclab.bat -i 'isaacsim,rl[rsl_rl,rl_games]'
+          python -c "import importlib.metadata as m; print('isaacsim build:', m.version('isaacsim'))"
+          python -c "import isaaclab, isaaclab_assets, isaaclab_tasks, isaaclab_newton, isaaclab_physx, isaaclab_ppisp; print('editable imports ok')"
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+
+      - name: Resolve Isaac Sim paths (ISAAC_PATH / CARB_APP_PATH / EXP_PATH / DLL search)
+        id: sim-paths
+        uses: ./.github/actions/windows-sim-paths
+        with: { venv-path: 'env_isaaclab_uv' }
+
+      # ===== Test branches (each independent, continue-on-error). =====
+
+      - name: Deps smoke (torch + scipy)
+        id: test-deps
+        if: always() && steps.setup.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          python -m pytest `
+            source/isaaclab/test/deps `
+            --ignore=tools/conftest.py `
+            -m windows_ci `
+            --continue-on-collection-errors `
+            --timeout=60 `
+            --timeout-method=thread `
+            -v `
+            --junitxml=reports/deps-smoke.xml
+
+      - name: Path-IO tests (utils)
+        id: test-pathio
+        if: always() && steps.setup.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          # Explicit files only; neighbor tests import AppLauncher/argparse at
+          # module load and crash on Windows without Sim initialised.
+          python -m pytest `
+            source/isaaclab/test/utils/test_configclass.py `
+            source/isaaclab/test/utils/test_dict.py `
+            source/isaaclab/test/utils/test_episode_data.py `
+            source/isaaclab/test/utils/test_hdf5_dataset_file_handler.py `
+            --continue-on-collection-errors `
+            --timeout=120 `
+            --timeout-method=thread `
+            -v `
+            --junitxml=reports/path-io.xml
+
+      - name: Kit headless boot smoke
+        id: test-kit-launch
+        if: always() && steps.sim-paths.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 8
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          $script = @'
+          import sys
+          from isaaclab.app import AppLauncher
+
+          app_launcher = AppLauncher(headless=True)
+          sim = app_launcher.app
+          assert sim is not None, "AppLauncher did not return a SimulationApp"
+          sim.close()
+          sys.exit(0)
+          '@
+          $script | Out-File -FilePath kit_launch_smoke.py -Encoding utf8
+          $proc = Start-Process -PassThru -NoNewWindow -FilePath python -ArgumentList "kit_launch_smoke.py"
+          if (-not $proc.WaitForExit(300000)) {
+            Write-Host "::error::kit-launch hard timeout (5 min) - Kit hung; killing python tree"
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            $proc.WaitForExit()
+            exit 124
+          }
+          exit $proc.ExitCode
+
+      # Runs both subcases: state (rsl_rl) and perception (rl_games,
+      # --enable_cameras). The perception subcase needs the runner GPU in
+      # WDDM mode so Kit's RTX/Vulkan path initialises; the data-center (TCC)
+      # driver does not expose Vulkan.
+      - name: Cartpole training smoke (state + perception)
+        id: test-training-smoke
+        if: always() && steps.sim-paths.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 25
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          python -m pytest `
+            source/isaaclab_tasks/test/test_cartpole_training_smoke.py `
+            --continue-on-collection-errors `
+            --timeout=600 `
+            --timeout-method=thread `
+            -v `
+            --junitxml=reports/training-smoke.xml
+
+      # Cartpole-camera perception smoke — exercises Kit's RTX/Vulkan path
+      # directly (lighter than the perception training subcase, so a Vulkan
+      # init failure surfaces here first). Needs the runner GPU in WDDM mode
+      # so Kit can enumerate a Vulkan device; the data-center (TCC) driver
+      # does not expose Vulkan.
+      - name: Cartpole-camera perception smoke (RTX / Vulkan path)
+        id: test-perception
+        if: always() && steps.sim-paths.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 8
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          $script = @'
+          import os
+          import sys
+          import traceback
+
+          from isaaclab.app import AppLauncher
+
+          app_launcher = AppLauncher(headless=True, enable_cameras=True)
+          sim = app_launcher.app
+          assert sim is not None, "AppLauncher did not return a SimulationApp"
+          try:
+              import gymnasium as gym
+              import isaaclab_tasks  # noqa: F401  (gym env registration)
+              env = gym.make("Isaac-Cartpole-Camera-Direct", num_envs=1)
+              obs, info = env.reset()
+              assert obs is not None, "env.reset returned None observation"
+              for step_i in range(3):
+                  action = env.action_space.sample()
+                  obs, reward, terminated, truncated, info = env.step(action)
+                  assert obs is not None, f"env.step {step_i} returned None observation"
+              env.close()
+          except BaseException:
+              # Print the real failure and skip Kit teardown: a wedged shutdown
+              # would otherwise hide the traceback behind the 3-min watchdog kill.
+              traceback.print_exc()
+              sys.stdout.flush()
+              sys.stderr.flush()
+              os._exit(1)
+          sim.close()
+          sys.exit(0)
+          '@
+          $script | Out-File -FilePath perception_smoke.py -Encoding utf8
+          $proc = Start-Process -PassThru -NoNewWindow -FilePath python -ArgumentList "perception_smoke.py"
+          if (-not $proc.WaitForExit(180000)) {
+            Write-Host "::error::perception hard timeout (3 min) - Kit/Vulkan hung; killing python tree"
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            $proc.WaitForExit()
+            exit 124
+          }
+          exit $proc.ExitCode
+
+      # Last test step — destructively uninstalls editable isaaclab and
+      # reinstalls from the built wheel. Placed last so the test branches
+      # above run against the editable install.
+      - name: Wheel build + reinstall + smoke import
+        id: test-wheel-build
+        if: always() && steps.setup.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 20
+        run: |
+          $ErrorActionPreference = "Stop"
+          & "env_isaaclab_uv\Scripts\Activate.ps1"
+          $gitBash = "C:\Program Files\Git\bin\bash.exe"
+          if (-not (Test-Path $gitBash)) { throw "Git Bash not found at $gitBash" }
+          # git-bash on Windows ships `python` only, not `python3`.
+          $env:PYTHON = "python"
+          & $gitBash tools/wheel_builder/build.sh
+          if ($LASTEXITCODE -ne 0) { throw "wheel_builder/build.sh failed with exit $LASTEXITCODE" }
+          $wheel = Get-ChildItem -Path "tools/wheel_builder/build/dist" -Filter "isaaclab-*.whl" | Select-Object -First 1
+          if (-not $wheel) { throw "no wheel found in tools/wheel_builder/build/dist" }
+          uv pip uninstall isaaclab
+          # Bare wheel (no extras): Isaac Sim is already installed at the same
+          # public pin, so this only validates that the freshly built isaaclab
+          # wheel installs.
+          uv pip install "$($wheel.FullName)"
+          python -c "import isaaclab; print('wheel install ok:', isaaclab.__file__)"
+
+      # ===== Reporting + cleanup. =====
+
+      - name: Upload all test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-ci-reports
+          path: |
+            reports/
+            kit_launch_smoke.py
+            perception_smoke.py
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # Every active test step gates the job.
+      - name: Aggregate test results
+        if: always()
+        shell: powershell
+        run: |
+          $results = [ordered]@{
+            "setup"           = "${{ steps.setup.outcome }}"
+            "sim-paths"       = "${{ steps.sim-paths.outcome }}"
+            "deps"            = "${{ steps.test-deps.outcome }}"
+            "path-io"         = "${{ steps.test-pathio.outcome }}"
+            "kit-launch"      = "${{ steps.test-kit-launch.outcome }}"
+            "training-smoke"  = "${{ steps.test-training-smoke.outcome }}"
+            "perception"      = "${{ steps.test-perception.outcome }}"
+            "wheel-build"     = "${{ steps.test-wheel-build.outcome }}"
+          }
+          Write-Host "=== windows-ci step outcomes ==="
+          foreach ($k in $results.Keys) {
+            "{0,-16} {1}" -f $k, $results[$k]
+          }
+          $blocking = @("setup", "sim-paths", "deps", "path-io", "kit-launch", "training-smoke", "perception", "wheel-build")
+          $failed = @()
+          foreach ($k in $blocking) {
+            if ($results[$k] -eq "failure") { $failed += $k }
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "::error::Failing job - these steps failed: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "All gating steps passed."
+
+      - name: Report instance state + cleanup (AFTER)
+        if: always()
+        uses: ./.github/actions/windows-instance-state
+        with: { phase: post }

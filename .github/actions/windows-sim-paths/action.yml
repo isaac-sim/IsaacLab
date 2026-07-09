@@ -1,0 +1,104 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Resolve Isaac Sim paths and DLL search dirs on Windows'
+description: >-
+  Discover the active Isaac Sim install root (via pip show isaacsim-kernel),
+  export ISAAC_PATH / CARB_APP_PATH / EXP_PATH / RESOURCE_NAME to subsequent
+  steps in this job, and prepend Isaac Sim's bin + kit/plugins directories to
+  PATH so the Vulkan loader can find NVIDIA's ICD DLLs and Kit can find its
+  plugin DLLs.
+  Mirrors PR #4018's known-working Windows env setup so Kit's RTX path can
+  initialise on a self-hosted Windows runner where DLL search defaults are not
+  pointed at the Sim install.
+
+inputs:
+  venv-path:
+    description: 'Path to the uv/python venv whose site-packages contains isaacsim (relative to workspace).'
+    required: false
+    default: 'env_isaaclab_uv'
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve Isaac Sim paths
+      shell: powershell
+      run: |
+        $ErrorActionPreference = "Stop"
+        # Re-activate the caller's venv inside this fresh PowerShell session
+        # so `python -m pip show isaacsim-kernel` finds the right interpreter.
+        $activate = Join-Path "${{ inputs.venv-path }}" "Scripts\Activate.ps1"
+        if (-not (Test-Path $activate)) { throw "venv activate not found at $activate" }
+        & $activate
+        # Discover Sim location from pip metadata (avoids `import isaacsim`,
+        # which would bootstrap the kernel and is the exact thing we are about
+        # to launch deliberately).
+        # Use `uv pip show` rather than `python -m pip show` since uv venvs are
+        # created without pip installed inside the venv by default.
+        # Capture stdout only; uv writes its banner ("Using Python ...") to
+        # stderr and merging with 2>&1 trips $ErrorActionPreference=Stop via
+        # PowerShell's NativeCommandError handling on stderr lines.
+        $pipShow = (uv pip show isaacsim-kernel) | Out-String
+        if ($LASTEXITCODE -ne 0) { $pipShow = "" }
+        $loc = $pipShow -split "`n" | Where-Object { $_ -match "^Location:" } | Select-Object -First 1
+        if (-not $loc) {
+          $pipShow = (uv pip show isaacsim) | Out-String
+          if ($LASTEXITCODE -ne 0) { $pipShow = "" }
+          $loc = $pipShow -split "`n" | Where-Object { $_ -match "^Location:" } | Select-Object -First 1
+        }
+        if (-not $loc) { throw "Could not resolve isaacsim install path from pip" }
+        $sitePackages = ($loc -split "Location: ", 2)[1].Trim()
+
+        # The Sim root is either ${sitePackages}\isaacsim or a versioned
+        # ${sitePackages}\isaacsim-* dir. Pick whichever holds kit/ or apps/.
+        $candidates = @()
+        $candidates += Join-Path $sitePackages "isaacsim"
+        $candidates += Join-Path $sitePackages "isaacsim_kernel"
+        Get-ChildItem -Path $sitePackages -Directory -Filter "isaacsim-*" -ErrorAction SilentlyContinue |
+          ForEach-Object { $candidates += $_.FullName }
+
+        $isaacRoot = $null
+        foreach ($c in $candidates) {
+          if (Test-Path $c) {
+            if ((Test-Path (Join-Path $c "kit")) -or (Test-Path (Join-Path $c "apps"))) {
+              $isaacRoot = $c
+              break
+            }
+          }
+        }
+        if (-not $isaacRoot) {
+          Write-Host "Searched candidates for Sim root:"
+          $candidates | ForEach-Object { Write-Host "  - $_ (exists: $(Test-Path $_))" }
+          throw "Could not find Isaac Sim install (no kit/ or apps/ under any candidate)"
+        }
+
+        $carb = Join-Path $isaacRoot "kit"
+        # EXP_PATH should point at IsaacLab's workspace apps dir if present
+        # (IsaacLab ships its own .kit files there); fall back to Sim's apps.
+        $workspaceApps = Join-Path $PWD "apps"
+        $expPath = if (Test-Path $workspaceApps) { $workspaceApps } else { Join-Path $isaacRoot "apps" }
+
+        # Export to subsequent steps via $GITHUB_ENV.
+        "ISAAC_PATH=$isaacRoot"      | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "CARB_APP_PATH=$carb"        | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "EXP_PATH=$expPath"          | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "RESOURCE_NAME=IsaacSim"     | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+        # Prepend Sim DLL search dirs to PATH so the Vulkan loader can find
+        # NVIDIA's ICD .json + .dll and Kit can resolve plugin DLLs.
+        $extra = @()
+        foreach ($d in @((Join-Path $carb "plugins"), (Join-Path $isaacRoot "bin"))) {
+          if (Test-Path $d) { $extra += $d }
+        }
+        if ($extra.Count -gt 0) {
+          $newPath = ($extra -join ";") + ";" + $env:PATH
+          "PATH=$newPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        }
+
+        Write-Host "Resolved:"
+        Write-Host "  ISAAC_PATH    = $isaacRoot"
+        Write-Host "  CARB_APP_PATH = $carb"
+        Write-Host "  EXP_PATH      = $expPath"
+        Write-Host "  PATH prepend  = $($extra -join ';')"

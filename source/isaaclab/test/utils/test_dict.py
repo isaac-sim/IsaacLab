@@ -10,7 +10,7 @@ import pytest
 import isaaclab.utils.dict as dict_utils
 import isaaclab.utils.string as string_utils
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.windows_ci]
 
 
 def _test_function(x):
