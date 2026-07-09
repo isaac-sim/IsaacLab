@@ -1117,7 +1117,7 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
                 convention="opengl",
             ),
             data_types=[data_type],
-            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 4.0)),
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
             width=100,
             height=100,
             renderer_cfg=MultiBackendRendererCfg(),
@@ -1145,7 +1145,7 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
         """Test-only camera variant of ``Isaac-Lift-Cloth-Franka``."""
 
         scene: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
-            num_envs=4, env_spacing=4.0, replicate_physics=True
+            num_envs=4, env_spacing=3.0, replicate_physics=True
         )
         observations: TestFrankaClothCameraObservationsCfg = TestFrankaClothCameraObservationsCfg()
 
@@ -1241,7 +1241,7 @@ def _make_franka_soft_camera_env_cfg(data_type: str):
                 convention="opengl",
             ),
             data_types=[data_type],
-            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 4.0)),
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
             width=100,
             height=100,
             renderer_cfg=MultiBackendRendererCfg(),
@@ -1269,7 +1269,7 @@ def _make_franka_soft_camera_env_cfg(data_type: str):
         """Test-only camera variant of ``Isaac-Lift-Soft-Franka``."""
 
         scene: TestFrankaSoftCameraSceneCfg = TestFrankaSoftCameraSceneCfg(
-            num_envs=4, env_spacing=4.0, replicate_physics=True
+            num_envs=4, env_spacing=3.0, replicate_physics=True
         )
         observations: TestFrankaSoftCameraObservationsCfg = TestFrankaSoftCameraObservationsCfg()
 
@@ -1317,6 +1317,11 @@ def rendering_test_franka_soft(
         _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        # Step the environment so that motion vectors are correctly generated.
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        for _ in range(15):
+            env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,
