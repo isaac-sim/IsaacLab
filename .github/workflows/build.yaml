@@ -161,6 +161,26 @@ jobs:
           fi
         } >> "$GITHUB_STEP_SUMMARY"
 
+  selector-guard:
+    # Always-on, GPU-free guard for the path-based job selector. NOT gated by `changes`: it
+    # must run on every PR (including selector-only changes) so the map cannot skip a job whose
+    # tests load a package. Validates select_ci_jobs.py against its own unit tests and asserts
+    # `_TARGETED` still covers the live inter-package import graph. See
+    # .github/actions/select-ci-jobs/test_ci_job_coverage.py for the model.
+    name: Selector Guard
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Install pytest
+      run: python -m pip install --disable-pip-version-check pytest
+    - name: Run selector unit tests and coverage guard
+      run: python -m pytest .github/actions/select-ci-jobs -v
+
   config:
     name: Load Config
     runs-on: ubuntu-latest
