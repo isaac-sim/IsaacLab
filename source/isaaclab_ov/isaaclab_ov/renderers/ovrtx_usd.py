@@ -344,21 +344,21 @@ def _set_prims_active_on_layer(layer: Sdf.Layer, prim_paths: list[Sdf.Path], act
     logger.info("%s %d prims in total", action_str, len(prim_paths))
 
 
-def export_stage_to_string(stage: Usd.Stage, trim_stage: bool, source_paths: tuple[str, ...]) -> str:
+def export_stage_to_string(stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...]) -> str:
     """Export the USD stage as a USDA string for OVRTX loading.
 
-    When ``trim_stage`` is False, the full stage is exported unchanged. Otherwise the stage is trimmed so that only the
-    source prims are kept.
+    When ``num_envs`` is 1, the full stage is exported unchanged. Otherwise the stage is trimmed so OVRTX receives only
+    the prototype geometry it will replicate with ``clone_usd``.
 
     Args:
         stage: USD stage to export.
-        trim_stage: Whether to trim the stage.
+        num_envs: Number of parallel environments on the stage.
         source_paths: The paths to source prims to keep in the exported stage.
 
     Returns:
         USDA text of the (possibly trimmed) stage.
     """
-    if not trim_stage:
+    if num_envs <= 1:
         return stage.ExportToString()
 
     envs_path = Sdf.Path("/World/envs")

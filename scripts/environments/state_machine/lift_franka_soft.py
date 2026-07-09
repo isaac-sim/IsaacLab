@@ -11,7 +11,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --viz kit,newton
+    ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py
 
 """
 

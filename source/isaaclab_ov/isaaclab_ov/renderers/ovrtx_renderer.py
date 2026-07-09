@@ -401,7 +401,7 @@ class OVRTXRenderer(BaseRenderer):
 
         self._exported_usd_string = export_stage_to_string(
             stage,
-            trim_stage=num_envs > 1,
+            num_envs,
             source_paths=self._clone_plan.sources,
         )
 
@@ -476,7 +476,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
-        self._setup_newton_object_bindings()
+        self._setup_object_bindings()
         self._setup_deformable_mesh_bindings()
 
     def _clone_sources_in_ovrtx(self):
@@ -485,14 +485,27 @@ class OVRTXRenderer(BaseRenderer):
         if clone_plan is None:
             raise RuntimeError("Clone plan is required when using OVRTX cloning")
 
-        logger.info("Cloning sources in OVRTX...")
+        num_envs = clone_plan.clone_mask.shape[1]
+        env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
+        xform_attr_name = "omni:xform"
 
-        env_ids = _clone_plan_env_ids(clone_plan)
+        # Snapshot per-env root transforms before clone_usd overwrites them with the source env root.
+        env_root_xforms = np.empty((num_envs, 4, 4), dtype=np.float64)
+        self._renderer.read_attribute(
+            xform_attr_name,
+            env_prim_paths,
+            prim_mode=PrimMode.MUST_EXIST,
+            dest=env_root_xforms,
+        )
+        logger.info("Captured per-env root transforms before cloning")
+
+        logger.info("Cloning sources in OVRTX...")
+        env_ids = torch.arange(num_envs, dtype=torch.int32, device=clone_plan.clone_mask.device)
 
         num_cloned_sources = 0
 
         for row_idx, (source, destination) in enumerate(zip(clone_plan.sources, clone_plan.destinations, strict=True)):
-            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].detach().cpu().tolist()
+            target_env_ids = env_ids[clone_plan.clone_mask[row_idx]].tolist()
 
             target_paths = []
             for env_id in target_env_ids:
@@ -512,31 +525,16 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        # OVRTX clones the source env root transform verbatim. Restore the per-env
-        # root transforms so non-rigid prims that are not covered by body labels
-        # still inherit the correct clone origin.
-        self._write_env_root_transforms_after_clone()
-
-    def _write_env_root_transforms_after_clone(self) -> None:
-        """Restore per-env root transforms after OVRTX clones the source env root."""
-        clone_plan = self._clone_plan
-        renderer = self._renderer
-        if clone_plan is None or clone_plan.positions is None or renderer is None:
-            return
-
-        env_ids = _clone_plan_env_ids(clone_plan).detach().cpu().tolist()
-        env_prim_paths = [f"/World/envs/env_{env_id}" for env_id in env_ids]
-        env_transforms = np.tile(np.eye(4, dtype=np.float64), (len(env_prim_paths), 1, 1))
-        positions = clone_plan.positions.detach().cpu().numpy()
-        env_transforms[:, 3, :3] = positions[: len(env_prim_paths)]
-
-        renderer.write_attribute(
+        # OVRTX clones the source env root transform verbatim. Restore per-env root transforms so any objects that
+        # are not covered by body labels still inherit the correct clone origin.
+        self._renderer.write_attribute(
             prim_paths=env_prim_paths,
-            attribute_name="omni:xform",
-            tensor=env_transforms,
+            attribute_name=xform_attr_name,
+            tensor=env_root_xforms,
             semantic=Semantic.XFORM_MAT4x4,
-            prim_mode=PrimMode.EXISTING_ONLY,
+            prim_mode=PrimMode.MUST_EXIST,
         )
+        logger.info("Restored per-env root transforms after cloning", num_envs)
 
     def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
@@ -561,7 +559,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
-    def _setup_newton_object_bindings(self):
+    def _setup_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -578,7 +576,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("Newton model not available, skipping object bindings")
             return
 
-        all_body_paths = newton_model.body_label
+        all_body_paths = getattr(newton_model, "body_label", None)
         if all_body_paths is None:
             logger.info("Newton model has no body_label, skipping object bindings")
             return
@@ -860,7 +858,7 @@ class OVRTXRenderer(BaseRenderer):
         if newton_state is None:
             raise RuntimeError("Newton state should not be None")
 
-        body_q = newton_state.body_q
+        body_q = getattr(newton_state, "body_q", None)
         if body_q is None:
             return
 
@@ -883,17 +881,18 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_deformable_points(self) -> None:
         """Sync Newton deformable particles to OVRTX mesh point arrays."""
+        try:
+            from isaaclab_newton.physics import NewtonManager
+        except ImportError:
+            logger.debug("isaaclab_newton physics not available, skipping deformable points sync")
+            return
+
         if not self._deformable_bindings_ready:
             if not self._deformable_bindings_warned:
-                try:
-                    from isaaclab_newton.physics import NewtonManager
-
-                    registry = NewtonManager._deformable_registry or []
-                    if any(getattr(entry, "deformable_type", None) in ("surface", "volume") for entry in registry):
-                        logger.warning("OVRTX deformable mesh bindings are not ready; deformables may render static.")
-                        self._deformable_bindings_warned = True
-                except ImportError:
-                    pass
+                registry = NewtonManager._deformable_registry or []
+                if any(entry.deformable_type in ("surface", "volume") for entry in registry):
+                    logger.warning("OVRTX deformable mesh bindings are not ready; deformables may render static.")
+                    self._deformable_bindings_warned = True
             return
 
         if (
@@ -906,68 +905,63 @@ class OVRTXRenderer(BaseRenderer):
         ):
             return
 
-        from isaaclab_newton.physics import NewtonManager
-
         if not NewtonManager.particles_dirty():
             return
 
-        try:
-            newton_state = NewtonManager.get_state()
-            if newton_state is None:
-                return
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            return
 
-            particle_q = newton_state.particle_q
-            if particle_q is None:
-                return
+        particle_q = newton_state.particle_q
+        if particle_q is None:
+            return
 
-            if NewtonManager.transforms_dirty():
-                self._refresh_deformable_inverse_world_matrices()
+        if NewtonManager.transforms_dirty():
+            self._refresh_deformable_inverse_world_matrices()
 
-            if self._deformable_inverse_world_matrices is None:
-                return
+        if self._deformable_inverse_world_matrices is None:
+            return
 
-            stacked_points = self._allocate_deformable_stacked_points()
+        stacked_points = self._allocate_deformable_stacked_points()
+        wp.launch(
+            kernel=sync_newton_deformable_points_batched_kernel,
+            dim=(len(self._deformable_point_buffers), self._deformable_max_particles_per_mesh),
+            inputs=[
+                stacked_points,
+                particle_q,
+                self._deformable_particle_offsets,
+                self._deformable_inverse_world_matrices,
+                self._deformable_particles_per_mesh,
+            ],
+            device=self._device,
+        )
+        for mesh_index, point_buffer in enumerate(self._deformable_point_buffers):
+            particle_count = int(self._deformable_particles_per_mesh.numpy()[mesh_index])
+            wp.copy(point_buffer, stacked_points[mesh_index, :particle_count])
             wp.launch(
-                kernel=sync_newton_deformable_points_batched_kernel,
-                dim=(len(self._deformable_point_buffers), self._deformable_max_particles_per_mesh),
+                kernel=compute_deformable_mesh_extent_kernel,
+                dim=1,
                 inputs=[
-                    stacked_points,
-                    particle_q,
-                    self._deformable_particle_offsets,
-                    self._deformable_inverse_world_matrices,
-                    self._deformable_particles_per_mesh,
+                    point_buffer,
+                    self._deformable_extent_mins[mesh_index],
+                    self._deformable_extent_maxs[mesh_index],
                 ],
                 device=self._device,
             )
-            for mesh_index, point_buffer in enumerate(self._deformable_point_buffers):
-                particle_count = int(self._deformable_particles_per_mesh.numpy()[mesh_index])
-                wp.copy(point_buffer, stacked_points[mesh_index, :particle_count])
-                wp.launch(
-                    kernel=compute_deformable_mesh_extent_kernel,
-                    dim=1,
-                    inputs=[
-                        point_buffer,
-                        self._deformable_extent_mins[mesh_index],
-                        self._deformable_extent_maxs[mesh_index],
-                    ],
-                    device=self._device,
-                )
-                extent_min = self._deformable_extent_mins[mesh_index].numpy()[0]
-                extent_max = self._deformable_extent_maxs[mesh_index].numpy()[0]
-                self._deformable_extent_buffer[mesh_index] = np.stack((extent_min, extent_max))
+            extent_min = self._deformable_extent_mins[mesh_index].numpy()[0]
+            extent_max = self._deformable_extent_maxs[mesh_index].numpy()[0]
+            self._deformable_extent_buffer[mesh_index] = np.stack((extent_min, extent_max))
 
-            if self._deformable_extent_binding is not None:
-                wp.synchronize_device(self._device)
-                self._deformable_extent_binding.write(cast(Any, self._deformable_extent_buffer))
-            self._deformable_point_binding.write(  # type: ignore[arg-type]
-                cast(Any, self._deformable_point_buffers),
-                data_access=DataAccess.ASYNC,
-            )
-            NewtonManager.clear_particles_dirty()
-        except RuntimeError:
-            raise
-        except Exception as e:
-            logger.error("Failed to update OVRTX deformable mesh points: %s", e)
+        if self._deformable_extent_binding is not None:
+            wp.synchronize_device(self._device)
+            self._deformable_extent_binding.write(cast(Any, self._deformable_extent_buffer))
+
+        self._deformable_point_binding.write(  # type: ignore[arg-type]
+            cast(Any, self._deformable_point_buffers),
+            data_access=DataAccess.ASYNC,
+        )
+
+        NewtonManager.clear_particles_dirty()
 
     def update_transforms(self) -> None:
         """Sync physics object transforms and deformable points to OVRTX."""
