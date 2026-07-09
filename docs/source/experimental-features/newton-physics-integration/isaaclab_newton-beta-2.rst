@@ -8,7 +8,7 @@ set of abstract methods that all physics engines must implement. In turn this al
 This also allows us to ensure that Isaac Lab 3.0 Beta is backwards compatible with Isaac Lab 2.X. For engine specific calls, users could get the underlying view of
 the physics engine and call the engine specific APIs directly.
 
-However, as we are refactoring the code, we are also looking at ways to limit the overhead of Isaac Lab's. In an effort to minimize the overhead, we are moving
+However, as we are refactoring the code, we are also looking at ways to limit the overhead of Isaac Lab. In an effort to minimize the overhead, we are moving
 all our low level code away from torch, and instead will rely heavily on warp. This will allow us to write low level code that is more efficient, and also
 to take advantage of the cuda-graphing. However, this means that the ``data classes`` such as :class:`~isaaclab.assets.articulation.ArticulationData` or
 :class:`~isaaclab.sensors.ContactSensorData` will only return warp arrays. Users will hence have to call ``wp.to_torch`` to convert them to torch tensors if they desire.

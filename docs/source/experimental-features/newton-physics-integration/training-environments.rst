@@ -26,7 +26,7 @@ The currently supported tasks are as follows:
 * Isaac-Reach-UR10-v0
 * Isaac-Repose-Cube-Allegro-Direct-v0
 
-New experimental warp-based enviromnets:
+New experimental warp-based environments:
 
 * Isaac-Cartpole-Direct-Warp-v0
 * Isaac-Ant-Direct-Warp-v0
