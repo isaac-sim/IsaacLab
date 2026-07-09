@@ -777,9 +777,10 @@ def test_deferred_relaxed_capture_preserves_staged_wrench():
 
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = True
-        body_f = wp.to_torch(NewtonManager._state_0.body_f)
-        body_f.zero_()
-        body_f[0, 2] = 9.81
+        body_f = wp.from_numpy(
+            np.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=np.float32), dtype=wp.spatial_vector, device="cuda:0"
+        )
+        NewtonManager._state_0.body_f.assign(body_f)
 
         sim.step(render=False)
         wp.synchronize_device("cuda:0")
