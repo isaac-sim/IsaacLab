@@ -271,14 +271,14 @@ class PinkIKController:
         except SolverNotFound as e:
             raise RuntimeError(
                 f"Pink IK requires the '{_QP_SOLVER}' QP solver. Install the Pink IK stack with "
-                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.8.5``."
+                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.3.0 daqp==0.8.5``."
             ) from e
         except TypeError as e:
             if "primal_start" in str(e):
                 raise RuntimeError(
                     "Pink IK requires a DAQP version compatible with qpsolvers warm-start arguments. "
                     "Install the Pink IK stack with ``./isaaclab.sh -i`` or manually install "
-                    "``pin pin-pink==3.1.0 daqp==0.8.5``."
+                    "``pin pin-pink==3.3.0 daqp==0.8.5``."
                 ) from e
             return _return_current_joint_positions(e)
         except (AssertionError, Exception) as e:

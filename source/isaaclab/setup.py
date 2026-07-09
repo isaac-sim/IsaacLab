@@ -68,7 +68,7 @@ SUPPORTED_ARCHS = "platform_machine in 'x86_64,AMD64'"
 INSTALL_REQUIRES += [
     # required by isaaclab.isaaclab.controllers.pink_ik
     f"pin ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
-    f"pin-pink==3.1.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
+    f"pin-pink==3.3.0 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
     f"daqp==0.8.5 ; platform_system == 'Linux' and ({SUPPORTED_ARCHS_ARM})",
 ]
 # Adds OpenUSD dependencies based on architecture for Kit less mode.

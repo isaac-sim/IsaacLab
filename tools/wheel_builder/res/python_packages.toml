@@ -51,7 +51,7 @@ pyproject.dependencies.all = [
     "pydantic>=2.7,<2.12",
     "lazy_loader>=0.4",
     "pin ; platform_system == 'Linux'",
-    "pin-pink>=2.3.6 ; platform_system == 'Linux'",
+    "pin-pink==3.3.0 ; platform_system == 'Linux'",
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_rl/setup.py
     # ================================================================================
@@ -68,7 +68,7 @@ pyproject.dependencies.all = [
     "tensorboard",
     # video recording
     "moviepy",
-    "packaging<24",
+    "packaging",
     "tqdm==4.67.1",
     # ================================================================================
     # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/setup.py

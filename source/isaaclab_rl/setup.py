@@ -31,7 +31,7 @@ INSTALL_REQUIRES = [
     "tensorboard",
     # video recording
     "moviepy",
-    "packaging<24",
+    "packaging",
     "tqdm==4.67.1",  # previous version was causing sys errors
 ]
 
