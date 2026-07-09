@@ -51,11 +51,6 @@ def _goal_quat_error_kernel(
     out[i] = wp.vec4(sign * x, sign * y, sign * z, sign * w)
 
 
-def _as_wp(tensor: torch.Tensor, dtype) -> wp.array:
-    """View a contiguous float tensor as a Warp array of *dtype*."""
-    return wp.from_torch(tensor.contiguous(), dtype=dtype)
-
-
 def compute_goal_quat_error(
     asset_quat: torch.Tensor, goal_quat: torch.Tensor, make_quat_unique: bool, out: torch.Tensor
 ) -> torch.Tensor:
@@ -73,7 +68,12 @@ def compute_goal_quat_error(
     wp.launch(
         _goal_quat_error_kernel,
         dim=out.shape[0],
-        inputs=[_as_wp(asset_quat, wp.vec4), _as_wp(goal_quat, wp.vec4), int(make_quat_unique)],
+        # .contiguous(): the goal quaternion arrives as a non-contiguous command slice
+        inputs=[
+            wp.from_torch(asset_quat.contiguous(), dtype=wp.vec4),
+            wp.from_torch(goal_quat.contiguous(), dtype=wp.vec4),
+            int(make_quat_unique),
+        ],
         outputs=[wp.from_torch(out, dtype=wp.vec4)],
         device=wp.device_from_torch(out.device),
     )
