@@ -217,7 +217,8 @@ jobs:
             : > changed_files.txt
           fi
         elif [ "$EVENT_NAME" = "push" ] && git rev-parse --quiet --verify "$BEFORE_SHA^{commit}" > /dev/null; then
-          git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > changed_files.txt
+          # Same fail-safe as the other branches: never fail the job over a diff error.
+          git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" > changed_files.txt || : > changed_files.txt
         else
           # workflow_dispatch or a push whose before-SHA is unavailable (e.g. new branch):
           # fall back to the most recent commit's changes.
