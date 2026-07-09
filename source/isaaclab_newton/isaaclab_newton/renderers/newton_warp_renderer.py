@@ -402,15 +402,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def create_render_data(self, spec: CameraRenderSpec) -> RenderData:
         """Create render data for the Newton tiled camera.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.create_render_data`."""
-        render_data = RenderData(self.newton_sensor, spec)
-        # Honor the camera's far clipping plane (``spawn.clipping_range[1]``). ``max_distance`` is
-        # baked into the sensor at construction from the renderer cfg default; the per-camera far
-        # plane is the authoritative value, so push it onto the live render config (documented as
-        # mutable for subsequent ``update`` calls). Rays beyond it return no hit and the depth buffer
-        # keeps its ``0.0`` background sentinel.
-        if render_data.far_clip is not None:
-            self.newton_sensor.render_config.max_distance = render_data.far_clip
-        return render_data
+        return RenderData(self.newton_sensor, spec)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, ProxyArray]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
@@ -443,6 +435,12 @@ class NewtonWarpRenderer(BaseRenderer):
         # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
         if self.newton_sensor.model.shape_count > 0:
             newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
+
+        # render_config is shared state across all Newton sensors, so set max_distance immediately
+        # before each render call rather than once in create_render_data.
+        self.newton_sensor.render_config.max_distance = (
+            render_data.far_clip if render_data.far_clip is not None else self.cfg.max_distance
+        )
 
         # Use the renderer's clear value to fill distance_to_camera background when it is the only
         # depth output requested. This avoids a post-render kernel pass for that common case.
