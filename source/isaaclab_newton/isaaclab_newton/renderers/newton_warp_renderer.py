@@ -246,7 +246,7 @@ class NewtonWarpRenderer(BaseRenderer):
                 enable_ambient_lighting=self.cfg.enable_ambient_lighting,
                 enable_backface_culling=self.cfg.enable_backface_culling,
                 max_distance=self.cfg.max_distance,
-                render_order = newton.sensors.SensorTiledCamera.RenderOrder.TILED,
+                render_order=newton.sensors.SensorTiledCamera.RenderOrder.TILED,
                 tile_width=self.cfg.tile_rendering_width,
                 tile_height=self.cfg.tile_rendering_height,
             ),

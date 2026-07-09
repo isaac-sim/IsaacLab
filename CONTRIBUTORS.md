@@ -74,6 +74,7 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Leon
 * David Yang
+* Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Dongxuan Fan

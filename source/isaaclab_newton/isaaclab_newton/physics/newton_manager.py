@@ -885,7 +885,7 @@ class NewtonManager(PhysicsManager):
         builder.default_bvh_cfg = ModelBuilder.BvhConfig(
             cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
-            cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None
+            cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
         )
 
         cls._register_builder_attributes(builder)
