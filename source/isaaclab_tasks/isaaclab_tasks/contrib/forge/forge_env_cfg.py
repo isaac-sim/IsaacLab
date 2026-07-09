@@ -29,8 +29,9 @@ class ForgeCtrlCfg(CtrlCfg):
     """Controller and action-space configuration for the FORGE environments.
 
     In the FORGE environments, policy actions encode absolute pose targets relative to the fixed
-    asset: ``pos_action_bounds`` [m] and ``rot_action_bounds`` [rad] map the normalized policy action
-    onto the operational volume around the fixed asset, while ``pos_action_threshold`` [m] and
+    asset: ``pos_action_bounds`` [m] maps the translational action onto the operational volume, while
+    ``rot_action_bounds`` [rad] maps the rotational action onto its allowable target range.
+    Meanwhile, ``pos_action_threshold`` [m] and
     ``rot_action_threshold`` [rad] clip the per-step motion of the target relative to the current
     end-effector pose. This differs from the Factory environments, where actions are displacements
     relative to the current end-effector pose and the same parameters play the opposite roles.

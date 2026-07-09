@@ -150,23 +150,15 @@ class ForgeEnv(FactoryEnv):
         return {"policy": obs_tensors, "critic": state_tensors}
 
     def _apply_action(self):
-        """FORGE actions are defined as targets relative to the fixed asset.
+        """Apply absolute FORGE pose targets relative to the fixed asset.
 
-        Unlike the Factory environments, where actions are interpreted as displacements relative to the
-        current end-effector pose, FORGE actions encode absolute pose targets relative to the fixed asset.
-        As a result, the control parameters play different roles in the two environment families:
-
-        * ``pos_action_bounds`` and ``rot_action_bounds`` map the normalized policy action onto the
-          operational volume around the fixed asset.
-        * ``pos_action_threshold`` and ``rot_action_threshold`` clip the per-step motion of the target
-          relative to the current end-effector pose. They are applied through the per-environment
-          ``pos_threshold`` and ``rot_threshold`` tensors and correspond to the action scale (lambda)
-          in the FORGE paper, which is randomized per episode as part of the dynamics randomization
-          scheme and exposed to the critic as privileged state.
-
-        Reference: Noseworthy et al., "FORGE: Force-Guided Exploration for Robust Contact-Rich
-        Manipulation under Uncertainty", Sec. III-B, Eq. 6. https://arxiv.org/abs/2408.04587
+        ``pos_action_bounds`` [m] maps translational actions onto the workspace and
+        ``rot_action_bounds`` [rad] maps rotational actions onto their allowable target range.
+        ``pos_action_threshold`` [m] and ``rot_action_threshold`` [rad] then clip per-step
+        target motion relative to the current end-effector pose. See :class:`ForgeCtrlCfg` for
+        the randomized action-scale semantics.
         """
+
         if self.last_update_timestamp < self._robot._data._sim_timestamp:
             self._compute_intermediate_values(dt=self.physics_dt)
 

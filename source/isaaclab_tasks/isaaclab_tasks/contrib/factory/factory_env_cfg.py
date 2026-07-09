@@ -58,8 +58,8 @@ class CtrlCfg:
     clips the resulting position target relative to the fixed asset to bound the workspace.
 
     The FORGE environments reuse this configuration with a different action space (absolute targets
-    relative to the fixed asset), in which these parameters play different roles. See ``ForgeCtrlCfg``
-    in ``isaaclab_tasks/contrib/forge/forge_env_cfg.py``.
+    relative to the fixed asset), in which these parameters play different roles. See
+    :class:`~isaaclab_tasks.contrib.forge.forge_env_cfg.ForgeCtrlCfg`.
     """
 
     ema_factor = 0.2
