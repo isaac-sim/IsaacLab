@@ -132,6 +132,71 @@ class EventCfg:
 _SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
 
 
+# Physical actuated set of the Shadow Hand (wrist + non-distal finger joints +
+# full thumb). The PhysX and OVPhysX asset names the finger chains J0..J3
+# (LF: J0..J4) with the tendon-coupled distal pair unactuated; the production
+# Newton asset renumbers the four finger chains by +1 (FF/MF/RF: J1..J4,
+# LF: J1..J5, distal = J1), so the same physical joints carry shifted names.
+_ACTUATED_JOINT_NAMES = [
+    "robot0_WRJ1",
+    "robot0_WRJ0",
+    "robot0_FFJ3",
+    "robot0_FFJ2",
+    "robot0_FFJ1",
+    "robot0_MFJ3",
+    "robot0_MFJ2",
+    "robot0_MFJ1",
+    "robot0_RFJ3",
+    "robot0_RFJ2",
+    "robot0_RFJ1",
+    "robot0_LFJ4",
+    "robot0_LFJ3",
+    "robot0_LFJ2",
+    "robot0_LFJ1",
+    "robot0_THJ4",
+    "robot0_THJ3",
+    "robot0_THJ2",
+    "robot0_THJ1",
+    "robot0_THJ0",
+]
+_ACTUATED_JOINT_NAMES_NEWTON = [
+    "robot0_WRJ1",
+    "robot0_WRJ0",
+    "robot0_FFJ4",
+    "robot0_FFJ3",
+    "robot0_FFJ2",
+    "robot0_MFJ4",
+    "robot0_MFJ3",
+    "robot0_MFJ2",
+    "robot0_RFJ4",
+    "robot0_RFJ3",
+    "robot0_RFJ2",
+    "robot0_LFJ5",
+    "robot0_LFJ4",
+    "robot0_LFJ3",
+    "robot0_LFJ2",
+    "robot0_THJ4",
+    "robot0_THJ3",
+    "robot0_THJ2",
+    "robot0_THJ1",
+    "robot0_THJ0",
+]
+
+
+def _quat_mul_xyzw(
+    q1: tuple[float, float, float, float], q2: tuple[float, float, float, float]
+) -> tuple[float, float, float, float]:
+    """Compose two ``(x, y, z, w)`` quaternions (``q1`` applied on top of ``q2``)."""
+    x1, y1, z1, w1 = q1
+    x2, y2, z2, w2 = q2
+    return (
+        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
+        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
+        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
+        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
+    )
+
+
 def _shadow_hand_cfg(
     prim_path: str,
     init_pos: tuple[float, float, float],
@@ -166,11 +231,44 @@ def _shadow_hand_cfg(
     physx_cfg = SHADOW_HAND_CFG.replace(prim_path=prim_path).replace(
         init_state=ArticulationCfg.InitialStateCfg(pos=init_pos, rot=init_rot, joint_pos={".*": 0.0})
     )
+    # Newton's importer bakes the asset's native root orientation into the
+    # root joint (see the note on _SHADOW_HAND_NEWTON_CFG.init_state), so the
+    # task rotation must compose with that base rotation rather than replace
+    # it — replacing left both palms heading 90 degrees off and the object
+    # never rested in the right hand.
+    newton_rot = _quat_mul_xyzw(init_rot, _SHADOW_HAND_NEWTON_CFG.init_state.rot)
     newton_cfg = _SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
-        init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=init_rot),
+        init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
         actuators={
-            "fingers": _SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(stiffness=20.0, damping=2.0),
+            # The inherited "fingers" expression predates the renamed Newton
+            # asset: on the renumbered chains it drives the tendon-coupled
+            # distal J1 joints and leaves the J4 knuckles (and the LFJ5
+            # metacarpal) without a drive. Redeclare it against the renamed
+            # joints so the actuated set matches the PhysX hand physically.
+            "fingers": _SHADOW_HAND_NEWTON_CFG.actuators["fingers"].replace(
+                joint_names_expr=[
+                    "robot0_WR.*",
+                    "robot0_(FF|MF|RF)J(4|3|2)",
+                    "robot0_LFJ(5|4|3|2)",
+                    "robot0_THJ[0-4]",
+                ],
+                effort_limit_sim={
+                    "robot0_WRJ1": 4.785,
+                    "robot0_WRJ0": 2.175,
+                    "robot0_(FF|MF|RF|LF)J2": 0.7245,
+                    "robot0_FFJ(4|3)": 0.9,
+                    "robot0_MFJ(4|3)": 0.9,
+                    "robot0_RFJ(4|3)": 0.9,
+                    "robot0_LFJ(5|4|3)": 0.9,
+                    "robot0_THJ4": 2.3722,
+                    "robot0_THJ3": 1.45,
+                    "robot0_THJ(2|1)": 0.99,
+                    "robot0_THJ0": 0.81,
+                },
+                stiffness=20.0,
+                damping=2.0,
+            ),
             "distal_passive": ImplicitActuatorCfg(
                 joint_names_expr=["robot0_(FF|MF|RF|LF)J1"],
                 stiffness=10.0,
@@ -266,7 +364,10 @@ class PhysicsCfg(PresetCfg):
             update_data_interval=2,
             ccd_iterations=50,  # bumped from default 35 for multi-finger contact geometry
         ),
-        num_substeps=2,
+        # 4 substeps (vs the single-agent port's 2): sustained ball-palm contact
+        # against the near-passive distal joints explodes ~0.7% of 8192 envs to
+        # NaN at 2 substeps (zero-action probe, 300 steps); 4 substeps shows none.
+        num_substeps=4,
         debug_mode=False,
     )
     ovphysx = OvPhysxCfg()
@@ -304,28 +405,12 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
         init_pos=(0.0, -1.0, 0.5),
         init_rot=(0.0, 0.0, 1.0, 0.0),
     )
-    actuated_joint_names = [
-        "robot0_WRJ1",
-        "robot0_WRJ0",
-        "robot0_FFJ3",
-        "robot0_FFJ2",
-        "robot0_FFJ1",
-        "robot0_MFJ3",
-        "robot0_MFJ2",
-        "robot0_MFJ1",
-        "robot0_RFJ3",
-        "robot0_RFJ2",
-        "robot0_RFJ1",
-        "robot0_LFJ4",
-        "robot0_LFJ3",
-        "robot0_LFJ2",
-        "robot0_LFJ1",
-        "robot0_THJ4",
-        "robot0_THJ3",
-        "robot0_THJ2",
-        "robot0_THJ1",
-        "robot0_THJ0",
-    ]
+    actuated_joint_names: PresetCfg = preset(
+        physx=_ACTUATED_JOINT_NAMES,
+        newton_mjwarp=_ACTUATED_JOINT_NAMES_NEWTON,
+        ovphysx=_ACTUATED_JOINT_NAMES,
+        default=_ACTUATED_JOINT_NAMES,
+    )
     fingertip_body_names = [
         "robot0_ffdistal",
         "robot0_mfdistal",
