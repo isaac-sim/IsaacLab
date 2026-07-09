@@ -162,7 +162,9 @@ def dispatch_library_entrypoint(
         run_as_script: Whether to execute the selected implementation as a script.
 
     Returns:
-        Process exit code.
+        Process exit code. Returns ``0`` after printing selector help when
+        ``argv`` requests ``-h`` or ``--help`` without ``--rl_library``;
+        otherwise returns ``2`` when no library is selected.
     """
     if argv is None:
         argv = sys.argv[1:]
@@ -171,7 +173,7 @@ def dispatch_library_entrypoint(
     argv = AppLauncher._fuse_kit_args(argv)
 
     parser = argparse.ArgumentParser(add_help=False)
-    parser.add_argument("--rl_library", choices=sorted(entrypoints), required=True)
+    parser.add_argument("--rl_library", choices=sorted(entrypoints))
     args_cli, library_args = parser.parse_known_args(argv)
 
     if args_cli.rl_library is None:
