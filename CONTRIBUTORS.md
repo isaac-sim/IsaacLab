@@ -117,9 +117,9 @@ Guidelines for modifications:
 * Kaixi Bao
 * Kourosh Darvish
 * Kousheek Chakraborty
-* Lin He
 * Kris Wilson
 * Krishna Lakhi
+* Lin He
 * Lionel Gulich
 * Lorenz Wellhausen
 * Lotus Li
