@@ -5,6 +5,7 @@
 
 import gymnasium as gym
 from . import (
+    pickup_ik_abs_cammount_env_cfg,
     pickup_ik_abs_env_cfg,
     reach_red_cube_env_cfg,
     stack_ik_abs_env_cfg,
@@ -45,5 +46,15 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": pickup_ik_abs_env_cfg.OpenarmPickUpRedCubeEnvCfg,
+    },
+)
+
+# Camera-mount robot variant -- does not replace or alias the task above, both remain available.
+gym.register(
+    id="Isaac-PickUp-RedCube-OpenArm-CamMount-IK-Abs-v0",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": pickup_ik_abs_cammount_env_cfg.OpenarmPickUpRedCubeCamMountEnvCfg,
     },
 )
