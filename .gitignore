@@ -13,8 +13,6 @@
 **/*.usda
 **/*.usdc
 **/*.usdz
-# ...except the golden USD stages used by the rendering tests (tracked via Git LFS).
-!source/isaaclab_tasks/test/golden_stages/**/*.usda
 
 # Python
 .DS_Store
