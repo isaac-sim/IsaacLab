@@ -50,7 +50,6 @@ import isaaclab.sim as sim_utils
 ##
 # Pre-defined configs
 ##
-from isaaclab_newton.physics import NewtonCfg  # isort:skip
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
 from isaaclab.physics import PhysicsCfg  # isort:skip
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
@@ -59,7 +58,7 @@ if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
 
 if args_cli.physics == "newton_vbd":
-    from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg, NewtonModelCfg  # isort:skip
+    from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg  # isort:skip
     from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg as DeformableBodyPropertiesCfg
     from isaaclab_newton.sim.spawners.materials import (
         NewtonDeformableBodyMaterialCfg as VolumeDeformableMaterialCfg,
@@ -252,16 +251,13 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # tune the CLI-selected backend for this demo
         if args_cli.physics == "newton_vbd":
-            physics_cfg = NewtonCfg(
-                solver_cfg=VBDSolverCfg(
-                    iterations=5,
-                    particle_enable_self_contact=True,
-                    particle_self_contact_radius=0.0001,
-                    particle_self_contact_margin=0.1,
-                ),
-                num_substeps=4,
-            )
+            physics_cfg.solver_cfg.iterations = 5
+            physics_cfg.solver_cfg.particle_enable_self_contact = True
+            physics_cfg.solver_cfg.particle_self_contact_radius = 0.0001
+            physics_cfg.solver_cfg.particle_self_contact_margin = 0.1
+            physics_cfg.num_substeps = 4
             physics_cfg.model_cfg = NewtonModelCfg(
                 soft_contact_ke=1.0e5,
                 soft_contact_kd=1.0e0,

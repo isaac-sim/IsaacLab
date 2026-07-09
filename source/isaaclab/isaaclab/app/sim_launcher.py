@@ -65,8 +65,13 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """
     if physics_cfg_str == "physx":
         return PhysxCfg()
-    if physics_cfg_str in ["newton_mjwarp", "newton_vbd"]:
+    if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
+    if physics_cfg_str == "newton_vbd":
+        # lazy import: core depends on isaaclab_contrib only when VBD is requested
+        from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+
+        return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
     raise ValueError(
