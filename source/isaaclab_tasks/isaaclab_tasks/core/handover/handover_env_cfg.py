@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -22,7 +23,15 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.handover.handover_task_constants import (
     ACTUATED_JOINT_NAMES_PRESET,
+    DECIMATION,
+    DIST_REWARD_SCALE,
+    EPISODE_LENGTH_S,
+    FALL_DISTANCE,
     FINGERTIP_BODY_NAMES,
+    RESET_DOF_POS_NOISE,
+    RESET_DOF_VEL_NOISE,
+    RESET_POSITION_NOISE,
+    SUCCESS_DISTANCE_THRESHOLD,
 )
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -132,22 +141,8 @@ class EventCfg:
 # Reuse the single-agent Shadow Hand Newton port (USD path, ``rot`` reapplication
 # workaround, effort limits, joint regex). The multi-agent variant only diverges
 # in actuator gains (stiffness/damping bumped for the catch task) and adds a
-# ``distal_passive`` override for the J0 USD-baked values.
+# ``distal_passive`` override for the J1 USD-baked values.
 _SHADOW_HAND_NEWTON_CFG = ShadowHandRobotCfg().newton_mjwarp
-
-
-def _quat_mul_xyzw(
-    q1: tuple[float, float, float, float], q2: tuple[float, float, float, float]
-) -> tuple[float, float, float, float]:
-    """Compose two ``(x, y, z, w)`` quaternions (``q1`` applied on top of ``q2``)."""
-    x1, y1, z1, w1 = q1
-    x2, y2, z2, w2 = q2
-    return (
-        w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2,
-        w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2,
-        w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2,
-        w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2,
-    )
 
 
 def _shadow_hand_cfg(
@@ -189,7 +184,9 @@ def _shadow_hand_cfg(
     # task rotation must compose with that base rotation rather than replace
     # it — replacing left both palms heading 90 degrees off and the object
     # never rested in the right hand.
-    newton_rot = _quat_mul_xyzw(init_rot, _SHADOW_HAND_NEWTON_CFG.init_state.rot)
+    # Warp's quaternion type is (x, y, z, w); use the double variant so the
+    # composed cfg values keep float64 precision.
+    newton_rot = tuple(float(v) for v in wp.quatd(*init_rot) * wp.quatd(*_SHADOW_HAND_NEWTON_CFG.init_state.rot))
     newton_cfg = _SHADOW_HAND_NEWTON_CFG.replace(
         prim_path=prim_path,
         init_state=_SHADOW_HAND_NEWTON_CFG.init_state.replace(pos=init_pos, rot=newton_rot),
@@ -343,8 +340,8 @@ class PhysicsCfg(PresetCfg):
 @configclass
 class HandoverEnvCfg(DirectMARLEnvCfg):
     # env
-    decimation = 2
-    episode_length_s = 7.5
+    decimation = DECIMATION
+    episode_length_s = EPISODE_LENGTH_S
     possible_agents = ["right_hand", "left_hand"]
     action_spaces = {"right_hand": 20, "left_hand": 20}
     observation_spaces = {"right_hand": 157, "left_hand": 157}
@@ -382,15 +379,15 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=2048, env_spacing=1.5, replicate_physics=True)
 
     # reset
-    reset_position_noise = 0.01  # range of position at reset
-    reset_dof_pos_noise = 0.2  # range of dof pos at reset
-    reset_dof_vel_noise = 0.0  # range of dof vel at reset
+    reset_position_noise = RESET_POSITION_NOISE  # range of position at reset
+    reset_dof_pos_noise = RESET_DOF_POS_NOISE  # range of dof pos at reset
+    reset_dof_vel_noise = RESET_DOF_VEL_NOISE  # range of dof vel at reset
     # scales and constants
-    fall_dist = 0.24
+    fall_dist = FALL_DISTANCE
     vel_obs_scale = 0.2
     act_moving_average = 1.0
     # success criteria
-    success_distance_threshold: float = 0.1
+    success_distance_threshold: float = SUCCESS_DISTANCE_THRESHOLD
     """Object-to-goal distance below which the handover is considered successful [m]."""
     # reward-related scales
-    dist_reward_scale = 20.0
+    dist_reward_scale = DIST_REWARD_SCALE
