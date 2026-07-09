@@ -20,6 +20,13 @@
 # (see env_benchmark_test_utils.evaluate_job). Lower metrics must be *above* the floor, so floors are -9999; duration
 # must stay *below* the cap, so the cap is 9999. Using +9999 for lowers and -9999 for duration would fail every job.
 #
+# --- Menagerie-backed robots WITHOUT registered tasks (not covered here) ---
+#
+# Anymal-B (ANYMAL_B_CFG / anybotics_anymal_b/anymal_b.usda)
+# Anymal-C (ANYMAL_C_CFG / anybotics_anymal_c/anymal_c.usda)
+#   Asset configs point to Menagerie USDs but no velocity task configs exist for these robots.
+#   Add task configs under core/velocity/config/anymal_{b,c}/ before adding entries here.
+#
 # --- Menagerie-related envs not covered by this file (missing from automated RL benchmark harness) ---
 #
 # Isaac-PickPlace-Locomanipulation-G1-Abs-v0

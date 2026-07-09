@@ -10,7 +10,7 @@ domain-randomization presets, and the sim mixins. No task tunables: reward
 scales and thresholds live inline in the workflow configuration files.
 """
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 
@@ -254,6 +254,8 @@ class PhysicsCfg(PresetCfg):
             update_data_interval=2,
         ),
         num_substeps=2,
+        debug_mode=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
     ovphysx = OvPhysxCfg()
     default = newton_mjwarp

@@ -23,9 +23,9 @@ Isaac-Velocity-Rough-H1-v0 | rsl_rl, skrl | H1_MINIMAL_CFG -> h1.usda | full H1_
 Isaac-Velocity-Rough-G1-v0 | rsl_rl, skrl | G1_MINIMAL_CFG -> g1.usda |
 
 --- Manipulation / in-hand (Menagerie-backed) ---
-Isaac-Repose-Cube-Allegro-v0 | rsl_rl, rl_games, skrl | ALLEGRO_HAND_CFG / wonik_allegro right hand |
-Isaac-Repose-Cube-Allegro-Direct-v0 | rsl_rl, rl_games, skrl | same as Allegro manager task |
-Isaac-Repose-Cube-Shadow-Direct-v0 | rsl_rl, rl_games, skrl | SHADOW_HAND_CFG / shadow_hand right hand |
+Isaac-Reorient-Cube-Allegro | rsl_rl, rl_games, skrl | ALLEGRO_HAND_CFG / wonik_allegro right hand |
+Isaac-Reorient-Cube-Allegro-Direct | rsl_rl, rl_games, skrl | same as Allegro manager task |
+Isaac-Reorient-Cube-Shadow-Direct | rsl_rl, rl_games, skrl | SHADOW_HAND_CFG / shadow_hand right hand |
 Isaac-PickPlace-Locomanipulation-G1-Abs-v0 | robomimic_bc | G1_29DOF_CFG -> g1_29dof_rev usdc |
 
 --- Not in Menagerie swap matrix ---
