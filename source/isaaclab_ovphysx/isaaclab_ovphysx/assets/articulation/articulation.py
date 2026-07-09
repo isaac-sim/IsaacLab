@@ -1934,8 +1934,8 @@ class Articulation(BaseArticulation):
         )
         # Stage the combined (N, J, 3) buffer to pinned-host CPU and write to the binding.
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
@@ -1987,8 +1987,8 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(
@@ -2050,8 +2050,8 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
@@ -2095,8 +2095,8 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(
@@ -2159,8 +2159,8 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
@@ -2205,8 +2205,8 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_friction_props_buf.data],
             device=self._device,
         )
-        friction_props_backend = self._get_backend_ordered_joint_3d_buffer(
-            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, 3
+        friction_props_backend = self._get_backend_ordered_joint_buffer(
+            self._data._joint_friction_props_buf.data, self._data._joint_friction_props_backend, component_count=3
         )
         cpu_friction = self._data._stage_to_pinned_cpu(TT.DOF_FRICTION_PROPERTIES, "write", friction_props_backend)
         self._root_view.set_attribute(
