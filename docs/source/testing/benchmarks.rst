@@ -96,8 +96,8 @@ Basic usage with :class:`~isaaclab.test.benchmark.BaseIsaacLabBenchmark`:
 Running Benchmark Scripts
 -------------------------
 
-Isaac Lab provides unified ``runtime.py`` and ``startup.py`` entry points under
-``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
+Isaac Lab provides unified ``runtime.py``, ``startup.py``, and ``training.py`` entry points
+under ``scripts/benchmarks/``. They default to ``--benchmark_formatter schema``, which
 emits a schema-v1 JSON bundle via :mod:`isaaclab.test.benchmark`.
 ``--benchmark_formatter`` accepts a comma-separated list (e.g.
 ``schema,omniperf``) to emit several formats in a single run. Each selected
@@ -109,6 +109,7 @@ Isaac Lab environment, run the same workflows directly instead:
 
 * Runtime: ``./isaaclab.sh -p scripts/benchmarks/runtime.py <arguments>``
 * Startup: ``./isaaclab.sh -p scripts/benchmarks/startup.py <arguments>``
+* Training: ``./isaaclab.sh -p scripts/benchmarks/training.py <arguments>``
 
 Non-RL / Runtime Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -127,15 +128,23 @@ Measure environment stepping performance without any RL library:
 RL Training Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Measure training performance with RSL-RL:
+Measure training performance.  Use ``--rl_library`` to select the RL library
+(``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``):
 
 .. code-block:: bash
 
-   # Run training benchmarks
-   ./scripts/benchmarks/run_training_benchmarks.sh ./output_dir
+   # Benchmark with RSL-RL
+   uv run isaaclab benchmark training \
+       --rl_library rsl_rl \
+       --task Isaac-Cartpole \
+       --num_envs 4096 \
+       --max_iterations 500 \
+       --benchmark_formatter json \
+       --output_path ./results
 
-   # Run manually with RSL-RL
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   # Benchmark with RL Games
+   uv run isaaclab benchmark training \
+       --rl_library rl_games \
        --task Isaac-Cartpole \
        --num_envs 4096 \
        --max_iterations 500 \
@@ -298,14 +307,17 @@ RL Training Arguments
    * - Argument
      - Default
      - Description
+   * - ``--rl_library``
+     - required
+     - RL library: ``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``
    * - ``--task``
      - required
      - Environment task name
    * - ``--num_envs``
-     - ``4096``
+     - ``None`` (task config)
      - Number of parallel environments
    * - ``--max_iterations``
-     - ``500``
+     - ``None`` (task config)
      - Number of training iterations
 
 Measurement Types
@@ -647,6 +659,13 @@ The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD 
        uv run isaaclab benchmark runtime \
            --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
            --benchmark_formatter json --output_path ./benchmark_results
+
+   - name: Run Training Benchmark
+     run: |
+       uv run isaaclab benchmark training \
+           --rl_library rsl_rl --task Isaac-Cartpole --num_envs 4096 \
+           --max_iterations 500 --benchmark_formatter json \
+           --output_path ./benchmark_results
 
    - name: Upload Results
      uses: actions/upload-artifact@v3

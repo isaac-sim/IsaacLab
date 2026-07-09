@@ -13,7 +13,7 @@ import pytest
 import isaaclab.cli as cli
 
 
-@pytest.mark.parametrize("command", ["runtime", "startup"])
+@pytest.mark.parametrize("command", ["runtime", "startup", "training"])
 def test_benchmark_dispatches_to_requested_script(command):
     """The ``isaaclab benchmark`` command forwards arguments to the requested script."""
     args = [command, "--help"]
