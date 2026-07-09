@@ -486,7 +486,10 @@ def maybe_save_stage(
                 # matching exactly the composed prims the result side opens from ``stage_path``.
                 from pxr import Usd  # noqa: PLC0415
 
-                if not Usd.Stage.Open(stage_path).Flatten().Export(golden_path):
+                opened_stage = Usd.Stage.Open(stage_path)
+                if opened_stage is None:
+                    pytest.fail(f"Could not open the saved stage at {stage_path} to flatten for bootstrapping.")
+                if not opened_stage.Flatten().Export(golden_path):
                     pytest.fail(f"Failed to export the flattened golden baseline to {golden_path}.")
                 # Strip host-specific provenance/paths so the committed baseline is reproducible.
                 with open(golden_path, encoding="utf-8") as file:
