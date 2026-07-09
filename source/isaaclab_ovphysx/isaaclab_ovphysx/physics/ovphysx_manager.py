@@ -740,7 +740,11 @@ class OvPhysxManager(PhysicsManager):
             return ovphysx.PhysX(**physx_kwargs)
 
         physx_kwargs = {"device": ovphysx_device}
-        physx_parameters = inspect.signature(ovphysx.PhysX).parameters
+        try:
+            physx_parameters = inspect.signature(ovphysx.PhysX).parameters
+        except (TypeError, ValueError):
+            # C-extension constructors may not expose a Python-visible signature
+            physx_parameters = {}
         if "active_cuda_gpus" in physx_parameters and ovphysx_device == "gpu":
             physx_kwargs["active_cuda_gpus"] = str(gpu_index)
             physx_kwargs["config"] = ovphysx.PhysXConfig(
@@ -760,6 +764,8 @@ class OvPhysxManager(PhysicsManager):
             physx.set_setting("/physics/updateVelocitiesToUsd", "false")
             physx.set_setting("/physics/updateParticlesToUsd", "false")
         else:
+            # the declared legacy runtime exposes no generic settings API, so
+            # only the thread count can be applied post-construction
             physx.set_config_int32(ovphysx.ConfigInt32.NUM_THREADS, 8)
         return physx
 
