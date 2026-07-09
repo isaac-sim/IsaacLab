@@ -1082,6 +1082,14 @@ class _LegacyArticulation(BaseArticulation):
         return self._body_names
 
 
+class _IncompleteArticulation(BaseArticulation):
+    """Backend overriding neither the public nor the backend name properties."""
+
+    @property
+    def data(self):
+        return self._data
+
+
 def _make_ordering_resolution_articulation(
     *,
     body_ordering,
@@ -1127,6 +1135,67 @@ def test_base_articulation_ordering_contract_preserves_legacy_subclasses() -> No
         assert articulation.backend_body_names == ["base", "foot"]
     assert articulation.joint_ordering is None
     assert articulation.body_ordering is None
+
+
+def test_backend_name_fallbacks_reject_missing_overrides() -> None:
+    """Raise instead of recursing when a backend overrides neither name property of an axis."""
+    articulation = object.__new__(_IncompleteArticulation)
+    articulation._data = types.SimpleNamespace(joint_ordering=None, body_ordering=None)
+
+    with pytest.raises(NotImplementedError, match="joint_names"):
+        _ = articulation.backend_joint_names
+    with pytest.raises(NotImplementedError, match="body_names"):
+        _ = articulation.backend_body_names
+    # The public properties funnel into the same fallbacks and must fail identically.
+    with pytest.raises(NotImplementedError, match="joint_names"):
+        _ = articulation.joint_names
+    with pytest.raises(NotImplementedError, match="body_names"):
+        _ = articulation.body_names
+
+
+def _make_map_ids_articulation(*, permuted: bool) -> _LegacyArticulation:
+    """Create a name-mapping articulation with a 3-cycle joint/body permutation or identity maps."""
+    articulation = object.__new__(_LegacyArticulation)
+    articulation._joint_names = ["j_b", "j_c", "j_a"]
+    articulation._body_names = ["link", "foot", "base"]
+    if permuted:
+        # 3-cycle: user_to_backend == (1, 2, 0) differs from backend_to_user == (2, 0, 1),
+        # so a direction-swapped implementation cannot pass.
+        joint_ordering = build_articulation_name_map(
+            kind="joint", backend_names=("j_a", "j_b", "j_c"), user_names=("j_b", "j_c", "j_a"), device="cpu"
+        )
+        body_ordering = build_articulation_name_map(
+            kind="body", backend_names=("base", "link", "foot"), user_names=("link", "foot", "base"), device="cpu"
+        )
+    else:
+        joint_ordering = None
+        body_ordering = None
+    articulation._data = types.SimpleNamespace(joint_ordering=joint_ordering, body_ordering=body_ordering)
+    return articulation
+
+
+def test_map_ids_to_backend_applies_three_cycle_permutation() -> None:
+    """Translate public indices through the exact user-to-backend direction of a 3-cycle."""
+    articulation = _make_map_ids_articulation(permuted=True)
+
+    assert articulation.map_joint_ids_to_backend([0, 1, 2]) == [1, 2, 0]
+    assert articulation.map_joint_ids_to_backend([2, 0]) == [0, 1]
+    assert articulation.map_body_ids_to_backend([0, 1, 2]) == [1, 2, 0]
+    assert articulation.map_body_ids_to_backend([1]) == [2]
+
+
+def test_map_ids_to_backend_handles_slice_selectors() -> None:
+    """Accept slice selectors on both the identity and the permutation paths."""
+    permuted = _make_map_ids_articulation(permuted=True)
+    assert permuted.map_joint_ids_to_backend(slice(None)) == [1, 2, 0]
+    assert permuted.map_joint_ids_to_backend(slice(1, 3)) == [2, 0]
+    assert permuted.map_body_ids_to_backend(slice(None)) == [1, 2, 0]
+    assert permuted.map_body_ids_to_backend(slice(0, 3, 2)) == [1, 0]
+
+    identity = _make_map_ids_articulation(permuted=False)
+    all_items = slice(None)
+    assert identity.map_joint_ids_to_backend(all_items) is all_items
+    assert identity.map_body_ids_to_backend(all_items) is all_items
 
 
 @pytest.mark.parametrize("ordering", [("foot", "base"), ArticulationOrderingConvention.MJWARP])

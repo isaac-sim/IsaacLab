@@ -220,7 +220,14 @@ class BaseArticulation(AssetBase):
         The inherited compatibility fallback emits :class:`DeprecationWarning`
         and returns :attr:`joint_names`. A subclass relying on that fallback
         therefore receives public order and cannot expose a distinct solver order.
+
+        Raises:
+            NotImplementedError: If the subclass overrides neither
+                :attr:`joint_names` nor this property, since the two inherited
+                fallbacks delegate to each other and cannot produce names.
         """
+        if type(self).joint_names is BaseArticulation.joint_names:
+            raise NotImplementedError(f"{type(self).__name__} must override joint_names or backend_joint_names.")
         warnings.warn(
             f"{type(self).__name__} must override backend_joint_names before it becomes abstract in a future release.",
             DeprecationWarning,
@@ -239,7 +246,14 @@ class BaseArticulation(AssetBase):
         The inherited compatibility fallback emits :class:`DeprecationWarning`
         and returns :attr:`body_names`. A subclass relying on that fallback
         therefore receives public order and cannot expose a distinct solver order.
+
+        Raises:
+            NotImplementedError: If the subclass overrides neither
+                :attr:`body_names` nor this property, since the two inherited
+                fallbacks delegate to each other and cannot produce names.
         """
+        if type(self).body_names is BaseArticulation.body_names:
+            raise NotImplementedError(f"{type(self).__name__} must override body_names or backend_body_names.")
         warnings.warn(
             f"{type(self).__name__} must override backend_body_names before it becomes abstract in a future release.",
             DeprecationWarning,
@@ -269,7 +283,7 @@ class BaseArticulation(AssetBase):
         """
         return self.data.body_ordering
 
-    def map_joint_ids_to_backend(self, joint_ids: Sequence[int]) -> Sequence[int]:
+    def map_joint_ids_to_backend(self, joint_ids: Sequence[int] | slice) -> Sequence[int] | slice:
         """Translate public joint indices to active-backend joint indices.
 
         Backend solver views expose joint metadata and joint-indexed arrays in
@@ -283,18 +297,22 @@ class BaseArticulation(AssetBase):
         per-index lookup.
 
         Args:
-            joint_ids: Joint indices in public :attr:`joint_names` order.
+            joint_ids: Joint indices in public :attr:`joint_names` order, or a
+                slice selecting them.
 
         Returns:
-            The same joint indices expressed in :attr:`backend_joint_names`
+            The selected joint indices expressed in :attr:`backend_joint_names`
             order, or :paramref:`joint_ids` unchanged when the orders coincide.
+            A slice is expanded to its backend indices under a permutation.
         """
         ordering = self.joint_ordering
         if ordering is None:
             return joint_ids
+        if isinstance(joint_ids, slice):
+            return list(ordering.user_to_backend_indices[joint_ids])
         return [ordering.user_to_backend_indices[joint_id] for joint_id in joint_ids]
 
-    def map_body_ids_to_backend(self, body_ids: Sequence[int]) -> Sequence[int]:
+    def map_body_ids_to_backend(self, body_ids: Sequence[int] | slice) -> Sequence[int] | slice:
         """Translate public body indices to active-backend body indices.
 
         Backend solver views expose body metadata and body-indexed arrays in
@@ -308,15 +326,19 @@ class BaseArticulation(AssetBase):
         per-index lookup.
 
         Args:
-            body_ids: Body indices in public :attr:`body_names` order.
+            body_ids: Body indices in public :attr:`body_names` order, or a
+                slice selecting them.
 
         Returns:
-            The same body indices expressed in :attr:`backend_body_names` order,
-            or :paramref:`body_ids` unchanged when the orders coincide.
+            The selected body indices expressed in :attr:`backend_body_names`
+            order, or :paramref:`body_ids` unchanged when the orders coincide.
+            A slice is expanded to its backend indices under a permutation.
         """
         ordering = self.body_ordering
         if ordering is None:
             return body_ids
+        if isinstance(body_ids, slice):
+            return list(ordering.user_to_backend_indices[body_ids])
         return [ordering.user_to_backend_indices[body_id] for body_id in body_ids]
 
     @property
