@@ -33,7 +33,14 @@ Planned user skills:
 
 ## Discovery
 
-Agents should start at this file when looking for repo-owned skills. Match the user's request against each `SKILL.md` frontmatter `description`, then read only the selected skill and its directly linked files. When one skill routes to another, use the frontmatter `name` as the stable identifier and the catalog path as the file location.
+Codex and Claude discover these skills automatically from project-native aliases:
+
+- Codex scans `.agents/skills/<name>/`.
+- Claude scans `.claude/skills/<name>/`, which links to the same alias set.
+
+The aliases are named from each `SKILL.md` frontmatter `name` and point back to the canonical skill directory under `skills/`. This keeps one maintained copy of each skill and preserves repository-relative references. Do not flatten-copy skills into an agent's global skill directory.
+
+Agents that do not support native skill discovery should start at this file. Match the user's request against each `SKILL.md` frontmatter `description`, then read only the selected skill and its directly linked files. When one skill routes to another, use the frontmatter `name` as the stable identifier and the catalog path as the file location.
 
 ## Common Import Paths
 
@@ -73,7 +80,7 @@ owners:
   - isaaclab-maintainers
 ```
 
-Directory slugs are stable file paths for humans and reviewers. The frontmatter `name` is the agent discovery identifier and should be used when one skill routes to another.
+Directory slugs are stable canonical file paths for humans and reviewers. The frontmatter `name` is the agent discovery identifier, must match the aliases under `.agents/skills/`, and should be used when one skill routes to another. `.claude/skills` exposes the same aliases to Claude.
 
 Required `SKILL.md` sections:
 
@@ -87,7 +94,7 @@ User-facing skills must also link to `evaluations.md` with at least three repres
 
 Keep skills concise. Use `SKILL.md` for the main workflow and link directly to one-level files such as `reference.md`, `examples.md`, or `evaluations.md` for details. Use forward-slash paths, avoid time-sensitive wording, and provide one recommended default before listing alternatives.
 
-Keep skills synchronized by making official docs and source code the source of truth. If a skill needs documentation-level details, update `docs/source/` or a maintained source example first, then link to it from the skill. The `Maintenance` section must name the authoritative files that should be reviewed when code changes.
+Keep skills synchronized by making official docs and source code the source of truth. If a skill needs documentation-level details, update `docs/source/` or a maintained source example first, then link to it from the skill. The `Maintenance` section must name the authoritative files that should be reviewed when code changes. When adding, removing, or renaming a skill, update its `.agents/skills/<name>` alias; the validator checks both Codex and Claude discovery paths.
 
 Skills should add agent-specific routing, sequencing, validation checks, and decision points. They should not vendor installation guides, API catalogs, generated logs, hardware benchmark reports, or large tutorial copies.
 

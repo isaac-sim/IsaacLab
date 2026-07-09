@@ -60,12 +60,26 @@ Skill files
 Discovery
 ---------
 
-Agents should use ``skills/README.md`` as the catalog for repo-owned skills.
-Select a skill by matching the user's request against the ``description`` field
-in each ``SKILL.md`` frontmatter, then read only that skill and its directly
-linked files. Directory slugs are file locations for humans and reviewers; the
-frontmatter ``name`` is the stable identifier to use when one skill routes to
-another.
+Codex and Claude discover the repository skills automatically through
+project-native aliases:
+
+.. code-block:: text
+
+   .agents/skills/<frontmatter-name>  -> skills/<audience>/<slug>
+   .claude/skills                     -> .agents/skills
+
+Codex scans ``.agents/skills`` and Claude scans ``.claude/skills``. The aliases
+use the frontmatter ``name`` so both agents expose the same stable identifier.
+They resolve to the canonical directories under ``skills/``, keeping one
+maintained copy of each skill and preserving repository-relative references.
+Do not flatten-copy the skills into a global agent skill directory.
+
+Agents without native skill discovery should use ``skills/README.md`` as the
+catalog. Select a skill by matching the user's request against the
+``description`` field in each ``SKILL.md`` frontmatter, then read only that
+skill and its directly linked files. Directory slugs are canonical file
+locations for humans and reviewers; the frontmatter ``name`` is the stable
+identifier to use when one skill routes to another.
 
 Skill contract
 --------------
@@ -88,7 +102,7 @@ Frontmatter intentionally uses a small YAML subset: single-line scalar fields an
 frontmatter; keep long details in the markdown body or a linked reference file.
 
 ``name``
-  Unique lowercase identifier using letters, numbers, and hyphens. Prefer an ``isaaclab-`` prefix and avoid generic names such as ``helper``, ``utils``, or ``tools``.
+  Unique lowercase identifier using letters, numbers, and hyphens. Prefer an ``isaaclab-`` prefix and avoid generic names such as ``helper``, ``utils``, or ``tools``. The identifier must match the native alias under ``.agents/skills/``.
 
 ``description``
   Third-person discovery text. Include what the skill does and when an agent should use it.
@@ -178,7 +192,7 @@ Validate skills locally with:
 
    ./isaaclab.sh -p tools/skills/cli.py check
 
-The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
+The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, native Codex and Claude aliases, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
 
 Run the validator tests with:
 

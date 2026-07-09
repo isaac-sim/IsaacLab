@@ -90,6 +90,8 @@ Proper workflow:
 ## Agent skills
 
 - Repo-owned agent skills live under `skills/`.
+- Codex discovers name-based aliases under `.agents/skills/`; Claude discovers the same aliases through `.claude/skills`.
+- Keep `skills/` as the canonical source. Do not copy skill bodies into native discovery directories.
 - Developer workflow skills live under `skills/developer/`; user-facing skills live under `skills/user/`.
 - For PR preparation, follow the `isaaclab-preparing-pr-workflow` skill at `skills/developer/pr-workflow/SKILL.md`.
 - Keep `SKILL.md` files concise and link to one-level reference files for longer details.

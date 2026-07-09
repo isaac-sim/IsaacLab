@@ -10,6 +10,8 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - "skills/**"
+      - ".agents/skills/**"
+      - ".claude/skills"
       - "tools/skills/**"
       - ".github/workflows/skills-check.yml"
   workflow_dispatch:

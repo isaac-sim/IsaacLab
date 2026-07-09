@@ -54,6 +54,22 @@ def _write_skill(root: Path, audience: str = "user", name: str = "isaaclab-testi
     return skill
 
 
+def _write_native_aliases(root: Path, skills: list[Path]) -> tuple[Path, Path]:
+    agent_root = root / ".agents" / "skills"
+    agent_root.mkdir(parents=True)
+    for skill in skills:
+        metadata, _, error = cli._parse_frontmatter(skill.read_text(encoding="utf-8"))
+        assert error is None
+        name = metadata["name"]
+        assert isinstance(name, str)
+        (agent_root / name).symlink_to(skill.parent, target_is_directory=True)
+
+    claude_root = root / ".claude" / "skills"
+    claude_root.parent.mkdir(parents=True)
+    claude_root.symlink_to(Path("../.agents/skills"), target_is_directory=True)
+    return agent_root, claude_root
+
+
 def test_validate_current_repo_skills():
     assert cli.validate_all() == []
 
@@ -61,6 +77,35 @@ def test_validate_current_repo_skills():
 def test_validate_accepts_well_formed_user_skill(tmp_path):
     skill = _write_skill(tmp_path)
     assert cli.Skill(skill).validate() == []
+
+
+def test_validate_rejects_empty_skill_root(tmp_path):
+    errors = cli.validate_all(tmp_path)
+    assert any("no skills found" in error for error in errors)
+
+
+def test_validate_accepts_native_discovery_aliases(tmp_path):
+    skill = _write_skill(tmp_path)
+    native_roots = _write_native_aliases(tmp_path, [skill])
+    assert cli.validate_native_discovery([cli.Skill(skill)], native_roots) == []
+
+
+def test_validate_rejects_missing_native_discovery_alias(tmp_path):
+    skill = _write_skill(tmp_path)
+    native_roots = _write_native_aliases(tmp_path, [skill])
+    (native_roots[0] / "isaaclab-testing-skill").unlink()
+    errors = cli.validate_native_discovery([cli.Skill(skill)], native_roots)
+    assert any("missing native skill alias 'isaaclab-testing-skill'" in error for error in errors)
+
+
+def test_validate_rejects_native_discovery_alias_with_wrong_target(tmp_path):
+    skill = _write_skill(tmp_path)
+    native_roots = _write_native_aliases(tmp_path, [skill])
+    alias = native_roots[0] / "isaaclab-testing-skill"
+    alias.unlink()
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    errors = cli.validate_native_discovery([cli.Skill(skill)], native_roots)
+    assert any("native skill alias resolves to" in error for error in errors)
 
 
 def test_validate_rejects_duplicate_names(tmp_path):

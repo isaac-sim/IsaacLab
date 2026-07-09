@@ -21,6 +21,9 @@ from urllib.parse import unquote
 
 REPO_ROOT = Path(__file__).parent.parent.parent
 SKILLS_ROOT = REPO_ROOT / "skills"
+AGENT_SKILLS_ROOT = REPO_ROOT / ".agents" / "skills"
+CLAUDE_SKILLS_ROOT = REPO_ROOT / ".claude" / "skills"
+NATIVE_SKILLS_ROOTS = (AGENT_SKILLS_ROOT, CLAUDE_SKILLS_ROOT)
 
 AUDIENCES = {"developer", "user"}
 STATUSES = {"experimental", "stable", "deprecated"}
@@ -300,9 +303,62 @@ def iter_skills(root: Path = SKILLS_ROOT) -> list[Skill]:
     return [Skill(path) for path in sorted(root.glob("*/*/SKILL.md"))]
 
 
+def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...] = NATIVE_SKILLS_ROOTS) -> list[str]:
+    """Validate native agent aliases for the canonical repository skills."""
+    errors: list[str] = []
+    expected: dict[str, Path] = {}
+    for skill in skills:
+        metadata, _, frontmatter_error = _parse_frontmatter(skill.path.read_text(encoding="utf-8"))
+        name = metadata.get("name")
+        if frontmatter_error is None and isinstance(name, str):
+            expected[name] = skill.root.resolve()
+
+    for native_root in native_roots:
+        display_root = _display_path(native_root)
+        if not native_root.exists():
+            errors.append(f"{display_root}: native skill discovery directory does not exist")
+            continue
+        if not native_root.is_dir():
+            errors.append(f"{display_root}: native skill discovery path must be a directory")
+            continue
+
+        aliases = {alias.name: alias for alias in native_root.iterdir()}
+        missing = sorted(set(expected) - set(aliases))
+        unexpected = sorted(set(aliases) - set(expected))
+        for name in missing:
+            errors.append(f"{display_root}: missing native skill alias {name!r}")
+        for name in unexpected:
+            errors.append(f"{display_root}: unexpected native skill alias {name!r}")
+
+        for name, skill_root in expected.items():
+            alias = aliases.get(name)
+            if alias is None:
+                continue
+            if not alias.is_symlink():
+                errors.append(f"{_display_path(alias)}: native skill alias must be a symbolic link")
+                continue
+            if alias.resolve() != skill_root:
+                errors.append(
+                    f"{_display_path(alias)}: native skill alias resolves to {_display_path(alias.resolve())}, "
+                    f"expected {_display_path(skill_root)}"
+                )
+
+    if (
+        native_roots == NATIVE_SKILLS_ROOTS
+        and CLAUDE_SKILLS_ROOT.exists()
+        and (not CLAUDE_SKILLS_ROOT.is_symlink() or CLAUDE_SKILLS_ROOT.resolve() != AGENT_SKILLS_ROOT.resolve())
+    ):
+        errors.append(
+            f"{_display_path(CLAUDE_SKILLS_ROOT)}: Claude discovery must link to {_display_path(AGENT_SKILLS_ROOT)}"
+        )
+    return errors
+
+
 def validate_all(root: Path = SKILLS_ROOT) -> list[str]:
     errors: list[str] = []
     skills = iter_skills(root)
+    if not skills:
+        errors.append(f"{_display_path(root)}: no skills found; expected */*/SKILL.md")
     names: dict[str, Path] = {}
     bodies: list[tuple[Skill, str]] = []
     for skill in skills:
@@ -327,6 +383,8 @@ def validate_all(root: Path = SKILLS_ROOT) -> list[str]:
                     f"{_display_path(skill.path)}: cross-skill reference {referenced!r} "
                     "does not match any registered skill name"
                 )
+    if root.resolve() == SKILLS_ROOT.resolve():
+        errors.extend(validate_native_discovery(skills))
     return errors
 
 
