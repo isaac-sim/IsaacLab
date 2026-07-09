@@ -246,8 +246,18 @@ class NewtonWarpRenderer(BaseRenderer):
                 enable_ambient_lighting=self.cfg.enable_ambient_lighting,
                 enable_backface_culling=self.cfg.enable_backface_culling,
                 max_distance=self.cfg.max_distance,
+                render_order = newton.sensors.SensorTiledCamera.RenderOrder.TILED,
+                tile_width=self.cfg.tile_rendering_width,
+                tile_height=self.cfg.tile_rendering_height,
             ),
         )
+
+        if self.cfg.render_order == "pixel_priority":
+            self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.PIXEL_PRIORITY
+        elif self.cfg.render_order == "view_priority":
+            self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.VIEW_PRIORITY
+        else:
+            self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.TILED
 
         # Newton ``v1.2.0rc2`` made shape-BVH construction explicit; ``SensorTiledCamera.update``
         # no longer auto-builds when a non-``None`` state is passed, and the underlying
