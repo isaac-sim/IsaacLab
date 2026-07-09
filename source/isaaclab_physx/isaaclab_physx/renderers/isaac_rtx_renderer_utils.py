@@ -167,11 +167,17 @@ def ensure_rtx_hydra_engine_attached() -> None:
         logger.error("RTX Hydra engine attach failed: %s", e)
 
 
-def ensure_isaac_rtx_render_update() -> None:
+def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
+
+    Args:
+        force: Pump even when continuous rendering is inactive
+            (:attr:`~isaaclab.sim.SimulationContext.is_rendering` is ``False``). Used by the
+            on-demand headless offscreen video path to produce a frame only when one is
+            requested. Defaults to ``False``.
 
     Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
@@ -190,7 +196,7 @@ def ensure_isaac_rtx_render_update() -> None:
     No-op conditions:
         * Already called this step (dedup across camera instances).
         * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
-        * Rendering is not active.
+        * Rendering is not active and ``force`` is ``False``.
     """
     global _last_render_update_key
 
@@ -212,7 +218,12 @@ def ensure_isaac_rtx_render_update() -> None:
         _last_render_update_key = key
         return
 
-    if not sim.is_rendering:
+    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
+    # excludes headless offscreen rendering so the per-step loop does not pump between frames.
+    # Offscreen frames are produced on demand: the ``--video`` / ``rgb_array`` path calls this with
+    # ``force=True`` (see :func:`pump_kit_app_for_headless_video_render_if_needed`) to pump exactly
+    # when a frame is requested, without making every step pump.
+    if not force and not sim.is_rendering:
         return
 
     # Sync physics results → Fabric so RTX sees updated positions.
@@ -248,7 +259,9 @@ def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
     if any(viz.pumps_app_update() for viz in sim.visualizers):
         return
     try:
-        ensure_isaac_rtx_render_update()
+        # Explicit on-demand frame request: pump even though headless offscreen rendering
+        # is excluded from ``is_rendering`` (so the per-step loop stays quiet between frames).
+        ensure_isaac_rtx_render_update(force=True)
     except (ImportError, AttributeError, ModuleNotFoundError) as exc:
         logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render() (non-Kit env): %s", exc)
     except Exception as exc:
