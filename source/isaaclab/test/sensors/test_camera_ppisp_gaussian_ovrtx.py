@@ -53,6 +53,7 @@ from generate_synthetic_gaussian_asset import (
     assert_ppisp_controller_matches_static,
     assert_ppisp_invariants,
     assert_ppisp_lifts_exposure,
+    assert_tiled_views_match,
     make_aggressive_ppisp_cfg,
     make_neutral_ppisp_cfg,
     make_synthetic_gaussian_usd,
@@ -231,6 +232,8 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(
         f"Expected {MULTI_TILE_COUNT} tiles, got shape={tuple(rgb.shape)}. "
         f"Check that the camera regex {SYNTHETIC_GAUSSIAN_CAMERA_REGEX} resolves to one camera per env."
     )
+    assert_tiled_views_match(rgb, label="ovrtx rgb")
+    assert_tiled_views_match(rgb_hdr, label="ovrtx rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"ovrtx tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"ovrtx tile {i}")
