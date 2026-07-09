@@ -29,7 +29,7 @@ Do not copy migration tables into answers from memory. Read the official migrati
 Use this feedback loop:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB --with pytest python -m pytest PATH_TO_DOWNSTREAM_TEST
+uv run --with pytest python -m pytest PATH_TO_DOWNSTREAM_TEST
 ```
 
 For quaternion migrations, use the repository quaternion tooling documented in the official migration guide.

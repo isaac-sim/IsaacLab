@@ -17,7 +17,7 @@ For quadruped locomotion requests with custom command sampling or custom rewards
 Smoke-test pattern:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
 ## Direct Workflow
@@ -33,13 +33,13 @@ Start from:
 Smoke-test pattern:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct --num_envs 8
 ```
 
 Training pattern:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library rl_games --task Isaac-Cartpole-Direct
+uv run train --rl_library rl_games --task Isaac-Cartpole-Direct
 ```
 
 ## Registration And Agent Configs

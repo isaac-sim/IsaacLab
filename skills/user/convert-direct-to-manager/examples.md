@@ -33,12 +33,12 @@ Important mappings:
 Use suffixless task names for canonical manager-based tasks:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 8
-uv run --project PATH_TO_ISAACLAB train --rl_library rsl_rl --task Isaac-Ant --num_envs 64 --max_iterations 5
+uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 8
+uv run train --rl_library rsl_rl --task Isaac-Ant --num_envs 64 --max_iterations 5
 ```
 
 Keep the direct baseline available for comparison:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Ant-Direct --num_envs 8
+uv run python scripts/environments/random_agent.py --task Isaac-Ant-Direct --num_envs 8
 ```

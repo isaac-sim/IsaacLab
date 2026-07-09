@@ -28,30 +28,30 @@ Ask which install path the user is following before prescribing commands. For a 
 Use the smallest command that exercises the failing layer:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python -c "import isaaclab; print('ok')"
+uv run python -c "import isaaclab; print('ok')"
 ```
 
 For task import and stepping:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 4
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 4
 ```
 
 For training entry points:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations 1
+uv run train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations 1
 ```
 
 ## Common Failure Routing
 
 | Symptom | First check |
 | --- | --- |
-| Import fails | Active Python environment and uv project selection |
-| `isaaclab_tasks` import fails | Run through `uv run --project PATH_TO_ISAACLAB python`, then confirm the source packages or external task package are installed with the intended `uv pip` environment |
+| Import fails | Active Python environment and Isaac Lab checkout |
+| `isaaclab_tasks` import fails | Run through `uv run python` from the intended Isaac Lab checkout, then confirm the source packages or external task package are installed with the intended `uv pip` environment |
 | App launch fails | Isaac Sim, display, driver, and launcher docs |
 | Task registration fails | Gym registration and task package import |
-| Backend preset fails | `uv run --project PATH_TO_ISAACLAB python scripts/environments/list_envs.py --show_presets` |
+| Backend preset fails | `uv run python scripts/environments/list_envs.py --show_presets` |
 | Camera or renderer fails | Renderer selection and sensor docs |
 | Training starts but shapes fail | Environment reset/step smoke test before runner |
 

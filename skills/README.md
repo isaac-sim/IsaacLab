@@ -101,5 +101,5 @@ Skills should add agent-specific routing, sequencing, validation checks, and dec
 Run the validator before submitting skill changes:
 
 ```bash
-./isaaclab.sh -p tools/skills/cli.py check
+uv run python tools/skills/cli.py check
 ```

@@ -190,7 +190,7 @@ Validate skills locally with:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p tools/skills/cli.py check
+   uv run python tools/skills/cli.py check
 
 The validator checks frontmatter, required sections, unique names, audience/path consistency, link validity, reference depth, portable paths, native Codex and Claude aliases, required user evaluations, minimum evaluation scenario counts, and per-scenario evaluation details such as sample queries, expected behavior, and known failure modes or pass/fail criteria.
 
@@ -198,7 +198,7 @@ Run the validator tests with:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p -m pytest tools/skills/
+   uv run --with pytest python -m pytest tools/skills/
 
 The skills CI gate runs only when a pull request changes files under ``skills/``, ``tools/skills/``, or the skills workflow. This keeps unrelated Isaac Lab PRs from being blocked by skill validation while still checking validator changes.
 

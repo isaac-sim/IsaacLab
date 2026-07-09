@@ -31,7 +31,7 @@ Use this mapping as the default starting point:
 
 ## External Template Projects
 
-When validating a migration outside the Isaac Lab tree, start with the template generator instead of hand-rolling the external package structure. Run `uv run --project PATH_TO_ISAACLAB isaaclab -n`, then choose:
+When validating a migration outside the Isaac Lab tree, start with the template generator instead of hand-rolling the external package structure. From the Isaac Lab checkout, run `uv run isaaclab -n`, then choose:
 
 - `External` project.
 - The scratch directory as the project path.
@@ -88,23 +88,23 @@ export LAB=/path/to/IsaacLab
 export PROJECT=/path/to/migration-scratch/isaacgym_anymal_migration
 export EXTENSION="$PROJECT/source/isaacgym_anymal_migration"
 export PYTHONPATH="$EXTENSION:$(find "$LAB/source" -mindepth 1 -maxdepth 1 -type d | paste -sd: -)"
-cd "$PROJECT"
+cd "$LAB"
 
 # Optional when validating as an installed template project:
 uv pip install -e "$EXTENSION"
 
-uv run --project "$LAB" python -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
+uv run python -c "import gymnasium as gym; import my_migration; tid='My-Migrated-Task-v0'; spec=gym.spec(tid); print(spec.entry_point); print(spec.kwargs)"
 
-uv run --project "$LAB" python validation/smoke_my_task.py --device cuda:0 --num_envs 16 --steps 8
+uv run python "$PROJECT/validation/smoke_my_task.py" --device cuda:0 --num_envs 16 --steps 8
 
-uv run --project "$LAB" train --rl_library rsl_rl \
+uv run train --rl_library rsl_rl \
   --task My-Migrated-Task-v0 \
   --external_callback my_migration.register.register \
   --device cuda:0 --num_envs 4096 --max_iterations 500
 
-uv run --project "$LAB" python validation/parse_tensorboard.py logs/path/to/run --output validation/train_metrics.json
+uv run python "$PROJECT/validation/parse_tensorboard.py" logs/path/to/run --output "$PROJECT/validation/train_metrics.json"
 
-uv run --project "$LAB" python validation/evaluate_checkpoint.py \
+uv run python "$PROJECT/validation/evaluate_checkpoint.py" \
   --checkpoint logs/path/to/run/model_499.pt \
   --num_envs 64 --steps 256 --device cuda:0
 ```
@@ -119,6 +119,7 @@ $project = "C:/path/to/migration-scratch/isaacgym_anymal_migration"
 $extension = "$project/source/isaacgym_anymal_migration"
 $srcs = Get-ChildItem "$lab/source" -Directory | ForEach-Object { $_.FullName }
 $env:PYTHONPATH = $extension + ";" + ($srcs -join ";")
+Set-Location $lab
 ```
 
 If no validation helper scripts exist, create the smallest scratch-only smoke, scalar parsing, and checkpoint evaluation scripts needed for the migration task. Do not add those helpers to Isaac Lab unless the user asks for committed validation files.

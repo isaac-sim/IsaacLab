@@ -53,8 +53,8 @@ class MyMultiBackendEnvCfg:
 Command examples:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=physx
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=newton_mjwarp
+uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=physx
+uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 4 physics=newton_mjwarp
 ```
 
 ## Domain Presets
@@ -81,8 +81,8 @@ class CameraTaskCfg(PresetCfg):
 Command examples:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 presets=rgb
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 presets=depth
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 presets=rgb
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 presets=depth
 ```
 
 ## Combined Presets
@@ -90,14 +90,14 @@ uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --
 For camera tasks that expose physics, renderer, and data-type variants, combine selectors:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=physx renderer=isaacsim_rtx_renderer presets=rgb
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Camera-Direct --num_envs 4 physics=newton_mjwarp renderer=newton_renderer presets=depth
 ```
 
 Before using a name, list the task's exposed presets:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/list_envs.py --show_presets
+uv run python scripts/environments/list_envs.py --show_presets
 ```
 
 ## Existing Source Examples

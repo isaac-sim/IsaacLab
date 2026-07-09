@@ -21,7 +21,7 @@ Query: "Isaac Lab installed, but imports fail when I run my script."
 
 Expected behavior:
 
-- Checks whether the user is running through the intended uv project or correct environment.
+- Checks whether the user is running from the intended Isaac Lab checkout or correct environment.
 - Points to troubleshooting docs for the observed error.
 - Requests the smallest relevant traceback if the failure is ambiguous.
 

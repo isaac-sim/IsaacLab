@@ -1,8 +1,8 @@
-# Fresh Ant Migration Validation
+# Initial Ant Smoke Validation
 
 ## Scope
 
-A fresh agent used this skill to clone `https://github.com/isaac-sim/IsaacGymEnvs`, select the Ant locomotion task, and build a scratch Isaac Lab direct migration outside the Isaac Lab checkout. For future validations, start this scratch work from the Isaac Lab template generator's external project layout.
+A fresh agent used this skill to clone `https://github.com/isaac-sim/IsaacGymEnvs`, select the Ant locomotion task, and build a scratch Isaac Lab direct migration outside the Isaac Lab checkout. This is a historical smoke validation for a simple locomotion task; use [rough locomotion validation](validation-rough-locomotion.md) as the representative policy-success validation. For future validations, start scratch work from the Isaac Lab template generator's external project layout.
 
 Source artifacts:
 
@@ -37,7 +37,7 @@ Open gates:
 
 ## Skill Updates From This Validation
 
-- Run runtime preflight through `uv run --project PATH_TO_ISAACLAB python` before promising reset, random-agent, or training success.
+- Run runtime preflight through `uv run python` from the Isaac Lab checkout before promising reset, random-agent, or training success.
 - Start external migrations from the Isaac Lab template generator, then put the generated project extension and all target checkout `source/` packages first on `PYTHONPATH` during external validation.
 - Make external migration package registration explicit for scripts that do not expose `--external_callback`.
 - Add legacy force/torque sensor mapping guidance so agents do not silently drop force sensor observations or ignore unresolved sensor prim warnings.

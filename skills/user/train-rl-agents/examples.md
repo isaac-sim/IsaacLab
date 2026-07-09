@@ -9,25 +9,25 @@ Training runs headless by default; omit any visualizer flag for fastest training
 RSL-RL:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library rsl_rl --task Isaac-Cartpole --run_name ppo
+uv run train --rl_library rsl_rl --task Isaac-Cartpole --run_name ppo
 ```
 
 RL-Games direct Cartpole:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library rl_games --task Isaac-Cartpole-Direct
+uv run train --rl_library rl_games --task Isaac-Cartpole-Direct
 ```
 
 Stable Baselines 3:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
+uv run train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 ```
 
 SKRL:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library skrl --task Isaac-Cartpole
+uv run train --rl_library skrl --task Isaac-Cartpole
 ```
 
 ## Before Training
@@ -35,7 +35,7 @@ uv run --project PATH_TO_ISAACLAB train --rl_library skrl --task Isaac-Cartpole
 Always run a small random-action check first:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
+uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 8
 ```
 
 For visual observations or camera tasks, lower `--num_envs` and confirm renderer and sensor support before scaling. Do not add `--enable_cameras` unless the current task or docs explicitly require it.
@@ -45,19 +45,19 @@ For visual observations or camera tasks, lower `--num_envs` and confirm renderer
 TensorBoard example:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB --with tensorboard python -m tensorboard.main --logdir logs/rsl_rl/cartpole
+uv run --with tensorboard python -m tensorboard.main --logdir logs/rsl_rl/cartpole
 ```
 
 Play example:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
+uv run play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
 ```
 
 Resume example:
 
 ```bash
-uv run --project PATH_TO_ISAACLAB train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
+uv run train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
 
 ## Config Lookup

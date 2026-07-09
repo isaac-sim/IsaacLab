@@ -55,6 +55,24 @@ def _is_relative_to(path: Path, root: Path) -> bool:
     return True
 
 
+def _native_symlink_target(path: Path) -> Path | None:
+    """Return the resolved target for native discovery symlinks.
+
+    Git symlinks may be checked out as one-line target files on Windows when
+    symlink creation is unavailable. Accept that materialized form so the
+    validator can still check the recorded target in local Windows checkouts.
+    """
+    if path.is_symlink():
+        return path.resolve()
+    if not path.is_file():
+        return None
+
+    target_text = path.read_text(encoding="utf-8")
+    if not target_text or "\n" in target_text or "\r" in target_text:
+        return None
+    return (path.parent / target_text).resolve()
+
+
 def _parse_frontmatter(text: str) -> tuple[dict[str, str | list[str]], str, str | None]:
     lines = text.splitlines()
     if not lines or lines[0] != "---":
@@ -315,14 +333,16 @@ def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...
 
     for native_root in native_roots:
         display_root = _display_path(native_root)
-        if not native_root.exists():
+        root_target = _native_symlink_target(native_root)
+        discovery_root = root_target or native_root
+        if not discovery_root.exists():
             errors.append(f"{display_root}: native skill discovery directory does not exist")
             continue
-        if not native_root.is_dir():
+        if not discovery_root.is_dir():
             errors.append(f"{display_root}: native skill discovery path must be a directory")
             continue
 
-        aliases = {alias.name: alias for alias in native_root.iterdir()}
+        aliases = {alias.name: alias for alias in discovery_root.iterdir()}
         missing = sorted(set(expected) - set(aliases))
         unexpected = sorted(set(aliases) - set(expected))
         for name in missing:
@@ -334,19 +354,21 @@ def validate_native_discovery(skills: list[Skill], native_roots: tuple[Path, ...
             alias = aliases.get(name)
             if alias is None:
                 continue
-            if not alias.is_symlink():
+            alias_target = _native_symlink_target(alias)
+            if alias_target is None:
                 errors.append(f"{_display_path(alias)}: native skill alias must be a symbolic link")
                 continue
-            if alias.resolve() != skill_root:
+            if alias_target != skill_root:
                 errors.append(
-                    f"{_display_path(alias)}: native skill alias resolves to {_display_path(alias.resolve())}, "
+                    f"{_display_path(alias)}: native skill alias resolves to {_display_path(alias_target)}, "
                     f"expected {_display_path(skill_root)}"
                 )
 
+    claude_target = _native_symlink_target(CLAUDE_SKILLS_ROOT)
     if (
         native_roots == NATIVE_SKILLS_ROOTS
         and CLAUDE_SKILLS_ROOT.exists()
-        and (not CLAUDE_SKILLS_ROOT.is_symlink() or CLAUDE_SKILLS_ROOT.resolve() != AGENT_SKILLS_ROOT.resolve())
+        and (claude_target is None or claude_target != AGENT_SKILLS_ROOT.resolve())
     ):
         errors.append(
             f"{_display_path(CLAUDE_SKILLS_ROOT)}: Claude discovery must link to {_display_path(AGENT_SKILLS_ROOT)}"

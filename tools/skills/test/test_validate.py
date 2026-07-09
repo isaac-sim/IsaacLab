@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import cli
@@ -54,6 +55,17 @@ def _write_skill(root: Path, audience: str = "user", name: str = "isaaclab-testi
     return skill
 
 
+def _relative_posix_path(path: Path, start: Path) -> Path:
+    return Path(os.path.relpath(path, start).replace(os.sep, "/"))
+
+
+def _write_native_link(path: Path, target: Path, target_is_directory: bool = True) -> None:
+    try:
+        path.symlink_to(target, target_is_directory=target_is_directory)
+    except (NotImplementedError, OSError):
+        path.write_text(target.as_posix(), encoding="utf-8")
+
+
 def _write_native_aliases(root: Path, skills: list[Path]) -> tuple[Path, Path]:
     agent_root = root / ".agents" / "skills"
     agent_root.mkdir(parents=True)
@@ -62,11 +74,11 @@ def _write_native_aliases(root: Path, skills: list[Path]) -> tuple[Path, Path]:
         assert error is None
         name = metadata["name"]
         assert isinstance(name, str)
-        (agent_root / name).symlink_to(skill.parent, target_is_directory=True)
+        _write_native_link(agent_root / name, _relative_posix_path(skill.parent, agent_root))
 
     claude_root = root / ".claude" / "skills"
     claude_root.parent.mkdir(parents=True)
-    claude_root.symlink_to(Path("../.agents/skills"), target_is_directory=True)
+    _write_native_link(claude_root, Path("../.agents/skills"))
     return agent_root, claude_root
 
 
@@ -90,6 +102,20 @@ def test_validate_accepts_native_discovery_aliases(tmp_path):
     assert cli.validate_native_discovery([cli.Skill(skill)], native_roots) == []
 
 
+def test_validate_accepts_materialized_git_symlink_aliases(tmp_path):
+    skill = _write_skill(tmp_path)
+    agent_root = tmp_path / ".agents" / "skills"
+    agent_root.mkdir(parents=True)
+    (agent_root / "isaaclab-testing-skill").write_text(
+        _relative_posix_path(skill.parent, agent_root).as_posix(), encoding="utf-8"
+    )
+    claude_root = tmp_path / ".claude" / "skills"
+    claude_root.parent.mkdir(parents=True)
+    claude_root.write_text("../.agents/skills", encoding="utf-8")
+
+    assert cli.validate_native_discovery([cli.Skill(skill)], (agent_root, claude_root)) == []
+
+
 def test_validate_rejects_missing_native_discovery_alias(tmp_path):
     skill = _write_skill(tmp_path)
     native_roots = _write_native_aliases(tmp_path, [skill])
@@ -103,7 +129,7 @@ def test_validate_rejects_native_discovery_alias_with_wrong_target(tmp_path):
     native_roots = _write_native_aliases(tmp_path, [skill])
     alias = native_roots[0] / "isaaclab-testing-skill"
     alias.unlink()
-    alias.symlink_to(tmp_path, target_is_directory=True)
+    _write_native_link(alias, _relative_posix_path(tmp_path, alias.parent))
     errors = cli.validate_native_discovery([cli.Skill(skill)], native_roots)
     assert any("native skill alias resolves to" in error for error in errors)
 

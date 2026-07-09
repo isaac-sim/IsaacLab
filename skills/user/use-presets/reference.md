@@ -42,7 +42,7 @@ Isaac Lab preset-aware entry points recognize three selector forms:
 | `renderer=NAME` | Selects variants whose values are renderer config objects. |
 | `presets=NAME[,NAME,...]` | Applies domain-specific variants or broadcasts preset names across matching preset fields. |
 
-Use `uv run --project PATH_TO_ISAACLAB python scripts/environments/list_envs.py --show_presets` to inspect available names before guessing.
+From the Isaac Lab checkout, use `uv run python scripts/environments/list_envs.py --show_presets` to inspect available names before guessing.
 
 ## Definition Pattern
 
