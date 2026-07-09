@@ -1063,7 +1063,9 @@ def test_base_articulation_keeps_none_ordering_on_default_path() -> None:
     assert data.body_ordering is None
     assert data.joint_names == ["hip", "knee"]
     assert data.body_names == ["base", "foot"]
-    assert apply_calls == []
+    # The install site always lets the data container reconcile its staging;
+    # backend hooks are no-ops when no ordering is or was active.
+    assert apply_calls == ["called"]
 
 
 class _LegacyArticulation(BaseArticulation):
@@ -1140,7 +1142,9 @@ def test_base_articulation_ordering_contract_preserves_legacy_subclasses() -> No
 def test_backend_name_fallbacks_reject_missing_overrides() -> None:
     """Raise instead of recursing when a backend overrides neither name property of an axis."""
     articulation = object.__new__(_IncompleteArticulation)
-    articulation._data = types.SimpleNamespace(joint_ordering=None, body_ordering=None)
+    articulation._data = types.SimpleNamespace(
+        joint_ordering=None, body_ordering=None, joint_names=None, body_names=None
+    )
 
     with pytest.raises(NotImplementedError, match="joint_names"):
         _ = articulation.backend_joint_names
@@ -1159,13 +1163,14 @@ def _make_map_ids_articulation(*, permuted: bool) -> _LegacyArticulation:
     articulation._joint_names = ["j_b", "j_c", "j_a"]
     articulation._body_names = ["link", "foot", "base"]
     if permuted:
-        # 3-cycle: user_to_backend == (1, 2, 0) differs from backend_to_user == (2, 0, 1),
-        # so a direction-swapped implementation cannot pass.
+        # Opposite 3-cycles per axis: joint user_to_backend == (1, 2, 0) differs from its
+        # backend_to_user == (2, 0, 1) and from the body maps (u2b == (2, 0, 1)), so neither
+        # a direction-swapped nor an axis-swapped implementation can pass.
         joint_ordering = build_articulation_name_map(
             kind="joint", backend_names=("j_a", "j_b", "j_c"), user_names=("j_b", "j_c", "j_a"), device="cpu"
         )
         body_ordering = build_articulation_name_map(
-            kind="body", backend_names=("base", "link", "foot"), user_names=("link", "foot", "base"), device="cpu"
+            kind="body", backend_names=("base", "link", "foot"), user_names=("foot", "base", "link"), device="cpu"
         )
     else:
         joint_ordering = None
@@ -1180,8 +1185,8 @@ def test_map_ids_to_backend_applies_three_cycle_permutation() -> None:
 
     assert articulation.map_joint_ids_to_backend([0, 1, 2]) == [1, 2, 0]
     assert articulation.map_joint_ids_to_backend([2, 0]) == [0, 1]
-    assert articulation.map_body_ids_to_backend([0, 1, 2]) == [1, 2, 0]
-    assert articulation.map_body_ids_to_backend([1]) == [2]
+    assert articulation.map_body_ids_to_backend([0, 1, 2]) == [2, 0, 1]
+    assert articulation.map_body_ids_to_backend([1]) == [0]
 
 
 def test_map_ids_to_backend_handles_slice_selectors() -> None:
@@ -1189,13 +1194,34 @@ def test_map_ids_to_backend_handles_slice_selectors() -> None:
     permuted = _make_map_ids_articulation(permuted=True)
     assert permuted.map_joint_ids_to_backend(slice(None)) == [1, 2, 0]
     assert permuted.map_joint_ids_to_backend(slice(1, 3)) == [2, 0]
-    assert permuted.map_body_ids_to_backend(slice(None)) == [1, 2, 0]
-    assert permuted.map_body_ids_to_backend(slice(0, 3, 2)) == [1, 0]
+    assert permuted.map_body_ids_to_backend(slice(None)) == [2, 0, 1]
+    assert permuted.map_body_ids_to_backend(slice(0, 3, 2)) == [2, 1]
 
     identity = _make_map_ids_articulation(permuted=False)
     all_items = slice(None)
     assert identity.map_joint_ids_to_backend(all_items) is all_items
     assert identity.map_body_ids_to_backend(all_items) is all_items
+
+
+def test_ordering_map_helpers_pick_axis_direction_and_identity_fallback() -> None:
+    """Return the exact map object per axis and direction, or the backend identity buffer."""
+    permuted = _make_map_ids_articulation(permuted=True)
+    joint_ordering = permuted._data.joint_ordering
+    body_ordering = permuted._data.body_ordering
+    assert permuted._joint_user_to_backend_map() is joint_ordering.user_to_backend
+    assert permuted._joint_backend_to_user_map() is joint_ordering.backend_to_user
+    assert permuted._body_user_to_backend_map() is body_ordering.user_to_backend
+    assert permuted._body_backend_to_user_map() is body_ordering.backend_to_user
+
+    identity = _make_map_ids_articulation(permuted=False)
+    joint_identity_map = object()
+    body_identity_map = object()
+    identity._ALL_JOINT_INDICES = joint_identity_map
+    identity._ALL_BODY_INDICES = body_identity_map
+    assert identity._joint_user_to_backend_map() is joint_identity_map
+    assert identity._joint_backend_to_user_map() is joint_identity_map
+    assert identity._body_user_to_backend_map() is body_identity_map
+    assert identity._body_backend_to_user_map() is body_identity_map
 
 
 @pytest.mark.parametrize("ordering", [("foot", "base"), ArticulationOrderingConvention.MJWARP])

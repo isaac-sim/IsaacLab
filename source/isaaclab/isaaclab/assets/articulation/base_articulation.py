@@ -178,11 +178,13 @@ class BaseArticulation(AssetBase):
         """Joint names in public API order.
 
         The order follows :attr:`ArticulationCfg.joint_ordering` when configured
-        and otherwise matches :attr:`backend_joint_names`.
+        and otherwise matches :attr:`backend_joint_names`. Once the articulation
+        installs its resolved names on :attr:`data`, those are returned directly;
+        before that, the property falls back to :attr:`backend_joint_names`.
         """
-        ordering = self.data.joint_ordering
-        if ordering is not None:
-            return list(self.data.joint_names)
+        names = self.data.joint_names
+        if names is not None:
+            return list(names)
         return list(self.backend_joint_names)
 
     @property
@@ -202,11 +204,13 @@ class BaseArticulation(AssetBase):
         """Body names in public API order.
 
         The order follows :attr:`ArticulationCfg.body_ordering` when configured
-        and otherwise matches :attr:`backend_body_names`.
+        and otherwise matches :attr:`backend_body_names`. Once the articulation
+        installs its resolved names on :attr:`data`, those are returned directly;
+        before that, the property falls back to :attr:`backend_body_names`.
         """
-        ordering = self.data.body_ordering
-        if ordering is not None:
-            return list(self.data.body_names)
+        names = self.data.body_names
+        if names is not None:
+            return list(names)
         return list(self.backend_body_names)
 
     @property
@@ -367,8 +371,6 @@ class BaseArticulation(AssetBase):
         permutation and ``is not None`` checks alone decide whether reordering is
         active.
         """
-        had_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
-
         joint_names, joint_ordering = self._resolve_axis_ordering("joint")
         self.data.joint_names = joint_names
         self.data.joint_ordering = joint_ordering
@@ -387,9 +389,7 @@ class BaseArticulation(AssetBase):
         self.data.body_names = body_names
         self.data.body_ordering = body_ordering
 
-        has_ordering = self.data.joint_ordering is not None or self.data.body_ordering is not None
-        if had_ordering or has_ordering:
-            self.data._apply_ordering_maps_after_resolve()
+        self.data._apply_ordering_maps_after_resolve()
 
     def _resolve_axis_ordering(self, kind: Literal["joint", "body"]) -> tuple[list[str], ArticulationNameMap | None]:
         """Resolve one axis's public names and permutation from the configuration.
@@ -2514,7 +2514,7 @@ class BaseArticulation(AssetBase):
             else:
                 setattr(self, backend_name, None)
 
-    def _reorder_joint_buffer_to_backend(
+    def _get_backend_ordered_joint_buffer(
         self,
         user_buffer: wp.array,
         backend_buffer: wp.array | TimestampedBufferWarp | None,
@@ -2574,53 +2574,6 @@ class BaseArticulation(AssetBase):
                 device=self.device,
             )
         return backend_data
-
-    def _get_backend_ordered_joint_buffer(
-        self,
-        user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
-    ) -> wp.array:
-        """Return a backend-order view or copy of a public-order 2-D joint buffer.
-
-        Thin wrapper over :meth:`_reorder_joint_buffer_to_backend` for buffers
-        with one value per joint; see that method for the argument contract,
-        the identity fast path, and the hot-path guidance.
-
-        Args:
-            user_buffer: Public-order joint buffer to reorder.
-            backend_buffer: Backend-order staging destination. Required when a
-                non-identity joint ordering is active.
-
-        Returns:
-            :paramref:`user_buffer` under identity ordering; otherwise the
-            populated backend-order staging array.
-        """
-        return self._reorder_joint_buffer_to_backend(user_buffer, backend_buffer)
-
-    def _get_backend_ordered_joint_3d_buffer(
-        self,
-        user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
-        component_count: int,
-    ) -> wp.array:
-        """Return a backend-order view or copy of a public-order 3-D joint buffer.
-
-        Thin wrapper over :meth:`_reorder_joint_buffer_to_backend` for buffers
-        with :paramref:`component_count` trailing components per joint; see that
-        method for the argument contract, the identity fast path, and the
-        hot-path guidance.
-
-        Args:
-            user_buffer: Public-order joint buffer to reorder.
-            backend_buffer: Backend-order staging destination. Required when a
-                non-identity joint ordering is active.
-            component_count: Number of trailing components per joint.
-
-        Returns:
-            :paramref:`user_buffer` under identity ordering; otherwise the
-            populated backend-order staging array.
-        """
-        return self._reorder_joint_buffer_to_backend(user_buffer, backend_buffer, component_count=component_count)
 
     """
     Internal helpers -- Actuators.

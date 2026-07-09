@@ -147,21 +147,19 @@ class BaseArticulationData(ABC):
         paths require when the public order differs from backend order.
         """
 
-    def _make_jacobian_body_user_to_backend(self, body_ordering: ArticulationNameMap | None) -> wp.array:
+    def _make_jacobian_body_user_to_backend(self) -> wp.array:
         """Build the compact user-to-backend row map for Jacobian body axes.
 
-        Fixed-base articulations omit the root link's Jacobian rows, so a nonzero
-        :attr:`_jacobian_link_offset` drops backend row 0 and shifts the remaining
-        rows down by one.
-
-        Args:
-            body_ordering: Body ordering map, or ``None`` to build the row map in
-                backend body order.
+        The map follows the installed :attr:`body_ordering`, or backend body
+        order when no ordering is active. Fixed-base articulations omit the
+        root link's Jacobian rows, so a nonzero :attr:`_jacobian_link_offset`
+        drops backend row 0 and shifts the remaining rows down by one.
 
         Returns:
             One-dimensional ``wp.int32`` device array of backend Jacobian rows in
             public body order.
         """
+        body_ordering = self.body_ordering
         body_user_to_backend = (
             body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
         )
