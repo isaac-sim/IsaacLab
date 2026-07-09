@@ -6,7 +6,7 @@
 """Unified play-benchmark dispatcher (mirrors scripts/reinforcement_learning/play.py).
 
 Selects the RL library via ``--rl_library`` and forwards remaining args to the matching
-benchmark adapter under ``scripts/benchmarks/<library>/play_benchmark.py``, which rolls
+benchmark adapter under ``scripts/benchmarks/<library>/benchmark_<rl_library>_play.py``, which rolls
 out a checkpointed policy under a ``BenchmarkMonitor`` and emits a ``PlayBundle``.
 """
 
@@ -23,10 +23,10 @@ if str(_RL_SCRIPTS) not in sys.path:
 from common import dispatch_library_entrypoint  # noqa: E402
 
 LIBRARY_ENTRYPOINTS = {
-    "rsl_rl": _SCRIPT_DIR / "rsl_rl" / "play_benchmark.py",
-    "rl_games": _SCRIPT_DIR / "rl_games" / "play_benchmark.py",
-    "skrl": _SCRIPT_DIR / "skrl" / "play_benchmark.py",
-    "sb3": _SCRIPT_DIR / "sb3" / "play_benchmark.py",
+    "rsl_rl": _SCRIPT_DIR / "rsl_rl" / "benchmark_rsl_rl_play.py",
+    "rl_games": _SCRIPT_DIR / "rl_games" / "benchmark_rl_games_play.py",
+    "skrl": _SCRIPT_DIR / "skrl" / "benchmark_skrl_play.py",
+    "sb3": _SCRIPT_DIR / "sb3" / "benchmark_sb3_play.py",
 }
 
 
