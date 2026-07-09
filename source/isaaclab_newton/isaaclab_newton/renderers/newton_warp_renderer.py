@@ -357,6 +357,7 @@ class NewtonWarpRenderer(BaseRenderer):
             shape_index_image=render_data.outputs.instance_segmentation_image,
             # ARGB 93% gray to improve visibility of dark objects and align with RTX renderer background
             clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
+            kernel_block_dim=self.cfg.kernel_block_dim,
         )
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination

@@ -47,3 +47,6 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     tile_rendering_height: int = 8
     """Tile height [px] for tiled rendering."""
+
+    kernel_block_dim: int = 64
+    """Thread block dimension forwarded to Newton."""
