@@ -20,7 +20,7 @@ from isaaclab.cloner.cloner_utils import replace_path_prefix
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 
-def _add_global_stage_to_builder(
+def add_global_stage_to_builder(
     builder: ModelBuilder,
     stage: Usd.Stage,
     ignore_paths: Sequence[str],
@@ -29,11 +29,9 @@ def _add_global_stage_to_builder(
     """Import global prims without parsing custom rows from ignored clone subtrees.
 
     Newton's built-in USD import honors ``ignore_paths``, but its custom-frequency
-    traversal currently does not (upstream: newton-physics/newton#3405; drop this
-    workaround once the fix lands in the pinned Newton version). MuJoCo
-    frequencies are also registered from inside :meth:`ModelBuilder.add_usd`, so
-    both existing and newly registered callbacks are scoped for this import and
-    restored afterward.
+    traversal currently does not. MuJoCo frequencies are also registered from
+    inside :meth:`ModelBuilder.add_usd`, so both existing and newly registered
+    callbacks are scoped for this import and restored afterward.
     """
     ignored_patterns = tuple(re.compile(path) for path in ignore_paths)
     original_filters = {

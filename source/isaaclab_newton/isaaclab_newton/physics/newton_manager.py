@@ -47,7 +47,7 @@ from isaaclab.utils import checked_apply
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 
-from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+from isaaclab_newton.cloner.newton_clone_utils import add_global_stage_to_builder, replicate_builder_mapping
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
@@ -1294,9 +1294,7 @@ class NewtonManager(PhysicsManager):
         else:
             # Load everything except the env subtrees (ground plane, lights, etc.)
             ignore_paths = [path for _, path in env_paths]
-            from isaaclab_newton.cloner.newton_clone_utils import _add_global_stage_to_builder
-
-            _add_global_stage_to_builder(builder, stage, ignore_paths, schema_resolvers)
+            add_global_stage_to_builder(builder, stage, ignore_paths, schema_resolvers)
             replace_newton_builder_shape_colors(builder, stage)
 
             _, proto_path = env_paths[0]

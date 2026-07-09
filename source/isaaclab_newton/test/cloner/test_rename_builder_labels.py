@@ -13,7 +13,7 @@ import torch
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner.newton_clone_utils import (
     _BUILTIN_LABEL_TYPES,
-    _add_global_stage_to_builder,
+    add_global_stage_to_builder,
     build_source_builders,
     rename_builder_labels,
     replicate_builder_mapping,
@@ -335,7 +335,7 @@ class TestIgnoredCloneCustomFrequencies(unittest.TestCase):
         self._define_robot(stage, "/World/global/Robot")
 
         builder = newton.ModelBuilder()
-        _add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
+        add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
         self.assertEqual(builder._custom_frequency_counts["mujoco:tendon"], 1)
         self.assertEqual(builder._custom_frequency_counts["mujoco:tendon_joint"], 1)
         self.assertNotIn("add_custom_frequency", vars(builder))
@@ -379,7 +379,7 @@ class TestIgnoredCloneCustomFrequencies(unittest.TestCase):
 
         with mock.patch.object(builder, "add_usd", side_effect=RuntimeError("expected import failure")):
             with self.assertRaisesRegex(RuntimeError, "expected import failure"):
-                _add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
+                add_global_stage_to_builder(builder, stage, ["/World/envs"], [])
 
         self.assertNotIn("add_custom_frequency", vars(builder))
         for frequency_key, callback in original_filters.items():
