@@ -5,13 +5,17 @@
 
 """Script to benchmark loading multiple copies of a robot.
 
-.. code-block python
+.. code-block:: bash
 
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_load_robot.py --num_envs 2048 --robot g1 --headless
+    ./isaaclab.sh -p scripts/benchmarks/benchmark_load_robot.py --num_envs 2048 --robot g1
+
+The simulation app is launched through :func:`isaaclab.app.launch_simulation`, which scans the
+scene configuration and selects the appropriate experience file automatically (for example, auto-enabling
+cameras when the scene contains camera sensors that use a Kit renderer).
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Configure the simulation launch first."""
 
 import argparse
 import time
@@ -41,16 +45,6 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli, _ = parser.parse_known_args()
 
-# Start the timer for app start
-app_start_time_begin = time.perf_counter_ns()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-# End the timer for app start
-app_start_time_end = time.perf_counter_ns()
-
 """Rest everything follows."""
 
 # Start the timer for imports
@@ -58,12 +52,17 @@ imports_time_begin = time.perf_counter_ns()
 
 import torch
 
+# Note: only configuration classes are imported at module scope. The ``isaaclab.sim`` package uses lazy
+# exports, so importing it (and the ``*Cfg`` classes below) does not pull in USD/``omni`` bindings. The
+# runtime classes (``SimulationContext``, ``InteractiveScene``) eagerly import ``pxr`` and must therefore
+# be imported only after the simulation app has been launched (see :func:`main`).
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sim import SimulationContext
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils.configclass import configclass
+
+from isaaclab.app import launch_simulation
 
 ##
 # Pre-defined configs
@@ -74,7 +73,11 @@ from isaaclab_assets import ANYMAL_D_CFG, G1_MINIMAL_CFG, H1_MINIMAL_CFG  # isor
 # Stop the timer for imports
 imports_time_end = time.perf_counter_ns()
 
-# Create the benchmark
+# Create the benchmark. This is constructed at module scope (before the simulation app is launched),
+# matching the other benchmark scripts. The Kit-based frametime recorders provided by
+# ``isaacsim.benchmark.services`` are only available once the app is running, so they are gracefully
+# skipped here; the remaining recorders (CPU/GPU/memory/version) and timing measurements do not
+# require Kit.
 backend_type = args_cli.benchmark_backend
 benchmark = BaseIsaacLabBenchmark(
     benchmark_name="benchmark_load_robot",
@@ -115,7 +118,7 @@ class RobotSceneCfg(InteractiveSceneCfg):
         raise ValueError(f"Unsupported robot type: {args_cli.robot}.")
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
+def run_simulator(sim: "SimulationContext", scene: "InteractiveScene", benchmark: BaseIsaacLabBenchmark):
     """Runs the simulation loop."""
     # Extract scene entities
     # note: we only do this here for readability.
@@ -172,10 +175,15 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     )
 
 
-def main():
+def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float):
     """Main function."""
+    # Import runtime classes only now that the simulation app has been launched. These modules import
+    # USD/``omni`` bindings at import time, so importing them before the app is running crashes the simulator.
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationContext
+
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device="cuda:0")
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
@@ -183,7 +191,6 @@ def main():
     # Start the timer for creating the scene
     setup_time_begin = time.perf_counter_ns()
     # Design scene
-    scene_cfg = RobotSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
     scene = InteractiveScene(scene_cfg)
     # Stop the timer for creating the scene
     setup_time_end = time.perf_counter_ns()
@@ -208,7 +215,6 @@ def main():
     )
 
     # Log app start and imports time
-    app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
     imports_time_ms = (imports_time_end - imports_time_begin) / 1e6
     benchmark.add_measurement(
         "startup", measurement=SingleMeasurement(name="App Launch Time", value=app_start_time_ms, unit="ms")
@@ -218,7 +224,7 @@ def main():
     )
 
     # Run the simulator
-    run_simulator(sim, scene)
+    run_simulator(sim, scene, benchmark)
 
     # Finalize benchmark
     benchmark.update_manual_recorders()
@@ -226,7 +232,17 @@ def main():
 
 
 if __name__ == "__main__":
-    # run the main function
-    main()
-    # close sim app
-    simulation_app.close()
+    # Build the scene configuration up front so that launch_simulation() can scan it and
+    # select the appropriate experience file (e.g. auto-enable cameras when camera sensors
+    # are present in the scene).
+    scene_cfg = RobotSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+
+    # Start the timer for app start
+    app_start_time_begin = time.perf_counter_ns()
+    # Launch the simulation app based on the scene configuration
+    with launch_simulation(scene_cfg, args_cli):
+        # End the timer for app start
+        app_start_time_end = time.perf_counter_ns()
+        app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
+        # run the main function
+        main(scene_cfg, app_start_time_ms)
