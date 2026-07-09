@@ -43,7 +43,7 @@ Manager-based environments promote modular implementations of tasks by decomposi
 When developing new training environments, it is often beneficial to break the environment into independent components.  This can be highly effective for collaboration, as it lets individual developers focus on different aspects of the environment, while allowing those disparate efforts to be joined back together into a single runnable task. For example, you may have multiple robots with differing sensoriums, requiring different observation managers to process those sensory data into a form that's useful for downstream components.  You might have multiple members on the team with different ideas about what the reward should be to achieve your goals, and by having each one develop their own reward manager, you can swap and test as you see fit. The modular nature of the manager workflow is essential for more complex projects!
 
 For reinforcement learning, much of this has been done for you already! In most cases, it will be enough to write your environment to inherit from
-:class:`envs.ManagerBasedRLEnv` and and your configuration from :class:`envs.ManagerBasedRLEnvCfg`.
+:class:`envs.ManagerBasedRLEnv` and your configuration from :class:`envs.ManagerBasedRLEnvCfg`.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the manager-style
     :icon: plus

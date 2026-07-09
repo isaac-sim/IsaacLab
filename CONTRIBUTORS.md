@@ -117,6 +117,7 @@ Guidelines for modifications:
 * Kaixi Bao
 * Kourosh Darvish
 * Kousheek Chakraborty
+* Lin He
 * Kris Wilson
 * Krishna Lakhi
 * Lionel Gulich
