@@ -246,11 +246,32 @@ def _maybe_preinstall_arm_nlopt(python_exe: str, pip_cmd: list[str]) -> None:
             _purge_swig()
 
 
-# Dependency stack required by isaaclab.controllers.pink_ik. Pinocchio is installed
-# via the cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
+# Packages forming the Pink IK dependency stack. Pinocchio is installed via the
+# cmeel ``pin`` wheel, which provides the ``pinocchio`` Python module under
 # ``cmeel.prefix/lib/python3.12/site-packages/`` and registers it on sys.path via a
 # ``cmeel.pth`` hook. DAQP provides the QP solver selected by the Pink IK controller.
-_PINK_IK_STACK = ("pin", "pin-pink==3.1.0", "daqp==0.8.5")
+# Versions (e.g. the pink 3.3.x window required by Isaac Sim 6.x) are pinned in the
+# root pyproject.toml; :func:`_pink_ik_stack` derives the requirements from there.
+_PINK_IK_PACKAGES = ("pin", "pin-pink", "daqp")
+
+
+def _pink_ik_stack() -> tuple[str, ...]:
+    """Return the Pink IK stack requirements pinned in the root ``pyproject.toml``.
+
+    Derives the requirement strings for :data:`_PINK_IK_PACKAGES` from the
+    centralized ``[project.dependencies]`` table so the pins live in one place.
+    Environment markers are stripped because
+    :func:`_ensure_pink_ik_dependencies_installed` gates on platform itself.
+
+    Raises:
+        KeyError: If a stack package is missing from the root dependencies.
+    """
+    dependencies = _load_root_pyproject().get("project", {}).get("dependencies", [])
+    requirements = {_requirement_name(r): r.split(";", 1)[0].strip() for r in dependencies}
+    missing = [name for name in _PINK_IK_PACKAGES if name not in requirements]
+    if missing:
+        raise KeyError(f"{missing} missing from [project.dependencies] in the root pyproject.toml.")
+    return tuple(requirements[name] for name in _PINK_IK_PACKAGES)
 
 
 def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], *, probe_env: dict[str, str]) -> None:
@@ -297,15 +318,16 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
         return
 
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
+    pink_ik_stack = _pink_ik_stack()
     install_result = run_command(
-        pip_cmd + ["install", "--upgrade", "--force-reinstall", *_PINK_IK_STACK],
+        pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
         check=False,
     )
     if install_result.returncode != 0:
         print_warning(
             "Force-installing the cmeel pinocchio and DAQP stack failed (returncode "
             f"{install_result.returncode}). The pink IK controller and its tests will not be"
-            " usable until ``pin pin-pink==3.1.0 daqp==0.8.5`` is installed manually."
+            f" usable until ``{' '.join(pink_ik_stack)}`` is installed manually."
         )
 
 
@@ -318,9 +340,9 @@ def _ensure_cuda_torch() -> None:
     # Base index for torch.
     base_index = "https://download.pytorch.org/whl"
 
-    # Choose pins per arch.
-    torch_ver = "2.10.0"
-    tv_ver = "0.25.0"
+    # Pinned versions (single source of truth: [tool.isaaclab.versions]).
+    torch_ver = _pinned_version("torch")
+    tv_ver = _pinned_version("torchvision")
 
     if is_arm():
         cuda_ver = "130"
@@ -367,9 +389,42 @@ def _ensure_cuda_torch() -> None:
     run_command(pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"])
 
 
+def _ensure_newton() -> None:
+    """Install the pinned Newton git build, replacing any index version.
+
+    Isaac Sim bundles ``newton[sim]==1.2.0``, which satisfies the loose core bound in
+    the root pyproject, so the centralized install would otherwise keep the older
+    Newton. Isaac Lab owns the exact commit via ``[tool.uv].override-dependencies``
+    (``uv sync`` honors it, ``pip``/``uv pip`` installs do not), so force it in here
+    from that single source.
+    """
+    overrides = _load_root_pyproject().get("tool", {}).get("uv", {}).get("override-dependencies", [])
+    requirement = next((r for r in overrides if _requirement_name(r) == "newton"), None)
+    if not requirement:
+        raise KeyError("Newton git pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
+    commit = _pinned_version("newton")
+    # Newton-matched schemas (isaacsim pins the older ==0.2.0); force it alongside newton.
+    schemas = next((r for r in overrides if _requirement_name(r) == "newton-usd-schemas"), None)
+
+    python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
+    using_uv = pip_cmd[0] == "uv"
+
+    # git installs record the commit in freeze output; skip if it is already present.
+    frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
+    if frozen.returncode == 0 and any(
+        _requirement_name(line) == "newton" and commit in line for line in frozen.stdout.splitlines()
+    ):
+        print_info(f"Newton git build ({commit[:10]}) already installed.")
+        return
+
+    print_info(f"Installing pinned Newton git build ({commit[:10]})...")
+    uninstall_flags = ["-y"] if not using_uv else []
+    run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
+    run_command(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
+
+
 # Isaac Sim install settings.
-ISAACSIM_VERSION_SPEC = ">=6.0.0"
-ISAACSIM_EXTRAS = "all"
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
 
@@ -382,6 +437,119 @@ def _requirement_name(requirement: str) -> str:
     """Extract the distribution name from a requirement string."""
     requirement = requirement.split(";", 1)[0].strip()
     return re.split(r"\s|<|>|=|!|~|\[|@", requirement, maxsplit=1)[0]
+
+
+# Distributions installed from the PyTorch index by :func:`_ensure_cuda_torch`;
+# excluded from the centralized core-dependency install so they are not pulled
+# from PyPI first.
+_TORCH_DISTRIBUTIONS = {"torch", "torchvision", "torchaudio"}
+
+
+def _is_isaaclab_requirement(requirement: str) -> bool:
+    """Return True for ``isaaclab*`` self-references (installed as editable submodules)."""
+    return _normalize_package_name(_requirement_name(requirement)).startswith("isaaclab")
+
+
+def _load_root_pyproject() -> dict:
+    """Load the root development ``pyproject.toml`` (single source of dependency truth)."""
+    with (ISAACLAB_ROOT / "pyproject.toml").open("rb") as fd:
+        return tomllib.load(fd)
+
+
+def _pinned_version(package: str) -> str:
+    """Return the pinned version for ``package`` from ``[tool.isaaclab.versions]``.
+
+    This table is the single source of truth for externally-pinned versions; the
+    literal pins in the extras and uv constraints mirror it.
+
+    Args:
+        package: Key in the ``[tool.isaaclab.versions]`` table (e.g. ``"torch"``).
+    """
+    versions = _load_root_pyproject().get("tool", {}).get("isaaclab", {}).get("versions", {})
+    version = versions.get(package)
+    if not version:
+        raise KeyError(f"'{package}' is missing from [tool.isaaclab.versions] in the root pyproject.toml.")
+    return version
+
+
+def _isaacsim_requirement() -> str:
+    """Return the pinned ``isaacsim`` requirement from the root ``isaacsim`` extra."""
+    optional = _load_root_pyproject().get("project", {}).get("optional-dependencies", {})
+    requirement = next((r for r in optional.get("isaacsim", []) if _requirement_name(r) == "isaacsim"), None)
+    if not requirement:
+        raise KeyError(
+            "The 'isaacsim' extra is missing from [project.optional-dependencies] in the root pyproject.toml."
+        )
+    return requirement
+
+
+def _root_core_dependencies() -> list[str]:
+    """Return the third-party core requirements declared in the root pyproject.
+
+    Workspace members (installed as editable submodules) and the torch stack
+    (installed by :func:`_ensure_cuda_torch`) are excluded.
+    """
+    project = _load_root_pyproject().get("project", {})
+    dependencies = []
+    for requirement in project.get("dependencies", []):
+        if _is_isaaclab_requirement(requirement):
+            continue
+        if _normalize_package_name(_requirement_name(requirement)) in _TORCH_DISTRIBUTIONS:
+            continue
+        dependencies.append(requirement)
+    return dependencies
+
+
+def _root_extra_dependencies(extra: str) -> list[str]:
+    """Return the third-party requirements for a root ``optional-dependencies`` group.
+
+    Workspace member self-references are stripped (the editable submodules are
+    installed separately).
+
+    Args:
+        extra: Name of the optional-dependency group in the root pyproject.
+    """
+    optional = _load_root_pyproject().get("project", {}).get("optional-dependencies", {})
+    if extra not in optional:
+        print_warning(f"Unknown root extra '{extra}'. Available: {', '.join(sorted(optional))}. Skipping.")
+        return []
+    return [requirement for requirement in optional[extra] if not _is_isaaclab_requirement(requirement)]
+
+
+def _install_root_extra(extra: str) -> None:
+    """Install the third-party dependencies of a root ``optional-dependencies`` group."""
+    dependencies = _root_extra_dependencies(extra)
+    if not dependencies:
+        return
+    python_exe = extract_python_exe()
+    pip_cmd = get_pip_command(python_exe)
+    print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
+    run_command(pip_cmd + ["install"] + dependencies)
+
+
+def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: list[str]) -> None:
+    """Install the centralized third-party dependencies for the current install.
+
+    The editable sub-packages no longer declare dependencies, so the core
+    requirements come from the root pyproject; the runtime extras for any
+    requested optional submodules are installed on top.
+
+    Args:
+        pip_cmd: Base pip command (e.g. ``["uv", "pip"]`` or ``["python", "-m", "pip"]``).
+        optional_submodules: Names of requested optional submodules whose root
+            extras should also be installed.
+    """
+    core_dependencies = _root_core_dependencies()
+    if core_dependencies:
+        print_info("Installing core dependencies from the root pyproject...")
+        run_command(pip_cmd + ["install"] + core_dependencies)
+    # dict preserves order while de-duplicating extras shared across submodules.
+    extras: dict[str, None] = {}
+    for submodule_name in optional_submodules:
+        for extra in OPTIONAL_SUBMODULE_ROOT_EXTRAS.get(submodule_name, ()):
+            extras.setdefault(extra)
+    for extra in extras:
+        _install_root_extra(extra)
 
 
 def _get_installed_distribution_requirements(python_exe: str, distribution_name: str) -> list[str]:
@@ -507,7 +675,7 @@ def _install_isaacsim() -> None:
         pip_cmd
         + [
             "install",
-            f"isaacsim[{ISAACSIM_EXTRAS}]{ISAACSIM_VERSION_SPEC}",
+            _isaacsim_requirement(),
             "--extra-index-url",
             NVIDIA_INDEX_URL,
         ]
@@ -540,6 +708,18 @@ CORE_ISAACLAB_SUBMODULES: list[str] = [
 OPTIONAL_ISAACLAB_SUBMODULES: dict[str, tuple[str, ...]] = {
     "mimic": ("isaaclab_teleop", "isaaclab_mimic"),
     "teleop": ("isaaclab_teleop",),
+}
+
+# Root pyproject optional-dependency groups that carry the third-party runtime
+# requirements for each optional submodule (the submodules themselves no longer
+# declare dependencies). Derived from OPTIONAL_ISAACLAB_SUBMODULES rather than
+# redefined: each ``isaaclab_<name>`` source dir maps to the same-named root
+# extra (so ``mimic`` pulls in the ``teleop`` stack as well, matching the
+# editable-install behavior it replaces). The extra names are validated against
+# the root pyproject by :func:`_root_extra_dependencies` at install time.
+OPTIONAL_SUBMODULE_ROOT_EXTRAS: dict[str, tuple[str, ...]] = {
+    submodule: tuple(directory.removeprefix("isaaclab_") for directory in directories)
+    for submodule, directories in OPTIONAL_ISAACLAB_SUBMODULES.items()
 }
 
 # Extra feature sets that install optional heavy dependencies on top of the
@@ -638,12 +818,8 @@ def _install_contrib_extra_dependencies(selector: str) -> None:
         )
         return
 
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-
     print_info(f"Installing contrib optional dependencies: {selector}...")
-    run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_contrib[{selector}]"])
+    _install_root_extra(selector)
 
 
 def _install_ov_extra_dependencies(selector: str) -> None:
@@ -660,10 +836,6 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
         return
 
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-
     selectors = {item.strip().lower() for item in selector.split(",") if item.strip()}
     valid_selectors = {"all", "ovrtx", "ovphysx"}
     unknown_selectors = selectors - valid_selectors
@@ -674,19 +846,20 @@ def _install_ov_extra_dependencies(selector: str) -> None:
         )
     if "all" in selectors:
         selectors.update({"ovrtx", "ovphysx"})
+    # The ov[ovrtx] selector maps to the root 'rtx' extra; ov[ovphysx] to 'ov'.
     if "ovrtx" in selectors:
         print_info("Installing OVRTX optional dependency...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ov[ovrtx]"])
+        _install_root_extra("rtx")
     if "ovphysx" in selectors:
         print_info("Installing OVPhysX optional dependency...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_ovphysx[ovphysx]"])
+        _install_root_extra("ov")
 
 
 def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     """Install optional extra dependencies for a feature set.
 
-    Each feature maps to one or more editable installs with extras applied to
-    packages that are already part of the core set.
+    Each feature maps the CLI token to one or more root ``optional-dependencies``
+    groups and installs their third-party requirements.
 
     Args:
         feature_name: One of :data:`VALID_EXTRA_FEATURES`.
@@ -694,29 +867,32 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
             ``rl[rsl-rl]``). When empty a sensible default is chosen per
             feature (``"all"`` for ``rl`` and ``visualizer``).
     """
-    python_exe = extract_python_exe()
-    pip_cmd = get_pip_command(python_exe)
-    source_dir = ISAACLAB_ROOT / "source"
-
     if feature_name == "contrib":
         _install_contrib_extra_dependencies(selector)
     elif feature_name == "newton":
         if selector:
-            print_warning(f"'newton' does not support selectors (got '{selector}'). Installing all newton extras.")
-        print_info(
-            "Installing newton extras (newton[sim], pyglet, PyOpenGL-accelerate, imgui-bundle, typing-extensions)..."
-        )
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_newton[all]"])
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_physx[newton]"])
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[newton]"])
+            print_warning(f"'newton' does not support selectors (got '{selector}').")
+        # The Newton physics engine and its interactive viewer GUI (imgui-bundle,
+        # typing-extensions) are part of the base install; this token is a no-op.
+        print_info("Newton (engine + viewer) is part of the base install; nothing to install.")
     elif feature_name == "rl":
         extra = selector if selector else "all"
+        # rl[all] installs every RL framework extra; other selectors map by name
+        # (rsl_rl -> rsl-rl, skrl, sb3, rl-games).
+        frameworks = {"sb3", "skrl", "rl-games", "rsl-rl"} if extra == "all" else {extra.replace("_", "-")}
         print_info(f"Installing RL framework extras: {extra}...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_rl[{extra}]"])
+        for framework in sorted(frameworks):
+            _install_root_extra(framework)
     elif feature_name == "visualizer":
         extra = selector if selector else "all"
+        backends = {"newton", "rerun", "viser"} if extra == "all" else {extra}
         print_info(f"Installing visualizer extras: {extra}...")
-        run_command(pip_cmd + ["install", "--editable", f"{source_dir}/isaaclab_visualizers[{extra}]"])
+        for backend in sorted(backends):
+            # 'kit' (Omniverse-provided) and 'newton' (part of the base install)
+            # have no extra to install.
+            if backend in {"kit", "newton"}:
+                continue
+            _install_root_extra(backend)
     elif feature_name == "ov":
         _install_ov_extra_dependencies(selector)
     else:
@@ -754,6 +930,116 @@ regardless of import path order.
 """
 
 
+def _force_remove(path: Path) -> None:
+    """Recursively remove a file, directory, or symlink. A missing path is a no-op.
+
+    Uses absolute-path :func:`os.unlink` / :func:`os.rmdir` rather than the
+    ``dir_fd``-relative operations :func:`shutil.rmtree` performs internally. On
+    an overlayfs *lower* layer (e.g. inside a Docker image build) the ``dir_fd``
+    variant raises ``EINVAL``, whereas the plain ``unlink(2)`` / ``rmdir(2)``
+    syscalls create the proper whiteout. This makes prebundle neutralization
+    behave identically on a normal filesystem and on an overlayfs lower layer.
+    """
+    if path.is_symlink() or path.is_file():
+        os.unlink(path)
+    elif path.is_dir():
+        for child in path.iterdir():
+            _force_remove(child)
+        os.rmdir(path)
+
+
+def _discover_prebundle_dirs() -> set[Path]:
+    """Find every ``pip_prebundle`` directory under the Isaac Sim installation.
+
+    Searches both the Isaac Sim tree and the Omniverse cache roots — some Isaac
+    Sim directories are symlinked into ``~/.local/share/ov`` and would be missed
+    by a plain ``rglob()`` on ``_isaac_sim``. Returns an empty set when no Isaac
+    Sim installation is present.
+    """
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is None or not isaacsim_path.exists():
+        return set()
+
+    candidate_roots: set[Path] = set()
+    for root in (
+        isaacsim_path,
+        isaacsim_path.resolve(),
+        isaacsim_path / "extscache",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
+        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
+    ):
+        if root.exists():
+            candidate_roots.add(root)
+            candidate_roots.add(root.resolve())
+
+    prebundle_dirs: set[Path] = set()
+    for root in candidate_roots:
+        prebundle_dirs.update(root.rglob("pip_prebundle"))
+    return prebundle_dirs
+
+
+def _find_dangling_prebundle_symlinks() -> set[Path]:
+    """Find symlinks under Isaac Sim prebundles whose targets do not resolve.
+
+    Isaac Sim deduplicates packages shared by several extensions as per-file
+    symlink farms between ``pip_prebundle`` directories. pip operations routinely
+    replace prebundled distributions with copies in ``site-packages`` — harmless
+    on its own — but deleting a copy that other prebundles link into leaves
+    dangling symlinks that break extension startup at runtime.
+    """
+    dangling: set[Path] = set()
+    for prebundle_dir in _discover_prebundle_dirs():
+        for root, _dirs, files in os.walk(prebundle_dir):
+            for name in files:
+                path = Path(root) / name
+                if path.is_symlink() and not path.exists():
+                    dangling.add(path)
+    return dangling
+
+
+def _assert_no_new_dangling_prebundle_symlinks(before: set[Path]) -> None:
+    """Fail when the installation broke a prebundled package's symlinked ``__init__.py``.
+
+    A new dangling symlink means a pip operation deleted a prebundled package
+    that other extensions reference through Isaac Sim's symlink farms — the
+    failure mode behind the ``packaging`` removal cascade in nvbugs 6343978
+    (14 extensions failing to start). Routine pip replacements do leave a few
+    dozen dangling links to files Python never imports at startup (test modules,
+    ``WHEEL``/license files, cmake hooks), so only a dangling ``__init__.py`` —
+    which makes the whole package unimportable — fails the install; other new
+    dangling links are reported as warnings.
+
+    Args:
+        before: Dangling symlinks from :func:`_find_dangling_prebundle_symlinks`,
+            collected before the pip operations.
+
+    Raises:
+        RuntimeError: If the installation left a prebundled package with a
+            dangling ``__init__.py``.
+    """
+    introduced = sorted(_find_dangling_prebundle_symlinks() - before)
+    if not introduced:
+        return
+    broken_packages = [p for p in introduced if p.name == "__init__.py"]
+    if broken_packages:
+        shown = "\n  ".join(str(p) for p in broken_packages)
+        raise RuntimeError(
+            f"Installation broke {len(broken_packages)} prebundled package(s) in Isaac Sim"
+            f" (dangling __init__.py, {len(introduced)} new dangling symlink(s) total):\n  "
+            + shown
+            + "\nA pip operation deleted a prebundled package that other Isaac Sim extensions share"
+            " via symlinks; extensions will fail to start at runtime (see nvbugs 6343978). This"
+            " usually means a dependency pin forced pip to downgrade/replace the prebundled copy —"
+            " fix that pin instead of shipping a broken prebundle, and restore the Isaac Sim"
+            " installation before retrying."
+        )
+    print_warning(
+        f"Installation left {len(introduced)} new dangling symlink(s) in Isaac Sim prebundles"
+        " (no package __init__.py affected — extensions should still start). First few: "
+        + ", ".join(str(p) for p in introduced[:5])
+    )
+
+
 def _repoint_prebundle_packages() -> None:
     """Replace prebundled packages in Isaac Sim with symlinks to the active environment.
 
@@ -787,25 +1073,7 @@ def _repoint_prebundle_packages() -> None:
         print_warning(f"site-packages directory not found: {site_packages} — skipping prebundle repoint.")
         return
 
-    # Discover pip_prebundle directories from both the Isaac Sim tree and
-    # Omniverse cache roots. Some Isaac Sim directories are symlinked into
-    # ~/.local/share/ov and may be missed by a plain rglob() on _isaac_sim.
-    candidate_roots: set[Path] = set()
-    for root in (
-        isaacsim_path,
-        isaacsim_path.resolve(),
-        isaacsim_path / "extscache",
-        Path.home() / ".local" / "share" / "ov" / "data" / "exts",
-        Path.home() / ".local" / "share" / "ov" / "data" / "exts" / "v2",
-    ):
-        if root.exists():
-            candidate_roots.add(root)
-            candidate_roots.add(root.resolve())
-
-    prebundle_dirs: set[Path] = set()
-    for root in candidate_roots:
-        prebundle_dirs.update(root.rglob("pip_prebundle"))
-
+    prebundle_dirs = _discover_prebundle_dirs()
     if not prebundle_dirs:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
@@ -833,16 +1101,15 @@ def _repoint_prebundle_packages() -> None:
                 continue
 
             try:
-                if prebundled.is_symlink():
-                    if prebundled.resolve() == venv_pkg.resolve():
-                        continue
-                    prebundled.unlink()
-                else:
-                    backup = prebundle_dir / f"{pkg_name}.bak"
-                    if backup.exists() or backup.is_symlink():
-                        shutil.rmtree(backup) if backup.is_dir() else backup.unlink()
-                    prebundled.rename(backup)
-
+                # Already repointed to the right place — nothing to do.
+                if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
+                    continue
+                # Replace the prebundled copy (a stale symlink or a real directory)
+                # with a symlink to the active environment. We remove rather than
+                # rename-to-``.bak``: the env copy is the symlink target, so the
+                # prebundle content is redundant, and renaming a directory on an
+                # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
+                _force_remove(prebundled)
                 if use_symlinks:
                     prebundled.symlink_to(venv_pkg)
                 else:
@@ -858,6 +1125,24 @@ def _repoint_prebundle_packages() -> None:
         )
     else:
         print_debug("All prebundled packages already up-to-date — nothing to repoint.")
+
+    # Fail loud: a real (non-symlink) prebundled ``torch`` left behind shadows the
+    # pip-installed torch on launch paths that do not import ``isaaclab`` (e.g.
+    # ``isaac-sim.streaming.sh``), pulling a mismatched NCCL and crashing with
+    # ``undefined symbol: ncclDevCommCreate``. Never let that state ship silently.
+    # Only relevant when symlinking (Linux); the Windows branch deliberately copies the
+    # env package into the prebundle, which is a real directory by design.
+    if use_symlinks and (site_packages / "torch").exists():
+        shadowing = [
+            prebundle_dir / "torch"
+            for prebundle_dir in prebundle_dirs
+            if (prebundle_dir / "torch").is_dir() and not (prebundle_dir / "torch").is_symlink()
+        ]
+        if shadowing:
+            raise RuntimeError(
+                "Failed to neutralize prebundled torch under Isaac Sim; the following would shadow the "
+                "pip-installed torch and crash non-isaaclab launches:\n  " + "\n  ".join(str(p) for p in shadowing)
+            )
 
 
 def command_install(install_type: str = "all") -> None:
@@ -880,15 +1165,15 @@ def command_install(install_type: str = "all") -> None:
               optional submodules and extra features. Valid tokens:
 
               - Optional submodules: ``mimic``, ``teleop``
-              - Extra features: ``contrib[rlinf]``, ``newton``, ``rl[<framework>]``,
+              - Extra features: ``contrib[rlinf]``, ``rl[<framework>]``,
                 ``visualizer[<backend>]``, ``ov[ovrtx|ovphysx|all]``
               - Special: ``isaacsim``
 
               Examples::
 
-                  ./isaaclab.sh -i newton,rl[rsl-rl]
+                  ./isaaclab.sh -i rl[rsl-rl]
                   ./isaaclab.sh -i mimic,visualizer[rerun]
-                  ./isaaclab.sh -i teleop,rl[skrl],newton
+                  ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """
 
     # Install system dependencies first.
@@ -910,6 +1195,8 @@ def command_install(install_type: str = "all") -> None:
     extra_features: list[tuple[str, str]] = []
     # List of (submodule_name, selector) tuples for optional submodule extras.
     optional_submodule_extra_dependencies: list[tuple[str, str]] = []
+    # Names of requested optional submodules (used to install their root extras).
+    requested_optional_submodules: list[str] = []
 
     def append_submodules_once(package_dirs: tuple[str, ...]) -> None:
         for pkg_dir in package_dirs:
@@ -923,6 +1210,7 @@ def command_install(install_type: str = "all") -> None:
     if install_type == "all":
         for package_dirs in OPTIONAL_ISAACLAB_SUBMODULES.values():
             append_submodules_once(package_dirs)
+        requested_optional_submodules = list(OPTIONAL_ISAACLAB_SUBMODULES)
         extra_features = [(name, "") for name in sorted(VALID_EXTRA_FEATURES - MANUAL_EXTRA_FEATURES)]
     elif install_type == "core":
         # Core only — no optional submodules, no extra features.
@@ -944,6 +1232,7 @@ def command_install(install_type: str = "all") -> None:
                 install_isaacsim = True
             elif name in OPTIONAL_ISAACLAB_SUBMODULES:
                 append_submodules_once(OPTIONAL_ISAACLAB_SUBMODULES[name])
+                requested_optional_submodules.append(name)
                 if selector:
                     optional_submodule_extra_dependencies.append((name, selector))
             elif name in VALID_EXTRA_FEATURES:
@@ -994,6 +1283,10 @@ def command_install(install_type: str = "all") -> None:
     if saved_pythonpath is not None:
         probe_env["PYTHONPATH"] = saved_pythonpath
 
+    # Baseline for the post-install integrity check: no pip operation below may
+    # leave new dangling symlinks in Isaac Sim's prebundles (nvbugs 6343978).
+    dangling_symlinks_before = _find_dangling_prebundle_symlinks()
+
     try:
         # Upgrade pip first to avoid compatibility issues (skip when using uv).
         if not using_uv:
@@ -1018,6 +1311,15 @@ def command_install(install_type: str = "all") -> None:
 
         # Install all submodules (core set + any explicitly requested optional ones).
         _install_isaaclab_submodules(submodules_to_install)
+
+        # The submodules no longer declare third-party dependencies; install the
+        # centralized core requirements (and optional-submodule extras) from the
+        # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
+        _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
+
+        # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
+        # pinned Newton git build (the default physics engine) over it.
+        _ensure_newton()
 
         # Install requested optional submodule dependency extras.
         if optional_submodule_extra_dependencies:
@@ -1044,6 +1346,12 @@ def command_install(install_type: str = "all") -> None:
         # the active venv/conda versions are always loaded regardless of PYTHONPATH
         # ordering (e.g. torch+cu130 in venv vs torch+cu128 in prebundle on aarch64).
         _repoint_prebundle_packages()
+
+        # Fail loud if any pip operation above broke Isaac Sim's cross-extension
+        # symlink farms. Prebundle deletions on their own are routine (pip
+        # replaces those packages in site-packages, which shadows the prebundle
+        # at runtime); only newly dangling symlinks break extension startup.
+        _assert_no_new_dangling_prebundle_symlinks(dangling_symlinks_before)
 
     finally:
         # Restore LD_PRELOAD if we cleared it.

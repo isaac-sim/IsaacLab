@@ -34,7 +34,7 @@ Use suffixless task names for canonical manager-based tasks:
 
 ```bash
 uv run python scripts/environments/random_agent.py --task Isaac-Ant --num_envs 8
-uv run train --rl_library rsl_rl --task Isaac-Ant --num_envs 64 --max_iterations 5
+uv run isaaclab train --rl_library rsl_rl --task Isaac-Ant --num_envs 64 --max_iterations 5
 ```
 
 Keep the direct baseline available for comparison:

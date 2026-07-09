@@ -14,6 +14,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
 # Directory containing golden images.
@@ -59,7 +60,16 @@ _SSIM_THRESHOLD_BY_ENV_NAME = {
 # outputs where the per-pixel value distribution is highly non-uniform after normalisation (e.g. depth, where we
 # divide by the max value so tiny absolute differences near the far plane dominate windowed variance). For these
 # data types we still compute SSIM for reporting, but only the per-pixel L2 gate is used to decide pass/fail.
-_SSIM_DISABLED_DATA_TYPES: set[str] = {"depth", "distance_to_camera", "distance_to_image_plane"}
+# ``motion_vectors`` is included for the same reason: per-pixel (u, v) offsets are normalized by their max
+# magnitude, so small absolute differences in near-static regions can dominate windowed variance.
+_SSIM_DISABLED_DATA_TYPES: set[str] = {
+    "depth",
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
+    "motion_vectors",
+}
 
 # Directory for comparison images saved during the test session.
 # Located under the pytest output root so it gets copied alongside test reports.
@@ -86,6 +96,9 @@ _DEFAULT_SENSOR_DATA_TYPES = (
     "distance_to_camera",
     "distance_to_image_plane",
     "normals",
+    "instance_segmentation_fast",
+    "instance_id_segmentation_fast",
+    "motion_vectors",
 )
 
 
@@ -230,30 +243,50 @@ def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
             renderer_cfg.log_file_path = "CON" if os.name == "nt" else "/dev/stdout"
 
 
+def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: str, data_type: str) -> None:
+    """Trade PhysX solver performance for determinism/accuracy when testing ``motion_vectors``.
+
+    PhysX's default TGS solver settings produce noisy per-step velocities (see the "TGS solver ... may
+    cause noisy velocities" warning logged by ``physx_manager``), and ``motion_vectors`` encodes velocity
+    directly. That noise differs run-to-run, making golden-image comparisons for this AOV flaky on CI.
+    Applies to both PhysX backends (``"physx"`` and ``"ovphysx"``, which share the same underlying PhysX
+    solver). No-op for any other ``(physics_backend, data_type)`` combination.
+
+    Args:
+        env_cfg: The resolved environment config, exposing ``sim.physics`` as a
+            :class:`~isaaclab_physx.physics.PhysxCfg` when ``physics_backend == "physx"``, or an
+            :class:`~isaaclab_ovphysx.physics.OvPhysxCfg` when ``physics_backend == "ovphysx"``.
+        physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
+        data_type: The camera data type under test.
+    """
+    if physics_backend not in ("physx", "ovphysx") or data_type != "motion_vectors":
+        return
+
+    env_cfg.sim.physics.enable_enhanced_determinism = True
+    env_cfg.sim.physics.enable_external_forces_every_iteration = True
+
+
+def _skip_if_newton_motion_vectors(physics_backend: str, data_type: str) -> None:
+    """Skip ``motion_vectors`` golden-image tests running on the Newton physics backend.
+
+    Newton is not yet deterministic enough for the ``motion_vectors`` AOV: per-pixel (u, v) offsets
+    encode sub-step body motion, which varies run-to-run under the Newton solver, so golden-image
+    comparison is unreliable. No-op for any other ``(physics_backend, data_type)`` combination.
+
+    Args:
+        physics_backend: The physics backend under test (``"physx"``, ``"newton"``, or ``"ovphysx"``).
+        data_type: The camera data type under test.
+    """
+    if physics_backend == "newton" and data_type == "motion_vectors":
+        pytest.skip("Newton physics is not deterministic enough for motion_vectors golden-image testing.")
+
+
 def _physics_preset_name(physics_backend: str) -> str:
     """Translate the historical ``"newton"`` backend label (still used by golden-image
     filenames and ``pytest.param`` IDs) to the renamed Hydra preset
     ``"newton_mjwarp"``. Other labels (``"physx"`` etc.) pass through unchanged.
     """
     return "newton_mjwarp" if physics_backend == "newton" else physics_backend
-
-
-def _normalize_tensor(tensor: torch.Tensor, data_type: str) -> torch.Tensor:
-    """Convert camera output tensor to [0, 1] float32 for conversion to image."""
-    normalized = tensor.float()
-
-    if data_type in ["depth", "distance_to_camera", "distance_to_image_plane"]:
-        max_val = normalized.max()
-        if max_val > 0:
-            normalized = normalized / max_val
-    elif data_type in {"albedo"}:
-        normalized = normalized[..., :3] / 255.0
-    elif data_type in {"normals"}:
-        normalized = (normalized + 1.0) * 0.5
-    else:
-        normalized = normalized / 255.0
-
-    return normalized
 
 
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
@@ -432,12 +465,13 @@ def make_require_ovlibs_install_fixture():
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovlibs_install(request):
+    def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
 
         if callspec.params.get("renderer") == "ovrtx_renderer":
+            monkeypatch.setenv("ISAAC_LAB_OVRTX_READ_GPU_TRANSFORMS", "0")
             try:
                 import ovrtx
 
@@ -462,13 +496,6 @@ def make_require_ovlibs_install_fixture():
                 )
 
     return _require_ovlibs_install
-
-
-def _make_grid(images: torch.Tensor) -> torch.Tensor:
-    """Make a grid of images from a tensor of shape (B, H, W, C)."""
-    from torchvision.utils import make_grid
-
-    return make_grid(torch.swapaxes(images.unsqueeze(1), 1, -1).squeeze(-1), nrow=round(images.shape[0] ** 0.5))
 
 
 def _ssim(img1: torch.Tensor, img2: torch.Tensor, window_size: int = 11) -> float:
@@ -576,8 +603,8 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Camera output '{data_type}' has no non-zero pixels."
             continue
 
-        normalized = _normalize_tensor(corrected, data_type)
-        grid = _make_grid(normalized)
+        normalized = normalize_camera_output_for_display(corrected, data_type)
+        grid = make_camera_output_grid(normalized)
         ndarr = grid.mul(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to("cpu", torch.uint8).numpy()
         result_image = Image.fromarray(ndarr)
 
@@ -593,10 +620,25 @@ def validate_camera_outputs(
             failed_data_types[data_type] = f"Error opening golden image: {error}"
             continue
 
+        # Instance seg colors are non-stable across runs (NonStableInstanceSegmentation /
+        # InstanceSegmentationSD IDs vary). Compare only the alpha channel (instance mask shape)
+        # by zeroing RGB on both images.
+        result_image_for_comparison = result_image
+        golden_image_for_comparison = golden_image
+        if data_type in {"instance_segmentation_fast", "instance_id_segmentation_fast"}:
+
+            def _alpha_only(img: Image.Image) -> Image.Image:
+                r, g, b, a = img.split()
+                zero = r.point(lambda _: 0)
+                return Image.merge("RGBA", (zero, zero, zero, a))
+
+            result_image_for_comparison = _alpha_only(result_image)
+            golden_image_for_comparison = _alpha_only(golden_image)
+
         check_ssim = data_type not in _SSIM_DISABLED_DATA_TYPES
         succeeded, error_message, diff_pct, ssim_score = _compare_images(
-            result_image,
-            golden_image,
+            result_image_for_comparison,
+            golden_image_for_comparison,
             max_different_pixels_percentage,
             check_ssim=check_ssim,
             ssim_threshold=ssim_threshold,
@@ -617,6 +659,9 @@ def validate_camera_outputs(
             "img_golden_path": None,
         }
 
+        # We want to keep the record in the test artifact so that we can have a chance to see whether
+        # test cases that appear successful is a false positive or not, e.g. image diff threshold is set
+        # 8%, if the result image is 7% different from the golden, it is considered a pass
         if diff_pct > 0:
             prefix = f"{test_name}-{physics_backend}-{renderer}-{data_type}"
             entry["img_result_path"] = _save_comparison_image(result_image, f"{prefix}-actual.png")
@@ -635,6 +680,57 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
+def maybe_validate_semantic_segmentation(
+    data_type: str,
+    info: dict[str, Any] | None,
+    expected_id_to_labels: dict[str, dict[str, str]],
+) -> None:
+    """For the ``semantic_segmentation`` data type, assert ``camera.data.info`` matches ground truth.
+
+    No-op for any other data type. The ``idToLabels`` mapping (keyed by RGBA color for the default colorized
+    output) is a Replicator contract that both the Isaac RTX and OVRTX renderers must satisfy, so it is
+    compared for exact equality against the expected mapping.
+
+    Args:
+        data_type: The camera data type under test.
+        info: The ``camera.data.info`` dict (or ``None``) produced by the renderer.
+        expected_id_to_labels: Expected ``idToLabels`` mapping (color/ID key -> ``{semantic_type: label}``).
+    """
+    if data_type != "semantic_segmentation":
+        return
+
+    assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
+    assert info["semantic_segmentation"]["idToLabels"] == expected_id_to_labels, (
+        f"semantic_segmentation idToLabels mismatch.\n"
+        f"  expected: {expected_id_to_labels}\n"
+        f"  actual:   {info['semantic_segmentation']}"
+    )
+
+
+def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
+    """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
+
+    Motion vectors compare the current frame's transforms against the previous frame's; the first frame
+    rendered after a reset has no render history, so its motion vectors would otherwise be all zero. No-op
+    for any ``data_type`` other than ``"motion_vectors"``.
+
+    Args:
+        env: The environment to step. Must expose ``action_space`` and ``step`` (``DirectRLEnv`` /
+            ``ManagerBasedRLEnv``).
+        data_type: The camera data type under test.
+        num_steps: Number of steps to take before capturing camera output.
+        action_value: Constant value applied to every action component on every step. Defaults to
+            ``0.0`` (motion then comes only from physics already in flight, e.g. gravity/initial velocity).
+            Pass a non-zero value to additionally induce actuated motion (e.g. cartpole cart translation).
+    """
+    if data_type != "motion_vectors":
+        return
+
+    action = torch.full(env.action_space.shape, action_value, device=env.device)
+    for _ in range(num_steps):
+        env.step(action)
+
+
 def rendering_test_shadow_hand(
     physics_backend: str,
     renderer: str,
@@ -643,6 +739,7 @@ def rendering_test_shadow_hand(
 ) -> None:
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.utils.configclass import configclass
 
@@ -658,6 +755,9 @@ def rendering_test_shadow_hand(
         distance_to_camera = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_camera"])
         distance_to_image_plane = _ShadowHandBaseTiledCameraCfg(data_types=["distance_to_image_plane"])
         normals = _ShadowHandBaseTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_segmentation_fast"])
+        instance_id_segmentation_fast = _ShadowHandBaseTiledCameraCfg(data_types=["instance_id_segmentation_fast"])
+        motion_vectors = _ShadowHandBaseTiledCameraCfg(data_types=["motion_vectors"])
 
     @configclass
     class _ShadowHandCameraTestEnvCfg(ShadowHandCameraEnvCfg):
@@ -673,14 +773,18 @@ def rendering_test_shadow_hand(
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
-    if data_type in {"depth", "distance_to_camera", "distance_to_image_plane"}:
-        # Disable CNN forward pass as it cannot be meaningfully trained from depth alone and will raise a ValueError.
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
+    if data_type in {"depth", "distance_to_camera", "distance_to_image_plane", "motion_vectors"}:
+        # Disable CNN forward pass as it cannot be meaningfully trained from depth/motion vectors alone
+        # and will raise a ValueError.
         env_cfg.feature_extractor.enabled = False
 
     env = None
 
     try:
         env = ShadowHandCameraEnv(env_cfg)
+        maybe_step_env_for_motion(env, data_type)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_type)
 
         validate_camera_outputs(
@@ -690,6 +794,19 @@ def rendering_test_shadow_hand(
             env._tiled_camera.data.output,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
             comparison_scores=comparison_scores,
+        )
+
+        # The ShadowHand task has a ``class:cube`` on the manipulated object; the hand is UNLABELLED and empty
+        # space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this same
+        # idToLabels mapping in camera.data.info.
+        maybe_validate_semantic_segmentation(
+            data_type,
+            env._tiled_camera.data.info,
+            expected_id_to_labels={
+                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
+                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
+                "(33, 243, 3, 255)": {"class": "cube"},
+            },
         )
     finally:
         if env is not None:
@@ -706,10 +823,14 @@ def rendering_test_cartpole(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
     from isaaclab.utils.configclass import configclass
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env_cfg import CartpoleCameraEnvCfg, CartpoleTiledCameraCfg
+
+    from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
 
     @configclass
     class _CartpoleTiledCameraTestCfg(CartpoleTiledCameraCfg):
@@ -718,17 +839,45 @@ def rendering_test_cartpole(
             data_types=["distance_to_image_plane"]
         )
         normals = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["normals"])
+        instance_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_segmentation_fast"]
+        )
+        instance_id_segmentation_fast = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(
+            data_types=["instance_id_segmentation_fast"]
+        )
+        motion_vectors = CartpoleTiledCameraCfg.BaseCartpoleTiledCameraCfg(data_types=["motion_vectors"])
+
+    @configclass
+    class _BaseCartpoleCameraEnvTestCfg(CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg):
+        robot_cfg = CARTPOLE_CFG.replace(
+            prim_path="/World/envs/env_.*/Robot",
+            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+        )
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
-        distance_to_camera = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
+        # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
+        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        distance_to_image_plane = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        distance_to_image_plane = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
-        normals = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+        normals = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[3, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        instance_id_segmentation_fast = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
+        motion_vectors = CartpoleCameraEnvCfg.BaseCartpoleCameraEnvCfg(
+            observation_space=[2, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
 
     env_cfg = _CartpoleCameraTestEnvCfg()
@@ -741,18 +890,50 @@ def rendering_test_cartpole(
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
     env = None
 
     try:
         env = CartpoleCameraEnv(env_cfg)
+        # Nudge the cart with a small constant force so motion vectors also capture cart translation,
+        # not just pole dynamics already in flight from the randomized reset.
+        maybe_step_env_for_motion(env, data_type, action_value=0.5)
+        camera_outputs = env._tiled_camera.data.output
+        if renderer == "ovrtx_renderer":
+            # The first output access creates the selected OVRTX render-variable mapping. Give
+            # it a few frames to compile and populate instead of validating its zeroed buffer.
+            for _ in range(10):
+                has_valid_outputs = all(
+                    torch.count_nonzero(output if isinstance(output, torch.Tensor) else output.torch).item() > 0
+                    for output in camera_outputs.values()
+                )
+                if has_valid_outputs:
+                    break
+                env.sim.render()
+                env.scene.update(dt=env.physics_dt)
+                camera_outputs = env._tiled_camera.data.output
         maybe_save_stage("cartpole", physics_backend, renderer, data_type)
         validate_camera_outputs(
             "cartpole",
             physics_backend,
             renderer,
-            env._tiled_camera.data.output,
+            camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
             comparison_scores=comparison_scores,
+        )
+
+        # We augment the cartpole task to author ``class:cartpole`` on the robot; everything else is UNLABELLED
+        # and empty space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this
+        # same idToLabels mapping in camera.data.info.
+        maybe_validate_semantic_segmentation(
+            data_type,
+            env._tiled_camera.data.info,
+            expected_id_to_labels={
+                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
+                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
+                "(33, 243, 3, 255)": {"class": "cartpole"},
+            },
         )
     finally:
         if env is not None:
@@ -772,6 +953,7 @@ def rendering_test_dexsuite_kuka(
 ) -> None:
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import CameraCfg
@@ -806,6 +988,27 @@ def rendering_test_dexsuite_kuka(
         normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
         normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
         normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
+        instance_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=64, height=64
+        )
+        instance_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=128, height=128
+        )
+        instance_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_segmentation_fast"], width=256, height=256
+        )
+        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        )
+        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        )
+        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
+            data_types=["instance_id_segmentation_fast"], width=256, height=256
+        )
+        motion_vectors64 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=64, height=64)
+        motion_vectors128 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=128, height=128)
+        motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
 
     @configclass
     class _DexsuiteSingleCameraTestSceneCfg(SingleCameraSceneCfg):
@@ -834,6 +1037,8 @@ def rendering_test_dexsuite_kuka(
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
 
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
     # Disable the observation point-cloud visualisation markers (/Visuals/ObservationPointCloud).
     # The underlying point sampling uses the global numpy/torch RNG, so marker positions shift
     # across processes and show up as random red dots in the rendered camera output. Since this
@@ -855,6 +1060,7 @@ def rendering_test_dexsuite_kuka(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
+        maybe_step_env_for_motion(env, data_type)
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
         validate_camera_outputs(
             test_name,

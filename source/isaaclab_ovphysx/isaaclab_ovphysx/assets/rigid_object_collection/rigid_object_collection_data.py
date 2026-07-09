@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import warnings
-from typing import Any
 
 import numpy as np
 import torch
@@ -21,6 +20,7 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_ovphysx import tensor_types as TT
 from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.physics import OvPhysxManager as SimulationManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 
 class RigidObjectCollectionData(BaseRigidObjectCollectionData):
@@ -59,22 +59,22 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
 
     def __init__(
         self,
-        root_view: dict[int, Any],
+        root_view: OvPhysxView,
         num_bodies: int,
         device: str,
     ):
         """Initializes the rigid object data.
 
         Args:
-            root_view: Fused TensorBinding dict, keyed by TensorType constant. Each value is a single
-                :class:`TensorBinding` spanning all bodies in the collection.
+            root_view: The :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` over the collection's
+                fused multi-prim bindings (one per ``LINK_*``/``BODY_*`` data-class key, created
+                from the underlying ``RIGID_BODY_*`` type via ``key_aliases``).
             num_bodies: The number of bodies in the collection.
             device: The device used for processing.
         """
         super().__init__(root_view, num_bodies, device)
-        # Store the bindings dict (the equivalent of the root view in PhysX).
-        self._bindings = root_view
-        self._binding_getter = None  # may be set externally after construction
+        # The view owns the fused bindings and the CPU/GPU device policy.
+        self._view = root_view
         self.num_bodies = num_bodies
         self._num_bodies = num_bodies
         # Set initial time stamp
@@ -89,7 +89,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # elements out body-major-flat with ``shape == (N * B, 7)`` and ``count == N * B``. The
         # articulation-mode mock used by iface tests exposes an instance-major view directly with
         # ``shape == (N, B, 7)`` and ``count == N``. Dispatch via the binding's exposed shape.
-        pose_binding = self._bindings[TT.LINK_POSE]
+        pose_binding = self._view.binding_for(TT.LINK_POSE)
         if len(pose_binding.shape) >= 2 and pose_binding.shape[1] == num_bodies:
             self.num_instances = pose_binding.count
         else:
@@ -943,15 +943,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         Returns:
             The cached :class:`TensorBinding`, or ``None`` if not available.
         """
-        b = self._bindings.get(tensor_type)
-        if b is not None:
-            return b
-        if self._binding_getter is not None:
-            b = self._binding_getter(tensor_type)
-            if b is not None:
-                self._bindings[tensor_type] = b
-            return b
-        return None
+        return self._view.try_binding_for(tensor_type)
 
     def _read_view_scratch(self, tensor_type: int, binding) -> wp.array:
         """Return a cached body-major scratch float32 buffer matching ``binding.shape``.
@@ -1044,9 +1036,10 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             buf.timestamp = self._sim_timestamp
             return
 
-        # Native fused path: read body-major scratch then strided-view reshape.
+        # Native fused path: read the body-major scratch through the view (cached reinterpret,
+        # scratch is on the binding's native device), then strided-view reshape.
         scratch = self._read_view_scratch(tensor_type, binding)
-        binding.read(scratch)
+        self._view.read_into(tensor_type, scratch)
         if floats_per_elem <= 1:
             reshaped = self._reshape_view_to_data_2d(scratch)
         else:

@@ -37,7 +37,7 @@ For quaternion migrations, use the repository quaternion tooling documented in t
 For skill changes, run:
 
 ```bash
-uv run python tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

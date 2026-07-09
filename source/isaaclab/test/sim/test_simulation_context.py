@@ -23,6 +23,8 @@ import omni.timeline
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():

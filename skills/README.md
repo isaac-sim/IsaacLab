@@ -101,5 +101,5 @@ Skills should add agent-specific routing, sequencing, validation checks, and dec
 Run the validator before submitting skill changes:
 
 ```bash
-uv run python tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```

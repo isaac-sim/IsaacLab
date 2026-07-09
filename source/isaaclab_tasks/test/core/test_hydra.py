@@ -366,6 +366,27 @@ def test_legacy_kamino_attribute_alias_warns():
         assert cfg.kamino is cfg.newton_kamino
 
 
+@pytest.mark.parametrize(
+    "legacy_name,canonical_name",
+    [
+        ("ovrtx_renderer", "ovrtx"),
+        ("isaacsim_rtx_renderer", "isaacsim_rtx"),
+    ],
+)
+def test_legacy_renderer_suffix_attribute_alias_warns(legacy_name, canonical_name):
+    """The suffixed renderer preset names alias to their ``_renderer``-less fields during deprecation."""
+
+    @configclass
+    class _RendererPresetsCfg(PresetCfg):
+        default: PhysxCfg = PhysxCfg()
+        ovrtx: PhysxCfg = PhysxCfg()
+        isaacsim_rtx: PhysxCfg = PhysxCfg()
+
+    cfg = _RendererPresetsCfg()
+    with pytest.warns(FutureWarning, match=f"Preset '{legacy_name}' is deprecated"):
+        assert getattr(cfg, legacy_name) is getattr(cfg, canonical_name)
+
+
 def test_legacy_alias_suppressed_when_legacy_name_is_real_field():
     """An env that legitimately defines ``newton`` should not warn or be remapped."""
 

@@ -1,6 +1,169 @@
 Changelog
 ---------
 
+2.8.0 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed
+  :attr:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg.rendering_mode`
+  and the ``performance``, ``balanced``, and ``quality`` RTX preset files.
+  Override individual settings through
+  :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` fields or
+  ``carb_settings`` instead.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.renderers.isaac_rtx_renderer.IsaacRtxRenderer.read_output`
+  leaving a stale segmentation ``idToLabels`` mapping in ``camera.data.info`` when an
+  annotator stopped emitting metadata on a later frame. Per-output metadata is now
+  replaced (not merged) each frame, so a dropped mapping resets to ``None``.
+
+
+2.7.1 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.utils.warp.fabric.decompose_indexed_fabric_transforms`
+  and :func:`~isaaclab.utils.warp.fabric.compose_indexed_fabric_transforms`
+  Warp kernels.  They mirror the existing
+  ``decompose_fabric_transformation_matrix_to_warp_arrays`` /
+  ``compose_fabric_transformation_matrix_from_warp_arrays`` kernels but
+  operate on :class:`wp.indexedfabricarray`, so the view-to-fabric mapping
+  is baked into the array and the kernel just dereferences
+  ``ifa[view_index]`` instead of taking a separate ``mapping`` argument.
+
+* Added :func:`~isaaclab.utils.warp.fabric.update_indexed_local_matrix_from_world`
+  and :func:`~isaaclab.utils.warp.fabric.update_indexed_world_matrix_from_local`
+  Warp kernels that propagate ``local = world * inv(parent)`` and
+  ``world = local * parent`` directly on Fabric storage matrices.
+
+* Added Fabric-accelerated local-pose read/write paths to
+  :class:`~isaaclab_physx.sim.views.FabricFrameView`.  Local-pose
+  operations now use :class:`wp.indexedfabricarray` to read and write
+  ``omni:fabric:localMatrix`` directly on the GPU, propagating between
+  parent world matrices and child local/world matrices via Warp kernels
+  without round-tripping through USD.
+
+* Added topology-change recovery via automatic ``PrepareForReuse`` detection
+  and per-selection index rebuild.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_physx.sim.views.FabricFrameView` now writes Fabric
+  ``omni:fabric:worldMatrix`` and ``omni:fabric:localMatrix`` through the
+  new context-managed
+  :class:`~isaaclab.sim.views.FrameViewSpaceWriterBase` scope.  Each scope:
+
+  - eagerly writes both the primary matrix (world or local, per the
+    chosen space) and derives the opposite-space matrix in a single Warp
+    kernel on ``__exit__``;
+  - calls ``wp.synchronize()`` once on ``__exit__``;
+  - pauses :meth:`IFabricHierarchy.track_local_xform_changes` and
+    :meth:`track_world_xform_changes` while the scope is active and
+    restores their prior state on exit, so Fabric Hierarchy's
+    ``update_world_xforms()`` on the next tick has no recorded changes
+    to replay for these prims.  The Fabric Scene Delegate (FSD) reads
+    ``omni:fabric:worldMatrix`` from Fabric storage directly and
+    observes the writes.
+  - runs the opposite-space derive + ``wp.synchronize()`` on exit even
+    when the scope unwinds via exception (including ``KeyboardInterrupt``
+    in interactive notebooks), as a best-effort to keep ``worldMatrix``
+    and ``localMatrix`` mutually consistent prim-by-prim.  The partial
+    write itself is not rolled back -- callers needing transactional
+    semantics should snapshot the matrices themselves before entering
+    the scope.
+
+  Two persistent selections back the two access modes: ``_sel_ro``
+  (``worldMatrix=RO, localMatrix=RO``, steady state) and ``_sel_rw``
+  (``worldMatrix=RW, localMatrix=RW``, used inside a writer scope).
+  Both are built once during ``_initialize_fabric`` and kept for the
+  view's lifetime; the writer flips a single ``_is_rw`` flag on
+  enter/exit and neither selection is rebuilt on the flip.  The RO
+  steady state tells Fabric Hierarchy's next ``update_world_xforms()``
+  tick that no attribute is user-authored, so it leaves the pair
+  alone.
+* Changed the ``newton[sim]`` dependency pin of the ``newton`` extra to Newton
+  commit ``c7ae7c7648cd0717df39e5c94b95d5a02c997320`` and added the
+  ``newton-usd-schemas`` dependency required by Newton's USD parsing.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated ``get_scales`` / ``set_scales`` on ``FabricFrameView``.  For
+  reads, use the explicit ``get_local_scales`` (operates on
+  ``localMatrix``) or ``get_world_scales`` (composed world-space scale).
+  For writes, use the writer scope's ``set_scales``.  The deprecated
+  methods still work but emit a ``DeprecationWarning``; ``FabricFrameView``
+  defaults to world (preserving prior behavior).
+
+
+2.7.0 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg`, a single-namespace
+  ``physxMaterial`` rigid-body physics-material fragment (compliant-contact spring stiffness/damping
+  and the friction/restitution combine-mode tokens) backing ``PhysxMaterialAPI``.
+* Added :attr:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg.damping_combine_mode` (writes
+  ``physxMaterial:dampingCombineMode``) and
+  :attr:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg.compliant_contact_acceleration_spring`
+  (writes ``physxMaterial:compliantContactAccelerationSpring``), completing the fragment's coverage
+  of ``PhysxMaterialAPI``. Also added the same two fields to the legacy
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg`.
+
+
+2.6.2 (2026-07-02)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the public export of
+  :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
+
+
+2.6.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_physx.assets.RigidObject` center-of-mass writes for
+  compatibility with Warp 1.15.
+
+
+2.6.0 (2026-06-30)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+  to configure process-global Isaac RTX quality settings from
+  :class:`~isaaclab_physx.renderers.IsaacRtxRendererCfg`.
+
+Fixed
+^^^^^
+
+* Fixed a crash in :class:`~isaaclab_physx.physics.PhysxManager` when ``omni.physx`` is reloaded during a session.
+
+
 2.5.0 (2026-06-28)
 ~~~~~~~~~~~~~~~~~~
 

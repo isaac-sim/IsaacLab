@@ -43,7 +43,7 @@ Check the environment in this order:
 For skill changes, run:
 
 ```bash
-uv run python tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

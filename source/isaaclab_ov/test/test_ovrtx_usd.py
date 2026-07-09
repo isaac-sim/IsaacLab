@@ -81,6 +81,38 @@ def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
     assert get_render_var_config(["rgb_hdr"]) == ("/Render/Vars/HdrColor", "HdrColor", "HdrColor")
 
 
+def test_ovrtx_instance_segmentation_fast_uses_non_stable_instance_segmentation_render_var():
+    """Requesting instance_segmentation_fast from OVRTX selects the NonStableInstanceSegmentation render variable."""
+    assert get_render_var_config(["instance_segmentation_fast"]) == (
+        "/Render/Vars/NonStableInstanceSegmentation",
+        "NonStableInstanceSegmentation",
+        "NonStableInstanceSegmentation",
+    )
+
+
+def test_ovrtx_instance_id_segmentation_fast_uses_instance_segmentation_sd_render_var():
+    """Requesting instance_id_segmentation_fast from OVRTX selects the InstanceSegmentationSD render variable."""
+    assert get_render_var_config(["instance_id_segmentation_fast"]) == (
+        "/Render/Vars/InstanceSegmentationSD",
+        "InstanceSegmentationSD",
+        "InstanceSegmentationSD",
+    )
+
+
+def test_ovrtx_motion_vectors_uses_target_motion_render_var():
+    """Requesting motion vectors from OVRTX selects the TargetMotionSD render variable."""
+    assert get_render_var_config(["motion_vectors"]) == (
+        "/Render/Vars/TargetMotionSD",
+        "TargetMotionSD",
+        "TargetMotionSD",
+    )
+
+
+def test_ovrtx_motion_vectors_with_rgb_falls_back_to_rgb():
+    """OVRTX only supports one main AOV at a time; combining motion vectors with RGB keeps RGB."""
+    assert get_render_var_config(["rgb", "motion_vectors"]) == ("/Render/Vars/LdrColor", "LdrColor", "LdrColor")
+
+
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
     """Requesting LDR RGB and RGB_HDR keeps both OVRTX render variables."""
     render_var_configs = get_render_var_configs(["rgb", "rgb_hdr"])
@@ -104,6 +136,31 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
     assert "rel orderedVars = [</Render/Vars/LdrColor>, </Render/Vars/HdrColor>]" in render_scope
     assert 'def RenderVar "LdrColor"' in render_scope
     assert 'def RenderVar "HdrColor"' in render_scope
+
+
+def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars():
+    """Requesting semantic segmentation authors both SemanticSegmentation and SemanticIdMap render vars."""
+    render_var_configs = get_render_var_configs(["semantic_segmentation"])
+
+    assert render_var_configs == [
+        ("/Render/Vars/semantic", "semantic", "SemanticSegmentation"),
+        ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
+    ]
+
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path=render_var_configs[0][0],
+        render_var_name=render_var_configs[0][1],
+        source_name=render_var_configs[0][2],
+        tiled_width=16,
+        tiled_height=8,
+        render_var_configs=render_var_configs,
+    )
+
+    assert "rel orderedVars = [</Render/Vars/semantic>, </Render/Vars/SemanticIdMap>]" in render_scope
+    assert 'uniform string sourceName = "SemanticSegmentation"' in render_scope
+    assert 'uniform string sourceName = "SemanticIdMap"' in render_scope
 
 
 def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():

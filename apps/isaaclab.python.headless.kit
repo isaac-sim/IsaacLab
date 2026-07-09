@@ -62,11 +62,11 @@ interceptSysStdOutput = false
 logSysStdOutput = false
 
 [settings]
-# MGPU is always on, you can turn it from the settings, and force this off to save even more resource if you
-# only want to use a single GPU on your MGPU system
-# False for Isaac Sim
-renderer.multiGpu.enabled = true
-renderer.multiGpu.autoEnable = true
+# Use one renderer GPU by default. Applications that need single-process multi-GPU rendering can override these
+# settings through AppLauncher's ``kit_args``.
+renderer.multiGpu.enabled = false
+renderer.multiGpu.autoEnable = false
+renderer.multiGpu.maxGpuCount = 1
 'rtx-transient'.resourcemanager.enableTextureStreaming = true
 app.asyncRendering = false
 app.asyncRenderingLowLatency = false

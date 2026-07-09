@@ -42,7 +42,7 @@ Use these gates before calling a manipulation task ready:
 For skill changes, run:
 
 ```bash
-uv run python tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

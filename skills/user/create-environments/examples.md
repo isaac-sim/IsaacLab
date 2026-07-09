@@ -39,7 +39,7 @@ uv run python scripts/environments/random_agent.py --task Isaac-Cartpole-Direct 
 Training pattern:
 
 ```bash
-uv run train --rl_library rl_games --task Isaac-Cartpole-Direct
+uv run isaaclab train --rl_library rl_games --task Isaac-Cartpole-Direct
 ```
 
 ## Registration And Agent Configs

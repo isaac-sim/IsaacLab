@@ -10,74 +10,31 @@ Configuring RTX Rendering Settings
    For the **Newton renderer** (used with the Newton backend or in kit-less mode), see
    :ref:`overview_renderers` for the pluggable renderer architecture and available backends.
 
-Isaac Lab's RTX renderer offers 3 preset rendering modes: performance, balanced, and quality.
-You can select a mode via a command line argument or from within a script, and customize settings as needed.
-Adjust and fine-tune rendering to achieve the ideal balance for your workflow.
+Isaac Lab's RTX renderer applies high-fidelity camera rendering defaults when
+running with ``--enable_cameras``. Override individual settings to tune the
+renderer for your workflow, as described below. For camera-heavy workloads that
+need higher throughput, switch to the RTX Minimal renderer instead.
 
-Selecting a Rendering Mode
---------------------------
+Overriding Specific Rendering Settings
+--------------------------------------
 
-Rendering modes can be selected in 2 ways.
+RTX rendering settings can be overridden via
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
-1. using the ``rendering_mode`` input class argument in :class:`~sim.RenderCfg`
+There are 2 ways to provide settings that override the defaults.
 
-   .. code-block:: python
-
-     # for an example of how this can be used, checkout the tutorial script
-     # scripts/tutorials/00_sim/set_rendering_mode.py
-     render_cfg = sim_utils.RenderCfg(rendering_mode="performance")
-
-2. using the ``--rendering_mode`` CLI argument, which takes precedence over the ``rendering_mode`` argument in :class:`~sim.RenderCfg`.
-
-   .. code-block:: bash
-
-      python scripts/tutorials/00_sim/set_rendering_mode.py --rendering_mode {performance/balanced/quality}
-
-
-Note, the ``rendering_mode`` defaults to ``balanced``.
-However, in the case where the launcher argument ``--enable_cameras`` is not set, then
-the default ``rendering_mode`` is not applied and, instead, the default kit rendering settings are used.
-
-
-Example renders from the ``set_rendering_mode.py`` script.
-To help assess rendering, the example scene includes some reflections, translucency, direct and ambient lighting, and several material types.
-
--  Quality Mode
-
-   .. image:: ../_static/how-to/howto_rendering_example_quality.jpg
-      :width: 100%
-      :alt: Quality Rendering Mode Example
-
--  Balanced Mode
-
-   .. image:: ../_static/how-to/howto_rendering_example_balanced.jpg
-      :width: 100%
-      :alt: Balanced Rendering Mode Example
-
--  Performance Mode
-
-   .. image:: ../_static/how-to/howto_rendering_example_performance.jpg
-      :width: 100%
-      :alt: Performance Rendering Mode Example
-
-Overwriting Specific Rendering Settings
----------------------------------------
-
-Preset rendering settings can be overwritten via the :class:`~sim.RenderCfg` class.
-
-There are 2 ways to provide settings that overwrite presets.
-
-1. :class:`~sim.RenderCfg` supports overwriting specific settings via user-friendly setting names that map to underlying RTX settings.
+1. :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   supports overriding specific settings via user-friendly setting names that
+   map to underlying RTX settings.
    For example:
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="performance",
-         # user friendly setting overwrites
-         enable_translucency=True, # defaults to False in performance mode
-         enable_reflections=True, # defaults to False in performance mode
-         dlss_mode="3", # defaults to 1 in performance mode
+      global_settings = IsaacRtxRendererGlobalSettingsCfg(
+         # user-friendly setting overrides
+         enable_translucency=True,  # render glass / transmissive surfaces
+         enable_reflections=True,  # render reflections
+         dlss_mode=3,  # 0 (Performance), 1 (Balanced), 2 (Quality, the default), 3 (Auto)
       )
 
    List of user-friendly settings.
@@ -128,20 +85,20 @@ There are 2 ways to provide settings that overwrite presets.
       +----------------------------+--------------------------------------------------------------------------+
 
 
-2. For more control, :class:`~sim.RenderCfg` allows you to overwrite any RTX setting by using the ``carb_settings`` argument.
+2. For more control,
+   :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`
+   allows you to override any RTX setting by using the ``carb_settings``
+   argument.
 
-   Examples of RTX settings can be found from within the repo, in the render mode preset files located in ``apps/rendering_modes``.
-
-   In addition, the full NVIDIA RTX renderer documentation can be found at
+   The full NVIDIA RTX renderer documentation can be found at
    https://docs.omniverse.nvidia.com/materials-and-rendering/latest/rtx-renderer.html.
 
    An example usage of ``carb_settings``.
 
    .. code-block:: python
 
-      render_cfg = sim_utils.RenderCfg(
-         rendering_mode="quality",
-         # carb setting overwrites
+      global_settings = IsaacRtxRendererGlobalSettingsCfg(
+         # raw carb setting overrides
          carb_settings={
             "rtx.translucency.enabled": False,
             "rtx.reflections.enabled": False,
@@ -156,9 +113,11 @@ Current Limitations
 For performance reasons, we default to using DLSS for denoising, which generally provides better performance.
 This may result in renders of lower quality, which may be especially evident at lower resolutions.
 Due to this, we recommend using per-tile or per-camera resolution of at least 100 x 100.
-For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in :class:`~sim.RenderCfg` to
+For renders at lower resolutions, we advice setting the ``antialiasing_mode`` attribute in
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` to
 ``DLAA``, and also potentially enabling ``enable_dl_denoiser``. Both of these settings should help improve render
-quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in :class:`~sim.RenderCfg`.
+quality, but also comes at a cost of performance. Additional rendering parameters can also be specified in
+:class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg`.
 
 
 If you observe visual artifacts such as ghosting or disocclusion issues when using tiled rendering, you can try
@@ -167,7 +126,7 @@ areas that become newly visible between frames:
 
 .. code-block:: python
 
-   render_cfg = sim_utils.RenderCfg(
+   global_settings = IsaacRtxRendererGlobalSettingsCfg(
       carb_settings={
          "/rtx/aovConverter/disocclusionScale": 10000,
       }
@@ -189,7 +148,7 @@ in **multiple environments**, you must set the following so the renderer uses th
 
 .. code-block:: python
 
-   render_cfg = sim_utils.RenderCfg(
+   global_settings = IsaacRtxRendererGlobalSettingsCfg(
       carb_settings={
          "omni.rtx.nre.compositing.rendererHints": 3,
       }

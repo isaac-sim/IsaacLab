@@ -1,6 +1,166 @@
 Changelog
 ---------
 
+1.6.2 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager._reset_solver_internals`
+  hook that clears per-world solver-internal scratch buffers before the
+  accumulated reset masks are consumed by
+  :meth:`~isaaclab_newton.physics.NewtonManager.step` or
+  :meth:`~isaaclab_newton.physics.NewtonManager.forward`. The default
+  implementation forwards to :meth:`SolverBase.reset` with ``flags=0``,
+  preserving the authored joint state — a no-op for solvers that do not
+  implement ``reset()``, and automatic coverage for any solver that does.
+  :class:`~isaaclab_newton.physics.NewtonMJWarpManager` specializes it to
+  gate the non-mask-aware CPU-MuJoCo path;
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager` opts out because its
+  forward-kinematics delegate already routes through
+  :meth:`SolverKamino.reset`.
+
+Fixed
+^^^^^
+
+* Fixed NaN values in MJWarp solver-internal buffers (``qacc_warmstart``,
+  ``qfrc_applied``, ``xfrc_applied``, ``ctrl``, ``act``) persisting across
+  env reset and re-diverging on the next solve.
+  :class:`~isaaclab_newton.physics.NewtonMJWarpManager` now calls
+  :meth:`SolverMuJoCo.reset` with the accumulated per-world reset mask
+  whenever the reset masks are consumed (at the top of
+  :meth:`~isaaclab_newton.physics.NewtonManager.step` and in
+  :meth:`~isaaclab_newton.physics.NewtonManager.forward`), so a world that
+  produces a NaN can recover after :meth:`~isaaclab.envs.ManagerBasedEnv.reset`.
+  See https://github.com/newton-physics/newton/issues/1266 for the upstream
+  discussion.
+
+
+1.6.1 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_local_scales`
+  and :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_world_scales`
+  for reading transform (xform) scales.  Scale writes go through the writer
+  scope (see the ``xform-space-writer`` fragment).  These transform-scale
+  APIs are intentionally separate from Newton collision shape geometry
+  sizes.
+* Added the ``newton-usd-schemas`` dependency, required by Newton's USD parsing
+  since the new pin.
+
+Changed
+^^^^^^^
+
+* :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` now ships
+  pass-through ``FrameViewWorldSpaceWriter`` / ``FrameViewLocalSpaceWriter``
+  implementations so writes follow the new
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_world_space_writer` /
+  :meth:`~isaaclab.sim.views.BaseFrameView.xform_local_space_writer` context API.
+  ``set_world_poses`` / ``set_local_poses`` shims still work (one-time
+  ``DeprecationWarning`` per class).  The legacy ``set_scales`` /
+  ``get_scales`` paths continue to operate on Newton collision-shape
+  geometry sizes -- they are not routed through the writer because the
+  writer's ``set_scales`` writes the transform-scale state.
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``c7ae7c7648cd0717df39e5c94b95d5a02c997320``, which includes the experimental
+  coupled solver framework.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.get_scales`
+  and :meth:`~isaaclab_newton.sim.views.NewtonSiteFrameView.set_scales` in favor
+  of the explicit transform-scale getters ``get_world_scales`` /
+  ``get_local_scales`` (and the writer scope's ``set_scales``).  The
+  deprecated methods still work but emit a ``DeprecationWarning`` and
+  preserve Newton's legacy collision shape geometry-scale behavior.
+
+Fixed
+^^^^^
+
+* Fixed the cloner label renaming after Newton's removal of
+  ``ModelBuilder.equality_constraint_label`` by dropping the equality
+  constraint fallback; equality constraint labels are renamed through the
+  generic custom attribute handling.
+* Fixed Newton physics failing to initialize on non-default CUDA devices
+  (``cuda:1`` and higher).
+
+
+1.6.0 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`, a single-namespace
+  ``newton`` rigid-body physics-material fragment (torsional and rolling friction) backing
+  ``NewtonMaterialAPI``. Composes with other rigid-body material fragments (e.g.
+  :class:`~isaaclab.sim.spawners.materials.UsdPhysicsRigidBodyMaterialCfg`) in a fragment list.
+* Added :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg.contact_adhesion` (writing
+  ``newton:contactStiffness``, ``newton:contactDamping``, ``newton:contactFrictionGain``, and
+  ``newton:contactAdhesion``), matching the per-material contact attributes Newton's USD schema
+  resolver reads in place of the deprecated per-shape ``ke``/``kd``/``kf``/``ka`` parameters.
+* Added the contact attributes
+  (:attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_stiffness`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_damping`,
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_friction_gain`, and
+  :attr:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg.contact_adhesion`) to
+  :class:`~isaaclab_newton.sim.schemas.NewtonMaterialPropertiesCfg`, matching
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonMaterialCfg`.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :class:`~isaaclab_newton.physics.NewtonKaminoManager` to require exactly
+  one articulation per environment. :meth:`~isaaclab_newton.physics.NewtonKaminoManager._build_solver`
+  raises a ``RuntimeError`` at solver initialization when an environment contains multiple
+  articulations. Multiple articulations per environment are not yet supported in IsaacLab's Kamino integration.
+
+* Changed :class:`~isaaclab_newton.physics.NewtonManager` to route forward kinematics through a
+  solver-specialized hook bound during solver initialization. Kamino overrides this hook to call
+  :meth:`SolverKamino.reset` with :class:`SolverKamino.ResetConfig.from_joints` when
+  :attr:`~isaaclab_newton.physics.KaminoSolverCfg.use_fk_solver` is enabled. Environment resets
+  now share a single per-articulation mask for both :meth:`~isaaclab_newton.physics.NewtonManager.forward`
+  and pre-step reconcile, replacing the separate per-world Kamino reset mask.
+
+Fixed
+^^^^^
+
+* Fixed environment resets writing updated state into the wrong double-buffered simulation
+  state when ``use_cuda_graph`` was disabled. With an odd number of substeps the canonical input
+  state buffer flipped each step while asset write paths kept targeting the original binding, so
+  reset environments stayed inconsistent for solvers with separate input/output states (e.g.
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager`).
+
+* Fixed Kamino forward kinematics on environment resets leaving incorrect body poses for
+  closed-loop systems. Reset environments are now always updated through Kamino's loop-closure FK
+  solver instead of Newton's articulated ``eval_fk``.
+
+
+1.5.1 (2026-07-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the ``newton[sim]`` dependency pin to Newton commit
+  ``2064e3b79807dcc1679d1eb86ef7efd9ef0f28ee``. Projects that install Newton
+  separately should use this commit with ``warp-lang==1.15.0.dev20260626``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.physics.NewtonKaminoManager` reset
+  compatibility with Newton's ``SolverKamino.ResetConfig`` API.
+
+
 1.5.0 (2026-06-28)
 ~~~~~~~~~~~~~~~~~~
 

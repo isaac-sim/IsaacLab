@@ -9,25 +9,25 @@ Training runs headless by default; omit any visualizer flag for fastest training
 RSL-RL:
 
 ```bash
-uv run train --rl_library rsl_rl --task Isaac-Cartpole --run_name ppo
+uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --run_name ppo
 ```
 
 RL-Games direct Cartpole:
 
 ```bash
-uv run train --rl_library rl_games --task Isaac-Cartpole-Direct
+uv run isaaclab train --rl_library rl_games --task Isaac-Cartpole-Direct
 ```
 
 Stable Baselines 3:
 
 ```bash
-uv run train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
+uv run isaaclab train --rl_library sb3 --task Isaac-Cartpole --num_envs 64
 ```
 
 SKRL:
 
 ```bash
-uv run train --rl_library skrl --task Isaac-Cartpole
+uv run isaaclab train --rl_library skrl --task Isaac-Cartpole
 ```
 
 ## Before Training
@@ -51,13 +51,13 @@ uv run --with tensorboard python -m tensorboard.main --logdir logs/rsl_rl/cartpo
 Play example:
 
 ```bash
-uv run play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
+uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint logs/rsl_rl/cartpole/RUN_NAME/model_100.pt --viz kit
 ```
 
 Resume example:
 
 ```bash
-uv run train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
+uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --resume --load_run RUN_NAME --checkpoint model_100.pt
 ```
 
 ## Config Lookup

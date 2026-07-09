@@ -40,7 +40,7 @@ uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_e
 For training entry points:
 
 ```bash
-uv run train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations 1
+uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --max_iterations 1
 ```
 
 ## Common Failure Routing

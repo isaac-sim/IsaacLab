@@ -97,7 +97,7 @@ uv run python -c "import gymnasium as gym; import my_migration; tid='My-Migrated
 
 uv run python "$PROJECT/validation/smoke_my_task.py" --device cuda:0 --num_envs 16 --steps 8
 
-uv run train --rl_library rsl_rl \
+uv run isaaclab train --rl_library rsl_rl \
   --task My-Migrated-Task-v0 \
   --external_callback my_migration.register.register \
   --device cuda:0 --num_envs 4096 --max_iterations 500

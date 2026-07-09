@@ -57,23 +57,38 @@ environment or the repository packages were not installed in editable mode.
 
 Try the following checks:
 
-1. Run from the Isaac Lab repository root using the wrapper:
+1. Run from the Isaac Lab repository root using uv:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -p -c "import isaaclab_tasks; print('ok')"
+      uv run python -c "import isaaclab_tasks; print('ok')"
 
-2. If the import still fails, install the repository packages:
+2. If the import still fails, recreate the documented source-install
+   environment for your workflow.
 
-   .. code-block:: bash
-
-      ./isaaclab.sh -i
-
-3. Re-run the task command through the wrapper instead of a system Python:
+3. Re-run the task command from the repository root instead of a system Python:
 
    .. code-block:: bash
 
-      ./isaaclab.sh -p scripts/environments/random_agent.py --task Isaac-Cartpole-v0 --num_envs 4
+      uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 4
+
+``<package> requires <version>, but <other-package> requires <version>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+During pip or uv installs, the package manager may print dependency warnings
+where an Isaac Lab package, Isaac Sim package, or third-party package declares
+an incompatible dependency constraint. Common examples include ``coverage``,
+``packaging``, ``numpy``, or ``Pillow`` constraints reported between
+``isaaclab``, ``isaacsim-kernel``, ``isaacsim-core``, ``nvidia-srl-usd``, and
+``moviepy``.
+
+These messages are generally benign when the install command completes
+successfully. They usually reflect package metadata that is stricter or older
+than the versions bundled and tested with Isaac Sim. Prefer starting from a
+fresh virtual environment and using the installation commands in the Isaac Lab
+docs. If the resolver aborts with ``No solution found`` or installation leaves
+missing modules at runtime, recreate the environment and install the documented
+Isaac Sim version before installing Isaac Lab.
 
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

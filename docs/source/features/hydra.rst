@@ -48,8 +48,8 @@ As a result, training with hydra arguments can be run with the following syntax:
 
             ./isaaclab.sh train --rl_library sb3 --task=Isaac-Cartpole env.actions.joint_effort.scale=10.0 agent.seed=2024
 
-The above command will run training with the task ``Isaac-Cartpole`` in headless mode, and set the
-``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
+The above command will run training with the task ``Isaac-Cartpole`` without selecting a visualizer,
+and set the ``env.actions.joint_effort.scale`` parameter to 10.0 and the ``agent.seed`` parameter to 2024.
 
 .. note::
 
@@ -112,10 +112,13 @@ For example, for the configuration of the Cartpole camera environment:
     :language: python
     :start-at: class CartpoleTiledCameraCfg
     :end-at: observation_space = [3, 100, 100]
-    :emphasize-lines: 12, 44
+    :emphasize-lines: 12, 43
 
-If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the parameter
-``env.observation_space=[3,100,128]`` must be updated and given as input as well.
+The configuration declares the single-frame shape. At environment initialization, the default
+``frame_stack=2`` expands it to an effective policy observation shape of ``[6,100,100]``.
+If the user were to modify the width of the camera, i.e. ``env.tiled_camera.width=128``, then the
+single-frame parameter ``env.observation_space=[3,100,128]`` must be updated and given as input as
+well, producing an effective stacked shape of ``[6,100,128]``.
 
 Similarly, the ``__post_init__`` method is not updated with the command line inputs. In the ``LocomotionVelocityRoughEnvCfg``, for example,
 the post init update is as follows:
@@ -405,11 +408,11 @@ to make intent explicit on the command line.
 
    * - Name
      - Renderer
-   * - ``default`` / ``isaacsim_rtx_renderer``
+   * - ``default`` / ``isaacsim_rtx``
      - Isaac Sim RTX renderer (used when no ``renderer=`` or ``presets=`` is given)
    * - ``newton_renderer``
      - Newton Warp renderer
-   * - ``ovrtx_renderer``
+   * - ``ovrtx``
      - OV RTX renderer
    * - ``rtx``
      - Automatic RTX renderer selection (Isaac Sim RTX when running with Isaac Sim, and OVRTX for kit-less)

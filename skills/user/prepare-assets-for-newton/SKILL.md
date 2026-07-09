@@ -43,7 +43,7 @@ An asset is Newton-clean only when:
 For skill changes, run:
 
 ```bash
-uv run python tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

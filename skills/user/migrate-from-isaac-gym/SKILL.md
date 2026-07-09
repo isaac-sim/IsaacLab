@@ -54,7 +54,7 @@ uv run python -c "import importlib.util, sys; print(sys.executable); print(sys.v
 For skill changes, run:
 
 ```bash
-uv run python tools/skills/cli.py check
+uv run --no-project python tools/skills/cli.py check
 ```
 
 ## Maintenance

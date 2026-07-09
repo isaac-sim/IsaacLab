@@ -11,6 +11,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.contrib.stack import mdp
+from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
 
 from . import stack_ik_rel_visuomotor_env_cfg
 
@@ -105,9 +106,6 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
         # post init of parent
         super().__post_init__()
 
-        # set domeLight.upperLowerStrategy to 4 to remove rendering noise
-        self.sim.render.dome_light_upper_lower_strategy = 4
-
         SEMANTIC_MAPPING = {
             "class:cube_1": (120, 230, 255, 255),
             "class:cube_2": (255, 36, 66, 255),
@@ -154,7 +152,12 @@ class FrankaCubeStackVisuomotorCosmosEnvCfg(stack_ik_rel_visuomotor_env_cfg.Fran
 
         # Set settings for camera rendering
         self.num_rerenders_on_reset = 1
-        self.sim.render.antialiasing_mode = "OFF"
+        for camera_cfg in (self.scene.table_cam, self.scene.wrist_cam):
+            set_isaac_rtx_global_settings(
+                camera_cfg.renderer_cfg,
+                dome_light_upper_lower_strategy=4,
+                antialiasing_mode="Off",
+            )
 
         # List of image observations in policy observations
         self.image_obs_list = ["table_cam", "wrist_cam"]

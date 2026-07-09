@@ -11,6 +11,8 @@ import torch
 import isaaclab.utils.modifiers as modifiers
 from isaaclab.utils.configclass import configclass
 
+pytestmark = pytest.mark.unit
+
 
 @configclass
 class ModifierTestCfg:
