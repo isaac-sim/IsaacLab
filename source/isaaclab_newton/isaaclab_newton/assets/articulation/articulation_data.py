@@ -2071,7 +2071,7 @@ class ArticulationData(BaseArticulationData):
         ordering that was cleared on rebind releases its buffers.
         """
         self._jacobian_body_user_to_backend = (
-            self._make_jacobian_body_user_to_backend(self.body_ordering) if self.body_ordering is not None else None
+            self._make_jacobian_body_user_to_backend() if self.body_ordering is not None else None
         )
 
         self._configure_joint_ordering_buffers()
