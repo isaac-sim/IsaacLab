@@ -26,6 +26,7 @@ from isaaclab.sim.utils import (
     create_prim,
     get_current_stage,
     get_first_matching_child_prim,
+    has_deformable_body_api,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -449,7 +450,7 @@ def _spawn_from_usd_file(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
-        if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
+        if has_deformable_body_api(prim):
             schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
         else:
             schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)

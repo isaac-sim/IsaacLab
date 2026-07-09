@@ -20,7 +20,7 @@ from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.string import to_camel_case
 from isaaclab.utils.version import has_kit
 
-from .queries import find_matching_prim_paths
+from .queries import find_matching_prim_paths, has_deformable_body_api
 from .semantics import add_labels
 from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
@@ -852,10 +852,7 @@ def bind_physics_material(
     applied = prim.GetAppliedSchemas()
     has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
-    api_schemas = prim.GetMetadata("apiSchemas")
-    has_deformable_body = "OmniPhysicsDeformableBodyAPI" in applied or (
-        api_schemas is not None and "PhysicsDeformableBodyAPI" in api_schemas.GetAddedOrExplicitItems()
-    )
+    has_deformable_body = has_deformable_body_api(prim)
     has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
     if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
         logger.debug(

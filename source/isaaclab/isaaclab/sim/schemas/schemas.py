@@ -24,6 +24,7 @@ from ..utils import (
     create_prim,
     find_global_fixed_joint_prim,
     get_all_matching_child_prims,
+    has_deformable_body_api,
     safe_set_attribute_on_usd_prim,
     safe_set_attribute_on_usd_schema,
 )
@@ -1999,10 +2000,7 @@ def modify_deformable_body_properties(
     if not deformable_body_prim.IsValid():
         return False
     # check if deformable body API is applied
-    api_schemas = deformable_body_prim.GetMetadata("apiSchemas")
-    if "OmniPhysicsDeformableBodyAPI" not in deformable_body_prim.GetAppliedSchemas() and not (
-        api_schemas is not None and "PhysicsDeformableBodyAPI" in api_schemas.GetAddedOrExplicitItems()
-    ):
+    if not has_deformable_body_api(deformable_body_prim):
         return False
 
     # build cfg dict from dataclass fields only; USD routing is driven by the
