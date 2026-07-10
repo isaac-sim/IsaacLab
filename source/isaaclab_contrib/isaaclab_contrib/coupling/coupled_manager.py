@@ -247,12 +247,9 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         solver_cls = cls._resolve_solver_class(entry_cfg.solver_cfg)
         solver_kwargs = cls._filter_solver_kwargs(solver_cls, entry_cfg.solver_cfg)
 
-        def solver_factory(model_view, _solver_cls=solver_cls, _kwargs=solver_kwargs):
-            return _solver_cls(model=model_view, **_kwargs)
-
         return SolverCoupled.Entry(
             name=entry_cfg.name,
-            solver=solver_factory,
+            solver=lambda v: solver_cls(model=v, **solver_kwargs),
             bodies=entry.bodies,
             particles=entry.particles,
             joints=entry.joints,
