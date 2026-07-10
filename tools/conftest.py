@@ -492,7 +492,6 @@ def _run_one_pass(
         "pytest",
         "--no-header",
         "--show-capture=failed",
-        "--log-level=WARNING",
         f"--config-file={ctx.workspace_root}/pyproject.toml",
         f"--junitxml={report_file}",
         "--tb=short",

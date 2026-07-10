@@ -139,19 +139,13 @@ class ManagerBasedEnv:
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
-        logger.info(
-            "Base environment:\n"
-            "\tEnvironment device    : %s\n"
-            "\tEnvironment seed      : %s\n"
-            "\tPhysics step-size     : %s\n"
-            "\tRendering step-size   : %s\n"
-            "\tEnvironment step-size : %s",
-            self.device,
-            self.cfg.seed,
-            self.physics_dt,
-            self.physics_dt * self.cfg.sim.render_interval,
-            self.step_dt,
-        )
+        # print useful information
+        print("[INFO]: Base environment:")
+        print(f"\tEnvironment device    : {self.device}")
+        print(f"\tEnvironment seed      : {self.cfg.seed}")
+        print(f"\tPhysics step-size     : {self.physics_dt}")
+        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
+        print(f"\tEnvironment step-size : {self.step_dt}")
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -182,7 +176,7 @@ class ManagerBasedEnv:
                 self.scene = InteractiveScene(self.cfg.scene)
                 self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
-        logger.info("Scene manager: %s", self.scene)
+        print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -365,17 +359,17 @@ class ManagerBasedEnv:
 
         """
         # prepare the managers
-        # -- event manager
-        logger.info("Event Manager: %s", self.event_manager)
+        # -- event manager (we print it here to make the logging consistent)
+        print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
         self.recorder_manager = RecorderManager(self.cfg.recorders, self)
-        logger.info("Recorder Manager: %s", self.recorder_manager)
+        print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
         self.action_manager = ActionManager(self.cfg.actions, self)
-        logger.info("Action Manager: %s", self.action_manager)
+        print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
         self.observation_manager = ObservationManager(self.cfg.observations, self)
-        logger.info("Observation Manager: %s", self.observation_manager)
+        print("[INFO] Observation Manager:", self.observation_manager)
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen

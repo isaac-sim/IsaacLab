@@ -129,19 +129,13 @@ class DirectMARLEnv(gym.Env):
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
 
-        logger.info(
-            "Base environment:\n"
-            "\tEnvironment device    : %s\n"
-            "\tEnvironment seed      : %s\n"
-            "\tPhysics step-size     : %s\n"
-            "\tRendering step-size   : %s\n"
-            "\tEnvironment step-size : %s",
-            self.device,
-            self.cfg.seed,
-            self.physics_dt,
-            self.physics_dt * self.cfg.sim.render_interval,
-            self.step_dt,
-        )
+        # print useful information
+        print("[INFO]: Base environment:")
+        print(f"\tEnvironment device    : {self.device}")
+        print(f"\tEnvironment seed      : {self.cfg.seed}")
+        print(f"\tPhysics step-size     : {self.physics_dt}")
+        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
+        print(f"\tEnvironment step-size : {self.step_dt}")
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -159,7 +153,7 @@ class DirectMARLEnv(gym.Env):
                 self._setup_scene()
                 self.scene.initialize_renderers()
             self.sim.register_interactive_scene(self.scene)
-        logger.info("Scene manager: %s", self.scene)
+        print("[INFO]: Scene manager: ", self.scene)
 
         # set up camera viewport controller
         # viewport is not available in other rendering modes so the function will throw a warning
@@ -199,7 +193,7 @@ class DirectMARLEnv(gym.Env):
         # play the simulator to activate physics handles
         # note: this activates the physics simulation view that exposes TensorAPIs
         # note: when started in extension mode, first call sim.reset_async() and then initialize the managers
-        logger.info("Starting the simulation. This may take a few seconds. Please wait...")
+        print("[INFO]: Starting the simulation. This may take a few seconds. Please wait...")
         with Timer("[INFO]: Time taken for simulation start", "simulation_start"):
             # since the reset can trigger callbacks which use the stage,
             # we need to set the stage context here
@@ -267,12 +261,14 @@ class DirectMARLEnv(gym.Env):
 
         # perform events at the start of the simulation
         if self.cfg.events:
-            logger.info("Event Manager: %s", self.event_manager)
+            # we print it here to make the logging consistent
+            print("[INFO] Event Manager: ", self.event_manager)
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        logger.info("Completed setting up the environment.")
+        # print the environment information
+        print("[INFO]: Completed setting up the environment...")
 
     def __del__(self, _sys=sys):
         """Cleanup for the environment."""
