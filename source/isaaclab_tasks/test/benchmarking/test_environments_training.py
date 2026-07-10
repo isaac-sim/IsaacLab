@@ -121,7 +121,10 @@ def train_job(
         cmd.extend(["--menagerie-physics-variant", "physx"])
 
     if video:
-        cmd.extend(["--video", "--video_length", str(video_length), "--video_interval", str(video_interval)])
+        # Per-task overrides take priority over CLI defaults (useful for end-of-training clips).
+        task_video_length = env_config.get("video_length", video_length)
+        task_video_interval = env_config.get("video_interval", video_interval)
+        cmd.extend(["--video", "--video_length", str(task_video_length), "--video_interval", str(task_video_interval)])
 
     # Add max iterations if specified
     max_iterations = env_config.get("max_iterations")
