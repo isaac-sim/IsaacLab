@@ -45,7 +45,7 @@ dependencies = [
     "einops",
     "warp-lang==1.15.0.dev20260626",
     "matplotlib>=3.10.3",
-    "pillow==12.1.1",  # keep consistent with isaac sim
+    "pillow==12.2.0",  # keep consistent with isaac sim
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
     "omniverseclient==2.71.1.7015",
