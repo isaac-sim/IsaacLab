@@ -86,14 +86,17 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         """Resolve ownership and construct the selected coupled solver."""
         outer_cfg = PhysicsManager._cfg
         scene_cfg = outer_cfg.scene_cfg if isinstance(outer_cfg, CoupledNewtonCfg) else None
+
         resolved_entries = [cls._resolve_entry(model, entry, scene_cfg) for entry in solver_cfg.entries]
         entries = [cls._build_entry(entry) for entry in resolved_entries]
+
         if isinstance(solver_cfg, CoupledProxySolverCfg):
-            NewtonManager._solver = cls._build_proxy_coupled_solver(
-                model, entries, solver_cfg, resolved_entries, scene_cfg
-            )
+            proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
+            cls._validate_solver_cfg(model, solver_cfg, resolved_entries, proxies)
+            NewtonManager._solver = cls._build_proxy_coupled_solver(model, entries, proxies, solver_cfg)
         elif isinstance(solver_cfg, CoupledAdmmSolverCfg):
-            NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg, resolved_entries)
+            cls._validate_solver_cfg(model, solver_cfg, resolved_entries)
+            NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg)
         else:
             raise TypeError(
                 f"CoupledSolverCfg subclass {type(solver_cfg).__name__!r} is not supported; "
@@ -101,8 +104,8 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
             )
 
         NewtonManager._use_single_state = False
-        NewtonManager._needs_collision_pipeline = isinstance(solver_cfg, CoupledAdmmSolverCfg)
         NewtonManager._supports_contact_sensors = False
+        NewtonManager._needs_collision_pipeline = isinstance(solver_cfg, CoupledAdmmSolverCfg)
         if NewtonManager._report_contacts:
             raise NotImplementedError(
                 "Newton contact sensors are not yet supported by coupled solvers because contact forces live "
@@ -261,12 +264,9 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         cls,
         model: Model,
         entries: list[SolverCoupled.Entry],
+        proxies: list[SolverCoupledProxy.Proxy],
         solver_cfg: CoupledProxySolverCfg,
-        resolved_entries: list[_ResolvedEntry],
-        scene_cfg: InteractiveSceneCfg | None,
     ) -> SolverCoupledProxy:
-        proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
-        cls._validate_solver_cfg(model, solver_cfg, resolved_entries, proxies)
         cls._apply_proxy_shape_overrides(model, proxies)
         proxy_mappings = [
             SolverCoupledProxy.Proxy(
@@ -294,9 +294,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         model: Model,
         entries: list[SolverCoupled.Entry],
         solver_cfg: CoupledAdmmSolverCfg,
-        resolved_entries: list[_ResolvedEntry],
     ) -> SolverCoupledADMM:
-        cls._validate_solver_cfg(model, solver_cfg, resolved_entries)
         contact_pairs = (
             SolverCoupledADMM.auto_detect_contact_pairs(entries)
             if solver_cfg.contact_pairs is None

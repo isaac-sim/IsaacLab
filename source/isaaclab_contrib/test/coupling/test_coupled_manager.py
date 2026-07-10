@@ -460,7 +460,8 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
         lambda model_view, *, broad_phase: (model_view, broad_phase),
     )
 
-    solver = NewtonCoupledSolverManager._build_proxy_coupled_solver(model, [], cfg, resolved_entries, _FakeSceneCfg())
+    proxies = [NewtonCoupledSolverManager._resolve_proxy(model, proxy, _FakeSceneCfg()) for proxy in cfg.proxies]
+    solver = NewtonCoupledSolverManager._build_proxy_coupled_solver(model, [], proxies, cfg)
 
     assert solver.coupling.iterations == 3
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
@@ -520,7 +521,7 @@ def test_kamino_solver_config_remains_supported():
 def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     """Proxy owns destination contacts while ADMM uses the shared outer pipeline."""
     model = _FakeModel()
-    proxy_cfg, resolved_entries, _ = _valid_proxy_setup()
+    proxy_cfg, resolved_entries, resolved_proxies = _valid_proxy_setup()
     recorded_entries: list[str] = []
 
     monkeypatch.setattr(
@@ -534,18 +535,29 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     )
     monkeypatch.setattr(
         NewtonCoupledSolverManager,
+        "_resolve_proxy",
+        classmethod(
+            lambda cls, model, proxy_cfg, scene_cfg: next(
+                p
+                for p in resolved_proxies
+                if (p.config.source, p.config.destination) == (proxy_cfg.source, proxy_cfg.destination)
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        NewtonCoupledSolverManager,
         "_build_entry",
         classmethod(lambda cls, entry: recorded_entries.append(entry.config.name) or entry.config.name),
     )
     monkeypatch.setattr(
         NewtonCoupledSolverManager,
         "_build_proxy_coupled_solver",
-        classmethod(lambda cls, model, entries, cfg, resolved_entries, scene_cfg: SimpleNamespace(kind="proxy")),
+        classmethod(lambda cls, model, entries, proxies, cfg: SimpleNamespace(kind="proxy")),
     )
     monkeypatch.setattr(
         NewtonCoupledSolverManager,
         "_build_admm_coupled_solver",
-        classmethod(lambda cls, model, entries, cfg, resolved_entries: SimpleNamespace(kind="admm")),
+        classmethod(lambda cls, model, entries, cfg: SimpleNamespace(kind="admm")),
     )
     old_solver = coupled_manager.NewtonManager._solver
     old_outer = coupled_manager.NewtonManager._needs_collision_pipeline
@@ -613,7 +625,7 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     )
     monkeypatch.setattr(coupled_manager, "SolverCoupledADMM", _RecordingAdmm)
 
-    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, [], cfg, resolved_entries)
+    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, [], cfg)
 
     assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
         ("robot", "object"),
@@ -640,7 +652,7 @@ def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch)
     cfg = CoupledAdmmSolverCfg(entries=[entry.config for entry in resolved_entries])
     monkeypatch.setattr(coupled_manager, "SolverCoupledADMM", _RecordingAdmm)
 
-    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, entries, cfg, resolved_entries)
+    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, entries, cfg)
 
     assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
         ("a", "b"),
@@ -649,7 +661,7 @@ def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch)
     ]
 
     cfg.contact_pairs = []
-    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, entries, cfg, resolved_entries)
+    solver = NewtonCoupledSolverManager._build_admm_coupled_solver(model, entries, cfg)
     assert list(solver.coupling.contact_pairs) == []
 
 
