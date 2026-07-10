@@ -69,7 +69,13 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         return NewtonCfg()
     if physics_cfg_str == "newton_vbd":
         # lazy import: core depends on isaaclab_contrib only when VBD is requested
-        from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+        try:
+            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+        except ImportError as err:
+            raise ImportError(
+                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
+                " Install it with `./isaaclab.sh -i contrib`."
+            ) from err
 
         return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
