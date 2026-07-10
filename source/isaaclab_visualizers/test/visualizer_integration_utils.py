@@ -235,7 +235,7 @@ def assert_no_newton_imgui_bundle_warning(capsys: pytest.CaptureFixture[str], ca
 
 
 def _configure_sim_for_visualizer_test(env: CartpoleCameraEnv) -> None:
-    """Enable RTX sensors for camera visualizer integration tests."""
+    """Set ``/isaaclab/render/rtx_sensors`` True so the sim takes the RTX-sensor render path."""
     env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
     env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
 
