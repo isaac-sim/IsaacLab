@@ -167,8 +167,9 @@ class NewtonSiteFrameView(BaseFrameView):
     Callers provide a prim expression and the backend resolves the source prim
     into Newton body-local or world-local sites. The sites are registered at
     construction and cloned with the scene, so the view must be constructed
-    before the Newton model is built; it completes its initialization once the
-    model is ready.
+    before the scene replicates (or, without replication, before the
+    simulation resets); it completes its initialization once the model is
+    ready.
     """
 
     def __init__(
@@ -189,7 +190,8 @@ class NewtonSiteFrameView(BaseFrameView):
             **kwargs: Unused.
 
         Raises:
-            RuntimeError: If the Newton model has already been built.
+            RuntimeError: If the scene has already been built; site
+                registration rejects late arrivals.
         """
         del kwargs
 
@@ -199,15 +201,8 @@ class NewtonSiteFrameView(BaseFrameView):
         self._prims = []
 
         stage = sim_utils.get_current_stage() if stage is None else stage
-        if NewtonManager.get_model() is not None:
-            raise RuntimeError(
-                f"NewtonSiteFrameView '{self._prim_path}' constructed after the Newton model was built:"
-                " frame sites are registered at construction and cloned with the scene, so frame views"
-                " must be constructed before the simulation resets."
-            )
-        self._site_specs = self._resolve_site_specs(stage, validate_xform_ops)
-        self._site_labels: list[str] = []
-        self._site_label_scales: list[tuple[float, float, float]] = []
+        spec_groups = self._resolve_site_specs(stage, validate_xform_ops)
+        self._site_groups: list[list[tuple[str, tuple[float, float, float]]]] = []
         self._site_body: wp.array | None = None
         self._site_local: wp.array | None = None
         self._site_xform_scale: wp.array | None = None
@@ -224,28 +219,33 @@ class NewtonSiteFrameView(BaseFrameView):
         self._scale_ta: ProxyArray | None = None
         self._count = 0
 
-        for body_patterns, xform, scale, per_world in self._site_specs:
-            if body_patterns is None:
-                self._site_labels.append(NewtonManager.cl_register_site(None, xform, per_world=per_world))
-                self._site_label_scales.append(scale)
-            else:
-                for body_pattern in body_patterns:
-                    self._site_labels.append(NewtonManager.cl_register_site(body_pattern, xform))
-                    self._site_label_scales.append(scale)
+        for specs in spec_groups:
+            group: list[tuple[str, tuple[float, float, float]]] = []
+            for body_path, xform, scale, per_world in specs:
+                label = NewtonManager.cl_register_site(body_path, xform, per_world=per_world)
+                if not any(existing == label for existing, _ in group):
+                    group.append((label, scale))
+            self._site_groups.append(group)
         NewtonManager.register_callback(
             self._initialize_callback, PhysicsEvent.PHYSICS_READY, name=f"site_view_{self._prim_path}"
         )
 
     def _resolve_site_specs(
         self, stage, validate_xform_ops: bool
-    ) -> list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool]]:
-        """Resolve source prims into Newton site registration specs."""
+    ) -> list[list[tuple[str | None, wp.transform, tuple[float, float, float], bool]]]:
+        """Resolve source prims into Newton site registration specs, one group per path expression.
+
+        A clone plan can match one path expression with several rows (one per
+        source variant of a heterogeneously spawned asset), so each group holds
+        one spec per matched row.
+        """
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        specs: list[tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool]] = []
+        spec_groups: list[list[tuple[str | None, wp.transform, tuple[float, float, float], bool]]] = []
 
         for path_expr in self._prim_paths:
             matches = tuple(iter_clone_plan_matches(plan, path_expr)) if plan is not None else ()
             if matches:
+                group = []
                 for source_root, destination_template, source_path, _env_ids in matches:
                     source_prim = None
                     if not any(token in source_path for token in "*[]()+?|\\"):
@@ -254,19 +254,20 @@ class NewtonSiteFrameView(BaseFrameView):
                         source_prim = sim_utils.find_first_matching_prim(source_path, stage)
                     if source_prim is None or not source_prim.IsValid():
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{source_path}'.")
-                    specs.append(
+                    group.append(
                         self._resolve_source_prim(
                             source_prim, validate_xform_ops, source_root, destination_template, stage
                         )
                     )
+                spec_groups.append(group)
                 continue
 
             prim = sim_utils.find_first_matching_prim(path_expr, stage)
             if prim is None or not prim.IsValid():
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
-            specs.append(self._resolve_source_prim(prim, validate_xform_ops, None, None, stage))
+            spec_groups.append([self._resolve_source_prim(prim, validate_xform_ops, None, None, stage)])
 
-        return specs
+        return spec_groups
 
     def _resolve_source_prim(
         self,
@@ -275,8 +276,8 @@ class NewtonSiteFrameView(BaseFrameView):
         source_root: str | None,
         destination_template: str | None,
         stage,
-    ) -> tuple[tuple[str, ...] | None, wp.transform, tuple[float, float, float], bool]:
-        """Resolve one source prim into body patterns, local frame, and xform scale."""
+    ) -> tuple[str | None, wp.transform, tuple[float, float, float], bool]:
+        """Resolve one source prim into its body path, local frame, and xform scale."""
         prim_path = prim.GetPath().pathString
         if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
             raise ValueError(
@@ -300,25 +301,13 @@ class NewtonSiteFrameView(BaseFrameView):
             if body_prim.HasAPI(UsdPhysics.RigidBodyAPI) or body_prim.HasAPI(UsdPhysics.ArticulationRootAPI):
                 pos, quat = sim_utils.resolve_prim_pose(prim, body_prim)
                 body_path = body_prim.GetPath().pathString
-                if source_root is not None and destination_template is not None:
-                    if body_path == source_root:
-                        suffix = ""
-                    elif body_path.startswith(source_root + "/"):
-                        suffix = body_path[len(source_root) :]
-                    elif source_root.startswith(body_path + "/"):
-                        suffix = source_root[len(body_path) :]
-                        destination_root = destination_template.format(".*")
-                        if not destination_root.endswith(suffix):
-                            raise RuntimeError(
-                                f"FrameView destination root '{destination_root}' does not end with '{suffix}'."
-                            )
-                        return (destination_root[: -len(suffix)],), wp.transform(pos, quat), scale, False
-                    else:
-                        raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
-                    body_patterns = (destination_template.format(".*") + suffix,)
-                else:
-                    body_patterns = (body_path,)
-                return body_patterns, wp.transform(pos, quat), scale, False
+                if source_root is not None and not (
+                    body_path == source_root
+                    or body_path.startswith(source_root + "/")
+                    or source_root.startswith(body_path + "/")
+                ):
+                    raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
+                return body_path, wp.transform(pos, quat), scale, False
             body_prim = body_prim.GetParent()
 
         ref_path = source_root
@@ -344,15 +333,24 @@ class NewtonSiteFrameView(BaseFrameView):
         site_locals: list[list[float]] = []
         site_scales: list[tuple[float, float, float]] = []
 
-        for site_label, scale in zip(self._site_labels, self._site_label_scales, strict=True):
-            global_idx, per_world = site_map[site_label]
-            site_indices = (
-                [global_idx] if per_world is None else [site_idx for sites in per_world for site_idx in sites]
-            )
-            for site_idx in site_indices:
-                site_bodies.append(int(body_t[site_idx].item()))
-                site_locals.append([float(v) for v in xform_t[site_idx].tolist()])
-                site_scales.append(scale)
+        def append_site(site_idx: int, scale: tuple[float, float, float]) -> None:
+            site_bodies.append(int(body_t[site_idx].item()))
+            site_locals.append([float(v) for v in xform_t[site_idx].tolist()])
+            site_scales.append(scale)
+
+        for group in self._site_groups:
+            entries = [(site_map[label], scale) for label, scale in group]
+            if len(entries) == 1 and entries[0][0][1] is None:
+                (global_idx, _), scale = entries[0]
+                append_site(global_idx, scale)
+                continue
+            # A group holds one label per source variant; their per-world lists
+            # partition the environments, so merging per world keeps env order.
+            num_worlds = len(entries[0][0][1])
+            for world in range(num_worlds):
+                for (_global_idx, per_world), scale in entries:
+                    for site_idx in per_world[world]:
+                        append_site(site_idx, scale)
 
         self._create_buffers(site_bodies, site_locals, site_scales)
 

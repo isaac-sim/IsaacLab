@@ -131,6 +131,8 @@ class _NewtonRayCasterMixin:
             source_path, dest_glob, asset_suffix = resolved
             # ``resolve_clone_plan_source`` returns a glob-style destination root;
             # Newton site patterns are regexes, so restore the ``.*`` env wildcard.
+            # The same expressions are recomputed by ``BaseMultiMeshRayCaster``
+            # when it initializes tracked targets, so both derivations must match.
             dest_expr = dest_glob.replace("*", ".*")
             walk_root = source_path + asset_suffix
             source_prims = sim_utils.find_matching_prims(walk_root)

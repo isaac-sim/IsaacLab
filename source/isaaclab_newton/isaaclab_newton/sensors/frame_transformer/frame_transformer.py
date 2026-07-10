@@ -331,24 +331,12 @@ class FrameTransformer(BaseFrameTransformer):
     """
 
     def _invalidate_initialize_callback(self, event):
-        """Clears references to the native sensor and re-registers sites.
+        """Clears references to the native sensor.
 
-        Re-registering here ensures sites survive a non-teardown stop/reinit cycle.
-        During ``NewtonManager.close()``, Newton state is cleared after ``STOP`` so
-        stale registrations from old sensors cannot leak into the next context.
+        Sites are registered once at construction and cloned with the scene;
+        a stopped context tears the Newton state down entirely, so there is
+        nothing to re-register here.
         """
         super()._invalidate_initialize_callback(event)
         self._newton_transforms = None
         self._sensor_index = None
-
-        # Re-register sites so a subsequent start_simulation picks them up.
-        self._world_origin_label = NewtonManager.cl_register_site(None, wp.transform())
-
-        source_offset = wp.transform(self.cfg.source_frame_offset.pos, self.cfg.source_frame_offset.rot)
-        self._source_label = NewtonManager.cl_register_site(self.cfg.prim_path, source_offset)
-
-        self._target_labels = []
-        for target_frame in self.cfg.target_frames:
-            target_offset = wp.transform(target_frame.offset.pos, target_frame.offset.rot)
-            label = NewtonManager.cl_register_site(target_frame.prim_path, target_offset)
-            self._target_labels.append(label)

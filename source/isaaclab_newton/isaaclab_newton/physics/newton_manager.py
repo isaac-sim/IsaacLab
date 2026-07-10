@@ -918,31 +918,43 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
-        """Register a site request for injection into prototypes before replication.
+        """Register a site request for injection into the scene builders.
 
-        Sensors call this during ``__init__``. Sites are injected into prototype
+        Sensors call this during ``__init__``. Sites are injected into source
         builders by :meth:`_cl_inject_sites` (called from ``newton_replicate``)
-        before ``add_builder``, so they replicate correctly per-world.
+        before ``add_builder``, so they replicate correctly per-world; on stages
+        without replication they are injected into the flat builder when the
+        simulation starts. Sites are part of the scene build, so registering
+        one after the scene builder exists raises.
 
         Identical ``(body_pattern, per_world, transform)`` registrations share sites.
 
-        The *body_pattern* is matched against prototype-local body labels
-        (e.g. ``"Robot/link.*"``) when replication is active, or against the
-        flat builder's body labels in the fallback path. Wildcard patterns
-        that match multiple bodies create one site per matched body.
+        The *body_pattern* is matched against source-builder body labels
+        (source USD paths) when replication is active, or against the flat
+        builder's body labels otherwise. Wildcard patterns that match multiple
+        bodies create one site per matched body.
 
         Args:
             body_pattern: Regex pattern matched against body labels in the
-                prototype builder (e.g. ``"Robot/link0"`` or ``"Robot/finger.*"``
-                for multi-body wildcards), or ``None`` for global sites
-                (world-origin reference, etc.).
+                source builders, or ``None`` for global sites (world-origin
+                reference, etc.).
             xform: Site transform relative to body.
             per_world: When ``True``, ``body_pattern`` must be ``None`` and one
                 bodyless site is created in each cloned world's frame.
 
         Returns:
             Assigned site label suffix.
+
+        Raises:
+            RuntimeError: If the scene builder has already been built.
         """
+        if cls._builder is not None or cls._model is not None:
+            raise RuntimeError(
+                f"Site registration for pattern '{body_pattern}' arrived after the scene was built:"
+                " sites are injected into the scene builders and cloned with the scene, so sensors"
+                " and frame views must be constructed before the scene replicates (or, without"
+                " replication, before the simulation resets)."
+            )
         if per_world and body_pattern is not None:
             raise ValueError("per_world site registration requires body_pattern=None.")
         xform_key = tuple(xform)
@@ -987,10 +999,12 @@ class NewtonManager(PhysicsManager):
     ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
         """Inject registered sites into source builders before replication.
 
-        Non-global sites are matched against source builder body labels using
+        Non-global sites are matched against source builder body labels and
+        the main builder's (non-cloned) body labels using
         :func:`resolve_matching_names` (regex). Global sites
         (``body_pattern is None``) are added to *main_builder* with
-        ``body=-1``.
+        ``body=-1``; sites on non-cloned main-builder bodies are added to
+        *main_builder* once, like global sites.
 
         Returns source-builder-local shape indices so that ``newton_replicate`` can
         compute final indices during replication without a second pattern match.
@@ -1040,19 +1054,37 @@ class NewtonManager(PhysicsManager):
                     logger.debug(f"Injected site '{site_label}' into source builder")
                 source_site_indices.setdefault(source_builder_id, {})[label] = site_indices
 
+            main_indices, main_names = resolve_matching_names(
+                body_pattern, list(main_builder.body_label), raise_when_no_match=False
+            )
+            if len(main_indices) > 1:
+                raise ValueError(
+                    f"Site '{label}' with body_pattern '{body_pattern}' matched multiple non-cloned"
+                    f" bodies {main_names}; non-cloned body sites must resolve to a single body."
+                )
+            if main_indices:
+                any_matched = True
+                global_site_indices[label] = main_builder.add_site(
+                    body=main_indices[0], xform=xform, label=f"{main_names[0]}/{label}"
+                )
+
             if not any_matched:
                 raise ValueError(
-                    f"Site '{label}' with body_pattern '{body_pattern}' matched no source-builder bodies "
-                    f"across {len(source_builders)} source builder(s). "
-                    f"Check that the pattern matches a body label in a source builder."
+                    f"Site '{label}' with body_pattern '{body_pattern}' matched no bodies across "
+                    f"{len(source_builders)} source builder(s) or the main builder. "
+                    f"Check that the pattern matches a body label."
                 )
 
         cls._cl_pending_sites.clear()
         return global_site_indices, source_site_indices, env_root_sites
 
     @classmethod
-    def _cl_inject_sites_fallback(cls) -> None:
-        """Inject pending sites into the flat builder (no-replication path).
+    def _cl_inject_sites_flat(cls) -> None:
+        """Inject pending sites into the flat builder (non-replicated stage).
+
+        Replicated stages drain the pending sites during replication and reject
+        later registrations, so only never-replicated stages reach this with
+        pending sites.
 
         Populates :attr:`_cl_site_index_map` with the unified per-world structure:
 
@@ -1161,9 +1193,9 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
-        # Inject any pending site requests (no-replication fallback path).
-        # In the replication path, _cl_inject_sites() already ran from newton_replicate.
-        cls._cl_inject_sites_fallback()
+        # Inject pending site requests on never-replicated stages. In the
+        # replication path, _cl_inject_sites() already drained them.
+        cls._cl_inject_sites_flat()
 
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
