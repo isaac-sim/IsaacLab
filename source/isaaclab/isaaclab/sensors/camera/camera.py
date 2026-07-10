@@ -174,6 +174,18 @@ class Camera(SensorBase):
                 raise RuntimeError(f"Could not find prim with path {spawn_target!r}.")
         queue_usd_replication(self._source_cfg)
 
+        # Assigned in _initialize_impl; initialized here so a constructor failure below
+        # leaves the instance safely finalizable.
+        self._renderer: BaseRenderer | None = None
+        self._render_data = None
+
+        # The frame view is constructed with the sensor like any other scene entity:
+        # each backend registers what its frames need (e.g. Newton site requests, so
+        # replication clones them with the rest of the scene) and completes its
+        # initialization through its own physics lifecycle.
+        device = sim_utils.SimulationContext.instance().device
+        self._view = FrameView(self.cfg.prim_path, device=device, stage=self.stage)
+
         # An ISP (any ``isp_cfg`` other than ``None``) requires the HDR AOV;
         # an explicit ``"rgb_hdr"`` in ``data_types`` also requires the
         # HDR-routing flag flipped on the RTX-bearing backends.
@@ -206,9 +218,6 @@ class Camera(SensorBase):
         self._sensor_prims: list[UsdGeom.Camera] = list()
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
-        # Renderer and render data — assigned in _initialize_impl.
-        self._renderer: BaseRenderer | None = None
-        self._render_data = None
 
     def __del__(self):
         """Unsubscribes from callbacks and cleans up renderer resources."""
@@ -518,7 +527,8 @@ class Camera(SensorBase):
         # references to prims located in the stage.
         sim_ctx.render_context.ensure_prepare_stage(self.stage, self._num_envs)
 
-        self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
+        if self._view is None:
+            self._view = FrameView(self.cfg.prim_path, device=self._device, stage=self.stage)
         # Check that sizes are correct
         if self._view.count != self._num_envs:
             raise RuntimeError(

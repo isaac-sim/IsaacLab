@@ -106,11 +106,12 @@ def benchmark_frame_view(  # noqa: C901
             prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
-        sim.reset()
-
+        # Newton frame views are constructed before reset; their sites resolve during the model build.
         start_time = time.perf_counter()
         xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
         timing_results["init"] = time.perf_counter() - start_time
+
+        sim.reset()
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 
     else:

@@ -484,7 +484,7 @@ class PhysxManager(PhysicsManager):
         if isinstance(event, IsaacEvents):
             cid = cls._callback_id
             cls._callback_id += 1
-            cb = cls._wrap_weak_ref(callback) if wrap_weak_ref else callback
+            cb = cls._wrap_weak_ref(callback, cid) if wrap_weak_ref else callback
             sub = cls._subscribe_isaac(cb, event, order, name)
             cls._callbacks[cid] = (event, cb, order, name, sub)
             return CallbackHandle(cid, cls)

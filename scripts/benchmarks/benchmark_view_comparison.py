@@ -173,13 +173,15 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
         prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
+    # Newton frame views are constructed before reset; their sites resolve during the model build.
+    init_start = time.perf_counter()
+    view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+    timing_results["init"] = time.perf_counter() - init_start
+
     sim.reset()
     print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
 
-    start_time = time.perf_counter()
-    view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
     num_prims = view.count
-    timing_results["init"] = time.perf_counter() - start_time
 
     print(f"  Newton FrameView managing {num_prims} prims")
 

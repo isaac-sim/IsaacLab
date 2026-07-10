@@ -312,20 +312,22 @@ class OvPhysxFrameView(BaseFrameView):
 
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._stage = stage
-        self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
-        if not self._prims:
-            raise ValueError(f"OvPhysxFrameView: pattern {prim_path!r} matched zero prims.")
+        self._prims: list[Usd.Prim] = []
+        self._prim_paths_cache: list[str] = []
+        self._synthetic_prim_paths: list[str] | None = None
 
         # Lazy USD view for scales / visibility.
         self._usd_view: UsdFrameView | None = None
 
-        # Try synchronous init; defer to PHYSICS_READY if the PhysX instance is not yet alive.
-        physx = self._try_get_physx()
-        if physx is not None:
-            self._initialize_impl(physx)
+        # Uniform two-phase lifecycle: initialize now when this context's warmup has
+        # run, else once PHYSICS_READY fires. The gate is per-context on purpose: the
+        # PhysX instance handle is process-global and survives a context teardown, so
+        # it cannot signal that the current context's scene is loaded.
+        if OvPhysxManager._warmup_done:
+            self._initialize_callback()
         else:
             OvPhysxManager.register_callback(
-                self._on_physics_ready,
+                self._initialize_callback,
                 PhysicsEvent.PHYSICS_READY,
                 name=f"ovphysx_frame_view_{prim_path}",
             )
@@ -335,14 +337,7 @@ class OvPhysxFrameView(BaseFrameView):
         """Return the active OVPhysX ``PhysX`` instance, or ``None`` if not yet created."""
         return OvPhysxManager.get_physx_instance()
 
-    def _on_physics_ready(self, _event) -> None:
-        """Callback invoked when the OVPhysX ``PhysX`` instance becomes available."""
-        physx = self._try_get_physx()
-        if physx is None:
-            raise RuntimeError("OvPhysxFrameView: PHYSICS_READY fired but OvPhysxManager has no PhysX instance.")
-        self._initialize_impl(physx)
-
-    def _initialize_impl(self, physx: Any) -> None:
+    def _initialize_impl(self) -> None:
         """Resolve prims to rigid-body ancestors and create a RIGID_BODY_POSE tensor binding.
 
         Site discovery handles two scene-construction modes:
@@ -359,6 +354,13 @@ class OvPhysxFrameView(BaseFrameView):
         """
         from isaaclab_ovphysx import tensor_types as TT  # noqa: PLC0415
         from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView  # noqa: PLC0415
+
+        # The warmup gate guarantees the PhysX instance exists on every path here.
+        physx = self._try_get_physx()
+        self._prims = sim_utils.find_matching_prims(self._prim_path, stage=self._stage)
+        if not self._prims:
+            raise ValueError(f"OvPhysxFrameView: pattern {self._prim_path!r} matched zero prims.")
+        self._prim_paths_cache = [p.GetPath().pathString for p in self._prims]
 
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
         identity_xform7 = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]
@@ -460,7 +462,7 @@ class OvPhysxFrameView(BaseFrameView):
                 parent_ancestor.append(pap)
                 parent_site_local.append(template_parent_site_local)
                 synthetic_prim_paths.append(synthetic_path)
-            self._synthetic_prim_paths: list[str] | None = synthetic_prim_paths
+            self._synthetic_prim_paths = synthetic_prim_paths
         else:
             self._synthetic_prim_paths = None
 
@@ -575,10 +577,8 @@ class OvPhysxFrameView(BaseFrameView):
         the paths are synthesized by replacing ``env_0`` in the template prim's
         path with each binding row's env_id.
         """
-        if hasattr(self, "_synthetic_prim_paths") and self._synthetic_prim_paths is not None:
+        if self._synthetic_prim_paths is not None:
             return self._synthetic_prim_paths
-        if not hasattr(self, "_prim_paths_cache"):
-            self._prim_paths_cache = [p.GetPath().pathString for p in self._prims]
         return self._prim_paths_cache
 
     @property

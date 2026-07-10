@@ -109,28 +109,9 @@ def test_reject_body_path(device):
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
-    sim.reset()
 
     with pytest.raises(ValueError, match="physics body"):
         FrameView("/World/envs/env_.*/Cube", device=device)
-    ctx.__exit__(None, None, None)
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_reject_shape_path(device):
-    """FrameView rejects prim paths that resolve to a Newton collision shape."""
-    ctx = _sim_context(device, num_envs=2)
-    sim = ctx.__enter__()
-    sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
-    sim.reset()
-
-    shape_labels = list(NewtonManager.get_model().shape_label)
-    if not shape_labels:
-        pytest.skip("No shapes in model")
-
-    with pytest.raises(ValueError, match="collision shape"):
-        FrameView(shape_labels[0], device=device)
     ctx.__exit__(None, None, None)
 
 
@@ -160,8 +141,8 @@ def test_clone_plan_view_uses_source_child_without_destination_usd(device):
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_view_can_resolve_from_body_labels_after_reset(device):
-    """FrameView can resolve a body-local frame directly from Newton body labels."""
+def test_view_construction_after_reset_raises(device):
+    """FrameView constructed after the Newton model is built raises a contract error."""
     num_envs = 3
     ctx = _sim_context(device, num_envs=num_envs)
     sim = ctx.__enter__()
@@ -170,11 +151,8 @@ def test_view_can_resolve_from_body_labels_after_reset(device):
     sim_utils.create_prim("/World/envs/env_0/Cube/CameraMount", translation=CHILD_OFFSET)
 
     sim.reset()
-    view = FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
-
-    pos = view.get_world_poses()[0].torch
-    expected = _get_body_positions(num_envs, device) + torch.tensor(CHILD_OFFSET, device=device)
-    torch.testing.assert_close(pos, expected, atol=1e-5, rtol=0)
+    with pytest.raises(RuntimeError, match="after the Newton model was built"):
+        FrameView("/World/envs/env_.*/Cube/CameraMount", device=device)
     ctx.__exit__(None, None, None)
 
 
@@ -191,9 +169,9 @@ def test_world_attached_returns_initial_pose(device):
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
 
-    sim.reset()
     sim_utils.create_prim("/World/StaticMarker", translation=WORLD_MARKER_POS)
     view = FrameView("/World/StaticMarker", device=device)
+    sim.reset()
 
     pos = view.get_world_poses()[0].torch
     expected = torch.tensor([list(WORLD_MARKER_POS)], device=device)
@@ -209,9 +187,9 @@ def test_world_attached_set_world_roundtrip(device):
     sim._app_control_on_stop_handle = None
     InteractiveScene(_SceneCfg(num_envs=2, env_spacing=2.0))
 
-    sim.reset()
     sim_utils.create_prim("/World/StaticMarker", translation=WORLD_MARKER_POS)
     view = FrameView("/World/StaticMarker", device=device)
+    sim.reset()
 
     new_pos = _wp_vec3f([[10.0, 20.0, 30.0]], device=device)
     new_quat = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]], device=device)
