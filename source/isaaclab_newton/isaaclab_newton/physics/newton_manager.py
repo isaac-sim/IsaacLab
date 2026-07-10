@@ -1144,6 +1144,30 @@ class NewtonManager(PhysicsManager):
             NewtonManager._fk_reset_mask.fill_(True)
 
     @classmethod
+    def _drain_stale_cuda_error(cls) -> None:
+        """Clear a stale CUDA error latched on the device before (re)initialization.
+
+        Warp 1.15 leaves the per-thread CUDA error uncleared when
+        ``wp_free_device_async`` fails to add a graph memory free node while a
+        capture is still registered (its "capture ended" sibling branch clears
+        the identical error as benign), and the next Warp array copy then
+        surfaces that stale error as its own failure, aborting simulation
+        initialization. Draining here keeps a prior simulation lifecycle's
+        latched error from poisoning this one. Remove once the upstream Warp
+        fix lands.
+        """
+        device = wp.get_device(str(PhysicsManager._device))
+        if not device.is_cuda:
+            return
+        # Private Warp API: the drain primitive is not exposed publicly; getting the
+        # device above guarantees the runtime is initialized.
+        from warp._src.context import runtime as _wp_runtime
+
+        stale = _wp_runtime.core.wp_cuda_context_check(device.context)
+        if stale != 0:
+            logger.warning("Cleared stale CUDA error %d latched by a prior Warp graph-memory free failure.", stale)
+
+    @classmethod
     def start_simulation(cls) -> None:
         """Start simulation by finalizing model and initializing state.
 
@@ -1152,6 +1176,8 @@ class NewtonManager(PhysicsManager):
         we determine whether the solver needs external collision detection.
         """
         logger.debug(f"Builder: {cls._builder}")
+
+        cls._drain_stale_cuda_error()
 
         # Create builder from USD stage if not provided
         if cls._builder is None:
