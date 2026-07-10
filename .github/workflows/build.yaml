@@ -80,6 +80,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
+      run_newton_tests: ${{ steps.detect.outputs.run_newton_tests }}
     steps:
     - id: detect
       env:
@@ -102,10 +103,27 @@ jobs:
           $'^tools/\tBuild tooling'
           $'^apps/\tStandalone apps'
           $'^scripts/\tStandalone scripts'
+          $'^pyproject\\.toml$\tRoot dependency manifest'
+          $'^isaaclab\\.sh$\tInstall CLI wrapper'
           $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
           $'^\\.github/test-subsets/\tCI test subset config'
+        )
+        # The Newton kitless job is an install/build test, not a library-code
+        # test (the test matrix covers code), so it gates only on the install
+        # inputs — the same set that feeds the deps-hash in the
+        # ecr-build-push-pull action — plus its own wiring. Source-level
+        # kitless regressions are accepted to surface on the next
+        # install-input change rather than on every source PR.
+        newton_patterns=(
+          $'^docker/Dockerfile\\.newton$\tNewton image definition'
+          $'^isaaclab\\.sh$\tInstall CLI wrapper'
+          $'^pyproject\\.toml$\tRoot dependency manifest'
+          $'^source/[^/]+/pyproject\\.toml$\tPackage manifests'
+          $'^source/isaaclab/isaaclab/cli/\tInstall CLI implementation'
+          $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
+          $'^\\.github/actions/ecr-build-push-pull/\tECR build-cache action'
         )
         if [ "$EVENT_NAME" = "push" ]; then
           triggered_jobs="Docker base build job + rendering-correctness + rendering-correctness-kitless"
@@ -134,7 +152,8 @@ jobs:
 
         any_match() {
           local files="$1" entry regex
-          for entry in "${patterns[@]}"; do
+          local -n _pats="$2"
+          for entry in "${_pats[@]}"; do
             IFS=$'\t' read -r regex _ <<< "$entry"
             if grep -qE "$regex" <<< "$files"; then
               return 0
@@ -144,9 +163,10 @@ jobs:
         }
 
         decide() {
-          local decision="$1" reason="$2" files="${3:-}"
-          echo "Decision: run_docker_tests=$decision ($reason)"
+          local decision="$1" newton_decision="$2" reason="$3" files="${4:-}"
+          echo "Decision: run_docker_tests=$decision run_newton_tests=$newton_decision ($reason)"
           echo "run_docker_tests=$decision" >> "$GITHUB_OUTPUT"
+          echo "run_newton_tests=$newton_decision" >> "$GITHUB_OUTPUT"
           {
             echo "## Docker test gating"
             echo ""
@@ -155,6 +175,8 @@ jobs:
             else
               echo "Docker tests will be **skipped**: $reason."
             fi
+            echo ""
+            echo "Newton kitless job: **$([ "$newton_decision" = "true" ] && echo run || echo skip)**."
             echo ""
             echo "Triggered jobs: $triggered_jobs."
             if [ -n "$files" ]; then
@@ -165,23 +187,25 @@ jobs:
         }
 
         if [ "$EVENT_NAME" != "pull_request" ]; then
-          decide true "non-PR event ($EVENT_NAME)"
+          decide true true "non-PR event ($EVENT_NAME)"
           exit 0
         fi
 
         if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
           # Fail-safe: a transient API error must not block merge. Default to running.
           echo "::warning::Could not list changed files; defaulting to running tests"
-          decide true "fail-safe (could not list changed files)"
+          decide true true "fail-safe (could not list changed files)"
           exit 0
         fi
 
         printf '%s\n' "$changed_files"
 
-        if any_match "$changed_files"; then
-          decide true "relevant paths changed" "$changed_files"
+        if any_match "$changed_files" patterns; then
+          newton_decision=false
+          any_match "$changed_files" newton_patterns && newton_decision=true
+          decide true "$newton_decision" "relevant paths changed" "$changed_files"
         else
-          decide false "no relevant paths changed" "$changed_files"
+          decide false false "no relevant paths changed" "$changed_files"
         fi
 
   config:
@@ -280,7 +304,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
-      needs.changes.outputs.run_docker_tests == 'true'
+      needs.changes.outputs.run_newton_tests == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
