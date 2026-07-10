@@ -222,7 +222,7 @@ class TestExtractAllMotionVectorTilesKernel:
 class TestSyncNewtonDeformablePointsKernel:
     """Tests for ``sync_newton_deformable_points_kernel``."""
 
-    def test_non_identity_inverse_matrix_and_particle_offset(self):
+    def test_particle_offset_copies_world_positions(self):
         particle_q = wp.array(
             [
                 wp.vec3f(-1.0, -1.0, -1.0),
@@ -235,43 +235,19 @@ class TestSyncNewtonDeformablePointsKernel:
             device=DEVICE,
         )
         particle_offsets = wp.array([1], dtype=wp.int32, device=DEVICE)
-        inverse_world_matrices = wp.array(
-            [
-                wp.mat44f(
-                    1.0,
-                    0.0,
-                    0.0,
-                    -10.0,
-                    0.0,
-                    1.0,
-                    0.0,
-                    -20.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                    -30.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    1.0,
-                )
-            ],
-            dtype=wp.mat44f,
-            device=DEVICE,
-        )
         points = wp.empty(3, dtype=wp.vec3f, device=DEVICE)
 
         wp.launch(
             kernel=sync_newton_deformable_points_kernel,
             dim=3,
-            inputs=[points, particle_q, particle_offsets, inverse_world_matrices, 0],
+            inputs=[points, particle_q, particle_offsets, 0],
             device=DEVICE,
         )
         wp.synchronize()
 
         np.testing.assert_allclose(
             points.numpy(),
-            np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]], dtype=np.float32),
+            np.array([[11.0, 22.0, 33.0], [14.0, 25.0, 36.0], [17.0, 28.0, 39.0]], dtype=np.float32),
             rtol=0,
             atol=1e-6,
         )
@@ -294,8 +270,6 @@ class TestSyncNewtonDeformablePointsBatchedKernel:
         )
         particle_offsets = wp.array([1, 3], dtype=wp.int32, device=DEVICE)
         particles_per_mesh = wp.array([2, 2], dtype=wp.int32, device=DEVICE)
-        identity = wp.mat44f(1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0)
-        inverse_world_matrices = wp.array([identity, identity], dtype=wp.mat44f, device=DEVICE)
         stacked_points = wp.zeros((2, 2), dtype=wp.vec3f, device=DEVICE)
 
         wp.launch(
@@ -305,7 +279,6 @@ class TestSyncNewtonDeformablePointsBatchedKernel:
                 stacked_points,
                 particle_q,
                 particle_offsets,
-                inverse_world_matrices,
                 particles_per_mesh,
             ],
             device=DEVICE,

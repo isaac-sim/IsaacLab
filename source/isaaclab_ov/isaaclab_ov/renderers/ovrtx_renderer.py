@@ -213,26 +213,6 @@ def _resolve_clone_plan(num_envs: int) -> ClonePlan:
     return published_clone_plan
 
 
-def _gf_matrix_to_wp_mat44f(matrix: Any) -> wp.mat44f:
-    """Convert a USD ``Gf.Matrix4d``-like object to a Warp ``mat44f``."""
-    # ``Gf.Matrix4d`` indexes by row, while Warp matrix constructors take values
-    # in column-major order for ``wp.transform_point`` semantics.
-    return wp.mat44f(*[float(matrix[row][col]) for col in range(4) for row in range(4)])
-
-
-def _clone_plan_env_ids(clone_plan: ClonePlan) -> torch.Tensor:
-    """Return the environment ids addressed by a clone plan."""
-    if clone_plan.env_ids is not None:
-        return clone_plan.env_ids.to(device=clone_plan.clone_mask.device)
-    return torch.arange(clone_plan.clone_mask.shape[1], dtype=torch.long, device=clone_plan.clone_mask.device)
-
-
-def _resolve_deformable_instance_path(path: str, instance_index: int) -> str:
-    """Resolve a deformable registry path template for one cloned instance."""
-    resolved_path = re.sub(r"(?<=[Ee]nv_)\.\*", str(instance_index), path)
-    return re.sub(r"\.\*", str(instance_index), resolved_path)
-
-
 class OVRTXRenderData:
     """OVRTX-specific RenderData. Holds warp output buffers sized from :class:`CameraRenderSpec`."""
 
@@ -318,22 +298,19 @@ class OVRTXRenderer(BaseRenderer):
         self.cfg = cfg
         self._device = "cuda:0"  # default; overridden by create_render_data(spec)
         self._render_product_paths = []
-        self._camera_binding = None
-        self._object_binding = None
+        self._camera_xform_binding = None
+        self._object_xform_binding = None
         self._object_newton_indices: wp.array | None = None
-        self._deformable_point_binding = None
+        self._deformable_points_binding = None
         self._deformable_extent_binding = None
-        self._deformable_point_buffers: list[wp.array] = []
+        self._deformable_points_buffers: list[wp.array] = []
         self._deformable_extent_buffer: np.ndarray | None = None
-        self._deformable_visual_mesh_paths: list[str] = []
+        self._deformable_vis_mesh_prim_paths: list[str] = []
         self._deformable_particle_offsets: wp.array | None = None
-        self._deformable_inverse_world_matrices: wp.array | None = None
-        self._deformable_particles_per_mesh: wp.array | None = None
-        self._deformable_max_particles_per_mesh: int = 0
+        self._deformable_particles_per_body: wp.array | None = None
+        self._deformable_max_particles_per_body: int = 0
         self._deformable_extent_mins: list[wp.array] = []
         self._deformable_extent_maxs: list[wp.array] = []
-        self._deformable_bindings_ready = False
-        self._deformable_bindings_warned = False
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -457,7 +434,7 @@ class OVRTXRenderer(BaseRenderer):
         self._initialized_scene = True
 
         camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
-        self._camera_binding = self._renderer.bind_attribute(
+        self._camera_xform_binding = self._renderer.bind_attribute(
             prim_paths=camera_paths,
             attribute_name="omni:xform",
             semantic=Semantic.XFORM_MAT4x4,
@@ -471,13 +448,13 @@ class OVRTXRenderer(BaseRenderer):
             tensor=np.full(num_envs, True, dtype=np.bool_),
         )
 
-        if self._camera_binding is not None:
+        if self._camera_xform_binding is not None:
             logger.info("Camera binding created successfully")
         else:
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
         self._setup_object_bindings()
-        self._setup_deformable_mesh_bindings()
+        self._setup_deformable_bindings()
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -525,8 +502,9 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
 
-        # OVRTX clones the source env root transform verbatim. Restore per-env root transforms so any objects that
-        # are not covered by body labels still inherit the correct clone origin.
+        # OVRTX clone_usd copies the source env-root transform onto cloned env roots.
+        # Restore the pre-clone offsets so hierarchy-positioned prims (e.g. static props)
+        # under /World/envs/env_* keep their intended per-env world placement.
         self._renderer.write_attribute(
             prim_paths=env_prim_paths,
             attribute_name=xform_attr_name,
@@ -564,7 +542,7 @@ class OVRTXRenderer(BaseRenderer):
         try:
             from isaaclab_newton.physics import NewtonManager
         except ImportError:
-            logger.debug("isaaclab_newton physics not available, skipping object bindings")
+            logger.debug("NewtonManager not available, skipping object bindings")
             return
 
         if SimulationContext.instance() is None:
@@ -592,7 +570,7 @@ class OVRTXRenderer(BaseRenderer):
             logger.info("No dynamic objects found for binding")
             return
 
-        self._object_binding = self._renderer.bind_attribute(
+        self._object_xform_binding = self._renderer.bind_attribute(
             prim_paths=object_paths,
             attribute_name="omni:xform",
             semantic=Semantic.XFORM_MAT4x4,
@@ -605,203 +583,110 @@ class OVRTXRenderer(BaseRenderer):
             tensor=np.full(len(object_paths), True, dtype=np.bool_),
         )
 
-        if self._object_binding is None:
+        if self._object_xform_binding is None:
             raise RuntimeError("Failed to create OVRTX object bindings")
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
-    def _setup_deformable_mesh_bindings(self):
-        """Setup OVRTX mesh ``points`` bindings for Newton deformables."""
-        self._deformable_bindings_ready = False
+    def _setup_deformable_bindings(self):
+        """Setup OVRTX bindings for Newton deformable bodies."""
         try:
             from isaaclab_newton.physics import NewtonManager
-
-            from pxr import UsdGeom
-
-            from isaaclab.sim.utils.stage import get_current_stage
         except ImportError:
-            logger.info("Newton/USD not available, skipping deformable mesh bindings")
+            logger.debug("NewtonManager not available, skipping deformable body bindings")
             return
 
+        # Early return if the deformable registry is empty.
         deformable_registry = NewtonManager._deformable_registry
         if not deformable_registry:
+            logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
 
-        renderable_entries = [
-            entry for entry in deformable_registry if getattr(entry, "deformable_type", None) in ("surface", "volume")
+        vis_mesh_prim_paths: list[str] = []
+        particle_offset_values: list[int] = []
+        particles_per_body_values: list[int] = []
+
+        # Each registry entry is one deformable asset registered at spawn time. Its
+        # ``vis_mesh_prim_path`` uses regex (e.g. ``env_.*``) to cover every cloned env. During
+        # replication, Newton appends one particle block per env and records the start index in
+        # ``entry.particle_offsets``; ``particles_per_body`` is the block size. The inner loop
+        # therefore emits one OVRTX mesh binding per clone, resolving the regex path with
+        # ``inst_idx`` and pairing it with that clone's slice in the flat ``particle_q`` array.
+        for entry in deformable_registry:
+            for inst_idx, particle_offset in enumerate(entry.particle_offsets):
+                resolved_prim_path = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
+                vis_mesh_prim_paths.append(resolved_prim_path)
+                particle_offset_values.append(particle_offset)
+                particles_per_body_values.append(entry.particles_per_body)
+
+        if not vis_mesh_prim_paths:
+            logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
+            return
+
+        # World-space particle_q is written directly into mesh points. Reset the xform stack
+        # and pin identity omni:xform so inherited env/asset transforms are not applied twice.
+        self._renderer.write_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=np.full(len(vis_mesh_prim_paths), True, dtype=np.bool_),
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+        self._renderer.write_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="omni:xform",
+            tensor=np.tile(np.eye(4, dtype=np.float64), (len(vis_mesh_prim_paths), 1, 1)),
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
+
+        self._deformable_points_binding = self._renderer.bind_array_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="points",
+            dtype=np.float32,
+            shape=(3,),
+            prim_mode=PrimMode.MUST_EXIST,
+            flags=BindingFlag.OPTIMIZE,
+        )
+        self._deformable_extent_binding = self._renderer.bind_attribute(
+            prim_paths=vis_mesh_prim_paths,
+            attribute_name="extent",
+            dtype=np.float64,
+            shape=(2, 3),
+            prim_mode=PrimMode.MUST_EXIST,
+            flags=BindingFlag.OPTIMIZE,
+        )
+
+        if self._deformable_points_binding is None or self._deformable_extent_binding is None:
+            raise RuntimeError("Failed to create OVRTX deformable body bindings")
+
+        self._deformable_vis_mesh_prim_paths = vis_mesh_prim_paths
+        self._deformable_particle_offsets = wp.array(particle_offset_values, dtype=wp.int32, device=self._device)
+        self._deformable_particles_per_body = wp.array(particles_per_body_values, dtype=wp.int32, device=self._device)
+
+    def _ensure_deformable_update_buffers(self) -> None:
+        """Allocate deformable sync buffers on first update after bindings are created."""
+        if not self._deformable_vis_mesh_prim_paths or self._deformable_points_buffers:
+            return
+
+        particles_per_body = self._deformable_particles_per_body.numpy()
+
+        self._deformable_points_buffers = [
+            wp.empty(int(count), dtype=wp.vec3f, device=self._device) for count in particles_per_body
         ]
-        if not renderable_entries:
-            return
 
-        self._deformable_point_buffers = []
-        self._deformable_extent_buffer = None
-        self._deformable_visual_mesh_paths = []
-        self._deformable_particle_offsets = None
-        self._deformable_inverse_world_matrices = None
-        self._deformable_particles_per_mesh = None
-        self._deformable_max_particles_per_mesh = 0
-        self._deformable_extent_mins = []
-        self._deformable_extent_maxs = []
+        self._deformable_max_particles_per_body = int(particles_per_body.max())
 
-        stage = get_current_stage()
-        if stage is None:
-            prim_paths = [entry.prim_path for entry in renderable_entries]
-            logger.warning(
-                "Current USD stage unavailable, skipping OVRTX deformable mesh bindings for: %s",
-                ", ".join(prim_paths),
-            )
-            return
+        mesh_count = len(self._deformable_vis_mesh_prim_paths)
 
-        visual_mesh_paths: list[str] = []
-        particle_offsets: list[int] = []
-        particles_per_mesh: list[int] = []
-        inverse_world_matrices: list[wp.mat44f] = []
-        point_buffers: list[wp.array] = []
-        original_extents: list[tuple[list[float], list[float]]] = []
-        validation_errors: list[str] = []
-        xform_cache = UsdGeom.XformCache()
+        self._deformable_extent_buffer = np.zeros((mesh_count, 2, 3), dtype=np.float64)
 
-        for entry in renderable_entries:
-            particles_per_body = int(entry.particles_per_body)
-            if particles_per_body <= 0:
-                validation_errors.append(f"{entry.prim_path}: invalid particles_per_body={particles_per_body}")
-                continue
-
-            for inst_idx, offset in enumerate(entry.particle_offsets):
-                resolved_vis = _resolve_deformable_instance_path(entry.vis_mesh_prim_path, inst_idx)
-                vis_prim = stage.GetPrimAtPath(resolved_vis)
-                if not vis_prim or not vis_prim.IsValid():
-                    validation_errors.append(f"{resolved_vis}: visual mesh prim not found")
-                    continue
-
-                mesh = UsdGeom.Mesh(vis_prim)
-                points_attr = mesh.GetPointsAttr()
-                if points_attr is None:
-                    validation_errors.append(f"{resolved_vis}: mesh points attribute missing")
-                    continue
-                points = points_attr.Get()  # type: ignore[reportAttributeAccessIssue]
-                if points is None:
-                    validation_errors.append(f"{resolved_vis}: mesh points missing")
-                    continue
-                if len(points) != particles_per_body:
-                    if entry.deformable_type == "volume":
-                        validation_errors.append(
-                            f"{resolved_vis}: volume visual mesh has {len(points)} points but Newton has"
-                            f" {particles_per_body} tet particles; OVRTX supports volume deformables only when"
-                            " the visual mesh points match Newton tet particles (separate visual embedding is"
-                            " not implemented)"
-                        )
-                    else:
-                        validation_errors.append(
-                            f"{resolved_vis}: mesh has {len(points)} points but Newton has"
-                            f" {particles_per_body} particles"
-                        )
-                    continue
-
-                points_np = np.asarray(points, dtype=np.float32)
-                extent_attr = mesh.GetExtentAttr()
-                extent = extent_attr.Get() if extent_attr is not None else None  # type: ignore[reportAttributeAccessIssue]
-                if extent is not None and len(extent) == 2:
-                    extent_min = [float(value) for value in extent[0]]
-                    extent_max = [float(value) for value in extent[1]]
-                else:
-                    extent_min = points_np.min(axis=0).tolist()
-                    extent_max = points_np.max(axis=0).tolist()
-
-                visual_mesh_paths.append(resolved_vis)
-                particle_offsets.append(int(offset))
-                particles_per_mesh.append(particles_per_body)
-                original_extents.append((extent_min, extent_max))
-                local_to_world = xform_cache.GetLocalToWorldTransform(vis_prim)
-                inverse_world_matrices.append(
-                    _gf_matrix_to_wp_mat44f(local_to_world.GetInverse())  # type: ignore[reportAttributeAccessIssue]
-                )
-                point_buffers.append(
-                    wp.empty(particles_per_body, dtype=wp.vec3f, device=self._device)  # type: ignore[arg-type]
-                )
-
-        if validation_errors:
-            raise RuntimeError(
-                "Failed to setup OVRTX deformable mesh bindings:\n  - " + "\n  - ".join(validation_errors)
-            )
-
-        if not visual_mesh_paths:
-            return
-
-        renderer = self._renderer
-        if renderer is None:
-            return
-
-        try:
-            self._deformable_point_binding = renderer.bind_array_attribute(
-                prim_paths=visual_mesh_paths,
-                attribute_name="points",
-                dtype=np.float32,
-                shape=(3,),
-                prim_mode=PrimMode.EXISTING_ONLY,
-                flags=BindingFlag.OPTIMIZE,
-            )
-            self._deformable_extent_binding = renderer.bind_attribute(
-                prim_paths=visual_mesh_paths,
-                attribute_name="extent",
-                dtype=np.float64,
-                shape=(2, 3),
-                prim_mode=PrimMode.EXISTING_ONLY,
-                flags=BindingFlag.OPTIMIZE,
-            )
-        except Exception as e:
-            self._deformable_point_binding = None
-            self._deformable_extent_binding = None
-            raise RuntimeError("OVRTX deformable mesh bindings are unavailable.") from e
-
-        self._deformable_point_buffers = point_buffers
-        self._deformable_max_particles_per_mesh = max(particles_per_mesh)
-        self._deformable_extent_buffer = np.array(original_extents, dtype=np.float64)
-        self._deformable_visual_mesh_paths = visual_mesh_paths
-        self._deformable_particle_offsets = wp.array(particle_offsets, dtype=wp.int32, device=self._device)
-        self._deformable_particles_per_mesh = wp.array(particles_per_mesh, dtype=wp.int32, device=self._device)
-        self._deformable_inverse_world_matrices = wp.array(inverse_world_matrices, dtype=wp.mat44f, device=self._device)
         self._deformable_extent_mins = [
-            wp.zeros(1, dtype=wp.vec3f, device=self._device)
-            for _ in visual_mesh_paths  # type: ignore[arg-type]
+            wp.zeros(1, dtype=wp.vec3f, device=self._device) for _ in self._deformable_vis_mesh_prim_paths
         ]
+
         self._deformable_extent_maxs = [
-            wp.zeros(1, dtype=wp.vec3f, device=self._device)
-            for _ in visual_mesh_paths  # type: ignore[arg-type]
+            wp.zeros(1, dtype=wp.vec3f, device=self._device) for _ in self._deformable_vis_mesh_prim_paths
         ]
-        self._deformable_bindings_ready = True
-        NewtonManager._mark_particles_dirty()
-
-        logger.info("Created OVRTX deformable mesh point binding for %d visual mesh(es).", len(visual_mesh_paths))
-
-    def _refresh_deformable_inverse_world_matrices(self) -> None:
-        """Refresh visual mesh inverse world matrices used for deformable point sync."""
-        if not self._deformable_visual_mesh_paths:
-            return
-
-        try:
-            from pxr import UsdGeom
-
-            from isaaclab.sim.utils.stage import get_current_stage
-        except ImportError:
-            logger.info("USD not available, skipping deformable mesh world-matrix refresh")
-            return
-
-        stage = get_current_stage()
-        if stage is None:
-            logger.warning("Current USD stage unavailable, skipping deformable mesh world-matrix refresh")
-            return
-
-        xform_cache = UsdGeom.XformCache()
-        inverse_world_matrices: list[wp.mat44f] = []
-        for visual_mesh_path in self._deformable_visual_mesh_paths:
-            prim = stage.GetPrimAtPath(visual_mesh_path)
-            if not prim or not prim.IsValid():
-                raise RuntimeError(f"OVRTX deformable visual mesh disappeared from USD stage: {visual_mesh_path}")
-            local_to_world = xform_cache.GetLocalToWorldTransform(prim)
-            inverse_world_matrices.append(_gf_matrix_to_wp_mat44f(local_to_world.GetInverse()))
-
-        self._deformable_inverse_world_matrices = wp.array(inverse_world_matrices, dtype=wp.mat44f, device=self._device)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -847,7 +732,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def _update_object_transforms(self) -> None:
         """Sync Newton rigid-body transforms to OVRTX."""
-        if self._object_binding is None or self._object_newton_indices is None:
+        if self._object_xform_binding is None or self._object_newton_indices is None:
             return
 
         # If self._object_newton_indices is not None, then Newton's the current physics backend
@@ -862,7 +747,7 @@ class OVRTXRenderer(BaseRenderer):
         if body_q is None:
             return
 
-        with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
+        with self._object_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
             ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
             wp.launch(
                 kernel=sync_newton_transforms_kernel,
@@ -874,7 +759,7 @@ class OVRTXRenderer(BaseRenderer):
     def _allocate_deformable_stacked_points(self) -> wp.array:
         """Allocate a 2D buffer for batched deformable point sync."""
         return wp.zeros(
-            (len(self._deformable_point_buffers), self._deformable_max_particles_per_mesh),
+            (len(self._deformable_points_buffers), self._deformable_max_particles_per_body),
             dtype=wp.vec3f,
             device=self._device,
         )
@@ -884,26 +769,13 @@ class OVRTXRenderer(BaseRenderer):
         try:
             from isaaclab_newton.physics import NewtonManager
         except ImportError:
-            logger.debug("isaaclab_newton physics not available, skipping deformable points sync")
+            logger.debug("NewtonManager not available, skipping deformable points update")
             return
 
-        if not self._deformable_bindings_ready:
-            if not self._deformable_bindings_warned:
-                registry = NewtonManager._deformable_registry or []
-                if any(entry.deformable_type in ("surface", "volume") for entry in registry):
-                    logger.warning("OVRTX deformable mesh bindings are not ready; deformables may render static.")
-                    self._deformable_bindings_warned = True
+        if self._deformable_points_binding is None:
             return
 
-        if (
-            self._deformable_point_binding is None
-            or self._deformable_particle_offsets is None
-            or self._deformable_particles_per_mesh is None
-            or self._deformable_inverse_world_matrices is None
-            or not self._deformable_point_buffers
-            or self._deformable_extent_buffer is None
-        ):
-            return
+        self._ensure_deformable_update_buffers()
 
         if not NewtonManager.particles_dirty():
             return
@@ -916,27 +788,20 @@ class OVRTXRenderer(BaseRenderer):
         if particle_q is None:
             return
 
-        if NewtonManager.transforms_dirty():
-            self._refresh_deformable_inverse_world_matrices()
-
-        if self._deformable_inverse_world_matrices is None:
-            return
-
         stacked_points = self._allocate_deformable_stacked_points()
         wp.launch(
             kernel=sync_newton_deformable_points_batched_kernel,
-            dim=(len(self._deformable_point_buffers), self._deformable_max_particles_per_mesh),
+            dim=(len(self._deformable_points_buffers), self._deformable_max_particles_per_body),
             inputs=[
                 stacked_points,
                 particle_q,
                 self._deformable_particle_offsets,
-                self._deformable_inverse_world_matrices,
-                self._deformable_particles_per_mesh,
+                self._deformable_particles_per_body,
             ],
             device=self._device,
         )
-        for mesh_index, point_buffer in enumerate(self._deformable_point_buffers):
-            particle_count = int(self._deformable_particles_per_mesh.numpy()[mesh_index])
+        for mesh_index, point_buffer in enumerate(self._deformable_points_buffers):
+            particle_count = int(self._deformable_particles_per_body.numpy()[mesh_index])
             wp.copy(point_buffer, stacked_points[mesh_index, :particle_count])
             wp.launch(
                 kernel=compute_deformable_mesh_extent_kernel,
@@ -956,8 +821,8 @@ class OVRTXRenderer(BaseRenderer):
             wp.synchronize_device(self._device)
             self._deformable_extent_binding.write(cast(Any, self._deformable_extent_buffer))
 
-        self._deformable_point_binding.write(  # type: ignore[arg-type]
-            cast(Any, self._deformable_point_buffers),
+        self._deformable_points_binding.write(  # type: ignore[arg-type]
+            cast(Any, self._deformable_points_buffers),
             data_access=DataAccess.ASYNC,
         )
 
@@ -992,8 +857,8 @@ class OVRTXRenderer(BaseRenderer):
             inputs=[positions, converted_wp, camera_transforms],
             device=self._device,
         )
-        if self._camera_binding is not None:
-            with self._camera_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
+        if self._camera_xform_binding is not None:
+            with self._camera_xform_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
                 wp_transforms_view = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
                 wp.copy(wp_transforms_view, camera_transforms)
 
@@ -1347,25 +1212,23 @@ class OVRTXRenderer(BaseRenderer):
                 if "destroyed" not in str(e).lower():
                     logger.warning("Error unbinding %s: %s", name, e)
 
-        _safe_unbind(self._camera_binding, "camera transforms")
-        self._camera_binding = None
-        _safe_unbind(self._object_binding, "object transforms")
-        self._object_binding = None
-        _safe_unbind(self._deformable_point_binding, "deformable mesh points")
-        self._deformable_point_binding = None
-        _safe_unbind(self._deformable_extent_binding, "deformable mesh extents")
+        _safe_unbind(self._camera_xform_binding, "camera transforms")
+        self._camera_xform_binding = None
+        _safe_unbind(self._object_xform_binding, "object transforms")
+        self._object_xform_binding = None
+        _safe_unbind(self._deformable_points_binding, "deformable points")
+        self._deformable_points_binding = None
+        _safe_unbind(self._deformable_extent_binding, "deformable extents")
         self._deformable_extent_binding = None
-        self._deformable_point_buffers = []
+
+        self._deformable_points_buffers = []
         self._deformable_extent_buffer = None
-        self._deformable_visual_mesh_paths = []
+        self._deformable_vis_mesh_prim_paths = []
         self._deformable_particle_offsets = None
-        self._deformable_inverse_world_matrices = None
-        self._deformable_particles_per_mesh = None
-        self._deformable_max_particles_per_mesh = 0
+        self._deformable_particles_per_body = None
+        self._deformable_max_particles_per_body = 0
         self._deformable_extent_mins = []
         self._deformable_extent_maxs = []
-        self._deformable_bindings_ready = False
-        self._deformable_bindings_warned = False
 
         if self._renderer:
             try:

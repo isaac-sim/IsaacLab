@@ -59,20 +59,17 @@ def sync_newton_deformable_points_kernel(
     ovrtx_points: wp.array(dtype=wp.vec3f),  # type: ignore
     newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
     particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
-    inverse_world_matrices: wp.array(dtype=wp.mat44f),  # type: ignore
     mesh_index: int,
 ):
     """Sync one Newton deformable particle slice to an OVRTX mesh ``points`` array.
 
-    Newton stores deformable particles in world space. USD mesh ``points`` are
-    local-space, so each position is transformed by the visual mesh's inverse
-    world matrix before being written to OVRTX.
+    Newton stores deformable particles in world space. The OVRTX visual mesh prim
+    uses ``omni:resetXformStack`` with identity ``omni:xform``, so ``points``
+    are written directly in world space.
     """
     point_index = wp.tid()
     particle_index = int(particle_offsets[mesh_index]) + point_index
-    ovrtx_points[point_index] = wp.transform_point(
-        inverse_world_matrices[mesh_index], newton_particle_q[particle_index]
-    )
+    ovrtx_points[point_index] = newton_particle_q[particle_index]
 
 
 @wp.kernel
@@ -80,7 +77,6 @@ def sync_newton_deformable_points_batched_kernel(
     ovrtx_points: wp.array(dtype=wp.vec3f, ndim=2),  # type: ignore
     newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
     particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
-    inverse_world_matrices: wp.array(dtype=wp.mat44f),  # type: ignore
     particles_per_mesh: wp.array(dtype=wp.int32),  # type: ignore
 ):
     """Sync all Newton deformable particle slices to OVRTX mesh ``points`` arrays.
@@ -92,9 +88,7 @@ def sync_newton_deformable_points_batched_kernel(
     if point_index >= int(particles_per_mesh[mesh_index]):
         return
     particle_index = int(particle_offsets[mesh_index]) + point_index
-    ovrtx_points[mesh_index, point_index] = wp.transform_point(
-        inverse_world_matrices[mesh_index], newton_particle_q[particle_index]
-    )
+    ovrtx_points[mesh_index, point_index] = newton_particle_q[particle_index]
 
 
 @wp.kernel
