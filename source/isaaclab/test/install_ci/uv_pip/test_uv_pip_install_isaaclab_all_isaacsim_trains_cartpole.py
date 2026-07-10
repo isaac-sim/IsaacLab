@@ -18,10 +18,17 @@ Setup:
 Tests:
     - ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16
         presets=newton_mjwarp --max_iterations 5 --headless
+    - ./isaaclab.sh -p scripts/benchmarks/training.py --rl_library rsl_rl
+        --task Isaac-Cartpole-Camera-Direct --num_envs 4 --max_iterations 1
+        --seed 0 --benchmark_formatter schema --output_path <tmp>/newton_renderer_benchmark
+        physics=physx renderer=newton_renderer presets=rgb
+        env.tiled_camera.width=64 env.tiled_camera.height=64 --headless
+        -> verify the newton_renderer benchmark writes a schema bundle
 """
 
 from __future__ import annotations
 
+import json
 import shutil
 
 import pytest
@@ -42,11 +49,50 @@ _TRAIN_CMD = [
 ]
 
 
+def _benchmark_newton_renderer_cmd(output_path: str) -> list[str]:
+    return [
+        "-p",
+        "scripts/benchmarks/training.py",
+        "--rl_library",
+        "rsl_rl",
+        "--task",
+        "Isaac-Cartpole-Camera-Direct",
+        "--num_envs",
+        "4",
+        "--max_iterations",
+        "1",
+        "--seed",
+        "0",
+        "--benchmark_formatter",
+        "schema",
+        "--output_path",
+        output_path,
+        "physics=physx",
+        "renderer=newton_renderer",
+        "presets=rgb",
+        "env.tiled_camera.width=64",
+        "env.tiled_camera.height=64",
+        "--headless",
+    ]
+
+
 def _assert_training_passed(result) -> None:
     output = result.stdout + (result.stderr or "")
     assert result.returncode == 0, f"Training failed (rc={result.returncode}):\n{output}"
     assert "Traceback (most recent call last):" not in output, f"Training produced a traceback:\n{output}"
     assert "Training time:" in output, f"Training did not report completion:\n{output}"
+
+
+def _assert_newton_renderer_benchmark_passed(result, output_path) -> None:
+    output = result.stdout + (result.stderr or "")
+    assert result.returncode == 0, f"newton_renderer benchmark failed (rc={result.returncode}):\n{output}"
+    assert "Traceback (most recent call last):" not in output, f"Benchmark produced a traceback:\n{output}"
+
+    bundle_paths = sorted(output_path.glob("benchmark_training_*.json"))
+    assert len(bundle_paths) == 1, f"Expected one benchmark schema JSON in {output_path}, found: {bundle_paths}"
+    bundle = json.loads(bundle_paths[0].read_text())
+    assert bundle["run"]["config"]["physics_backend"] == "physx"
+    assert bundle["run"]["config"]["rendering_backend"] == "newton"
 
 
 @pytest.mark.install_path_uv_pip
@@ -64,8 +110,8 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(3600)
-    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root, wheel):
-        """Install the runner-supplied wheel with ``[all,isaacsim]`` via ``uv pip``, run cartpole training."""
+    def test_uv_pip_install_isaaclab_all_isaacsim_trains_cartpole(self, isaaclab_root, wheel, tmp_path):
+        """Install with ``[all,isaacsim]``, run cartpole training and the newton_renderer benchmark."""
         try:
             # 1. Create the uv env and install the wheel with [all,isaacsim] extras.
             self.create_uv_env(isaaclab_root)
@@ -126,5 +172,15 @@ class Test_Uv_Pip_Install_Isaaclab_All_Isaacsim_Trains_Cartpole(UV_Mixin):
                 timeout=900,
             )
             _assert_training_passed(result)
+
+            output_path = tmp_path / "newton_renderer_benchmark"
+            output_path.mkdir()
+            result = self.run_in_uv_env(
+                [str(self.cli_script)] + _benchmark_newton_renderer_cmd(str(output_path)),
+                cwd=isaaclab_root,
+                env=aarch64_isaacsim_env(),
+                timeout=900,
+            )
+            _assert_newton_renderer_benchmark_passed(result, output_path)
         finally:
             self.destroy_uv_env()

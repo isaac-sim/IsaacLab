@@ -287,16 +287,19 @@ class AppLauncher:
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
+        # Re-run path sanitization. Kit can insert bundled dependency paths
+        # while SimulationApp starts, before deferred device setup imports Warp.
+        from isaaclab import _deprioritize_prebundle_paths
+
+        _deprioritize_prebundle_paths()
         self._set_deferred_cuda_device()
         # Load IsaacSim extensions
         self._load_extensions()
 
-        # Re-run path sanitization.  Kit and its extensions may have inserted
+        # Re-run path sanitization. Kit and its extensions may have inserted
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
-
         _deprioritize_prebundle_paths()
 
         # Hide the stop button in the toolbar

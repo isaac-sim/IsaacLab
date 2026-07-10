@@ -32,7 +32,7 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 # append AppLauncher cli args
 add_launcher_args(parser)
-# simple agents should open Kit visualizer by default
+# simple agents open the Kit visualizer by default; pass --viz to override.
 parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = setup_preset_cli(parser)
 sys.argv = [sys.argv[0]] + hydra_args
@@ -65,10 +65,11 @@ def main():
         # reset environment
         env.reset()
         # simulate environment
-        # keep running while any visualizer is open, otherwise fall back to MAX_STEPS
+        # keep running while any visualizer is open, otherwise run a short smoke rollout
         sim = env.unwrapped.sim
         actions = torch.zeros(env.action_space.shape, device=env.unwrapped.device)
-        while True:
+        step_count = 0
+        while sim.visualizers or step_count < MAX_STEPS:
             if sim.visualizers:
                 # visualizer mode: run until the visualizer window is closed
                 if not any(v.is_running() and not v.is_closed for v in sim.visualizers):
@@ -77,6 +78,7 @@ def main():
             with torch.inference_mode():
                 # apply actions
                 env.step(actions)
+            step_count += 1
         # close the simulator
         env.close()
 

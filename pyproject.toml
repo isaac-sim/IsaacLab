@@ -83,7 +83,7 @@ dependencies = [
     "PyOpenGL-accelerate>=3.1.0",
     # ----- newton interactive viewer GUI (in base, no extra required) -----
     "imgui-bundle>=1.92.5",
-    "typing-extensions>=4.12.2",
+    "typing-extensions>=4.13.0",
 ]
 
 [project.optional-dependencies]

@@ -1046,7 +1046,7 @@ def _repoint_prebundle_packages() -> None:
     Scans every ``pip_prebundle`` directory under the Isaac Sim installation
     for package directories listed in :data:`_PREBUNDLE_REPOINT_PACKAGES`.
     When the same package exists in the active environment's ``site-packages``,
-    the prebundled copy is moved to ``<name>.bak`` and replaced with a symlink.
+    the prebundled copy is replaced with a symlink.
 
     This is idempotent — existing symlinks that already point to the correct
     target are left untouched.

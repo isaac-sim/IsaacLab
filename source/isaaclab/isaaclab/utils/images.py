@@ -13,8 +13,6 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.utils.warp.ops import normalize_image_uint8
-
 _RGB_LIKE_PREFIXES: tuple[str, ...] = ("rgb", "albedo", "simple_shading")
 _DEPTH_LIKE_PATTERNS: tuple[str, ...] = ("depth", "distance_to")
 _NORMALS_PREFIXES: tuple[str, ...] = ("normals",)
@@ -81,6 +79,8 @@ def normalize_camera_image(
     """
     if is_rgb_like(data_type):
         if images.dtype == torch.uint8 and images.ndim == 4 and images.is_contiguous():
+            from isaaclab.utils.warp.ops import normalize_image_uint8
+
             return normalize_image_uint8(images, channel_dim=channel_dim, out=out)
         # PyTorch fallback for callers that pre-floated or pass a strided view.
         resolved_channel_dim = channel_dim + images.ndim if channel_dim < 0 else channel_dim

@@ -18,6 +18,9 @@ Setup:
 Tests:
     - python -c "from isaaclab.app import AppLauncher" -> verify AppLauncher importable
     - python -c "from isaaclab.sim import SimulationContext" -> verify pxr-dependent imports resolve
+    - python -c "import isaaclab; from isaacsim import SimulationApp;
+        app = SimulationApp({'headless': True}); app.close()"
+        -> verify standalone Isaac Sim launches after Isaac Lab is installed
 """
 
 from __future__ import annotations
@@ -119,3 +122,29 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
             env=aarch64_isaacsim_env(),
         )
         assert result.returncode == 0, f"import isaaclab.sim failed:\n{result.stdout}\n{result.stderr}"
+
+    @pytest.mark.docker
+    @pytest.mark.uv
+    @pytest.mark.slow
+    @pytest.mark.gpu
+    @pytest.mark.timeout(1800)
+    def test_install_isaacsim_launches_simulation_app_after_isaaclab_import(self):
+        """Standalone ``isaacsim.SimulationApp`` launches after Isaac Lab is installed and imported."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                (
+                    "import isaaclab; "
+                    "from isaacsim import SimulationApp; "
+                    "app = SimulationApp({'headless': True}); "
+                    "print('isaacsim simulation app ok'); "
+                    "app.close()"
+                ),
+            ],
+            env=aarch64_isaacsim_env(),
+            timeout=900,
+        )
+        output = result.stdout + (result.stderr or "")
+        assert result.returncode == 0, f"SimulationApp launch failed:\n{output}"
+        assert "isaacsim simulation app ok" in output

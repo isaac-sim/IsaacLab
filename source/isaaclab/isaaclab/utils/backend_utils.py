@@ -7,12 +7,20 @@ from __future__ import annotations
 
 import importlib
 import logging
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from isaaclab.renderers.renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
+
+
+def _refresh_dependency_path_order() -> None:
+    """Re-apply Isaac Lab's dependency path ordering if the package is loaded."""
+    sanitizer = getattr(sys.modules.get("isaaclab"), "_deprioritize_prebundle_paths", None)
+    if callable(sanitizer):
+        sanitizer()
 
 
 def get_default_renderer_cfg() -> RendererCfg:
@@ -114,6 +122,7 @@ class FactoryBase:
             # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
+                _refresh_dependency_path_order()
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
