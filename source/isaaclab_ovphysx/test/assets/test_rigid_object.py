@@ -36,12 +36,14 @@ from flaky import flaky
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_ovphysx import tensor_types as TT  # noqa: E402
 from isaaclab_ovphysx.assets import RigidObject  # noqa: E402
 from isaaclab_ovphysx.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.sim.spawners import materials  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.math import (  # noqa: E402
     combine_frame_transforms,
@@ -163,16 +165,30 @@ def generate_cubes_scene(
 
 
 # ---------------------------------------------------------------------------
-# Material-property gap (xfail reason shared by 5 tests below)
+# Per-shape material helpers (friction / restitution)
+#
+# OVPhysX exposes per-collision-shape material as the
+# ``rigid_body_shape_friction_and_restitution`` tensor binding (shape ``[N, S, 3]`` =
+# static friction, dynamic friction, restitution), addressed through the OvPhysxView.
+# (The PhysX backend instead uses ``root_view.get/set_material_properties`` / ``max_shapes``.)
 # ---------------------------------------------------------------------------
 
-_MATERIAL_GAP_REASON = (
-    "Requires RIGID_BODY_MATERIAL TensorType (or a view-helper) on the ovphysx "
-    "wheel side.  RigidObject.root_view is an OvPhysxView over the per-tensor-type "
-    "bindings on OVPhysX, so root_view.get_material_properties() / set_material_properties() "
-    "are not available.  See "
-    "docs/superpowers/specs/2026-04-28-ovphysx-wheel-gaps-for-marco.md."
-)
+
+def _num_shapes(cube_object) -> int:
+    """Per-body collision-shape count, from the material binding's ``[N, S, 3]`` shape."""
+    return cube_object.root_view.binding_for(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION).shape[1]
+
+
+def _write_shape_material(cube_object, materials_nS3: torch.Tensor) -> None:
+    """Write a full ``[N, S, 3]`` (static friction, dynamic friction, restitution) tensor via the view."""
+    cube_object.root_view.set_attribute(
+        TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION, wp.from_torch(materials_nS3.contiguous(), dtype=wp.float32)
+    )
+
+
+def _read_shape_material(cube_object) -> torch.Tensor:
+    """Read the per-shape material as a torch tensor ``[N, S, 3]``."""
+    return wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])
@@ -626,33 +642,104 @@ def test_reset_rigid_object(num_cubes, device):
                 assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_torque.torch) == 0
 
 
-@pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_set_material_properties(num_cubes, device):
-    """Test getting and setting material properties of rigid object."""
-    raise NotImplementedError(_MATERIAL_GAP_REASON)
+    """Test getting and setting per-shape material properties of a rigid object."""
+    with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+        # Play sim
+        sim.reset()
+
+        # Random material per shape: (static_friction, dynamic_friction, restitution), on the sim device.
+        num_shapes = _num_shapes(cube_object)
+        static_friction = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.4, 0.8)
+        dynamic_friction = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.4, 0.8)
+        restitution = torch.empty(num_cubes, num_shapes, 1, device=device).uniform_(0.0, 0.2)
+        materials = torch.cat([static_friction, dynamic_friction, restitution], dim=-1)
+
+        # Add friction/restitution to the cubes through the view.
+        _write_shape_material(cube_object, materials)
+
+        # Simulate physics
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # Read back and verify the round-trip.
+        torch.testing.assert_close(_read_shape_material(cube_object), materials)
 
 
-@pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_set_material_properties_via_view(num_cubes, device):
-    """Test setting material properties via the PhysX view-level API."""
-    raise NotImplementedError(_MATERIAL_GAP_REASON)
+    """Test setting per-shape material via the OvPhysxView binding API."""
+    with _ovphysx_sim_context(device=device, add_ground_plane=True, auto_add_lighting=True) as sim:
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, device=device)
+
+        # Play sim
+        sim.reset()
+
+        # Generate random material properties: (static_friction, dynamic_friction, restitution).
+        num_shapes = _num_shapes(cube_object)
+        materials = torch.empty(num_cubes, num_shapes, 3, device=device).uniform_(0.0, 1.0)
+        materials[..., 1] = torch.min(materials[..., 0], materials[..., 1])  # dynamic <= static
+
+        # Set material properties through the view, simulate, then read back.
+        _write_shape_material(cube_object, materials)
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        torch.testing.assert_close(_read_shape_material(cube_object), materials)
 
 
-@pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_no_friction(num_cubes, device):
-    """Test that a rigid object with no friction will maintain it's velocity when sliding across a plane."""
-    raise NotImplementedError(_MATERIAL_GAP_REASON)
+    """Test that a rigid object with no friction will maintain its velocity when sliding across a plane."""
+    with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
+
+        # Create a ground plane with no friction
+        cfg = sim_utils.GroundPlaneCfg(
+            physics_material=materials.RigidBodyMaterialBaseCfg(
+                static_friction=0.0, dynamic_friction=0.0, restitution=0.0
+            )
+        )
+        cfg.func("/World/GroundPlane", cfg)
+
+        # Play sim
+        sim.reset()
+
+        # Set the cubes' friction (and restitution) to zero. This test isolates friction, so a zero
+        # restitution keeps the resting contact clean instead of letting the cube bounce vertically.
+        num_shapes = _num_shapes(cube_object)
+        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+        _write_shape_material(cube_object, cube_materials)
+
+        # Let the cube settle onto the plane so the initial ground-penetration transient (a small
+        # vertical velocity) dies out before we measure that the horizontal sliding velocity holds.
+        for _ in range(30):
+            sim.step()
+            cube_object.update(sim.cfg.dt)
+
+        # Initial velocity in X to get the block moving.
+        initial_velocity = torch.zeros((num_cubes, 6), device=device)
+        initial_velocity[:, 0] = 0.1
+        cube_object.write_root_velocity_to_sim_index(root_velocity=initial_velocity)
+
+        # Non-deterministic on GPU, so use a looser tolerance there.
+        tolerance = 1e-2 if device == "cuda:0" else 1e-5
+        for _ in range(5):
+            sim.step()
+            cube_object.update(sim.cfg.dt)
+            torch.testing.assert_close(
+                cube_object.data.root_lin_vel_w.torch, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
+            )
 
 
-@pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
-@pytest.mark.parametrize("device", ["cuda", "cpu"])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_with_static_friction(num_cubes, device):
     """Test that static friction applied to rigid object works as expected.
 
@@ -661,10 +748,60 @@ def test_rigid_body_with_static_friction(num_cubes, device):
     apply a force to the object. When the force applied is below mu, the object should not move. When the force
     applied is above mu, the object should move.
     """
-    raise NotImplementedError(_MATERIAL_GAP_REASON)
+    with _ovphysx_sim_context(device=device, dt=0.01, auto_add_lighting=True) as sim:
+        cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.03125, device=device)
+
+        # Create ground plane. Dynamic friction is set equal to static friction to work around a PhysX bug.
+        mu = 0.5
+        cfg = sim_utils.GroundPlaneCfg(
+            physics_material=materials.RigidBodyMaterialBaseCfg(static_friction=mu, dynamic_friction=mu)
+        )
+        cfg.func("/World/GroundPlane", cfg)
+
+        # Play sim
+        sim.reset()
+
+        # Set the cubes' static (and, per the PhysX bug, dynamic) friction to mu, restitution zero.
+        num_shapes = _num_shapes(cube_object)
+        cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+        cube_materials[..., 0] = mu
+        cube_materials[..., 1] = mu
+        _write_shape_material(cube_object, cube_materials)
+
+        # Let everything settle.
+        for _ in range(100):
+            sim.step()
+            cube_object.update(sim.cfg.dt)
+        cube_object.write_root_velocity_to_sim_index(root_velocity=torch.zeros((num_cubes, 6), device=device))
+
+        cube_mass = cube_object.data.body_mass.torch[:, 0]  # [N], PhysX reads this via root_view.get_masses()
+        gravity_magnitude = abs(sim.cfg.gravity[2])
+        # below mu: block should not move (applied force <= mu); above mu: block should move.
+        for force in "below_mu", "above_mu":
+            cube_object.write_root_velocity_to_sim_index(root_velocity=torch.zeros((num_cubes, 6), device=device))
+
+            external_wrench_b = torch.zeros((num_cubes, 1, 6), device=device)
+            factor = 0.99 if force == "below_mu" else 1.01
+            external_wrench_b[:, 0, 0] = mu * cube_mass * gravity_magnitude * factor
+
+            cube_object.permanent_wrench_composer.set_forces_and_torques_index(
+                forces=external_wrench_b[..., :3],
+                torques=external_wrench_b[..., 3:],
+            )
+
+            initial_root_pos = cube_object.data.root_pos_w.torch.clone()
+            for _ in range(200):
+                cube_object.write_data_to_sim()
+                sim.step()
+                cube_object.update(sim.cfg.dt)
+                if force == "below_mu":
+                    torch.testing.assert_close(
+                        cube_object.data.root_pos_w.torch, initial_root_pos, rtol=2e-3, atol=2e-3
+                    )
+            if force == "above_mu":
+                assert (cube_object.data.root_pos_w.torch[..., 0] - initial_root_pos[..., 0] > 0.02).all()
 
 
-@pytest.mark.xfail(reason=_MATERIAL_GAP_REASON, strict=False)
 @pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_rigid_body_with_restitution(num_cubes, device):
@@ -675,7 +812,58 @@ def test_rigid_body_with_restitution(num_cubes, device):
     When the restitution is 0, the block should not bounce. When the restitution is between 0 and 1, the block
     should bounce with less energy.
     """
-    raise NotImplementedError(_MATERIAL_GAP_REASON)
+    for expected_collision_type in "partially_elastic", "inelastic":
+        with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
+            cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=1.0, device=device)
+
+            restitution_coefficient = 0.0 if expected_collision_type == "inelastic" else 0.5
+
+            # Create ground plane with the matching restitution.
+            cfg = sim_utils.GroundPlaneCfg(
+                physics_material=materials.RigidBodyMaterialBaseCfg(restitution=restitution_coefficient)
+            )
+            cfg.func("/World/GroundPlane", cfg)
+
+            # Play sim
+            sim.reset()
+
+            # Drop the cubes from a height with an initial downward velocity.
+            root_pose = torch.zeros(num_cubes, 7, device=device)
+            root_pose[:, 3] = 1.0  # unit quaternion
+            for i in range(num_cubes):
+                root_pose[i, 1] = 1.0 * i
+            root_pose[:, 2] = 1.0
+            root_vel = torch.zeros(num_cubes, 6, device=device)
+            root_vel[:, 2] = -1.0
+            cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
+            cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
+
+            # Frictionless cubes with the matching restitution.
+            num_shapes = _num_shapes(cube_object)
+            cube_materials = torch.zeros(num_cubes, num_shapes, 3, device=device)
+            cube_materials[..., 2] = restitution_coefficient
+            _write_shape_material(cube_object, cube_materials)
+
+            curr_z_velocity = cube_object.data.root_lin_vel_w.torch[:, 2].clone()
+            prev_z_velocity = curr_z_velocity
+            for _ in range(100):
+                sim.step()
+                cube_object.update(sim.cfg.dt)
+                curr_z_velocity = cube_object.data.root_lin_vel_w.torch[:, 2].clone()
+
+                if expected_collision_type == "inelastic":
+                    # The block must not bounce: its z velocity stays <= 0.
+                    assert (curr_z_velocity <= 0.0).all()
+
+                if torch.all(curr_z_velocity <= 0.0):
+                    prev_z_velocity = curr_z_velocity  # still falling
+                else:
+                    break  # collision happened (now moving up)
+
+            if expected_collision_type == "partially_elastic":
+                # The block bounced but lost energy.
+                assert torch.all(torch.le(abs(curr_z_velocity), abs(prev_z_velocity)))
+                assert (curr_z_velocity > 0.0).all()
 
 
 @pytest.mark.parametrize("num_cubes", [1, 2])

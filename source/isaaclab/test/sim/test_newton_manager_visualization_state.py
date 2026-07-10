@@ -19,6 +19,8 @@ from types import SimpleNamespace
 
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 def _reset_newton_manager_state():
     from isaaclab_newton.physics import NewtonManager

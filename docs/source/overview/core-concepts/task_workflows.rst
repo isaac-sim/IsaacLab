@@ -6,6 +6,15 @@ Task Design Workflows
 
 .. currentmodule:: isaaclab
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-building-environments`` and
+   ``isaaclab-planning-manipulation-tasks`` agent skills
+   (`skills/user/create-environments/ <../../../../skills/user/create-environments/SKILL.md>`__,
+   `skills/user/plan-manipulation-tasks/ <../../../../skills/user/plan-manipulation-tasks/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 A **Task** is defined by an environment with specific interfaces for observations to and actions from a specific agent (robot). The environment is what provides an agent with the current observations and executes that agent's actions by updating the simulation forward in time. There are many common components of simulating a robot in an environment, regardless of what you might want that robot to do or how it might be trained to do it.
 
 This is especially true of Reinforcement Learning (RL), where managing the actions, observations, rewards, etc... across a vectorized GPU simulation can be daunting to even think about! To meet this need, Isaac Lab provides the ability to build your RL environments within our **Manager-based** system, allowing you to trust various minutia of the appropriate manager classes. However, we also recognize the need to exert granular control over an environment, especially during development. For this need, we also provide a **Direct** interface into the simulation, giving you full control!
@@ -43,7 +52,7 @@ Manager-based environments promote modular implementations of tasks by decomposi
 When developing new training environments, it is often beneficial to break the environment into independent components.  This can be highly effective for collaboration, as it lets individual developers focus on different aspects of the environment, while allowing those disparate efforts to be joined back together into a single runnable task. For example, you may have multiple robots with differing sensoriums, requiring different observation managers to process those sensory data into a form that's useful for downstream components.  You might have multiple members on the team with different ideas about what the reward should be to achieve your goals, and by having each one develop their own reward manager, you can swap and test as you see fit. The modular nature of the manager workflow is essential for more complex projects!
 
 For reinforcement learning, much of this has been done for you already! In most cases, it will be enough to write your environment to inherit from
-:class:`envs.ManagerBasedRLEnv` and and your configuration from :class:`envs.ManagerBasedRLEnvCfg`.
+:class:`envs.ManagerBasedRLEnv` and your configuration from :class:`envs.ManagerBasedRLEnvCfg`.
 
 .. dropdown:: Example for defining the reward function for the Cartpole task using the manager-style
     :icon: plus

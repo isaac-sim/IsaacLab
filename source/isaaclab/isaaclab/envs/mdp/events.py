@@ -332,14 +332,94 @@ class _RandomizeRigidBodyMaterialNewton:
         self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
+class _RandomizeRigidBodyMaterialOvPhysx:
+    """OVPhysX backend implementation for material randomization.
+
+    OVPhysX runs the PhysX solver, so PhysX's 64000 unique-material limit applies and this
+    mirrors the PhysX bucket approach: ``num_buckets`` materials are pre-sampled once and
+    randomly assigned to shapes. Materials are written through the asset's
+    :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-collision-shape
+    ``shape_friction_and_restitution`` binding (shape ``[N, S, 3]`` = static friction,
+    dynamic friction, restitution).
+
+    OVPhysX does not expose per-body shape counts, so only whole-asset (all shapes)
+    randomization is supported; ``asset_cfg.body_ids`` must select all bodies.
+    """
+
+    def __init__(
+        self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
+    ):
+        import isaaclab_ovphysx.tensor_types as ovphysx_tt  # noqa: PLC0415
+
+        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
+
+        # OVPhysX cannot map body ids to shape ranges (no per-body shape counts), so a
+        # per-body subset cannot be indexed -- fail loud rather than silently randomize all.
+        if asset_cfg.body_ids != slice(None):
+            raise NotImplementedError(
+                "randomize_rigid_body_material on the OVPhysX backend randomizes all shapes only; "
+                "per-body selection via 'asset_cfg.body_ids' is not supported because the ovphysx "
+                "wheel does not expose per-body shape counts. Use the default (all bodies)."
+            )
+
+        # sample material buckets once (PhysX-style; the 64000 unique-material limit applies)
+        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
+        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        num_buckets = int(cfg.params.get("num_buckets", 1))
+        ranges = torch.tensor([static_friction_range, dynamic_friction_range, restitution_range], device="cpu")
+        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
+        if cfg.params.get("make_consistent", False):
+            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
+
+        self.asset = asset
+        self.asset_cfg = asset_cfg
+        # per-shape material tensor type for this asset family (articulation vs rigid body)
+        self._material_type = (
+            ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
+            if isinstance(asset, BaseArticulation)
+            else ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        static_friction_range: tuple[float, float],
+        dynamic_friction_range: tuple[float, float],
+        restitution_range: tuple[float, float],
+        num_buckets: int,
+        asset_cfg: SceneEntityCfg,
+        make_consistent: bool = False,
+    ):
+        view = self.asset.root_view
+        # read the current per-shape material [N, S, 3] on the binding's native (sim) device
+        materials = wp.to_torch(view.get_attribute(self._material_type))
+        num_instances, num_shapes = materials.shape[0], materials.shape[1]
+
+        # resolve environment ids on the material buffer's device
+        if env_ids is None:
+            env_ids = torch.arange(num_instances, device=materials.device)
+        else:
+            env_ids = env_ids.to(materials.device)
+
+        # randomly assign pre-sampled bucket materials to every shape of the selected envs
+        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), num_shapes), device="cpu")
+        material_samples = self.material_buckets[bucket_ids].to(materials.device)  # [len(env_ids), S, 3]
+        materials[env_ids] = material_samples
+
+        # write the full buffer back through the view (read-modify-write keeps non-selected envs)
+        view.set_attribute(self._material_type, wp.from_torch(materials.contiguous(), dtype=wp.float32))
+
+
 class randomize_rigid_body_material(ManagerTermBase):
     """Randomize the physics materials on all geometries of the asset.
 
     This function creates a set of physics materials with random static friction, dynamic friction, and restitution
     values and assigns them to the geometries of the asset.
 
-    Automatically detects the active physics backend (PhysX or Newton) and delegates to
-    the appropriate backend-specific implementation:
+    Automatically detects the active physics backend (PhysX, Newton, or OVPhysX) and delegates
+    to the appropriate backend-specific implementation:
 
     - **PhysX**: Uses the 3-tuple material format (static_friction, dynamic_friction, restitution)
       with bucket-based assignment (limited to 64000 unique materials). Applied via the PhysX
@@ -347,6 +427,11 @@ class randomize_rigid_body_material(ManagerTermBase):
     - **Newton**: Samples friction (mu) and restitution continuously per shape (no bucket
       limitation). Newton uses a single friction coefficient, so ``dynamic_friction_range``
       and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings.
+    - **OVPhysX**: Runs the PhysX solver, so the same 3-tuple, bucket-based assignment is used,
+      written through the :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-shape
+      ``shape_friction_and_restitution`` binding. Randomizes all shapes only -- per-body
+      selection (``asset_cfg.body_ids``) is not supported (the wheel exposes no per-body shape
+      counts).
 
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
     the static friction (PhysX only). This obeys the physics constraint on friction values.
@@ -394,22 +479,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         # ``NewtonKaminoManager``, ...) are caught by the substring branch.
         manager_name = env.sim.physics_manager.__name__.lower()
         if manager_name == "ovphysxmanager":
-            # No OVPhysX implementation yet — wheel-side
-            # ``RIGID_BODY_MATERIAL`` tensor binding is missing; randomization
-            # would require per-body view creation that ovphysx does not yet
-            # expose.  Run with material randomization disabled (warns once).
-            import logging  # noqa: PLC0415
-
-            logging.getLogger(__name__).warning(
-                "randomize_rigid_body_material is a no-op on the OVPhysX backend "
-                "(wheel-side gap — see docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md)."
-            )
-
-            class _Noop:
-                def __call__(self, *args, **kwargs):
-                    pass
-
-            self._impl = _Noop()
+            self._impl = _RandomizeRigidBodyMaterialOvPhysx(cfg, env, self.asset, self.asset_cfg)
         elif "newton" in manager_name:
             self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
         elif "physx" in manager_name:

@@ -49,9 +49,7 @@ Installing dependencies
 
 -  Install Isaac Sim pip packages:
 
-   .. code-block:: bash
-
-      uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+   .. isaaclab-isaacsim-install::
 
 -  Install a CUDA-enabled PyTorch build that matches your system architecture:
 
@@ -61,23 +59,17 @@ Installing dependencies
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
          :sync: linux-x86_64
 
-         .. code-block:: bash
-
-            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+         .. isaaclab-torch-install:: cu128
 
       .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
          :sync: windows-x86_64
 
-         .. code-block:: bash
-
-            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+         .. isaaclab-torch-install:: cu128
 
       .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
          :sync: linux-aarch64
 
-         .. code-block:: bash
-
-            uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu130
+         .. isaaclab-torch-install:: cu130
 
          .. note::
 

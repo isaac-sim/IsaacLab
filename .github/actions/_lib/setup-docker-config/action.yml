@@ -1,0 +1,43 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Setup docker config'
+description: >
+  Point DOCKER_CONFIG at a temp config with the credential helper disabled and
+  log into nvcr.io. Shared by the docker-build and ecr-build-push-pull actions.
+  Idempotent: re-invoking it in the same job is a no-op, so callers (e.g.
+  ecr-build-push-pull delegating to docker-build) don't need to coordinate.
+  Reads NGC_API_KEY from the environment (optional; warns when missing).
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        # The runner's credential helper backend is broken ("not implemented")
+        # and causes docker login calls to fail unless we point DOCKER_CONFIG at
+        # a temp config with credsStore disabled. The value is written to
+        # $GITHUB_ENV so subsequent steps in the job inherit it; a second
+        # invocation sees it already set and short-circuits.
+        if [ -n "${DOCKER_CONFIG:-}" ] && [ -f "${DOCKER_CONFIG}/config.json" ]; then
+          echo "🟢 Docker config already set up at ${DOCKER_CONFIG}, skipping"
+          exit 0
+        fi
+
+        DOCKER_CONFIG_DIR=$(mktemp -d)
+        if [ -f "${HOME}/.docker/config.json" ]; then
+          python3 -c "import json; cfg=json.load(open('${HOME}/.docker/config.json')); cfg['credsStore']=''; cfg.pop('credHelpers',None); json.dump(cfg,open('${DOCKER_CONFIG_DIR}/config.json','w'))"
+        else
+          echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        fi
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+        echo "DOCKER_CONFIG=${DOCKER_CONFIG_DIR}" >> "$GITHUB_ENV"
+
+        if [ -n "${NGC_API_KEY:-}" ]; then
+          echo "🔵 Logging into nvcr.io..."
+          docker login -u '$oauthtoken' -p "${NGC_API_KEY}" nvcr.io
+        else
+          echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
+        fi

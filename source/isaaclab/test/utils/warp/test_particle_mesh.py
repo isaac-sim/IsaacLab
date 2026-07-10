@@ -13,6 +13,8 @@ import warp as wp
 
 from isaaclab.utils.warp import ParticleMeshCounter, make_box_region_mesh, make_frustum_region_mesh
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(params=["cpu", "cuda:0"])
 def device(request):

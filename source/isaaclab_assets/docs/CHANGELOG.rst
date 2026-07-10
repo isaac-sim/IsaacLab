@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+0.4.2 (2026-07-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :data:`~isaaclab_assets.robots.fourbar_pole.FOURBAR_POLE_CFG` for a parallel
+  four-bar linkage with an inverted pendulum pole on the coupler.
+
+
+0.4.1 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :data:`~isaaclab_assets.robots.dr_legs.DR_LEGS_IMPLICIT_PD_CFG` for the Disney DR Legs
+  closed-loop biped.
+
+
 0.4.0 (2026-06-27)
 ~~~~~~~~~~~~~~~~~~
 

@@ -57,6 +57,7 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from .ovrtx_annotator_utils import build_semantic_id_to_labels, decode_semantic_id_map
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -213,6 +214,9 @@ class OVRTXRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        # Per-output metadata collected during render() and copied into CameraData.info by read_output().
+        # Currently only "semantic_segmentation" is populated (with an "idToLabels" mapping).
+        self.renderer_info: dict[str, Any] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -250,6 +254,11 @@ class OVRTXRenderer(BaseRenderer):
             if self.cfg.colorize_instance_id_segmentation
             else RenderBufferSpec(1, wp.uint32)
         )
+        # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
+        # non-colorized per-pixel value is the semantic ID).
+        semantic_seg_spec = (
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_semantic_segmentation else RenderBufferSpec(1, wp.int32)
+        )
         return {
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
@@ -258,13 +267,14 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: semantic_seg_spec,
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: instance_seg_spec,
             RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST: instance_id_seg_spec,
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
         }
 
     @property
@@ -368,64 +378,59 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError(f"Expected camera prim under '{env_0_prefix}', got '{first_cam_path}'")
         self._camera_rel_path = spec.camera_path_relative_to_env_0
 
-        if self._exported_usd_string is not None:
-            logger.info("Injecting camera definitions...")
+        logger.info("Injecting camera definitions...")
 
-            render_product_string, render_product_path = build_render_product_as_string(
-                width=width,
-                height=height,
-                num_envs=num_envs,
-                data_types=data_types,
-                minimal_mode=_resolve_rtx_minimal_mode(data_types),
-                camera_rel_path=self._camera_rel_path,
-            )
-            self._render_product_paths.append(render_product_path)
+        if self._exported_usd_string is None:
+            raise RuntimeError("Expected an exported USD string from stage")
 
-            combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
-            self._exported_usd_string = None  # Free memory
+        render_product_string, render_product_path = build_render_product_as_string(
+            width=width,
+            height=height,
+            num_envs=num_envs,
+            data_types=data_types,
+            minimal_mode=_resolve_rtx_minimal_mode(data_types),
+            camera_rel_path=self._camera_rel_path,
+        )
+        self._render_product_paths.append(render_product_path)
 
-            # If temp_usd_dir is set, write the combined USD stage to a temporary file.
-            if self.cfg.temp_usd_dir is not None:
-                _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
+        combined_usd_string = self._exported_usd_string + "\n\n" + render_product_string
+        self._exported_usd_string = None  # Free memory
 
-            logger.info("Loading USD into OvRTX...")
-            try:
-                self._renderer.open_usd_from_string(combined_usd_string)
-                logger.info("OVRTX loaded USD from string successfully")
-            except Exception as e:
-                logger.exception("Error loading USD: %s", e)
-                raise
+        # If temp_usd_dir is set, write the combined USD stage to a temporary file.
+        if self.cfg.temp_usd_dir is not None:
+            _write_file(Path(self.cfg.temp_usd_dir), "ovrtx_renderer_stage.usda", combined_usd_string)
 
-            if num_envs > 1:
-                self._clone_sources_in_ovrtx()
-                self._update_scene_partitions_after_clone(num_envs)
+        logger.info("Loading USD into OvRTX...")
+        self._renderer.open_usd_from_string(combined_usd_string)
+        logger.info("OVRTX loaded USD from string successfully")
 
-            self._initialized_scene = True
+        if num_envs > 1:
+            self._clone_sources_in_ovrtx()
+            self._update_scene_partitions_after_clone(num_envs)
 
-            camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
-            self._camera_binding = self._renderer.bind_attribute(
-                prim_paths=camera_paths,
-                attribute_name="omni:xform",
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.EXISTING_ONLY,
-            )
+        self._initialized_scene = True
 
-            # OVRTX requires omni:resetXformStack on cameras for correct world transform binding
-            try:
-                self._renderer.write_attribute(
-                    prim_paths=camera_paths,
-                    attribute_name="omni:resetXformStack",
-                    tensor=np.full(num_envs, True, dtype=np.bool_),
-                )
-            except Exception as e:
-                logger.warning("Failed to write omni:resetXformStack: %s", e)
+        camera_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
+        self._camera_binding = self._renderer.bind_attribute(
+            prim_paths=camera_paths,
+            attribute_name="omni:xform",
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.EXISTING_ONLY,
+        )
 
-            if self._camera_binding is not None:
-                logger.info("Camera binding created successfully")
-            else:
-                logger.warning("Camera binding is None")
+        # OVRTX requires omni:resetXformStack on cameras for correct world transform binding
+        self._renderer.write_attribute(
+            prim_paths=camera_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=np.full(num_envs, True, dtype=np.bool_),
+        )
 
-            self._setup_object_bindings()
+        if self._camera_binding is not None:
+            logger.info("Camera binding created successfully")
+        else:
+            raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
+
+        self._setup_newton_object_bindings()
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -468,76 +473,72 @@ class OVRTXRenderer(BaseRenderer):
         env_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
         camera_prim_paths = [f"/World/envs/env_{i}/{self._camera_rel_path}" for i in range(num_envs)]
 
-        try:
-            self._renderer.write_attribute(
-                env_prim_paths,
-                "primvars:omni:scenePartition",
-                partition_tokens,
-                semantic=Semantic.TOKEN_STRING,
-            )
-            logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
+        self._renderer.write_attribute(
+            env_prim_paths,
+            "primvars:omni:scenePartition",
+            partition_tokens,
+            semantic=Semantic.TOKEN_STRING,
+        )
+        logger.info("Written primvars:omni:scenePartition to %d environments", num_envs)
 
-            self._renderer.write_attribute(
-                camera_prim_paths,
-                "omni:scenePartition",
-                partition_tokens,
-                semantic=Semantic.TOKEN_STRING,
-            )
-            logger.info("Written omni:scenePartition to %d cameras", num_envs)
-        except Exception as e:
-            logger.warning("Failed to write scene partitions: %s", e, exc_info=True)
+        self._renderer.write_attribute(
+            camera_prim_paths,
+            "omni:scenePartition",
+            partition_tokens,
+            semantic=Semantic.TOKEN_STRING,
+        )
+        logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
-    def _setup_object_bindings(self):
+    def _setup_newton_object_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
             from isaaclab_newton.physics import NewtonManager
-
-            newton_model = NewtonManager.get_model()
-            if newton_model is None:
-                logger.info("Newton model not available, skipping object bindings")
-                return
-
-            all_body_paths = getattr(newton_model, "body_label", None)
-            if all_body_paths is None:
-                logger.info("Newton model has no body_label, skipping object bindings")
-                return
-
-            object_paths = []
-            newton_indices = []
-            for idx, path in enumerate(all_body_paths):
-                if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
-                    object_paths.append(path)
-                    newton_indices.append(idx)
-
-            if len(object_paths) == 0:
-                logger.info("No dynamic objects found for binding")
-                return
-
-            self._object_binding = self._renderer.bind_attribute(
-                prim_paths=object_paths,
-                attribute_name="omni:xform",
-                semantic=Semantic.XFORM_MAT4x4,
-                prim_mode=PrimMode.EXISTING_ONLY,
-            )
-
-            try:
-                self._renderer.write_attribute(
-                    prim_paths=object_paths,
-                    attribute_name="omni:resetXformStack",
-                    tensor=np.full(len(object_paths), True, dtype=np.bool_),
-                )
-            except Exception as e:
-                logger.warning("Failed to write omni:resetXformStack on objects: %s", e)
-
-            if self._object_binding is not None:
-                logger.info("Object binding created successfully")
-                self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
-            else:
-                logger.warning("Object binding is None")
         except ImportError:
-            logger.info("Newton not available, skipping object bindings")
-        except Exception as e:
-            logger.warning("Error setting up object bindings: %s", e)
+            logger.debug("isaaclab_newton physics not available, skipping object bindings")
+            return
+
+        if SimulationContext.instance() is None:
+            logger.info("No active simulation context, will not set up ovrtx object bindings for newton")
+            return
+
+        newton_model = NewtonManager.get_model()
+        if newton_model is None:
+            logger.debug("Newton model not available, skipping object bindings")
+            return
+
+        all_body_paths = getattr(newton_model, "body_label", None)
+        if all_body_paths is None:
+            logger.info("Newton model has no body_label, skipping object bindings")
+            return
+
+        object_paths = []
+        newton_indices = []
+        for idx, path in enumerate(all_body_paths):
+            if "/World/envs/" in path and self._camera_rel_path not in path and "GroundPlane" not in path:
+                object_paths.append(path)
+                newton_indices.append(idx)
+
+        if len(object_paths) == 0:
+            logger.info("No dynamic objects found for binding")
+            return
+
+        self._object_binding = self._renderer.bind_attribute(
+            prim_paths=object_paths,
+            attribute_name="omni:xform",
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.EXISTING_ONLY,
+        )
+
+        self._renderer.write_attribute(
+            prim_paths=object_paths,
+            attribute_name="omni:resetXformStack",
+            tensor=np.full(len(object_paths), True, dtype=np.bool_),
+        )
+
+        if self._object_binding is None:
+            raise RuntimeError("Failed to create OVRTX object bindings")
+
+        self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -586,26 +587,26 @@ class OVRTXRenderer(BaseRenderer):
         if self._object_binding is None or self._object_newton_indices is None:
             return
 
-        try:
-            from isaaclab_newton.physics import NewtonManager
+        # If self._object_newton_indices is not None, then Newton's the current physics backend
 
-            newton_state = NewtonManager.get_state()
-            if newton_state is None:
-                return
-            body_q = getattr(newton_state, "body_q", None)
-            if body_q is None:
-                return
+        from isaaclab_newton.physics import NewtonManager
 
-            with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
-                ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
-                wp.launch(
-                    kernel=sync_newton_transforms_kernel,
-                    dim=len(self._object_newton_indices),
-                    inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
-                    device=self._device,
-                )
-        except Exception as e:
-            logger.warning("Failed to update object transforms: %s", e)
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            raise RuntimeError("Newton state should not be None")
+
+        body_q = getattr(newton_state, "body_q", None)
+        if body_q is None:
+            return
+
+        with self._object_binding.map(device=Device.CUDA, device_id=self._device_id) as attr_mapping:
+            ovrtx_transforms = wp.from_dlpack(attr_mapping.tensor, dtype=wp.mat44d)
+            wp.launch(
+                kernel=sync_newton_transforms_kernel,
+                dim=len(self._object_newton_indices),
+                inputs=[ovrtx_transforms, self._object_newton_indices, body_q],
+                device=self._device,
+            )
 
     def update_camera(
         self,
@@ -641,15 +642,30 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         camera_data: CameraData,
     ) -> None:
-        """No-op: outputs already live in the caller's torch storage.
+        """Forward per-output metadata collected during :meth:`render` into ``camera_data.info``.
 
-        :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
-        zero-copy warp array stored in ``render_data.warp_buffers``, and
-        :meth:`render` writes the rendered tiles directly into those warp
-        arrays. There is therefore nothing to copy here.
+        This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
+        which is ``None`` when its render var was absent. Because :meth:`render` rebuilds ``renderer_info``
+        from scratch each frame (see the ``renderer_info.clear()`` in :meth:`_process_render_frame`), a render
+        var that disappears on a later frame (e.g. a missing ``SemanticIdMap``) must clear the corresponding
+        ``camera_data.info`` entry too, or downstream consumers would keep reading stale labels. ``renderer_info``
+        only ever holds a subset of the outputs, so iterating ``camera_data.info`` both preserves its
+        ``output``-mirroring key set and resets any dropped metadata to ``None``.
+
+        Present entries are stored by reference (a shallow assignment, not a deep copy): ``camera_data.info``
+        shares the same metadata dict objects as ``render_data.renderer_info`` (e.g. the semantic
+        ``idToLabels`` mapping). Those references stay valid even after ``renderer_info`` is cleared or
+        rebuilt, and each render builds a fresh metadata dict, so no aliased object is mutated in place.
+
+        Pixel data needs no handling here: :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
+        zero-copy warp array stored in ``render_data.warp_buffers``, and :meth:`render` writes the rendered
+        tiles directly into those warp arrays.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
         """
+        assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+        for output_name in camera_data.info:
+            camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
         """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.
@@ -725,6 +741,30 @@ class OVRTXRenderer(BaseRenderer):
                     data_torch = data_torch.unsqueeze(-1)
                 tiled_data = wp.from_torch(data_torch, dtype=wp.uint32)
                 self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
+
+    def _process_semantic_id_map(self, render_data: OVRTXRenderData, frame) -> None:
+        """Decode the ``SemanticIdMap`` render var into ``render_data.renderer_info["semantic_segmentation"]``.
+
+        Populates an ``"idToLabels"`` mapping compatible with Isaac RTX / Replicator: keys are the raw semantic
+        IDs (``colorize_semantic_segmentation=False``) or the RGBA color tuples the segmentation buffer uses
+        (``colorize_semantic_segmentation=True``); values are ``{semantic_type: label}`` dicts. The reserved
+        BACKGROUND (ID 0) and UNLABELLED (ID 1) entries are always included.
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            frame: OVRTX frame holding the mapped render vars.
+        """
+        if "SemanticIdMap" not in frame.render_vars:
+            return
+
+        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping.tensor))
+
+        render_data.renderer_info["semantic_segmentation"] = {
+            "idToLabels": build_semantic_id_to_labels(
+                labels_by_id, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
+            )
+        }
 
     def _launch_extract_all_tiles(
         self, render_data: OVRTXRenderData, tiled_buffer: wp.array, output_buffer: wp.array
@@ -819,6 +859,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
+        # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
+        # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
+        # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
+        render_data.renderer_info.clear()
+
         if "LdrColor" in frame.render_vars:
             buffer_key = None
 
@@ -860,16 +905,17 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
-        # Semantic segmentation is always colorized: unlike instance (id) segmentation, there is no
-        # raw-uint32 output mode exposed for it (see OVRTXRenderer.supported_output_types).
         self._process_id_segmentation_render_var(
             render_data,
             frame,
             output_buffers,
             "SemanticSegmentation",
             "semantic_segmentation",
-            True,
+            self.cfg.colorize_semantic_segmentation,
         )
+        # Decode the SemanticIdMap into camera.data.info["semantic_segmentation"]["idToLabels"].
+        if "semantic_segmentation" in output_buffers:
+            self._process_semantic_id_map(render_data, frame)
 
         self._process_id_segmentation_render_var(
             render_data,
@@ -894,34 +940,39 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_normals_data = wp.from_dlpack(mapping.tensor)
                 self._launch_extract_all_tiles(render_data, tiled_normals_data, output_buffers["normals"])
 
+        # For motion vectors, extract only the first two (u, v) channels from the tiled buffer.
+        # Note: mirrors the Isaac RTX renderer's handling of the "TargetMotionSD" AOV
+        # (check: https://github.com/isaac-sim/IsaacLab/issues/2003).
+        if "TargetMotionSD" in frame.render_vars and "motion_vectors" in output_buffers:
+            with frame.render_vars["TargetMotionSD"].map(device=Device.CUDA) as mapping:
+                tiled_motion_vectors_data = wp.from_dlpack(mapping.tensor)
+                self._launch_extract_all_tiles(render_data, tiled_motion_vectors_data, output_buffers["motion_vectors"])
+
     def render(self, render_data: OVRTXRenderData) -> None:
         """Render the scene into the provided RenderData."""
         if not self._initialized_scene:
             raise RuntimeError("Scene not initialized. Call initialize() first.")
         if self._renderer is None or len(self._render_product_paths) == 0:
             return
-        try:
-            products = self._renderer.step(
-                render_products=set(self._render_product_paths),
-                delta_time=1.0 / 60.0,
+        products = self._renderer.step(
+            render_products=set(self._render_product_paths),
+            delta_time=1.0 / 60.0,
+        )
+        product_path = self._render_product_paths[0]
+        if product_path in products and len(products[product_path].frames) > 0:
+            self._process_render_frame(
+                render_data,
+                products[product_path].frames[0],
+                render_data.warp_buffers,
             )
-            product_path = self._render_product_paths[0]
-            if product_path in products and len(products[product_path].frames) > 0:
-                self._process_render_frame(
-                    render_data,
-                    products[product_path].frames[0],
-                    render_data.warp_buffers,
-                )
 
-            # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-            # buffers are the same warp buffer map used by extraction.
-            if render_data.ppisp_pipeline is not None:
-                render_data.ppisp_pipeline.apply(
-                    render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
-                    render_data.warp_buffers[str(RenderBufferKind.RGBA)],
-                )
-        except Exception as e:
-            logger.warning("OVRTX rendering failed: %s", e, exc_info=True)
+        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
+        # buffers are the same warp buffer map used by extraction.
+        if render_data.ppisp_pipeline is not None:
+            render_data.ppisp_pipeline.apply(
+                render_data.warp_buffers[str(RenderBufferKind.RGB_HDR)],
+                render_data.warp_buffers[str(RenderBufferKind.RGBA)],
+            )
 
     def cleanup(self, render_data: OVRTXRenderData | None) -> None:
         """Release renderer resources. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""

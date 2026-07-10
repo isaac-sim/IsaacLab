@@ -1,6 +1,86 @@
 Changelog
 ---------
 
+8.1.7 (2026-07-08)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Renamed the renderer presets ``ovrtx_renderer`` -> ``ovrtx`` and
+  ``isaacsim_rtx_renderer`` -> ``isaacsim_rtx`` to drop the redundant
+  ``_renderer`` suffix (the ``renderer=`` selector already names the category).
+  The old ``ovrtx_renderer`` / ``isaacsim_rtx_renderer`` spellings still resolve
+  as deprecated aliases and emit a :class:`FutureWarning`; migrate to the
+  suffix-less names, which will become the only accepted form in a future
+  release.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the renderer preset names ``ovrtx_renderer`` and
+  ``isaacsim_rtx_renderer`` in favor of ``ovrtx`` and ``isaacsim_rtx``.
+
+
+8.1.6 (2026-07-07)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_tasks.core.fourbar_pole.fourbar_pole_manager_env_cfg.FourbarPoleSwingupEnvCfg`
+  as the ``Isaac-Fourbar-Pole-Swingup`` Gym environment for four-bar pole swing-up with the Kamino solver.
+
+Changed
+^^^^^^^
+
+* Changed the Disney DR Legs walk / hold-pose Kamino stepping to ``sim.dt = 1/150``
+  with ``decimation = 3`` (previously ``0.004`` / ``5``). This keeps the 50 Hz control
+  rate while reducing the number of Kamino solver calls per control step from 5 to 3,
+  for roughly 1.6x faster simulation with equivalent task performance.
+* Changed the ``newton_kamino`` presets of the velocity (A1, AnymalB, AnymalC, Go1, Go2,
+  Cassie, G1, H1, Spot), cabinet, and shadow-hand reorient tasks to use the default
+  single physics substep (removed the ``num_substeps=2`` override), and dropped the
+  redundant explicit ``num_substeps`` overrides from the cartpole, ant, and reach Kamino
+  presets.
+
+
+8.1.5 (2026-07-06)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``motion_vectors`` to the rendering correctness test matrix for cartpole, shadow hand, and
+  dexsuite kuka allegro lift environments.
+
+Fixed
+^^^^^
+
+* Fixed flaky ``motion_vectors`` golden-image comparisons on PhysX backends (``physx`` and
+  ``ovphysx``) by enabling enhanced determinism and per-iteration external forces on the PhysX
+  solver, which otherwise produces run-to-run noisy velocities that this AOV encodes directly.
+
+
+8.1.4 (2026-07-04)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``Isaac-DrLegs-HoldPose-v0`` and ``Isaac-DrLegs-Walk-v0`` Kamino closed-loop locomotion
+  tasks via :class:`~isaaclab_tasks.contrib.dr_legs.hold_pose_env_cfg.DrLegsHoldPoseEnvCfg` and
+  :class:`~isaaclab_tasks.contrib.dr_legs.walk_env_cfg.DrLegsWalkEnvCfg`.
+
+* Added ``newton_kamino`` physics presets to core and contrib velocity, reach, cabinet, and Shadow
+  Hand environment configurations.
+
+Fixed
+^^^^^
+
+* Fixed reach task table spawn offset for Newton ``newton_mjwarp`` and ``newton_kamino`` presets.
+
+
 8.1.3 (2026-07-03)
 ~~~~~~~~~~~~~~~~~~
 

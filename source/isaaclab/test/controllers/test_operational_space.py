@@ -16,6 +16,8 @@ import pytest
 import torch
 from flaky import flaky
 
+pytestmark = pytest.mark.arm_ci
+
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -48,6 +50,8 @@ from isaaclab.utils.math import (
 )
 
 from isaaclab_assets import FRANKA_PANDA_CFG, G1_29DOF_CFG  # isort:skip
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture

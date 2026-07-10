@@ -20,6 +20,8 @@ from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 
 def _make_mock_renderer_class(name: str):
     """Create a minimal concrete BaseRenderer subclass for testing."""
