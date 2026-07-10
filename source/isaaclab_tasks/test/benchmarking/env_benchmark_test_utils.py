@@ -158,6 +158,11 @@ def evaluate_job(workflow, task, env_config, train_result):
     if max_iterations is not None:
         kpi_payload["max_iterations"] = max_iterations
 
+    # add peak GPU memory if captured
+    peak_gpu_mem = train_result.get("peak_gpu_mem_mb")
+    if peak_gpu_mem is not None:
+        kpi_payload["peak_gpu_mem_mb"] = peak_gpu_mem
+
     return kpi_payload
 
 
@@ -186,9 +191,7 @@ def process_kpi_data(kpi_payloads, tag, timestamp):
             successes[workflow] += 1
         else:
             fk = kpi_payload.get("failure_kind")
-            if fk == "did_not_finish" or (
-                fk is None and kpi_payload["msg"] == "error: training did not finish!"
-            ):
+            if fk == "did_not_finish" or (fk is None and kpi_payload["msg"] == "error: training did not finish!"):
                 failures_did_not_finish[workflow] += 1
             else:
                 failures_did_not_pass_thresholds[workflow] += 1

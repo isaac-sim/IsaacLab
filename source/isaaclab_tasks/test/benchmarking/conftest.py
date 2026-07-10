@@ -64,13 +64,14 @@ def pytest_addoption(parser):
     parser.addoption(
         "--sim-backend",
         action="store",
-        default=_parse_sim_backend("physx"),
+        nargs="+",
+        default=["physx"],
         type=_parse_sim_backend,
         help=(
-            "Training subprocess physics + MuJoCo Menagerie USD ``Physics`` variant (case-insensitive). "
+            "One or more physics backends to parametrize over (case-insensitive). "
+            "Pass multiple to run each env under each backend: --sim-backend physx newton. "
             "'physx': ``--menagerie-physics-variant physx`` (default env presets). "
             "'newton': ``--menagerie-physics-variant mujoco`` and ``presets=newton_mjwarp`` for Hydra. "
-            "Tasks without Newton presets ignore the preset broadcast; Menagerie paths still get the mujoco variant."
         ),
     )
     parser.addoption("--video", action="store_true", default=False, help="Record videos during training.")
@@ -106,11 +107,6 @@ def save_kpi_payload(request):
 @pytest.fixture
 def tag(request):
     return request.config.getoption("--tag")
-
-
-@pytest.fixture
-def sim_backend(request):
-    return request.config.getoption("--sim-backend")
 
 
 @pytest.fixture
@@ -156,6 +152,9 @@ def pytest_generate_tests(metafunc):
     if "workflow" in metafunc.fixturenames:
         workflows = metafunc.config.getoption("workflows")
         metafunc.parametrize("workflow", workflows)
+    if "sim_backend" in metafunc.fixturenames:
+        backends = metafunc.config.getoption("sim_backend")
+        metafunc.parametrize("sim_backend", backends)
 
 
 # The pytest session start hook to capture the start timestamp

@@ -70,6 +70,29 @@ def setup_environment():
     return registered_task_specs
 
 
+def _poll_peak_gpu_mem(stop_event: threading.Event, result: dict) -> None:
+    """Poll nvidia-smi every 2 s and store the peak GPU 0 memory usage (MiB) in ``result``."""
+    peak = 0
+    while not stop_event.is_set():
+        try:
+            raw = (
+                subprocess.check_output(
+                    ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                    timeout=5,
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
+            val = int(raw.splitlines()[0])
+            if val > peak:
+                peak = val
+        except Exception:
+            pass
+        stop_event.wait(timeout=2.0)
+    result["peak_gpu_mem_mb"] = peak
+
+
 def train_job(
     workflow,
     task,
@@ -81,7 +104,7 @@ def train_job(
     video_length: int = 200,
     video_interval: int = 2000,
 ):
-    """Train a single job; return a dict with duration, returncode, stdout, and stderr."""
+    """Train a single job; return a dict with duration, returncode, stdout, stderr, and peak_gpu_mem_mb."""
     cmd = [
         sys.executable,
         WORKFLOW_TRAINER[workflow],
@@ -126,6 +149,13 @@ def train_job(
 
     repo_root = utils._get_repo_path()
     start_time = time.time()
+
+    # Track peak GPU memory while training runs.
+    _gpu_mem_result: dict = {}
+    _stop_gpu_poll = threading.Event()
+    _gpu_mem_thread = threading.Thread(target=_poll_peak_gpu_mem, args=(_stop_gpu_poll, _gpu_mem_result), daemon=True)
+    _gpu_mem_thread.start()
+
     # Stream child output live (``capture_output`` would hide logs until the run finishes).
     quiet = os.environ.get("ISAACLAB_BENCHMARK_TRAIN_QUIET", "").strip().lower() in ("1", "true", "yes")
     if quiet:
@@ -133,6 +163,9 @@ def train_job(
     else:
         result = _run_subprocess_tee(cmd, cwd=repo_root)
     duration = time.time() - start_time
+
+    _stop_gpu_poll.set()
+    _gpu_mem_thread.join(timeout=10)
 
     out = result.stdout or ""
     err = result.stderr or ""
@@ -148,6 +181,7 @@ def train_job(
         "returncode": result.returncode,
         "stdout": out,
         "stderr": err,
+        "peak_gpu_mem_mb": _gpu_mem_result.get("peak_gpu_mem_mb"),
     }
 
 
