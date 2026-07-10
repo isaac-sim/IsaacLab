@@ -384,6 +384,12 @@ class TestObsGroups:
         handle_deprecated_rsl_rl_cfg(cfg, installed_version)
         assert cfg.obs_groups == obs_groups
 
+    def test_does_not_default_obs_groups_below_4(self):
+        cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
+        handle_deprecated_rsl_rl_cfg(cfg, "3.9.0")
+        assert _is_missing(cfg.obs_groups)
+
+
 # ===================================================================
 # rsl-rl >= 5.0.0
 # ===================================================================
