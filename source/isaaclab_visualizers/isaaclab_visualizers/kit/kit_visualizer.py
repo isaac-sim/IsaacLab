@@ -44,6 +44,12 @@ if TYPE_CHECKING:
 
 _DEFAULT_VIEWPORT_NAME = "Visualizer Viewport"
 
+_BACKEND_DISPLAY_NAMES = {
+    "physx": "PhysX",
+    "ovphysx": "OVPhysX",
+    "newton": "Newton MJWarp",
+}
+
 
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
@@ -248,11 +254,6 @@ class KitVisualizer(BaseVisualizer):
         from omni.kit.viewport.menubar.core import IconMenuDelegate, ViewportMenuItem, get_menu_item
 
         backend = self.physics_backend or "unknown"
-        _BACKEND_DISPLAY_NAMES = {
-            "physx": "PhysX",
-            "ovphysx": "OVPhysX",
-            "newton": "Newton MJWarp",
-        }
         backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
 
         # Hide the "Simulation / PhysX" toggle menu — it only reflects the omni.physics.core

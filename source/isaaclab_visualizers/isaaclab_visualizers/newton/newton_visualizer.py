@@ -39,6 +39,12 @@ from .newton_visualizer_cfg import NewtonVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
+_BACKEND_DISPLAY_NAMES = {
+    "physx": "PhysX",
+    "ovphysx": "OVPhysX",
+    "newton": "Newton MJWarp",
+}
+
 CONTACT_ARROW_PATH = "/contacts"
 """Viewer path used for native and synthesized contact arrows."""
 
@@ -84,6 +90,11 @@ class NewtonViewerGL(ViewerGL):
         self._mpm_particle_flags_cache_key: tuple[int, int, int] | None = None
         self._mpm_particles_all_active = False
 
+        from isaaclab.utils.backend_utils import FactoryBase
+
+        backend = FactoryBase._get_backend()
+        self._backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+
         try:
             self.register_ui_callback(self._render_training_controls, position="side")
             self.register_ui_callback(self._render_physics_panel, position="panel")
@@ -128,19 +139,10 @@ class NewtonViewerGL(ViewerGL):
 
     def _render_physics_panel(self, imgui):
         """Render Physics collapsing section at the top of the Newton viewer panel."""
-        _BACKEND_DISPLAY_NAMES = {
-            "physx": "PhysX",
-            "ovphysx": "OVPhysX",
-            "newton": "Newton MJWarp",
-        }
-        from isaaclab.utils.backend_utils import FactoryBase
-
-        backend = FactoryBase._get_backend()
-        backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
         if imgui.collapsing_header("Physics"):
             imgui.separator()
-            imgui.text(f"Backend: {backend_display}")
+            imgui.text(f"Backend: {self._backend_display}")
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
