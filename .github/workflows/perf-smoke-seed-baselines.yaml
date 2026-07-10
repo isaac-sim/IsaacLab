@@ -274,16 +274,15 @@ jobs:
     - name: Seed baselines from commit history
       env:
         # A same-repo push to perf-smoke/infra-probe is the L40S staging path:
-        # publish one commit x MIN_BASELINE_SAMPLES for the default Cartpole task
+        # publish one commit x MIN_BASELINE_SAMPLES for the full tasks.json matrix
         # so the merge immediately starts pre-seeding and verifies perf-baselines
-        # writes without burning the full task matrix. Broader seeding remains an
-        # explicit workflow_dispatch choice.
+        # writes across the gate's intended coverage.
         SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe:perf-smoke/infra-probe' || inputs.branches || 'develop' }}
         SEED_COMMITS: ${{ inputs.commits || '' }}
         SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.commit_branch || 'develop' }}
         SEED_COMMIT_COUNT: ${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }}
         SEED_SAMPLES_PER_COMMIT: ${{ github.event_name == 'push' && '5' || inputs.samples_per_commit || '3' }}
-        SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_TASKS: ${{ github.event_name == 'push' && '__ALL_TASKS__' || inputs.tasks || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
         SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.target_branch || 'develop' }}
         SEED_STRICT_ANCESTRY: ${{ github.event_name == 'push' && 'true' || inputs.strict_ancestry == true && 'true' || 'false' }}
@@ -297,7 +296,7 @@ jobs:
           --commit_branch "${SEED_COMMIT_BRANCH}" \
           --commit_count "${SEED_COMMIT_COUNT}" \
           --samples_per_commit "${SEED_SAMPLES_PER_COMMIT}" \
-          --tasks "${SEED_TASKS}" \
+          --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
           --backends "${SEED_BACKENDS}" \
           --image "${{ env.CI_IMAGE_TAG }}" \
           --gpu_model "${GPU_MODEL}" \
@@ -318,7 +317,7 @@ jobs:
     - name: Verify seeded baselines are gate-usable
       if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
       env:
-        SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
+        SEED_TASKS: ${{ github.event_name == 'push' && '__ALL_TASKS__' || inputs.tasks || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
         SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.target_branch || 'develop' }}
       run: |
@@ -329,7 +328,7 @@ jobs:
           --baseline_remote origin \
           --gpu_model "${GPU_MODEL}" \
           --target_branch "${SEED_TARGET_BRANCH}" \
-          --tasks "${SEED_TASKS}" \
+          --tasks "${SEED_TASKS/__ALL_TASKS__/}" \
           --backends "${SEED_BACKENDS}" \
           --repo_dir "${{ github.workspace }}" \
           --require
