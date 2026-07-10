@@ -71,18 +71,20 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     policy graph carries no gains. Aggregating from ``asset.actuators`` recovers the true gains for
     every actuator model (a no-op for implicit actuators, whose buffers already match).
 
-    Returns ``(None, None)`` when the asset exposes no joint-gain buffers.
+    Returns ``None`` independently for any joint-gain buffer the asset does not expose.
     """
     data = getattr(real_asset, "data", None)
     stiffness = getattr(data, "default_joint_stiffness", None)
     damping = getattr(data, "default_joint_damping", None)
-    if stiffness is None or damping is None:
+    if stiffness is None and damping is None:
         return None, None
-    kp = stiffness.torch.clone()
-    kd = damping.torch.clone()
+    kp = stiffness.torch.clone() if stiffness is not None else None
+    kd = damping.torch.clone() if damping is not None else None
     for actuator in getattr(real_asset, "actuators", {}).values():
-        kp[:, actuator.joint_indices] = actuator.stiffness
-        kd[:, actuator.joint_indices] = actuator.damping
+        if kp is not None:
+            kp[:, actuator.joint_indices] = actuator.stiffness
+        if kd is not None:
+            kd[:, actuator.joint_indices] = actuator.damping
     return kp, kd
 
 
