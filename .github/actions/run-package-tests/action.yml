@@ -306,6 +306,34 @@ runs:
         wheelhouse-packages: ${{ inputs.wheelhouse-packages }}
         omni-github-test-type: ${{ inputs.omni-github-test-type }}
 
+    - name: Upload comparison images
+      if: always()
+      id: upload-comparison-images
+      uses: actions/upload-artifact@v7
+      with:
+        name: comparison-images-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: reports/comparison-images/
+        if-no-files-found: ignore
+        retention-days: 7
+    - name: Upload JUnit XML report
+      if: always()
+      id: upload-junit-report
+      uses: actions/upload-artifact@v7
+      with:
+        name: junit-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}
+        path: reports/${{ github.job }}-report.xml
+        if-no-files-found: ignore
+        retention-days: 7
+    - name: Upload omni-github test results
+      if: always()
+      uses: ./.github/actions/upload-omni-github-test-results
+      with:
+        junit-file: reports/${{ github.job }}-report.xml
+        junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
+        comparison-images-url: ${{ steps.upload-comparison-images.outputs.artifact-url }}
+        artifact-prefix: pytest-results-${{ github.job }}-${{ inputs.container-name }}-${{ github.run_id }}-${{ github.run_attempt }}
+        test-type: ${{ inputs.omni-github-test-type }}
+
     - name: Check Test Results
       if: always()
       shell: bash

@@ -142,6 +142,23 @@ jobs:
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
+      - name: Upload JUnit XML report
+        if: always()
+        id: upload-junit-report
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-ci-junit-${{ runner.arch }}
+          path: ${{ github.workspace }}/results/results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload omni-github test results
+        if: always()
+        uses: ./.github/actions/upload-omni-github-test-results
+        with:
+          junit-file: ${{ github.workspace }}/results/results.xml
+          junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
+          artifact-prefix: pytest-results-${{ github.job }}-${{ runner.arch }}
+          test-type: installation-e2e
 
   install-tests-arm:
     name: Installation Tests (ARM)
@@ -161,3 +178,20 @@ jobs:
         with:
           base-image: ${{ inputs.base_image || 'ubuntu:24.04' }}
           test-filter: ${{ inputs.test_filter }}
+      - name: Upload JUnit XML report
+        if: always()
+        id: upload-junit-report
+        uses: actions/upload-artifact@v7
+        with:
+          name: install-ci-junit-${{ runner.arch }}
+          path: ${{ github.workspace }}/results/results.xml
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload omni-github test results
+        if: always()
+        uses: ./.github/actions/upload-omni-github-test-results
+        with:
+          junit-file: ${{ github.workspace }}/results/results.xml
+          junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
+          artifact-prefix: pytest-results-${{ github.job }}-${{ runner.arch }}
+          test-type: installation-e2e
