@@ -34,39 +34,26 @@ permissions:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      run_install_tests: ${{ steps.detect.outputs.run }}
-    steps:
-      # Local composite actions need the repo present; only the action
-      # directory is required.
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-          sparse-checkout: .github/actions/detect-changes
-          sparse-checkout-cone-mode: false
-
-      # Installation tests run only when paths in the patterns table change.
-      - id: detect
-        uses: ./.github/actions/detect-changes
-        with:
-          summary-title: Installation test gating
-          patterns: |
-            ^apps/ Standalone apps
-            ^tools/ Build tooling
-            ^source/ Library source code
-            ^\.github/actions/run-package-tests/ Test action
-            ^\.github/actions/install-ci-(collect|run)/ Install-ci composite actions
-            ^\.github/actions/detect-changes/ Path-gating action
-            ^\.github/workflows/install-ci\.yml$ This workflow file
-            ^VERSION$ Version file
-            (^|/)pyproject\.toml$ Python project metadata
-            (^|/)environment\.ya?ml$ Conda environment file
+    # Installation tests run only when paths in the patterns table change.
+    uses: ./.github/workflows/detect-changes.yml
+    with:
+      summary-title: Installation test gating
+      patterns: |
+        ^apps/ Standalone apps
+        ^tools/ Build tooling
+        ^source/ Library source code
+        ^\.github/actions/run-package-tests/ Test action
+        ^\.github/actions/install-ci-(collect|run)/ Install-ci composite actions
+        ^\.github/workflows/detect-changes\.yml$ Path-gating workflow
+        ^\.github/workflows/install-ci\.yml$ This workflow file
+        ^VERSION$ Version file
+        (^|/)pyproject\.toml$ Python project metadata
+        (^|/)environment\.ya?ml$ Conda environment file
 
   install-tests-x86:
     name: Installation Tests (x86)
     needs: [changes]
-    if: needs.changes.outputs.run_install_tests == 'true'
+    if: needs.changes.outputs.run == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 90
     steps:
@@ -85,7 +72,7 @@ jobs:
   install-tests-arm:
     name: Installation Tests (ARM)
     needs: [changes]
-    if: needs.changes.outputs.run_install_tests == 'true'
+    if: needs.changes.outputs.run == 'true'
     runs-on: [self-hosted, aarch64]
     timeout-minutes: 90
     steps:

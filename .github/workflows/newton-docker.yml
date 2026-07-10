@@ -27,43 +27,30 @@ permissions:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      run_newton_tests: ${{ steps.detect.outputs.run }}
-    steps:
-    # Local composite actions need the repo present; only the action
-    # directory is required.
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        sparse-checkout: .github/actions/detect-changes
-        sparse-checkout-cone-mode: false
-
     # This job is an install/build test, so it gates only on the install
     # inputs — the same set that feeds the deps-hash in the
     # ecr-build-push-pull action — plus its own wiring. Source-level
     # kitless regressions are accepted to surface on the next
     # install-input change rather than on every source PR.
-    - id: detect
-      uses: ./.github/actions/detect-changes
-      with:
-        summary-title: Newton docker gating
-        patterns: |
-          ^docker/Dockerfile\.newton$ Newton image definition
-          ^isaaclab\.sh$ Install CLI wrapper
-          ^pyproject\.toml$ Root dependency manifest
-          ^source/[^/]+/pyproject\.toml$ Package manifests
-          ^source/isaaclab/isaaclab/cli/ Install CLI implementation
-          ^\.github/workflows/newton-docker\.yml$ This workflow file
-          ^\.github/actions/ecr-build-push-pull/ ECR build-cache action
-          ^\.github/actions/detect-changes/ Path-gating action
+    uses: ./.github/workflows/detect-changes.yml
+    with:
+      summary-title: Newton docker gating
+      patterns: |
+        ^docker/Dockerfile\.newton$ Newton image definition
+        ^isaaclab\.sh$ Install CLI wrapper
+        ^pyproject\.toml$ Root dependency manifest
+        ^source/[^/]+/pyproject\.toml$ Package manifests
+        ^source/isaaclab/isaaclab/cli/ Install CLI implementation
+        ^\.github/workflows/newton-docker\.yml$ This workflow file
+        ^\.github/workflows/detect-changes\.yml$ Path-gating workflow
+        ^\.github/actions/ecr-build-push-pull/ ECR build-cache action
 
   build-newton:
     name: Build Newton Kitless Docker Image
     runs-on: [self-hosted, gpu]
     timeout-minutes: 120
     needs: [changes]
-    if: needs.changes.outputs.run_newton_tests == 'true'
+    if: needs.changes.outputs.run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6

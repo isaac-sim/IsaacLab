@@ -77,39 +77,27 @@ env:
 jobs:
   changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
-    outputs:
-      run_docker_tests: ${{ steps.detect.outputs.run }}
-    steps:
-    # Local composite actions need the repo present; only the action
-    # directory is required.
-    - uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        sparse-checkout: .github/actions/detect-changes
-        sparse-checkout-cone-mode: false
-
     # Docker test jobs run only when paths in the patterns table change.
     # config.yaml is included because it controls the base image names and
     # tags consumed by the Docker build jobs.
-    - id: detect
-      uses: ./.github/actions/detect-changes
-      with:
-        summary-title: Docker test gating
-        summary-note: >-
-          Triggered jobs: ${{ github.event_name == 'push'
-          && 'Docker base build job + rendering-correctness + rendering-correctness-kitless'
-          || 'Docker build jobs + all test-* matrix jobs' }}.
-        patterns: |
-          ^source/ Library source code
-          ^docker/ Container build inputs
-          ^tools/ Build tooling
-          ^apps/ Standalone apps
-          ^scripts/ Standalone scripts
-          ^\.github/workflows/build\.yaml$ This workflow file
-          ^\.github/workflows/config\.yaml$ Base image config
-          ^\.github/actions/ CI actions
-          ^\.github/test-subsets/ CI test subset config
+    uses: ./.github/workflows/detect-changes.yml
+    with:
+      summary-title: Docker test gating
+      summary-note: >-
+        Triggered jobs: ${{ github.event_name == 'push'
+        && 'Docker base build job + rendering-correctness + rendering-correctness-kitless'
+        || 'Docker build jobs + all test-* matrix jobs' }}.
+      patterns: |
+        ^source/ Library source code
+        ^docker/ Container build inputs
+        ^tools/ Build tooling
+        ^apps/ Standalone apps
+        ^scripts/ Standalone scripts
+        ^\.github/workflows/build\.yaml$ This workflow file
+        ^\.github/workflows/config\.yaml$ Base image config
+        ^\.github/workflows/detect-changes\.yml$ Path-gating workflow
+        ^\.github/actions/ CI actions
+        ^\.github/test-subsets/ CI test subset config
 
   config:
     name: Load Config
@@ -160,7 +148,7 @@ jobs:
     name: Build Base Docker Image
     runs-on: [self-hosted, gpu]
     needs: [changes, config]
-    if: needs.changes.outputs.run_docker_tests == 'true'
+    if: needs.changes.outputs.run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -183,7 +171,7 @@ jobs:
     needs: [changes, config]
     if: >-
       github.event_name != 'push' &&
-      needs.changes.outputs.run_docker_tests == 'true'
+      needs.changes.outputs.run == 'true'
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
