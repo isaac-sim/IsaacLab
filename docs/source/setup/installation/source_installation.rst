@@ -77,7 +77,7 @@ variables to your terminal for the remaining of the installation instructions:
 
       .. code:: bash
 
-         # Isaac Sim root directory
+         # Isaac Sim root directory (on aarch64, replace x86_64 with aarch64)
          export ISAACSIM_PATH="${PWD}/_build/linux-x86_64/release"
          # Isaac Sim python executable
          export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"

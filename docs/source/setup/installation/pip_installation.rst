@@ -112,6 +112,17 @@ Installing dependencies
             When using a conda environment,
             the preload is set up via the conda activation hook.
 
+.. note::
+
+   The first launch of Isaac Sim asks to accept the NVIDIA Omniverse EULA interactively.
+   In a non-interactive shell (CI, remote scripts), the prompt cannot be answered and the
+   launch fails with ``Unable to bootstrap inner kit kernel: EOF when reading a line``.
+   Accept the EULA through the environment instead:
+
+   .. code-block:: bash
+
+      export OMNI_KIT_ACCEPT_EULA=yes
+
 .. include:: include/pip_verify_isaacsim.rst
 
 Installing Isaac Lab
