@@ -5,6 +5,13 @@ From IsaacGymEnvs
 
 .. currentmodule:: isaaclab
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-migrating-from-isaac-gym`` agent skill
+   (`skills/user/migrate-from-isaac-gym/ <../../../skills/user/migrate-from-isaac-gym/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 
 `IsaacGymEnvs`_ was a reinforcement learning framework designed for the `Isaac Gym Preview Release`_.
 As both IsaacGymEnvs and the Isaac Gym Preview Release are now deprecated, the following guide walks through
@@ -438,10 +445,34 @@ should match with the dimension of the ``indices`` list.
 Quaternion Convention
 ---------------------
 
-Isaac Lab and Isaac Sim both adopt ``wxyz`` as the quaternion convention. However, the quaternion
-convention used in Isaac Gym Preview Release was ``xyzw``.
-Remember to switch all quaternions to use the ``xyzw`` convention when working indexing rotation data.
-Similarly, please ensure all quaternions are in ``wxyz`` before passing them to Isaac Lab APIs.
+.. warning::
+
+  Double-check quaternion order during migration. IsaacGymEnvs and Isaac Gym Preview Release tensor APIs commonly used
+  ``xyzw`` ordering, while older Isaac Lab examples and some Isaac Sim or USD APIs may use ``wxyz`` ordering. Current
+  Isaac Lab task configs, task tensors, and :mod:`isaaclab.utils.math` utilities use ``xyzw`` ordering.
+
+  This is easy to miss because both conventions have the same shape and both can contain normalized unit quaternions.
+  A copied quaternion may therefore pass shape checks while representing a different orientation.
+
+Use the following identities as a quick sanity check:
+
+* ``xyzw`` identity: ``(0.0, 0.0, 0.0, 1.0)``
+* ``wxyz`` identity: ``(1.0, 0.0, 0.0, 0.0)``
+
+When moving data across a boundary that uses a different convention, reorder the components explicitly:
+
+.. code-block:: python
+
+   # wxyz -> xyzw, for Isaac Lab task configs and math utilities
+   quat_xyzw = quat_wxyz[..., [1, 2, 3, 0]]
+
+   # xyzw -> wxyz, for APIs that explicitly require wxyz
+   quat_wxyz = quat_xyzw[..., [3, 0, 1, 2]]
+
+Audit every migrated rotation in initial states, root-state resets, goal or command orientations, observations,
+policy inputs, datasets, reward helpers, camera poses, and sensor offsets. Do not copy quaternion literals from
+IsaacGymEnvs, older Isaac Lab snippets, or USD examples without first confirming the expected convention at the API
+boundary.
 
 
 Articulation Joint Order

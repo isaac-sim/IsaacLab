@@ -133,6 +133,12 @@ wp.overload(
     extract_all_tiles_kernel,
     [wp.array(dtype=wp.uint32, ndim=3), wp.array(dtype=wp.uint32, ndim=4), int, int, int],
 )
+# uint32 tiles cast to an int32 output buffer (raw semantic segmentation IDs; matches Isaac RTX's int32
+# non-colorized semantic output, whose per-pixel value is the semantic ID).
+wp.overload(
+    extract_all_tiles_kernel,
+    [wp.array(dtype=wp.uint32, ndim=3), wp.array(dtype=wp.int32, ndim=4), int, int, int],
+)
 
 
 @wp.kernel
@@ -153,15 +159,20 @@ def extract_depth_tile_from_tiled_buffer_kernel(
 
 @wp.func
 def color_hash(seed: wp.uint32) -> wp.uint32:
-    """Simple hash function for better distribution. Used for colorization."""
-    # uint32 integers are promoted to uint64 to avoid overflow during multiplication.
-    h = wp.uint64(seed)
-    h = h ^ (h >> wp.uint64(16))
-    h = h * wp.uint64(wp.uint32(0x85EBCA6B))
-    h = h ^ (h >> wp.uint64(13))
-    h = h * wp.uint64(wp.uint32(0xC2B2AE35))
-    h = h ^ (h >> wp.uint64(16))
-    return wp.uint32(h)
+    """MurmurHash3-style 32-bit finalizer, matching omni.replicator's ``randomColoursCPU``.
+
+    The arithmetic is intentionally done in ``uint32`` so the multiplications overflow and truncate to
+    32 bits (modular arithmetic). This wraparound is load-bearing: the reference implementation relies on
+    it, and computing the hash in a wider type (e.g. ``uint64``) yields different bits and therefore
+    different colors, breaking parity with Replicator / Isaac RTX colorized segmentation.
+    """
+    h = seed
+    h = h ^ (h >> wp.uint32(16))
+    h = h * wp.uint32(0x85EBCA6B)
+    h = h ^ (h >> wp.uint32(13))
+    h = h * wp.uint32(0xC2B2AE35)
+    h = h ^ (h >> wp.uint32(16))
+    return h
 
 
 @wp.func

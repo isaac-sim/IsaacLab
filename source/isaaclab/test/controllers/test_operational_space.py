@@ -16,6 +16,8 @@ import pytest
 import torch
 from flaky import flaky
 
+pytestmark = pytest.mark.arm_ci
+
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab import cloner

@@ -411,8 +411,9 @@ class _PassContext:
         test_file: Absolute path to the test file being driven.
         file_name: Basename of ``test_file`` (used for JUnit naming).
         workspace_root: Repository root; passed to pytest's ``--config-file``.
-        isaacsim_ci: Whether ``ISAACSIM_CI_SHORT`` is active; toggles the
-            ``-m isaacsim_ci`` selector.
+        ci_marker: Optional pytest marker expression. When set, adds the
+            ``-m <ci_marker>`` selector (e.g. ``isaacsim_ci``, ``windows_ci``,
+            ``arm_ci``); when falsy, no marker filter is applied.
         timeout: Per-pass hard timeout in seconds.
         startup_deadline: Per-pass startup-hang deadline in seconds.
         env: Environment passed to the pytest subprocess.
@@ -421,7 +422,7 @@ class _PassContext:
     test_file: str
     file_name: str
     workspace_root: str
-    isaacsim_ci: bool
+    ci_marker: str | None
     timeout: int
     startup_deadline: int
     env: dict
@@ -496,8 +497,8 @@ def _run_one_pass(
         f"--junitxml={report_file}",
         "--tb=short",
     ]
-    if ctx.isaacsim_ci:
-        cmd += ["-m", "isaacsim_ci"]
+    if ctx.ci_marker:
+        cmd += ["-m", ctx.ci_marker]
     if k_expr is not None:
         cmd += ["-k", k_expr]
     cmd += ctx.pytest_targets
@@ -731,7 +732,7 @@ def _run_one_pass(
     )
 
 
-def run_individual_tests(test_files, workspace_root, isaacsim_ci, test_node_ids_by_file=None):
+def run_individual_tests(test_files, workspace_root, ci_marker, test_node_ids_by_file=None):
     """Run each test file separately, ensuring one finishes before starting the next."""
     failed_tests = []
     test_status = {}
@@ -774,7 +775,7 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci, test_node_ids_
             test_file=test_file,
             file_name=file_name,
             workspace_root=workspace_root,
-            isaacsim_ci=isaacsim_ci,
+            ci_marker=ci_marker,
             timeout=timeout,
             startup_deadline=startup_deadline,
             env=env,
@@ -959,6 +960,12 @@ def pytest_sessionstart(session):
 
     isaacsim_ci = os.environ.get("ISAACSIM_CI_SHORT", "false") == "true"
 
+    # CI_MARKER env var is a separate, parallel mechanism for cross-platform
+    # jobs (arm-ci, windows-ci, ...) to reuse this orchestrator with their own
+    # markers. Deliberately NOT aliased to ISAACSIM_CI_SHORT: the isaacsim_ci
+    # filter is owned by Isaac Sim's external CI pipeline; the CI_MARKER path
+    # leaves that contract untouched.
+    ci_marker = os.environ.get("CI_MARKER", "")
     test_node_ids_by_file = _collect_test_node_ids_by_file(workspace_root)
 
     # Parse include files list (comma-separated paths)
@@ -1013,6 +1020,24 @@ def pytest_sessionstart(session):
                     new_test_files.append(test_file)
         test_files = new_test_files
 
+    if ci_marker:
+        # Match both `@pytest.mark.<marker>` (per-function) and
+        # `pytestmark = pytest.mark.<marker>` / `pytestmark = [..., pytest.mark.<marker>, ...]`
+        # (module-level) by looking for the common `pytest.mark.<marker>` substring.
+        marker_token = f"pytest.mark.{ci_marker}"
+        new_test_files = []
+        for test_file in test_files:
+            try:
+                with open(test_file) as f:
+                    if marker_token in f.read():
+                        new_test_files.append(test_file)
+            except OSError as exc:
+                raise RuntimeError(
+                    f"ci_marker post-scan could not read {test_file}; refusing to"
+                    f" silently drop a potentially marker-tagged file"
+                ) from exc
+        test_files = new_test_files
+
     if test_node_ids_by_file:
         configured_files = set(test_node_ids_by_file)
         test_files = [test_file for test_file in test_files if os.path.normpath(test_file) in configured_files]
@@ -1039,9 +1064,12 @@ def pytest_sessionstart(session):
             for node_id in test_node_ids_by_file[os.path.normpath(test_file)]:
                 print(f"      {node_id}")
 
-    # Run all tests individually
+    # Run all tests individually. CI_MARKER takes precedence when both env
+    # vars are set; falls back to "isaacsim_ci" when only ISAACSIM_CI_SHORT
+    # is set. The pytest -m flag only accepts one expression.
+    effective_marker = ci_marker or ("isaacsim_ci" if isaacsim_ci else "")
     failed_tests, test_status, xml_reports = run_individual_tests(
-        test_files, workspace_root, isaacsim_ci, test_node_ids_by_file
+        test_files, workspace_root, effective_marker, test_node_ids_by_file
     )
 
     print("failed tests:", failed_tests)
