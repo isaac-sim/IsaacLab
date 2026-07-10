@@ -360,7 +360,7 @@ def generate_articulation(
 # ---------------------------------------------------------------------------
 
 
-def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
+def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_gravity: bool = True):
     """Build a Franka articulation at its configured home pose.
 
     Constructs :data:`FRANKA_PANDA_HIGH_PD_CFG`, optionally zeroes the
@@ -376,6 +376,9 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
             actuator stiffness and damping to zero. Used by the OSC test
             so OSC's joint-effort output is not opposed by the
             implicit-PD's residual ``kp·(target − q)``.
+        disable_gravity: Per-body gravity flag written to the spawn config.
+            :data:`FRANKA_PANDA_HIGH_PD_CFG` ships with gravity disabled;
+            pass False for tests where the arm must feel scene gravity.
 
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
@@ -386,6 +389,7 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False):
         cfg.actuators["panda_shoulder"].damping = 0.0
         cfg.actuators["panda_forearm"].stiffness = 0.0
         cfg.actuators["panda_forearm"].damping = 0.0
+    cfg.spawn.rigid_props.disable_gravity = disable_gravity
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     robot = Articulation(cfg)
     sim.reset()
@@ -3432,10 +3436,10 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     and asserts a loose regression bound rather than a tight correctness
     oracle.
 
-    Newton lacks a gravity-comp primitive (see ``xfail`` test below;
-    upstream Newton issues #2497, #2529, #2625), so OSC runs with
-    ``gravity_compensation=False`` and the test isolates from gravity by
-    disabling scene gravity. ``inertial_dynamics_decoupling=True``
+    OSC runs with ``gravity_compensation=False`` and scene gravity disabled
+    so the sentinel isolates the J/M bridge; the gravity-compensation path is
+    covered by :func:`test_franka_osc_gravity_compensation_precision`.
+    ``inertial_dynamics_decoupling=True``
     exercises ``mass_matrix`` and the Newton COM-referenced J →
     M_b → J product. The actuator PD is zeroed at cfg time so OSC's
     joint-effort output is not opposed by ``kp·(target − q)``.
@@ -3503,6 +3507,92 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
     # ``mass_matrix`` per step.
     assert pos_mean < 5e-3, f"OSC pos_mean {pos_mean:.5f} > 5 mm — bridge regression?"
     assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("gravity_enabled", [True])
+@pytest.mark.isaacsim_ci
+def test_franka_osc_gravity_compensation_precision(sim, device, articulation_type, gravity_enabled):
+    """Two-phase EE hold: gravity sag without compensation, tight hold with it.
+
+    Same OSC pose-hold loop as :func:`test_franka_osc_tracking_accuracy`, but
+    with scene and per-body gravity ON and the target pinned to the initial EE
+    pose, so any steady-state error is pure gravity sag. Phase 1 runs with
+    ``gravity_compensation=False`` and must sag past a floor; phase 2 flips
+    ``osc.cfg.gravity_compensation`` — read per :meth:`compute` call, so the
+    flag is the only variable across phases (the gravity tensor is fetched and
+    passed in both) — and must recover to the sibling sentinel's 5 mm bound.
+
+    The floor assertion keeps the test discriminating: if the task stiffness
+    is ever raised high enough to mask gravity, phase 1 stops clearing the
+    floor and the test fails loudly instead of silently passing on a
+    non-discriminating setup. The gravity feed-forward consumes
+    :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
+    (Newton RNEA via ``eval_inverse_dynamics``) live in the loop, covering the
+    FK-staleness refresh on every step of phase 2.
+    """
+    robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(
+        sim, zero_actuator_pd=True, disable_gravity=False
+    )
+
+    osc = OperationalSpaceController(
+        OperationalSpaceControllerCfg(
+            target_types=["pose_abs"],
+            impedance_mode="fixed",
+            inertial_dynamics_decoupling=True,
+            partial_inertial_dynamics_decoupling=False,
+            gravity_compensation=False,
+            motion_stiffness_task=500.0,
+            motion_damping_ratio_task=1.0,
+        ),
+        num_envs=1,
+        device=device,
+    )
+
+    sim.step()
+    robot.update(sim.cfg.dt)
+    # Hold the initial EE pose: phase-1 steady-state error is pure gravity sag.
+    target_pose_b = _build_relative_pose_target(robot, ee_frame_idx, (0.0, 0.0, 0.0), device)
+
+    def run_phase(num_steps: int) -> list[float]:
+        pos_history: list[float] = []
+        for _ in range(num_steps):
+            jacobian_b = _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids)
+            mass_matrix = robot.data.mass_matrix.torch[:, arm_joint_ids, :][:, :, arm_joint_ids]
+            gravity = robot.data.gravity_compensation_forces.torch[:, arm_joint_ids]
+            ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+            ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+            joint_vel = robot.data.joint_vel.torch[:, arm_joint_ids]
+            ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
+
+            osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
+            joint_efforts = osc.compute(
+                jacobian_b=jacobian_b,
+                current_ee_pose_b=ee_pose_b,
+                current_ee_vel_b=ee_vel_b,
+                mass_matrix=mass_matrix,
+                gravity=gravity,
+            )
+            robot.set_joint_effort_target(joint_efforts, joint_ids=arm_joint_ids)
+            robot.write_data_to_sim()
+            sim.step()
+            robot.update(sim.cfg.dt)
+
+            pos_error, _ = compute_pose_error(ee_pos_b, ee_quat_b, target_pose_b[:, 0:3], target_pose_b[:, 3:7])
+            pos_history.append(pos_error.norm(dim=-1).max().item())
+        return pos_history
+
+    _, pos_off = _summarize_history(run_phase(400))
+    osc.cfg.gravity_compensation = True
+    _, pos_on = _summarize_history(run_phase(400))
+
+    print(f"GRAVCOMP_METRIC pos_off={pos_off:.5f} pos_on={pos_on:.5f}")
+
+    # Calibrated on newton 9af5a9f4 / mujoco-warp 3.10.0.1: pos_off ~= 0.024, pos_on ~= 0.0017.
+    assert pos_off > 1.2e-2, f"uncompensated sag {pos_off:.5f} < 1.2 cm — setup no longer discriminates gravity"
+    assert pos_on < 5e-3, f"compensated hold {pos_on:.5f} > 5 mm — gravity compensation inaccurate"
+    assert pos_on < pos_off / 10.0, f"compensation only improved sag {pos_off:.5f} -> {pos_on:.5f} (<10x)"
 
 
 if __name__ == "__main__":
