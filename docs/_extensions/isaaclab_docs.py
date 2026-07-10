@@ -7,12 +7,16 @@
 
 from __future__ import annotations
 
+import re
+
 from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
 from sphinx.util.docutils import SphinxDirective
 from sphinx.util.docutils import SphinxRole
 from sphinx.util.nodes import split_explicit_title
+
+_UPSTREAM_SOURCE_REF_PATTERN = re.compile(r"^(main|develop|release/.*|v[1-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?)$")
 
 
 def _branch(config) -> str:
@@ -21,6 +25,14 @@ def _branch(config) -> str:
     if current_version:
         return current_version
     return getattr(config, "isaaclab_latest_branch", "main")
+
+
+def _source_branch(config) -> str:
+    """Return a GitHub source ref that exists in the upstream repository."""
+    branch = _branch(config)
+    if _UPSTREAM_SOURCE_REF_PATTERN.match(branch):
+        return branch
+    return getattr(config, "isaaclab_latest_branch", "develop")
 
 
 def _parse_rst(directive: SphinxDirective, content: str) -> list[nodes.Node]:
@@ -63,7 +75,7 @@ class IsaacLabSourceLink(SphinxRole):
     """Link to a source file on the GitHub branch or tag for the current docs version."""
 
     def run(self) -> tuple[list[nodes.Node], list[nodes.system_message]]:
-        branch = _branch(self.config)
+        branch = _source_branch(self.config)
         has_explicit_title, title, target = split_explicit_title(self.text)
         if not has_explicit_title:
             title = target
