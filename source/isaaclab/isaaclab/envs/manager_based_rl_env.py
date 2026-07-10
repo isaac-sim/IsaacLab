@@ -6,6 +6,7 @@
 # needed to import for allowing type-hinting: np.ndarray | None
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Sequence
 from typing import Any, ClassVar
@@ -20,6 +21,8 @@ from isaaclab.ui.widgets import ManagerLiveVisualizer
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
@@ -95,7 +98,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         #    produced video matches the simulation
         self.metadata["render_fps"] = 1 / self.step_dt
         self.has_rtx_sensors = self.sim.get_setting("/isaaclab/render/rtx_sensors")
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment.")
 
     """
     Properties.
@@ -120,7 +123,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # and the reward manager needs to know the termination manager
         # -- command manager
         self.command_manager: CommandManager = CommandManager(self.cfg.commands, self)
-        print("[INFO] Command Manager: ", self.command_manager)
+        logger.info("Command Manager: %s", self.command_manager)
 
         # call the parent class to load the managers for observations and actions.
         super().load_managers()
@@ -128,13 +131,13 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # prepare the managers
         # -- termination manager
         self.termination_manager = TerminationManager(self.cfg.terminations, self)
-        print("[INFO] Termination Manager: ", self.termination_manager)
+        logger.info("Termination Manager: %s", self.termination_manager)
         # -- reward manager
         self.reward_manager = RewardManager(self.cfg.rewards, self)
-        print("[INFO] Reward Manager: ", self.reward_manager)
+        logger.info("Reward Manager: %s", self.reward_manager)
         # -- curriculum manager
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
-        print("[INFO] Curriculum Manager: ", self.curriculum_manager)
+        logger.info("Curriculum Manager: %s", self.curriculum_manager)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()

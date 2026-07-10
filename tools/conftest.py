@@ -490,8 +490,9 @@ def _run_one_pass(
         sys.executable,
         "-m",
         "pytest",
-        "-s",
         "--no-header",
+        "--show-capture=failed",
+        "--log-level=WARNING",
         f"--config-file={ctx.workspace_root}/pyproject.toml",
         f"--junitxml={report_file}",
         "--tb=short",
@@ -1044,7 +1045,16 @@ def pytest_sessionstart(session):
         test_files, workspace_root, isaacsim_ci, test_node_ids_by_file
     )
 
-    print("failed tests:", failed_tests)
+    if failed_tests:
+        fail_summary = "\n\n" + "=" * 60 + "\n"
+        fail_summary += "FAILED TEST FILES\n"
+        fail_summary += "=" * 60 + "\n"
+        for ft in failed_tests:
+            fail_summary += f"  FAILED  {ft}\n"
+        fail_summary += "=" * 60
+        print(fail_summary)
+    else:
+        print("\nAll test files passed.")
 
     # Collect reports
     print("~~~~~~~~~ Collecting final report...")
