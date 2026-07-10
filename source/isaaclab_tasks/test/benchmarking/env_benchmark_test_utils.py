@@ -115,8 +115,9 @@ def evaluate_job(workflow, task, env_config, train_result):
             parts.append(f"stderr_tail={stderr[-3500:]}")
         if stdout:
             parts.append(f"stdout_tail={stdout[-2500:]}")
+        dir_exists = os.path.isdir(base)
         parts.append(
-            f"no tensorboard files matched *.tfevents.* under {base} (recursive search; dir_exists={os.path.isdir(base)})"
+            f"no tensorboard files matched *.tfevents.* under {base} (recursive search; dir_exists={dir_exists})"
         )
         kpi_payload["msg"] = " | ".join(parts)
         return kpi_payload

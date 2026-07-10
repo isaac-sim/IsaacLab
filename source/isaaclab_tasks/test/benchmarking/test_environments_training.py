@@ -207,7 +207,7 @@ def test_train_environments(
     if env_config is None:
         pytest.skip(f"No config found for task {task} in {mode} mode")
 
-    job_name = f"{workflow}:{task}"
+    job_name = f"{workflow}:{task}:{sim_backend}"
     print(f">>> Training: {job_name}")
 
     train_result = train_job(
