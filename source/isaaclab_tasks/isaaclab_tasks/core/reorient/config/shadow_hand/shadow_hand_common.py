@@ -248,14 +248,14 @@ class PhysicsCfg(PresetCfg):
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",
             njmax=200,
-            nconmax=70,
+            nconmax=100,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
         ),
         num_substeps=2,
         debug_mode=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        default_shape_cfg=NewtonShapeCfg(margin=0.02),
     )
     ovphysx = OvPhysxCfg()
     default = newton_mjwarp
