@@ -209,7 +209,7 @@ def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton_multitile
     # Newton rendering is deterministic and does not introduce RTX sampling or temporal accumulation noise,
     # so keep the cross-tile consistency check stricter than the RTX-backed tests.
     assert_tiled_views_match(rgb, max_mean_abs_diff=1.0, label="newton_warp rgb")
-    assert_tiled_views_match(rgb_hdr, max_mean_abs_diff=0.05, label="newton_warp rgb_hdr")
+    assert_tiled_views_match(rgb_hdr, max_relative_mean_abs_diff=0.01, label="newton_warp rgb_hdr")
     for i in range(MULTI_TILE_COUNT):
         assert_ppisp_lifts_exposure(rgb_hdr[i], rgb[i], label=f"newton_warp tile {i}")
         assert_ppisp_invariants(rgb[i], label=f"newton_warp tile {i}")
