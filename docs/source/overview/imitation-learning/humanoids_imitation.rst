@@ -765,7 +765,7 @@ navigation and manipulation dataset as an HDF5 file — but here the robot navig
 manipulates objects inside a neurally-rendered environment, and an ego-centric camera
 captures the result, producing more realistic training data than a purely synthetic scene.
 NVIDIA Isaac Sim renders 3DGS models stored as USD assets; see
-`Neural Volume Rendering <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/assets/usd_assets_nurec.html>`__
+`Neural Volume Rendering <https://docs.isaacsim.omniverse.nvidia.com/6.0.1/assets/usd_assets_nurec.html>`__
 for details.
 
 .. note::
@@ -818,7 +818,7 @@ compatible with the SDG pipeline:
 
   - If your scene was reconstructed using the `Stereo Workflow <https://docs.nvidia.com/nurec/robotics/neural_reconstruction_stereo.html>`__,
     the occupancy map is generated via ``nvblox``.
-  - If your background includes a mesh, use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/6.0.0/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`__
+  - If your background includes a mesh, use the `Occupancy Map Generator <https://docs.isaacsim.omniverse.nvidia.com/6.0.1/digital_twin/ext_isaacsim_asset_generator_occupancy_map.html>`__
     to create a map via physical simulation.
 
 Generating the dataset

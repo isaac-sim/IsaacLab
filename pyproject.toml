@@ -115,7 +115,7 @@ rerun = [
     "pyarrow==22.0.0",  # match rerun-sdk's Arrow stack
 ]
 # Isaac Sim (PhysX backend); co-resolves with the base install via the [tool.uv] conflicts table.
-isaacsim = ["isaacsim[all,extscache]==6.0.0.1"]
+isaacsim = ["isaacsim[all,extscache]==6.0.1.0"]
 # Omniverse renderer / physics backends (``ov[ovphysx|ovrtx|all]`` selectors).
 ov = ["ovphysx==0.5.2+head.f62c22207c"]
 rtx = ["ovrtx>=0.3.0,<0.4.0"]
@@ -154,7 +154,7 @@ all = [
 # the extras above, and [tool.uv].override-dependencies mirror these values;
 # ``test_version_single_source`` fails CI if they drift.
 [tool.isaaclab.versions]
-isaacsim = "6.0.0.1"
+isaacsim = "6.0.1.0"
 torch = "2.11.0"
 torchvision = "0.26.0"
 torchaudio = "2.11.0"
