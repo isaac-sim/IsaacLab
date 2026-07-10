@@ -71,6 +71,16 @@ class CoupledSolverEntryCfg:
     shape_label_patterns: list[str] = field(default_factory=list)
     """Regexes matched against full Newton shape labels for additional ownership."""
 
+    substeps: int = 1
+    """Number of equal substeps this entry runs inside one coupled step."""
+
+    in_place: bool = False
+    """Whether this entry steps in-place instead of using a second state buffer.
+
+    Use this only for solvers, such as implicit MPM, whose public stepping
+    contract explicitly supports identical input and output states.
+    """
+
 
 @configclass
 class CoupledProxyCfg:

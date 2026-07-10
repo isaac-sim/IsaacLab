@@ -19,9 +19,9 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, XPBDSolverCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, MPMSolverCfg, XPBDSolverCfg
 from newton import ShapeFlags
-from newton.solvers import SolverKamino
+from newton.solvers import SolverImplicitMPM, SolverKamino
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.managers import SceneEntityCfg
@@ -518,6 +518,86 @@ def test_kamino_solver_config_remains_supported():
     assert NewtonCoupledSolverManager._resolve_solver_class(KaminoSolverCfg()) is SolverKamino
 
 
+def test_mpm_entry_uses_typed_config_and_forwards_execution_policy(monkeypatch):
+    """MPM construction preserves grid configuration, substeps, and in-place stepping."""
+    assert NewtonCoupledSolverManager._resolve_solver_class(MPMSolverCfg()) is SolverImplicitMPM
+
+    class _RecordingMpmSolver:
+        def __init__(self, model, config, temporary_store):
+            self.model = model
+            self.config = config
+            self.temporary_store = temporary_store
+
+    store = object()
+    monkeypatch.setitem(NewtonCoupledSolverManager._SOLVER_CLASS_BY_CFG_TYPE, MPMSolverCfg, _RecordingMpmSolver)
+    monkeypatch.setattr(coupled_manager, "TemporaryStore", lambda: store, raising=False)
+    entry = NewtonCoupledSolverManager._ResolvedEntry(
+        config=CoupledSolverEntryCfg(
+            name="media",
+            solver_cfg=MPMSolverCfg(grid_type="fixed", max_active_cell_count=256),
+            substeps=2,
+            in_place=True,
+        ),
+        bodies=[],
+        particles=[0],
+        joints=[],
+        shapes=[],
+    )
+
+    solver_entry = NewtonCoupledSolverManager._build_entry(entry)
+    solver = solver_entry.solver("media-view")
+
+    assert solver.model == "media-view"
+    assert solver.config.grid_type == "fixed"
+    assert solver.config.max_active_cell_count == 256
+    assert solver.temporary_store is store
+    assert solver_entry.substeps == 2
+    assert solver_entry.in_place is True
+
+
+def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
+    """Coupled MPM entries register attributes and normalize kinematic colliders."""
+    events: list[tuple[str, object]] = []
+    builder = object()
+    solver_cfg = CoupledProxySolverCfg(
+        entries=[CoupledSolverEntryCfg(name="media", solver_cfg=MPMSolverCfg())],
+    )
+    monkeypatch.setattr(coupled_manager.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
+    monkeypatch.setattr(
+        coupled_manager.NewtonMPMManager,
+        "_register_builder_attributes",
+        classmethod(lambda cls, value: events.append(("register", value))),
+    )
+    monkeypatch.setattr(
+        coupled_manager.NewtonMPMManager,
+        "_prepare_builder_for_finalize",
+        classmethod(lambda cls, value: events.append(("finalize", value))),
+    )
+
+    NewtonCoupledSolverManager._register_builder_attributes(builder)
+    NewtonCoupledSolverManager._prepare_builder_for_finalize(builder)
+
+    assert events == [("register", builder), ("finalize", builder)]
+
+
+def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
+    """Entry-local contact buffers are allocated before graph capture."""
+    events: list[tuple[str, object | None]] = []
+    contacts = object()
+    solver = SimpleNamespace(prepare_contacts=lambda value: events.append(("prepare", value)))
+    monkeypatch.setattr(
+        coupled_manager.NewtonVBDManager,
+        "_initialize_contacts",
+        classmethod(lambda cls: events.append(("initialize", None))),
+    )
+    monkeypatch.setattr(coupled_manager.NewtonManager, "_solver", solver)
+    monkeypatch.setattr(coupled_manager.NewtonManager, "_contacts", contacts)
+
+    NewtonCoupledSolverManager._initialize_contacts()
+
+    assert events == [("initialize", None), ("prepare", contacts)]
+
+
 def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     """Proxy sources get outer contacts when their solver requires them."""
     model = _FakeModel()
@@ -564,10 +644,12 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     old_outer = coupled_manager.NewtonManager._needs_collision_pipeline
     old_contact_support = coupled_manager.NewtonManager._supports_contact_sensors
     old_report_contacts = coupled_manager.NewtonManager._report_contacts
+    old_needs_fk = coupled_manager.NewtonManager._needs_fk_before_step
     try:
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
         NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
         assert coupled_manager.NewtonManager._needs_collision_pipeline is False
+        assert coupled_manager.NewtonManager._needs_fk_before_step is False
         assert coupled_manager.NewtonManager._supports_contact_sensors is False
         assert recorded_entries == ["rigid", "soft"]
         assert all(sc is proxy_cfg.scene_cfg for sc in recorded_scene_cfgs)
@@ -575,6 +657,10 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         resolved_entries[0].config.solver_cfg.use_mujoco_contacts = False
         NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
         assert coupled_manager.NewtonManager._needs_collision_pipeline is True
+
+        resolved_entries[0].config.solver_cfg = MPMSolverCfg()
+        NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
+        assert coupled_manager.NewtonManager._needs_fk_before_step is True
 
         recorded_entries.clear()
         admm_cfg = CoupledAdmmSolverCfg(entries=proxy_cfg.entries)
@@ -590,6 +676,7 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         coupled_manager.NewtonManager._needs_collision_pipeline = old_outer
         coupled_manager.NewtonManager._supports_contact_sensors = old_contact_support
         coupled_manager.NewtonManager._report_contacts = old_report_contacts
+        coupled_manager.NewtonManager._needs_fk_before_step = old_needs_fk
 
 
 class _RecordingAdmm:

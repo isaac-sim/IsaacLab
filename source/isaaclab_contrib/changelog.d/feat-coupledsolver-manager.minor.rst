@@ -47,3 +47,6 @@ Added
   :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverCfg`
   additionally exposes ``scene_cfg`` for resolving scene-entity selectors at
   solver-build time.
+
+* Added implicit MPM support for coupled-solver entries, including per-entry
+  substeps and in-place stepping.

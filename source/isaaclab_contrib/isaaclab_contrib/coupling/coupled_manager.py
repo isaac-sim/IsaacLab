@@ -15,15 +15,28 @@ from isaaclab_newton.physics import (
     FeatherstoneSolverCfg,
     KaminoSolverCfg,
     MJWarpSolverCfg,
+    MPMSolverCfg,
     NewtonSolverCfg,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
+from isaaclab_newton.physics.mpm_manager import _make_solver_config as _make_mpm_solver_config
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import CollisionPipeline, Model, ShapeFlags
-from newton.solvers import SolverBase, SolverFeatherstone, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
+from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
+from newton.solvers import (
+    SolverBase,
+    SolverFeatherstone,
+    SolverImplicitMPM,
+    SolverKamino,
+    SolverMuJoCo,
+    SolverVBD,
+    SolverXPBD,
+)
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
+from warp.fem import TemporaryStore
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
 from ..deformable.newton_manager_cfg import VBDSolverCfg
@@ -67,6 +80,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         FeatherstoneSolverCfg: SolverFeatherstone,
         XPBDSolverCfg: SolverXPBD,
         KaminoSolverCfg: SolverKamino,
+        MPMSolverCfg: SolverImplicitMPM,
     }
 
     @classmethod
@@ -119,11 +133,37 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
         NewtonManager._needs_collision_pipeline = needs_collision_pipeline
+        NewtonManager._needs_fk_before_step = any(
+            isinstance(entry.config.solver_cfg, MPMSolverCfg) for entry in resolved_entries
+        )
         if NewtonManager._report_contacts:
             raise NotImplementedError(
                 "Newton contact sensors are not yet supported by coupled solvers because contact forces live "
                 "in per-entry buffers. Remove the contact sensor."
             )
+
+    @classmethod
+    def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
+        """Register custom attributes required by nested coupled entries."""
+        super()._register_builder_attributes(builder)
+        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
+            NewtonMPMManager._register_builder_attributes(builder)
+
+    @classmethod
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
+        super()._prepare_builder_for_finalize(builder)
+        solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+        if any(isinstance(entry.solver_cfg, MPMSolverCfg) for entry in getattr(solver_cfg, "entries", ())):
+            NewtonMPMManager._prepare_builder_for_finalize(builder)
+
+    @classmethod
+    def _initialize_contacts(cls) -> None:
+        """Initialize contacts and entry-local buffers before CUDA graph capture."""
+        super()._initialize_contacts()
+        if cls._contacts is not None and hasattr(NewtonManager._solver, "prepare_contacts"):
+            NewtonManager._solver.prepare_contacts(cls._contacts)
 
     @classmethod
     def _resolve_entry(
@@ -258,15 +298,30 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
     def _build_entry(cls, entry: _ResolvedEntry) -> SolverCoupled.Entry:
         entry_cfg = entry.config
         solver_cls = cls._resolve_solver_class(entry_cfg.solver_cfg)
-        solver_kwargs = cls._filter_solver_kwargs(solver_cls, entry_cfg.solver_cfg)
+        solver_kwargs = (
+            {}
+            if isinstance(entry_cfg.solver_cfg, MPMSolverCfg)
+            else cls._filter_solver_kwargs(solver_cls, entry_cfg.solver_cfg)
+        )
+
+        def solver_factory(model_view):
+            if isinstance(entry_cfg.solver_cfg, MPMSolverCfg):
+                return solver_cls(
+                    model_view,
+                    _make_mpm_solver_config(entry_cfg.solver_cfg),
+                    temporary_store=TemporaryStore(),
+                )
+            return solver_cls(model=model_view, **solver_kwargs)
 
         return SolverCoupled.Entry(
             name=entry_cfg.name,
-            solver=lambda v: solver_cls(model=v, **solver_kwargs),
+            solver=solver_factory,
             bodies=entry.bodies,
             particles=entry.particles,
             joints=entry.joints,
             shapes=entry.shapes,
+            substeps=entry_cfg.substeps,
+            in_place=entry_cfg.in_place,
         )
 
     @classmethod
