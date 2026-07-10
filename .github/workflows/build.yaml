@@ -102,8 +102,6 @@ jobs:
           $'^tools/\tBuild tooling'
           $'^apps/\tStandalone apps'
           $'^scripts/\tStandalone scripts'
-          $'^pyproject\\.toml$\tRoot dependency manifest'
-          $'^isaaclab\\.sh$\tInstall CLI wrapper'
           $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
           $'^\\.github/workflows/config\\.yaml$\tBase image config'
           $'^\\.github/actions/\tCI actions'
