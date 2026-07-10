@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonSurfaceDeformableBodyMaterialCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
@@ -22,7 +22,6 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.deformable.newton_manager_cfg import (
     CoupledMJWarpVBDSolverCfg,
-    CoupledNewtonCfg,
     NewtonModelCfg,
     VBDSolverCfg,
 )
@@ -48,7 +47,7 @@ ROBOT_SHAPE_MATERIAL_BODY_NAMES = ".*"
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: CoupledNewtonCfg = CoupledNewtonCfg(
+    newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
                 njmax=40,
@@ -66,15 +65,13 @@ class PhysicsCfg(PresetCfg):
                 particle_collision_detection_interval=-1,
             ),
             coupling_mode="two_way",
+            model_cfg=NewtonModelCfg(
+                soft_contact_ke=1e3,
+                soft_contact_kd=1e-5,
+                soft_contact_mu=0.5,
+            ),
         ),
-        model_cfg=NewtonModelCfg(
-            soft_contact_ke=1e3,
-            soft_contact_kd=1e-5,
-            soft_contact_mu=0.5,
-            shape_material_ke=1e3,
-            shape_material_kd=1e-5,
-            shape_material_mu=1e-4,
-        ),
+        default_shape_cfg=NewtonShapeCfg(ke=1e3, kd=1e-5, mu=1e-4),
         num_substeps=10,
         use_cuda_graph=True,
     )

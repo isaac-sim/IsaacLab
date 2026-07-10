@@ -29,6 +29,7 @@ _VIS_LABEL_SUFFIXES = {
     "shape_label": "Shape",
     "articulation_label": "Articulation",
     "constraint_mimic_label": "ConstraintMimic",
+    "equality_constraint_label": "EqualityConstraint",
 }
 # Equality constraints live in custom attributes (like real newton), not plain builder lists.
 _VIS_BUILTIN_LABEL_ATTRS = tuple(attr for attr in _VIS_LABEL_SUFFIXES if attr != "equality_constraint_label")

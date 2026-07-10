@@ -21,9 +21,13 @@ from isaaclab_newton.physics import NewtonSolverCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
 
+from ..deformable.newton_manager_cfg import NewtonModelSolverCfg
+
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
     from newton import CollisionPipeline, ModelView
+
+    from isaaclab.scene import InteractiveSceneCfg
 
 
 @configclass
@@ -121,7 +125,7 @@ class CoupledProxyCfg:
 
 
 @configclass
-class CoupledSolverCfg(NewtonSolverCfg):
+class CoupledSolverCfg(NewtonModelSolverCfg):
     """Base configuration for a Newton experimental coupled solver.
 
     Every body and particle in the parent model must have one unambiguous
@@ -135,6 +139,11 @@ class CoupledSolverCfg(NewtonSolverCfg):
 
     entries: list[CoupledSolverEntryCfg] = field(default_factory=list)
     """Ordered named sub-solver entries and their ownership selectors."""
+
+    scene_cfg: InteractiveSceneCfg | None = None
+    """Scene cfg used to resolve :class:`~isaaclab.managers.SceneEntityCfg` selectors
+    to Newton bodies at solver-build time. Typically assigned from the env cfg's
+    ``__post_init__``."""
 
 
 @configclass

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ModelBuilder
+from newton import Model
 from newton._src.usd.schemas import SchemaResolverNewton, SchemaResolverPhysx
 from newton.solvers import SolverVBD
 
@@ -24,12 +24,30 @@ from .deformable_object import (
     install_deformable_builder_hooks,
     setup_registered_deformable_fabric_sync,
 )
-from .newton_manager_cfg import VBDSolverCfg
+from .newton_manager_cfg import NewtonModelSolverCfg, VBDSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab.sim.simulation_context import SimulationContext
 
 logger = logging.getLogger(__name__)
+
+
+def _apply_model_cfg(model: Model) -> None:
+    """Apply the active solver cfg's :class:`NewtonModelCfg` to the finalized model.
+
+    Sets the model-global ``soft_contact_ke/kd/mu``. Per-shape material defaults
+    are applied earlier via ``builder.default_shape_cfg``, not here.
+    """
+    from isaaclab.physics import PhysicsManager
+
+    solver_cfg = getattr(PhysicsManager._cfg, "solver_cfg", None)
+    if not isinstance(solver_cfg, NewtonModelSolverCfg) or solver_cfg.model_cfg is None:
+        return
+
+    model_cfg = solver_cfg.model_cfg
+    model.soft_contact_ke = float(model_cfg.soft_contact_ke)
+    model.soft_contact_kd = float(model_cfg.soft_contact_kd)
+    model.soft_contact_mu = float(model_cfg.soft_contact_mu)
 
 
 class NewtonVBDManager(NewtonManager):
@@ -96,28 +114,8 @@ class NewtonVBDManager(NewtonManager):
         """
         super().start_simulation()
 
-        # Apply global model parameters from :class:`NewtonModelCfg` to the finalized model.
-        # Sets ``soft_contact_ke/kd/mu`` and optionally overrides per-shape
-        # ``shape_material_ke/kd/mu`` on the Newton model.
-        from isaaclab.physics import PhysicsManager
-
-        cfg = PhysicsManager._cfg
-        if cfg is not None and hasattr(cfg, "model_cfg") and cfg.model_cfg is not None:
-            model = cls._model
-            if model is None:
-                return
-
-            model_cfg = cfg.model_cfg
-            model.soft_contact_ke = float(model_cfg.soft_contact_ke)
-            model.soft_contact_kd = float(model_cfg.soft_contact_kd)
-            model.soft_contact_mu = float(model_cfg.soft_contact_mu)
-
-            if model_cfg.shape_material_ke is not None:
-                model.shape_material_ke.fill_(float(model_cfg.shape_material_ke))
-            if model_cfg.shape_material_kd is not None:
-                model.shape_material_kd.fill_(float(model_cfg.shape_material_kd))
-            if model_cfg.shape_material_mu is not None:
-                model.shape_material_mu.fill_(float(model_cfg.shape_material_mu))
+        if cls._model is not None:
+            _apply_model_cfg(cls._model)
 
         # Setup USD/Fabric sync for Kit viewport deformable rendering
         setup_registered_deformable_fabric_sync(cls)
@@ -153,7 +151,7 @@ class NewtonVBDManager(NewtonManager):
                     env_paths.append((int(m.group(1)), child.GetPath().pathString))
         env_paths.sort(key=lambda x: x[0])
 
-        builder = ModelBuilder(up_axis=up_axis)
+        builder = cls.create_builder(up_axis=up_axis)
 
         schema_resolvers = [SchemaResolverNewton(), SchemaResolverPhysx()]
 
@@ -175,7 +173,7 @@ class NewtonVBDManager(NewtonManager):
 
             # Build a prototype from the first env (all envs assumed identical)
             _, proto_path = env_paths[0]
-            proto = ModelBuilder(up_axis=up_axis)
+            proto = cls.create_builder(up_axis=up_axis)
             proto.add_usd(
                 stage,
                 root_path=proto_path,
@@ -231,6 +229,7 @@ class NewtonVBDManager(NewtonManager):
             NewtonManager._num_envs = len(env_paths)
 
         # Coloring is required by the VBD solver for particles and VBD-integrated bodies.
+        # Safe without particles: color() skips particle coloring when particle_count == 0.
         builder.color()
 
         cls.set_builder(builder)

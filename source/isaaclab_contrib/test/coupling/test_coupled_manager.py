@@ -522,15 +522,16 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     """Proxy owns destination contacts while ADMM uses the shared outer pipeline."""
     model = _FakeModel()
     proxy_cfg, resolved_entries, resolved_proxies = _valid_proxy_setup()
+    proxy_cfg.scene_cfg = _FakeSceneCfg()
     recorded_entries: list[str] = []
+    recorded_scene_cfgs: list[object] = []
 
     monkeypatch.setattr(
         NewtonCoupledSolverManager,
         "_resolve_entry",
         classmethod(
-            lambda cls, model, entry_cfg, scene_cfg: next(
-                entry for entry in resolved_entries if entry.config.name == entry_cfg.name
-            )
+            lambda cls, model, entry_cfg, scene_cfg: recorded_scene_cfgs.append(scene_cfg)
+            or next(entry for entry in resolved_entries if entry.config.name == entry_cfg.name)
         ),
     )
     monkeypatch.setattr(
@@ -568,6 +569,7 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         assert coupled_manager.NewtonManager._needs_collision_pipeline is False
         assert coupled_manager.NewtonManager._supports_contact_sensors is False
         assert recorded_entries == ["rigid", "soft"]
+        assert all(sc is proxy_cfg.scene_cfg for sc in recorded_scene_cfgs)
 
         recorded_entries.clear()
         admm_cfg = CoupledAdmmSolverCfg(entries=proxy_cfg.entries)

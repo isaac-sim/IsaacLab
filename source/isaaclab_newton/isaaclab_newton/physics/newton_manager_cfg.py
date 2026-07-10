@@ -75,6 +75,28 @@ class NewtonShapeCfg:
     gap: float = 0.01
     """Default per-shape contact gap [m]. Newton's upstream default is ``None``."""
 
+    # Defaults mirror Newton's ShapeConfig defaults so an unspecified field is a no-op.
+    ke: float = 2.5e3
+    """Default per-shape normal contact stiffness [N/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.ke`` default.
+    """
+
+    kd: float = 100.0
+    """Default per-shape normal contact damping [N*s/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.kd`` default.
+    """
+
+    mu: float = 1.0
+    """Default per-shape friction coefficient [dimensionless].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.mu`` default.
+    """
+
 
 @configclass
 class NewtonCfg(PhysicsCfg):

@@ -9,18 +9,56 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonSolverCfg
+from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonSolverCfg
 
 from isaaclab.utils.configclass import configclass
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
 
-    from isaaclab.scene import InteractiveSceneCfg
+
+@configclass
+class NewtonModelCfg:
+    """Global Newton model parameters applied after builder finalization.
+
+    These control model-level contact behavior shared across all objects.
+    """
+
+    soft_contact_ke: float = 1.0e3
+    """Body-particle and particle self-contact stiffness [N/m].
+
+    Effective per-contact stiffness is the average of this value and the rigid
+    shape's material stiffness.
+    """
+
+    soft_contact_kd: float = 1.0e-2
+    """Body-particle contact damping [N*s/m]."""
+
+    soft_contact_mu: float = 0.5
+    """Body-particle contact friction coefficient [dimensionless].
+
+    Effective per-contact friction is ``sqrt(soft_contact_mu * shape_mu)``, where
+    ``shape_mu`` is the rigid shape's own friction coefficient (from its per-asset
+    material or :attr:`NewtonShapeCfg.mu` default), not set by this config.
+    """
 
 
 @configclass
-class VBDSolverCfg(NewtonSolverCfg):
+class NewtonModelSolverCfg(NewtonSolverCfg):
+    """Base for solver configs whose manager applies :class:`NewtonModelCfg` to the finalized model.
+
+    TODO: Temporary. This base only exists because :class:`NewtonModelCfg` lives in
+    ``isaaclab_contrib`` while :class:`NewtonSolverCfg` is in ``isaaclab_newton`` core.
+    Once these model params move into core, ``model_cfg`` should live on
+    :class:`NewtonSolverCfg` (or ``NewtonCfg``) directly and this class can be removed.
+    """
+
+    model_cfg: NewtonModelCfg | None = None
+    """Global Newton model parameters applied after builder finalization."""
+
+
+@configclass
+class VBDSolverCfg(NewtonModelSolverCfg):
     """Configuration for the Vertex Block Descent (VBD) solver.
 
     Supports cloth, soft bodies, and coupled rigid-body systems. Requires
@@ -80,7 +118,7 @@ class VBDSolverCfg(NewtonSolverCfg):
 
 
 @configclass
-class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
+class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
     """Configuration for the coupled MJWarp + VBD solver.
 
     Alternates a rigid-body solver (:class:`MJWarpSolverCfg`) and VBD per substep.
@@ -105,7 +143,7 @@ class CoupledMJWarpVBDSolverCfg(NewtonSolverCfg):
 
 
 @configclass
-class CoupledFeatherstoneVBDSolverCfg(NewtonSolverCfg):
+class CoupledFeatherstoneVBDSolverCfg(NewtonModelSolverCfg):
     """Configuration for the coupled Featherstone + VBD solver.
 
     Alternates a rigid-body solver (:class:`FeatherstoneSolverCfg`) and VBD per
@@ -126,60 +164,4 @@ class CoupledFeatherstoneVBDSolverCfg(NewtonSolverCfg):
 
     Accepts the same values as :attr:`CoupledMJWarpVBDSolverCfg.coupling_mode`,
     plus ``"kinematic"`` (rigid -> soft only, rigid bodies kinematically updated).
-    """
-
-
-@configclass
-class NewtonModelCfg:
-    """Global Newton model parameters applied after builder finalization.
-
-    These control model-level contact behavior shared across all objects.
-    """
-
-    soft_contact_ke: float = 1.0e3
-    """Body-particle and particle self-contact stiffness [N/m].
-
-    Effective per-contact stiffness is the average of this value and the rigid
-    shape's material stiffness.
-    """
-
-    soft_contact_kd: float = 1.0e-2
-    """Body-particle contact damping [N*s/m]."""
-
-    soft_contact_mu: float = 0.5
-    """Body-particle contact friction coefficient [dimensionless].
-
-    Effective per-contact friction is ``sqrt(soft_contact_mu * shape_material_mu)``.
-    """
-
-    shape_material_ke: float | None = None
-    """Per-shape contact stiffness override [N/m]. ``None`` keeps USD/MJCF values."""
-
-    shape_material_kd: float | None = None
-    """Per-shape contact damping override [N*s/m]. ``None`` keeps USD/MJCF values."""
-
-    shape_material_mu: float | None = None
-    """Per-shape friction coefficient override [dimensionless]. ``None`` keeps USD/MJCF values."""
-
-
-@configclass
-class CoupledNewtonCfg(NewtonCfg):
-    """:class:`NewtonCfg` extended for coupled-solver setups.
-
-    Adds :attr:`model_cfg` for global model parameters and :attr:`scene_cfg` so
-    the manager can resolve :class:`~isaaclab.managers.SceneEntityCfg` selectors
-    against the scene at solver-build time.
-
-    Uses a distinct class name so it is not treated as kitless physics (its
-    class name is not in Isaac Lab's ``_KITLESS_PHYSICS_CFGS`` allowlist),
-    ensuring Kit is launched for USD deformable/coupled spawning.
-    """
-
-    model_cfg: NewtonModelCfg | None = None
-    """Global Newton model parameters applied after builder finalization."""
-
-    scene_cfg: InteractiveSceneCfg | None = None
-    """Scene cfg used by coupled solvers to resolve scene-entity selectors.
-
-    Set to ``self.scene`` from the env's ``__post_init__``.
     """

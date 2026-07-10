@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab_newton.physics import MJWarpSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
 from isaaclab_physx.physics import PhysxCfg
@@ -43,7 +43,6 @@ from isaaclab_contrib.coupling import (
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import (
     CoupledMJWarpVBDSolverCfg,
-    CoupledNewtonCfg,
     NewtonModelCfg,
     VBDSolverCfg,
 )
@@ -114,7 +113,7 @@ class DeformableCfg(PresetCfg):
 class PhysicsCfg(PresetCfg):
     # Newton physics: MJWarp rigid + VBD soft, two-way coupled
     # (matches newton/examples/softbody/example_softbody_franka.py)
-    newton_mjwarp_vbd: CoupledNewtonCfg = CoupledNewtonCfg(
+    newton_mjwarp_vbd: NewtonCfg = NewtonCfg(
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
                 njmax=40,
@@ -132,19 +131,17 @@ class PhysicsCfg(PresetCfg):
                 particle_collision_detection_interval=-1,
             ),
             coupling_mode="two_way",
+            model_cfg=NewtonModelCfg(
+                soft_contact_ke=1e4,
+                soft_contact_kd=1e-5,
+                soft_contact_mu=5.0,
+            ),
         ),
-        model_cfg=NewtonModelCfg(
-            soft_contact_ke=1e4,
-            soft_contact_kd=1e-5,
-            soft_contact_mu=5.0,
-            shape_material_ke=4e4,
-            shape_material_kd=1e-5,
-            shape_material_mu=5.0,
-        ),
+        default_shape_cfg=NewtonShapeCfg(ke=4e4, kd=1e-5, mu=5.0),
         num_substeps=10,
     )
 
-    newton_mjwarp_vbd_proxy: CoupledNewtonCfg = CoupledNewtonCfg(
+    newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
         solver_cfg=CoupledProxySolverCfg(
             entries=[
                 CoupledSolverEntryCfg(
@@ -177,15 +174,13 @@ class PhysicsCfg(PresetCfg):
                 )
             ],
             iterations=1,
+            model_cfg=NewtonModelCfg(
+                soft_contact_ke=1e4,
+                soft_contact_kd=1e-5,
+                soft_contact_mu=5.0,
+            ),
         ),
-        model_cfg=NewtonModelCfg(
-            soft_contact_ke=1e4,
-            soft_contact_kd=1e-5,
-            soft_contact_mu=5.0,
-            shape_material_ke=4e4,
-            shape_material_kd=1e-5,
-            shape_material_mu=5.0,
-        ),
+        default_shape_cfg=NewtonShapeCfg(ke=4e4, kd=1e-5, mu=5.0),
         num_substeps=10,
     )
 
@@ -475,6 +470,12 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
         self.sim.physics = PhysicsCfg()
+
+        # The coupled proxy solver resolves SceneEntityCfg selectors against the scene at
+        # solver-build time. Wire the scene on the named preset (used when selected by name)
+        # and on the ``default`` alias the resolver falls back to when no preset is given.
+        self.sim.physics.newton_mjwarp_vbd_proxy.solver_cfg.scene_cfg = self.scene
+        self.sim.physics.default.solver_cfg.scene_cfg = self.scene
 
         view = dict(eye=(1.25, -1.5, 0.75), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
         self.sim.visualizer_cfgs = [KitVisualizerCfg(**view), NewtonVisualizerCfg(**view)]

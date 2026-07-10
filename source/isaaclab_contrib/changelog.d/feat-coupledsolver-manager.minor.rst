@@ -1,3 +1,14 @@
+Changed
+^^^^^^^
+
+* Removed the model-global ``shape_material_ke/kd/mu`` fields from
+  :class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg`, which
+  filled every rigid shape's material and clobbered per-asset materials. Set
+  per-shape defaults through
+  :class:`~isaaclab_newton.physics.NewtonShapeCfg` on ``NewtonCfg.default_shape_cfg``
+  instead; per-asset materials now override those defaults. The model-global
+  ``soft_contact_ke/kd/mu`` fields are unchanged.
+
 Added
 ^^^^^
 
@@ -20,3 +31,12 @@ Added
   :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverEntryCfg`
   and :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledProxyCfg`,
   alongside :class:`~isaaclab.managers.SceneEntityCfg` selectors.
+
+* Added :class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg`,
+  a shared solver-config base whose ``model_cfg``
+  (:class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg`) is
+  applied to the finalized Newton model. The VBD and coupled solver configs
+  inherit it, and
+  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverCfg`
+  additionally exposes ``scene_cfg`` for resolving scene-entity selectors at
+  solver-build time.

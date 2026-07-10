@@ -58,22 +58,9 @@ Add a VBD Physics Preset
 
 Tasks that support multiple physics options usually store ``SimulationCfg.physics``
 as a :class:`~isaaclab_tasks.utils.hydra.PresetCfg`. For deformable Newton tasks,
-the preset can use a small :class:`~isaaclab_newton.physics.NewtonCfg` subclass
-to carry :class:`~isaaclab_contrib.deformable.NewtonModelCfg` alongside the
-normal Newton fields:
-
-.. code-block:: python
-
-    from isaaclab.utils.configclass import configclass
-    from isaaclab_newton.physics import NewtonCfg
-
-    from isaaclab_contrib.deformable import NewtonModelCfg
-
-
-    @configclass
-    class DeformableNewtonCfg(NewtonCfg):
-        model_cfg: NewtonModelCfg | None = None
-
+the preset is a plain :class:`~isaaclab_newton.physics.NewtonCfg` whose solver
+config carries :class:`~isaaclab_contrib.deformable.NewtonModelCfg` through its
+:class:`~isaaclab_contrib.deformable.NewtonModelSolverCfg` base class.
 
 The Franka soft-body task defines a ``newton_mjwarp_vbd`` preset that couples
 MJWarp and VBD:
@@ -86,12 +73,14 @@ MJWarp and VBD:
 
 The important pieces are:
 
-* Add a Newton physics preset whose value is ``DeformableNewtonCfg``.
+* Add a Newton physics preset whose value is a
+  :class:`~isaaclab_newton.physics.NewtonCfg`.
 * Use :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` when rigid
   bodies and deformables must interact in the same scene.
 * Use ``soft_solver_cfg=VBDSolverCfg(integrate_with_external_rigid_solver=True)``
   inside a coupled solver so VBD advances only the deformable particles.
-* Add :class:`~isaaclab_contrib.deformable.NewtonModelCfg` when body-particle or
+* Set the solver config's ``model_cfg`` to a
+  :class:`~isaaclab_contrib.deformable.NewtonModelCfg` when body-particle or
   self-contact values need task-level tuning.
 * Keep the preset at the same config path used by the task's
   :class:`~isaaclab.sim.SimulationCfg`, for example ``env.sim.physics``.
@@ -240,7 +229,7 @@ configuration:
 
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
-    :start-at: newton_mjwarp_vbd_proxy: CoupledNewtonCfg
+    :start-at: newton_mjwarp_vbd_proxy: NewtonCfg
     :end-before: physx: PhysxCfg = PhysxCfg()
     :dedent: 4
 
@@ -298,12 +287,11 @@ Key proxy-specific parameters:
 
 Because the proxy solver resolves
 :class:`~isaaclab.managers.SceneEntityCfg` selectors against the scene at
-solver-build time, the coupled preset must be wrapped in a
-:class:`~isaaclab_contrib.deformable.CoupledNewtonCfg` (a thin
-:class:`~isaaclab_newton.physics.NewtonCfg` subclass with a ``scene_cfg`` and a
-``model_cfg`` field). The env's ``__post_init__`` is responsible for setting
-``self.sim.physics.scene_cfg = self.scene`` — the Franka soft env does this
-automatically via the :class:`~isaaclab_tasks.utils.PresetCfg` plumbing.
+solver-build time, the env's ``__post_init__`` is responsible for setting
+:attr:`~isaaclab_contrib.coupling.CoupledSolverCfg.scene_cfg` to ``self.scene``
+on the coupled solver config. The Franka soft env does this for every physics
+preset alternative whose solver is a
+:class:`~isaaclab_contrib.coupling.CoupledSolverCfg`.
 
 Try the demo:
 
@@ -340,12 +328,11 @@ to the finalized Newton model:
       - Default: ``1.0e-2`` [N*s/m]. Contact damping. Increase it to reduce chatter or bouncing. Too much damping can make contact response sticky or overdamped.
     * - ``soft_contact_mu``
       - Default: ``0.5``. Friction coefficient for body-particle and particle self-contact. Increase it when a gripper cannot carry the deformable object without slipping.
-    * - ``shape_material_ke``
-      - Default: ``None`` [N/m]. Optional override for all rigid collision-shape contact stiffness values in the Newton model. Use this when the rigid-side material parsed from the asset is not appropriate for deformable contact.
-    * - ``shape_material_kd``
-      - Default: ``None`` [N*s/m]. Optional override for all rigid collision-shape contact damping values in the Newton model.
-    * - ``shape_material_mu``
-      - Default: ``None``. Optional override for all rigid collision-shape friction values in the Newton model. Body-particle friction depends on both the soft contact and rigid shape friction coefficients.
+
+To set rigid collision-shape contact properties (``ke``, ``kd``, ``mu``) for
+shapes that lack an explicit per-asset material, use
+:class:`~isaaclab_newton.physics.NewtonShapeCfg` on ``NewtonCfg.default_shape_cfg``
+instead. Per-asset materials override these defaults.
 
 
 Volume Deformable Materials
@@ -442,7 +429,7 @@ Symptoms and First Parameters to Check
     * - Rigid bodies visibly clip through the deformable.
       - Increase ``soft_contact_ke``, VBD ``iterations``, ``num_substeps``, or the deformable material ``particle_radius``.
     * - The robot cannot lift the deformable.
-      - Use ``coupling_mode="two_way"``, then increase ``soft_contact_mu`` and rigid-side ``shape_material_mu``. Also check gripper actuator stiffness and effort limits.
+      - Use ``coupling_mode="two_way"``, then increase ``soft_contact_mu`` and the rigid-side shape friction (per-asset material ``mu`` or ``NewtonShapeCfg.mu``). Also check gripper actuator stiffness and effort limits.
     * - The deformable barely deforms.
       - Reduce material stiffness, ``soft_contact_ke``, or shape contact stiffness.
     * - Contact chatters or bounces.

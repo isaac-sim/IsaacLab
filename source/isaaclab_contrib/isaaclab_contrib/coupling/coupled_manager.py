@@ -24,10 +24,9 @@ from newton.solvers import SolverBase, SolverFeatherstone, SolverKamino, SolverM
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
-from ..deformable.newton_manager_cfg import CoupledNewtonCfg, VBDSolverCfg
+from ..deformable.newton_manager_cfg import VBDSolverCfg
 from ..deformable.vbd_manager import NewtonVBDManager
 from .coupled_manager_cfg import (
     CoupledAdmmSolverCfg,
@@ -84,8 +83,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: CoupledSolverCfg) -> None:
         """Resolve ownership and construct the selected coupled solver."""
-        outer_cfg = PhysicsManager._cfg
-        scene_cfg = outer_cfg.scene_cfg if isinstance(outer_cfg, CoupledNewtonCfg) else None
+        scene_cfg = solver_cfg.scene_cfg
 
         resolved_entries = [cls._resolve_entry(model, entry, scene_cfg) for entry in solver_cfg.entries]
         entries = [cls._build_entry(entry) for entry in resolved_entries]
