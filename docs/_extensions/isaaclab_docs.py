@@ -11,6 +11,8 @@ from docutils import nodes
 from docutils.parsers.rst import directives
 from docutils.statemachine import StringList
 from sphinx.util.docutils import SphinxDirective
+from sphinx.util.docutils import SphinxRole
+from sphinx.util.nodes import split_explicit_title
 
 
 def _branch(config) -> str:
@@ -55,6 +57,20 @@ class IsaacLabCloneCommands(SphinxDirective):
          cd IsaacLab
 """
         return _parse_rst(self, content)
+
+
+class IsaacLabSourceLink(SphinxRole):
+    """Link to a source file on the GitHub branch or tag for the current docs version."""
+
+    def run(self) -> tuple[list[nodes.Node], list[nodes.system_message]]:
+        branch = _branch(self.config)
+        has_explicit_title, title, target = split_explicit_title(self.text)
+        if not has_explicit_title:
+            title = target
+        target = target.strip("/")
+        refuri = f"https://github.com/isaac-sim/IsaacLab/blob/{branch}/{target}"
+        node = nodes.reference(self.rawtext, title, refuri=refuri, **self.options)
+        return [node], []
 
 
 class IsaacLabCloneHttps(SphinxDirective):
@@ -262,6 +278,7 @@ def setup(app):
     app.add_config_value("torch_version", "", "env")
     app.add_config_value("torchvision_version", "", "env")
     app.add_config_value("ovrtx_spec", "", "env")
+    app.add_role("isaaclab-source", IsaacLabSourceLink())
     app.add_directive("isaaclab-clone-commands", IsaacLabCloneCommands)
     app.add_directive("isaaclab-clone-https", IsaacLabCloneHttps)
     app.add_directive("isaaclab-kitless-install-snippet", IsaacLabKitlessInstallSnippet)
