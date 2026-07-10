@@ -207,16 +207,17 @@ class TerrainImporter:
         self.terrain_prim_paths.append(prim_path)
 
         # obtain ground plane color from the configured visual material
-        color = (0.0, 0.0, 0.0)
+        # note: a None color keeps the spawned asset's color unchanged. This is the case when
+        #   no visual material is configured or when it does not provide a diffuse color.
+        color = None
         if self.cfg.visual_material is not None:
             material = self.cfg.visual_material.to_dict()
-            # defaults to the `GroundPlaneCfg` color if diffuse color attribute is not found
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:
                 logger.warning(
                     "Visual material specified for ground plane but no diffuse color found."
-                    " Using default color: (0.0, 0.0, 0.0)"
+                    " Skipping the color override."
                 )
 
         # get the mesh
