@@ -14,7 +14,7 @@ import pytest
 
 from isaaclab.envs.utils.video_recorder import VideoRecorder, _select_video_backend
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 _FRAME = np.zeros((8, 12, 3), dtype=np.uint8)
 _DEFAULT_CFG = {
     "env_render_mode": "rgb_array",

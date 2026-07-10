@@ -15,6 +15,8 @@ import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
 from isaaclab.app.sim_launcher import _ensure_livestream_kit_visualizer
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.usefixtures("mocker")
 def test_livestream_launch_with_kwargs(mocker):
@@ -78,6 +80,18 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     assert close_args == {"exit_code": 1}
 
 
+def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.MonkeyPatch):
+    """The post-Kit device hook must synchronize both CUDA runtimes."""
+    devices = []
+    monkeypatch.setattr(app_launcher_module, "set_cuda_device", devices.append)
+    launcher = AppLauncher.__new__(AppLauncher)
+    launcher._deferred_cuda_device_id = 2
+
+    launcher._set_deferred_cuda_device()
+
+    assert devices == [2]
+
+
 class _DummySettings:
     def __init__(self):
         self.values = {}
@@ -119,7 +133,7 @@ def test_load_extensions_publishes_has_gui_setting(
     settings = _DummySettings()
     monkeypatch.setattr(app_launcher_module, "initialize_carb_settings", lambda: None)
     monkeypatch.setattr(app_launcher_module, "get_settings_manager", lambda: settings)
-    monkeypatch.setattr(AppLauncher, "_apply_python_logging_level", lambda _level: None)
+    monkeypatch.setattr(app_launcher_module, "apply_python_logging_level", lambda _level: None)
 
     launcher._load_extensions()
 

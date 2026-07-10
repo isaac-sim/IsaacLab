@@ -23,6 +23,8 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():

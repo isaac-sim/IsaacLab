@@ -49,17 +49,13 @@ Ensure pip is up to date:
 
     uv pip install --upgrade pip
 
-[Optional] Install Isaac Sim 6.0:
+[Optional] Install Isaac Sim:
 
-.. code-block:: bash
-
-    uv pip install "isaacsim[all,extscache]==6.0.0.1" --extra-index-url https://pypi.nvidia.com --index-strategy unsafe-best-match --prerelease=allow
+.. isaaclab-isaacsim-install::
 
 Install the correct version of torch and torchvision:
 
-.. code-block:: bash
-
-    uv pip install -U torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cu128
+.. isaaclab-torch-install:: cu128
 
 Install Isaac Lab extensions and dependencies (this includes Newton 1.0):
 

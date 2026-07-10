@@ -4080,6 +4080,7 @@ class Articulation(BaseArticulation):
                     num_envs=self.num_instances,
                     num_joints=self.num_joints,
                     dof_offset=0,
+                    env_stride=adapter.num_joints,
                     device=self.device,
                 )
                 self.write_joint_stiffness_to_sim_index(stiffness=0.0, joint_ids=adapter.joint_indices)

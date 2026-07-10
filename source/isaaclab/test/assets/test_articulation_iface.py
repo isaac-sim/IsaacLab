@@ -67,6 +67,8 @@ _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
+pytestmark = pytest.mark.integration
+
 SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
 
 """

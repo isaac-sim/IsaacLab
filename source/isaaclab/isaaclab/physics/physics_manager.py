@@ -15,6 +15,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab.sim.utils.stage import get_current_stage
+from isaaclab.utils._device import set_cuda_device
 
 if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataBackend
@@ -376,6 +377,12 @@ class PhysicsManager(ABC):
         PhysicsManager._cfg = sim_context.cfg.physics
         PhysicsManager._device = sim_context.cfg.device
         PhysicsManager._sim_time = 0.0
+
+        # Synchronize the process-wide CUDA device before backend-specific
+        # initialization allocates state. PyTorch must select the device before
+        # Warp so that both runtimes retain the same primary CUDA context.
+        if "cuda" in PhysicsManager._device:
+            set_cuda_device(PhysicsManager._device)
 
     @classmethod
     @abstractmethod

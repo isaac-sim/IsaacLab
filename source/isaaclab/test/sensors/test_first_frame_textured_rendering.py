@@ -21,6 +21,8 @@ import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 # resolution
 HEIGHT = 256
 WIDTH = 256

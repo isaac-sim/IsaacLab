@@ -198,6 +198,19 @@ def cuda_torch_index_url() -> str:
     return "https://download.pytorch.org/whl/cu128"
 
 
+def pinned_torch_specs() -> list[str]:
+    """Return the pinned ``torch``/``torchvision`` install specs from the repo pyproject.
+
+    Reads ``[tool.isaaclab.versions]`` (the single source of truth) so these
+    install commands track the same versions as the docs and the install CLI.
+    """
+    import tomllib
+
+    with (find_isaaclab_root() / "pyproject.toml").open("rb") as fd:
+        versions = tomllib.load(fd)["tool"]["isaaclab"]["versions"]
+    return [f"torch=={versions['torch']}", f"torchvision=={versions['torchvision']}"]
+
+
 def aarch64_isaacsim_env() -> dict[str, str]:
     """Return env vars required to import ``isaacsim`` from a ``uv pip`` install on aarch64.
 

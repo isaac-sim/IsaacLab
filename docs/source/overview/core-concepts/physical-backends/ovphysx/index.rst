@@ -85,10 +85,9 @@ You can also install all OV runtime wheels with:
 
     ./isaaclab.sh -i 'ov[all]'
 
-The ``ov[ovphysx]`` selector installs ``source/isaaclab_ovphysx`` with its
-``[ovphysx]`` extra. If the wheel is missing, OvPhysX-specific tests skip with
-``ovphysx wheel not installed`` and user code raises an install hint when it
-first imports the runtime-backed modules.
+The ``ov[ovphysx]`` selector installs the ``ovphysx`` runtime wheel declared by
+the root ``pyproject.toml`` ``ov`` extra. If the wheel is missing, OvPhysX-specific
+tests skip with ``ovphysx wheel not installed`` and user code fails at import time.
 
 Testing the Installation
 ------------------------
@@ -110,7 +109,7 @@ syntax as the other backends:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 presets=ovphysx
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Cartpole-Direct --num_envs 128 --viz none presets=ovphysx
 
 This command starts a headless zero-action rollout; stop it with ``Ctrl+C``
 after the environment has started and stepped successfully.
