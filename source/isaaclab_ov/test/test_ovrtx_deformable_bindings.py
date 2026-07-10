@@ -255,13 +255,6 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
         device="cpu",
     )
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(particle_q=particle_q)))
-    NewtonManager._particles_dirty = True
-    monkeypatch.setattr(NewtonManager, "particles_dirty", classmethod(lambda cls: cls._particles_dirty))
-
-    def _clear_particles_dirty(cls) -> None:
-        cls._particles_dirty = False
-
-    monkeypatch.setattr(NewtonManager, "clear_particles_dirty", classmethod(_clear_particles_dirty))
 
     launch_calls: list[tuple] = []
 
@@ -278,7 +271,6 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
     renderer.update_geometries()
 
     assert launch_calls == []
-    assert NewtonManager._particles_dirty is False
     assert renderer._deformable_points_binding.written is renderer._deformable_points_buffers
     assert renderer._deformable_points_binding.write_kwargs is not None
     assert renderer._deformable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
@@ -288,26 +280,3 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
         [4.0, 5.0, 6.0],
         [7.0, 8.0, 9.0],
     ]
-
-
-def test_update_deformable_points_skips_when_particles_clean(monkeypatch: pytest.MonkeyPatch):
-    """Dirty-gated sync skips data copies and kernel launches when particle state is clean."""
-    renderer, _backend = _make_renderer_without_backend()
-    renderer._deformable_points_binding = _FakePointsBinding("points")
-    renderer._deformable_points_buffers = [wp.empty(3, dtype=wp.vec3f, device="cpu")]
-    renderer._deformable_particle_offsets = [0]
-    renderer._deformable_particles_per_body = [3]
-
-    NewtonManager._particles_dirty = False
-    monkeypatch.setattr(NewtonManager, "particles_dirty", classmethod(lambda cls: cls._particles_dirty))
-    launch_calls: list[tuple] = []
-    monkeypatch.setattr(
-        ovrtx_renderer_module.wp,
-        "launch",
-        lambda kernel, dim, inputs, device: launch_calls.append((kernel, dim, inputs)),  # noqa: ARG005
-    )
-
-    renderer.update_geometries()
-
-    assert launch_calls == []
-    assert renderer._deformable_points_binding.written is None

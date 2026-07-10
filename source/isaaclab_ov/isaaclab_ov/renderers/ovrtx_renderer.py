@@ -728,9 +728,6 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None:
             return
 
-        if not NewtonManager.particles_dirty():
-            return
-
         # particle_q is the world-space particle positions for all deformable bodies.
         particle_q = getattr(NewtonManager.get_state(), "particle_q", None)
         if particle_q is None:
@@ -757,8 +754,6 @@ class OVRTXRenderer(BaseRenderer):
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
-
-        NewtonManager.clear_particles_dirty()
 
     def update_camera(
         self,
