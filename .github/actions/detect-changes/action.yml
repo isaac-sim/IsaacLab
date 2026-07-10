@@ -1,0 +1,137 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: 'Detect Changed Paths'
+description: >
+  Decides whether path-gated jobs should run for the current event. Pull
+  requests run the gated jobs only when a changed file matches one of the
+  given patterns; non-PR events and changed-file listing failures fail open
+  (run). Writes a gating table to the step summary. Consuming jobs should
+  skip via `if:` so required checks report green instead of never
+  triggering (a workflow-level `paths:` filter would leave a required
+  check pending forever).
+
+inputs:
+  patterns:
+    description: >
+      One entry per line: an extended regex matched against the changed
+      file paths, then whitespace, then a human-readable description for
+      the step-summary table. The regex itself must not contain
+      whitespace (the first whitespace run is the column separator).
+    required: true
+  summary-title:
+    description: 'Heading for the step-summary section.'
+    required: false
+    default: 'Path gating'
+  summary-note:
+    description: 'Optional extra line appended below the decision.'
+    required: false
+    default: ''
+
+outputs:
+  run:
+    description: '"true" when the gated jobs should run, "false" otherwise.'
+    value: ${{ steps.detect.outputs.run }}
+
+runs:
+  using: composite
+  steps:
+  - id: detect
+    shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      EVENT_NAME: ${{ github.event_name }}
+      REPO: ${{ github.repository }}
+      PATTERNS_INPUT: ${{ inputs.patterns }}
+      SUMMARY_TITLE: ${{ inputs.summary-title }}
+      SUMMARY_NOTE: ${{ inputs.summary-note }}
+    run: |
+      set -euo pipefail
+
+      # Parse "regex<whitespace>description" lines into parallel arrays.
+      regexes=()
+      descriptions=()
+      while IFS= read -r line; do
+        [[ -z "${line//[[:space:]]/}" ]] && continue
+        regex="${line%%[[:space:]]*}"
+        desc="${line#"$regex"}"
+        desc="${desc#"${desc%%[![:space:]]*}"}"
+        regexes+=("$regex")
+        descriptions+=("${desc:-$regex}")
+      done <<< "$PATTERNS_INPUT"
+
+      render_table() {
+        local files="$1" i regex desc count sample shown
+        echo "| Pattern | What it covers | Matched files |"
+        echo "|---|---|---|"
+        for i in "${!regexes[@]}"; do
+          regex="${regexes[$i]}"
+          desc="${descriptions[$i]}"
+          # escape | so it doesn't end the markdown table cell mid-regex
+          shown="${regex//|/\\|}"
+          count=$(grep -cE "$regex" <<< "$files" || true)
+          if [ "$count" -gt 0 ]; then
+            sample=$(grep -m 3 -E "$regex" <<< "$files" | paste -sd ', ' -)
+            [ "$count" -gt 3 ] && sample="$sample (and $((count - 3)) more)"
+            echo "| \`$shown\` | $desc | $sample |"
+          else
+            echo "| \`$shown\` | $desc | - |"
+          fi
+        done
+      }
+
+      any_match() {
+        local files="$1" regex
+        for regex in "${regexes[@]}"; do
+          if grep -qE "$regex" <<< "$files"; then
+            return 0
+          fi
+        done
+        return 1
+      }
+
+      decide() {
+        local decision="$1" reason="$2" files="${3:-}"
+        echo "Decision: run=$decision ($reason)"
+        echo "run=$decision" >> "$GITHUB_OUTPUT"
+        {
+          echo "## ${SUMMARY_TITLE}"
+          echo ""
+          if [ "$decision" = "true" ]; then
+            echo "Gated jobs will **run**: $reason."
+          else
+            echo "Gated jobs will be **skipped**: $reason."
+          fi
+          if [ -n "$SUMMARY_NOTE" ]; then
+            echo ""
+            echo "$SUMMARY_NOTE"
+          fi
+          if [ -n "$files" ]; then
+            echo ""
+            render_table "$files"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+      }
+
+      if [ "$EVENT_NAME" != "pull_request" ]; then
+        decide true "non-PR event ($EVENT_NAME)"
+        exit 0
+      fi
+
+      if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
+        # Fail-safe: a transient API error must not block merge. Default to running.
+        echo "::warning::Could not list changed files; defaulting to running tests"
+        decide true "fail-safe (could not list changed files)"
+        exit 0
+      fi
+
+      printf '%s\n' "$changed_files"
+
+      if any_match "$changed_files"; then
+        decide true "relevant paths changed" "$changed_files"
+      else
+        decide false "no relevant paths changed" "$changed_files"
+      fi
