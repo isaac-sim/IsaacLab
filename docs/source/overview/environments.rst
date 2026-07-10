@@ -78,8 +78,8 @@ preset names grouped by selector type at the command line, or run
 ``./isaaclab.sh -p scripts/environments/list_envs.py --show_presets``
 to list presets for every registered environment.
 
-See :doc:`/features/hydra` for the full preset system documentation,
-including all available backend names and how the typed selectors work.
+See the :doc:`Hydra preset system documentation </source/features/hydra>`
+for all available backend names and how the typed selectors work.
 
 
 Single-agent
