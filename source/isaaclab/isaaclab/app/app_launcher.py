@@ -28,6 +28,7 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
     from isaacsim import SimulationApp
 
+from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
 from isaaclab.utils._device import set_cuda_device
 
@@ -196,25 +197,6 @@ class AppLauncher:
         return has_any, has_kit
 
     @staticmethod
-    def _resolve_python_logging_level(launcher_args: dict) -> int:
-        """Resolve the Python logging level that should survive Kit startup."""
-        if launcher_args.get("verbose", False) or "--verbose" in sys.argv:
-            return logging.DEBUG
-        if launcher_args.get("info", False) or "--info" in sys.argv:
-            return logging.INFO
-
-        level = logging.getLogger().getEffectiveLevel()
-        return logging.WARNING if level == logging.NOTSET else level
-
-    @staticmethod
-    def _apply_python_logging_level(level: int) -> None:
-        """Apply a Python logging level to the root logger and its handlers."""
-        root_logger = logging.getLogger()
-        root_logger.setLevel(level)
-        for handler in root_logger.handlers:
-            handler.setLevel(level)
-
-    @staticmethod
     def _ensure_isaaclab_info_stream_handler() -> None:
         """Add a stream handler for Isaac Lab INFO records hidden by Kit logging."""
         handler_name = "isaaclab_info_stream"
@@ -284,7 +266,7 @@ class AppLauncher:
             launcher_args.update(kwargs)
 
         # Preserve the Python logging intent before Kit installs its own logging bridge.
-        self._python_logging_level = AppLauncher._resolve_python_logging_level(launcher_args)
+        self._python_logging_level = resolve_python_logging_level(launcher_args)
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
@@ -319,8 +301,6 @@ class AppLauncher:
 
         # Hide the stop button in the toolbar
         self._hide_stop_button()
-        # Set settings from the given rendering mode
-        self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
         # Set visualizer settings (if requested)
@@ -608,18 +588,6 @@ class AppLauncher:
             help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
         )
         arg_group.add_argument(
-            "--rendering_mode",
-            type=str,
-            action=ExplicitAction,
-            choices={"performance", "balanced", "quality"},
-            help=(
-                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", or "quality".'
-                " Individual Isaac RTX settings can be overwritten through "
-                "IsaacRtxRendererCfg.global_settings."
-            ),
-        )
-        arg_group.add_argument(
             "--kit_args",
             type=str,
             default="",
@@ -679,7 +647,6 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "deterministic": ([bool], False),
-        "rendering_mode": ([str], "balanced"),
         "max_visible_envs": ([int, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -1138,8 +1105,22 @@ class AppLauncher:
             launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
         )
 
-        # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        # If nothing is provided resolve the experience file based on the headless flag.
+        # EXP_PATH is normally set by ``isaacsim.bootstrap_kernel()`` on first import.
+        # If it is not set (e.g. on aarch64 where the bootstrap early-return triggered
+        # under certain install layouts), derive it from the installed isaacsim package.
+        kit_app_exp_path = os.environ.get("EXP_PATH")
+        if not kit_app_exp_path:
+            try:
+                import isaacsim as _isaacsim_for_paths
+            except ImportError as e:
+                raise RuntimeError(
+                    "EXP_PATH is not set and the 'isaacsim' package is not importable."
+                    " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
+                    " before launching AppLauncher."
+                ) from e
+            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+            os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
@@ -1311,7 +1292,7 @@ class AppLauncher:
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
         # Re-apply the intended Python logging level, then add a scoped stream handler for
         # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
-        AppLauncher._apply_python_logging_level(self._python_logging_level)
+        apply_python_logging_level(self._python_logging_level)
         if self._python_logging_level <= logging.INFO:
             AppLauncher._ensure_isaaclab_info_stream_handler()
         elif self._python_logging_level == logging.WARNING:
@@ -1367,18 +1348,6 @@ class AppLauncher:
                 play_button_group._stop_button.visible = False  # type: ignore
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
-
-    def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Store RTX rendering mode in settings."""
-        rendering_mode = launcher_args.get("rendering_mode")
-
-        if rendering_mode is None:
-            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
-            if not self._enable_cameras:
-                return
-            rendering_mode = ""
-
-        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in settings."""

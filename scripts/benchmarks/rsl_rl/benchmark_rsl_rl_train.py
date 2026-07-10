@@ -1,0 +1,312 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""RSL-RL adapter for the unified training benchmark."""
+
+from __future__ import annotations
+
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+_BENCH_DIR = Path(__file__).resolve().parents[1]
+_RL_SCRIPTS = _BENCH_DIR.parent / "reinforcement_learning"
+
+# Shared training utilities remain script-local, so their directory must be on sys.path.
+if str(_RL_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_RL_SCRIPTS))
+
+import common as _common  # noqa: E402
+
+
+def _disable_code_state_capture(runner: Any) -> None:
+    """Disable RSL-RL Git state capture while retaining TensorBoard logging."""
+    runner.logger.git_status_repos = []
+
+
+def _parse_args(argv: list[str]):
+    """Parse CLI arguments and forward the remaining Hydra preset tokens via ``sys.argv``.
+
+    Args:
+        argv: Raw command-line arguments (``sys.argv[1:]`` after dispatcher strips
+            ``--rl_library``).
+
+    Returns:
+        Tuple of ``(parsed_args, remaining)`` where *remaining* are the verbatim Hydra
+        preset tokens written back to ``sys.argv`` for ``launch_simulation`` to pick up.
+    """
+    import argparse
+
+    from isaaclab_tasks.utils import setup_preset_cli
+
+    add_common_train_args = _common.add_common_train_args
+    add_isaaclab_launcher_args = _common.add_isaaclab_launcher_args
+    enable_cameras_for_video = _common.enable_cameras_for_video
+    import_local_module = _common.import_local_module
+
+    CLI_ARGS = import_local_module("isaaclab_rsl_rl_cli_args", _RL_SCRIPTS / "rsl_rl" / "cli_args.py")
+
+    parser = argparse.ArgumentParser(description="Benchmark RL training with RSL-RL.")
+    add_common_train_args(
+        parser,
+        agent_default="rsl_rl_cfg_entry_point",
+        agent_help="Name of the RL agent configuration entry point.",
+        include_distributed=False,
+    )
+    CLI_ARGS.add_rsl_rl_args(parser)
+    add_isaaclab_launcher_args(parser)
+
+    parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
+    parser.add_argument(
+        "--benchmark_formatter",
+        type=str,
+        default="schema",
+        help=(
+            "Output format(s): comma-separated list of 'schema' (default, the typed benchmark bundle),"
+            " 'omniperf', 'osmo', 'json', 'summary'"
+            " Example: 'schema,omniperf'."
+        ),
+    )
+    parser.add_argument(
+        "--ema_alpha",
+        type=float,
+        default=0.1,
+        help="EMA smoothing factor for learning curves (higher = more recent weight).",
+    )
+    parser.add_argument(
+        "--no_series",
+        action="store_true",
+        default=False,
+        help="Omit per-iteration series data from the bundle to reduce file size.",
+    )
+
+    from scripts.benchmarks.early_stop import add_success_cli_args
+
+    add_success_cli_args(parser)
+
+    if "--distributed" in argv:
+        parser.error("Distributed training benchmarks are not supported.")
+
+    args_cli, remaining_args = setup_preset_cli(parser, argv)
+    enable_cameras_for_video(args_cli)
+    sys.argv = [sys.argv[0]] + remaining_args
+
+    return args_cli, remaining_args, CLI_ARGS
+
+
+def run(argv: list[str]) -> None:
+    """Run the RSL-RL training benchmark and write a :class:`~isaaclab.test.benchmark.TrainingBundle`.
+
+    Args:
+        argv: Command-line arguments, excluding the script path (i.e. ``sys.argv[1:]``
+            after the dispatcher has stripped ``--rl_library``).
+    """
+    imports_t0 = time.perf_counter_ns()
+
+    import contextlib
+    import importlib.metadata as metadata
+    import os
+    from datetime import datetime
+
+    import torch
+    from rsl_rl.runners import DistillationRunner, OnPolicyRunner
+
+    from isaaclab.app import launch_simulation
+    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
+    from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
+    from isaaclab.test.benchmark.schema import StartupTime
+
+    from isaaclab_rl.rsl_rl import RslRlVecEnvWrapper, handle_deprecated_rsl_rl_cfg
+
+    import isaaclab_tasks  # noqa: F401
+
+    with contextlib.suppress(ImportError):
+        import isaaclab_tasks_experimental  # noqa: F401
+
+    from isaaclab_tasks.utils import get_checkpoint_path, resolve_task_config
+
+    apply_env_overrides = _common.apply_env_overrides
+    from scripts.benchmarks.early_stop import (
+        RslRlEarlyStopWrapper,
+        build_success_kwargs,
+        get_success_tracker,
+        success_measurements,
+    )
+
+    imports_t1 = time.perf_counter_ns()
+
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = False
+
+    args_cli, remaining_args, CLI_ARGS = _parse_args(argv)
+
+    config_t0 = time.perf_counter_ns()
+    env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
+    config_t1 = time.perf_counter_ns()
+
+    start_utc = capture.now_utc_iso()
+    app_t0 = time.perf_counter_ns()
+
+    with launch_simulation(env_cfg, args_cli):
+        app_t1 = time.perf_counter_ns()
+
+        apply_env_overrides(args_cli, env_cfg)
+        agent_cfg = CLI_ARGS.update_rsl_rl_cfg(agent_cfg, args_cli)
+        agent_cfg.max_iterations = (
+            args_cli.max_iterations if args_cli.max_iterations is not None else agent_cfg.max_iterations
+        )
+        installed_rsl_rl = metadata.version("rsl-rl-lib")
+        agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
+        env_cfg.seed = agent_cfg.seed
+
+        cfg = capture.run_config_from_presets(remaining_args, env_cfg=env_cfg)
+        formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
+        formatter_types = formatter_types or ["omniperf"]
+
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="benchmark_training",
+            formatter_type=formatter_types,
+            output_path=args_cli.output_path,
+            use_recorders=True,
+            frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            output_prefix=f"benchmark_training_{args_cli.task}",
+            workflow_metadata={
+                "metadata": [
+                    {"name": "task", "data": args_cli.task},
+                    {"name": "seed", "data": agent_cfg.seed},
+                    {"name": "num_envs", "data": env_cfg.scene.num_envs},
+                    {"name": "max_iterations", "data": agent_cfg.max_iterations},
+                    {"name": "presets", "data": ",".join(cfg.presets)},
+                ]
+            },
+        )
+
+        log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
+        resume_path = (
+            get_checkpoint_path(log_root_path, agent_cfg.load_run, agent_cfg.load_checkpoint)
+            if agent_cfg.resume or agent_cfg.class_name == "DistillationRunner"
+            else None
+        )
+        log_dir = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        if agent_cfg.run_name:
+            log_dir += f"_{agent_cfg.run_name}"
+        log_dir = os.path.join(log_root_path, log_dir)
+        _common.write_run_manifest(log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent})
+        env_cfg.log_dir = log_dir
+
+        env_t0 = time.perf_counter_ns()
+        env = _common.create_isaaclab_env(args_cli.task, env_cfg, args_cli, convert_marl_to_single_agent=True)
+        env = _common.wrap_record_video(env, log_dir, args_cli)
+        env_t1 = time.perf_counter_ns()
+
+        env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
+
+        runner_types = {"OnPolicyRunner": OnPolicyRunner, "DistillationRunner": DistillationRunner}
+        if agent_cfg.class_name not in runner_types:
+            raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
+        runner = runner_types[agent_cfg.class_name](env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+        _disable_code_state_capture(runner)
+        if resume_path is not None:
+            runner.load(resume_path)
+
+        early = RslRlEarlyStopWrapper(
+            env, runner, num_steps_per_env=agent_cfg.num_steps_per_env, **build_success_kwargs(args_cli)
+        )
+
+        with early, BenchmarkMonitor(benchmark, interval=1.0):
+            runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
+
+        benchmark.update_manual_recorders()
+
+        desc = RL_LIBRARY_DESCRIPTORS["rsl_rl"]
+        log_data = parse_tf_logs(log_dir, desc.tfevents_pattern)
+        if not log_data or (not log_data.get(desc.reward_tag) and agent_cfg.max_iterations >= 1):
+            print(
+                f"[WARNING] No TensorBoard data parsed from {log_dir!r};"
+                " the emitted bundle will report zero metrics. Check the log directory.",
+                file=sys.stderr,
+            )
+
+        # RSL-RL reports collection and learning durations separately in seconds.
+        coll = log_data.get("Perf/collection_time", [])
+        learn_ = log_data.get("Perf/learning_time", [])
+        iteration_times_s = [c + lrn for c, lrn in zip(coll, learn_)]
+        collection_fps_series = [env.unwrapped.num_envs * agent_cfg.num_steps_per_env / c for c in coll if c > 0]
+        total_fps_series = list(log_data.get("Perf/total_fps", []))
+
+        startup = StartupTime(
+            app_launch=(app_t1 - app_t0) / 1e9,
+            env_creation=(env_t1 - env_t0) / 1e9,
+            first_step=(iteration_times_s[0] if iteration_times_s else 0.0),
+            python_imports=(imports_t1 - imports_t0) / 1e9,
+            task_config=(config_t1 - config_t0) / 1e9,
+        )
+
+        runtime = builders.build_runtime(
+            startup_time_s=startup,
+            iteration_times_s=iteration_times_s,
+            collection_fps=collection_fps_series,
+            total_fps=total_fps_series,
+            steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
+        )
+
+        learning = builders.build_learning(
+            reward_series=log_data.get(desc.reward_tag, []),
+            ep_length_series=log_data.get(desc.ep_length_tag, []),
+            ema_alpha=args_cli.ema_alpha,
+            keep_series=not args_cli.no_series,
+        )
+
+        tracker = get_success_tracker(args_cli, early.tracker, log_data)
+        success_rate = round(tracker.tail_mean, 4) if (tracker and tracker.history) else None
+
+        versions = capture.capture_versions(benchmark)
+        hardware = capture.capture_hardware(benchmark)
+        resources = capture.capture_resources(benchmark)
+
+        end_utc = capture.now_utc_iso()
+        stamp = end_utc.translate(str.maketrans("", "", ":-"))[:15]
+        seed = agent_cfg.seed if agent_cfg.seed is not None else 0
+
+        run_identity = builders.build_run_identity(
+            run_id=capture.synth_run_id("rsl_rl", cfg.physics_backend, args_cli.task, seed, stamp),
+            framework="rsl_rl",
+            config=cfg,
+            task=args_cli.task,
+            seed=seed,
+            start_utc=start_utc,
+            end_utc=end_utc,
+            num_envs=env.unwrapped.num_envs,
+            max_iterations=agent_cfg.max_iterations,
+        )
+
+        checkpoint_path = None
+        video_path = os.path.join(log_dir, "videos") if getattr(args_cli, "video", False) else None
+
+        bundle = builders.build_training_bundle(
+            run=run_identity,
+            versions=versions,
+            hardware=hardware,
+            runtime=runtime,
+            resources=resources,
+            learning=learning,
+            success_rate=success_rate,
+            checkpoint_path=checkpoint_path,
+            video_path=video_path,
+        )
+
+        benchmark.attach_bundle(bundle)
+        benchmark.add_measurement("train", success_measurements(tracker))
+
+        benchmark._finalize_impl()
+
+        env.close()
+
+
+if __name__ == "__main__":
+    run(sys.argv[1:])

@@ -190,7 +190,12 @@ class SimulationContext:
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
-        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
+        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created.
+        # It is a global setting flipped to True by RTX Camera creation (see Camera._initialize_impl)
+        # and is never flipped back. Reset it here so a fresh SimulationContext reflects its own
+        # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
+        # cameras created for this instance re-set it to True before it is read.
+        self.set_setting("/isaaclab/render/rtx_sensors", False)
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self.vis_marker_registry = VisMarkerRegistry()
 
@@ -298,10 +303,15 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
+        """Returns whether *continuous* rendering is active (GUI, RTX sensors, visualizers, or XR).
+
+        This drives the per-step render/Kit-pump loop, so it deliberately excludes headless
+        offscreen rendering (``--video`` / ``rgb_array``). Offscreen frames are produced on
+        demand when a frame is actually requested (via :meth:`render`), not on every step; see
+        :meth:`has_offscreen_render` and :meth:`can_render_rgb_array` for the capability checks.
+        """
         return (
             self._has_gui
-            or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.resolve_visualizer_types())
             or self._xr_enabled

@@ -7,7 +7,7 @@ import pytest
 import torch
 import torch.utils.benchmark as benchmark
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.arm_ci]
 
 
 @pytest.mark.isaacsim_ci
