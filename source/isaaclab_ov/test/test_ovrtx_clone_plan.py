@@ -98,7 +98,11 @@ def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, clone_plan: Clone
 def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer = OVRTXRenderer.__new__(OVRTXRenderer)
     renderer.cfg = OVRTXRendererCfg()
-    renderer._renderer = SimpleNamespace(clone_usd=lambda *args, **kwargs: None)
+    renderer._renderer = SimpleNamespace(
+        clone_usd=lambda *args, **kwargs: None,
+        read_attribute=lambda *args, **kwargs: None,
+        write_attribute=lambda *args, **kwargs: None,
+    )
     renderer._clone_plan = None
     renderer._camera_rel_path = "Camera"
     renderer._render_product_paths = []
