@@ -92,6 +92,10 @@ inputs:
   wheelhouse-packages:
     description: 'Space-separated packages to install from /tmp/ovphysx-wheelhouse with pip --no-index'
     default: ''
+  ci-marker:
+    description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
+    default: ''
+    required: false
   omni-github-test-type:
     description: 'Test type stored on each uploaded omni-github test row'
     default: 'pytest'
@@ -108,6 +112,7 @@ runs:
         # the run_tests positional arguments if substituted textually.
         PYTEST_OPTIONS: ${{ inputs.pytest-options }}
         TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
+        CI_MARKER_INPUT: ${{ inputs.ci-marker }}
       run: |
         # Function to run tests in Docker container
         run_tests() {
@@ -131,6 +136,7 @@ runs:
           local wheelhouse_host_dir="${18}"
           local wheelhouse_packages="${19}"
           local test_k_expr="${20}"
+          local ci_marker="${21}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -277,6 +283,11 @@ runs:
             export TEST_K_EXPR="$test_k_expr"
             docker_env_vars="$docker_env_vars -e TEST_K_EXPR"
             echo "Setting per-file pytest -k expression: $test_k_expr"
+          fi
+
+          if [ -n "$ci_marker" ]; then
+            docker_env_vars="$docker_env_vars -e CI_MARKER=$ci_marker"
+            echo "Setting CI_MARKER=$ci_marker"
           fi
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
@@ -512,7 +523,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT"
 
     - name: Kill container on cancellation
       if: cancelled()

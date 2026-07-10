@@ -1105,8 +1105,22 @@ class AppLauncher:
             launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
         )
 
-        # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        # If nothing is provided resolve the experience file based on the headless flag.
+        # EXP_PATH is normally set by ``isaacsim.bootstrap_kernel()`` on first import.
+        # If it is not set (e.g. on aarch64 where the bootstrap early-return triggered
+        # under certain install layouts), derive it from the installed isaacsim package.
+        kit_app_exp_path = os.environ.get("EXP_PATH")
+        if not kit_app_exp_path:
+            try:
+                import isaacsim as _isaacsim_for_paths
+            except ImportError as e:
+                raise RuntimeError(
+                    "EXP_PATH is not set and the 'isaacsim' package is not importable."
+                    " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
+                    " before launching AppLauncher."
+                ) from e
+            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+            os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
