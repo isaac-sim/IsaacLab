@@ -90,6 +90,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+        fetch-tags: true
 
     - name: Set up uv
       uses: astral-sh/setup-uv@v6
@@ -108,12 +111,11 @@ jobs:
         # "deploy" branches build the full set of versions so every page
         # has a complete version dropdown: main, develop, tags >= v2.0.0
         # (including pre-release suffixes like -beta or -rc1). v1.x tags and
-        # most release/ branches are excluded; release/3.0.0-beta2 is included
-        # explicitly to surface it in the version switcher.
-        SMV_BRANCH_WHITELIST: '^(main|develop|release/3\.0\.0-beta2)$'
+        # release/* branches are excluded; releases are selected from tags.
+        SMV_BRANCH_WHITELIST: '^(main|develop)$'
         SMV_TAG_WHITELIST: '^v[2-9]\d*\.\d+\.\d+(-[A-Za-z0-9.]+)?$'
       run: |
-        git fetch --prune --unshallow --tags
+        git fetch --prune --tags
         git checkout --detach HEAD
         git for-each-ref --format="%(refname:short)" refs/heads/ | xargs -r git branch -D
         make multi-docs
