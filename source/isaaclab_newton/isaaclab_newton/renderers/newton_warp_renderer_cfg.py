@@ -5,6 +5,8 @@
 
 """Configuration for Newton Warp Renderer."""
 
+from typing import Literal
+
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.configclass import configclass
 
@@ -36,3 +38,15 @@ class NewtonWarpRendererCfg(RendererCfg):
 
     colorize_instance_segmentation: bool = True
     """Expose ``instance_segmentation_fast`` as ``(N, H, W, 4) uint8`` if True, else ``(N, H, W, 1) int32``."""
+
+    render_order: Literal["pixel_priority", "view_priority", "tiled"] = "tiled"
+    """Render traversal order for the Newton tiled camera."""
+
+    tile_rendering_width: int = 8
+    """Tile width [px] for tiled rendering."""
+
+    tile_rendering_height: int = 8
+    """Tile height [px] for tiled rendering."""
+
+    kernel_block_dim: int = 64
+    """Thread block dimension forwarded to Newton."""
