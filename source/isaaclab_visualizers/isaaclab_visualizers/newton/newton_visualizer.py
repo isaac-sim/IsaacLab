@@ -138,11 +138,11 @@ class NewtonViewerGL(ViewerGL):
             )
 
     def _render_physics_panel(self, imgui):
-        """Render Physics collapsing section at the top of the Newton viewer panel."""
+        """Render Simulation collapsing section at the top of the Newton viewer panel."""
         imgui.set_next_item_open(True, imgui.Cond_.appearing)
-        if imgui.collapsing_header("Physics"):
+        if imgui.collapsing_header("Simulation"):
             imgui.separator()
-            imgui.text(f"Backend: {self._backend_display}")
+            imgui.text(f"Physics: {self._backend_display}")
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""

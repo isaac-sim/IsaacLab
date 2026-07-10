@@ -369,7 +369,7 @@ class RerunVisualizer(BaseVisualizer):
                         ),
                     ),
                     rrb.TextDocumentView(
-                        name=f"Physics Backend: {self._backend_display or 'unknown'}",
+                        name=f"Physics: {self._backend_display or 'unknown'}",
                         origin="info/physics_backend",
                     ),
                     row_shares=[20, 1],
