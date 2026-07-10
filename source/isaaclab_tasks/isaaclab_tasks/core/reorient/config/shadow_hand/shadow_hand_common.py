@@ -247,11 +247,13 @@ class PhysicsCfg(PresetCfg):
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
             integrator="implicitfast",
-            njmax=200,
-            nconmax=100,
+            njmax=400,
+            nconmax=200,
             impratio=10.0,
             cone="elliptic",
             update_data_interval=2,
+            iterations=100,
+            use_mujoco_contacts=False,
         ),
         num_substeps=2,
         debug_mode=False,
