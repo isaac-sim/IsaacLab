@@ -211,7 +211,8 @@ class NewtonManager(PhysicsManager):
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
-    :meth:`_solver_specific_clear`, and :meth:`_log_solver_debug`.
+    :meth:`_reset_solver_internals`, :meth:`_solver_specific_clear`, and
+    :meth:`_log_solver_debug`.
 
     Subclasses are selected via :attr:`NewtonSolverCfg.class_type`, which
     :meth:`NewtonCfg.__post_init__` propagates onto :attr:`NewtonCfg.class_type`
@@ -409,6 +410,7 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
+        cls._reset_solver_internals(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -677,6 +679,8 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
+        cls._reset_solver_internals(cls._world_reset_mask)
+
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -872,12 +876,19 @@ class NewtonManager(PhysicsManager):
         Returns:
             New builder with up-axis and per-shape defaults (gap, margin) applied.
         """
-        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
-        cls._register_builder_attributes(builder)
         # Resolve which NewtonShapeCfg to apply: user override if active config
         # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton
         # contexts (tests, early construction) still get the rough-terrain margin.
         cfg = PhysicsManager._cfg
+
+        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder.default_bvh_cfg = ModelBuilder.BvhConfig(
+            mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
+            gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
+            shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
+        )
+
+        cls._register_builder_attributes(builder)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
         checked_apply(shape_cfg, builder.default_shape_cfg)
         return builder
@@ -1419,6 +1430,24 @@ class NewtonManager(PhysicsManager):
         Default no-op.  Subclasses override to log solver-specific debug info
         (e.g. constraint violations, contact forces, etc.) after stepping.
         """
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Clear solver-internal state for environments reset since the last boundary.
+
+        The hook runs immediately before reset masks are consumed by :meth:`step`
+        and :meth:`forward`. The base implementation delegates to
+        :meth:`SolverBase.reset` with ``flags=0``, preserving the joint state
+        authored by Isaac Lab while clearing solver-owned buffers. Solvers with
+        no reset implementation are unaffected.
+
+        Args:
+            world_mask: Per-world reset mask, or ``None`` when no simulation
+                state is available.
+        """
+        if world_mask is None:
+            return
+        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     # ----- Lifecycle orchestration ----------------------------------------
 

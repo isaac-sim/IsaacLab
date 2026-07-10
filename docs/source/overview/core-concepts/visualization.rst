@@ -303,7 +303,8 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
@@ -312,14 +313,15 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
+     --benchmark_formatter=summary \
      physics=newton_mjwarp renderer=ovrtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
@@ -328,14 +330,15 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
+     --benchmark_formatter=summary \
      physics=physx renderer=isaacsim_rtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Kit video backend**
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer kit \
@@ -344,7 +347,7 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
+     --benchmark_formatter=summary \
      physics=physx renderer=isaacsim_rtx presets=rgb
 
 

@@ -3,6 +3,23 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Nightly canary: runs the IsaacLab test suite against multiple pinned
+# IsaacSim versions to catch backwards-compatibility regressions.
+#
+# Caveats for editors of this file or its action dependencies
+# (`.github/actions/docker-build`, `run-tests`, `combine-results`):
+#
+#   * No `pull_request:` trigger — changes are not validated automatically
+#     at PR time. Manually trigger against the PR branch before merge:
+#         gh workflow run "Backwards Compatibility Tests" --ref <branch>
+#     Otherwise breakage surfaces only on the next nightly cron after merge.
+#
+#   * The build steps below pass `cache-from: type=gha` / `cache-to:
+#     type=gha,mode=max` to docker-build explicitly. Future migration to
+#     `./.github/actions/ecr-build-push-pull` would share build.yaml's
+#     cross-runner ECR layer cache, but that's deferred until daily-compat
+#     is ready to wire ECR auth.
+
 name: Backwards Compatibility Tests
 
 on:
@@ -114,6 +131,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Run IsaacLab Tasks Tests
       uses: ./.github/actions/run-tests
@@ -172,6 +191,8 @@ jobs:
         image-tag: ${{ env.DOCKER_IMAGE_TAG }}
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ matrix.isaacsim_version }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
 
     - name: Run General Tests
       uses: ./.github/actions/run-tests

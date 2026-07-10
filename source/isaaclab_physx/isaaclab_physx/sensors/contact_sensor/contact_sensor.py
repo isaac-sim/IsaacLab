@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -36,6 +37,8 @@ from .kernels import (
 
 if TYPE_CHECKING:
     from isaaclab.sensors.contact_sensor import ContactSensorCfg
+
+logger = logging.getLogger(__name__)
 
 
 class ContactSensor(BaseContactSensor):
@@ -96,6 +99,25 @@ class ContactSensor(BaseContactSensor):
         self._ALL_ENV_INDICES: wp.array | None = None
         self._ALL_ENV_MASK: wp.array | None = None
         self._reset_mask: wp.array | None = None
+
+        # CUDA graph capture state for the buffer update (set in _initialize_impl, see
+        # :meth:`_update_buffers_impl`)
+        self._use_graph: bool = False
+        self._compute_graph: wp.Graph | None = None
+        self._env_mask: wp.array | None = None
+        # Warp views over the PhysX output buffers, built lazily on the first fetch since the
+        # buffers are allocated once and refreshed in place (see :meth:`_fetch_physx_buffers`)
+        self._net_forces_flat: wp.array | None = None
+        self._force_matrix_flat: wp.array | None = None
+        self._poses_flat: wp.array | None = None
+        self._contact_points_flat: wp.array | None = None
+        self._friction_forces_flat: wp.array | None = None
+        self._friction_counts: wp.array | None = None
+        self._friction_start_indices: wp.array | None = None
+        # Staged copies of the contact count and start-index buffers, which get_friction_data
+        # would otherwise overwrite (it shares those buffers with get_contact_data)
+        self._contact_counts: wp.array | None = None
+        self._contact_start_indices: wp.array | None = None
 
         # check if max_contact_data_count_per_prim is set
         if self.cfg.max_contact_data_count_per_prim is None:
@@ -350,6 +372,9 @@ class ContactSensor(BaseContactSensor):
 
         self._create_buffers()
 
+        # capture the update kernels into a CUDA graph on CUDA devices (see _update_buffers_impl)
+        self._use_graph = wp.get_device(self._device).is_cuda
+
     def _create_buffers(self) -> None:
         # Store filter shapes count
         self._num_filter_shapes = self.contact_view.filter_count if self.cfg.filter_prim_paths_expr else 0
@@ -370,25 +395,133 @@ class ContactSensor(BaseContactSensor):
         )
 
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
-        """Fills the buffers of the sensor data."""
+        """Fills the buffers of the sensor data.
+
+        The PhysX tensor reads enqueue their work on the legacy CUDA stream and therefore cannot
+        be captured into a CUDA graph. They run eagerly on every update and refresh preallocated
+        output buffers in place (see :meth:`_fetch_physx_buffers`). The warp kernels that consume
+        those buffers (see :meth:`_compute`) are captured into a CUDA graph on the first update
+        and replayed afterwards, which removes the per-update kernel-launch overhead.
+
+        The kernels run eagerly (no capture or replay) when the device is not a CUDA device or
+        when a previous capture attempt failed.
+
+        Raises:
+            RuntimeError: If an outer CUDA graph capture is active. The PhysX tensor reads
+                cannot be graph-captured, so replays of such a graph would consume stale
+                contact data.
+        """
+        device = wp.get_device(self._device)
+        if device.is_capturing:
+            raise RuntimeError(
+                f"Cannot update the contact sensor at '{self.cfg.prim_path}' while a CUDA graph capture"
+                " is active: the PhysX tensor reads cannot be graph-captured, so replaying the captured"
+                " graph would consume stale contact data."
+            )
+
         # Convert env_mask to warp array
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        # Refresh the PhysX contact data (not graph-capturable)
+        self._fetch_physx_buffers()
+        # _compute reads the stable outdated-environment mask from this attribute.
+        self._env_mask = env_mask
 
-        # PhysX returns (N*B, 3) float32 -> (N*B,) vec3f
-        net_forces_flat = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt).view(wp.vec3f)
-        # PhysX returns (N*B, M, 3) float32 -> (N*B, M) vec3f
+        if not self._use_graph:
+            self._compute()
+            return
+
+        if self._compute_graph is None:
+            try:
+                with wp.ScopedCapture(device=device) as capture:
+                    self._compute()
+            except Exception as exc:
+                self._use_graph = False
+                logger.warning(
+                    f"Failed to capture the update of the contact sensor at '{self.cfg.prim_path}' into a"
+                    f" CUDA graph. Falling back to eager kernel launches. Reason: {exc}"
+                )
+                self._compute()
+                return
+            self._compute_graph = capture.graph
+        wp.capture_launch(self._compute_graph)
+
+    @staticmethod
+    def _checked_view(buffer: wp.array, view: wp.array | None, dtype) -> wp.array:
+        """Returns the cached typed view over ``buffer``, verifying pointer stability.
+
+        The cached views (and the CUDA graph that consumes them) are only valid because the
+        PhysX tensor getters allocate their output buffers once and refresh the same memory in
+        place on every call. If a getter ever returns a re-backed buffer, the cached views would
+        silently read stale data, so a pointer change fails loudly here instead.
+        """
+        if view is None:
+            return buffer.view(dtype)
+        if buffer.ptr != view.ptr:
+            raise RuntimeError(
+                "A PhysX contact buffer was re-allocated after its warp view was cached. The cached"
+                " views and the captured CUDA graph require pointer-stable buffers refreshed in place."
+            )
+        return view
+
+    def _fetch_physx_buffers(self) -> None:
+        """Refreshes the contact data from PhysX and lazily builds the warp views over it.
+
+        The PhysX tensor getters allocate their output buffers once and refresh them in place on
+        every call, so the views (and the CUDA graph that consumes them) stay valid across
+        updates (a pointer change raises via :meth:`_checked_view`). Since ``get_friction_data``
+        refreshes the same count and start-index buffers as ``get_contact_data``, the
+        contact-point counts are staged into sensor-owned copies before the friction read
+        overwrites them.
+        """
+        # PhysX returns (N*B, 3) float32 -> viewed as (N*B,) vec3f
+        net_forces = self.contact_view.get_net_contact_forces(dt=self._sim_physics_dt)
+        self._net_forces_flat = self._checked_view(net_forces, self._net_forces_flat, wp.vec3f)
+
+        # PhysX returns (N*B, M, 3) float32 -> viewed as (N*B, M) vec3f
         if self.cfg.filter_prim_paths_expr:
-            force_matrix_flat = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt).view(wp.vec3f)
-        else:
-            force_matrix_flat = None
-        #
+            force_matrix = self.contact_view.get_contact_force_matrix(dt=self._sim_physics_dt)
+            self._force_matrix_flat = self._checked_view(force_matrix, self._force_matrix_flat, wp.vec3f)
+
+        # PhysX returns (N*B, 7) float32 -> viewed as (N*B,) transformf
+        if self.cfg.track_pose:
+            poses = self.body_physx_view.get_transforms()
+            self._poses_flat = self._checked_view(poses, self._poses_flat, wp.transformf)
+
+        # points: (total_contacts, 3) float32 -> viewed as (total_contacts,) vec3f
+        if self.cfg.track_contact_points:
+            _, points, _, _, counts, start_indices = self.contact_view.get_contact_data(dt=self._sim_physics_dt)
+            if self._contact_points_flat is None:
+                self._contact_points_flat = self._checked_view(points, None, wp.vec3f)
+                self._contact_counts = wp.clone(counts)
+                self._contact_start_indices = wp.clone(start_indices)
+            else:
+                self._contact_points_flat = self._checked_view(points, self._contact_points_flat, wp.vec3f)
+                wp.copy(self._contact_counts, counts)
+                wp.copy(self._contact_start_indices, start_indices)
+
+        # frictions: (total_contacts, 3) float32 -> viewed as (total_contacts,) vec3f
+        if self.cfg.track_friction_forces:
+            frictions, _, counts, start_indices = self.contact_view.get_friction_data(dt=self._sim_physics_dt)
+            if self._friction_forces_flat is None:
+                self._friction_forces_flat = self._checked_view(frictions, None, wp.vec3f)
+                self._friction_counts = counts
+                self._friction_start_indices = start_indices
+            else:
+                self._friction_forces_flat = self._checked_view(frictions, self._friction_forces_flat, wp.vec3f)
+
+    def _compute(self) -> None:
+        """Launches the warp kernels that update the sensor data from the fetched PhysX buffers.
+
+        This method is captured into a CUDA graph: it must contain only warp kernel launches on
+        preallocated arrays (no allocations and no Python branching on GPU data).
+        """
         wp.launch(
             update_net_forces_kernel,
             dim=(self._num_envs, self._num_sensors),
             inputs=[
-                net_forces_flat,
-                force_matrix_flat,
-                env_mask,
+                self._net_forces_flat,
+                self._force_matrix_flat,
+                self._env_mask,
                 self._num_sensors,
                 self._num_filter_shapes,
                 self._history_length,
@@ -411,31 +544,24 @@ class ContactSensor(BaseContactSensor):
 
         # -- Pose --
         if self.cfg.track_pose:
-            # PhysX returns (N*B, 7) float32 -> (N*B,) transformf
-            poses_flat = self.body_physx_view.get_transforms().view(wp.transformf)
             wp.launch(
                 split_flat_pose_to_pos_quat,
                 dim=(self._num_envs, self._num_sensors),
-                inputs=[poses_flat, env_mask, self._num_sensors],
+                inputs=[self._poses_flat, self._env_mask, self._num_sensors],
                 outputs=[self._data._pos_w, self._data._quat_w],
                 device=self.device,
             )
 
         # -- Contact points --
         if self.cfg.track_contact_points:
-            _, buffer_contact_points, _, _, buffer_count, buffer_start_indices = self.contact_view.get_contact_data(
-                dt=self._sim_physics_dt
-            )
-            # buffer_contact_points: (total_contacts, 3) float32 -> (total_contacts,) vec3f
-            pts_vec3 = buffer_contact_points.view(wp.vec3f)
             wp.launch(
                 unpack_contact_buffer_data,
                 dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
                 inputs=[
-                    pts_vec3,
-                    buffer_count,
-                    buffer_start_indices,
-                    env_mask,
+                    self._contact_points_flat,
+                    self._contact_counts,
+                    self._contact_start_indices,
+                    self._env_mask,
                     self._num_sensors,
                     True,
                     float("nan"),
@@ -446,18 +572,14 @@ class ContactSensor(BaseContactSensor):
 
         # -- Friction forces --
         if self.cfg.track_friction_forces:
-            friction_forces, _, buffer_count, buffer_start_indices = self.contact_view.get_friction_data(
-                dt=self._sim_physics_dt
-            )
-            friction_vec3 = friction_forces.view(wp.vec3f)
             wp.launch(
                 unpack_contact_buffer_data,
                 dim=(self._num_envs, self._num_sensors, self._num_filter_shapes),
                 inputs=[
-                    friction_vec3,
-                    buffer_count,
-                    buffer_start_indices,
-                    env_mask,
+                    self._friction_forces_flat,
+                    self._friction_counts,
+                    self._friction_start_indices,
+                    self._env_mask,
                     self._num_sensors,
                     False,
                     0.0,
@@ -510,3 +632,13 @@ class ContactSensor(BaseContactSensor):
         # set all existing views to None to invalidate them
         self._body_physx_view = None
         self._contact_view = None
+        # drop the captured graph and the cached warp views since they reference buffers owned
+        # by the invalidated views
+        self._compute_graph = None
+        self._net_forces_flat = None
+        self._force_matrix_flat = None
+        self._poses_flat = None
+        self._contact_points_flat = None
+        self._friction_forces_flat = None
+        self._friction_counts = None
+        self._friction_start_indices = None

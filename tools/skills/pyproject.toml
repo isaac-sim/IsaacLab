@@ -1,0 +1,11 @@
+# Scopes pytest to this self-contained tool: the ``[tool.pytest.ini_options]``
+# section makes pytest treat ``tools/skills/`` as its rootdir, so:
+#
+#   1. ``pythonpath = ["."]`` adds ``tools/skills/`` to ``sys.path``,
+#      making ``import cli`` work from the test files without any shim.
+#   2. ``tools/conftest.py`` sits above rootdir and is therefore not loaded.
+#
+# Run with: ``./isaaclab.sh -p -m pytest tools/skills/``
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["test"]

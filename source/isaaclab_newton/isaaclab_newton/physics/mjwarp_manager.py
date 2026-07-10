@@ -11,6 +11,7 @@ import inspect
 import logging
 
 import numpy as np
+import warp as wp
 from newton import Contacts, Model
 from newton.solvers import SolverMuJoCo
 
@@ -78,6 +79,40 @@ class NewtonMJWarpManager(NewtonManager):
                 device=PhysicsManager._device,
                 requested_attributes=cls._model.get_requested_contact_attributes(),
             )
+
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Clear MuJoCo Warp solver-internal state for flagged worlds.
+
+        Specializes the base hook, whose :meth:`SolverBase.reset` call resolves
+        to :meth:`SolverMuJoCo.reset` here: with ``flags=0`` it zeroes only the
+        solver-owned buffers persisting across steps (``qacc_warmstart``,
+        ``qfrc_applied``, ``xfrc_applied``, ``ctrl``, ``act``) for the flagged
+        worlds, while the joint state IsaacLab authored during the env reset is
+        left untouched.  Without this, a NaN produced in one solve persists
+        across :meth:`isaaclab.envs.ManagerBasedEnv.reset` because the next
+        solver substep warm-starts from the NaN — the world is then permanently
+        dead.  See https://github.com/newton-physics/newton/issues/1266.
+
+        With ``use_mujoco_cpu=True`` the solver owns a single global ``MjData``
+        and its reset path is not mask-aware — it clears the buffers for every
+        world.  Since this hook fires on every step/forward boundary (usually
+        with an all-``False`` mask), the CPU path is gated on at least one
+        world actually being flagged so warm-starting is not defeated on every
+        step.
+
+        Args:
+            world_mask: Per-world bool mask of shape ``(world_count,)``;
+                ``True`` for worlds that need their MJWarp internals cleared.
+                ``None`` is treated as a no-op.
+        """
+        if world_mask is None:
+            return
+        if cls._solver.use_mujoco_cpu and not world_mask.numpy().any():
+            return
+        # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
+        # joint_q/joint_qd and has already written the authored reset pose.
+        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

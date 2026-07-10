@@ -1,6 +1,72 @@
 Changelog
 ---------
 
+1.7.0 (2026-07-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added Newton BVH construction settings to :class:`~isaaclab_newton.physics.NewtonCfg`
+  and render traversal/tile settings to
+  :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
+
+Fixed
+^^^^^
+
+* Fixed the initial actuator gain snapshot used by
+  :func:`~isaaclab.envs.mdp.events.randomize_actuator_gains` corrupting (or
+  crashing) for multi-environment floating-base articulations with Newton
+  actuators. The per-environment stride of the actuator DOF indices was
+  decoded with the articulation-local joint count instead of the whole
+  model's per-environment DOF count, so on a floating base the free-root DOFs
+  shifted every environment past the first to the wrong (or out-of-bounds)
+  snapshot rows, corrupting the ``stiffness`` / ``damping`` randomization
+  baseline.
+* Fixed quadratic (``O(num_envs^2)``) startup scaling in
+  :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView` when a frame resolves to a
+  per-environment body path (e.g. a body-mounted camera). Replicated body patterns are now
+  resolved against Newton body labels through an exact lookup instead of a full regex scan per
+  environment, reducing simulation-start time for camera-heavy scenes at high environment counts
+  (8192 environments dropped from ~29 min to seconds).
+
+
+1.6.2 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Added :meth:`~isaaclab_newton.physics.NewtonManager._reset_solver_internals`
+  hook that clears per-world solver-internal scratch buffers before the
+  accumulated reset masks are consumed by
+  :meth:`~isaaclab_newton.physics.NewtonManager.step` or
+  :meth:`~isaaclab_newton.physics.NewtonManager.forward`. The default
+  implementation forwards to :meth:`SolverBase.reset` with ``flags=0``,
+  preserving the authored joint state — a no-op for solvers that do not
+  implement ``reset()``, and automatic coverage for any solver that does.
+  :class:`~isaaclab_newton.physics.NewtonMJWarpManager` specializes it to
+  gate the non-mask-aware CPU-MuJoCo path;
+  :class:`~isaaclab_newton.physics.NewtonKaminoManager` opts out because its
+  forward-kinematics delegate already routes through
+  :meth:`SolverKamino.reset`.
+
+Fixed
+^^^^^
+
+* Fixed NaN values in MJWarp solver-internal buffers (``qacc_warmstart``,
+  ``qfrc_applied``, ``xfrc_applied``, ``ctrl``, ``act``) persisting across
+  env reset and re-diverging on the next solve.
+  :class:`~isaaclab_newton.physics.NewtonMJWarpManager` now calls
+  :meth:`SolverMuJoCo.reset` with the accumulated per-world reset mask
+  whenever the reset masks are consumed (at the top of
+  :meth:`~isaaclab_newton.physics.NewtonManager.step` and in
+  :meth:`~isaaclab_newton.physics.NewtonManager.forward`), so a world that
+  produces a NaN can recover after :meth:`~isaaclab.envs.ManagerBasedEnv.reset`.
+  See https://github.com/newton-physics/newton/issues/1266 for the upstream
+  discussion.
+
+
 1.6.1 (2026-07-08)
 ~~~~~~~~~~~~~~~~~~
 

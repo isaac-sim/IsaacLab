@@ -138,6 +138,31 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars():
     assert 'def RenderVar "HdrColor"' in render_scope
 
 
+def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars():
+    """Requesting semantic segmentation authors both SemanticSegmentation and SemanticIdMap render vars."""
+    render_var_configs = get_render_var_configs(["semantic_segmentation"])
+
+    assert render_var_configs == [
+        ("/Render/Vars/semantic", "semantic", "SemanticSegmentation"),
+        ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
+    ]
+
+    render_scope = build_render_scope_usd(
+        camera_paths=["/World/envs/env_0/Camera"],
+        render_product_name="RenderProduct",
+        render_var_path=render_var_configs[0][0],
+        render_var_name=render_var_configs[0][1],
+        source_name=render_var_configs[0][2],
+        tiled_width=16,
+        tiled_height=8,
+        render_var_configs=render_var_configs,
+    )
+
+    assert "rel orderedVars = [</Render/Vars/semantic>, </Render/Vars/SemanticIdMap>]" in render_scope
+    assert 'uniform string sourceName = "SemanticSegmentation"' in render_scope
+    assert 'uniform string sourceName = "SemanticIdMap"' in render_scope
+
+
 def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
     """Listing every env root as a source preserves the full stage content."""
     num_envs = 4

@@ -10,7 +10,7 @@ resolve ``PresetCfg`` selections, register the plain Hydra config, run Hydra
 scalar overrides, and return the resolved env/agent cfg objects.
 
 The benchmark prints a local summary table and writes per-case measurements to
-the standard Isaac Lab benchmark backend. It does not create environments and
+the standard Isaac Lab benchmark formatter. It does not create environments and
 does not require a GPU.
 
 Usage::
@@ -49,8 +49,6 @@ with warnings.catch_warnings():
     import isaaclab_tasks  # noqa: F401
 
 from isaaclab_tasks.utils.hydra import resolve_task_config
-
-from scripts.benchmarks.utils import get_backend_type
 
 
 @dataclass(frozen=True)
@@ -204,20 +202,11 @@ def main() -> int:
         help="Benchmark case in format name:task:agent_entry:arg[,arg...]. May be repeated.",
     )
     parser.add_argument(
-        "--benchmark_backend",
+        "--benchmark_formatter",
         type=str,
         default="summary",
-        choices=[
-            "json",
-            "osmo",
-            "omniperf",
-            "summary",
-            "LocalLogMetrics",
-            "JSONFileMetrics",
-            "OsmoKPIFile",
-            "OmniPerfKPIFile",
-        ],
-        help="Benchmarking backend options, defaults summary.",
+        choices=["json", "osmo", "omniperf", "summary"],
+        help="Benchmark output formatter, defaults summary.",
     )
     parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
     parser.add_argument("--verbose", action="store_true", help="Keep per-iteration resolver output.")
@@ -240,7 +229,7 @@ def main() -> int:
 
     benchmark = BaseIsaacLabBenchmark(
         benchmark_name="benchmark_hydra_resolve",
-        backend_type=get_backend_type(args.benchmark_backend),
+        formatter_type=args.benchmark_formatter,
         output_path=args.output_path,
         use_recorders=True,
         output_prefix="benchmark_hydra_resolve",

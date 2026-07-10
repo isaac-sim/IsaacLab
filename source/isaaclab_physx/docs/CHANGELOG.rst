@@ -1,6 +1,42 @@
 Changelog
 ---------
 
+2.8.1 (2026-07-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the headless RTX video pump so it still updates Kit on demand when a frame is requested,
+  after :attr:`~isaaclab.sim.SimulationContext.is_rendering` stopped reporting offscreen rendering
+  as continuous rendering. Offscreen frames are now pumped only when requested, not every step.
+* Fixed physics corruption when recording video with ``--video --device cpu``: the Kit
+  ``app.update()`` inside :class:`~isaaclab_physx.video_recording.IsaacsimKitPerspectiveVideo`
+  now guards ``/app/player/playSimulations`` so physics is not advanced mid-render.
+
+
+2.8.0 (2026-07-09)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* **Breaking:** Removed
+  :attr:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg.rendering_mode`
+  and the ``performance``, ``balanced``, and ``quality`` RTX preset files.
+  Override individual settings through
+  :class:`~isaaclab_physx.renderers.IsaacRtxRendererGlobalSettingsCfg` fields or
+  ``carb_settings`` instead.
+
+Fixed
+^^^^^
+
+* Fixed :meth:`~isaaclab_physx.renderers.isaac_rtx_renderer.IsaacRtxRenderer.read_output`
+  leaving a stale segmentation ``idToLabels`` mapping in ``camera.data.info`` when an
+  annotator stopped emitting metadata on a later frame. Per-output metadata is now
+  replaced (not merged) each frame, so a dropped mapping resets to ``None``.
+
+
 2.7.1 (2026-07-08)
 ~~~~~~~~~~~~~~~~~~
 

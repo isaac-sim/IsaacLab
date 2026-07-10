@@ -406,7 +406,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
                 camera_cfg.renderer_cfg,
                 enable_translucency=True,
                 carb_settings={"rtx.raytracing.fractionalCutoutOpacity": True},
-                rendering_mode="quality",
                 antialiasing_mode="DLAA",
             )
 
