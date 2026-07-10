@@ -102,7 +102,7 @@ sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 rl-games = [
     "aiohttp>=3.12.14",
-    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11",
+    "rl-games @ git+https://github.com/isaac-sim/rl_games.git@optional-ray",
     "gym",
     "standard-distutils",
 ]

@@ -57,7 +57,7 @@ Install with ``isaaclab[isaacsim,all]`` for the full workflow.
 
    .. code-block:: bash
 
-      pip install "rl-games @ git+https://github.com/isaac-sim/rl_games.git@python3.11" gym standard-distutils
+      pip install "rl-games @ git+https://github.com/isaac-sim/rl_games.git@optional-ray" gym standard-distutils
 
 Installing dependencies
 ~~~~~~~~~~~~~~~~~~~~~~~
