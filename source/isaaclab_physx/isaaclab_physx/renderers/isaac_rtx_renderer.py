@@ -122,7 +122,7 @@ class IsaacRtxRenderer(BaseRenderer):
         self.cfg = cfg
         settings = get_settings_manager()
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
-        if settings.get("/isaaclab/rendering/deterministic", False):
+        if settings.get("/isaaclab/render/deterministic", False):
             apply_isaac_rtx_determinism_settings(settings)
         # RTX rendering requires the app to be launched with ``--enable_cameras``.
         if not settings.get("/isaaclab/cameras_enabled"):

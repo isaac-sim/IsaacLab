@@ -24,7 +24,7 @@ App-level deterministic rendering via ``AppLauncher``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
-:class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/rendering/deterministic``.
+:class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic``.
 The Isaac RTX backend reads it on init and applies
 :func:`isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`.
 

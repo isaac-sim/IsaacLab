@@ -108,7 +108,7 @@ class _DummySettings:
 
 @pytest.mark.parametrize("deterministic", [True, False])
 def test_load_extensions_publishes_deterministic_setting(monkeypatch: pytest.MonkeyPatch, deterministic: bool):
-    """Publish ``/isaaclab/rendering/deterministic`` from ``_load_extensions``."""
+    """Publish ``/isaaclab/render/deterministic`` from ``_load_extensions``."""
     launcher = AppLauncher.__new__(AppLauncher)
     launcher._deterministic_rendering = deterministic
     launcher._python_logging_level = logging.ERROR
@@ -127,7 +127,7 @@ def test_load_extensions_publishes_deterministic_setting(monkeypatch: pytest.Mon
 
     launcher._load_extensions()
 
-    assert settings.values["/isaaclab/rendering/deterministic"] is deterministic
+    assert settings.values["/isaaclab/render/deterministic"] is deterministic
 
 
 @pytest.mark.parametrize(

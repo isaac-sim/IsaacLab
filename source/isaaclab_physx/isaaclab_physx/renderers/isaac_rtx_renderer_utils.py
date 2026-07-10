@@ -78,6 +78,7 @@ def apply_isaac_rtx_determinism_settings(settings: SettingsManager | None = None
     settings.set("/rtx/rendermode", "RealTimePathTracing")
     settings.set("/rtx/rtpt/cached/enabled", False)
     settings.set("/rtx/rtpt/lightcache/cached/enabled", False)
+    logger.info("Applied Isaac RTX settings for deterministic rendering.")
 
 
 def apply_isaac_rtx_global_settings(

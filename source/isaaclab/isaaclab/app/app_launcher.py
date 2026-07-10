@@ -435,7 +435,7 @@ class AppLauncher:
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
 
-        * ``deterministic`` (bool): Publishes ``/isaaclab/rendering/deterministic`` for reproducible rendering.
+        * ``deterministic`` (bool): Publishes ``/isaaclab/render/deterministic`` for reproducible rendering.
           Does not change how the default experience file is chosen.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
@@ -1296,7 +1296,8 @@ class AppLauncher:
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
 
-        settings.set_bool("/isaaclab/rendering/deterministic", self._deterministic_rendering)
+        # publish the reproducible-rendering intent; rendering backends read this on initialization
+        settings.set_bool("/isaaclab/render/deterministic", self._deterministic_rendering)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())

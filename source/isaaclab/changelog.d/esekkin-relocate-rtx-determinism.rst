@@ -2,7 +2,7 @@ Changed
 ^^^^^^^
 
 * Changed the ``--deterministic`` flag of :class:`~isaaclab.app.app_launcher.AppLauncher` to publish
-  ``/isaaclab/rendering/deterministic``. A rendering backend reads this setting on initialization and
+  ``/isaaclab/render/deterministic``. A rendering backend reads this setting on initialization and
   applies its own reproducible-rendering settings; the Isaac RTX backend is the current consumer.
 
 Removed
