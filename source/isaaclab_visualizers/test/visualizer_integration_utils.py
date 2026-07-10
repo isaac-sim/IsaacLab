@@ -39,7 +39,6 @@ from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
 from isaaclab_visualizers.newton import NewtonVisualizer, NewtonVisualizerCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.app import AppLauncher
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
 from isaaclab.sim import SimulationContext
 
@@ -236,8 +235,7 @@ def assert_no_newton_imgui_bundle_warning(capsys: pytest.CaptureFixture[str], ca
 
 
 def _configure_sim_for_visualizer_test(env: CartpoleCameraEnv) -> None:
-    """Settings used by the previous smoke tests; keep RTX sensors enabled for camera paths."""
-    AppLauncher.apply_rtx_determinism_settings()
+    """Enable RTX sensors for camera visualizer integration tests."""
     env.sim.set_setting("/isaaclab/render/rtx_sensors", True)
     env.sim._app_control_on_stop_handle = None  # type: ignore[attr-defined]
 
