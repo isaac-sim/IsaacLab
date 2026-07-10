@@ -121,14 +121,14 @@ jobs:
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/isaaclab-tasks-compat-report.xml reports/ 2>/dev/null || echo "No test results to copy from IsaacLab Tasks container"
         fi
 
-    - name: Upload IsaacLab Tasks Test Results
-      uses: actions/upload-artifact@v7
+    - name: Upload test results
       if: always()
+      uses: ./.github/actions/upload-junit-results
       with:
-        name: isaaclab-tasks-compat-results-${{ matrix.isaacsim_version }}
-        path: reports/isaaclab-tasks-compat-report.xml
-        retention-days: 7
-        compression-level: 9
+        junit-file: reports/isaaclab-tasks-compat-report.xml
+        artifact-name: isaaclab-tasks-compat-results-${{ matrix.isaacsim_version }}
+        artifact-prefix: pytest-results-${{ github.job }}-${{ matrix.isaacsim_version }}
+        test-type: compatibility-e2e
 
   test-general-compat:
     needs: [setup-versions, config]
@@ -178,14 +178,14 @@ jobs:
           docker cp $CONTAINER_NAME:/workspace/isaaclab/tests/general-tests-compat-report.xml reports/ 2>/dev/null || echo "No test results to copy from General Tests container"
         fi
 
-    - name: Upload General Test Results
-      uses: actions/upload-artifact@v7
+    - name: Upload test results
       if: always()
+      uses: ./.github/actions/upload-junit-results
       with:
-        name: general-tests-compat-results-${{ matrix.isaacsim_version }}
-        path: reports/general-tests-compat-report.xml
-        retention-days: 7
-        compression-level: 9
+        junit-file: reports/general-tests-compat-report.xml
+        artifact-name: general-tests-compat-results-${{ matrix.isaacsim_version }}
+        artifact-prefix: pytest-results-${{ github.job }}-${{ matrix.isaacsim_version }}
+        test-type: compatibility-e2e
 
   combine-compat-results:
     needs: [test-isaaclab-tasks-compat, test-general-compat]
