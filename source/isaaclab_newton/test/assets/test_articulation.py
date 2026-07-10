@@ -98,6 +98,25 @@ SIM_CFGs = {
             debug_mode=False,
         ),
     ),
+    # "panda" with 4 solver substeps: at a single 1/120 substep, MJWarp implicitfast
+    # carries a ~0.4-1.0 mm integration limit cycle under a gravity load that never
+    # settles; 4 substeps integrate the same frozen per-control-step torques to a
+    # dead-still ~1 um hold. Used by the gravity-compensation precision test.
+    "panda_fine": SimulationCfg(
+        dt=1 / 120,
+        physics=NewtonCfg(
+            solver_cfg=MJWarpSolverCfg(
+                njmax=20,
+                nconmax=20,
+                ls_iterations=20,
+                cone="pyramidal",
+                impratio=1,
+                integrator="implicitfast",
+            ),
+            num_substeps=4,
+            debug_mode=False,
+        ),
+    ),
     "single_joint_implicit": SimulationCfg(
         dt=1 / 120,
         physics=NewtonCfg(
@@ -3510,7 +3529,7 @@ def test_franka_osc_tracking_accuracy(sim, device, articulation_type, gravity_en
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.parametrize("articulation_type", ["panda"])
+@pytest.mark.parametrize("articulation_type", ["panda_fine"])
 @pytest.mark.parametrize("gravity_enabled", [True])
 @pytest.mark.isaacsim_ci
 def test_franka_osc_gravity_compensation_precision(sim, device, articulation_type, gravity_enabled):
@@ -3522,7 +3541,7 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
     ``gravity_compensation=False`` and must sag past a floor; phase 2 flips
     ``osc.cfg.gravity_compensation`` — read per :meth:`compute` call, so the
     flag is the only variable across phases (the gravity tensor is fetched and
-    passed in both) — and every measurement window must recover under 2.5 mm.
+    passed in both) — and must recover the hold to under 0.1 mm.
 
     The floor assertion keeps the test discriminating: if the task stiffness
     is ever raised high enough to mask gravity, phase 1 stops clearing the
@@ -3533,20 +3552,16 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
     FK-staleness refresh on every step of phase 2.
 
     The task stiffness (500) deliberately matches the PhysX-side OSC
-    gravity-compensation test for a cross-backend-comparable setup. Measured
-    floors at this stiffness (deterministic on the pinned stack): Newton
-    decays for ~1000 steps into a slow 0.4-1.0 mm envelope oscillation that
-    never fully stills, while PhysX (OVPhysX) freezes at ~8 um. Newton's
-    residual is a limit cycle from the RNEA feed-forward being integrated by
-    a different engine (MJWarp implicitfast), not a static gravity mismatch —
-    the uncompensated sag agrees with PhysX to ~1% (23.7 vs 23.9 mm) and
-    stiffer gains crush the residual superlinearly (36 um at stiffness 2000).
-    Newton therefore needs stiffer task gains than PhysX for an equally quiet
-    hold. Because phase 2 oscillates rather than settles, the precision
-    assertion bounds EVERY 200-step window mean in the second half of the
-    phase instead of a single tail mean — immune to where a measurement
-    window lands on the envelope. Phase 1 does reach a stationary band
-    (~200 steps) and carries an explicit stationarity guard.
+    gravity-compensation test for a cross-backend-comparable setup, and the
+    ``panda_fine`` sim config (4 solver substeps) is load-bearing: at a single
+    1/120 substep MJWarp implicitfast mis-integrates the gravity-loaded hold
+    into a 0.4-1.0 mm limit cycle that never settles (dt-linear, worsened by
+    higher damping gains, gone in zero gravity — solver integration error,
+    not a compensation error). With 4 substeps the same per-control-step
+    torques hold dead-still at ~1 um, quieter than PhysX (OVPhysX) at ~8 um.
+    The uncompensated sag agrees with PhysX to ~1% (23.7 vs 23.9 mm),
+    independently validating the gravity forces. Both phases reach a true
+    steady state here, enforced by tail-half stationarity guards.
     """
     robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(
         sim, zero_actuator_pd=True, disable_gravity=False
@@ -3599,34 +3614,30 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
             pos_history.append(pos_error.norm(dim=-1).max().item())
         return pos_history
 
+    def _stationary_tail_mean(history, label):
+        """Mean of the last 200 samples, asserting the two tail halves agree within 25%."""
+        a = sum(history[-200:-100]) / 100
+        b = sum(history[-100:]) / 100
+        mean = (a + b) / 2.0
+        assert abs(a - b) < 0.25 * max(mean, 1e-6), (
+            f"{label} not stationary: tail halves {a:.6f} vs {b:.6f} — extend the phase"
+        )
+        return mean
+
     hist_off = run_phase(400)
     osc.cfg.gravity_compensation = True
-    hist_on = run_phase(2000)
+    hist_on = run_phase(600)
 
-    # Phase-1 stationarity guard: sag reaches a stationary band by ~step 200, so the
-    # two tail-half means must agree (measured drift 2.2%; 25% catches a still-growing sag).
-    off_a = sum(hist_off[-200:-100]) / 100
-    off_b = sum(hist_off[-100:]) / 100
-    pos_off = (off_a + off_b) / 2.0
-    assert abs(off_a - off_b) < 0.25 * pos_off, (
-        f"phase-1 sag not stationary: tail halves {off_a:.5f} vs {off_b:.5f} — extend phase 1 beyond 400 steps"
-    )
+    pos_off = _stationary_tail_mean(hist_off, "phase-1 sag")
+    pos_on = _stationary_tail_mean(hist_on, "phase-2 hold")
 
-    # Phase 2 oscillates slowly instead of settling, so bound every 200-step window
-    # mean in the second half — no single window placement can pass or fail by luck.
-    second_half = hist_on[len(hist_on) // 2 :]
-    win_means = [sum(second_half[i : i + 200]) / 200 for i in range(0, len(second_half), 200)]
-    pos_on = sum(second_half) / len(second_half)
+    print(f"GRAVCOMP_METRIC pos_off={pos_off:.5f} pos_on={pos_on:.6f}")
 
-    print(f"GRAVCOMP_METRIC pos_off={pos_off:.5f} pos_on={pos_on:.5f} win_max={max(win_means):.5f}")
-
-    # Calibrated on newton 9af5a9f4 / mujoco-warp 3.10.0.1: pos_off ~= 0.024,
-    # pos_on ~= 0.0008, worst window ~= 0.0010.
+    # Calibrated on newton 9af5a9f4 / mujoco-warp 3.10.0.1 with 4 substeps:
+    # pos_off ~= 0.024, pos_on ~= 1e-6.
     assert pos_off > 1.2e-2, f"uncompensated sag {pos_off:.5f} < 1.2 cm — setup no longer discriminates gravity"
-    assert max(win_means) < 2.5e-3, (
-        f"compensated hold windows {[f'{m:.4f}' for m in win_means]} exceed 2.5 mm — gravity compensation inaccurate"
-    )
-    assert pos_on < pos_off / 10.0, f"compensation only improved sag {pos_off:.5f} -> {pos_on:.5f} (<10x)"
+    assert pos_on < 1e-4, f"compensated hold {pos_on:.6f} > 0.1 mm — gravity compensation inaccurate"
+    assert pos_on < pos_off / 10.0, f"compensation only improved sag {pos_off:.5f} -> {pos_on:.6f} (<10x)"
 
 
 if __name__ == "__main__":
