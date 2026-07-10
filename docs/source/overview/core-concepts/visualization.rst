@@ -10,7 +10,7 @@ visualizers are meant for fast, interactive feedback.
 Most visualizers can be combined with any physics engine or rendering backend.
 The exception is the Kit visualizer with kit-less OV backends:
 ``--visualizer kit`` cannot be used with ``presets=ovphysx`` or
-``ovrtx_renderer`` in the same process. Use ``--visualizer newton``,
+``ovrtx`` in the same process. Use ``--visualizer newton``,
 ``--visualizer rerun``, ``--visualizer viser``, or omit ``--visualizer``
 for headless execution.
 
@@ -302,19 +302,19 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
    * - Renderer preset
      - ``--visualizer kit --video``
      - ``--visualizer newton --video``
-   * - ``isaacsim_rtx_renderer``
+   * - ``isaacsim_rtx``
      - ✅ Kit RTX captures video *(default, no change)*
      - ✅ Newton GL captures video *(overrides RTX backend)*
    * - ``newton_renderer``
      - ✅ Kit RTX captures video *(overrides Newton backend)*
      - ✅ Newton GL captures video *(default, no change)*
-   * - ``ovrtx_renderer``
+   * - ``ovrtx``
      - ❌ **Raises an error** — see note below
      - ✅ Newton GL captures video; ovrtx provides camera sensor data
 
 .. note::
 
-   ``--visualizer kit`` combined with ``ovrtx_renderer`` raises a ``ValueError`` at startup.
+   ``--visualizer kit`` combined with ``ovrtx`` raises a ``ValueError`` at startup.
    Both Kit (Isaac Sim) and ovrtx ship conflicting RTX hydra libraries compiled against
    different USD namespaces (``pxrInternal_v0_25_11`` vs ``ovInternal_v0_25_11``), which
    causes a dynamic-linker crash when loaded into the same process.
@@ -324,7 +324,8 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
@@ -333,14 +334,15 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
-     physics=newton_mjwarp renderer=ovrtx_renderer presets=rgb
+     --benchmark_formatter=summary \
+     physics=newton_mjwarp renderer=ovrtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Newton video backend**
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer newton \
@@ -349,14 +351,15 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
-     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+     --benchmark_formatter=summary \
+     physics=physx renderer=isaacsim_rtx presets=rgb
 
 **Record video with the Isaac RTX renderer preset using the Kit video backend**
 
 .. code-block:: bash
 
-   ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+   uv run isaaclab benchmark training \
+     --rl_library rsl_rl \
      --task=Isaac-Reorient-Cube-Shadow-Camera-Direct \
      --enable_cameras \
      --visualizer kit \
@@ -365,8 +368,8 @@ set ``VideoRecorderCfg.backend_source = "renderer"`` in the task configuration.
      --video_interval=2000 \
      --max_iterations=5 \
      --num_envs=1024 \
-     --benchmark_backend=summary \
-     physics=physx renderer=isaacsim_rtx_renderer presets=rgb
+     --benchmark_formatter=summary \
+     physics=physx renderer=isaacsim_rtx presets=rgb
 
 
 Visualizer Backends
