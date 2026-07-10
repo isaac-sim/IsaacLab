@@ -55,60 +55,29 @@ def create_camera_transforms_kernel(
 
 
 @wp.kernel
-def sync_newton_deformable_points_kernel(
-    ovrtx_points: wp.array(dtype=wp.vec3f),  # type: ignore
-    newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
-    particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
-    mesh_index: int,
-):
-    """Sync one Newton deformable particle slice to an OVRTX mesh ``points`` array.
-
-    Newton stores deformable particles in world space. The OVRTX visual mesh prim
-    uses ``omni:resetXformStack`` with identity ``omni:xform``, so ``points``
-    are written directly in world space.
-    """
-    point_index = wp.tid()
-    particle_index = int(particle_offsets[mesh_index]) + point_index
-    ovrtx_points[point_index] = newton_particle_q[particle_index]
-
-
-@wp.kernel
-def sync_newton_deformable_points_batched_kernel(
-    ovrtx_points: wp.array(dtype=wp.vec3f, ndim=2),  # type: ignore
-    newton_particle_q: wp.array(dtype=wp.vec3f),  # type: ignore
-    particle_offsets: wp.array(dtype=wp.int32),  # type: ignore
-    particles_per_mesh: wp.array(dtype=wp.int32),  # type: ignore
-):
-    """Sync all Newton deformable particle slices to OVRTX mesh ``points`` arrays.
-
-    Launched with a 2D grid ``(num_meshes, max_particles_per_mesh)``. Threads
-    whose local point index exceeds the mesh particle count exit early.
-    """
-    mesh_index, point_index = wp.tid()
-    if point_index >= int(particles_per_mesh[mesh_index]):
-        return
-    particle_index = int(particle_offsets[mesh_index]) + point_index
-    ovrtx_points[mesh_index, point_index] = newton_particle_q[particle_index]
-
-
-@wp.kernel
 def compute_deformable_mesh_extent_kernel(
     points: wp.array(dtype=wp.vec3f),  # type: ignore
-    extent_min: wp.array(dtype=wp.vec3f),  # type: ignore
-    extent_max: wp.array(dtype=wp.vec3f),  # type: ignore
+    extents: wp.array(dtype=wp.vec3d, ndim=2),  # type: ignore
+    mesh_index: int,
 ):
-    """Compute axis-aligned bounds for one deformable mesh point buffer on the GPU."""
+    """Compute axis-aligned bounds for one deformable mesh into ``extents[mesh_index]``.
+
+    ``extents`` has shape ``(num_meshes, 2)``: column 0 stores the min corner and
+    column 1 stores the max corner, matching the OVRTX ``extent`` attribute layout.
+    """
     count = points.shape[0]
     if count == 0:
         return
+
     min_v = points[0]
     max_v = points[0]
     for point_index in range(1, count):
         p = points[point_index]
         min_v = wp.vec3f(wp.min(min_v[0], p[0]), wp.min(min_v[1], p[1]), wp.min(min_v[2], p[2]))
         max_v = wp.vec3f(wp.max(max_v[0], p[0]), wp.max(max_v[1], p[1]), wp.max(max_v[2], p[2]))
-    extent_min[0] = min_v
-    extent_max[0] = max_v
+
+    extents[mesh_index, 0] = wp.vec3d(min_v[0], min_v[1], min_v[2])
+    extents[mesh_index, 1] = wp.vec3d(max_v[0], max_v[1], max_v[2])
 
 
 @wp.kernel

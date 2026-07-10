@@ -73,7 +73,6 @@ from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
-    sync_newton_deformable_points_batched_kernel,
     sync_newton_transforms_kernel,
 )
 from .ovrtx_usd import (
@@ -304,13 +303,8 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_points_binding = None
         self._deformable_extent_binding = None
         self._deformable_points_buffers: list[wp.array] = []
-        self._deformable_extent_buffer: np.ndarray | None = None
-        self._deformable_vis_mesh_prim_paths: list[str] = []
-        self._deformable_particle_offsets: wp.array | None = None
-        self._deformable_particles_per_body: wp.array | None = None
-        self._deformable_max_particles_per_body: int = 0
-        self._deformable_extent_mins: list[wp.array] = []
-        self._deformable_extent_maxs: list[wp.array] = []
+        self._deformable_particle_offsets: list[int] = []
+        self._deformable_particles_per_body: list[int] = []
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -453,7 +447,7 @@ class OVRTXRenderer(BaseRenderer):
         else:
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
-        self._setup_object_bindings()
+        self._setup_xform_bindings()
         self._setup_deformable_bindings()
 
     def _clone_sources_in_ovrtx(self):
@@ -537,7 +531,7 @@ class OVRTXRenderer(BaseRenderer):
         )
         logger.info("Written omni:scenePartition to %d cameras", num_envs)
 
-    def _setup_object_bindings(self):
+    def _setup_xform_bindings(self):
         """Setup OVRTX bindings for scene objects to sync with Newton physics."""
         try:
             from isaaclab_newton.physics import NewtonManager
@@ -602,9 +596,10 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
 
+        self._deformable_particle_offsets = []
+        self._deformable_particles_per_body = []
+
         vis_mesh_prim_paths: list[str] = []
-        particle_offset_values: list[int] = []
-        particles_per_body_values: list[int] = []
 
         # Each registry entry is one deformable asset registered at spawn time. Its
         # ``vis_mesh_prim_path`` uses regex (e.g. ``env_.*``) to cover every cloned env. During
@@ -614,12 +609,13 @@ class OVRTXRenderer(BaseRenderer):
         # ``inst_idx`` and pairing it with that clone's slice in the flat ``particle_q`` array.
         for entry in deformable_registry:
             for inst_idx, particle_offset in enumerate(entry.particle_offsets):
-                resolved_prim_path = re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path)
-                vis_mesh_prim_paths.append(resolved_prim_path)
-                particle_offset_values.append(particle_offset)
-                particles_per_body_values.append(entry.particles_per_body)
+                self._deformable_particle_offsets.append(particle_offset)
+                self._deformable_particles_per_body.append(entry.particles_per_body)
 
-        if not vis_mesh_prim_paths:
+                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path))
+
+        prim_count = len(vis_mesh_prim_paths)
+        if prim_count == 0:
             logger.warning("No deformable visual prim paths collected, skipping deformable body bindings")
             return
 
@@ -628,13 +624,13 @@ class OVRTXRenderer(BaseRenderer):
         self._renderer.write_attribute(
             prim_paths=vis_mesh_prim_paths,
             attribute_name="omni:resetXformStack",
-            tensor=np.full(len(vis_mesh_prim_paths), True, dtype=np.bool_),
+            tensor=np.full(prim_count, True, dtype=np.bool_),
             prim_mode=PrimMode.MUST_EXIST,
         )
         self._renderer.write_attribute(
             prim_paths=vis_mesh_prim_paths,
             attribute_name="omni:xform",
-            tensor=np.tile(np.eye(4, dtype=np.float64), (len(vis_mesh_prim_paths), 1, 1)),
+            tensor=np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1)),
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.MUST_EXIST,
         )
@@ -659,33 +655,8 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None or self._deformable_extent_binding is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
 
-        self._deformable_vis_mesh_prim_paths = vis_mesh_prim_paths
-        self._deformable_particle_offsets = wp.array(particle_offset_values, dtype=wp.int32, device=self._device)
-        self._deformable_particles_per_body = wp.array(particles_per_body_values, dtype=wp.int32, device=self._device)
-
-    def _ensure_deformable_update_buffers(self) -> None:
-        """Allocate deformable sync buffers on first update after bindings are created."""
-        if not self._deformable_vis_mesh_prim_paths or self._deformable_points_buffers:
-            return
-
-        particles_per_body = self._deformable_particles_per_body.numpy()
-
         self._deformable_points_buffers = [
-            wp.empty(int(count), dtype=wp.vec3f, device=self._device) for count in particles_per_body
-        ]
-
-        self._deformable_max_particles_per_body = int(particles_per_body.max())
-
-        mesh_count = len(self._deformable_vis_mesh_prim_paths)
-
-        self._deformable_extent_buffer = np.zeros((mesh_count, 2, 3), dtype=np.float64)
-
-        self._deformable_extent_mins = [
-            wp.zeros(1, dtype=wp.vec3f, device=self._device) for _ in self._deformable_vis_mesh_prim_paths
-        ]
-
-        self._deformable_extent_maxs = [
-            wp.zeros(1, dtype=wp.vec3f, device=self._device) for _ in self._deformable_vis_mesh_prim_paths
+            wp.empty(count, dtype=wp.vec3f, device=self._device) for count in self._deformable_particles_per_body
         ]
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
@@ -756,14 +727,6 @@ class OVRTXRenderer(BaseRenderer):
                 device=self._device,
             )
 
-    def _allocate_deformable_stacked_points(self) -> wp.array:
-        """Allocate a 2D buffer for batched deformable point sync."""
-        return wp.zeros(
-            (len(self._deformable_points_buffers), self._deformable_max_particles_per_body),
-            dtype=wp.vec3f,
-            device=self._device,
-        )
-
     def _update_deformable_points(self) -> None:
         """Sync Newton deformable particles to OVRTX mesh point arrays."""
         try:
@@ -775,56 +738,47 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None:
             return
 
-        self._ensure_deformable_update_buffers()
-
         if not NewtonManager.particles_dirty():
             return
 
-        newton_state = NewtonManager.get_state()
-        if newton_state is None:
-            return
-
-        particle_q = newton_state.particle_q
+        # particle_q is the world-space particle positions for all deformable bodies.
+        particle_q = getattr(NewtonManager.get_state(), "particle_q", None)
         if particle_q is None:
             return
 
-        stacked_points = self._allocate_deformable_stacked_points()
-        wp.launch(
-            kernel=sync_newton_deformable_points_batched_kernel,
-            dim=(len(self._deformable_points_buffers), self._deformable_max_particles_per_body),
-            inputs=[
-                stacked_points,
-                particle_q,
-                self._deformable_particle_offsets,
-                self._deformable_particles_per_body,
-            ],
-            device=self._device,
-        )
         for mesh_index, point_buffer in enumerate(self._deformable_points_buffers):
-            particle_count = int(self._deformable_particles_per_body.numpy()[mesh_index])
-            wp.copy(point_buffer, stacked_points[mesh_index, :particle_count])
-            wp.launch(
-                kernel=compute_deformable_mesh_extent_kernel,
-                dim=1,
-                inputs=[
-                    point_buffer,
-                    self._deformable_extent_mins[mesh_index],
-                    self._deformable_extent_maxs[mesh_index],
-                ],
-                device=self._device,
-            )
-            extent_min = self._deformable_extent_mins[mesh_index].numpy()[0]
-            extent_max = self._deformable_extent_maxs[mesh_index].numpy()[0]
-            self._deformable_extent_buffer[mesh_index] = np.stack((extent_min, extent_max))
+            particle_offset = self._deformable_particle_offsets[mesh_index]
+            particle_count = self._deformable_particles_per_body[mesh_index]
+            wp.copy(point_buffer, particle_q[particle_offset : particle_offset + particle_count])
 
-        if self._deformable_extent_binding is not None:
-            wp.synchronize_device(self._device)
-            self._deformable_extent_binding.write(cast(Any, self._deformable_extent_buffer))
-
-        self._deformable_points_binding.write(  # type: ignore[arg-type]
+        # Array attribute bindings (``bind_array_attribute``) do not expose one mapped GPU
+        # tensor for all deformable ``points``. OVRTX expects a per-prim ``List[DLTensor]`` via
+        # ``write()``, so we stage copies here and hand them off asynchronously instead of
+        # using ``binding.map()`` like transforms/extents.
+        #
+        # ``DataAccess.ASYNC`` is zero-copy: OVRTX reads our staging buffers in place. The
+        # ``cuda_stream`` handle tells OVRTX which Warp stream the preceding ``wp.copy``
+        # calls were enqueued on, so it can wait for those copies on the GPU before reading
+        # the buffers. That bridges Warp and OVRTX execution without a host-side
+        # ``wp.synchronize_device()``. Points are handed off before extent work so OVRTX does
+        # not wait on unrelated extent kernels.
+        cuda_stream = wp.get_stream(self._device).cuda_stream
+        self._deformable_points_binding.write(
             cast(Any, self._deformable_points_buffers),
             data_access=DataAccess.ASYNC,
+            cuda_stream=cuda_stream,
         )
+
+        if self._deformable_extent_binding is not None:
+            with self._deformable_extent_binding.map(device=Device.CUDA, device_id=self._device_id) as extent_mapping:
+                ovrtx_extents = wp.from_dlpack(extent_mapping.tensor, dtype=wp.vec3d)
+                for mesh_index, point_buffer in enumerate(self._deformable_points_buffers):
+                    wp.launch(
+                        kernel=compute_deformable_mesh_extent_kernel,
+                        dim=1,
+                        inputs=[point_buffer, ovrtx_extents, mesh_index],
+                        device=self._device,
+                    )
 
         NewtonManager.clear_particles_dirty()
 
@@ -1222,13 +1176,8 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_extent_binding = None
 
         self._deformable_points_buffers = []
-        self._deformable_extent_buffer = None
-        self._deformable_vis_mesh_prim_paths = []
-        self._deformable_particle_offsets = None
-        self._deformable_particles_per_body = None
-        self._deformable_max_particles_per_body = 0
-        self._deformable_extent_mins = []
-        self._deformable_extent_maxs = []
+        self._deformable_particle_offsets = []
+        self._deformable_particles_per_body = []
 
         if self._renderer:
             try:

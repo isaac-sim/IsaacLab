@@ -30,6 +30,7 @@ if not _MISSING_MODULES:
     from isaaclab_newton.physics import NewtonManager  # noqa: E402
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
+    from ovrtx import DataAccess  # noqa: E402
 else:
     NewtonManager = None
     OVRTXRenderer = None
@@ -37,16 +38,55 @@ else:
     ovrtx_renderer_module = None
 
 
-class _FakeArrayBinding:
-    """Capture array writes made through an OVRTX binding."""
+class _FakeAttributeMapping:
+    """Minimal OVRTX attribute mapping context manager."""
+
+    def __init__(self, tensor):
+        self.tensor = tensor
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return None
+
+
+class _FakePointsBinding:
+    """Capture array writes made through an OVRTX array attribute binding."""
 
     def __init__(self, attribute_name: str):
         self.attribute_name = attribute_name
         self.written = None
+        self.write_kwargs: dict | None = None
+        self.unbound = False
+
+    def write(self, data, **kwargs):
+        self.written = data
+        self.write_kwargs = kwargs
+
+    def map(self, device=None, device_id=0):  # noqa: ARG002
+        raise RuntimeError("bind_array_attribute bindings do not expose mapped point buffers")
+
+    def unbind(self):
+        self.unbound = True
+
+
+class _FakeExtentBinding:
+    """Scalar OVRTX binding that exposes mapped extent memory."""
+
+    def __init__(self, attribute_name: str, mapped_extents: wp.array):
+        self.attribute_name = attribute_name
+        self.mapped_extents = mapped_extents
+        self.written = None
+        self.map_calls: list[tuple] = []
         self.unbound = False
 
     def write(self, data, **kwargs):  # noqa: ARG002
         self.written = data
+
+    def map(self, device=None, device_id=0):
+        self.map_calls.append((device, device_id))
+        return _FakeAttributeMapping(self.mapped_extents.__dlpack__())
 
     def unbind(self):
         self.unbound = True
@@ -62,13 +102,13 @@ class _FakeOVRTXBackend:
 
     def bind_array_attribute(self, **kwargs):
         self.calls.append(kwargs)
-        binding = _FakeArrayBinding(kwargs["attribute_name"])
+        binding = _FakePointsBinding(kwargs["attribute_name"])
         self.bindings[kwargs["attribute_name"]] = binding
         return binding
 
     def bind_attribute(self, **kwargs):
         self.calls.append(kwargs)
-        binding = _FakeArrayBinding(kwargs["attribute_name"])
+        binding = _FakePointsBinding(kwargs["attribute_name"])
         self.bindings[kwargs["attribute_name"]] = binding
         return binding
 
@@ -92,13 +132,16 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._deformable_extent_binding = None
     renderer._deformable_vis_mesh_prim_paths = []
     renderer._deformable_points_buffers = []
-    renderer._deformable_extent_buffer = None
-    renderer._deformable_particle_offsets = None
-    renderer._deformable_particles_per_body = None
-    renderer._deformable_max_particles_per_body = 0
-    renderer._deformable_extent_mins = []
-    renderer._deformable_extent_maxs = []
+    renderer._deformable_particle_offsets = []
+    renderer._deformable_particles_per_body = []
     return renderer, renderer._renderer
+
+
+def test_points_array_binding_uses_write_not_map():
+    """OVRTX array bindings accept ``List[DLTensor]`` via ``write()``, not mapped tensors."""
+    binding = _FakePointsBinding("points")
+    with pytest.raises(RuntimeError, match="do not expose mapped point buffers"):
+        binding.map()
 
 
 def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest.MonkeyPatch):
@@ -132,11 +175,10 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
     assert backend.writes[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
     assert backend.writes[1]["attribute_name"] == "omni:xform"
     assert backend.writes[1]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
-    assert renderer._deformable_points_buffers == []
-    assert renderer._deformable_extent_buffer is None
-    assert renderer._deformable_vis_mesh_prim_paths == ["/World/envs/env_0/Deformable/mesh"]
-    assert renderer._deformable_particle_offsets.numpy().tolist() == [7]
-    assert renderer._deformable_particles_per_body.numpy().tolist() == [3]
+    assert len(renderer._deformable_points_buffers) == 1
+    assert renderer._deformable_points_buffers[0].shape == (3,)
+    assert renderer._deformable_particle_offsets == [7]
+    assert renderer._deformable_particles_per_body == [3]
 
 
 def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.MonkeyPatch):
@@ -158,7 +200,7 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
     assert backend.calls[0]["attribute_name"] == "points"
     assert renderer._deformable_points_binding is backend.bindings["points"]
-    assert renderer._deformable_particle_offsets.numpy().tolist() == [7]
+    assert renderer._deformable_particle_offsets == [7]
 
 
 def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkeypatch: pytest.MonkeyPatch):
@@ -189,8 +231,8 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
         "/World/envs/env_0/DeformableVolume/mesh",
         "/World/envs/env_1/DeformableVolume/mesh",
     ]
-    assert renderer._deformable_particle_offsets.numpy().tolist() == [0, 3, 6, 9]
-    assert renderer._deformable_points_buffers == []
+    assert renderer._deformable_particle_offsets == [0, 3, 6, 9]
+    assert len(renderer._deformable_points_buffers) == 4
 
 
 def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.MonkeyPatch):
@@ -231,97 +273,19 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
 
     expected_paths = [f"/World/envs/env_{i}/Deformable/mesh" for i in range(4)]
     assert backend.calls[0]["prim_paths"] == expected_paths
-    assert renderer._deformable_vis_mesh_prim_paths == expected_paths
-    assert renderer._deformable_particle_offsets.numpy().tolist() == [0, 3, 6, 9]
-    assert renderer._deformable_points_buffers == []
-
-
-def test_ensure_deformable_update_buffers_allocates_once():
-    """Update buffers are allocated lazily from setup metadata and only once."""
-    renderer, _backend = _make_renderer_without_backend()
-    renderer._deformable_vis_mesh_prim_paths = ["/World/envs/env_0/Deformable/mesh"]
-    renderer._deformable_particle_offsets = wp.array([7], dtype=wp.int32, device="cpu")
-    renderer._deformable_particles_per_body = wp.array([3], dtype=wp.int32, device="cpu")
-
-    renderer._ensure_deformable_update_buffers()
-    first_point_buffers = renderer._deformable_points_buffers
-    first_extent_buffer = renderer._deformable_extent_buffer
-
-    assert len(first_point_buffers) == 1
-    assert first_point_buffers[0].shape == (3,)
-    assert first_extent_buffer.shape == (1, 2, 3)
-    assert renderer._deformable_particle_offsets.numpy().tolist() == [7]
-    assert renderer._deformable_particles_per_body.numpy().tolist() == [3]
-    assert renderer._deformable_max_particles_per_body == 3
-    assert len(renderer._deformable_extent_mins) == 1
-    assert len(renderer._deformable_extent_maxs) == 1
-
-    renderer._ensure_deformable_update_buffers()
-    assert renderer._deformable_points_buffers is first_point_buffers
-    assert renderer._deformable_extent_buffer is first_extent_buffer
-
-
-def test_update_deformable_points_allocates_buffers_on_first_update(monkeypatch: pytest.MonkeyPatch):
-    """First dirty update allocates sync buffers from setup metadata."""
-    renderer, backend = _make_renderer_without_backend()
-    renderer._deformable_points_binding = _FakeArrayBinding("points")
-    renderer._deformable_extent_binding = _FakeArrayBinding("extent")
-    renderer._deformable_vis_mesh_prim_paths = ["/World/envs/env_0/Deformable/mesh"]
-    renderer._deformable_particle_offsets = wp.array([0], dtype=wp.int32, device="cpu")
-    renderer._deformable_particles_per_body = wp.array([3], dtype=wp.int32, device="cpu")
-
-    particle_q = wp.array(
-        [wp.vec3f(0.0, 0.0, 0.0), wp.vec3f(1.0, 0.0, 0.0), wp.vec3f(2.0, 0.0, 0.0)],
-        dtype=wp.vec3f,
-        device="cpu",
-    )
-    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(particle_q=particle_q)))
-    NewtonManager._particles_dirty = True
-    monkeypatch.setattr(NewtonManager, "particles_dirty", classmethod(lambda cls: cls._particles_dirty))
-    monkeypatch.setattr(
-        NewtonManager, "clear_particles_dirty", classmethod(lambda cls: setattr(cls, "_particles_dirty", False))
-    )
-
-    launch_calls: list[tuple] = []
-
-    def _fake_launch(kernel, dim, inputs, device):  # noqa: ARG001
-        launch_calls.append((kernel, dim, inputs))
-        if getattr(kernel, "__name__", "") == "sync_newton_deformable_points_batched_kernel":
-            stacked_points, particle_positions, particle_offsets, particles_per_mesh = inputs
-            mesh_index = 0
-            offset = int(particle_offsets.numpy()[mesh_index])
-            count = int(particles_per_mesh.numpy()[mesh_index])
-            stacked_points.numpy()[mesh_index, :count] = particle_positions.numpy()[offset : offset + count]
-            return
-        if getattr(kernel, "__name__", "") == "compute_deformable_mesh_extent_kernel":
-            point_buffer, extent_min, extent_max = inputs
-            points = point_buffer.numpy()
-            extent_min.numpy()[0] = points.min(axis=0)
-            extent_max.numpy()[0] = points.max(axis=0)
-
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _fake_launch)
-
-    renderer._update_deformable_points()
-
-    assert len(renderer._deformable_points_buffers) == 1
-    assert backend.writes == []
-    assert any(
-        getattr(call[0], "__name__", "") == "sync_newton_deformable_points_batched_kernel" for call in launch_calls
-    )
+    assert renderer._deformable_particle_offsets == [0, 3, 6, 9]
+    assert len(renderer._deformable_points_buffers) == 4
 
 
 def test_update_deformable_points_writes_world_particle_positions(monkeypatch: pytest.MonkeyPatch):
-    """Newton ``particle_q`` is copied into OVRTX point buffers before binding writes."""
-    renderer, backend = _make_renderer_without_backend()
-    renderer._deformable_points_binding = _FakeArrayBinding("points")
-    renderer._deformable_extent_binding = _FakeArrayBinding("extent")
+    """Newton ``particle_q`` is copied into OVRTX point buffers and extents are mapped in place."""
+    renderer, _backend = _make_renderer_without_backend()
+    mapped_extents = wp.zeros((1, 2), dtype=wp.vec3d, device="cpu")
+    renderer._deformable_points_binding = _FakePointsBinding("points")
+    renderer._deformable_extent_binding = _FakeExtentBinding("extent", mapped_extents)
     renderer._deformable_points_buffers = [wp.empty(3, dtype=wp.vec3f, device="cpu")]
-    renderer._deformable_extent_buffer = np.zeros((1, 2, 3), dtype=np.float64)
-    renderer._deformable_particle_offsets = wp.array([1], dtype=wp.int32, device="cpu")
-    renderer._deformable_particles_per_body = wp.array([3], dtype=wp.int32, device="cpu")
-    renderer._deformable_max_particles_per_body = 3
-    renderer._deformable_extent_mins = [wp.zeros(1, dtype=wp.vec3f, device="cpu")]
-    renderer._deformable_extent_maxs = [wp.zeros(1, dtype=wp.vec3f, device="cpu")]
+    renderer._deformable_particle_offsets = [1]
+    renderer._deformable_particles_per_body = [3]
     particle_q = wp.array(
         [
             wp.vec3f(-1.0, -1.0, -1.0),
@@ -345,31 +309,29 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
 
     def _fake_launch(kernel, dim, inputs, device):  # noqa: ARG001
         launch_calls.append((kernel, dim, inputs))
-        if getattr(kernel, "__name__", "") == "sync_newton_deformable_points_batched_kernel":
-            stacked_points, particle_positions, particle_offsets, particles_per_mesh = inputs
-            mesh_index = 0
-            offset = int(particle_offsets.numpy()[mesh_index])
-            count = int(particles_per_mesh.numpy()[mesh_index])
-            stacked_points.numpy()[mesh_index, :count] = particle_positions.numpy()[offset : offset + count]
-            return
         if getattr(kernel, "__name__", "") == "compute_deformable_mesh_extent_kernel":
-            point_buffer, extent_min, extent_max = inputs
+            point_buffer, extents, mesh_index = inputs
             points = point_buffer.numpy()
-            extent_min.numpy()[0] = points.min(axis=0)
-            extent_max.numpy()[0] = points.max(axis=0)
+            extents.numpy()[mesh_index, 0] = points.min(axis=0)
+            extents.numpy()[mesh_index, 1] = points.max(axis=0)
+
+    class _FakeStream:
+        cuda_stream = 42
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _fake_launch)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
 
     renderer._update_deformable_points()
 
-    assert any(
-        getattr(call[0], "__name__", "") == "sync_newton_deformable_points_batched_kernel" for call in launch_calls
-    )
+    assert [getattr(call[0], "__name__", "") for call in launch_calls] == ["compute_deformable_mesh_extent_kernel"]
     assert NewtonManager._particles_dirty is False
-
-    assert renderer._deformable_extent_binding.written is renderer._deformable_extent_buffer
-    assert renderer._deformable_extent_buffer[0].tolist() == [[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]]
+    assert renderer._deformable_extent_binding.map_calls
+    assert renderer._deformable_extent_binding.written is None
+    assert mapped_extents.numpy().tolist() == [[[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]]]
     assert renderer._deformable_points_binding.written is renderer._deformable_points_buffers
+    assert renderer._deformable_points_binding.write_kwargs is not None
+    assert renderer._deformable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
+    assert renderer._deformable_points_binding.write_kwargs["cuda_stream"] == 42
     assert renderer._deformable_points_buffers[0].numpy().tolist() == [
         [1.0, 2.0, 3.0],
         [4.0, 5.0, 6.0],
@@ -378,17 +340,13 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
 
 
 def test_update_deformable_points_skips_when_particles_clean(monkeypatch: pytest.MonkeyPatch):
-    """Dirty-gated sync skips kernel launches when particle state is clean."""
+    """Dirty-gated sync skips data copies and kernel launches when particle state is clean."""
     renderer, _backend = _make_renderer_without_backend()
-    renderer._deformable_points_binding = _FakeArrayBinding("points")
-    renderer._deformable_extent_binding = _FakeArrayBinding("extent")
+    renderer._deformable_points_binding = _FakePointsBinding("points")
+    renderer._deformable_extent_binding = _FakeExtentBinding("extent", wp.zeros((1, 2), dtype=wp.vec3d, device="cpu"))
     renderer._deformable_points_buffers = [wp.empty(3, dtype=wp.vec3f, device="cpu")]
-    renderer._deformable_extent_buffer = np.zeros((1, 2, 3), dtype=np.float64)
-    renderer._deformable_particle_offsets = wp.array([0], dtype=wp.int32, device="cpu")
-    renderer._deformable_particles_per_body = wp.array([3], dtype=wp.int32, device="cpu")
-    renderer._deformable_max_particles_per_body = 3
-    renderer._deformable_extent_mins = [wp.zeros(1, dtype=wp.vec3f, device="cpu")]
-    renderer._deformable_extent_maxs = [wp.zeros(1, dtype=wp.vec3f, device="cpu")]
+    renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particles_per_body = [3]
 
     NewtonManager._particles_dirty = False
     monkeypatch.setattr(NewtonManager, "particles_dirty", classmethod(lambda cls: cls._particles_dirty))

@@ -14,8 +14,6 @@ from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
     compute_deformable_mesh_extent_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
-    sync_newton_deformable_points_batched_kernel,
-    sync_newton_deformable_points_kernel,
 )
 
 DEVICE = "cuda:0"
@@ -219,83 +217,6 @@ class TestExtractAllMotionVectorTilesKernel:
         np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
 
 
-class TestSyncNewtonDeformablePointsKernel:
-    """Tests for ``sync_newton_deformable_points_kernel``."""
-
-    def test_particle_offset_copies_world_positions(self):
-        particle_q = wp.array(
-            [
-                wp.vec3f(-1.0, -1.0, -1.0),
-                wp.vec3f(11.0, 22.0, 33.0),
-                wp.vec3f(14.0, 25.0, 36.0),
-                wp.vec3f(17.0, 28.0, 39.0),
-                wp.vec3f(100.0, 100.0, 100.0),
-            ],
-            dtype=wp.vec3f,
-            device=DEVICE,
-        )
-        particle_offsets = wp.array([1], dtype=wp.int32, device=DEVICE)
-        points = wp.empty(3, dtype=wp.vec3f, device=DEVICE)
-
-        wp.launch(
-            kernel=sync_newton_deformable_points_kernel,
-            dim=3,
-            inputs=[points, particle_q, particle_offsets, 0],
-            device=DEVICE,
-        )
-        wp.synchronize()
-
-        np.testing.assert_allclose(
-            points.numpy(),
-            np.array([[11.0, 22.0, 33.0], [14.0, 25.0, 36.0], [17.0, 28.0, 39.0]], dtype=np.float32),
-            rtol=0,
-            atol=1e-6,
-        )
-
-
-class TestSyncNewtonDeformablePointsBatchedKernel:
-    """Tests for ``sync_newton_deformable_points_batched_kernel``."""
-
-    def test_two_meshes_with_distinct_offsets(self):
-        particle_q = wp.array(
-            [
-                wp.vec3f(0.0, 0.0, 0.0),
-                wp.vec3f(1.0, 2.0, 3.0),
-                wp.vec3f(4.0, 5.0, 6.0),
-                wp.vec3f(7.0, 8.0, 9.0),
-                wp.vec3f(10.0, 11.0, 12.0),
-            ],
-            dtype=wp.vec3f,
-            device=DEVICE,
-        )
-        particle_offsets = wp.array([1, 3], dtype=wp.int32, device=DEVICE)
-        particles_per_mesh = wp.array([2, 2], dtype=wp.int32, device=DEVICE)
-        stacked_points = wp.zeros((2, 2), dtype=wp.vec3f, device=DEVICE)
-
-        wp.launch(
-            kernel=sync_newton_deformable_points_batched_kernel,
-            dim=(2, 2),
-            inputs=[
-                stacked_points,
-                particle_q,
-                particle_offsets,
-                particles_per_mesh,
-            ],
-            device=DEVICE,
-        )
-        wp.synchronize()
-
-        np.testing.assert_allclose(
-            stacked_points.numpy(),
-            np.array(
-                [[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], [[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]]],
-                dtype=np.float32,
-            ),
-            rtol=0,
-            atol=1e-6,
-        )
-
-
 class TestComputeDeformableMeshExtentKernel:
     """Tests for ``compute_deformable_mesh_extent_kernel``."""
 
@@ -309,23 +230,44 @@ class TestComputeDeformableMeshExtentKernel:
             dtype=wp.vec3f,
             device=DEVICE,
         )
-        extent_min = wp.zeros(1, dtype=wp.vec3f, device=DEVICE)
-        extent_max = wp.zeros(1, dtype=wp.vec3f, device=DEVICE)
+        extents = wp.zeros((1, 2), dtype=wp.vec3d, device=DEVICE)
 
         wp.launch(
             kernel=compute_deformable_mesh_extent_kernel,
             dim=1,
-            inputs=[points, extent_min, extent_max],
+            inputs=[points, extents, 0],
             device=DEVICE,
         )
         wp.synchronize()
 
         np.testing.assert_allclose(
-            extent_min.numpy()[0], np.array([1.0, 2.0, 3.0], dtype=np.float32), rtol=0, atol=1e-6
+            extents.numpy()[0],
+            np.array([[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]], dtype=np.float64),
+            rtol=0,
+            atol=1e-6,
         )
+
+    def test_writes_into_indexed_mesh_row(self):
+        points = wp.array([wp.vec3f(2.0, -1.0, 5.0)], dtype=wp.vec3f, device=DEVICE)
+        extents = wp.zeros((3, 2), dtype=wp.vec3d, device=DEVICE)
+
+        wp.launch(
+            kernel=compute_deformable_mesh_extent_kernel,
+            dim=1,
+            inputs=[points, extents, 1],
+            device=DEVICE,
+        )
+        wp.synchronize()
+
+        result = extents.numpy()
         np.testing.assert_allclose(
-            extent_max.numpy()[0], np.array([7.0, 8.0, 9.0], dtype=np.float32), rtol=0, atol=1e-6
+            result[1],
+            np.array([[2.0, -1.0, 5.0], [2.0, -1.0, 5.0]], dtype=np.float64),
+            rtol=0,
+            atol=1e-6,
         )
+        assert not result[0].any()
+        assert not result[2].any()
 
 
 class TestExtractAllDepthTilesKernel:
