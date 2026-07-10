@@ -1,4 +1,11 @@
 Added
 ^^^^^
 
-* Added ``physics_backend`` to the initialization log table of :class:`~isaaclab_visualizers.newton.NewtonVisualizer`, :class:`~isaaclab_visualizers.viser.ViserVisualizer`, :class:`~isaaclab_visualizers.kit.KitVisualizer`, and :class:`~isaaclab_visualizers.rerun.RerunVisualizer`, and to the Newton imgui "Model Information" panel.
+* Added ``physics_backend`` property to :class:`~isaaclab.visualizers.BaseVisualizer` and surfaced the active
+  physics backend label across all visualizers: a non-interactive "Physics: <backend>" label in the Kit viewport
+  menubar in :class:`~isaaclab_visualizers.kit.KitVisualizer`; a "Physics" collapsing section in the ImGui HUD
+  panel in :class:`~isaaclab_visualizers.newton.NewtonVisualizer`; the viewer page title in
+  :class:`~isaaclab_visualizers.viser.ViserVisualizer`; and a static ``info/physics_backend`` entity in
+  :class:`~isaaclab_visualizers.rerun.RerunVisualizer`. When Newton MJWarp is active,
+  :class:`~isaaclab_visualizers.kit.KitVisualizer` also hides the built-in "Simulation / PhysX" viewport menu
+  item to avoid a misleading label.

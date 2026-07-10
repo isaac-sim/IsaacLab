@@ -67,6 +67,13 @@ def _viser_web_viewer_url(port: int, display_address: str) -> str:
     return f"http://{display_address}:{int(port)}"
 
 
+_BACKEND_DISPLAY_NAMES = {
+    "physx": "PhysX",
+    "ovphysx": "OVPhysX",
+    "newton": "Newton MJWarp",
+}
+
+
 class NewtonViewerViser(ViewerViser):
     """Isaac Lab wrapper for Newton's ViewerViser."""
 
@@ -347,12 +354,15 @@ class ViserVisualizer(BaseVisualizer):
         self._viewer = NewtonViewerViser(
             port=self.cfg.port,
             bind_address=self.cfg.bind_address,
-            label=f"{self.cfg.label} ({self.physics_backend})" if self.cfg.label else self.cfg.label,
+            label=self.cfg.label,
             verbose=False,
             share=self.cfg.share,
             record_to_viser=record_to_viser,
             metadata=metadata or {},
         )
+        backend = self.physics_backend or "unknown"
+        backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+        self._viewer._server.gui.add_markdown(f"**Physics:** {backend_display}")
         viewer_url = self._viewer.share_url or _viser_web_viewer_url(self.cfg.port, self.cfg.display_address)
         if self.cfg.verbose:
             print()

@@ -83,6 +83,8 @@ class KitVisualizer(BaseVisualizer):
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
         self._warned_gpu_upload_failure = False
+        self._backend_menubar_label = None
+        self._hid_simulation_menu = False
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -166,6 +168,7 @@ class KitVisualizer(BaseVisualizer):
         """Close viewport resources and restore temporary state."""
         if not self._is_initialized:
             return
+        self._teardown_backend_menubar_label()
         self._restore_env_visibility()
         if self._camera_sensor is not None and self._camera_is_owned:
             remove_generated_prims(self._generated_camera_prim_paths)
@@ -240,6 +243,48 @@ class KitVisualizer(BaseVisualizer):
 
     # ---- Viewport + camera ----------------------------------------------------------------
 
+    def _setup_backend_menubar_label(self) -> None:
+        """Add a read-only backend label to the viewport menubar and hide the PhysX Simulation menu."""
+        from omni.kit.viewport.menubar.core import IconMenuDelegate, ViewportMenuItem, get_menu_item
+
+        backend = self.physics_backend or "unknown"
+        _BACKEND_DISPLAY_NAMES = {
+            "physx": "PhysX",
+            "ovphysx": "OVPhysX",
+            "newton": "Newton MJWarp",
+        }
+        backend_display = _BACKEND_DISPLAY_NAMES.get(backend, backend)
+
+        # Hide the "Simulation / PhysX" toggle menu — it only reflects the omni.physics.core
+        # registry (always "PhysX") and is misleading when Newton MJWarp is active.
+        if backend not in ("physx", "ovphysx"):
+            sim_item = get_menu_item("Simulation")
+            if sim_item is not None:
+                sim_item.visible_model.set_value(False)
+                self._hid_simulation_menu = True
+
+        # Add a non-interactive backend label in the menubar. IconMenuDelegate is used (not
+        # LabelMenuDelegate) because it draws the "MenuBar.Item.Background" rectangle that gives
+        # other menubar items their styled box/border. width=0 suppresses the icon slot so only
+        # the text is shown; has_triangle=False removes the dropdown caret.
+        self._backend_menubar_label = ViewportMenuItem(
+            f"Physics: {backend_display}",
+            delegate=IconMenuDelegate("", text=True, width=0, has_triangle=False, enabled=False),
+        )
+
+    def _teardown_backend_menubar_label(self) -> None:
+        """Remove the backend label and restore the Simulation menu visibility."""
+        if self._hid_simulation_menu:
+            from omni.kit.viewport.menubar.core import get_menu_item
+
+            sim_item = get_menu_item("Simulation")
+            if sim_item is not None:
+                sim_item.visible_model.set_value(True)
+            self._hid_simulation_menu = False
+        if self._backend_menubar_label is not None:
+            self._backend_menubar_label.destroy()
+            self._backend_menubar_label = None
+
     def _ensure_simulation_app(self) -> None:
         """Ensure a running Isaac Sim app is available and cache runtime mode."""
         import omni.kit.app
@@ -284,9 +329,6 @@ class KitVisualizer(BaseVisualizer):
         effective_viewport_name = (
             self.cfg.viewport_name if self.cfg.viewport_name is not None else _DEFAULT_VIEWPORT_NAME
         )
-        if self.physics_backend:
-            effective_viewport_name = f"{effective_viewport_name} [{self.physics_backend}]"
-
         if self.cfg.create_viewport:
             if not str(effective_viewport_name).strip():
                 raise RuntimeError(
@@ -326,6 +368,7 @@ class KitVisualizer(BaseVisualizer):
         else:
             self._apply_cfg_camera_pose_if_configured()
         self._refresh_controlled_camera_path()
+        self._setup_backend_menubar_label()
 
     def _uses_camera_sensor_view(self) -> bool:
         """Return whether Kit should display a camera sensor image instead of an interactive viewport camera."""
