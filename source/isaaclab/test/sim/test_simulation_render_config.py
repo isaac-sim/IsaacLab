@@ -173,6 +173,36 @@ def test_isaac_rtx_global_settings(monkeypatch):
     assert rep_settings.antialiasing == "DLAA"
 
 
+def test_isaac_rtx_determinism_settings(monkeypatch):
+    """Write RTPT reproducibility carb settings."""
+    utils = _import_isaac_rtx_utils(monkeypatch)
+    settings = _FakeSettings()
+    monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
+
+    utils.apply_isaac_rtx_determinism_settings()
+
+    assert settings.get("/rtx/rendermode") == "RealTimePathTracing"
+    assert settings.get("/rtx/rtpt/cached/enabled") is False
+    assert settings.get("/rtx/rtpt/lightcache/cached/enabled") is False
+
+
+def test_isaac_rtx_determinism_settings_accepts_explicit_manager(monkeypatch):
+    """Use the provided settings manager when one is passed."""
+    utils = _import_isaac_rtx_utils(monkeypatch)
+
+    def _fail():
+        raise AssertionError("global settings manager should not be queried when one is provided")
+
+    monkeypatch.setattr(utils, "get_settings_manager", _fail)
+    settings = _FakeSettings()
+
+    utils.apply_isaac_rtx_determinism_settings(settings)
+
+    assert settings.get("/rtx/rendermode") == "RealTimePathTracing"
+    assert settings.get("/rtx/rtpt/cached/enabled") is False
+    assert settings.get("/rtx/rtpt/lightcache/cached/enabled") is False
+
+
 def test_isaac_rtx_camera_experience_defaults():
     """Test that camera app files carry the high-fidelity RTX defaults."""
     isaaclab_app_exp_path = Path(__file__).resolve().parents[4] / "apps"
