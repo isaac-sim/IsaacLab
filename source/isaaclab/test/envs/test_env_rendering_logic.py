@@ -417,6 +417,84 @@ def test_env_render_flag_mixed_steps(env_type, physics_callback, render_callback
             SimulationContext.clear_instance()
 
 
+def create_manager_based_env_no_visualizer(render_interval: int):
+    """Create a manager based env with no visualizer (offscreen render only)."""
+
+    @configclass
+    class EnvCfg(ManagerBasedEnvCfg):
+        """Configuration for the test environment."""
+
+        decimation: int = 4
+        episode_length_s: float = 100.0
+        # empty visualizer_cfgs => offscreen render is the only possible rendering path
+        sim: SimulationCfg = SimulationCfg(dt=0.005, render_interval=render_interval, visualizer_cfgs=[])
+        scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1, env_spacing=1.0)
+        actions: EmptyManagerCfg = EmptyManagerCfg()
+        observations: EmptyManagerCfg = EmptyManagerCfg()
+
+    return ManagerBasedEnv(cfg=EnvCfg())
+
+
+def test_headless_offscreen_render_does_not_pump_kit_every_step():
+    """Regression test for issue #6316.
+
+    With headless video recording (offscreen render enabled) but no continuous-rendering
+    consumer (GUI, RTX sensors, visualizers, XR), the per-step decimation loop must NOT call
+    :meth:`~isaaclab.sim.SimulationContext.render` (which pumps Kit's ``app.update()``). Frames
+    are produced on demand only when :meth:`render` is explicitly called (e.g. by the
+    ``RecordVideo`` wrapper). Before the fix, ``is_rendering`` reported offscreen rendering as
+    continuous rendering, so Kit was pumped on every environment step.
+    """
+    env = None
+    original_render = None
+    try:
+        sim_utils.create_new_stage()
+
+        env = create_manager_based_env_no_visualizer(render_interval=1)
+        # simulate ``--video``; leave rtx_sensors False so offscreen is the only render reason
+        env.sim.set_setting("/isaaclab/video/enabled", True)
+        env.sim._app_control_on_stop_handle = None  # type: ignore
+
+        env.reset()
+
+        # offscreen render is enabled (module launched with enable_cameras=True) ...
+        assert env.sim.has_offscreen_render, "expected offscreen render to be enabled for this test"
+        # ... but it must NOT count as continuous rendering (this is the regression).
+        assert not env.sim.is_rendering, "offscreen-only rendering must not report is_rendering=True (issue #6316)"
+        assert not env.sim.visualizers, "expected no visualizers for the offscreen-only case"
+
+        # Count calls into sim.render() (each in-loop call would pump Kit).
+        render_calls = {"n": 0}
+        original_render = env.sim.render
+
+        def counting_render(*args, **kwargs):
+            render_calls["n"] += 1
+            return original_render(*args, **kwargs)
+
+        env.sim.render = counting_render  # type: ignore[method-assign]
+
+        actions = torch.zeros((env.num_envs, 0), device=env.device)
+        for _ in range(10):
+            env.step(action=actions)
+
+        # No per-step rendering / Kit pumping while no frame is requested.
+        assert render_calls["n"] == 0, (
+            f"offscreen-only stepping must not call sim.render() (issue #6316), got {render_calls['n']} calls"
+        )
+
+        # On demand (what RecordVideo does to grab a frame) rendering still works.
+        env.sim.render()
+        assert render_calls["n"] == 1, "explicit on-demand render() must still run"
+
+    finally:
+        if env is not None and original_render is not None:
+            env.sim.render = original_render  # type: ignore[method-assign]
+        if env is not None:
+            env.close()
+        else:
+            SimulationContext.clear_instance()
+
+
 def test_env_render_false_with_resets(physics_callback, render_callback):
     """Test that render_enabled=False skips post-reset re-renders during short episodes.
 

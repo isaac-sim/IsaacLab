@@ -1,2 +1,0 @@
-Test-only: extended kitless rendering-correctness tests to validate the OVRTX
-semantic-segmentation idToLabels mapping against Isaac RTX ground truth.

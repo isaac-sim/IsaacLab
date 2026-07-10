@@ -1,6 +1,16 @@
 Contribution Guidelines
 =======================
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-following-coding-style``,
+   ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
+   (`skills/developer/coding-style/ <../../../skills/developer/coding-style/SKILL.md>`__,
+   `skills/developer/pr-workflow/ <../../../skills/developer/pr-workflow/SKILL.md>`__,
+   `skills/developer/changelog-fragments/ <../../../skills/developer/changelog-fragments/SKILL.md>`__).
+   When you change this page, update those skills so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 We wholeheartedly welcome contributions to the project to make the framework more mature
 and useful for everyone. These may happen in forms of:
 

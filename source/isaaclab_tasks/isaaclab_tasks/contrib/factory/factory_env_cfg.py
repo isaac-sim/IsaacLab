@@ -50,6 +50,18 @@ class ObsRandCfg:
 
 @configclass
 class CtrlCfg:
+    """Controller and action-space configuration for the Factory environments.
+
+    In the Factory environments, policy actions are interpreted as displacements relative to the
+    current end-effector pose: ``pos_action_threshold`` [m] and ``rot_action_threshold`` [rad] scale
+    the normalized policy action to a per-step target displacement, while ``pos_action_bounds`` [m]
+    clips the resulting position target relative to the fixed asset to bound the workspace.
+
+    The FORGE environments reuse this configuration with a different action space (absolute targets
+    relative to the fixed asset), in which these parameters play different roles. See
+    :class:`~isaaclab_tasks.contrib.forge.forge_env_cfg.ForgeCtrlCfg`.
+    """
+
     ema_factor = 0.2
 
     pos_action_bounds = [0.05, 0.05, 0.05]
