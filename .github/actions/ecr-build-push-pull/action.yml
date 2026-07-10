@@ -73,7 +73,9 @@ runs:
 
         if [ -n "${{ env.NGC_API_KEY }}" ]; then
           echo "🔵 Logging into nvcr.io..."
-          docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io
+          # Feed the key via stdin (echo is a bash builtin, so no argv exposure);
+          # never pass it with -p, which would leak it into the process list.
+          echo "${{ env.NGC_API_KEY }}" | docker login -u '$oauthtoken' --password-stdin nvcr.io
         else
           echo "🟠 NGC_API_KEY not set - skipping nvcr.io login (normal for fork PRs)"
         fi

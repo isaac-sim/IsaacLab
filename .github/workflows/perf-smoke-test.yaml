@@ -48,9 +48,10 @@ permissions:
   statuses: write        # post per-task benchmark commit statuses on the PR head
 
 env:
-  # Lets Docker log in to nvcr.io for the same Isaac Sim / IsaacLab images used
-  # by the main IsaacLab CI.
-  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+  # NGC_API_KEY is intentionally NOT set workflow-wide: a same-repo PR runs
+  # checked-out PR code on the host (e.g. tasks_to_ci_matrix.py, aggregate.py),
+  # and a workflow-level secret would be in that code's environment. It is scoped
+  # per-step to only the nvcr.io login/pull (and the fallback build) instead.
   CI_IMAGE_TAG: >-
     isaac-lab-ci:${{
       github.event_name == 'pull_request'
@@ -213,6 +214,9 @@ jobs:
       id: pull_image
       continue-on-error: true
       env:
+        # Scoped here (not workflow-level) so PR-checked-out code in other steps
+        # never sees the registry secret.
+        NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
         CI_IMAGE_REF: ${{ vars.PERF_SMOKE_CI_IMAGE || needs.config.outputs.isaaclab_image_ref }}
       run: |
         set -euo pipefail
@@ -249,6 +253,10 @@ jobs:
 
     - name: Build CI image (fallback)
       if: ${{ steps.pull_image.outcome == 'failure' }}
+      # Scoped here (not workflow-level) so PR-checked-out code in other steps
+      # never sees the registry secret; the action logs into nvcr.io to pull the base.
+      env:
+        NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ env.CI_IMAGE_TAG }}
@@ -623,8 +631,11 @@ jobs:
       # job below on protected develop pushes. Empty string when nothing to reseed.
       reseed_tasks: ${{ steps.aggregate.outputs.reseed_tasks }}
       reseed_min_samples: ${{ steps.aggregate.outputs.reseed_min_samples }}
+    # Read-only on purpose: this job runs checked-out PR code (aggregate.py) on
+    # same-repo PRs, so it must not hold a write-capable token. Baseline writes
+    # happen only in the trusted-push-gated baseline_update job below.
     permissions:
-      contents: write     # push protected-branch baseline updates
+      contents: read
       issues: write       # post/update the sticky verdict comment on the PR
       pull-requests: read
       statuses: write
@@ -686,7 +697,7 @@ jobs:
           --base_sha "${{ steps.gate_context.outputs.base_sha }}" \
           --target_branch "${{ steps.gate_context.outputs.target_branch }}" \
           --source_branch "${{ steps.gate_context.outputs.source_branch }}" \
-          --allow_baseline_update "${{ steps.gate_context.outputs.allow_update }}" \
+          --allow_baseline_update false \
           --trusted_source "${{ steps.gate_context.outputs.trusted_source }}" \
           --summary_file "${SUMMARY_FILE}" \
           --omni_github_dir "${{ github.workspace }}/omni-github-artifact" \
@@ -801,6 +812,73 @@ jobs:
           } else {
             await github.rest.issues.createComment({ owner, repo, issue_number, body });
           }
+
+  # ---------------------------------------------------------------------------
+  # Baseline update (trusted writes only)
+  #
+  # Appends this run's healthy samples to the perf-baselines branch. Split out of
+  # the aggregate job so the write-capable token is only ever granted on a trusted
+  # protected-branch push -- never while the aggregate job runs checked-out PR code.
+  # ---------------------------------------------------------------------------
+  baseline_update:
+    name: Update baselines (protected)
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    needs: [config, bench]
+    permissions:
+      contents: write     # push protected-branch baseline updates to perf-baselines
+    # Only trusted protected-branch pushes (main/develop/release) publish baselines --
+    # exactly where github_gate_context resolves allow_update=true and the checked-out
+    # code is already-merged trusted code, not PR code.
+    if: >-
+      ${{ github.event_name == 'push'
+      && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+      || startsWith(github.ref, 'refs/heads/release/')) }}
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 0
+
+    - name: Fetch baselines branch
+      run: |
+        git fetch origin +refs/heads/perf-baselines:refs/remotes/origin/perf-baselines || \
+          echo "::warning::Baseline branch not found; first push will create it"
+
+    - name: Download bench artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: bench-*-${{ github.run_id }}
+        path: artifacts/
+        merge-multiple: false
+
+    - name: Resolve gate context
+      id: gate_context
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        python3 tools/perf_smoke_test/github_gate_context.py
+
+    - name: Append trusted baselines
+      run: |
+        GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
+        if [[ -z "${GPU_MODEL}" ]]; then
+          GPU_MODEL="unknown-gpu"
+        fi
+        # Push-only: no summary/omni/comment side effects (the aggregate job already
+        # produced those). allow_baseline_update is re-checked in-tool via gate_context
+        # (true only on protected pushes).
+        python3 tools/perf_smoke_test/aggregate.py \
+          --artifacts_dir artifacts/ \
+          --gpu_model "${GPU_MODEL}" \
+          --gate_config tools/perf_smoke_test/gate_config.json \
+          --baseline_branch perf-baselines \
+          --baseline_remote origin \
+          --baseline_push_retries 3 \
+          --base_sha "${{ steps.gate_context.outputs.base_sha }}" \
+          --target_branch "${{ steps.gate_context.outputs.target_branch }}" \
+          --source_branch "${{ steps.gate_context.outputs.source_branch }}" \
+          --allow_baseline_update "${{ steps.gate_context.outputs.allow_update }}" \
+          --trusted_source "${{ steps.gate_context.outputs.trusted_source }}"
 
   # ---------------------------------------------------------------------------
   # Reseed: post-gate under-filled-bucket detector.
