@@ -22,13 +22,17 @@
 # baselines and later PR runs share an identical environment. Set repo variable
 # PERF_SMOKE_CI_IMAGE only to override that default, e.g. to pin an immutable tag.
 #
-# Manual dispatch is the only path because seeding writes to perf-baselines and
-# burns GPU time. It defaults to dry-run so maintainers can validate the L40S
+# Manual dispatch defaults to dry-run so maintainers can validate the L40S
 # runner/image path before explicitly choosing dry_run=false to publish samples.
+# The exact perf-smoke/infra-probe branch also auto-seeds on push: that staging
+# branch is reviewed/merged same-repo specifically to validate L40S baseline
+# publication before the gate is integrated into develop.
 
 name: Performance Smoke - Seed Baselines
 
 on:
+  push:
+    branches: ['perf-smoke/infra-probe']
   workflow_dispatch:
     inputs:
       branches:
@@ -162,7 +166,7 @@ jobs:
         echo "isaaclab_image_ref=${ISAACLAB_IMAGE_NAME}:latest-develop" >> "$GITHUB_OUTPUT"
 
   seed:
-    name: Seed baselines (${{ inputs.commit_branch || 'develop' }} x${{ inputs.commit_count || '1' }})
+    name: Seed baselines (${{ github.event_name == 'push' && github.ref_name || inputs.commit_branch || 'develop' }} x${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }})
     runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
     needs: [config]
     timeout-minutes: 600
@@ -180,8 +184,8 @@ jobs:
     # explicitly; the clone the orchestrator makes draws its objects from here.
     - name: Fetch seed + baseline refs
       env:
-        SEED_BRANCHES: ${{ inputs.branches || 'develop' }}
-        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || 'develop' }}
+        SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe:perf-smoke/infra-probe' || inputs.branches || 'develop' }}
+        SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.commit_branch || 'develop' }}
       run: |
         set -euo pipefail
         # Collect every branch we might seed from: the multi-branch list (stripping
@@ -269,16 +273,21 @@ jobs:
 
     - name: Seed baselines from commit history
       env:
-        SEED_BRANCHES: ${{ inputs.branches || 'develop' }}
+        # A same-repo push to perf-smoke/infra-probe is the L40S staging path:
+        # publish one commit x MIN_BASELINE_SAMPLES for the default Cartpole task
+        # so the merge immediately starts pre-seeding and verifies perf-baselines
+        # writes without burning the full task matrix. Broader seeding remains an
+        # explicit workflow_dispatch choice.
+        SEED_BRANCHES: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe:perf-smoke/infra-probe' || inputs.branches || 'develop' }}
         SEED_COMMITS: ${{ inputs.commits || '' }}
-        SEED_COMMIT_BRANCH: ${{ inputs.commit_branch || 'develop' }}
-        SEED_COMMIT_COUNT: ${{ inputs.commit_count || '1' }}
-        SEED_SAMPLES_PER_COMMIT: ${{ inputs.samples_per_commit || '3' }}
+        SEED_COMMIT_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.commit_branch || 'develop' }}
+        SEED_COMMIT_COUNT: ${{ github.event_name == 'push' && '1' || inputs.commit_count || '1' }}
+        SEED_SAMPLES_PER_COMMIT: ${{ github.event_name == 'push' && '5' || inputs.samples_per_commit || '3' }}
         SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
-        SEED_TARGET_BRANCH: ${{ inputs.target_branch || 'develop' }}
-        SEED_STRICT_ANCESTRY: ${{ inputs.strict_ancestry == true && 'true' || 'false' }}
-        SEED_DRY_RUN: ${{ inputs.dry_run == false && 'false' || 'true' }}
+        SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.target_branch || 'develop' }}
+        SEED_STRICT_ANCESTRY: ${{ github.event_name == 'push' && 'true' || inputs.strict_ancestry == true && 'true' || 'false' }}
+        SEED_DRY_RUN: ${{ github.event_name == 'push' && 'false' || inputs.dry_run == false && 'false' || 'true' }}
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
@@ -307,11 +316,11 @@ jobs:
     # target branch tip and require MIN_BASELINE_SAMPLES usable samples per bucket.
     # Only meaningful on a real publish (dry-run pushes nothing to verify).
     - name: Verify seeded baselines are gate-usable
-      if: ${{ inputs.dry_run == false }}
+      if: ${{ github.event_name == 'push' || inputs.dry_run == false }}
       env:
         SEED_TASKS: ${{ inputs.tasks || 'Isaac-Cartpole-Direct' }}
         SEED_BACKENDS: ${{ inputs.backends || '' }}
-        SEED_TARGET_BRANCH: ${{ inputs.target_branch || 'develop' }}
+        SEED_TARGET_BRANCH: ${{ github.event_name == 'push' && 'perf-smoke/infra-probe' || inputs.target_branch || 'develop' }}
       run: |
         set -euo pipefail
         GPU_MODEL="$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | xargs)"
