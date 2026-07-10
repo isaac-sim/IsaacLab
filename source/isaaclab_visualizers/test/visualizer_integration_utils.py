@@ -106,6 +106,15 @@ _KIT_RTX_RENDER_PRODUCT_WARMUP_STEPS = 20
 _NEWTON_VIEWER_WARMUP_FRAMES = 20
 """Viewer-only updates after physics warmup before sampling Newton RGB."""
 
+_TILED_CAMERA_SENSOR_WARMUP_UPDATES = 20
+"""Extra ``camera_sensor.update()`` calls before reading tiled RGB.
+
+NewtonVisualizer.step() skips ``_log_camera_sensor_image()`` when the Newton state
+is unavailable (e.g. PhysX backend), so owned tiled cameras may have received zero
+renderer updates during physics warmup.  Repeating the update here gives every tile
+enough frames to produce a valid image before sampling.
+"""
+
 _VISUALIZER_STARTUP_DRAIN_UPDATES = 5
 """Kit app updates before each flaky retry creates a fresh stage/env."""
 
@@ -1096,7 +1105,12 @@ def _capture_visualizer_tiled_camera_rgb(visualizer, *, label: str = "capture") 
         if isinstance(visualizer, KitVisualizer):
             visualizer._sync_camera_pose_updates_to_kit()
             _update_active_simulation_app()
-        camera_sensor.update(dt=0.0, force_recompute=True)
+        # Pump the camera renderer enough times for every tile to produce a valid frame.
+        # NewtonVisualizer skips _log_camera_sensor_image() when the Newton physics state is
+        # unavailable (e.g. PhysX backend), so owned cameras may have had zero renderer
+        # updates during physics warmup and need the warmup applied here instead.
+        for _ in range(_TILED_CAMERA_SENSOR_WARMUP_UPDATES):
+            camera_sensor.update(dt=0.0, force_recompute=True)
     rgb_batch = camera_rgb_batch(camera_sensor, camera_indices)
     frame = compose_rgb_grid_tensor(rgb_batch).detach().cpu().numpy()
     assert frame.ndim == 3, f"Expected tiled camera RGB frame to be HxWxC, got shape {frame.shape}."

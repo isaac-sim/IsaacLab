@@ -144,8 +144,7 @@ def _compare_images(
     if ssim_score < ssim_threshold:
         return (
             False,
-            f"SSIM ({ssim_score:.4f}) below threshold of {ssim_threshold:.4f}."
-            f" Different pixels: {diff_pct:.2f}%.",
+            f"SSIM ({ssim_score:.4f}) below threshold of {ssim_threshold:.4f}. Different pixels: {diff_pct:.2f}%.",
             diff_pct,
             ssim_score,
         )
@@ -200,7 +199,9 @@ def validate_visualizer_frame(
         result_image.save(golden_path)
         _combo_key = f"{visualizer_type}-{mode}"
         _thresh = _MAX_DIFF_PCT_OVERRIDES.get(_combo_key, MAX_DIFF_PCT_BY_VISUALIZER.get(visualizer_type, 1.0))
-        _ssim_thresh = _SSIM_THRESHOLD_OVERRIDES.get(_combo_key, _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985))
+        _ssim_thresh = _SSIM_THRESHOLD_OVERRIDES.get(
+            _combo_key, _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985)
+        )
         comparison_scores.append(
             {
                 "test": test_name,
@@ -233,8 +234,12 @@ def validate_visualizer_frame(
                 "mode": mode,
                 "diff_pct": 0.0,
                 "ssim": 0.0,
-                "threshold": _MAX_DIFF_PCT_OVERRIDES.get(f"{visualizer_type}-{mode}", MAX_DIFF_PCT_BY_VISUALIZER.get(visualizer_type, 1.0)),
-                "ssim_threshold": _SSIM_THRESHOLD_OVERRIDES.get(f"{visualizer_type}-{mode}", _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985)),
+                "threshold": _MAX_DIFF_PCT_OVERRIDES.get(
+                    f"{visualizer_type}-{mode}", MAX_DIFF_PCT_BY_VISUALIZER.get(visualizer_type, 1.0)
+                ),
+                "ssim_threshold": _SSIM_THRESHOLD_OVERRIDES.get(
+                    f"{visualizer_type}-{mode}", _SSIM_THRESHOLD_BY_VISUALIZER.get(visualizer_type, 0.985)
+                ),
                 "passed": False,
                 "img_result_path": None,
                 "img_golden_path": None,
@@ -400,11 +405,11 @@ def run_visualizer_golden_cartpole(
     import contextlib
 
     import torch
+    import visualizer_integration_utils as _viz_utils
     from isaaclab_visualizers.kit import KitVisualizer
     from isaaclab_visualizers.newton import NewtonVisualizer
 
     import isaaclab.sim as sim_utils
-    import visualizer_integration_utils as _viz_utils
 
     def _get_active_visualizer(env, viz_type: str):
         cls = KitVisualizer if viz_type == "kit" else NewtonVisualizer
