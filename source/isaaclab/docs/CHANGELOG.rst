@@ -1,6 +1,37 @@
 Changelog
 ---------
 
+10.2.0 (2026-07-10)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``isaaclab benchmark training`` to run real training with the library selected by
+  ``--rl_library`` (``rsl_rl``, ``rl_games``, ``skrl``, or ``sb3``) and emit
+  :class:`~isaaclab.test.benchmark.TrainingBundle` output through ``--benchmark_formatter``.
+  The RSL-RL and RL-Games adapters support optional success-metric
+  early stopping; physics and rendering backends are selected with ``presets=`` Hydra tokens.
+* Added ``run.json`` manifests to benchmark training logs, enabling compatible
+  runs to be selected through ``--checkpoint latest`` or ``--checkpoint best``.
+
+Fixed
+^^^^^
+
+* Fixed SKRL and Stable-Baselines3 training bundles omitting task success rates
+  reported by the environment.
+* Fixed training bundles omitting Python-import and task-configuration startup timings.
+* Fixed benchmark training help and RL-library adapter dispatch through
+  ``isaaclab benchmark training``.
+* Fixed RSL-RL training benchmarks failing in environments without Git LFS.
+  Benchmark runs now skip RSL-RL source-state archiving while retaining
+  TensorBoard metric logging.
+* Fixed headless video recording (``--video`` / ``rgb_array``) forcing a Kit ``app.update()``
+  on every environment step. :attr:`~isaaclab.sim.SimulationContext.is_rendering` no longer
+  reports offscreen rendering as continuous rendering, so Kit is now pumped on demand only when
+  a frame is actually requested. GUI, RTX sensor, visualizer, and XR rendering are unaffected.
+
+
 10.1.0 (2026-07-09)
 ~~~~~~~~~~~~~~~~~~~
 

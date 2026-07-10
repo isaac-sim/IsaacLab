@@ -1,4 +1,0 @@
-Adapts the PhysX Newton-actuator call site to the new required ``env_stride``
-argument of ``build_newton_actuator_defaults``. No user-facing behavior change:
-PhysX articulations have no free or ball joints, so the per-env DOF stride
-already equals the articulation-local joint count.
