@@ -25,10 +25,17 @@ class IsaacsimKitPerspectiveVideo:
 
     def render_rgb_array(self) -> np.ndarray:
         """Return one RGB frame. Blank frame during warmup; raises on other failures."""
+        import carb.settings
         import omni.kit.app
         import omni.replicator.core as rep
 
+        # Guard physics stepping around the Kit update so it does not advance the
+        # physics clock mid-render (observable on CPU where PhysX is synchronous).
+        _settings = carb.settings.get_settings()
+        _play_flag = _settings.get("/app/player/playSimulations")
+        _settings.set_bool("/app/player/playSimulations", False)
         omni.kit.app.get_app().update()
+        _settings.set_bool("/app/player/playSimulations", bool(_play_flag))
 
         h, w = self.cfg.window_height, self.cfg.window_width
         if self._rgb_annotator is None:

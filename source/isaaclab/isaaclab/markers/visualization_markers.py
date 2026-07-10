@@ -256,8 +256,16 @@ class VisualizationMarkers:
             self._ensure_kit_backend()
             return
 
-        needs_kit_backend = sim.is_rendering or any(
-            viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+        # Markers need the Kit (USD) backend to appear in any rendered frame: continuous rendering
+        # (``is_rendering``), headless offscreen video capture (``has_offscreen_render``), or a
+        # Kit-pumping visualizer. Offscreen is excluded from ``is_rendering`` (see
+        # :attr:`~isaaclab.sim.SimulationContext.is_rendering`), so it is checked explicitly here.
+        needs_kit_backend = (
+            sim.is_rendering
+            or getattr(sim, "has_offscreen_render", False)
+            or any(
+                viz.supports_markers() and viz.pumps_app_update() and viz.cfg.enable_markers for viz in sim.visualizers
+            )
         )
         if needs_kit_backend:
             self._ensure_kit_backend()
