@@ -254,6 +254,12 @@ def main() -> int:
     if second.real_failures:
         logger.error("Pass 2 failed to verify golden stages:\n%s", _format_failures(second.real_failures))
         return 1
+    if second.passed == 0:
+        logger.error(
+            "Pass 2 had no passing tests — all tests were likely skipped"
+            " (e.g., Isaac Sim failed to initialise after pass 1 SIGKILL)."
+        )
+        return 1
 
     logger.info("Golden stages generated under source/isaaclab_tasks/test/golden_stages/")
     return 0
