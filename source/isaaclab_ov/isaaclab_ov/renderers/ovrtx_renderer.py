@@ -69,7 +69,6 @@ from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_conve
 from .ovrtx_annotator_utils import build_semantic_id_to_labels, decode_semantic_id_map
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
-    compute_deformable_mesh_extent_kernel,
     create_camera_transforms_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
@@ -301,7 +300,6 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding = None
         self._object_newton_indices: wp.array | None = None
         self._deformable_points_binding = None
-        self._deformable_extent_binding = None
         self._deformable_points_buffers: list[wp.array] = []
         self._deformable_particle_offsets: list[int] = []
         self._deformable_particles_per_body: list[int] = []
@@ -643,16 +641,8 @@ class OVRTXRenderer(BaseRenderer):
             prim_mode=PrimMode.MUST_EXIST,
             flags=BindingFlag.OPTIMIZE,
         )
-        self._deformable_extent_binding = self._renderer.bind_attribute(
-            prim_paths=vis_mesh_prim_paths,
-            attribute_name="extent",
-            dtype=np.float64,
-            shape=(2, 3),
-            prim_mode=PrimMode.MUST_EXIST,
-            flags=BindingFlag.OPTIMIZE,
-        )
 
-        if self._deformable_points_binding is None or self._deformable_extent_binding is None:
+        if self._deformable_points_binding is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
 
         self._deformable_points_buffers = [
@@ -754,31 +744,19 @@ class OVRTXRenderer(BaseRenderer):
         # Array attribute bindings (``bind_array_attribute``) do not expose one mapped GPU
         # tensor for all deformable ``points``. OVRTX expects a per-prim ``List[DLTensor]`` via
         # ``write()``, so we stage copies here and hand them off asynchronously instead of
-        # using ``binding.map()`` like transforms/extents.
+        # using ``binding.map()`` like rigid-body transforms.
         #
         # ``DataAccess.ASYNC`` is zero-copy: OVRTX reads our staging buffers in place. The
         # ``cuda_stream`` handle tells OVRTX which Warp stream the preceding ``wp.copy``
         # calls were enqueued on, so it can wait for those copies on the GPU before reading
         # the buffers. That bridges Warp and OVRTX execution without a host-side
-        # ``wp.synchronize_device()``. Points are handed off before extent work so OVRTX does
-        # not wait on unrelated extent kernels.
+        # ``wp.synchronize_device()``.
         cuda_stream = wp.get_stream(self._device).cuda_stream
         self._deformable_points_binding.write(
             cast(Any, self._deformable_points_buffers),
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
-
-        if self._deformable_extent_binding is not None:
-            with self._deformable_extent_binding.map(device=Device.CUDA, device_id=self._device_id) as extent_mapping:
-                ovrtx_extents = wp.from_dlpack(extent_mapping.tensor, dtype=wp.vec3d)
-                for mesh_index, point_buffer in enumerate(self._deformable_points_buffers):
-                    wp.launch(
-                        kernel=compute_deformable_mesh_extent_kernel,
-                        dim=1,
-                        inputs=[point_buffer, ovrtx_extents, mesh_index],
-                        device=self._device,
-                    )
 
         NewtonManager.clear_particles_dirty()
 
@@ -1167,8 +1145,6 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding = None
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
-        _safe_unbind(self._deformable_extent_binding, "deformable extents")
-        self._deformable_extent_binding = None
 
         self._deformable_points_buffers = []
         self._deformable_particle_offsets = []

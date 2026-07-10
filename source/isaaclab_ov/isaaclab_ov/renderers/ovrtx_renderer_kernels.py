@@ -55,32 +55,6 @@ def create_camera_transforms_kernel(
 
 
 @wp.kernel
-def compute_deformable_mesh_extent_kernel(
-    points: wp.array(dtype=wp.vec3f),  # type: ignore
-    extents: wp.array(dtype=wp.vec3d, ndim=2),  # type: ignore
-    mesh_index: int,
-):
-    """Compute axis-aligned bounds for one deformable mesh into ``extents[mesh_index]``.
-
-    ``extents`` has shape ``(num_meshes, 2)``: column 0 stores the min corner and
-    column 1 stores the max corner, matching the OVRTX ``extent`` attribute layout.
-    """
-    count = points.shape[0]
-    if count == 0:
-        return
-
-    min_v = points[0]
-    max_v = points[0]
-    for point_index in range(1, count):
-        p = points[point_index]
-        min_v = wp.vec3f(wp.min(min_v[0], p[0]), wp.min(min_v[1], p[1]), wp.min(min_v[2], p[2]))
-        max_v = wp.vec3f(wp.max(max_v[0], p[0]), wp.max(max_v[1], p[1]), wp.max(max_v[2], p[2]))
-
-    extents[mesh_index, 0] = wp.vec3d(min_v[0], min_v[1], min_v[2])
-    extents[mesh_index, 1] = wp.vec3d(max_v[0], max_v[1], max_v[2])
-
-
-@wp.kernel
 def extract_tile_from_tiled_buffer_kernel(
     tiled_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore
     tile_buffer: wp.array(dtype=wp.uint8, ndim=3),  # type: ignore

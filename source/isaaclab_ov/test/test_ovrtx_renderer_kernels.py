@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_ov.renderers.ovrtx_renderer_kernels import (
-    compute_deformable_mesh_extent_kernel,
     extract_all_tiles_kernel,
     generate_random_colors_from_ids_kernel,
 )
@@ -215,59 +214,6 @@ class TestExtractAllMotionVectorTilesKernel:
 
         expected = _reference_extract_all_motion_vector_tiles(tiled_np, num_envs, num_cols, tile_width, tile_height)
         np.testing.assert_allclose(output_wp.numpy(), expected, rtol=0, atol=0)
-
-
-class TestComputeDeformableMeshExtentKernel:
-    """Tests for ``compute_deformable_mesh_extent_kernel``."""
-
-    def test_axis_aligned_bounds(self):
-        points = wp.array(
-            [
-                wp.vec3f(1.0, 2.0, 3.0),
-                wp.vec3f(7.0, 8.0, 9.0),
-                wp.vec3f(4.0, 5.0, 6.0),
-            ],
-            dtype=wp.vec3f,
-            device=DEVICE,
-        )
-        extents = wp.zeros((1, 2), dtype=wp.vec3d, device=DEVICE)
-
-        wp.launch(
-            kernel=compute_deformable_mesh_extent_kernel,
-            dim=1,
-            inputs=[points, extents, 0],
-            device=DEVICE,
-        )
-        wp.synchronize()
-
-        np.testing.assert_allclose(
-            extents.numpy()[0],
-            np.array([[1.0, 2.0, 3.0], [7.0, 8.0, 9.0]], dtype=np.float64),
-            rtol=0,
-            atol=1e-6,
-        )
-
-    def test_writes_into_indexed_mesh_row(self):
-        points = wp.array([wp.vec3f(2.0, -1.0, 5.0)], dtype=wp.vec3f, device=DEVICE)
-        extents = wp.zeros((3, 2), dtype=wp.vec3d, device=DEVICE)
-
-        wp.launch(
-            kernel=compute_deformable_mesh_extent_kernel,
-            dim=1,
-            inputs=[points, extents, 1],
-            device=DEVICE,
-        )
-        wp.synchronize()
-
-        result = extents.numpy()
-        np.testing.assert_allclose(
-            result[1],
-            np.array([[2.0, -1.0, 5.0], [2.0, -1.0, 5.0]], dtype=np.float64),
-            rtol=0,
-            atol=1e-6,
-        )
-        assert not result[0].any()
-        assert not result[2].any()
 
 
 class TestExtractAllDepthTilesKernel:
