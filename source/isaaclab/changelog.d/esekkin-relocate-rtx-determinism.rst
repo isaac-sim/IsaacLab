@@ -8,7 +8,8 @@ Changed
 Removed
 ^^^^^^^
 
-* Removed ``AppLauncher.apply_rtx_determinism_settings()``. Pass ``--deterministic`` to
-  :class:`~isaaclab.app.app_launcher.AppLauncher`, or call
+* **Breaking:** Removed the public ``AppLauncher.apply_rtx_determinism_settings()``. To migrate, pass
+  ``--deterministic`` to :class:`~isaaclab.app.app_launcher.AppLauncher` (which now publishes
+  ``/isaaclab/render/deterministic``), or call
   :func:`isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings` on the
-  Isaac RTX backend.
+  Isaac RTX backend directly.
