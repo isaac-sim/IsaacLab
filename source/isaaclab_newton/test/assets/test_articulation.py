@@ -3531,6 +3531,19 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
     :attr:`~isaaclab.assets.BaseArticulationData.gravity_compensation_forces`
     (Newton RNEA via ``eval_inverse_dynamics``) live in the loop, covering the
     FK-staleness refresh on every step of phase 2.
+
+    The task stiffness (500) deliberately matches the PhysX-side OSC
+    gravity-compensation test for a cross-backend-comparable setup. Measured
+    settled floors at this stiffness (deterministic on the pinned stack):
+    Newton ~0.71 mm vs PhysX (OVPhysX) ~8 um. Newton's residual is a small
+    limit cycle from the RNEA feed-forward being integrated by a different
+    engine (MJWarp implicitfast), not a static gravity mismatch — the
+    uncompensated sag agrees with PhysX to ~1% (23.7 vs 23.9 mm) and stiffer
+    gains crush the residual superlinearly (36 um at stiffness 2000). Newton
+    therefore needs stiffer task gains than PhysX for an equally quiet hold.
+    Phase 2 runs 1200 steps because the limit cycle needs ~800 steps to
+    settle; at 400 steps the tail mean still carries ~2x convergence
+    transient.
     """
     robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids = _setup_franka_at_home_pose(
         sim, zero_actuator_pd=True, disable_gravity=False
@@ -3585,13 +3598,13 @@ def test_franka_osc_gravity_compensation_precision(sim, device, articulation_typ
 
     _, pos_off = _summarize_history(run_phase(400))
     osc.cfg.gravity_compensation = True
-    _, pos_on = _summarize_history(run_phase(400))
+    _, pos_on = _summarize_history(run_phase(1200))
 
     print(f"GRAVCOMP_METRIC pos_off={pos_off:.5f} pos_on={pos_on:.5f}")
 
-    # Calibrated on newton 9af5a9f4 / mujoco-warp 3.10.0.1: pos_off ~= 0.024, pos_on ~= 0.0017.
+    # Calibrated on newton 9af5a9f4 / mujoco-warp 3.10.0.1: pos_off ~= 0.024, pos_on ~= 0.0007.
     assert pos_off > 1.2e-2, f"uncompensated sag {pos_off:.5f} < 1.2 cm — setup no longer discriminates gravity"
-    assert pos_on < 5e-3, f"compensated hold {pos_on:.5f} > 5 mm — gravity compensation inaccurate"
+    assert pos_on < 2.5e-3, f"compensated hold {pos_on:.5f} > 2.5 mm — gravity compensation inaccurate"
     assert pos_on < pos_off / 10.0, f"compensation only improved sag {pos_off:.5f} -> {pos_on:.5f} (<10x)"
 
 
