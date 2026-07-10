@@ -5,8 +5,16 @@
 
 """Rendering correctness tests for Shadow Hand environment backend combinations."""
 
+import os
+
+# Work around a known OpenUSD thread-safety crash in
+# UsdPhysics.LoadUsdPhysicsFromRange for collider-dense assets. OpenUSD reads
+# this once when pxr initializes, so set it before test modules import pxr and
+# preserve any caller-provided override.
+os.environ.setdefault("PXR_WORK_THREAD_LIMIT", "1")
+
 # Launch Isaac Sim Simulator first for kit-based combinations.
-from isaaclab.app import AppLauncher
+from isaaclab.app import AppLauncher  # noqa: E402
 
 app_launcher = AppLauncher(headless=True, enable_cameras=True)
 simulation_app = app_launcher.app
