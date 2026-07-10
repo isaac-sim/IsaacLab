@@ -68,8 +68,7 @@ MJWarp and VBD:
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
     :language: python
     :start-at: class PhysicsCfg
-    :end-at: default = newton_mjwarp_vbd
-    :emphasize-lines: 3-15
+    :end-before: newton_mjwarp_vbd_proxy: NewtonCfg
 
 The important pieces are:
 
@@ -287,11 +286,17 @@ Key proxy-specific parameters:
 
 Because the proxy solver resolves
 :class:`~isaaclab.managers.SceneEntityCfg` selectors against the scene at
-solver-build time, the env's ``__post_init__`` is responsible for setting
+solver-build time, the env's ``__post_init__`` sets
 :attr:`~isaaclab_contrib.coupling.CoupledSolverCfg.scene_cfg` to ``self.scene``
-on the coupled solver config. The Franka soft env does this for every physics
-preset alternative whose solver is a
-:class:`~isaaclab_contrib.coupling.CoupledSolverCfg`.
+on the coupled solver config. The Franka soft env sets it on both the named
+``newton_mjwarp_vbd_proxy`` preset and the ``default`` alias that the preset
+resolver falls back to when no preset is selected:
+
+.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
+    :language: python
+    :start-at: self.sim.physics.newton_mjwarp_vbd_proxy.solver_cfg.scene_cfg
+    :end-at: self.sim.physics.default.solver_cfg.scene_cfg
+    :dedent: 8
 
 Try the demo:
 
