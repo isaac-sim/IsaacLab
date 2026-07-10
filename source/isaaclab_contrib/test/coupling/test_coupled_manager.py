@@ -150,15 +150,15 @@ def test_scene_entity_and_string_selectors_resolve_full_body_labels():
     model = _FakeModel()
     scene_cfg = _FakeSceneCfg()
 
-    assert NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+    assert NewtonCoupledSolverManager._resolve_entities_to_body_ids(
         model,
-        SceneEntityCfg("robot", body_names=["hand"]),
+        [SceneEntityCfg("robot", body_names=["hand"])],
         scene_cfg,
         "entry 'rigid'",
     ) == [1]
-    assert NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+    assert NewtonCoupledSolverManager._resolve_entities_to_body_ids(
         model,
-        "/World/envs/env_.*/Object/body",
+        ["/World/envs/env_.*/Object/body"],
         None,
         "entry 'object'",
     ) == [2]
@@ -166,9 +166,9 @@ def test_scene_entity_and_string_selectors_resolve_full_body_labels():
 
 def test_scene_entity_selector_reports_unmatched_body_pattern():
     with pytest.raises(ValueError, match="could not match body patterns"):
-        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+        NewtonCoupledSolverManager._resolve_entities_to_body_ids(
             _FakeModel(),
-            SceneEntityCfg("robot", body_names=["missing"]),
+            [SceneEntityCfg("robot", body_names=["missing"])],
             _FakeSceneCfg(),
             "entry 'rigid'",
         )
@@ -176,9 +176,9 @@ def test_scene_entity_selector_reports_unmatched_body_pattern():
 
 def test_raw_body_label_selector_reports_no_matches():
     with pytest.raises(ValueError, match="matched no Newton bodies"):
-        NewtonCoupledSolverManager._resolve_entity_to_body_ids(
+        NewtonCoupledSolverManager._resolve_entities_to_body_ids(
             _FakeModel(),
-            "/World/envs/env_.*/Missing",
+            ["/World/envs/env_.*/Missing"],
             None,
             "entry 'missing'",
         )

@@ -117,7 +117,8 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         scene_cfg: InteractiveSceneCfg | None,
     ) -> _ResolvedEntry:
         """Resolve one entry's selectors and derived ownership."""
-        bodies = cls._resolve_body_selectors(model, entry_cfg.bodies, scene_cfg, f"entry {entry_cfg.name!r}")
+        bodies = cls._resolve_entities_to_body_ids(model, entry_cfg.bodies, scene_cfg, f"entry {entry_cfg.name!r}")
+
         particles = list(dict.fromkeys(map(int, entry_cfg.particles)))
         if entry_cfg.all_particles:
             particles = list(dict.fromkeys([*particles, *range(int(model.particle_count))]))
@@ -170,11 +171,8 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         scene_cfg: InteractiveSceneCfg | None,
     ) -> _ResolvedProxy:
         """Resolve one proxy mapping's body selectors to collidable body ids."""
-        selected = cls._resolve_body_selectors(
-            model,
-            proxy_cfg.bodies,
-            scene_cfg,
-            f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}",
+        selected = cls._resolve_entities_to_body_ids(
+            model, proxy_cfg.bodies, scene_cfg, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}"
         )
         collide_flag = int(ShapeFlags.COLLIDE_SHAPES)
         collide_bodies = {
@@ -195,54 +193,50 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         )
 
     @classmethod
-    def _resolve_body_selectors(
+    def _resolve_entities_to_body_ids(
         cls,
         model: Model,
-        selectors: list[SceneEntityCfg | str],
+        specs: list[SceneEntityCfg | str],
         scene_cfg: InteractiveSceneCfg | None,
         field: str,
     ) -> list[int]:
-        body_ids: list[int] = []
-        for selector in selectors:
-            body_ids.extend(cls._resolve_entity_to_body_ids(model, selector, scene_cfg, field))
-        return list(dict.fromkeys(body_ids))
-
-    @classmethod
-    def _resolve_entity_to_body_ids(
-        cls,
-        model: Model,
-        spec: SceneEntityCfg | str,
-        scene_cfg: InteractiveSceneCfg | None,
-        field: str,
-    ) -> list[int]:
-        """Resolve one scene entity or full body-label regex."""
+        """Resolve scene entities or body-label regexes to unique, order-preserving body ids."""
         labels = list(model.body_label)
-        if isinstance(spec, str):
-            body_ids, _ = resolve_matching_names(f"(?:{spec})(?:/.*)?", labels, raise_when_no_match=False)
-            if not body_ids:
-                raise ValueError(f"CoupledSolverCfg {field}: body-label regex {spec!r} matched no Newton bodies.")
-            return body_ids
+        body_ids: list[int] = []
+        for spec in specs:
+            if isinstance(spec, str):
+                matched, _ = resolve_matching_names(f"(?:{spec})(?:/.*)?", labels, raise_when_no_match=False)
+                if not matched:
+                    raise ValueError(f"CoupledSolverCfg {field}: body-label regex {spec!r} matched no Newton bodies.")
+                body_ids.extend(matched)
+                continue
 
-        asset_cfg = getattr(scene_cfg, spec.name, None) if scene_cfg is not None else None
-        if asset_cfg is None or not hasattr(asset_cfg, "prim_path"):
-            raise ValueError(f"CoupledSolverCfg {field}: scene entity {spec.name!r} is not on the attached scene cfg.")
-        asset_body_ids, _ = resolve_matching_names(
-            f"(?:{asset_cfg.prim_path})(?:/.*)?", labels, raise_when_no_match=False
-        )
-        if not asset_body_ids:
-            raise ValueError(f"CoupledSolverCfg {field}: scene entity {spec.name!r} matched no Newton bodies.")
-        if spec.body_names is None:
-            return asset_body_ids
+            asset_cfg = getattr(scene_cfg, spec.name, None) if scene_cfg is not None else None
+            if asset_cfg is None or not hasattr(asset_cfg, "prim_path"):
+                raise ValueError(
+                    f"CoupledSolverCfg {field}: scene entity {spec.name!r} is not on the attached scene cfg."
+                )
+            asset_body_ids, _ = resolve_matching_names(
+                f"(?:{asset_cfg.prim_path})(?:/.*)?", labels, raise_when_no_match=False
+            )
+            if not asset_body_ids:
+                raise ValueError(f"CoupledSolverCfg {field}: scene entity {spec.name!r} matched no Newton bodies.")
+            if spec.body_names is None:
+                body_ids.extend(asset_body_ids)
+                continue
 
-        body_patterns = [spec.body_names] if isinstance(spec.body_names, str) else spec.body_names
-        short_names = [labels[index].rsplit("/", 1)[-1] for index in asset_body_ids]
-        try:
-            local_body_ids, _ = resolve_matching_names(body_patterns, short_names)
-        except ValueError as error:
-            raise ValueError(
-                f"CoupledSolverCfg {field}: scene entity {spec.name!r} could not match body patterns {body_patterns}."
-            ) from error
-        return [asset_body_ids[index] for index in local_body_ids]
+            body_patterns = [spec.body_names] if isinstance(spec.body_names, str) else spec.body_names
+            short_names = [labels[index].rsplit("/", 1)[-1] for index in asset_body_ids]
+            try:
+                local_body_ids, _ = resolve_matching_names(body_patterns, short_names)
+            except ValueError as error:
+                raise ValueError(
+                    f"CoupledSolverCfg {field}: scene entity {spec.name!r} could not match body patterns"
+                    f" {body_patterns}."
+                ) from error
+            body_ids.extend(asset_body_ids[index] for index in local_body_ids)
+
+        return list(dict.fromkeys(body_ids))
 
     @classmethod
     def _build_entry(cls, entry: _ResolvedEntry) -> SolverCoupled.Entry:
