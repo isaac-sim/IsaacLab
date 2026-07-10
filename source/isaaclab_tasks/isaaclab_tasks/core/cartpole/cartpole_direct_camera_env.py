@@ -50,10 +50,13 @@ class CartpoleCameraEnv(CartpoleEnv):
     def _setup_scene(self):
         """Setup the scene with the cartpole and camera (no ground plane, which obstructs the view)."""
         self.cartpole = Articulation(self.cfg.robot_cfg)
-        self._tiled_camera = Camera(self.cfg.tiled_camera)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
         plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        # Publish the plan before constructing sensors so they resolve their prims
+        # through it and register per-env frames that clone with the scene.
+        sim_utils.SimulationContext.instance().set_clone_plan(plan)
+        self._tiled_camera = Camera(self.cfg.tiled_camera)
         cloner.replicate(plan, stage=self.scene.stage)
 
         if self.device == "cpu":

@@ -50,10 +50,13 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
         self.hand = Articulation(self.cfg.robot_cfg)
         self.object: Articulation | RigidObject = self.cfg.object_cfg.class_type(self.cfg.object_cfg)
         self._joint_wrench_sensor = self._create_joint_wrench_sensor()
-        self._tiled_camera = Camera(self.cfg.tiled_camera)
         src, dest = "/World/envs/env_0", "/World/envs/env_{}"
         pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
         plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
+        # Publish the plan before constructing sensors so they resolve their prims
+        # through it and register per-env frames that clone with the scene.
+        sim_utils.SimulationContext.instance().set_clone_plan(plan)
+        self._tiled_camera = Camera(self.cfg.tiled_camera)
         cloner.replicate(plan, stage=self.scene.stage)
         # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.hand

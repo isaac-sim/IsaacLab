@@ -221,8 +221,8 @@ class NewtonSiteFrameView(BaseFrameView):
 
         for specs in spec_groups:
             group: list[tuple[str, tuple[float, float, float]]] = []
-            for body_path, xform, scale, per_world in specs:
-                label = NewtonManager.cl_register_site(body_path, xform, per_world=per_world)
+            for body_path, xform, scale, per_world, worlds in specs:
+                label = NewtonManager.cl_register_site(body_path, xform, per_world=per_world, worlds=worlds)
                 if not any(existing == label for existing, _ in group):
                     group.append((label, scale))
             self._site_groups.append(group)
@@ -232,7 +232,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _resolve_site_specs(
         self, stage, validate_xform_ops: bool
-    ) -> list[list[tuple[str | None, wp.transform, tuple[float, float, float], bool]]]:
+    ) -> list[list[tuple[str | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]]]:
         """Resolve source prims into Newton site registration specs, one group per path expression.
 
         A clone plan can match one path expression with several rows (one per
@@ -240,13 +240,15 @@ class NewtonSiteFrameView(BaseFrameView):
         one spec per matched row.
         """
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        spec_groups: list[list[tuple[str | None, wp.transform, tuple[float, float, float], bool]]] = []
+        spec_groups: list[
+            list[tuple[str | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]]
+        ] = []
 
         for path_expr in self._prim_paths:
             matches = tuple(iter_clone_plan_matches(plan, path_expr)) if plan is not None else ()
             if matches:
                 group = []
-                for source_root, destination_template, source_path, _env_ids in matches:
+                for source_root, destination_template, source_path, env_ids in matches:
                     source_prim = None
                     if not any(token in source_path for token in "*[]()+?|\\"):
                         source_prim = stage.GetPrimAtPath(source_path)
@@ -256,7 +258,7 @@ class NewtonSiteFrameView(BaseFrameView):
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{source_path}'.")
                     group.append(
                         self._resolve_source_prim(
-                            source_prim, validate_xform_ops, source_root, destination_template, stage
+                            source_prim, validate_xform_ops, source_root, destination_template, env_ids, stage
                         )
                     )
                 spec_groups.append(group)
@@ -265,7 +267,7 @@ class NewtonSiteFrameView(BaseFrameView):
             prim = sim_utils.find_first_matching_prim(path_expr, stage)
             if prim is None or not prim.IsValid():
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
-            spec_groups.append([self._resolve_source_prim(prim, validate_xform_ops, None, None, stage)])
+            spec_groups.append([self._resolve_source_prim(prim, validate_xform_ops, None, None, None, stage)])
 
         return spec_groups
 
@@ -275,8 +277,9 @@ class NewtonSiteFrameView(BaseFrameView):
         validate_xform_ops: bool,
         source_root: str | None,
         destination_template: str | None,
+        env_ids: tuple[int, ...] | None,
         stage,
-    ) -> tuple[str | None, wp.transform, tuple[float, float, float], bool]:
+    ) -> tuple[str | None, wp.transform, tuple[float, float, float], bool, tuple[int, ...] | None]:
         """Resolve one source prim into its body path, local frame, and xform scale."""
         prim_path = prim.GetPath().pathString
         if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
@@ -307,7 +310,7 @@ class NewtonSiteFrameView(BaseFrameView):
                     or source_root.startswith(body_path + "/")
                 ):
                     raise RuntimeError(f"FrameView source body '{body_path}' is not under '{source_root}'.")
-                return body_path, wp.transform(pos, quat), scale, False
+                return body_path, wp.transform(pos, quat), scale, False, None
             body_prim = body_prim.GetParent()
 
         ref_path = source_root
@@ -318,7 +321,8 @@ class NewtonSiteFrameView(BaseFrameView):
                 ref_path = source_root[: -len(source_suffix)] if source_suffix else source_root
         ref_prim = stage.GetPrimAtPath(ref_path) if ref_path is not None else None
         pos, quat = sim_utils.resolve_prim_pose(prim, ref_prim if ref_prim and ref_prim.IsValid() else None)
-        return None, wp.transform(pos, quat), scale, source_root is not None
+        per_world = source_root is not None
+        return None, wp.transform(pos, quat), scale, per_world, env_ids if per_world else None
 
     def _initialize_impl(self) -> None:
         """Resolve the injected sites once the Newton model is built."""

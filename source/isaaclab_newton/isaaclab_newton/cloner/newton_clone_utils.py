@@ -57,7 +57,7 @@ def replicate_builder_mapping(
     source_builders: dict[str, ModelBuilder],
     *,
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
-    env_root_sites: dict[str, wp.transform] | None = None,
+    env_root_sites: dict[str, tuple[wp.transform, tuple[int, ...] | None]] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, list[float], list[float]], None]] = (),
     post_replicate_hooks: Sequence[Callable[[ModelBuilder], None]] = (),
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
@@ -74,9 +74,12 @@ def replicate_builder_mapping(
         world_xform = wp.transform(positions[col], quaternions[col])
         world_xforms.append(world_xform)
 
-        for label, xform in env_root_sites.items():
+        for label, (xform, worlds) in env_root_sites.items():
+            local_indices = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])
+            if worlds is not None and col not in worlds:
+                continue
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
-            local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
+            local_indices[col].append(site_idx)
 
         for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
             source_builder = source_builders[sources[int(row)]]

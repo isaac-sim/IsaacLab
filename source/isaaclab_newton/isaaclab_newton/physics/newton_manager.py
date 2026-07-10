@@ -917,7 +917,14 @@ class NewtonManager(PhysicsManager):
         """
 
     @classmethod
-    def cl_register_site(cls, body_pattern: str | None, xform: wp.transform, *, per_world: bool = False) -> str:
+    def cl_register_site(
+        cls,
+        body_pattern: str | None,
+        xform: wp.transform,
+        *,
+        per_world: bool = False,
+        worlds: tuple[int, ...] | None = None,
+    ) -> str:
         """Register a site request for injection into the scene builders.
 
         Sensors call this during ``__init__``. Sites are injected into source
@@ -941,6 +948,9 @@ class NewtonManager(PhysicsManager):
             xform: Site transform relative to body.
             per_world: When ``True``, ``body_pattern`` must be ``None`` and one
                 bodyless site is created in each cloned world's frame.
+            worlds: Optional world indices that receive the per-world site.
+                ``None`` targets every cloned world. Only valid with
+                ``per_world=True``.
 
         Returns:
             Assigned site label suffix.
@@ -957,8 +967,10 @@ class NewtonManager(PhysicsManager):
             )
         if per_world and body_pattern is not None:
             raise ValueError("per_world site registration requires body_pattern=None.")
+        if worlds is not None and not per_world:
+            raise ValueError("worlds is only valid for per_world site registration.")
         xform_key = tuple(xform)
-        key = (body_pattern, per_world, xform_key)
+        key = (body_pattern, per_world, worlds, xform_key)
         if key in cls._cl_pending_sites:
             return cls._cl_pending_sites[key][0]
         label = f"ft_{len(cls._cl_pending_sites)}"
@@ -1019,16 +1031,16 @@ class NewtonManager(PhysicsManager):
             Tuple of ``(global_site_indices, source_site_indices, env_root_sites)`` where
             *global_site_indices* maps ``{label: main_builder_shape_idx}``,
             *source_site_indices* maps ``{id(source_builder): {label: [source_local_shape_idx, ...]}}``,
-            and *env_root_sites* maps ``{label: env_root_relative_transform}``.
+            and *env_root_sites* maps ``{label: (env_root_relative_transform, worlds)}``.
         """
         global_site_indices: dict[str, int] = {}
         source_site_indices: dict[int, dict[str, list[int]]] = {}
 
-        env_root_sites: dict[str, wp.transform] = {}
+        env_root_sites: dict[str, tuple[wp.transform, tuple[int, ...] | None]] = {}
 
-        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+        for (body_pattern, per_world, worlds, _xform_key), (label, xform) in cls._cl_pending_sites.items():
             if per_world:
-                env_root_sites[label] = xform
+                env_root_sites[label] = (xform, worlds)
                 continue
             if body_pattern is None:
                 site_idx = main_builder.add_site(body=-1, xform=xform, label=label)
@@ -1054,19 +1066,23 @@ class NewtonManager(PhysicsManager):
                     logger.debug(f"Injected site '{site_label}' into source builder")
                 source_site_indices.setdefault(source_builder_id, {})[label] = site_indices
 
-            main_indices, main_names = resolve_matching_names(
-                body_pattern, list(main_builder.body_label), raise_when_no_match=False
-            )
-            if len(main_indices) > 1:
-                raise ValueError(
-                    f"Site '{label}' with body_pattern '{body_pattern}' matched multiple non-cloned"
-                    f" bodies {main_names}; non-cloned body sites must resolve to a single body."
+            if not any_matched:
+                # Patterns resolve in source space; only a pattern that matches no
+                # source builder may target a non-cloned main-builder body. The site
+                # map entry is single-index, so the match must be unambiguous.
+                main_indices, main_names = resolve_matching_names(
+                    body_pattern, list(main_builder.body_label), raise_when_no_match=False
                 )
-            if main_indices:
-                any_matched = True
-                global_site_indices[label] = main_builder.add_site(
-                    body=main_indices[0], xform=xform, label=f"{main_names[0]}/{label}"
-                )
+                if len(main_indices) > 1:
+                    raise ValueError(
+                        f"Site '{label}' with body_pattern '{body_pattern}' matched multiple non-cloned"
+                        f" bodies {main_names}; non-cloned body sites must resolve to a single body."
+                    )
+                if main_indices:
+                    any_matched = True
+                    global_site_indices[label] = main_builder.add_site(
+                        body=main_indices[0], xform=xform, label=f"{main_names[0]}/{label}"
+                    )
 
             if not any_matched:
                 raise ValueError(
@@ -1094,7 +1110,7 @@ class NewtonManager(PhysicsManager):
         builder = cls._builder
         body_labels = list(builder.body_label)
 
-        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
+        for (body_pattern, per_world, _worlds, _xform_key), (label, xform) in cls._cl_pending_sites.items():
             if per_world:
                 site_idx = builder.add_site(body=-1, xform=xform, label=label)
                 cls._cl_site_index_map[label] = (None, [[site_idx]])

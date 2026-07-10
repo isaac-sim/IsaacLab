@@ -17,9 +17,6 @@ Changed
   source body path of each matched clone-plan row and merge the resulting sites per
   environment, so heterogeneously spawned assets resolve each environment's own
   variant frame.
-* Removed the site re-registration on ``STOP`` from the Newton IMU, frame transformer,
-  and PVA sensors; the Newton context tears its state down entirely on stop, so the
-  re-registered sites were discarded immediately.
 
 Fixed
 ^^^^^
