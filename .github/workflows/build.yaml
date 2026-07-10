@@ -329,21 +329,22 @@ jobs:
         isaacsim-version: "24.04"
         dockerfile-path: docker/Dockerfile.newton
         cache-tag: cache-newton
+        # The smoke below docker-runs the image in this same job, and the
+        # ECR login only exists while the action runs, so the action itself
+        # must pull on a deps-cache hit.
+        pull-on-deps-hit: "true"
 
-    # On a deps-cache hit the action only aliases the per-commit tag in the
-    # registry without pulling it, so fetch it before the docker run steps.
+    # Every action path (full build --load, exact-tag pull, deps-hit pull)
+    # leaves the image local; fail fast with a clear message if not, instead
+    # of letting docker run attempt a docker.io pull of the CI-only tag.
     - name: Ensure image is available locally
       shell: bash
       run: |
         set -euo pipefail
         IMAGE_TAG="${{ needs.config.outputs.ci_image_tag }}-newton"
         if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-          if [ -z "${ECR_IMAGE:-}" ]; then
-            echo "::error::Image ${IMAGE_TAG} is not available locally and no ECR image is configured."
-            exit 1
-          fi
-          docker pull "${ECR_IMAGE}"
-          docker tag "${ECR_IMAGE}" "${IMAGE_TAG}"
+          echo "::error::Image ${IMAGE_TAG} is not available locally after the build action."
+          exit 1
         fi
 
     # Mirrors the verification command documented in
