@@ -255,7 +255,7 @@ class PhysicsCfg(PresetCfg):
             iterations=100,
             use_mujoco_contacts=False,
         ),
-        num_substeps=2,
+        num_substeps=4,
         debug_mode=False,
         default_shape_cfg=NewtonShapeCfg(margin=0.02),
     )
