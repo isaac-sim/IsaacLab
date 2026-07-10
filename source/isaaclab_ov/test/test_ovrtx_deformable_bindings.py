@@ -278,7 +278,7 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
 
 
 def test_update_deformable_points_writes_world_particle_positions(monkeypatch: pytest.MonkeyPatch):
-    """Newton ``particle_q`` is copied into OVRTX point buffers and extents are mapped in place."""
+    """Newton ``particle_q`` is synced through :meth:`OVRTXRenderer.update_geometries`."""
     renderer, _backend = _make_renderer_without_backend()
     mapped_extents = wp.zeros((1, 2), dtype=wp.vec3d, device="cpu")
     renderer._deformable_points_binding = _FakePointsBinding("points")
@@ -321,7 +321,7 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", _fake_launch)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
 
-    renderer._update_deformable_points()
+    renderer.update_geometries()
 
     assert [getattr(call[0], "__name__", "") for call in launch_calls] == ["compute_deformable_mesh_extent_kernel"]
     assert NewtonManager._particles_dirty is False
@@ -357,7 +357,7 @@ def test_update_deformable_points_skips_when_particles_clean(monkeypatch: pytest
         lambda kernel, dim, inputs, device: launch_calls.append((kernel, dim, inputs)),  # noqa: ARG005
     )
 
-    renderer._update_deformable_points()
+    renderer.update_geometries()
 
     assert launch_calls == []
     assert renderer._deformable_points_binding.written is None

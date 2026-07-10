@@ -701,8 +701,8 @@ class OVRTXRenderer(BaseRenderer):
                     " Camera.cfg.data_types when isp_cfg is set."
                 )
 
-    def _update_object_transforms(self) -> None:
-        """Sync Newton rigid-body transforms to OVRTX."""
+    def update_transforms(self) -> None:
+        """Sync transforms to OVRTX."""
         if self._object_xform_binding is None or self._object_newton_indices is None:
             return
 
@@ -727,8 +727,8 @@ class OVRTXRenderer(BaseRenderer):
                 device=self._device,
             )
 
-    def _update_deformable_points(self) -> None:
-        """Sync Newton deformable particles to OVRTX mesh point arrays."""
+    def update_geometries(self) -> None:
+        """Sync geometries to OVRTX."""
         try:
             from isaaclab_newton.physics import NewtonManager
         except ImportError:
@@ -781,11 +781,6 @@ class OVRTXRenderer(BaseRenderer):
                     )
 
         NewtonManager.clear_particles_dirty()
-
-    def update_transforms(self) -> None:
-        """Sync physics object transforms and deformable points to OVRTX."""
-        self._update_object_transforms()
-        self._update_deformable_points()
 
     def update_camera(
         self,
