@@ -9,6 +9,13 @@ Changed
   instead; per-asset materials now override those defaults. The model-global
   ``soft_contact_ke/kd/mu`` fields are unchanged.
 
+Fixed
+^^^^^
+
+* Fixed proxy-coupled source solvers configured for external contacts to receive
+  contacts from Newton's shared collision pipeline. Proxy destinations continue
+  to use their entry-local collision pipeline.
+
 Added
 ^^^^^
 

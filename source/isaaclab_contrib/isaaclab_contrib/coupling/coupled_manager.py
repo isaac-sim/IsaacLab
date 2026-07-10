@@ -80,6 +80,15 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
                 f"No Newton solver registered for sub-cfg type {type(sub_cfg).__name__!r}. Known config types: {known}."
             ) from None
 
+    @staticmethod
+    def _requires_external_contacts(solver_cfg: NewtonSolverCfg) -> bool:
+        """Return whether a sub-solver expects contacts from Newton's collision pipeline."""
+        if isinstance(solver_cfg, MJWarpSolverCfg):
+            return not solver_cfg.use_mujoco_contacts
+        if isinstance(solver_cfg, KaminoSolverCfg):
+            return not solver_cfg.use_collision_detector
+        return True
+
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: CoupledSolverCfg) -> None:
         """Resolve ownership and construct the selected coupled solver."""
@@ -92,9 +101,15 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
             proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
             cls._validate_solver_cfg(model, solver_cfg, resolved_entries, proxies)
             NewtonManager._solver = cls._build_proxy_coupled_solver(model, entries, proxies, solver_cfg)
+            proxy_destinations = {proxy.config.destination for proxy in proxies}
+            needs_collision_pipeline = any(
+                entry.config.name not in proxy_destinations and cls._requires_external_contacts(entry.config.solver_cfg)
+                for entry in resolved_entries
+            )
         elif isinstance(solver_cfg, CoupledAdmmSolverCfg):
             cls._validate_solver_cfg(model, solver_cfg, resolved_entries)
             NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg)
+            needs_collision_pipeline = True
         else:
             raise TypeError(
                 f"CoupledSolverCfg subclass {type(solver_cfg).__name__!r} is not supported; "
@@ -103,7 +118,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
 
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
-        NewtonManager._needs_collision_pipeline = isinstance(solver_cfg, CoupledAdmmSolverCfg)
+        NewtonManager._needs_collision_pipeline = needs_collision_pipeline
         if NewtonManager._report_contacts:
             raise NotImplementedError(
                 "Newton contact sensors are not yet supported by coupled solvers because contact forces live "

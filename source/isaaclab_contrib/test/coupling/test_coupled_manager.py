@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from isaaclab_newton.physics import KaminoSolverCfg, XPBDSolverCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, XPBDSolverCfg
 from newton import ShapeFlags
 from newton.solvers import SolverKamino
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -519,7 +519,7 @@ def test_kamino_solver_config_remains_supported():
 
 
 def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
-    """Proxy owns destination contacts while ADMM uses the shared outer pipeline."""
+    """Proxy sources get outer contacts when their solver requires them."""
     model = _FakeModel()
     proxy_cfg, resolved_entries, resolved_proxies = _valid_proxy_setup()
     proxy_cfg.scene_cfg = _FakeSceneCfg()
@@ -565,11 +565,16 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     old_contact_support = coupled_manager.NewtonManager._supports_contact_sensors
     old_report_contacts = coupled_manager.NewtonManager._report_contacts
     try:
+        resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
         NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
         assert coupled_manager.NewtonManager._needs_collision_pipeline is False
         assert coupled_manager.NewtonManager._supports_contact_sensors is False
         assert recorded_entries == ["rigid", "soft"]
         assert all(sc is proxy_cfg.scene_cfg for sc in recorded_scene_cfgs)
+
+        resolved_entries[0].config.solver_cfg.use_mujoco_contacts = False
+        NewtonCoupledSolverManager._build_solver(model, proxy_cfg)
+        assert coupled_manager.NewtonManager._needs_collision_pipeline is True
 
         recorded_entries.clear()
         admm_cfg = CoupledAdmmSolverCfg(entries=proxy_cfg.entries)
