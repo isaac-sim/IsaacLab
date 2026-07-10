@@ -1045,16 +1045,7 @@ def pytest_sessionstart(session):
         test_files, workspace_root, isaacsim_ci, test_node_ids_by_file
     )
 
-    if failed_tests:
-        fail_summary = "\n\n" + "=" * 60 + "\n"
-        fail_summary += "FAILED TEST FILES\n"
-        fail_summary += "=" * 60 + "\n"
-        for ft in failed_tests:
-            fail_summary += f"  FAILED  {ft}\n"
-        fail_summary += "=" * 60
-        print(fail_summary)
-    else:
-        print("\nAll test files passed.")
+    print("failed tests:", failed_tests)
 
     # Collect reports
     print("~~~~~~~~~ Collecting final report...")
