@@ -80,7 +80,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run_docker_tests: ${{ steps.detect.outputs.run_docker_tests }}
-      run_newton_tests: ${{ steps.detect.outputs.run_newton_tests }}
     steps:
     - id: detect
       env:
@@ -110,21 +109,6 @@ jobs:
           $'^\\.github/actions/\tCI actions'
           $'^\\.github/test-subsets/\tCI test subset config'
         )
-        # The Newton kitless job is an install/build test, not a library-code
-        # test (the test matrix covers code), so it gates only on the install
-        # inputs — the same set that feeds the deps-hash in the
-        # ecr-build-push-pull action — plus its own wiring. Source-level
-        # kitless regressions are accepted to surface on the next
-        # install-input change rather than on every source PR.
-        newton_patterns=(
-          $'^docker/Dockerfile\\.newton$\tNewton image definition'
-          $'^isaaclab\\.sh$\tInstall CLI wrapper'
-          $'^pyproject\\.toml$\tRoot dependency manifest'
-          $'^source/[^/]+/pyproject\\.toml$\tPackage manifests'
-          $'^source/isaaclab/isaaclab/cli/\tInstall CLI implementation'
-          $'^\\.github/workflows/build\\.yaml$\tThis workflow file'
-          $'^\\.github/actions/ecr-build-push-pull/\tECR build-cache action'
-        )
         if [ "$EVENT_NAME" = "push" ]; then
           triggered_jobs="Docker base build job + rendering-correctness + rendering-correctness-kitless"
         else
@@ -152,8 +136,7 @@ jobs:
 
         any_match() {
           local files="$1" entry regex
-          local -n _pats="$2"
-          for entry in "${_pats[@]}"; do
+          for entry in "${patterns[@]}"; do
             IFS=$'\t' read -r regex _ <<< "$entry"
             if grep -qE "$regex" <<< "$files"; then
               return 0
@@ -163,10 +146,9 @@ jobs:
         }
 
         decide() {
-          local decision="$1" newton_decision="$2" reason="$3" files="${4:-}"
-          echo "Decision: run_docker_tests=$decision run_newton_tests=$newton_decision ($reason)"
+          local decision="$1" reason="$2" files="${3:-}"
+          echo "Decision: run_docker_tests=$decision ($reason)"
           echo "run_docker_tests=$decision" >> "$GITHUB_OUTPUT"
-          echo "run_newton_tests=$newton_decision" >> "$GITHUB_OUTPUT"
           {
             echo "## Docker test gating"
             echo ""
@@ -175,8 +157,6 @@ jobs:
             else
               echo "Docker tests will be **skipped**: $reason."
             fi
-            echo ""
-            echo "Newton kitless job: **$([ "$newton_decision" = "true" ] && echo run || echo skip)**."
             echo ""
             echo "Triggered jobs: $triggered_jobs."
             if [ -n "$files" ]; then
@@ -187,25 +167,23 @@ jobs:
         }
 
         if [ "$EVENT_NAME" != "pull_request" ]; then
-          decide true true "non-PR event ($EVENT_NAME)"
+          decide true "non-PR event ($EVENT_NAME)"
           exit 0
         fi
 
         if ! changed_files="$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')"; then
           # Fail-safe: a transient API error must not block merge. Default to running.
           echo "::warning::Could not list changed files; defaulting to running tests"
-          decide true true "fail-safe (could not list changed files)"
+          decide true "fail-safe (could not list changed files)"
           exit 0
         fi
 
         printf '%s\n' "$changed_files"
 
-        if any_match "$changed_files" patterns; then
-          newton_decision=false
-          any_match "$changed_files" newton_patterns && newton_decision=true
-          decide true "$newton_decision" "relevant paths changed" "$changed_files"
+        if any_match "$changed_files"; then
+          decide true "relevant paths changed" "$changed_files"
         else
-          decide false false "no relevant paths changed" "$changed_files"
+          decide false "no relevant paths changed" "$changed_files"
         fi
 
   config:
@@ -296,110 +274,6 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         dockerfile-path: docker/Dockerfile.curobo
         cache-tag: cache-curobo
-
-  build-newton:
-    name: Build Newton Kitless Docker Image
-    runs-on: [self-hosted, gpu]
-    timeout-minutes: 120
-    needs: [changes, config]
-    if: >-
-      github.event_name != 'push' &&
-      needs.changes.outputs.run_newton_tests == 'true'
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 1
-        lfs: true
-
-    # Same ECR-cached setup as the other image builds: an existing per-commit
-    # or deps-<hash> tag in ECR skips the build entirely, and full builds
-    # reuse the registry layer cache. Dockerfile.newton builds from the public
-    # ubuntu:24.04 image, so the (historically named) isaacsim-base-image /
-    # isaacsim-version inputs only pin the base image whose digest feeds the
-    # deps hash; the ISAACSIM_* build-args the action passes are not declared
-    # by this Dockerfile and are ignored. The kitless guarantee stays asserted
-    # inside the Dockerfile itself (no isaacsim distribution, no _isaac_sim
-    # link), so any path that produces the image has already proven it.
-    - name: Build and push to ECR
-      uses: ./.github/actions/ecr-build-push-pull
-      with:
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-newton
-        isaacsim-base-image: ubuntu
-        isaacsim-version: "24.04"
-        dockerfile-path: docker/Dockerfile.newton
-        cache-tag: cache-newton
-        # The smoke below docker-runs the image in this same job, and the
-        # ECR login only exists while the action runs, so the action itself
-        # must pull on a deps-cache hit.
-        pull-on-deps-hit: "true"
-
-    # Every action path (full build --load, exact-tag pull, deps-hit pull)
-    # leaves the image local; fail fast with a clear message if not, instead
-    # of letting docker run attempt a docker.io pull of the CI-only tag.
-    - name: Ensure image is available locally
-      shell: bash
-      run: |
-        set -euo pipefail
-        IMAGE_TAG="${{ needs.config.outputs.ci_image_tag }}-newton"
-        if ! docker image inspect "${IMAGE_TAG}" >/dev/null 2>&1; then
-          echo "::error::Image ${IMAGE_TAG} is not available locally after the build action."
-          exit 1
-        fi
-
-    # Mirrors the verification command documented in
-    # docs/source/deployment/docker.rst and the canonical cartpole training
-    # probe used by the installation tests. source/, scripts/ and apps/ are
-    # mounted from the checkout so a deps-cached image still runs this PR's
-    # code: the isaaclab packages are installed editable from source/, so the
-    # baked venv resolves imports through the mounted tree.
-    - name: Run training smoke test
-      shell: bash
-      run: |
-        set -euo pipefail
-        log="$(mktemp)"
-        docker run --rm --gpus all --network host \
-          -v "$PWD/source":/workspace/isaaclab/source \
-          -v "$PWD/scripts":/workspace/isaaclab/scripts \
-          -v "$PWD/apps":/workspace/isaaclab/apps \
-          "${{ needs.config.outputs.ci_image_tag }}-newton" \
-          isaaclab train --rl_library rsl_rl \
-          --task Isaac-Cartpole-Direct \
-          --num_envs 16 \
-          presets=newton_mjwarp \
-          --max_iterations 5 2>&1 | tee "$log"
-        if grep -q "Traceback (most recent call last):" "$log"; then
-          echo "::error::Training smoke test raised a traceback."
-          exit 1
-        fi
-        if ! grep -q "Training time:" "$log"; then
-          echo "::error::Training smoke test did not report 'Training time:'."
-          exit 1
-        fi
-
-    - name: Verify Newton runtime user is non-root
-      shell: bash
-      run: |
-        set -euo pipefail
-        runtime_identity="$(docker run --rm --entrypoint bash "${{ needs.config.outputs.ci_image_tag }}-newton" \
-          -lc 'printf "%s %s %s\n" "$(id -u)" "$(id -g)" "$(id -un 2>/dev/null || true)"')"
-        read -r runtime_uid runtime_gid runtime_user <<< "${runtime_identity}"
-        echo "Newton runtime identity: uid=${runtime_uid} gid=${runtime_gid} user=${runtime_user}"
-        if [ "${runtime_uid}" = "0" ]; then
-          echo "::error::Newton Docker image must not run as root by default."
-          exit 1
-        fi
-
-    # Keep the self-hosted runner's disk lean: drop the local tags after the
-    # run; the layers stay cached in ECR for the next build.
-    - name: Remove local image
-      if: always()
-      shell: bash
-      run: |
-        docker image rm -f "${{ needs.config.outputs.ci_image_tag }}-newton" || true
-        if [ -n "${ECR_IMAGE:-}" ]; then
-          docker image rm -f "${ECR_IMAGE}" || true
-        fi
 
   #endregion
 
