@@ -14,7 +14,6 @@ import time
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 import pytest
 import tomllib
