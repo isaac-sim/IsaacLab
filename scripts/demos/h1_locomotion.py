@@ -87,6 +87,11 @@ class H1RoughDemo:
         agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, metadata.version("rsl-rl-lib"))
         # load the trained jit policy
         checkpoint = get_published_pretrained_checkpoint(RL_LIBRARY, TASK)
+        if checkpoint is None:
+            raise SystemExit(
+                f"Could not retrieve the published pre-trained checkpoint for task '{TASK}'."
+                " Check your network connection and try again."
+            )
         # create envionrment
         env_cfg = H1RoughEnvCfg_PLAY()
         env_cfg.scene.num_envs = 25

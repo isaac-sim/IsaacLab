@@ -117,8 +117,15 @@ def get_published_pretrained_checkpoint(workflow: str, task_name: str) -> str | 
         try:
             resume_path = retrieve_file_path(ov_path, download_dir)
         except Exception:
-            print("A pre-trained checkpoint is currently unavailable for this task.")
-            return None
+            # published checkpoints may still be stored under the pre-rename task name,
+            # which carried a -v0 suffix; retry with the legacy name before giving up
+            legacy_path = get_published_pretrained_checkpoint_path(workflow, f"{task_name}-v0")
+            print(f"Not found, retrying with the legacy task name : {legacy_path}")
+            try:
+                resume_path = retrieve_file_path(legacy_path, download_dir)
+            except Exception:
+                print("A pre-trained checkpoint is currently unavailable for this task.")
+                return None
     else:
         print("Using pre-fetched pre-trained checkpoint")
     return resume_path
