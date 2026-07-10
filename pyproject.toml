@@ -194,6 +194,9 @@ ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty,segway"
 
 [tool.pytest.ini_options]
 
+log_cli = true
+log_cli_level = "INFO"
+
 markers = [
     "isaacsim_ci: mark test to run in isaacsim ci",
     "device_split: re-invoke this file once per device (CPU and GPU) in CI due to process-global device locks (e.g., ovphysx<=0.3.7 gap G5)",
