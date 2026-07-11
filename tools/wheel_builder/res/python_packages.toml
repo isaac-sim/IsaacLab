@@ -24,8 +24,9 @@ pyproject.dependencies.all = [
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang==1.13.0",
     "matplotlib>=3.10.3",
-    # make sure this is consistent with isaac sim version
-    "pillow==12.2.0",
+    # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
+    # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
+    "pillow>=12.1.1",
     "botocore",
     # livestream
     # range chosen to coexist with isaacsim 6.0 (isaacsim-kernel pulls fastapi==0.117.1 -> starlette<0.49.0)
@@ -68,6 +69,9 @@ pyproject.dependencies.all = [
     "tensorboard",
     # video recording
     "moviepy",
+    # pillow floor mirrors isaaclab_rl/setup.py: keeps moviepy 2.x (pillow<12 cap) from
+    # downgrading pillow below Isaac Sim's prebundled version (nvbugs 6410989).
+    "pillow>=12.1.1",
     "packaging",
     "tqdm==4.67.1",
     # ================================================================================

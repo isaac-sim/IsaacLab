@@ -31,6 +31,10 @@ INSTALL_REQUIRES = [
     "tensorboard",
     # video recording
     "moviepy",
+    # pillow floor: without it, standalone isaaclab_rl installs let moviepy 2.x (pillow<12 cap)
+    # downgrade pillow and delete Isaac Sim's prebundled copy (nvbugs 6410989); the floor makes
+    # pip back moviepy off to 1.0.3 instead of touching pillow.
+    "pillow>=12.1.1",
     "packaging",
     "tqdm==4.67.1",  # previous version was causing sys errors
 ]

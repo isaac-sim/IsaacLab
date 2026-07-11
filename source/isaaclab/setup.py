@@ -35,8 +35,9 @@ INSTALL_REQUIRES = [
     "einops",  # needed for transformers, doesn't always auto-install
     "warp-lang==1.13.0",
     "matplotlib>=3.10.3",  # minimum version for Python 3.12 support
-    # make sure this is consistent with isaac sim version
-    "pillow==12.2.0",
+    # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
+    # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
+    "pillow>=12.1.1",
     # required by omni.replicator.core S3 backend
     "botocore",
     # livestream
