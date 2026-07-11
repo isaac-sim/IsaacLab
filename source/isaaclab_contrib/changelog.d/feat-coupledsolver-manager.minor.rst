@@ -31,7 +31,9 @@ Added
   The manager partitions the Newton model among explicit, named
   :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverEntryCfg`
   entries, instantiates each sub-solver from its config, and connects entries
-  through named proxy mappings or ADMM contact pairs.
+  through named proxy mappings or typed
+  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledAdmmContactPairCfg`
+  interfaces.
 
 * Added support for raw prim-path regex strings (e.g.
   ``"/World/envs/env_.*/MyCube"``) in the body-selector lists of

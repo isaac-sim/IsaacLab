@@ -477,5 +477,5 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.physics.newton_mjwarp_vbd_proxy.solver_cfg.scene_cfg = self.scene
         self.sim.physics.default.solver_cfg.scene_cfg = self.scene
 
-        view = dict(eye=(1.25, -1.5, 0.75), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
-        self.sim.visualizer_cfgs = [KitVisualizerCfg(**view), NewtonVisualizerCfg(**view)]
+        viewer_cfg = dict(eye=(1.25, -1.5, 0.75), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
+        self.sim.visualizer_cfgs = [KitVisualizerCfg(**viewer_cfg), NewtonVisualizerCfg(**viewer_cfg)]

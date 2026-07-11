@@ -235,14 +235,18 @@ class NewtonVBDManager(NewtonManager):
         cls.set_builder(builder)
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
+        """Construct the configured VBD solver."""
+        return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> None:
         """Construct :class:`SolverVBD` and populate the base-class slots.
 
         VBD always uses Newton's :class:`CollisionPipeline` and steps with
         separate input/output states, so the flags are fixed.
         """
-        kwargs = cls._filter_solver_kwargs(SolverVBD, solver_cfg)
-        NewtonManager._solver = SolverVBD(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
 

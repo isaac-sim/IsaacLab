@@ -181,8 +181,8 @@ class FrankaClothEnvCfg(FrankaSoftEnvCfg):
         self.sim.dt = 1 / 60.0
         self.sim.render_interval = self.decimation
 
-        view = dict(eye=(1.25, -1.5, 0.6), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
-        self.sim.visualizer_cfgs = [KitVisualizerCfg(**view), NewtonVisualizerCfg(**view)]
+        viewer_cfg = dict(eye=(1.25, -1.5, 0.6), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
+        self.sim.visualizer_cfgs = [KitVisualizerCfg(**viewer_cfg), NewtonVisualizerCfg(**viewer_cfg)]
         self.sim.physics = PhysicsCfg()
 
         # increase franka gripper stiffness

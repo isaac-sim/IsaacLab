@@ -7,39 +7,25 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from dataclasses import dataclass, fields
+from typing import TYPE_CHECKING
 
 import numpy as np
 from isaaclab_newton.physics import (
-    FeatherstoneSolverCfg,
     KaminoSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
     NewtonSolverCfg,
-    XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
-from isaaclab_newton.physics.mpm_manager import _make_solver_config as _make_mpm_solver_config
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
-from newton.solvers import (
-    SolverBase,
-    SolverFeatherstone,
-    SolverImplicitMPM,
-    SolverKamino,
-    SolverMuJoCo,
-    SolverVBD,
-    SolverXPBD,
-)
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
-from warp.fem import TemporaryStore
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
-from ..deformable.newton_manager_cfg import VBDSolverCfg
 from ..deformable.vbd_manager import NewtonVBDManager
 from .coupled_manager_cfg import (
     CoupledAdmmSolverCfg,
@@ -74,26 +60,6 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         bodies: list[int]
         particles: list[int]
 
-    _SOLVER_CLASS_BY_CFG_TYPE: ClassVar[dict[type[NewtonSolverCfg], type[SolverBase]]] = {
-        MJWarpSolverCfg: SolverMuJoCo,
-        VBDSolverCfg: SolverVBD,
-        FeatherstoneSolverCfg: SolverFeatherstone,
-        XPBDSolverCfg: SolverXPBD,
-        KaminoSolverCfg: SolverKamino,
-        MPMSolverCfg: SolverImplicitMPM,
-    }
-
-    @classmethod
-    def _resolve_solver_class(cls, sub_cfg: NewtonSolverCfg) -> type[SolverBase]:
-        """Resolve a supported Isaac Lab solver config to its Newton solver class."""
-        try:
-            return cls._SOLVER_CLASS_BY_CFG_TYPE[type(sub_cfg)]
-        except KeyError:
-            known = ", ".join(sorted(t.__name__ for t in cls._SOLVER_CLASS_BY_CFG_TYPE))
-            raise ValueError(
-                f"No Newton solver registered for sub-cfg type {type(sub_cfg).__name__!r}. Known config types: {known}."
-            ) from None
-
     @staticmethod
     def _requires_external_contacts(solver_cfg: NewtonSolverCfg) -> bool:
         """Return whether a sub-solver expects contacts from Newton's collision pipeline."""
@@ -113,7 +79,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
 
         if isinstance(solver_cfg, CoupledProxySolverCfg):
             proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
-            cls._validate_solver_cfg(model, solver_cfg, resolved_entries, proxies)
+            cls._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in resolved_entries})
             NewtonManager._solver = cls._build_proxy_coupled_solver(model, entries, proxies, solver_cfg)
             proxy_destinations = {proxy.config.destination for proxy in proxies}
             needs_collision_pipeline = any(
@@ -121,7 +87,6 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
                 for entry in resolved_entries
             )
         elif isinstance(solver_cfg, CoupledAdmmSolverCfg):
-            cls._validate_solver_cfg(model, solver_cfg, resolved_entries)
             NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg)
             needs_collision_pipeline = True
         else:
@@ -297,21 +262,9 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
     @classmethod
     def _build_entry(cls, entry: _ResolvedEntry) -> SolverCoupled.Entry:
         entry_cfg = entry.config
-        solver_cls = cls._resolve_solver_class(entry_cfg.solver_cfg)
-        solver_kwargs = (
-            {}
-            if isinstance(entry_cfg.solver_cfg, MPMSolverCfg)
-            else cls._filter_solver_kwargs(solver_cls, entry_cfg.solver_cfg)
-        )
 
         def solver_factory(model_view):
-            if isinstance(entry_cfg.solver_cfg, MPMSolverCfg):
-                return solver_cls(
-                    model_view,
-                    _make_mpm_solver_config(entry_cfg.solver_cfg),
-                    temporary_store=TemporaryStore(),
-                )
-            return solver_cls(model=model_view, **solver_kwargs)
+            return entry_cfg.solver_cfg.class_type._create_solver(model_view, entry_cfg.solver_cfg)
 
         return SolverCoupled.Entry(
             name=entry_cfg.name,
@@ -324,6 +277,11 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
             in_place=entry_cfg.in_place,
         )
 
+    @staticmethod
+    def _matching_config_values(target_type: type, config) -> dict:
+        """Return config values whose names match a target dataclass."""
+        return {field.name: getattr(config, field.name) for field in fields(target_type) if hasattr(config, field.name)}
+
     @classmethod
     def _build_proxy_coupled_solver(
         cls,
@@ -333,24 +291,22 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         solver_cfg: CoupledProxySolverCfg,
     ) -> SolverCoupledProxy:
         cls._apply_proxy_shape_overrides(model, proxies)
-        proxy_mappings = [
-            SolverCoupledProxy.Proxy(
-                source=proxy.config.source,
-                destination=proxy.config.destination,
+        proxy_mappings = []
+        for proxy in proxies:
+            values = cls._matching_config_values(SolverCoupledProxy.Proxy, proxy.config)
+            values.update(
                 bodies=proxy.bodies,
                 particles=proxy.particles,
-                mode=proxy.config.mode,
-                mass_scale=float(proxy.config.mass_scale),
-                collision_pipeline=proxy.config.collision_pipeline_factory
+                collision_pipeline=proxy.config.collision_pipeline
                 or (lambda model_view: CollisionPipeline(model_view, broad_phase="explicit")),
-                collide_interval=proxy.config.collide_interval,
             )
-            for proxy in proxies
-        ]
+            proxy_mappings.append(SolverCoupledProxy.Proxy(**values))
+        coupling_values = cls._matching_config_values(SolverCoupledProxy.Config, solver_cfg)
+        coupling_values["proxies"] = proxy_mappings
         return SolverCoupledProxy(
             model=model,
             entries=entries,
-            coupling=SolverCoupledProxy.Config(proxies=proxy_mappings, iterations=int(solver_cfg.iterations)),
+            coupling=SolverCoupledProxy.Config(**coupling_values),
         )
 
     @classmethod
@@ -360,127 +316,16 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         entries: list[SolverCoupled.Entry],
         solver_cfg: CoupledAdmmSolverCfg,
     ) -> SolverCoupledADMM:
-        contact_pairs = (
-            SolverCoupledADMM.auto_detect_contact_pairs(entries)
-            if solver_cfg.contact_pairs is None
-            else [
-                SolverCoupledADMM.ContactPair(source=source, destination=destination)
-                for source, destination in solver_cfg.contact_pairs
+        values = cls._matching_config_values(SolverCoupledADMM.Config, solver_cfg)
+        if solver_cfg.contact_pairs is None:
+            values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
+        else:
+            values["contact_pairs"] = [
+                SolverCoupledADMM.ContactPair(**cls._matching_config_values(SolverCoupledADMM.ContactPair, pair))
+                for pair in solver_cfg.contact_pairs
             ]
-        )
-        coupling = SolverCoupledADMM.Config(
-            iterations=int(solver_cfg.iterations),
-            rho=float(solver_cfg.rho),
-            gamma=float(solver_cfg.gamma),
-            baumgarte=float(solver_cfg.baumgarte),
-            joint_stiffness=float(solver_cfg.joint_stiffness),
-            joint_damping=float(solver_cfg.joint_damping),
-            joint_angular_stiffness=float(solver_cfg.joint_angular_stiffness),
-            joint_angular_damping=float(solver_cfg.joint_angular_damping),
-            joint_proximal_bodies=bool(solver_cfg.joint_proximal_bodies),
-            joint_proximal_destination_entries=solver_cfg.joint_proximal_destination_entries,
-            joint_proximal_mass_scale=float(solver_cfg.joint_proximal_mass_scale),
-            rigid_contact_matching=solver_cfg.rigid_contact_matching,
-            contact_matching_pos_threshold=solver_cfg.contact_matching_pos_threshold,
-            contact_matching_normal_dot_threshold=solver_cfg.contact_matching_normal_dot_threshold,
-            contact_matching_force_scale=float(solver_cfg.contact_matching_force_scale),
-            contact_pairs=contact_pairs,
-        )
+        coupling = SolverCoupledADMM.Config(**values)
         return SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
-
-    @classmethod
-    def _validate_solver_cfg(
-        cls,
-        model: Model,
-        solver_cfg: CoupledSolverCfg,
-        entries: list[_ResolvedEntry],
-        proxies: list[_ResolvedProxy] | None = None,
-    ) -> None:
-        if len(entries) < 2:
-            raise ValueError("A coupled solver requires at least two named entries.")
-        names = [entry.config.name for entry in entries]
-        if any(not name for name in names):
-            raise ValueError("CoupledSolverEntryCfg.name must be non-empty.")
-        if len(set(names)) != len(names):
-            raise ValueError(f"Coupled solver entry names must be unique, got {names!r}.")
-
-        cls._validate_ownership(model, entries, "bodies", int(model.body_count), require_complete=True)
-        cls._validate_ownership(model, entries, "particles", int(model.particle_count), require_complete=True)
-        cls._validate_ownership(model, entries, "joints", int(model.joint_count))
-        cls._validate_ownership(model, entries, "shapes", int(model.shape_count))
-
-        if isinstance(solver_cfg, CoupledProxySolverCfg):
-            if len(entries) > 2:
-                raise ValueError("Newton proxy coupling currently supports at most two solver entries.")
-            if solver_cfg.iterations < 1:
-                raise ValueError("CoupledProxySolverCfg.iterations must be >= 1.")
-            if not proxies:
-                raise ValueError("CoupledProxySolverCfg requires at least one proxy mapping.")
-            entries_by_name = {entry.config.name: entry for entry in entries}
-            cls._validate_no_cross_entry_proxy_joints(model, entries_by_name)
-            for proxy in proxies:
-                cls._validate_proxy(proxy, entries_by_name)
-        elif isinstance(solver_cfg, CoupledAdmmSolverCfg):
-            if solver_cfg.iterations < 1:
-                raise ValueError("CoupledAdmmSolverCfg.iterations must be >= 1.")
-            seen_pairs: set[frozenset[str]] = set()
-            for source, destination in solver_cfg.contact_pairs or []:
-                if source not in names or destination not in names:
-                    raise ValueError(
-                        f"ADMM contact-pair endpoints {source!r}->{destination!r} must name coupled entries."
-                    )
-                if source == destination:
-                    raise ValueError("ADMM contact-pair source and destination must differ.")
-                pair = frozenset((source, destination))
-                if pair in seen_pairs:
-                    raise ValueError(f"Duplicate symmetric ADMM contact pair {source!r}, {destination!r}.")
-                seen_pairs.add(pair)
-
-    @staticmethod
-    def _validate_ownership(
-        model: Model,
-        entries: list[_ResolvedEntry],
-        field: str,
-        count: int,
-        *,
-        require_complete: bool = False,
-    ) -> None:
-        owners: dict[int, str] = {}
-        for entry in entries:
-            for index in getattr(entry, field, ()):
-                if index < 0 or index >= count:
-                    raise ValueError(f"Coupled entry {entry.config.name!r} owns out-of-range {field} index {index}.")
-                if index in owners:
-                    raise ValueError(
-                        f"{field} index {index} is owned by both {owners[index]!r} and {entry.config.name!r}."
-                    )
-                owners[index] = entry.config.name
-        if require_complete and (unclaimed := [index for index in range(count) if index not in owners]):
-            labels = getattr(model, "body_label", None) if field == "bodies" else None
-            preview = [labels[index] if labels is not None else index for index in unclaimed[:5]]
-            raise ValueError(f"Coupled solver has {len(unclaimed)} unclaimed {field} (first few: {preview!r}).")
-
-    @staticmethod
-    def _validate_proxy(proxy: _ResolvedProxy, entries: dict[str, _ResolvedEntry]) -> None:
-        proxy_cfg = proxy.config
-        if proxy_cfg.source not in entries or proxy_cfg.destination not in entries:
-            raise ValueError(
-                f"CoupledProxyCfg endpoints {proxy_cfg.source!r}->{proxy_cfg.destination!r} must name coupled entries."
-            )
-        if proxy_cfg.source == proxy_cfg.destination:
-            raise ValueError("CoupledProxyCfg source and destination must differ.")
-        if not proxy.bodies and not proxy.particles:
-            raise ValueError("CoupledProxyCfg must map at least one body or particle.")
-        if not set(proxy.bodies).issubset(entries[proxy_cfg.source].bodies):
-            raise ValueError("CoupledProxyCfg bodies must be owned by its source entry.")
-        if not set(proxy.particles).issubset(entries[proxy_cfg.source].particles):
-            raise ValueError("CoupledProxyCfg particles must be owned by its source entry.")
-        if proxy_cfg.mass_scale <= 0.0:
-            raise ValueError("CoupledProxyCfg.mass_scale must be > 0.")
-        if proxy_cfg.collide_interval is not None and proxy_cfg.collide_interval < 1:
-            raise ValueError("CoupledProxyCfg.collide_interval must be >= 1.")
-        if proxy_cfg.mode not in ("lagged", "staggered"):
-            raise ValueError("CoupledProxyCfg.mode must be 'lagged' or 'staggered'.")
 
     @staticmethod
     def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _ResolvedEntry]) -> None:
@@ -488,10 +333,12 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         for joint, (parent_raw, child_raw) in enumerate(zip(model.joint_parent.numpy(), model.joint_child.numpy())):
             parent = int(parent_raw)
             child = int(child_raw)
-            if parent >= 0 and body_owner[parent] != body_owner[child]:
+            parent_owner = body_owner.get(parent)
+            child_owner = body_owner.get(child)
+            if parent >= 0 and parent_owner is not None and child_owner is not None and parent_owner != child_owner:
                 raise ValueError(
                     f"CoupledProxySolverCfg does not support cross-entry joint {joint} between "
-                    f"{body_owner[parent]!r} and {body_owner[child]!r}; keep the articulation in one entry "
+                    f"{parent_owner!r} and {child_owner!r}; keep the articulation in one entry "
                     "or use ADMM coupling."
                 )
 

@@ -32,6 +32,11 @@ class NewtonMJWarpManager(NewtonManager):
     """
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
+        """Construct the configured MuJoCo Warp solver."""
+        return SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg))
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:
         """Construct :class:`SolverMuJoCo` and populate the base-class slots.
 
@@ -41,8 +46,7 @@ class NewtonMJWarpManager(NewtonManager):
         :attr:`NewtonManager._needs_collision_pipeline` to
         ``True`` only when ``use_mujoco_contacts=False``.
         """
-        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
-        NewtonManager._solver = SolverMuJoCo(model, **kwargs)
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = True
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_mujoco_contacts
 

@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CoupledAdmmContactPairCfg",
     "CoupledAdmmSolverCfg",
     "CoupledProxyCfg",
     "CoupledProxySolverCfg",
@@ -14,6 +15,7 @@ __all__ = [
 
 from .coupled_manager import NewtonCoupledSolverManager
 from .coupled_manager_cfg import (
+    CoupledAdmmContactPairCfg,
     CoupledAdmmSolverCfg,
     CoupledProxyCfg,
     CoupledProxySolverCfg,

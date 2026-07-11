@@ -521,12 +521,19 @@ def test_subclass_of_newton_manager(manager):
     assert issubclass(manager, NewtonManager)
     # Subclasses must override the abstract factory.
     assert manager._build_solver is not NewtonManager._build_solver
+    assert manager._create_solver is not NewtonManager._create_solver
 
 
 def test_abstract_build_solver_raises():
     """Calling :meth:`_build_solver` on the abstract base raises."""
     with pytest.raises(NotImplementedError):
         NewtonManager._build_solver(model=None, solver_cfg=NewtonSolverCfg())
+
+
+def test_abstract_create_solver_raises():
+    """Calling :meth:`_create_solver` on the base manager raises."""
+    with pytest.raises(NotImplementedError):
+        NewtonManager._create_solver(model=None, solver_cfg=NewtonSolverCfg())
 
 
 @pytest.mark.parametrize(

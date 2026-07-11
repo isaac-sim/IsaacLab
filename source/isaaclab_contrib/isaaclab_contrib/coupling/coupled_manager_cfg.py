@@ -109,13 +109,13 @@ class CoupledProxyCfg:
     """Scale applied to proxy effective mass and inertia in the destination view."""
 
     collide_interval: int | None = None
-    """Collision refresh interval when :attr:`collision_pipeline_factory` is set.
+    """Collision refresh interval when :attr:`collision_pipeline` is set.
 
     ``None`` refreshes contacts on every proxy pass. Explicit values must be
     positive integers.
     """
 
-    collision_pipeline_factory: Callable[[ModelView], CollisionPipeline | None] | None = None
+    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = None
     """Optional factory for the proxy destination's collision pipeline."""
 
     shape_material_ke: float | None = None
@@ -138,10 +138,9 @@ class CoupledProxyCfg:
 class CoupledSolverCfg(NewtonModelSolverCfg):
     """Base configuration for a Newton experimental coupled solver.
 
-    Every body and particle in the parent model must have one unambiguous
-    owner among :attr:`entries`. Joint and shape ownership is also unique, but
-    may intentionally omit constraints or collision geometry from all views.
-    Use a concrete subclass to configure the coupling interfaces.
+    Bodies, particles, joints, and shapes may be assigned to at most one
+    entry. Unassigned model elements remain outside the nested solvers. Use a
+    concrete subclass to configure the coupling interfaces.
     """
 
     class_type: type[NewtonManager] | str = "{DIR}.coupled_manager:NewtonCoupledSolverManager"
@@ -168,10 +167,21 @@ class CoupledProxySolverCfg(CoupledSolverCfg):
 
 
 @configclass
+class CoupledAdmmContactPairCfg:
+    """Configuration for one symmetric ADMM contact interface."""
+
+    source: str = MISSING
+    """Name of one solver entry."""
+
+    destination: str = MISSING
+    """Name of the other solver entry."""
+
+
+@configclass
 class CoupledAdmmSolverCfg(CoupledSolverCfg):
     """Configuration for Newton's linearized ADMM coupling."""
 
-    contact_pairs: list[tuple[str, str]] | None = None
+    contact_pairs: list[CoupledAdmmContactPairCfg] | None = None
     """Symmetric contact interfaces between named solver entries.
 
     ``None`` asks Newton to detect every distinct entry pair automatically.

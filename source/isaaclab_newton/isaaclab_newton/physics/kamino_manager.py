@@ -112,6 +112,11 @@ class NewtonKaminoManager(NewtonManager):
         """
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg: KaminoSolverCfg) -> SolverKamino:
+        """Construct the configured Kamino solver."""
+        return SolverKamino(model, solver_cfg.to_solver_config())
+
+    @classmethod
     def _build_solver(cls, model: Model, solver_cfg: KaminoSolverCfg) -> None:
         """Construct :class:`SolverKamino` and populate the base-class slots.
 
@@ -127,7 +132,6 @@ class NewtonKaminoManager(NewtonManager):
             RuntimeError: If the model has more than one articulation per environment. The Kamino
                 interface in IsaacLab currently only supports one articulation per environment.
         """
-
         # Set the max contacts per world if specified.
         if solver_cfg.max_contacts_per_world is not None:
             model.rigid_contact_max = int(solver_cfg.max_contacts_per_world) * model.world_count
@@ -149,6 +153,6 @@ class NewtonKaminoManager(NewtonManager):
                 " Multiple articulations per environment are not yet supported in Kamino's FK solver."
             )
 
-        NewtonManager._solver = SolverKamino(model, solver_cfg.to_solver_config())
+        NewtonManager._solver = cls._create_solver(model, solver_cfg)
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = not solver_cfg.use_collision_detector

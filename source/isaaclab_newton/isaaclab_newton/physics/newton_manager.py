@@ -1476,6 +1476,15 @@ class NewtonManager(PhysicsManager):
     # ----- Solver construction (subclass contract) ------------------------
 
     @classmethod
+    def _create_solver(cls, model: Model, solver_cfg) -> SolverBase:
+        """Construct a solver without changing the active manager state.
+
+        Solver-manager subclasses override this hook so nested consumers can
+        reuse their typed construction logic through ``solver_cfg.class_type``.
+        """
+        raise NotImplementedError(f"{cls.__name__} does not implement solver construction.")
+
+    @classmethod
     @abstractmethod
     def _build_solver(cls, model: Model, solver_cfg) -> None:
         """Construct the solver this manager owns and assign it onto the base class.
