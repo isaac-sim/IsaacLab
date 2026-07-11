@@ -1,0 +1,101 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Temporary diagnostic workflow — DO NOT MERGE.
+#
+# Mirrors the linux/arm64 leg of publish-images.yaml (build only: no tags, no
+# push) so a pull request can prove the arm64 image builds again after the
+# pillow prebundle fix. The FAIL baseline is the publish run on this branch's
+# parent commit: https://github.com/isaac-sim/IsaacLab/actions/runs/29124274839
+
+name: Test arm64 Image Build
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+jobs:
+  config:
+    name: Load Config
+    runs-on: ubuntu-latest
+    outputs:
+      isaacsim_image_name: ${{ steps.load.outputs.isaacsim_image_name }}
+      isaacsim_image_tag: ${{ steps.load.outputs.isaacsim_image_tag }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        sparse-checkout: .github/workflows/config.yaml
+        sparse-checkout-cone-mode: false
+    - id: load
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        echo "isaacsim_image_name=$(yq -r .isaacsim_image_name "$f")" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=$(yq -r .isaacsim_image_tag "$f")" >> "$GITHUB_OUTPUT"
+
+  build-arm64:
+    name: Build arm64 Base Image (no push)
+    needs: [config]
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    env:
+      DOCKER_HOST: unix:///var/run/docker.sock
+      DOCKER_TLS_CERTDIR: ""
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      with:
+        platforms: linux/arm64
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      with:
+        platforms: linux/arm64
+        driver-opts: |
+          image=moby/buildkit:buildx-stable-1
+
+    - name: Login to NGC
+      run: |
+        # nvcr.io/nvidia/isaac-sim is anonymously pullable; login only when a
+        # key is available (absent on fork PRs).
+        if [ -n "${{ env.NGC_API_KEY }}" ]; then
+          echo "🔵 Logging into NGC registry..."
+          if ! docker login -u \$oauthtoken -p ${{ env.NGC_API_KEY }} nvcr.io; then
+            echo "🔴 Failed to log into NGC registry"
+            exit 1
+          fi
+          echo "🟢 Successfully logged into NGC registry"
+        else
+          echo "🟠 NGC_API_KEY not set - skipping NGC login (normal for fork PRs)"
+        fi
+
+    - name: Build arm64 Image
+      run: |
+        # Hardcoded to linux/arm64: this is the leg that fails in
+        # publish-images.yaml; never fall back to amd64 on manifest issues.
+        docker buildx build \
+          --platform linux/arm64 \
+          --progress=plain \
+          --build-arg ISAACSIM_BASE_IMAGE_ARG=${{ needs.config.outputs.isaacsim_image_name }} \
+          --build-arg ISAACSIM_VERSION_ARG="${{ needs.config.outputs.isaacsim_image_tag }}" \
+          --build-arg ISAACSIM_ROOT_PATH_ARG=/isaac-sim \
+          --build-arg ISAACLAB_PATH_ARG=/workspace/isaaclab \
+          --build-arg DOCKER_USER_HOME_ARG=/root \
+          --cache-from type=gha \
+          -f docker/Dockerfile.base \
+          .
