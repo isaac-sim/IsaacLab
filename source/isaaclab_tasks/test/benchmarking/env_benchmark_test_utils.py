@@ -67,12 +67,12 @@ def get_env_config(env_configs, mode, workflow, task):
 
     # else, return a regex match with extended task name
     for env_config_key in env_configs[mode].keys():
-        if re.match(env_config_key, extended_task):
+        if re.fullmatch(env_config_key, extended_task):
             return env_configs[mode][env_config_key]
 
     # else, return a regex match with task name
     for env_config_key in env_configs[mode].keys():
-        if re.match(env_config_key, task):
+        if re.fullmatch(env_config_key, task):
             return env_configs[mode][env_config_key]
 
     # if no match is found, return None
