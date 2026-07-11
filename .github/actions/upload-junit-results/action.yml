@@ -24,8 +24,12 @@ inputs:
     description: 'Suite category stored on each omni-github test row (e.g. installation-e2e)'
     default: 'pytest'
     required: false
-  comparison-images-url:
-    description: 'URL of an uploaded comparison-images artifact (forwarded to omni-github)'
+  comparison-images-path:
+    description: 'Path to comparison images directory; uploaded as a separate artifact when provided'
+    default: ''
+    required: false
+  comparison-images-artifact-name:
+    description: 'GitHub artifact name for the comparison images'
     default: ''
     required: false
   retention-days:
@@ -36,6 +40,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Upload comparison images
+      if: always() && inputs.comparison-images-path != ''
+      id: upload-comparison-images
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.comparison-images-artifact-name }}
+        path: ${{ inputs.comparison-images-path }}
+        if-no-files-found: ignore
+        retention-days: ${{ inputs.retention-days }}
+
     - name: Upload JUnit XML report
       if: always()
       id: upload-junit-report
@@ -52,7 +66,7 @@ runs:
       with:
         junit-file: ${{ inputs.junit-file }}
         junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
-        comparison-images-url: ${{ inputs.comparison-images-url }}
+        comparison-images-url: ${{ steps.upload-comparison-images.outputs.artifact-url }}
         artifact-prefix: ${{ inputs.artifact-prefix }}
         test-type: ${{ inputs.test-type }}
         retention-days: ${{ inputs.retention-days }}
