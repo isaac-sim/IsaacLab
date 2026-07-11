@@ -1,0 +1,2 @@
+Test-only change: updates the visualizer integration test helper to stop calling the
+removed ``AppLauncher.apply_rtx_determinism_settings()``. No user-facing behavior change.

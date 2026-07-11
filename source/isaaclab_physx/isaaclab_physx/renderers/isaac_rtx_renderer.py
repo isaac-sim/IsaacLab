@@ -28,6 +28,7 @@ from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
 from .isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
@@ -121,6 +122,8 @@ class IsaacRtxRenderer(BaseRenderer):
         self.cfg = cfg
         settings = get_settings_manager()
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
+        if settings.get("/isaaclab/render/deterministic", False):
+            apply_isaac_rtx_determinism_settings(settings)
         # RTX rendering requires the app to be launched with ``--enable_cameras``.
         if not settings.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
