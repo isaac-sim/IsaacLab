@@ -30,10 +30,12 @@ INSTALL_REQUIRES = [
     # basic logger
     "tensorboard",
     # video recording
-    "moviepy",
+    # moviepy bounded to the 1.x line: stable 2.x caps pillow<12 (conflicts with the floor
+    # below), and prerelease-allowing resolvers otherwise fall through to the broken
+    # 2.0.0.dev2 build whose write_videofile crashes video recording.
+    "moviepy>=1.0.3,<2.0.0.dev0",
     # pillow floor: without it, standalone isaaclab_rl installs let moviepy 2.x (pillow<12 cap)
-    # downgrade pillow and delete Isaac Sim's prebundled copy (nvbugs 6410989); the floor makes
-    # pip back moviepy off to 1.0.3 instead of touching pillow.
+    # downgrade pillow and delete Isaac Sim's prebundled copy (nvbugs 6410989).
     "pillow>=12.1.1",
     "packaging",
     "tqdm==4.67.1",  # previous version was causing sys errors

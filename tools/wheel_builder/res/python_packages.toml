@@ -68,9 +68,10 @@ pyproject.dependencies.all = [
     # basic logger
     "tensorboard",
     # video recording
-    "moviepy",
-    # pillow floor mirrors isaaclab_rl/setup.py: keeps moviepy 2.x (pillow<12 cap) from
-    # downgrading pillow below Isaac Sim's prebundled version (nvbugs 6410989).
+    # moviepy bound and pillow floor mirror isaaclab_rl/setup.py: keep moviepy 2.x
+    # (pillow<12 cap) from downgrading pillow below Isaac Sim's prebundled version
+    # (nvbugs 6410989), and keep prerelease-allowing resolvers off the broken 2.0.0.dev2.
+    "moviepy>=1.0.3,<2.0.0.dev0",
     "pillow>=12.1.1",
     "packaging",
     "tqdm==4.67.1",
