@@ -69,6 +69,7 @@ from isaaclab_tasks.core.reorient.reorient_task_constants import (
     SHADOW_RESET_POSITION_NOISE,
     SHADOW_ROT_EPS,
     SHADOW_ROT_REWARD_SCALE,
+    SHADOW_SIM_DT,
     SHADOW_SUCCESS_COUNT_THRESHOLD,
     SHADOW_SUCCESS_TOLERANCE,
     SHADOW_VEL_OBS_SCALE,
@@ -249,7 +250,7 @@ class ShadowHandManagerEnvCfg(ManagerBasedRLEnvCfg):
 
     scene: ShadowHandManagerSceneCfg = ShadowHandManagerSceneCfg()
     sim: SimulationCfg = SimulationCfg(
-        dt=1.0 / 120.0,
+        dt=SHADOW_SIM_DT,
         render_interval=2,
         physics_material=RigidBodyMaterialBaseCfg(static_friction=1.0, dynamic_friction=1.0),
         physics=PhysicsCfg(),
