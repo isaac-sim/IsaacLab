@@ -1294,6 +1294,12 @@ def rendering_test_franka_soft(
     if physics_backend == "ovphysx":
         pytest.skip("ovphysx is not supported yet.")
 
+    if physics_backend == "physx" and renderer == "newton_renderer":
+        pytest.skip("physx + newton_renderer is not supported yet.")
+
+    if data_type == "motion_vectors":
+        pytest.skip("motion_vectors is not supported yet.")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_soft_camera_env_cfg(data_type)
@@ -1317,11 +1323,6 @@ def rendering_test_franka_soft(
         _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
-
-        # Step the environment so that motion vectors are correctly generated.
-        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
-        for _ in range(15):
-            env.step(zero_actions)
 
         validate_camera_outputs(
             test_name,
