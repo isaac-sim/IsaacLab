@@ -28,7 +28,9 @@ def _format_variants(obj: Any) -> str:
     return f"variants={d!r}"
 
 
-def _record_node_paths(role: str, obj: Any, sink: list[tuple[str, str, str, str]], seen: set[tuple[str, str, str, str]]) -> None:
+def _record_node_paths(
+    role: str, obj: Any, sink: list[tuple[str, str, str, str]], seen: set[tuple[str, str, str, str]]
+) -> None:
     """Append (role, kind, path, notes) for any file path attributes on *obj*."""
     cls_name = type(obj).__name__
     usd_path = getattr(obj, "usd_path", None)

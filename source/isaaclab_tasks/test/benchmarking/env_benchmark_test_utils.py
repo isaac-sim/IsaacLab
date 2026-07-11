@@ -209,17 +209,23 @@ def process_kpi_data(kpi_payloads, tag, timestamp):
     return kpi_payloads
 
 
-def output_payloads(payloads):
-    """Output the KPI payloads to a json file."""
-    # first grab all log files
+def output_payloads(payloads, output_path: str | None = None):
+    """Output the KPI payloads to a json file.
+
+    Args:
+        payloads: KPI payloads to save.
+        output_path: Path to write the JSON file. Defaults to ``logs/kpi.json`` under the
+            repo root when not provided.
+    """
     repo_path = _get_repo_path()
-    output_path = os.path.join(repo_path, "logs/kpi.json")
-    # create directory if it doesn't exist
-    if not os.path.exists(os.path.dirname(output_path)):
-        os.makedirs(os.path.dirname(output_path))
-    # save file
+    if output_path is None:
+        output_path = os.path.join(repo_path, "logs/kpi.json")
+    elif not os.path.isabs(output_path):
+        output_path = os.path.join(repo_path, output_path)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, "w") as payload_file:
         json.dump(payloads, payload_file, indent=4)
+    print(f"KPI data saved to {output_path}")
 
 
 def _retrieve_logs(workflow, task):

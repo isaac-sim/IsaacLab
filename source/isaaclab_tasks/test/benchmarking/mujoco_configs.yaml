@@ -37,6 +37,98 @@
 #   Multi-agent env; only skrl/rl_games entry points registered (no rsl_rl). Not covered by this rsl_rl-only file.
 #   Smoke: scripts/reinforcement_learning/skrl/train.py --task Isaac-Shadow-Handover-Direct --num_envs 2 --max_iterations 5
 
+benchmark_local:
+  # Reduced-iteration version of ``benchmark`` for single-GPU local weekend runs (~6-8 h on RTX PRO 6000).
+  # Iterations are halved vs ``benchmark`` (locomotion 500, Shadow 1500, others 300/500).
+  # Thresholds are intentionally loose — reward floors are set to "any positive learning signal" level,
+  # since convergence is not expected at half the iteration budget. Duration caps are also halved.
+  # Keep iteration counts identical on both branches (mujoco_menagerie_v2 and benchmark-test-infra)
+  # so timing comparisons are valid.
+  #
+  # Video: one 30-second clip (1500 env steps @ 50 Hz) recorded right before training ends.
+  # video_interval is set so the clip starts at ~90% of total steps (max_iterations × rsl_rl horizon 24).
+  # Pass --video to activate; video_length/video_interval here override the CLI defaults per-task.
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalB:
+    max_iterations: 500
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 10500 # starts at step ~10500 of ~12000 total (500 iter × 24)
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:IsaacContrib-Velocity-Flat-AnymalC:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:Isaac-Velocity-Flat-Spot:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 50
+      episode_length: 300
+    upper_thresholds:
+      duration: 3600
+  rsl_rl:Isaac-Velocity-Flat-UnitreeGo2:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:Isaac-Velocity-Flat-H1:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 1800
+  rsl_rl:Isaac-Velocity-Flat-G1:
+    max_iterations: 500
+    video_length: 1500
+    video_interval: 10500
+    lower_thresholds:
+      reward: 5
+      episode_length: 300
+    upper_thresholds:
+      duration: 2000
+  rsl_rl:Isaac-Reorient-Cube-Allegro-Direct:
+    max_iterations: 300
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 5700  # starts at step ~5700 of ~7200 total (300 iter × 24)
+    lower_thresholds:
+      reward: 50
+      episode_length: 50
+    upper_thresholds:
+      duration: 1200
+  rsl_rl:Isaac-Reorient-Cube-Shadow-Direct:
+    max_iterations: 1500
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 34500 # starts at step ~34500 of ~36000 total (1500 iter × 24)
+    lower_thresholds:
+      reward: 200
+      episode_length: 100
+    upper_thresholds:
+      duration: 6000
+  skrl:Isaac-Shadow-Handover-Direct:
+    max_iterations: 500
+    video_length: 1500    # 30 s @ 50 Hz
+    video_interval: 14500 # starts at step ~14500 of ~16000 total (500 iter × 32 skrl horizon)
+    lower_thresholds:
+      reward: 2
+    upper_thresholds:
+      duration: 4500
+
 benchmark:
   # Velocity-Flat thresholds align with configs.yaml ``full`` (Flat-* / per-task overrides).
   rsl_rl:IsaacContrib-Velocity-Flat-AnymalB:

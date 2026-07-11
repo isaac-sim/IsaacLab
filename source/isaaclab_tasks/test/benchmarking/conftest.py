@@ -172,4 +172,5 @@ def pytest_sessionfinish(session, exitstatus):
     save_kpi_payload = session.config.getoption("--save_kpi_payload")
     if save_kpi_payload:
         print("Saving KPI data...")
-        utils.output_payloads(GLOBAL_KPI_STORE)
+        output_path = f"logs/{tag}/kpi.json" if tag else None
+        utils.output_payloads(GLOBAL_KPI_STORE, output_path=output_path)
