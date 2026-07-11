@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Newton manager for named coupled-solver configurations."""
+"""Newton coupler for named solver configurations."""
 
 from __future__ import annotations
 
@@ -27,26 +27,26 @@ from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
 from ..deformable.vbd_manager import NewtonVBDManager
-from .coupled_manager_cfg import (
-    CoupledAdmmSolverCfg,
-    CoupledProxyCfg,
-    CoupledProxySolverCfg,
-    CoupledSolverCfg,
-    CoupledSolverEntryCfg,
+from .coupler_cfg import (
+    CouplerAdmmCfg,
+    CouplerCfg,
+    CouplerEntryCfg,
+    CouplerProxyCfg,
+    CouplerProxyMappingCfg,
 )
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveSceneCfg
 
 
-class NewtonCoupledSolverManager(NewtonVBDManager):
-    """Build and manage Newton proxy or ADMM coupling from named entries."""
+class NewtonCoupler(NewtonVBDManager):
+    """Couple named Newton solver entries through proxy or ADMM interfaces."""
 
     @dataclass
     class _ResolvedEntry:
         """Entry configuration with model selectors resolved to indices."""
 
-        config: CoupledSolverEntryCfg
+        config: CouplerEntryCfg
         bodies: list[int]
         particles: list[int]
         joints: list[int]
@@ -56,7 +56,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
     class _ResolvedProxy:
         """Proxy configuration with source selectors resolved to indices."""
 
-        config: CoupledProxyCfg
+        config: CouplerProxyMappingCfg
         bodies: list[int]
         particles: list[int]
 
@@ -70,14 +70,14 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         return True
 
     @classmethod
-    def _build_solver(cls, model: Model, solver_cfg: CoupledSolverCfg) -> None:
+    def _build_solver(cls, model: Model, solver_cfg: CouplerCfg) -> None:
         """Resolve ownership and construct the selected coupled solver."""
         scene_cfg = solver_cfg.scene_cfg
 
         resolved_entries = [cls._resolve_entry(model, entry, scene_cfg) for entry in solver_cfg.entries]
         entries = [cls._build_entry(entry) for entry in resolved_entries]
 
-        if isinstance(solver_cfg, CoupledProxySolverCfg):
+        if isinstance(solver_cfg, CouplerProxyCfg):
             proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
             cls._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in resolved_entries})
             NewtonManager._solver = cls._build_proxy_coupled_solver(model, entries, proxies, solver_cfg)
@@ -86,13 +86,13 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
                 entry.config.name not in proxy_destinations and cls._requires_external_contacts(entry.config.solver_cfg)
                 for entry in resolved_entries
             )
-        elif isinstance(solver_cfg, CoupledAdmmSolverCfg):
+        elif isinstance(solver_cfg, CouplerAdmmCfg):
             NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg)
             needs_collision_pipeline = True
         else:
             raise TypeError(
-                f"CoupledSolverCfg subclass {type(solver_cfg).__name__!r} is not supported; "
-                "use CoupledProxySolverCfg or CoupledAdmmSolverCfg."
+                f"CouplerCfg subclass {type(solver_cfg).__name__!r} is not supported; "
+                "use CouplerProxyCfg or CouplerAdmmCfg."
             )
 
         NewtonManager._use_single_state = False
@@ -134,7 +134,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
     def _resolve_entry(
         cls,
         model: Model,
-        entry_cfg: CoupledSolverEntryCfg,
+        entry_cfg: CouplerEntryCfg,
         scene_cfg: InteractiveSceneCfg | None,
     ) -> _ResolvedEntry:
         """Resolve one entry's selectors and derived ownership."""
@@ -172,7 +172,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
                 )
             except ValueError as error:
                 raise ValueError(
-                    f"CoupledSolverEntryCfg {entry_cfg.name!r}: failed to resolve shape-label patterns."
+                    f"CouplerEntryCfg {entry_cfg.name!r}: failed to resolve shape-label patterns."
                 ) from error
             shapes.extend(labeled_shapes[index][0] for index in matched_shapes)
 
@@ -188,7 +188,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
     def _resolve_proxy(
         cls,
         model: Model,
-        proxy_cfg: CoupledProxyCfg,
+        proxy_cfg: CouplerProxyMappingCfg,
         scene_cfg: InteractiveSceneCfg | None,
     ) -> _ResolvedProxy:
         """Resolve one proxy mapping's body selectors to collidable body ids."""
@@ -204,7 +204,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         bodies = [body for body in selected if body in collide_bodies]
         if proxy_cfg.bodies and not bodies:
             raise ValueError(
-                f"CoupledProxyCfg {proxy_cfg.source!r}->{proxy_cfg.destination!r} selected no bodies "
+                f"CouplerProxyMappingCfg {proxy_cfg.source!r}->{proxy_cfg.destination!r} selected no bodies "
                 "with ShapeFlags.COLLIDE_SHAPES."
             )
         return cls._ResolvedProxy(
@@ -228,20 +228,18 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
             if isinstance(spec, str):
                 matched, _ = resolve_matching_names(f"(?:{spec})(?:/.*)?", labels, raise_when_no_match=False)
                 if not matched:
-                    raise ValueError(f"CoupledSolverCfg {field}: body-label regex {spec!r} matched no Newton bodies.")
+                    raise ValueError(f"CouplerCfg {field}: body-label regex {spec!r} matched no Newton bodies.")
                 body_ids.extend(matched)
                 continue
 
             asset_cfg = getattr(scene_cfg, spec.name, None) if scene_cfg is not None else None
             if asset_cfg is None or not hasattr(asset_cfg, "prim_path"):
-                raise ValueError(
-                    f"CoupledSolverCfg {field}: scene entity {spec.name!r} is not on the attached scene cfg."
-                )
+                raise ValueError(f"CouplerCfg {field}: scene entity {spec.name!r} is not on the attached scene cfg.")
             asset_body_ids, _ = resolve_matching_names(
                 f"(?:{asset_cfg.prim_path})(?:/.*)?", labels, raise_when_no_match=False
             )
             if not asset_body_ids:
-                raise ValueError(f"CoupledSolverCfg {field}: scene entity {spec.name!r} matched no Newton bodies.")
+                raise ValueError(f"CouplerCfg {field}: scene entity {spec.name!r} matched no Newton bodies.")
             if spec.body_names is None:
                 body_ids.extend(asset_body_ids)
                 continue
@@ -252,8 +250,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
                 local_body_ids, _ = resolve_matching_names(body_patterns, short_names)
             except ValueError as error:
                 raise ValueError(
-                    f"CoupledSolverCfg {field}: scene entity {spec.name!r} could not match body patterns"
-                    f" {body_patterns}."
+                    f"CouplerCfg {field}: scene entity {spec.name!r} could not match body patterns {body_patterns}."
                 ) from error
             body_ids.extend(asset_body_ids[index] for index in local_body_ids)
 
@@ -288,7 +285,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         model: Model,
         entries: list[SolverCoupled.Entry],
         proxies: list[SolverCoupledProxy.Proxy],
-        solver_cfg: CoupledProxySolverCfg,
+        solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
         cls._apply_proxy_shape_overrides(model, proxies)
         proxy_mappings = []
@@ -314,7 +311,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
         cls,
         model: Model,
         entries: list[SolverCoupled.Entry],
-        solver_cfg: CoupledAdmmSolverCfg,
+        solver_cfg: CouplerAdmmCfg,
     ) -> SolverCoupledADMM:
         values = cls._matching_config_values(SolverCoupledADMM.Config, solver_cfg)
         if solver_cfg.contact_pairs is None:
@@ -337,7 +334,7 @@ class NewtonCoupledSolverManager(NewtonVBDManager):
             child_owner = body_owner.get(child)
             if parent >= 0 and parent_owner is not None and child_owner is not None and parent_owner != child_owner:
                 raise ValueError(
-                    f"CoupledProxySolverCfg does not support cross-entry joint {joint} between "
+                    f"CouplerProxyCfg does not support cross-entry joint {joint} between "
                     f"{parent_owner!r} and {child_owner!r}; keep the articulation in one entry "
                     "or use ADMM coupling."
                 )

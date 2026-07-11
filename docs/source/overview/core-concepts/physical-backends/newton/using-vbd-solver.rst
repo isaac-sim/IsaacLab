@@ -23,7 +23,7 @@ rigid bodies and VBD advances deformable particles:
 * :class:`~isaaclab_contrib.deformable.CoupledMJWarpVBDSolverCfg` — alternates
   the rigid (MJWarp) and VBD substeps. Use it when the same robot should both
   contact and feel the deformable.
-* :class:`~isaaclab_contrib.coupling.CoupledProxySolverCfg` —
+* :class:`~isaaclab_contrib.coupling.CouplerProxyCfg` —
   partitions the model among named entries and exposes selected bodies from one
   entry as *proxies* in another entry's view via lagged impulses (see
   :ref:`newton-vbd-proxy-coupling` below). Use it when only a few rigid bodies
@@ -209,7 +209,7 @@ The rigid solver parameters still matter. For example, MJWarp's ``nconmax`` and
 Proxy-Coupled MJWarp + VBD
 --------------------------
 
-:class:`~isaaclab_contrib.coupling.CoupledProxySolverCfg` is an alternative
+:class:`~isaaclab_contrib.coupling.CouplerProxyCfg` is an alternative
 MJWarp + VBD coupling that wraps Newton's
 :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`. Instead of
 alternating two full-model substeps, the model is **partitioned** between a
@@ -235,7 +235,7 @@ configuration:
 What the selectors do:
 
 * ``entries`` contains one
-  :class:`~isaaclab_contrib.coupling.CoupledSolverEntryCfg` per sub-solver. Each
+  :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` per sub-solver. Each
   entry has a stable ``name``, its own ``solver_cfg``, and explicit model
   ownership selectors.
 * An entry's ``bodies`` selectors are either a
@@ -244,10 +244,10 @@ What the selectors do:
   label regex string. By default, joints inherit their child body's owner and
   shapes inherit their body's owner. Use ``all_particles=True`` to own all
   deformable particles and ``include_static_shapes=True`` to own world
-  geometry. Every body and particle must have exactly one owner; joints and
-  shapes may also be deliberately omitted from all solver views.
+  geometry. Bodies, particles, joints, and shapes may be assigned to at most
+  one entry; unassigned elements remain outside the nested solver views.
 * ``proxies`` contains directed
-  :class:`~isaaclab_contrib.coupling.CoupledProxyCfg` mappings. Each mapping
+  :class:`~isaaclab_contrib.coupling.CouplerProxyMappingCfg` mappings. Each mapping
   names its ``source`` and ``destination`` entries, then uses ``bodies`` to
   select the source bodies that the destination solver should collide against.
   Only bodies that own at least one ``newton.ShapeFlags.COLLIDE_SHAPES`` shape
@@ -266,29 +266,29 @@ Key proxy-specific parameters:
 
     * - Parameter
       - Description
-    * - ``CoupledProxyCfg.mode``
+    * - ``CouplerProxyMappingCfg.mode``
       - Default: ``"lagged"``. ``"lagged"`` syncs source begin poses and end
         velocities, then rewinds lagged feedback before the destination solve.
         ``"staggered"`` syncs source end poses and end velocities directly.
         Lagged is the safer default; staggered can be tighter but is more
         sensitive to timestep.
-    * - ``CoupledProxySolverCfg.iterations``
+    * - ``CouplerProxyCfg.iterations``
       - Default: ``1``. Number of relaxation iterations per coupled substep.
         Increase it when proxy contact feedback needs more accuracy.
-    * - ``CoupledProxyCfg.collide_interval``
+    * - ``CouplerProxyMappingCfg.collide_interval``
       - Default: ``None`` (every proxy pass). How often the proxy collision
         pipeline rebuilds candidate pairs. Increase it for cheaper but slightly
         staler proxy contacts.
-    * - ``CoupledProxyCfg.mass_scale``
+    * - ``CouplerProxyMappingCfg.mass_scale``
       - Default: ``1.0``. Multiplier for the virtual inertia of proxy bodies
         in the VBD view. Increase it to make proxies behave more like fixed
         obstacles to VBD.
 
-Because the proxy solver resolves
+Because the coupler resolves
 :class:`~isaaclab.managers.SceneEntityCfg` selectors against the scene at
 solver-build time, the env's ``__post_init__`` sets
-:attr:`~isaaclab_contrib.coupling.CoupledSolverCfg.scene_cfg` to ``self.scene``
-on the coupled solver config. The Franka soft env sets it on both the named
+:attr:`~isaaclab_contrib.coupling.CouplerCfg.scene_cfg` to ``self.scene``
+on the coupler config. The Franka soft env sets it on both the named
 ``newton_mjwarp_vbd_proxy`` preset and the ``default`` alias that the preset
 resolver falls back to when no preset is selected:
 
@@ -444,5 +444,5 @@ Symptoms and First Parameters to Check
     * - Self-contact is too expensive.
       - Increase ``particle_collision_detection_interval``, reduce mesh resolution, or disable self-contact until the rest of the scene is tuned.
 
-For implementation details of the VBD and coupled solver managers, see
+For implementation details of the VBD managers and Newton coupler, see
 :doc:`newton-manager-abstraction`.

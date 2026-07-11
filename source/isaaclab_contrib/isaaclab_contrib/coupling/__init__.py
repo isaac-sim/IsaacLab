@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-package for named coupled-solver managers and their configs.
+"""Named Newton couplers and their configurations.
 
 This package contains contributed coupled-solver support (proxy and ADMM based
 rigid-deformable coupling) that wraps Newton's experimental coupled solvers.

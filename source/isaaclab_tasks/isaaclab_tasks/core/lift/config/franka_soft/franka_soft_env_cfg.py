@@ -37,9 +37,9 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_contrib.coupling import (
-    CoupledProxyCfg,
-    CoupledProxySolverCfg,
-    CoupledSolverEntryCfg,
+    CouplerEntryCfg,
+    CouplerProxyCfg,
+    CouplerProxyMappingCfg,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import (
     CoupledMJWarpVBDSolverCfg,
@@ -142,9 +142,9 @@ class PhysicsCfg(PresetCfg):
     )
 
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
-        solver_cfg=CoupledProxySolverCfg(
+        solver_cfg=CouplerProxyCfg(
             entries=[
-                CoupledSolverEntryCfg(
+                CouplerEntryCfg(
                     name="rigid",
                     solver_cfg=MJWarpSolverCfg(
                         cone="elliptic",
@@ -153,7 +153,7 @@ class PhysicsCfg(PresetCfg):
                     ),
                     bodies=[SceneEntityCfg("robot")],
                 ),
-                CoupledSolverEntryCfg(
+                CouplerEntryCfg(
                     name="soft",
                     solver_cfg=VBDSolverCfg(iterations=10),
                     all_particles=True,
@@ -161,7 +161,7 @@ class PhysicsCfg(PresetCfg):
                 ),
             ],
             proxies=[
-                CoupledProxyCfg(
+                CouplerProxyMappingCfg(
                     source="rigid",
                     destination="soft",
                     bodies=[

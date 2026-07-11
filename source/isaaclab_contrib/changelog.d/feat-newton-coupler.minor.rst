@@ -20,33 +20,33 @@ Added
 ^^^^^
 
 * Added :mod:`isaaclab_contrib.coupling`, exposing
-  :class:`~isaaclab_contrib.coupling.coupled_manager.NewtonCoupledSolverManager`
+  :class:`~isaaclab_contrib.coupling.coupler.NewtonCoupler`
   together with the
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverCfg`
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerCfg`
   base config and two algorithm-specific subclasses:
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledProxySolverCfg`
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg`
   (wrapping :class:`newton.solvers.experimental.coupled.SolverCoupledProxy`) and
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledAdmmSolverCfg`
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmCfg`
   (wrapping :class:`newton.solvers.experimental.coupled.SolverCoupledADMM`).
-  The manager partitions the Newton model among explicit, named
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverEntryCfg`
+  The coupler partitions the Newton model among explicit, named
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerEntryCfg`
   entries, instantiates each sub-solver from its config, and connects entries
   through named proxy mappings or typed
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledAdmmContactPairCfg`
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmContactPairCfg`
   interfaces.
 
 * Added support for raw prim-path regex strings (e.g.
   ``"/World/envs/env_.*/MyCube"``) in the body-selector lists of
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverEntryCfg`
-  and :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledProxyCfg`,
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerEntryCfg`
+  and :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg`,
   alongside :class:`~isaaclab.managers.SceneEntityCfg` selectors.
 
 * Added :class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg`,
   a shared solver-config base whose ``model_cfg``
   (:class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg`) is
-  applied to the finalized Newton model. The VBD and coupled solver configs
+  applied to the finalized Newton model. The VBD and coupler configs
   inherit it, and
-  :class:`~isaaclab_contrib.coupling.coupled_manager_cfg.CoupledSolverCfg`
+  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerCfg`
   additionally exposes ``scene_cfg`` for resolving scene-entity selectors at
   solver-build time.
 
