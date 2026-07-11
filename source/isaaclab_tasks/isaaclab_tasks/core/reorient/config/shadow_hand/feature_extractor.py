@@ -148,6 +148,28 @@ class FeatureExtractorCfg:
     """
 
 
+CUBE_HALF_SIZE = wp.vec3(0.03, 0.03, 0.03)
+"""Half side lengths [m] of the reorientation cube."""
+
+
+@wp.kernel
+def cube_keypoints_from_quat_kernel(
+    quat: wp.array(dtype=wp.quatf),
+    half_size: wp.vec3,
+    keypoints: wp.array2d(dtype=wp.float32),
+):
+    env, corner = wp.tid()
+    # corner index bits select the +/- half-side per axis (bit set -> negative)
+    sign_x = wp.where(((corner >> 0) & 1) == 0, 1.0, -1.0)
+    sign_y = wp.where(((corner >> 1) & 1) == 0, 1.0, -1.0)
+    sign_z = wp.where(((corner >> 2) & 1) == 0, 1.0, -1.0)
+    offset = wp.vec3(sign_x * half_size[0], sign_y * half_size[1], sign_z * half_size[2])
+    p = wp.quat_rotate(quat[env], offset)
+    keypoints[env, 3 * corner + 0] = p[0]
+    keypoints[env, 3 * corner + 1] = p[1]
+    keypoints[env, 3 * corner + 2] = p[2]
+
+
 @wp.kernel
 def _cube_keypoints_kernel(
     pose: wp.array(dtype=wp.float32, ndim=2),

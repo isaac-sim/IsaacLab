@@ -133,7 +133,6 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
         # vision observations from CMM
         image_obs = self._compute_image_observations()
         obs = torch.cat((state_obs, image_obs), dim=-1)
-        self._update_fingertip_force_sensors()
         state = self._compute_states()
 
         observations = {"policy": obs, "critic": state}

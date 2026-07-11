@@ -30,6 +30,64 @@ wp.init()
 
 
 @wp.kernel
+def _fingertip_pos_kernel(
+    body_pos_w: wp.array2d(dtype=wp.vec3f),
+    env_origins: wp.array(dtype=wp.vec3f),
+    body_ids: wp.array(dtype=wp.int32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    i, j = wp.tid()
+    p = body_pos_w[i, body_ids[j]] - env_origins[i]
+    out[i, 3 * j + 0] = p[0]
+    out[i, 3 * j + 1] = p[1]
+    out[i, 3 * j + 2] = p[2]
+
+
+@wp.kernel
+def _fingertip_quat_kernel(
+    body_quat_w: wp.array2d(dtype=wp.quatf),
+    body_ids: wp.array(dtype=wp.int32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    i, j = wp.tid()
+    q = body_quat_w[i, body_ids[j]]
+    out[i, 4 * j + 0] = q[0]
+    out[i, 4 * j + 1] = q[1]
+    out[i, 4 * j + 2] = q[2]
+    out[i, 4 * j + 3] = q[3]
+
+
+@wp.kernel
+def _fingertip_wrench_kernel(
+    force: wp.array2d(dtype=wp.vec3f),
+    torque: wp.array2d(dtype=wp.vec3f),
+    body_ids: wp.array(dtype=wp.int32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    i, j = wp.tid()
+    f = force[i, body_ids[j]]
+    t = torque[i, body_ids[j]]
+    out[i, 6 * j + 0] = f[0]
+    out[i, 6 * j + 1] = f[1]
+    out[i, 6 * j + 2] = f[2]
+    out[i, 6 * j + 3] = t[0]
+    out[i, 6 * j + 4] = t[1]
+    out[i, 6 * j + 5] = t[2]
+
+
+@wp.kernel
+def _fingertip_vel_kernel(
+    body_vel_w: wp.array2d(dtype=wp.spatial_vectorf),
+    body_ids: wp.array(dtype=wp.int32),
+    out: wp.array2d(dtype=wp.float32),
+):
+    i, j = wp.tid()
+    v = body_vel_w[i, body_ids[j]]
+    for k in range(6):
+        out[i, 6 * j + k] = v[k]
+
+
+@wp.kernel
 def _goal_quat_error_kernel(
     asset_quat: wp.array(dtype=wp.quatf),
     goal_quat: wp.array(dtype=wp.quatf),
@@ -85,69 +143,102 @@ class goal_quat_diff(ManagerTermBase):
         return self._out
 
 
-def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return flattened fingertip positions in the environment frame [m].
+class fingertip_pos(ManagerTermBase):
+    """Flattened fingertip positions in the environment frame [m]."""
 
-    Args:
-        env: Environment containing the hand.
-        asset_cfg: Hand entity with resolved fingertip body indices.
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        body_ids = cfg.params["asset_cfg"].body_ids
+        self._body_ids_wp = wp.array(body_ids, dtype=wp.int32, device=str(env.device))
+        self._out = torch.empty(env.num_envs, len(body_ids) * 3, dtype=torch.float32, device=env.device)
+        self._out_wp = wp.from_torch(self._out)
+        self._env_origins_wp = wp.from_torch(env.scene.env_origins, dtype=wp.vec3f)
 
-    Returns:
-        Fingertip positions [m], shape ``(num_envs, num_fingertips * 3)``.
-    """
-    asset = env.scene[asset_cfg.name]
-    positions = asset.data.body_pos_w.torch[:, asset_cfg.body_ids]
-    positions = positions - env.scene.env_origins[:, None, :]
-    return positions.flatten(start_dim=1)
-
-
-def fingertip_quat(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return flattened fingertip ``(x, y, z, w)`` orientations.
-
-    Args:
-        env: Environment containing the hand.
-        asset_cfg: Hand entity with resolved fingertip body indices.
-
-    Returns:
-        Unit quaternions, shape ``(num_envs, num_fingertips * 4)``.
-    """
-    asset = env.scene[asset_cfg.name]
-    return asset.data.body_quat_w.torch[:, asset_cfg.body_ids].flatten(start_dim=1)
+    def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+        """Return the flattened per-fingertip block, shape ``(num_envs, num_fingertips * 3)``."""
+        asset = env.scene[asset_cfg.name]
+        wp.launch(
+            _fingertip_pos_kernel,
+            dim=(self.num_envs, self._body_ids_wp.shape[0]),
+            inputs=[asset.data.body_pos_w.warp, self._env_origins_wp, self._body_ids_wp],
+            outputs=[self._out_wp],
+            device=self._out_wp.device,
+        )
+        return self._out
 
 
-def fingertip_vel(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return flattened fingertip spatial velocities in the world frame.
+class fingertip_quat(ManagerTermBase):
+    """Flattened fingertip ``(x, y, z, w)`` orientations."""
 
-    Args:
-        env: Environment containing the hand.
-        asset_cfg: Hand entity with resolved fingertip body indices.
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        body_ids = cfg.params["asset_cfg"].body_ids
+        self._body_ids_wp = wp.array(body_ids, dtype=wp.int32, device=str(env.device))
+        self._out = torch.empty(env.num_envs, len(body_ids) * 4, dtype=torch.float32, device=env.device)
+        self._out_wp = wp.from_torch(self._out)
 
-    Returns:
-        Spatial velocities [m/s, rad/s], shape ``(num_envs, num_fingertips * 6)``.
-    """
-    asset = env.scene[asset_cfg.name]
-    return asset.data.body_vel_w.torch[:, asset_cfg.body_ids].flatten(start_dim=1)
+    def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+        """Return the flattened per-fingertip block, shape ``(num_envs, num_fingertips * 4)``."""
+        asset = env.scene[asset_cfg.name]
+        wp.launch(
+            _fingertip_quat_kernel,
+            dim=(self.num_envs, self._body_ids_wp.shape[0]),
+            inputs=[asset.data.body_quat_w.warp, self._body_ids_wp],
+            outputs=[self._out_wp],
+            device=self._out_wp.device,
+        )
+        return self._out
 
 
-def fingertip_wrench(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Return fingertip reaction wrenches with Direct-compatible zero fallback.
+class fingertip_vel(ManagerTermBase):
+    """Flattened fingertip spatial velocities [m/s, rad/s]."""
 
-    Args:
-        env: Environment containing the joint-wrench sensor.
-        sensor_cfg: Joint-wrench sensor entity with resolved fingertip body indices.
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        body_ids = cfg.params["asset_cfg"].body_ids
+        self._body_ids_wp = wp.array(body_ids, dtype=wp.int32, device=str(env.device))
+        self._out = torch.empty(env.num_envs, len(body_ids) * 6, dtype=torch.float32, device=env.device)
+        self._out_wp = wp.from_torch(self._out)
 
-    Returns:
-        Fingertip reaction wrenches [N, N·m], shape ``(num_envs, num_fingertips * 6)``.
-    """
-    sensor: JointWrenchSensor = env.scene.sensors[sensor_cfg.name]
-    force_data = sensor.data.force
-    torque_data = sensor.data.torque
-    if force_data is None or torque_data is None:
-        body_count = len(sensor_cfg.body_ids)
-        return torch.zeros(env.num_envs, body_count * 6, device=env.device)
-    force = force_data.torch[:, sensor_cfg.body_ids]
-    torque = torque_data.torch[:, sensor_cfg.body_ids]
-    return torch.cat((force, torque), dim=-1).flatten(start_dim=1)
+    def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+        """Return the flattened per-fingertip block, shape ``(num_envs, num_fingertips * 6)``."""
+        asset = env.scene[asset_cfg.name]
+        wp.launch(
+            _fingertip_vel_kernel,
+            dim=(self.num_envs, self._body_ids_wp.shape[0]),
+            inputs=[asset.data.body_vel_w.warp, self._body_ids_wp],
+            outputs=[self._out_wp],
+            device=self._out_wp.device,
+        )
+        return self._out
+
+
+class fingertip_wrench(ManagerTermBase):
+    """Fingertip reaction wrenches [N, N·m] with Direct-compatible zero fallback."""
+
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        body_ids = cfg.params["sensor_cfg"].body_ids
+        self._body_ids_wp = wp.array(body_ids, dtype=wp.int32, device=str(env.device))
+        self._out = torch.zeros(env.num_envs, len(body_ids) * 6, dtype=torch.float32, device=env.device)
+        self._out_wp = wp.from_torch(self._out)
+
+    def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+        """Return the flattened wrench block, shape ``(num_envs, num_fingertips * 6)``."""
+        sensor: JointWrenchSensor = env.scene.sensors[sensor_cfg.name]
+        force_data = sensor.data.force
+        torque_data = sensor.data.torque
+        if force_data is None or torque_data is None:
+            # Direct-compatible fallback: report zero wrenches until the sensor produces data
+            return self._out
+        wp.launch(
+            _fingertip_wrench_kernel,
+            dim=(self.num_envs, self._body_ids_wp.shape[0]),
+            inputs=[force_data.warp, torque_data.warp, self._body_ids_wp],
+            outputs=[self._out_wp],
+            device=self._out_wp.device,
+        )
+        return self._out
 
 
 def reorient_last_action(env: ManagerBasedRLEnv, action_name: str) -> torch.Tensor:
@@ -177,6 +268,11 @@ class OpenAIPolicyObservation(ManagerTermBase):
         noise_model: NoiseModelCfg = cfg.params["noise_model"]
         self._noise_model = noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
         self._quat_error = torch.empty(env.num_envs, 4, dtype=torch.float32, device=env.device)
+        robot_body_ids = cfg.params["robot_cfg"].body_ids
+        self._robot_body_ids_wp = wp.array(robot_body_ids, dtype=wp.int32, device=str(env.device))
+        self._fingertip_buf = torch.empty(env.num_envs, len(robot_body_ids) * 3, dtype=torch.float32, device=env.device)
+        self._fingertip_buf_wp = wp.from_torch(self._fingertip_buf)
+        self._env_origins_wp = wp.from_torch(env.scene.env_origins, dtype=wp.vec3f)
         # cached Warp views; the hot loop launches the kernel without conversions
         self._quat_error_wp = wp.from_torch(self._quat_error, dtype=wp.quatf)
         # resolved on first call: the command term does not exist yet during manager construction
@@ -220,9 +316,17 @@ class OpenAIPolicyObservation(ManagerTermBase):
             outputs=[self._quat_error_wp],
             device=self._quat_error_wp.device,
         )
+        robot = env.scene[robot_cfg.name]
+        wp.launch(
+            _fingertip_pos_kernel,
+            dim=(self.num_envs, self._robot_body_ids_wp.shape[0]),
+            inputs=[robot.data.body_pos_w.warp, self._env_origins_wp, self._robot_body_ids_wp],
+            outputs=[self._fingertip_buf_wp],
+            device=self._fingertip_buf_wp.device,
+        )
         # Direct actor-observation order: fingertips, object position, goal quat error, last action
         observation = torch.cat(
-            (fingertip_pos(env, robot_cfg), object_pos, self._quat_error, reorient_last_action(env, action_name)),
+            (self._fingertip_buf, object_pos, self._quat_error, reorient_last_action(env, action_name)),
             dim=-1,
         )
         if self._shape_probe_pending:
@@ -336,18 +440,32 @@ def shadow_hand_camera_cached_features(env: ManagerBasedRLEnv) -> torch.Tensor:
     return embeddings
 
 
-def shadow_hand_goal_keypoints(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
-    """Return zero-origin cube keypoints for the current goal orientation.
+class shadow_hand_goal_keypoints(ManagerTermBase):
+    """Flattened zero-origin cube keypoints [m] for the current goal orientation."""
 
-    Args:
-        env: Environment containing the goal command.
-        command_name: Goal command term name.
+    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        self._out = torch.empty(env.num_envs, 24, dtype=torch.float32, device=env.device)
+        self._out_wp = wp.from_torch(self._out)
+        # resolved on first call: the command term does not exist yet during manager construction
+        self._goal_quat_wp: wp.array | None = None
 
-    Returns:
-        Flattened zero-origin cube keypoints [m], shape ``(num_envs, 24)``.
-    """
-    from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import compute_cube_keypoints
+    def __call__(self, env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:
+        """Return flattened zero-origin cube keypoints [m], shape ``(num_envs, 24)``."""
+        # imported lazily: the config layer imports this mdp layer (see the module comment)
+        from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import (
+            CUBE_HALF_SIZE,
+            cube_keypoints_from_quat_kernel,
+        )
 
-    command = env.command_manager.get_command(command_name)
-    goal_pose = torch.cat((torch.zeros_like(command[:, :3]), command[:, 3:7]), dim=-1)
-    return compute_cube_keypoints(goal_pose).flatten(start_dim=1)
+        if self._goal_quat_wp is None:
+            command_term = env.command_manager.get_term(command_name)
+            self._goal_quat_wp = wp.from_torch(command_term.quat_command_w, dtype=wp.quatf)
+        wp.launch(
+            cube_keypoints_from_quat_kernel,
+            dim=(self.num_envs, 8),
+            inputs=[self._goal_quat_wp, CUBE_HALF_SIZE],
+            outputs=[self._out_wp],
+            device=self._out_wp.device,
+        )
+        return self._out
