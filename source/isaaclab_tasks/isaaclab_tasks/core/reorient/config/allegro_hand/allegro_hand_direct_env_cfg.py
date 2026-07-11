@@ -15,11 +15,11 @@ from isaaclab_tasks.core.reorient.config.allegro_hand.allegro_hand_common import
     GOAL_OBJECT_CFG,
     OBJECT_CFG,
     ROBOT_CFG,
+    AllegroSceneCfg,
     ObjectCfg,
     PhysicsCfg,
 )
 
-from isaaclab_assets.robots.allegro import ALLEGRO_ACTUATED_JOINT_NAMES, ALLEGRO_FINGERTIP_BODY_NAMES
 
 
 @configclass
@@ -73,13 +73,8 @@ class AllegroHandEnvCfg(DirectRLEnvCfg):
     object_cfg: ObjectCfg = OBJECT_CFG
     # goal object
     goal_object_cfg: VisualizationMarkersCfg = GOAL_OBJECT_CFG
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=8192,
-        env_spacing=0.75,
-        replicate_physics=True,
-        clone_in_fabric=True,
-    )
+    # scene — use AllegroSceneCfg so that presets=newton_mjwarp disables clone_in_fabric automatically
+    scene: AllegroSceneCfg = AllegroSceneCfg()
     # reset
     reset_position_noise = 0.01  # range of position at reset
     reset_dof_pos_noise = 0.2  # range of dof pos at reset

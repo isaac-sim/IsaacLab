@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.sim import SimulationCfg
@@ -19,14 +19,16 @@ class PhysicsCfg(PresetCfg):
     default = PhysxCfg(gpu_max_rigid_patch_count=10 * 2**15)
     newton_mjwarp = NewtonCfg(
         solver_cfg=MJWarpSolverCfg(
-            njmax=65,
-            nconmax=15,
+            njmax=500,
+            nconmax=50,
             cone="pyramidal",
             impratio=1,
             integrator="implicitfast",
+            use_mujoco_contacts=False,
         ),
-        num_substeps=1,
+        num_substeps=2,
         debug_mode=False,
+        default_shape_cfg=NewtonShapeCfg(margin=0.01),
     )
     physx = default
     newton_kamino = NewtonCfg(solver_cfg=KaminoSolverCfg(max_contacts_per_world=64))
