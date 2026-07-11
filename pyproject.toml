@@ -45,7 +45,9 @@ dependencies = [
     "einops",
     "warp-lang==1.15.0.dev20260626",
     "matplotlib>=3.10.3",
-    "pillow==12.1.1",  # keep consistent with isaac sim
+    # pillow: floor, not exact — an exact pin below Isaac Sim's prebundled version forces a
+    # downgrade that deletes the prebundled copy other extensions symlink into (nvbugs 6410989).
+    "pillow>=12.1.1",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=0.46.0,<0.50",  # livestream; range coexists with isaacsim 6.0
     "omniverseclient==2.71.1.7015",
