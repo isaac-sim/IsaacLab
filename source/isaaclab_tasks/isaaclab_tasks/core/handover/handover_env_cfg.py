@@ -31,7 +31,9 @@ from isaaclab_tasks.core.handover.handover_task_constants import (
     RESET_DOF_POS_NOISE,
     RESET_DOF_VEL_NOISE,
     RESET_POSITION_NOISE,
+    SIM_DT,
     SUCCESS_DISTANCE_THRESHOLD,
+    VEL_OBS_SCALE,
 )
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandRobotCfg
 from isaaclab_tasks.utils import PresetCfg, preset
@@ -349,7 +351,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
 
     # simulation
     sim: SimulationCfg = SimulationCfg(
-        dt=1 / 120,
+        dt=SIM_DT,
         render_interval=decimation,
         physics_material=RigidBodyMaterialCfg(
             static_friction=1.0,
@@ -384,7 +386,7 @@ class HandoverEnvCfg(DirectMARLEnvCfg):
     reset_dof_vel_noise = RESET_DOF_VEL_NOISE  # range of dof vel at reset
     # scales and constants
     fall_dist = FALL_DISTANCE
-    vel_obs_scale = 0.2
+    vel_obs_scale = VEL_OBS_SCALE
     act_moving_average = 1.0
     # success criteria
     success_distance_threshold: float = SUCCESS_DISTANCE_THRESHOLD
