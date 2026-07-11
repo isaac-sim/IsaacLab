@@ -15,6 +15,10 @@ name: Test arm64 Image Build
 on:
   pull_request:
 
+concurrency:
+  group: test-arm64-image-build-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
