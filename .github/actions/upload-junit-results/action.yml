@@ -49,6 +49,7 @@ runs:
         path: ${{ inputs.comparison-images-path }}
         if-no-files-found: ignore
         retention-days: ${{ inputs.retention-days }}
+        compression-level: 9
 
     - name: Upload JUnit XML report
       if: always()
@@ -59,6 +60,7 @@ runs:
         path: ${{ inputs.junit-file }}
         if-no-files-found: ignore
         retention-days: ${{ inputs.retention-days }}
+        compression-level: 9
 
     - name: Upload omni-github test results
       if: always()
