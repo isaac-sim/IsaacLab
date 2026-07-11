@@ -78,6 +78,10 @@ class RenderData:
 
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
+        self._camera_quat_scratch: wp.array = None
+        # Name under which this camera's render launch is registered in the
+        # shared BVH task graph (set on first render).
+        self.bvh_task_name: str | None = None
         self.outputs = RenderData.CameraOutputs()
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
@@ -164,7 +168,17 @@ class RenderData:
         return None
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
-        converted_wp = wp.empty_like(orientations)
+        # Buffers are persistent: the shared BVH task graph captures the render
+        # launch against `camera_transforms`, so it must be updated in place.
+        if self._camera_quat_scratch is None:
+            self._camera_quat_scratch = wp.empty_like(orientations)
+        if self.camera_transforms is None:
+            self.camera_transforms = wp.empty(
+                (1, self.newton_sensor.model.world_count),
+                dtype=wp.transformf,
+                device=self.newton_sensor.model.device,
+            )
+        converted_wp = self._camera_quat_scratch
         convert_camera_frame_orientation_convention_wp(
             src=orientations,
             dst=converted_wp,
@@ -173,9 +187,6 @@ class RenderData:
             device=self.newton_sensor.model.device,
         )
 
-        self.camera_transforms = wp.empty(
-            (1, self.newton_sensor.model.world_count), dtype=wp.transformf, device=self.newton_sensor.model.device
-        )
         wp.launch(
             RenderData._update_transforms,
             self.newton_sensor.model.world_count,
@@ -259,14 +270,6 @@ class NewtonWarpRenderer(BaseRenderer):
         else:
             self.newton_sensor.render_config.render_order = newton.sensors.SensorTiledCamera.RenderOrder.TILED
 
-        # Newton ``v1.2.0rc2`` made shape-BVH construction explicit; ``SensorTiledCamera.update``
-        # no longer auto-builds when a non-``None`` state is passed, and the underlying
-        # ``RenderContext.render`` raises if ``build_bvh_shape`` was never called for the model.
-        # Build it once per model — idempotent across multiple sensors that share ``newton_model``
-        # because subsequent calls overwrite the same model-level BVH attributes.
-        if self._newton_model.shape_count > 0 and self._newton_model.bvh_shapes is None:
-            newton.geometry.build_bvh_shape(self._newton_model, self._newton_model.state())
-
         if self.cfg.create_default_light:
             self.newton_sensor.utils.create_default_light(enable_shadows=self.cfg.enable_shadows)
 
@@ -338,15 +341,29 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        newton_state: newton.State = NewtonManager.get_state()
+        # Refreshes the shadow state under the PhysX backend and flags the BVH
+        # for refit; the shared task graph then refits at most once per state
+        # change, no matter how many cameras and ray-cast sensors consume it.
+        NewtonManager.get_state()
 
-        # Refit the shape BVH against the current state since env body poses move every frame.
-        # ``build_bvh_shape`` ran once in ``__init__``; ``refit_bvh_shape`` reuses that topology.
-        if self.newton_sensor.model.shape_count > 0:
-            newton.geometry.refit_bvh_shape(self.newton_sensor.model, newton_state)
+        bvh_graph = NewtonManager.get_bvh_graph()
+        if render_data.bvh_task_name is None:
+            render_data.bvh_task_name = f"newton_warp_render:{id(render_data)}"
+            bvh_graph.register(render_data.bvh_task_name, lambda: self._launch_render(render_data))
+        bvh_graph.run(render_data.bvh_task_name)
 
+        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
+        # tensors were bound once in ``set_outputs``.
+        if render_data.ppisp_pipeline is not None:
+            render_data.ppisp_pipeline.apply(
+                render_data._ppisp_hdr_source,
+                render_data._ppisp_rgba_dest,
+            )
+
+    def _launch_render(self, render_data: RenderData) -> None:
+        """Launch the tiled-camera render kernels (captured into the BVH task graph)."""
         self.newton_sensor.update(
-            newton_state,
+            NewtonManager.get_state_0(),
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -359,14 +376,6 @@ class NewtonWarpRenderer(BaseRenderer):
             clear_data=newton.sensors.SensorTiledCamera.ClearData(clear_color=0xFFEEEEEE),
             kernel_block_dim=self.cfg.kernel_block_dim,
         )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # tensors were bound once in ``set_outputs``.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data._ppisp_hdr_source,
-                render_data._ppisp_rgba_dest,
-            )
 
     def read_output(self, render_data: RenderData, camera_data: CameraData) -> None:
         """Copy rendered outputs to the camera data buffers.
@@ -381,7 +390,10 @@ class NewtonWarpRenderer(BaseRenderer):
                     wp.copy(output_wp, image_data)
 
     def cleanup(self, render_data: RenderData | None):
-        """Release resources. No-op for Newton Warp.
+        """Release resources and drop the camera's BVH task.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
+            if render_data.bvh_task_name is not None and NewtonManager._bvh_graph is not None:
+                NewtonManager._bvh_graph.unregister(render_data.bvh_task_name)
+                render_data.bvh_task_name = None
             render_data.sensor = None

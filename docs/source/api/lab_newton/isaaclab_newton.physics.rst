@@ -23,6 +23,7 @@
     NewtonFeatherstoneManager
     NewtonKaminoManager
     NewtonMPMManager
+    BvhTaskGraph
 
 .. currentmodule:: isaaclab_newton.physics
 
@@ -114,3 +115,9 @@ Solver Managers
   :members:
   :inherited-members:
   :show-inheritance:
+
+BVH Task Graph
+--------------
+
+.. autoclass:: BvhTaskGraph
+  :members:

@@ -50,6 +50,7 @@ from isaaclab.utils.timer import Timer
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 
+from .bvh_task_graph import BvhTaskGraph
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
@@ -285,6 +286,9 @@ class NewtonManager(PhysicsManager):
     _graph = None
     _graph_capture_pending: bool = False
 
+    # Shared BVH refit graph for renderers and ray-cast sensors (lazy, see get_bvh_graph)
+    _bvh_graph: BvhTaskGraph | None = None
+
     # USD/Fabric sync
     _newton_stage_path = None
     _usdrt_stage = None
@@ -416,6 +420,8 @@ class NewtonManager(PhysicsManager):
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
             cls._world_reset_mask.zero_()
+        if cls._bvh_graph is not None:
+            cls._bvh_graph.mark_state_changed()
 
     @classmethod
     def pre_render(cls) -> None:
@@ -748,6 +754,8 @@ class NewtonManager(PhysicsManager):
             cls._mark_state_dirty()
         elif cls._particle_visual_prims:
             cls._mark_particles_dirty()
+        if cls._bvh_graph is not None:
+            cls._bvh_graph.mark_state_changed()
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -830,6 +838,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._fk_reset_mask = None
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
+        NewtonManager._bvh_graph = None
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -1593,7 +1602,7 @@ class NewtonManager(PhysicsManager):
         return True
 
     @classmethod
-    def _capture_relaxed_graph(cls, device: str):
+    def _capture_relaxed_graph(cls, device: str, capture_target: Callable[[], None] | None = None):
         """Capture Newton physics (only) as a CUDA graph, RTX-compatible.
 
         Uses a hybrid approach to work around two conflicting requirements:
@@ -1631,6 +1640,9 @@ class NewtonManager(PhysicsManager):
         capture.  ``sync_transforms_to_usd`` (which calls ``wp.synchronize_device``) is
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
+        When ``capture_target`` is provided it is captured instead of the physics simulate
+        function (used for secondary graphs such as the BVH task graph).
+
         Returns a ``wp.Graph`` on success, or ``None`` on failure.
         """
         if _cudart is None:
@@ -1639,7 +1651,10 @@ class NewtonManager(PhysicsManager):
 
         # Warmup: pre-allocate all solver scratch buffers so the capture window has
         # no new cudaMalloc calls (which are forbidden inside graph capture).
-        simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+        if capture_target is not None:
+            simulate = capture_target
+        else:
+            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
         with wp.ScopedDevice(device):
             simulate()
         wp.synchronize_stream(wp.get_stream(device))
@@ -1844,6 +1859,56 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
+    def get_bvh_graph(cls) -> BvhTaskGraph:
+        """Get the shared BVH task graph, creating it lazily.
+
+        The graph refits the model's shape BVH (:meth:`newton.Model.bvh_refit_shapes`)
+        and runs its registered consumers — tiled-camera renderers and ray-cast
+        sensors — inside a single conditional CUDA graph. See :class:`BvhTaskGraph`.
+        """
+        if cls._bvh_graph is None:
+            model = cls.get_model()
+            if model is None:
+                raise RuntimeError("NewtonManager.get_bvh_graph() requires a Newton model.")
+            # ModelBuilder.finalize() builds the shape BVH; guard for manually populated models.
+            if model.shape_count > 0 and model.bvh_shapes is None:
+                model.bvh_build_shapes(cls.get_state_0())
+            cfg = PhysicsManager._cfg
+            NewtonManager._bvh_graph = BvhTaskGraph(
+                refit_fn=cls._refit_shape_bvh,
+                capture_fn=cls._capture_secondary_graph,
+                device=str(PhysicsManager._device),
+                use_cuda_graph=bool(getattr(cfg, "use_cuda_graph", False)),
+            )
+        return cls._bvh_graph
+
+    @classmethod
+    def _refit_shape_bvh(cls) -> None:
+        """Refit the model's shape BVH against the current state (graph-capturable)."""
+        model = cls._model
+        if model is not None and model.shape_count > 0 and model.bvh_shapes is not None:
+            model.bvh_refit_shapes(cls._state_0)
+
+    @classmethod
+    def _capture_secondary_graph(cls, fn: Callable[[], None]) -> wp.Graph | None:
+        """Capture ``fn`` into a CUDA graph alongside (not inside) the physics graph.
+
+        Uses the RTX-compatible relaxed capture when a USDRT stage is active,
+        otherwise a standard :class:`warp.ScopedCapture`. Returns ``None`` on
+        failure so callers can fall back to eager execution.
+        """
+        device = PhysicsManager._device
+        if cls._usdrt_stage is not None:
+            return cls._capture_relaxed_graph(device, capture_target=fn)
+        try:
+            with wp.ScopedCapture(device=device) as capture:
+                fn()
+            return capture.graph
+        except Exception:
+            logger.exception("[NewtonManager] secondary CUDA graph capture failed")
+            return None
+
+    @classmethod
     def get_num_envs(cls) -> int:
         return cls._num_envs
 
@@ -1971,6 +2036,8 @@ class NewtonManager(PhysicsManager):
 
         cls._scene_data.transforms = cls._state_0.body_q
         scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
+        if cls._bvh_graph is not None:
+            cls._bvh_graph.mark_state_changed()
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:
