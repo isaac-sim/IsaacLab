@@ -88,6 +88,7 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp = 0.0
         self._is_primed = False
         self._fk_timestamp = 0.0
+        self._cached_read_launches: dict[object, wp.Launch] = {}
 
         # obtain global simulation view
         self._physics_sim_view = SimulationManager.get_physics_sim_view()
@@ -103,6 +104,22 @@ class ArticulationData(BaseArticulationData):
         self.FORWARD_VEC_B = ProxyArray(wp.from_torch(forward_vec, dtype=wp.vec3f))
 
         self._create_buffers()
+
+    def _launch_cached_read(self, key: object, kernel: wp.Kernel, *, dim, inputs, outputs) -> None:
+        """Launch a read kernel through a cached Warp command when running on CUDA."""
+        device = wp.get_device(self.device)
+        if not device.is_cuda:
+            wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device)
+            return
+        command = self._cached_read_launches.get(key)
+        if command is None:
+            command = wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device, record_cmd=True)
+            self._cached_read_launches[key] = command
+        command.launch()
+
+    def _reset_cached_read_launches(self) -> None:
+        """Discard recorded read launches whose arguments may no longer be valid."""
+        self._cached_read_launches.clear()
 
     @property
     def is_primed(self) -> bool:
@@ -845,20 +862,20 @@ class ArticulationData(BaseArticulationData):
             # Stage the backend-order view on-device, then gather it into public order.
             backend_buffer.assign(view_getter())
             if component_count is None:
-                wp.launch(
+                self._launch_cached_read(
+                    (id(buf), "body_2d"),
                     ordering_kernels.reorder_2d_backend_to_user,
                     dim=(self._num_instances, self._num_bodies),
                     inputs=[backend_buffer, self.body_ordering.user_to_backend],
                     outputs=[buf.data],
-                    device=self.device,
                 )
             else:
-                wp.launch(
+                self._launch_cached_read(
+                    (id(buf), "body_3d"),
                     ordering_kernels.reorder_3d_backend_to_user,
                     dim=(self._num_instances, self._num_bodies, component_count),
                     inputs=[backend_buffer, self.body_ordering.user_to_backend],
                     outputs=[buf.data],
-                    device=self.device,
                 )
         buf.timestamp = self._sim_timestamp
 
@@ -1133,12 +1150,12 @@ class ArticulationData(BaseArticulationData):
         backend_source = view_getter()
         has_joint_ordering = self.has_joint_ordering
         if has_joint_ordering:
-            wp.launch(
+            self._launch_cached_read(
+                id(buf),
                 reorder_kernel,
                 dim=buf.data.shape,
                 inputs=[backend_source, self.joint_ordering.user_to_backend, self._num_base_dofs, has_joint_ordering],
                 outputs=[buf.data],
-                device=self.device,
             )
         else:
             buf.data = backend_source
@@ -1197,12 +1214,12 @@ class ArticulationData(BaseArticulationData):
         if not self.has_joint_ordering:
             user_buffer.data = view_getter()
         else:
-            wp.launch(
+            self._launch_cached_read(
+                id(user_buffer),
                 ordering_kernels.reorder_2d_backend_to_user,
                 dim=(self._num_instances, self._num_joints),
                 inputs=[view_getter(), self.joint_ordering.user_to_backend],
                 outputs=[user_buffer.data],
-                device=self.device,
             )
         user_buffer.timestamp = self._sim_timestamp
 
@@ -2023,6 +2040,7 @@ class ArticulationData(BaseArticulationData):
 
     def _apply_ordering_maps_after_resolve(self) -> None:
         """Configure public-order buffers after articulation ordering maps are installed."""
+        self._reset_cached_read_launches()
         joint_ordering = self.joint_ordering
         body_ordering = self.body_ordering
         self._configure_ordering_buffers()

@@ -270,6 +270,7 @@ class Articulation(BaseArticulation):
         # use ellipses object to skip initial indices.
         if (env_ids is None) or (env_ids == slice(None)):
             env_ids = slice(None)
+        self.data._reset_cached_read_launches()
         # reset Lab actuators registered on this articulation
         for actuator in self.actuators.values():
             actuator.reset(env_ids)

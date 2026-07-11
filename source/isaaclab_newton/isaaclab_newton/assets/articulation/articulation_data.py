@@ -75,6 +75,7 @@ class ArticulationData(BaseArticulationData):
         self._sim_timestamp = 0.0
         self._is_primed = False
         self._fk_timestamp = 0.0
+        self._cached_read_launches: dict[object, wp.Launch] = {}
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
         # per-env gravity randomization stays live; consumers normalize on read.
@@ -84,6 +85,22 @@ class ArticulationData(BaseArticulationData):
 
         self._create_simulation_bindings()
         self._create_buffers()
+
+    def _launch_cached_read(self, key: object, kernel: wp.Kernel, *, dim, inputs, outputs) -> None:
+        """Launch a read kernel through a cached command outside CUDA graph capture."""
+        device = wp.get_device(self.device)
+        if not device.is_cuda or device.is_capturing:
+            wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device)
+            return
+        command = self._cached_read_launches.get(key)
+        if command is None:
+            command = wp.launch(kernel, dim=dim, inputs=inputs, outputs=outputs, device=device, record_cmd=True)
+            self._cached_read_launches[key] = command
+        command.launch()
+
+    def _reset_cached_read_launches(self) -> None:
+        """Discard recorded read launches whose arguments may no longer be valid."""
+        self._cached_read_launches.clear()
 
     @property
     def is_primed(self) -> bool:
@@ -2092,6 +2109,7 @@ class ArticulationData(BaseArticulationData):
         (re)allocation below reconciles from those maps read directly, so an
         ordering that was cleared on rebind releases its buffers.
         """
+        self._reset_cached_read_launches()
         # Always build the row map (even under identity ordering) so the gather kernel can
         # index the body axis unconditionally -- the map owns the entire body-axis encoding.
         self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
