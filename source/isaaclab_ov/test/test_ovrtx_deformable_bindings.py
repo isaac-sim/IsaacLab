@@ -121,7 +121,7 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings()
+    renderer._setup_deformable_bindings(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -153,7 +153,7 @@ def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings()
+    renderer._setup_deformable_bindings(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -182,7 +182,7 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [surface_entry, volume_entry])
 
-    renderer._setup_deformable_bindings()
+    renderer._setup_deformable_bindings(num_envs=2)
 
     assert backend.calls[0]["prim_paths"] == [
         "/World/envs/env_0/DeformableSurface/mesh",
@@ -208,7 +208,7 @@ def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.Monke
     monkeypatch.setattr("isaaclab.sim.utils.stage.get_current_stage", lambda: None)
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings()
+    renderer._setup_deformable_bindings(num_envs=1)
 
     assert len(backend.calls) == 1
     assert backend.calls[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
@@ -228,7 +228,7 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
 
     monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
 
-    renderer._setup_deformable_bindings()
+    renderer._setup_deformable_bindings(num_envs=4)
 
     expected_paths = [f"/World/envs/env_{i}/Deformable/mesh" for i in range(4)]
     assert backend.calls[0]["prim_paths"] == expected_paths
@@ -279,3 +279,41 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
         [4.0, 5.0, 6.0],
         [7.0, 8.0, 9.0],
     ]
+
+
+def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: pytest.MonkeyPatch):
+    """Registry entries must provide one particle offset per environment."""
+    renderer, _backend = _make_renderer_without_backend()
+    entry = SimpleNamespace(
+        prim_path="/World/envs/env_.*/Deformable",
+        vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
+        deformable_type="surface",
+        particle_offsets=[0],
+        particles_per_body=3,
+    )
+
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
+
+    with pytest.raises(RuntimeError, match="expects one offset per environment"):
+        renderer._setup_deformable_bindings(num_envs=2)
+
+
+def test_update_geometries_rejects_inconsistent_deformable_mapping(monkeypatch: pytest.MonkeyPatch):
+    """Geometry sync fails fast when binding arrays drift out of alignment."""
+    renderer, _backend = _make_renderer_without_backend()
+    renderer._deformable_points_binding = _FakePointsBinding("points")
+    renderer._deformable_points_buffers = [
+        wp.empty(3, dtype=wp.vec3f, device="cpu"),
+        wp.empty(3, dtype=wp.vec3f, device="cpu"),
+    ]
+    renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particles_per_body = [3]
+    particle_q = wp.array(
+        [wp.vec3f(float(i), 0.0, 0.0) for i in range(4)],
+        dtype=wp.vec3f,
+        device="cpu",
+    )
+    monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(particle_q=particle_q)))
+
+    with pytest.raises(ValueError, match="zip"):
+        renderer.update_geometries()

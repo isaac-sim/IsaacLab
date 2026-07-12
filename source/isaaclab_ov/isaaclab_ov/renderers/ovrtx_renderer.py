@@ -446,7 +446,7 @@ class OVRTXRenderer(BaseRenderer):
             raise RuntimeError("Camera binding is None — cannot render without a valid camera binding")
 
         self._setup_xform_bindings()
-        self._setup_deformable_bindings()
+        self._setup_deformable_bindings(num_envs)
 
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -580,8 +580,12 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_newton_indices = wp.array(newton_indices, dtype=wp.int32, device=self._device)
 
-    def _setup_deformable_bindings(self):
-        """Setup OVRTX bindings for Newton deformable bodies."""
+    def _setup_deformable_bindings(self, num_envs: int):
+        """Setup OVRTX bindings for Newton deformable bodies.
+
+        Args:
+            num_envs: Number of environments.
+        """
         try:
             from isaaclab_newton.physics import NewtonManager
         except ImportError:
@@ -600,17 +604,31 @@ class OVRTXRenderer(BaseRenderer):
         vis_mesh_prim_paths: list[str] = []
 
         # Each registry entry is one deformable asset registered at spawn time. Its
-        # ``vis_mesh_prim_path`` uses regex (e.g. ``env_.*``) to cover every cloned env. During
-        # replication, Newton appends one particle block per env and records the start index in
-        # ``entry.particle_offsets``; ``particles_per_body`` is the block size. The inner loop
-        # therefore emits one OVRTX mesh binding per clone, resolving the regex path with
-        # ``inst_idx`` and pairing it with that clone's slice in the flat ``particle_q`` array.
+        # ``vis_mesh_prim_path`` uses a regex env wildcard (e.g. ``env_.*``) to denote one
+        # homogeneous visual mesh replicated into every environment, not a subset of envs.
+        # During replication, Newton appends one particle block per env in contiguous env order
+        # and records the start index in ``entry.particle_offsets``; ``particles_per_body`` is
+        # the block size. The inner loop therefore emits one OVRTX mesh binding per env,
+        # resolving the env wildcard with ``env_idx`` and pairing it with that env's slice in
+        # the flat ``particle_q`` array.
+        #
+        # This mapping is valid only while deformable registry entries remain homogeneous across
+        # all envs with dense, contiguous env ids. If deformables later support env subsets or
+        # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
+        # of deriving env ids from ``enumerate(entry.particle_offsets)``.
         for entry in deformable_registry:
-            for inst_idx, particle_offset in enumerate(entry.particle_offsets):
+            offset_count = len(entry.particle_offsets)
+            if offset_count != num_envs:
+                raise RuntimeError(
+                    f"Deformable entry '{entry.prim_path}' has {offset_count} particle offsets, "
+                    f"but OVRTX expects one offset per environment ({num_envs}). "
+                )
+
+            for idx, particle_offset in enumerate(entry.particle_offsets):
                 self._deformable_particle_offsets.append(particle_offset)
                 self._deformable_particles_per_body.append(entry.particles_per_body)
 
-                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(inst_idx), entry.vis_mesh_prim_path))
+                vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
 
         prim_count = len(vis_mesh_prim_paths)
         if prim_count == 0:
@@ -732,15 +750,21 @@ class OVRTXRenderer(BaseRenderer):
         if newton_state is None:
             raise RuntimeError("Newton state should not be None")
 
-        # particle_q is the world-space particle positions for all deformable bodies.
+        # particle_q is the world-space particle positions for all deformable bodies. A non-None
+        # deformable points binding means deformable entries were registered, so Newton must
+        # expose particle state; a missing particle_q here is an inconsistent state.
         particle_q = getattr(newton_state, "particle_q", None)
         if particle_q is None:
-            return
+            raise RuntimeError("Newton state has no particle_q but deformable bindings exist")
 
-        for mesh_index, point_buffer in enumerate(self._deformable_points_buffers):
-            particle_offset = self._deformable_particle_offsets[mesh_index]
-            particle_count = self._deformable_particles_per_body[mesh_index]
-            wp.copy(point_buffer, particle_q[particle_offset : particle_offset + particle_count])
+        for points_buffer, particle_offset, particle_count in zip(
+            self._deformable_points_buffers,
+            self._deformable_particle_offsets,
+            self._deformable_particles_per_body,
+            strict=True,
+        ):
+            particle_end = particle_offset + particle_count
+            wp.copy(points_buffer, particle_q[particle_offset:particle_end])
 
         # Array attribute bindings (``bind_array_attribute``) do not expose one mapped GPU
         # tensor for all deformable ``points``. OVRTX expects a per-prim ``List[DLTensor]`` via
