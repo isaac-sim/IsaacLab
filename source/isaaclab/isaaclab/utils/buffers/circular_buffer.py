@@ -139,6 +139,9 @@ class CircularBuffer:
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
+        # nothing to reset; arming the backfill would cost one full-buffer pass in append
+        if batch_ids is not None and len(batch_ids) == 0:
+            return
         batch_ids_resolved: Sequence[int] | slice
         if batch_ids is None:
             batch_ids_resolved = slice(None)
