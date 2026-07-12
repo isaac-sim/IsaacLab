@@ -271,6 +271,7 @@ class NewtonManager(PhysicsManager):
     # Per-world reset masks (allocated in start_simulation, consumed in step/forward).
     _world_reset_mask: wp.array | None = None  # (num_envs,) wp.bool — for SolverKamino.reset(world_mask=...)
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
+    _reset_masks_dirty: bool = True  # host-side mirror of "any bit set in the reset masks"
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
 
@@ -410,12 +411,15 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
+        if not cls._reset_masks_dirty:
+            return
         cls._reset_solver_internals(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
             cls._world_reset_mask.zero_()
+        NewtonManager._reset_masks_dirty = False
 
     @classmethod
     def pre_render(cls) -> None:
@@ -679,7 +683,8 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
-        cls._reset_solver_internals(cls._world_reset_mask)
+        if cls._reset_masks_dirty:
+            cls._reset_solver_internals(cls._world_reset_mask)
 
         # Notify solver of model changes
         if cls._model_changes:
@@ -712,12 +717,14 @@ class NewtonManager(PhysicsManager):
         # for their internal collider queries. Maximal-coordinate solvers
         # that treat body state as the main state (e.g. Kamino) require FK before step.
         # Only runs FK for dirtied articulations via the accumulated mask.
-        if cls._needs_collision_pipeline or cls._needs_fk_before_step:
-            cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
+        if cls._reset_masks_dirty:
+            if cls._needs_collision_pipeline or cls._needs_fk_before_step:
+                cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
 
-        # Zero both masks after consumption
-        NewtonManager._world_reset_mask.zero_()
-        NewtonManager._fk_reset_mask.zero_()
+            # Zero both masks after consumption
+            NewtonManager._world_reset_mask.zero_()
+            NewtonManager._fk_reset_mask.zero_()
+            NewtonManager._reset_masks_dirty = False
 
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
@@ -826,6 +833,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._use_newton_actuators_active = False
         NewtonManager._decimation = 1
         # Per-world reset masks
+        NewtonManager._reset_masks_dirty = True
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
         NewtonManager._graph = None
@@ -1121,6 +1129,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
+        NewtonManager._reset_masks_dirty = True
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
