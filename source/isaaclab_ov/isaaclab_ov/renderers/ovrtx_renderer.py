@@ -302,7 +302,6 @@ class OVRTXRenderer(BaseRenderer):
         self._deformable_points_binding = None
         self._deformable_points_buffers: list[wp.array] = []
         self._deformable_particle_offsets: list[int] = []
-        self._deformable_particles_per_body: list[int] = []
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -598,8 +597,19 @@ class OVRTXRenderer(BaseRenderer):
             logger.debug("Deformable registry is empty, skipping deformable body bindings")
             return
 
+        # Validate the number of particle offsets for each deformable entry upfront.
+        bad_entries = [entry for entry in deformable_registry if len(entry.particle_offsets) != num_envs]
+        if bad_entries:
+            details = "\n".join(
+                f"- '{entry.prim_path}' has {len(entry.particle_offsets)} particle offsets" for entry in bad_entries
+            )
+            raise RuntimeError(
+                f"OVRTX expects one particle offset per environment ({num_envs}), but the following "
+                f"deformable entries have a mismatched offset count:\n{details}"
+            )
+
+        self._deformable_points_buffers = []
         self._deformable_particle_offsets = []
-        self._deformable_particles_per_body = []
 
         vis_mesh_prim_paths: list[str] = []
 
@@ -617,16 +627,12 @@ class OVRTXRenderer(BaseRenderer):
         # non-contiguous env ids, OVRTX must consume explicit per-instance env metadata instead
         # of deriving env ids from ``enumerate(entry.particle_offsets)``.
         for entry in deformable_registry:
-            offset_count = len(entry.particle_offsets)
-            if offset_count != num_envs:
-                raise RuntimeError(
-                    f"Deformable entry '{entry.prim_path}' has {offset_count} particle offsets, "
-                    f"but OVRTX expects one offset per environment ({num_envs}). "
+            for idx, particle_offset in enumerate(entry.particle_offsets):
+                self._deformable_points_buffers.append(
+                    wp.empty(entry.particles_per_body, dtype=wp.vec3f, device=self._device)
                 )
 
-            for idx, particle_offset in enumerate(entry.particle_offsets):
                 self._deformable_particle_offsets.append(particle_offset)
-                self._deformable_particles_per_body.append(entry.particles_per_body)
 
                 vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
 
@@ -662,10 +668,6 @@ class OVRTXRenderer(BaseRenderer):
 
         if self._deformable_points_binding is None:
             raise RuntimeError("Failed to create OVRTX deformable body bindings")
-
-        self._deformable_points_buffers = [
-            wp.empty(count, dtype=wp.vec3f, device=self._device) for count in self._deformable_particles_per_body
-        ]
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -757,12 +759,12 @@ class OVRTXRenderer(BaseRenderer):
         if particle_q is None:
             raise RuntimeError("Newton state has no particle_q but deformable bindings exist")
 
-        for points_buffer, particle_offset, particle_count in zip(
+        for points_buffer, particle_offset in zip(
             self._deformable_points_buffers,
             self._deformable_particle_offsets,
-            self._deformable_particles_per_body,
             strict=True,
         ):
+            particle_count = points_buffer.shape[0]
             particle_end = particle_offset + particle_count
             wp.copy(points_buffer, particle_q[particle_offset:particle_end])
 
@@ -1171,7 +1173,6 @@ class OVRTXRenderer(BaseRenderer):
 
         self._deformable_points_buffers = []
         self._deformable_particle_offsets = []
-        self._deformable_particles_per_body = []
 
         if self._renderer:
             try:

@@ -97,7 +97,6 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._deformable_points_binding = None
     renderer._deformable_points_buffers = []
     renderer._deformable_particle_offsets = []
-    renderer._deformable_particles_per_body = []
     return renderer, renderer._renderer
 
 
@@ -137,7 +136,6 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
     assert len(renderer._deformable_points_buffers) == 1
     assert renderer._deformable_points_buffers[0].shape == (3,)
     assert renderer._deformable_particle_offsets == [7]
-    assert renderer._deformable_particles_per_body == [3]
 
 
 def test_setup_deformable_bindings_binds_volume_mesh_points(monkeypatch: pytest.MonkeyPatch):
@@ -242,7 +240,6 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
     renderer._deformable_points_binding = _FakePointsBinding("points")
     renderer._deformable_points_buffers = [wp.empty(3, dtype=wp.vec3f, device="cpu")]
     renderer._deformable_particle_offsets = [1]
-    renderer._deformable_particles_per_body = [3]
     particle_q = wp.array(
         [
             wp.vec3f(-1.0, -1.0, -1.0),
@@ -282,20 +279,31 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
 
 
 def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: pytest.MonkeyPatch):
-    """Registry entries must provide one particle offset per environment."""
+    """Registry entries must provide one particle offset per environment, listing every bad entry."""
     renderer, _backend = _make_renderer_without_backend()
-    entry = SimpleNamespace(
+    bad_entry = SimpleNamespace(
         prim_path="/World/envs/env_.*/Deformable",
         vis_mesh_prim_path="/World/envs/env_.*/Deformable/mesh",
         deformable_type="surface",
         particle_offsets=[0],
         particles_per_body=3,
     )
+    other_bad_entry = SimpleNamespace(
+        prim_path="/World/envs/env_.*/DeformableOther",
+        vis_mesh_prim_path="/World/envs/env_.*/DeformableOther/mesh",
+        deformable_type="surface",
+        particle_offsets=[0, 3, 6],
+        particles_per_body=3,
+    )
 
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [entry])
+    monkeypatch.setattr(NewtonManager, "_deformable_registry", [bad_entry, other_bad_entry])
 
-    with pytest.raises(RuntimeError, match="expects one offset per environment"):
+    with pytest.raises(RuntimeError, match="one particle offset per environment") as excinfo:
         renderer._setup_deformable_bindings(num_envs=2)
+
+    message = str(excinfo.value)
+    assert bad_entry.prim_path in message
+    assert other_bad_entry.prim_path in message
 
 
 def test_update_geometries_rejects_inconsistent_deformable_mapping(monkeypatch: pytest.MonkeyPatch):
@@ -307,7 +315,6 @@ def test_update_geometries_rejects_inconsistent_deformable_mapping(monkeypatch: 
         wp.empty(3, dtype=wp.vec3f, device="cpu"),
     ]
     renderer._deformable_particle_offsets = [0]
-    renderer._deformable_particles_per_body = [3]
     particle_q = wp.array(
         [wp.vec3f(float(i), 0.0, 0.0) for i in range(4)],
         dtype=wp.vec3f,
