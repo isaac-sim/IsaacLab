@@ -65,6 +65,22 @@ def _setting_path_from_key(key: str) -> str:
     return key
 
 
+def apply_isaac_rtx_determinism_settings(settings: SettingsManager | None = None) -> None:
+    """Apply Isaac RTX settings for reproducible rendering.
+
+    Selects RealTimePathTracing and disables the RTPT color and light caches.
+
+    Args:
+        settings: Settings manager to apply settings through. If None, the global settings manager is used.
+    """
+    if settings is None:
+        settings = get_settings_manager()
+    settings.set("/rtx/rendermode", "RealTimePathTracing")
+    settings.set("/rtx/rtpt/cached/enabled", False)
+    settings.set("/rtx/rtpt/lightcache/cached/enabled", False)
+    logger.info("Applied Isaac RTX settings for deterministic rendering.")
+
+
 def apply_isaac_rtx_global_settings(
     global_settings: IsaacRtxRendererGlobalSettingsCfg,
     settings: SettingsManager | None = None,

@@ -275,6 +275,110 @@ Articulation root properties.
 """
 
 
+def apply_articulation_root_properties(
+    prim_path: str,
+    fragments: Iterable[schemas_cfg.ArticulationRootFragment],
+    stage: Usd.Stage | None = None,
+    fix_root_link: bool | None = None,
+) -> bool:
+    """Apply fragments to every top-level articulation root under a prim.
+
+    Existing roots are discovered before a fresh anchor is applied, including roots hidden in
+    instances. Nested roots are pruned, while sibling roots are all processed. Instance roots are
+    reported but not authored.
+
+    When fix_root_link is True, the active physics manager creates or enables the world joint and
+    returns the backend's final root prim. False only disables an existing joint.
+
+    Args:
+        prim_path: The prim path whose subtree is searched for articulation roots.
+        fragments: Articulation-root fragments to apply.
+        stage: The stage containing the prim. Defaults to the current stage.
+        fix_root_link: Whether to fix the root link. None leaves topology unchanged.
+
+    Returns:
+        True if every writable root and fragment succeeds and no instance root is skipped.
+
+    Raises:
+        TypeError: If fragments contains a non-articulation fragment.
+        ValueError: If prim_path is invalid.
+        RuntimeError: If fixing cannot resolve the active backend or relocate the root.
+        NotImplementedError: If the backend cannot fix the resolved root.
+    """
+    fragments = list(fragments)
+    for fragment in fragments:
+        if not isinstance(fragment, schemas_cfg.ArticulationRootFragment):
+            raise TypeError(
+                f"Expected ArticulationRootFragment, got '{type(fragment).__name__}'."
+                " Pass legacy cfgs to modify_articulation_root_properties."
+            )
+    dispatchers = [
+        fragment.func if callable(fragment.func) else string_to_callable(fragment.func) for fragment in fragments
+    ]
+    if stage is None:
+        stage = get_current_stage()
+
+    roots = []
+    for candidate in get_all_matching_child_prims(
+        prim_path,
+        lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+        stage=stage,
+        traverse_instance_prims=True,
+    ):
+        if not any(candidate.GetPath().HasPrefix(root.GetPath()) for root in roots):
+            roots.append(candidate)
+
+    writable_roots = []
+    skipped_roots = []
+    for root in roots:
+        if root.IsInstance() or root.IsInstanceProxy():
+            skipped_roots.append(root)
+        else:
+            writable_roots.append(root)
+
+    if not roots and fragments:
+        root = stage.GetPrimAtPath(prim_path)
+        if root.IsInstance() or root.IsInstanceProxy():
+            skipped_roots.append(root)
+        else:
+            UsdPhysics.ArticulationRootAPI.Apply(root)
+            writable_roots.append(root)
+
+    if skipped_roots:
+        logger.warning(
+            "Skipping articulation-root updates on instanced prims: %s.",
+            [root.GetPath().pathString for root in skipped_roots],
+        )
+    if not writable_roots:
+        if fix_root_link is not None and not skipped_roots:
+            logger.warning(
+                "No articulation root found under '%s': ignoring fix_root_link=%s.", prim_path, fix_root_link
+            )
+        return not skipped_roots and fix_root_link is None
+
+    if fix_root_link:
+        from isaaclab.sim import SimulationContext
+
+        sim = SimulationContext.instance()
+        if sim is None:
+            raise RuntimeError(f"Cannot fix articulation roots under '{prim_path}' without an active simulation.")
+
+    success = not skipped_roots
+    for root in writable_roots:
+        if fix_root_link:
+            root = sim.physics_manager.fix_articulation_root(root, stage)
+        elif fix_root_link is False:
+            joint = find_global_fixed_joint_prim(root.GetPath().pathString, stage=stage)
+            if joint is not None:
+                joint.GetJointEnabledAttr().Set(False)
+
+        root_path = root.GetPath().pathString
+        for fragment, func in zip(fragments, dispatchers):
+            success = bool(func(fragment, root_path, stage)) and success
+
+    return success
+
+
 def define_articulation_root_properties(
     prim_path: str, cfg: schemas_cfg.ArticulationRootBaseCfg, stage: Usd.Stage | None = None
 ):
