@@ -13,6 +13,7 @@ no heavy-weight side effects.
 from __future__ import annotations
 
 import time
+from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -59,21 +60,73 @@ def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
         return 2.0 * torch.rand(u.num_envs, u.single_action_space.shape[0], device=u.device) - 1.0
 
 
-def run_runtime_loop(env, num_frames: int) -> list[float]:
+class SimulationStepTimer(AbstractContextManager):
+    """Measure host wall time spent in calls to ``SimulationContext.step``.
+
+    The timer replaces the simulation context's bound ``step`` method only while
+    the context is active and restores it on exit. Each physics substep is
+    measured separately, including all decimation substeps made by an
+    environment step.
+
+    Args:
+        env: An Isaac Lab environment whose unwrapped instance exposes ``sim``.
+    """
+
+    def __init__(self, env):
+        self._simulation_context = env.unwrapped.sim
+        self._had_instance_step = "step" in vars(self._simulation_context)
+        self._instance_step = vars(self._simulation_context).get("step")
+        self._original_step = None
+        self.total_time_s = 0.0
+        self.num_calls = 0
+
+    def __enter__(self) -> SimulationStepTimer:
+        """Install the timed physics-step wrapper and reset measurements."""
+        if self._original_step is not None:
+            raise RuntimeError("SimulationStepTimer is already active")
+
+        self.total_time_s = 0.0
+        self.num_calls = 0
+        self._original_step = self._simulation_context.step
+
+        def timed_step(*args, **kwargs):
+            start_ns = time.perf_counter_ns()
+            try:
+                return self._original_step(*args, **kwargs)
+            finally:
+                self.total_time_s += (time.perf_counter_ns() - start_ns) / 1e9
+                self.num_calls += 1
+
+        self._simulation_context.step = timed_step
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        """Restore the original physics-step method."""
+        if self._original_step is not None:
+            if self._had_instance_step:
+                self._simulation_context.step = self._instance_step
+            else:
+                del self._simulation_context.step
+            self._original_step = None
+
+
+def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]:
     """Step the environment ``num_frames`` times and record per-step wall times [s].
 
-    Calls ``env.reset()`` once before the loop, then on each frame samples
-    random actions via :func:`sample_random_actions`, steps the environment,
-    and records the elapsed wall-clock time for that step.
+    Optionally calls ``env.reset()`` once before the loop, then on each frame
+    samples random actions via :func:`sample_random_actions`, steps the
+    environment, and records the elapsed wall-clock time for that step.
 
     Args:
         env: A Gym-compatible environment.
         num_frames: Number of environment steps to run.
+        reset: Whether to reset the environment before stepping.
 
     Returns:
         A list of length ``num_frames`` containing per-step wall times [s].
     """
-    env.reset()
+    if reset:
+        env.reset()
 
     step_times: list[float] = []
 

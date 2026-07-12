@@ -48,6 +48,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         default=50,
         help="Number of environment steps to run after reset and exclude from runtime metrics.",
     )
+    parser.add_argument(
+        "--measure_simulation_step_time",
+        action="store_true",
+        help="Measure host wall time inside SimulationContext.step during measured frames.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -134,6 +139,7 @@ def run(argv: list[str]) -> None:
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
                     {"name": "warmup_frames", "data": args.warmup_frames},
+                    {"name": "measure_simulation_step_time", "data": args.measure_simulation_step_time},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -145,13 +151,16 @@ def run(argv: list[str]) -> None:
 
             num_envs = env.unwrapped.num_envs
 
+            warmup_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames)
+            simulation_timer = stepping.SimulationStepTimer(env) if args.measure_simulation_step_time else None
             with BenchmarkMonitor(benchmark, interval=1.0):
-                all_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames + args.num_frames)
+                timer_context = simulation_timer if simulation_timer is not None else contextlib.nullcontext()
+                with timer_context:
+                    step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
 
-            # Keep the actual first step as a startup diagnostic while excluding all requested
-            # warmup steps from steady-state runtime metrics.
-            first_step_s = all_step_times_s[0]
-            step_times_s = all_step_times_s[args.warmup_frames :]
+            # Keep the actual first step as a startup diagnostic. With no warmup,
+            # the first measured step is also the first post-reset step.
+            first_step_s = warmup_step_times_s[0] if warmup_step_times_s else step_times_s[0]
 
             benchmark.update_manual_recorders()
 
@@ -194,13 +203,26 @@ def run(argv: list[str]) -> None:
                 num_envs=num_envs,
             )
 
+            extra = {"warmup_frames": args.warmup_frames}
+            if simulation_timer is not None:
+                measured_total_time_s = runtime.total_wall_time_s
+                outside_simulation_step_host_total_time_s = measured_total_time_s - simulation_timer.total_time_s
+                extra.update(
+                    {
+                        "simulation_step_host_total_time_s": simulation_timer.total_time_s,
+                        "outside_simulation_step_host_total_time_s": outside_simulation_step_host_total_time_s,
+                        "simulation_step_host_time_fraction": simulation_timer.total_time_s / measured_total_time_s,
+                        "simulation_step_calls": simulation_timer.num_calls,
+                    }
+                )
+
             bundle = builders.build_runtime_bundle(
                 run=run,
                 versions=versions,
                 hardware=hardware,
                 runtime=runtime,
                 resources=resources,
-                extra={"warmup_frames": args.warmup_frames},
+                extra=extra,
             )
 
             benchmark.attach_bundle(bundle)

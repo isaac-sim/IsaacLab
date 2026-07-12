@@ -31,6 +31,7 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         "20",
         "--warmup_frames",
         "2",
+        "--measure_simulation_step_time",
         "--seed",
         "0",
         "--device",
@@ -58,4 +59,9 @@ def test_runtime_writes_all_requested_formats(tmp_path):
     assert schema_data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert schema_data["runtime"]["iterations_completed"] == 20
     assert schema_data["extra"]["warmup_frames"] == 2
+    assert schema_data["extra"]["simulation_step_calls"] > 0
+    assert 0.0 <= schema_data["extra"]["simulation_step_host_time_fraction"] <= 1.0
+    assert schema_data["extra"]["simulation_step_host_total_time_s"] + schema_data["extra"][
+        "outside_simulation_step_host_total_time_s"
+    ] == pytest.approx(schema_data["runtime"]["total_wall_time_s"])
     assert "runtime" in json.loads(omniperf_files[0].read_text())

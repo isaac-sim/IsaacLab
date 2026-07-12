@@ -8,12 +8,28 @@
 import numpy as np
 import torch
 
-from isaaclab.test.benchmark.stepping import run_runtime_loop, sample_random_actions
+from isaaclab.test.benchmark.stepping import SimulationStepTimer, run_runtime_loop, sample_random_actions
 
 
 class _Space:
     def __init__(self, n):
         self.shape = (n,)
+
+
+class _PhysicsManager:
+    def __init__(self):
+        self.calls = 0
+
+    def step(self):
+        self.calls += 1
+
+
+class _Sim:
+    def __init__(self):
+        self.physics_manager = _PhysicsManager()
+
+    def step(self):
+        self.physics_manager.step()
 
 
 class _Env:
@@ -24,6 +40,7 @@ class _Env:
 
     def __init__(self):
         self.unwrapped = _Env._U()
+        self.unwrapped.sim = _Sim()
         self.reset_called = False
         self.steps = 0
 
@@ -31,6 +48,8 @@ class _Env:
         self.reset_called = True
 
     def step(self, actions):
+        self.unwrapped.sim.step()
+        self.unwrapped.sim.step()
         self.steps += 1
         return (None, None, None, {})
 
@@ -47,6 +66,41 @@ def test_run_runtime_loop_steps_and_times():
     times = run_runtime_loop(env, num_frames=5)
     assert env.reset_called and env.steps == 5
     assert len(times) == 5 and all(t >= 0.0 for t in times)
+
+
+def test_run_runtime_loop_can_skip_reset():
+    env = _Env()
+    run_runtime_loop(env, num_frames=2, reset=False)
+    assert not env.reset_called and env.steps == 2
+
+
+def test_simulation_step_timer_counts_calls_and_restores_method():
+    env = _Env()
+    simulation_context = env.unwrapped.sim
+    original_step = simulation_context.step
+
+    with SimulationStepTimer(env) as timer:
+        run_runtime_loop(env, num_frames=3, reset=False)
+
+    assert timer.num_calls == 6
+    assert timer.total_time_s >= 0.0
+    assert "step" not in vars(simulation_context)
+    assert simulation_context.step.__func__ is original_step.__func__
+
+
+def test_simulation_step_timer_restores_method_after_exception():
+    env = _Env()
+    simulation_context = env.unwrapped.sim
+    original_step = simulation_context.step
+
+    try:
+        with SimulationStepTimer(env):
+            raise RuntimeError("expected")
+    except RuntimeError:
+        pass
+
+    assert "step" not in vars(simulation_context)
+    assert simulation_context.step.__func__ is original_step.__func__
 
 
 class _MASpace:
