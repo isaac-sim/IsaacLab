@@ -1118,8 +1118,8 @@ def _make_franka_cloth_camera_env_cfg(data_type: str):
             ),
             data_types=[data_type],
             spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
-            width=100,
-            height=100,
+            width=128,
+            height=128,
             renderer_cfg=MultiBackendRendererCfg(),
         )
 
@@ -1242,8 +1242,8 @@ def _make_franka_soft_camera_env_cfg(data_type: str):
             ),
             data_types=[data_type],
             spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
-            width=100,
-            height=100,
+            width=128,
+            height=128,
             renderer_cfg=MultiBackendRendererCfg(),
         )
 
