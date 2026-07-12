@@ -95,7 +95,6 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._camera_rel_path = "Camera"
     renderer._renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
-    renderer._deformable_vis_mesh_prim_paths = []
     renderer._deformable_points_buffers = []
     renderer._deformable_particle_offsets = []
     renderer._deformable_particles_per_body = []

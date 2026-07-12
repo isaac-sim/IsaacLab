@@ -504,7 +504,7 @@ class OVRTXRenderer(BaseRenderer):
             semantic=Semantic.XFORM_MAT4x4,
             prim_mode=PrimMode.MUST_EXIST,
         )
-        logger.info("Restored per-env root transforms after cloning", num_envs)
+        logger.info("Restored per-env root transforms after cloning")
 
     def _update_scene_partitions_after_clone(self, num_envs: int):
         """Update scene partition attributes on cloned environments and cameras in OvRTX."""
@@ -728,8 +728,12 @@ class OVRTXRenderer(BaseRenderer):
         if self._deformable_points_binding is None:
             return
 
+        newton_state = NewtonManager.get_state()
+        if newton_state is None:
+            raise RuntimeError("Newton state should not be None")
+
         # particle_q is the world-space particle positions for all deformable bodies.
-        particle_q = getattr(NewtonManager.get_state(), "particle_q", None)
+        particle_q = getattr(newton_state, "particle_q", None)
         if particle_q is None:
             return
 
