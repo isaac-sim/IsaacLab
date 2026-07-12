@@ -17,6 +17,7 @@ from datetime import datetime
 
 from isaaclab.test.benchmark.metrics import ema, mean_std_peak
 from isaaclab.test.benchmark.schema import (
+    EnvironmentStepTiming,
     Hardware,
     Learning,
     LearningCurve,
@@ -124,6 +125,10 @@ def build_runtime(
     total_fps: Sequence[float],
     steps_per_iteration: int,
     aggregate_throughput: bool = False,
+    environment_step_total_time_s: float | None = None,
+    simulation_step_total_time_s: float | None = None,
+    environment_step_calls: int | None = None,
+    simulation_step_calls: int | None = None,
 ) -> Runtime:
     """Assemble a :class:`~isaaclab.test.benchmark.schema.Runtime` from raw series.
 
@@ -137,6 +142,10 @@ def build_runtime(
         aggregate_throughput: When ``True``, report throughput means as total
             completed steps divided by total wall time. Standard deviation and
             peak remain aggregated from the per-iteration throughput samples.
+        environment_step_total_time_s: Measured environment-step wall time [s].
+        simulation_step_total_time_s: Synchronized simulation-step wall time [s].
+        environment_step_calls: Number of measured environment-step calls.
+        simulation_step_calls: Number of measured simulation-step calls.
 
     Returns:
         Populated :class:`~isaaclab.test.benchmark.schema.Runtime` with
@@ -166,6 +175,21 @@ def build_runtime(
             std=iterations_per_s_agg.std,
             peak=iterations_per_s_agg.peak,
         )
+    environment_step_timing = None
+    if environment_step_total_time_s is not None:
+        if simulation_step_total_time_s is None or environment_step_calls is None or simulation_step_calls is None:
+            raise ValueError("Complete environment-step timing values are required")
+        overhead_time_s = environment_step_total_time_s - simulation_step_total_time_s
+        environment_step_timing = EnvironmentStepTiming(
+            total_time_s=environment_step_total_time_s,
+            simulation_time_s=simulation_step_total_time_s,
+            overhead_time_s=overhead_time_s,
+            overhead_fraction=overhead_time_s / environment_step_total_time_s,
+            environment_step_calls=environment_step_calls,
+            simulation_step_calls=simulation_step_calls,
+            synchronized=True,
+        )
+
     return Runtime(
         startup_time_s=startup_time_s,
         iterations_completed=len(iter_times),
@@ -175,6 +199,7 @@ def build_runtime(
         collection_fps=collection_fps_agg,
         total_fps=total_fps_agg,
         iterations_per_s=iterations_per_s_agg,
+        environment_step_timing=environment_step_timing,
     )
 
 

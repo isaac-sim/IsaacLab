@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.0).
+"""Public schema for Isaac Lab benchmark bundles (v1.1).
 
 Defines the on-disk JSON schema produced by the standalone benchmark scripts
 under ``scripts/benchmarks/`` (``runtime.py``, ``training.py``, ``startup.py``).
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.0
+Current version: 1.1
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -194,6 +194,29 @@ class StartupTime:
 
 
 @dataclass(frozen=True)
+class EnvironmentStepTiming:
+    """Synchronized environment-step wall-time breakdown.
+
+    Args:
+        total_time_s: Wall time inside environment-step calls [s].
+        simulation_time_s: Wall time inside synchronized simulation-step calls [s].
+        overhead_time_s: Environment-step time outside simulation-step calls [s].
+        overhead_fraction: Fraction of environment-step time outside simulation-step calls.
+        environment_step_calls: Number of measured environment-step calls.
+        simulation_step_calls: Number of measured simulation-step calls.
+        synchronized: Whether device completion was included in each simulation call.
+    """
+
+    total_time_s: float
+    simulation_time_s: float
+    overhead_time_s: float
+    overhead_fraction: float
+    environment_step_calls: int
+    simulation_step_calls: int
+    synchronized: bool
+
+
+@dataclass(frozen=True)
 class Runtime:
     """Aggregated runtime metrics for a run.
 
@@ -210,6 +233,7 @@ class Runtime:
             FPS (the scripts' "Total FPS" / "effective FPS"). For pure runtime runs with no
             learning, this equals :attr:`collection_fps`.
         iterations_per_s: Iteration rate [iter/s].
+        environment_step_timing: Synchronized environment-step timing, when measured.
     """
 
     startup_time_s: StartupTime
@@ -220,6 +244,7 @@ class Runtime:
     collection_fps: MeanStd
     total_fps: MeanStd
     iterations_per_s: MeanStd
+    environment_step_timing: EnvironmentStepTiming | None = None
 
 
 @dataclass(frozen=True)

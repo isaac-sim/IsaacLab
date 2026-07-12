@@ -214,7 +214,7 @@ def run(argv: list[str]) -> None:
     import torch
 
     from isaaclab.app import launch_simulation
-    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
+    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
     from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.test.benchmark.schema import StartupTime
 
@@ -346,7 +346,8 @@ def run(argv: list[str]) -> None:
         runner = _BenchmarkRunner(env, agent_cfg)
         bt = runner._trainer
 
-        with success_context, BenchmarkMonitor(benchmark, interval=1.0):
+        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        with success_context, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             runner.run()
 
         benchmark.update_manual_recorders()
@@ -375,6 +376,10 @@ def run(argv: list[str]) -> None:
             collection_fps=collection_fps,
             total_fps=total_fps,
             steps_per_iteration=steps_per_iteration,
+            environment_step_total_time_s=environment_step_timer.total_time_s,
+            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
+            environment_step_calls=environment_step_timer.num_calls,
+            simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 
         learning = builders.build_learning(

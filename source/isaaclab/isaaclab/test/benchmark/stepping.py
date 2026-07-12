@@ -64,16 +64,24 @@ class SimulationStepTimer(AbstractContextManager):
     """Measure host wall time spent in calls to ``SimulationContext.step``.
 
     The timer replaces the simulation context's bound ``step`` method only while
-    the context is active and restores it on exit. Each physics substep is
-    measured separately, including all decimation substeps made by an
-    environment step.
+    the context is active and restores it on exit. When synchronization is
+    enabled, each physics substep is measured through device completion,
+    including all decimation substeps made by an environment step.
 
     Args:
         env: An Isaac Lab environment whose unwrapped instance exposes ``sim``.
+        synchronize: Whether to synchronize the simulation device before
+            stopping each timer.
     """
 
-    def __init__(self, env):
+    def __init__(self, env, *, synchronize: bool = True):
         self._simulation_context = env.unwrapped.sim
+        self._synchronize_device = None
+        if synchronize:
+            import warp as wp  # noqa: PLC0415
+
+            device = self._simulation_context.device
+            self._synchronize_device = lambda: wp.synchronize_device(device)
         self._had_instance_step = "step" in vars(self._simulation_context)
         self._instance_step = vars(self._simulation_context).get("step")
         self._original_step = None
@@ -92,7 +100,10 @@ class SimulationStepTimer(AbstractContextManager):
         def timed_step(*args, **kwargs):
             start_ns = time.perf_counter_ns()
             try:
-                return self._original_step(*args, **kwargs)
+                result = self._original_step(*args, **kwargs)
+                if self._synchronize_device is not None:
+                    self._synchronize_device()
+                return result
             finally:
                 self.total_time_s += (time.perf_counter_ns() - start_ns) / 1e9
                 self.num_calls += 1
@@ -108,6 +119,66 @@ class SimulationStepTimer(AbstractContextManager):
             else:
                 del self._simulation_context.step
             self._original_step = None
+
+
+class EnvironmentStepTimer(AbstractContextManager):
+    """Measure environment-step time and synchronized simulation time.
+
+    Args:
+        env: Environment interface whose ``step`` method is called by the workload.
+        synchronize: Whether to synchronize the simulation device before
+            stopping each simulation-step timer.
+    """
+
+    def __init__(self, env, *, synchronize: bool = True):
+        self._env = env
+        self._simulation_timer = SimulationStepTimer(env, synchronize=synchronize)
+        self._had_instance_step = "step" in vars(env)
+        self._instance_step = vars(env).get("step")
+        self._original_step = None
+        self.total_time_s = 0.0
+        self.num_calls = 0
+
+    @property
+    def simulation_time_s(self) -> float:
+        """Wall time inside synchronized simulation-step calls [s]."""
+        return self._simulation_timer.total_time_s
+
+    @property
+    def simulation_step_calls(self) -> int:
+        """Number of measured simulation-step calls."""
+        return self._simulation_timer.num_calls
+
+    def __enter__(self) -> EnvironmentStepTimer:
+        """Install environment and simulation-step timers."""
+        if self._original_step is not None:
+            raise RuntimeError("EnvironmentStepTimer is already active")
+
+        self.total_time_s = 0.0
+        self.num_calls = 0
+        self._simulation_timer.__enter__()
+        self._original_step = self._env.step
+
+        def timed_step(*args, **kwargs):
+            start_ns = time.perf_counter_ns()
+            try:
+                return self._original_step(*args, **kwargs)
+            finally:
+                self.total_time_s += (time.perf_counter_ns() - start_ns) / 1e9
+                self.num_calls += 1
+
+        self._env.step = timed_step
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        """Restore the original methods."""
+        if self._original_step is not None:
+            if self._had_instance_step:
+                self._env.step = self._instance_step
+            else:
+                del self._env.step
+            self._original_step = None
+        self._simulation_timer.__exit__(exc_type, exc_value, traceback)
 
 
 def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]:

@@ -178,7 +178,7 @@ def run(argv: list[str]) -> None:
     from stable_baselines3.common.vec_env import VecNormalize
 
     from isaaclab.app import launch_simulation
-    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
+    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
     from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.test.benchmark.schema import StartupTime
 
@@ -298,7 +298,13 @@ def run(argv: list[str]) -> None:
         cb = BenchmarkCallback()
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
 
-        with contextlib.suppress(KeyboardInterrupt), success_context, BenchmarkMonitor(benchmark, interval=1.0):
+        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        with (
+            contextlib.suppress(KeyboardInterrupt),
+            success_context,
+            environment_step_timer,
+            BenchmarkMonitor(benchmark, interval=1.0),
+        ):
             agent.learn(
                 total_timesteps=n_timesteps,
                 callback=[checkpoint_callback, cb],
@@ -338,6 +344,10 @@ def run(argv: list[str]) -> None:
             collection_fps=collection_fps,
             total_fps=total_fps,
             steps_per_iteration=steps_per_iteration,
+            environment_step_total_time_s=environment_step_timer.total_time_s,
+            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
+            environment_step_calls=environment_step_timer.num_calls,
+            simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 
         learning = builders.build_learning(

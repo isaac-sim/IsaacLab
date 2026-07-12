@@ -113,6 +113,27 @@ def test_build_runtime_uses_effective_aggregate_throughput_when_requested():
     assert rt.iterations_per_s.mean == pytest.approx(0.5)
 
 
+def test_build_runtime_adds_environment_step_timing():
+    rt = builders.build_runtime(
+        startup_time_s=StartupTime(0.1, 0.2, 0.3),
+        iteration_times_s=[2.0],
+        collection_fps=[4.0],
+        total_fps=[4.0],
+        steps_per_iteration=8,
+        environment_step_total_time_s=1.5,
+        simulation_step_total_time_s=1.0,
+        environment_step_calls=10,
+        simulation_step_calls=40,
+    )
+
+    assert rt.environment_step_timing is not None
+    assert rt.environment_step_timing.overhead_time_s == pytest.approx(0.5)
+    assert rt.environment_step_timing.overhead_fraction == pytest.approx(1.0 / 3.0)
+    assert rt.environment_step_timing.environment_step_calls == 10
+    assert rt.environment_step_timing.simulation_step_calls == 40
+    assert rt.environment_step_timing.synchronized
+
+
 def test_build_training_bundle_round_trips(tmp_path):
     run = builders.build_run_identity(
         run_id="x",

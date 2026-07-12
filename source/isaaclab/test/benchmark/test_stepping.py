@@ -8,7 +8,12 @@
 import numpy as np
 import torch
 
-from isaaclab.test.benchmark.stepping import SimulationStepTimer, run_runtime_loop, sample_random_actions
+from isaaclab.test.benchmark.stepping import (
+    EnvironmentStepTimer,
+    SimulationStepTimer,
+    run_runtime_loop,
+    sample_random_actions,
+)
 
 
 class _Space:
@@ -79,7 +84,7 @@ def test_simulation_step_timer_counts_calls_and_restores_method():
     simulation_context = env.unwrapped.sim
     original_step = simulation_context.step
 
-    with SimulationStepTimer(env) as timer:
+    with SimulationStepTimer(env, synchronize=False) as timer:
         run_runtime_loop(env, num_frames=3, reset=False)
 
     assert timer.num_calls == 6
@@ -94,13 +99,26 @@ def test_simulation_step_timer_restores_method_after_exception():
     original_step = simulation_context.step
 
     try:
-        with SimulationStepTimer(env):
+        with SimulationStepTimer(env, synchronize=False):
             raise RuntimeError("expected")
     except RuntimeError:
         pass
 
     assert "step" not in vars(simulation_context)
     assert simulation_context.step.__func__ is original_step.__func__
+
+
+def test_environment_step_timer_measures_only_step_calls():
+    env = _Env()
+
+    with EnvironmentStepTimer(env, synchronize=False) as timer:
+        run_runtime_loop(env, num_frames=3, reset=False)
+
+    assert timer.num_calls == 3
+    assert timer.simulation_step_calls == 6
+    assert timer.total_time_s >= timer.simulation_time_s
+    assert "step" not in vars(env)
+    assert "step" not in vars(env.unwrapped.sim)
 
 
 class _MASpace:

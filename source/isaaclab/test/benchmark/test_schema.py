@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the v1.0 Isaac Lab benchmark schema."""
+"""Tests for the v1.1 Isaac Lab benchmark schema."""
 
 import dataclasses
 import json
@@ -14,6 +14,7 @@ import pytest
 from isaaclab.test.benchmark.schema import (
     SCHEMA_VERSION,
     CProfileFunction,
+    EnvironmentStepTiming,
     GpuDeviceInfo,
     Hardware,
     Learning,
@@ -91,6 +92,15 @@ def _runtime() -> Runtime:
         collection_fps=MeanStd(mean=1_142_000.0, std=9_500.0),
         total_fps=MeanStd(mean=1_071_780.0, std=11_200.0),
         iterations_per_s=MeanStd(mean=0.2618, std=0.0028),
+        environment_step_timing=EnvironmentStepTiming(
+            total_time_s=1000.0,
+            simulation_time_s=600.0,
+            overhead_time_s=400.0,
+            overhead_fraction=0.4,
+            environment_step_calls=12000,
+            simulation_step_calls=48000,
+            synchronized=True,
+        ),
     )
 
 
@@ -137,6 +147,7 @@ def test_training_bundle_round_trip(tmp_path):
     assert data["run"]["config"]["presets"] == []
     assert data["runtime"]["collection_fps"]["mean"] == pytest.approx(1_142_000.0)
     assert data["runtime"]["total_fps"]["mean"] == pytest.approx(1_071_780.0)
+    assert data["runtime"]["environment_step_timing"]["overhead_fraction"] == pytest.approx(0.4)
     # merged MeanStd: util has no peak, memory does
     assert data["resources"]["gpu_util_pct"]["peak"] is None
     assert data["resources"]["ram_gb"]["peak"] == pytest.approx(24.8)

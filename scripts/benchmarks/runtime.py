@@ -50,8 +50,10 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     )
     parser.add_argument(
         "--measure_simulation_step_time",
+        dest="measure_simulation_step_time",
         action="store_true",
-        help="Measure host wall time inside SimulationContext.step during measured frames.",
+        default=True,
+        help="Measure synchronized wall time inside SimulationContext.step during measured frames (default).",
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
@@ -152,9 +154,9 @@ def run(argv: list[str]) -> None:
             num_envs = env.unwrapped.num_envs
 
             warmup_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames)
-            simulation_timer = stepping.SimulationStepTimer(env) if args.measure_simulation_step_time else None
+            environment_step_timer = stepping.EnvironmentStepTimer(env)
             with BenchmarkMonitor(benchmark, interval=1.0):
-                timer_context = simulation_timer if simulation_timer is not None else contextlib.nullcontext()
+                timer_context = environment_step_timer
                 with timer_context:
                     step_times_s = stepping.run_runtime_loop(env, args.num_frames, reset=False)
 
@@ -180,6 +182,10 @@ def run(argv: list[str]) -> None:
                 total_fps=fps,
                 steps_per_iteration=num_envs,
                 aggregate_throughput=True,
+                environment_step_total_time_s=environment_step_timer.total_time_s,
+                simulation_step_total_time_s=environment_step_timer.simulation_time_s,
+                environment_step_calls=environment_step_timer.num_calls,
+                simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 
             versions = capture.capture_versions(benchmark)
@@ -203,26 +209,13 @@ def run(argv: list[str]) -> None:
                 num_envs=num_envs,
             )
 
-            extra = {"warmup_frames": args.warmup_frames}
-            if simulation_timer is not None:
-                measured_total_time_s = runtime.total_wall_time_s
-                outside_simulation_step_host_total_time_s = measured_total_time_s - simulation_timer.total_time_s
-                extra.update(
-                    {
-                        "simulation_step_host_total_time_s": simulation_timer.total_time_s,
-                        "outside_simulation_step_host_total_time_s": outside_simulation_step_host_total_time_s,
-                        "simulation_step_host_time_fraction": simulation_timer.total_time_s / measured_total_time_s,
-                        "simulation_step_calls": simulation_timer.num_calls,
-                    }
-                )
-
             bundle = builders.build_runtime_bundle(
                 run=run,
                 versions=versions,
                 hardware=hardware,
                 runtime=runtime,
                 resources=resources,
-                extra=extra,
+                extra={"warmup_frames": args.warmup_frames},
             )
 
             benchmark.attach_bundle(bundle)

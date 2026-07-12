@@ -178,7 +178,8 @@ def run(argv: list[str]) -> None:
         runner.load(resume_path)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-        with BenchmarkMonitor(benchmark, interval=1.0):
+        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args.num_frames)
 
         benchmark.update_manual_recorders()
@@ -196,6 +197,10 @@ def run(argv: list[str]) -> None:
             collection_fps=fps,
             total_fps=fps,
             steps_per_iteration=num_envs,
+            environment_step_total_time_s=environment_step_timer.total_time_s,
+            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
+            environment_step_calls=environment_step_timer.num_calls,
+            simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 
         versions = capture.capture_versions(benchmark)

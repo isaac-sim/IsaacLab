@@ -115,7 +115,7 @@ def run(argv: list[str]) -> None:
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
-    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture
+    from isaaclab.test.benchmark import BaseIsaacLabBenchmark, BenchmarkMonitor, builders, capture, stepping
     from isaaclab.test.benchmark.metrics import RL_LIBRARY_DESCRIPTORS, parse_tf_logs
     from isaaclab.test.benchmark.schema import StartupTime
 
@@ -218,7 +218,8 @@ def run(argv: list[str]) -> None:
             env, runner, num_steps_per_env=agent_cfg.num_steps_per_env, **build_success_kwargs(args_cli)
         )
 
-        with early, BenchmarkMonitor(benchmark, interval=1.0):
+        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
         benchmark.update_manual_recorders()
@@ -253,6 +254,10 @@ def run(argv: list[str]) -> None:
             collection_fps=collection_fps_series,
             total_fps=total_fps_series,
             steps_per_iteration=env.unwrapped.num_envs * agent_cfg.num_steps_per_env,
+            environment_step_total_time_s=environment_step_timer.total_time_s,
+            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
+            environment_step_calls=environment_step_timer.num_calls,
+            simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 
         learning = builders.build_learning(
