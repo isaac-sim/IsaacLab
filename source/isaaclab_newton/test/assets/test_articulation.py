@@ -679,6 +679,58 @@ def test_initialization_fixed_base(sim, num_articulations, device, articulation_
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("articulation_type", ["panda"])
+def test_fixed_base_reports_body_velocities(sim, num_articulations, device, articulation_type):
+    """Test that fixed-base articulations report live body velocities while their joints move.
+
+    Regression test: the fixed-base fallback in ``_create_buffers`` zeroed the body
+    center-of-mass velocity binding together with the (genuinely unavailable) root velocity,
+    so :attr:`body_lin_vel_w` and :attr:`body_ang_vel_w` read zeros for every fixed-base
+    robot regardless of motion.
+
+    This test verifies that:
+    1. The articulation is fixed base
+    2. Commanding a joint-space motion moves the bodies (finite difference of positions)
+    3. The reported body velocities track the finite-difference ground truth
+
+    Args:
+        sim: The simulation fixture
+        num_articulations: Number of articulations to test
+        device: The device to run the simulation on
+    """
+    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+
+    # Play sim
+    sim.reset()
+    assert articulation.is_fixed_base
+
+    # command a step away from the default pose so the distal bodies move
+    joint_pos_target = articulation.data.default_joint_pos.torch.clone()
+    joint_pos_target[:, 1] += 0.5
+    prev_body_pos = articulation.data.body_link_pos_w.torch.clone()
+    reported_max = []
+    fin_diff_max = []
+    for _ in range(20):
+        articulation.set_joint_position_target(joint_pos_target)
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        body_pos = articulation.data.body_link_pos_w.torch
+        reported_max.append(articulation.data.body_lin_vel_w.torch.norm(dim=-1).amax())
+        fin_diff_max.append(((body_pos - prev_body_pos) / sim.cfg.dt).norm(dim=-1).amax())
+        prev_body_pos = body_pos.clone()
+    reported_max = torch.stack(reported_max).amax()
+    fin_diff_max = torch.stack(fin_diff_max).amax()
+
+    # the commanded motion genuinely moves the bodies
+    assert fin_diff_max > 0.1
+    # and the reported body velocities track it (identically zero under the regression)
+    assert reported_max > 0.5 * fin_diff_max
+
+
+@pytest.mark.parametrize("num_articulations", [1, 2])
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
 def test_initialization_fixed_base_single_joint(sim, num_articulations, device, add_ground_plane, articulation_type):
