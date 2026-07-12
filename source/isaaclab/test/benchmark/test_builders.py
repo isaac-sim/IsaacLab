@@ -96,6 +96,23 @@ def test_build_runtime_aggregates():
     assert rt.iterations_per_s.mean > 0
 
 
+def test_build_runtime_uses_effective_aggregate_throughput_when_requested():
+    """Aggregate throughput should divide total work by total wall time."""
+    rt = builders.build_runtime(
+        startup_time_s=StartupTime(0.1, 0.2, 0.3),
+        iteration_times_s=[1.0, 3.0],
+        collection_fps=[8.0, 8.0 / 3.0],
+        total_fps=[8.0, 8.0 / 3.0],
+        steps_per_iteration=8,
+        aggregate_throughput=True,
+    )
+
+    assert rt.total_wall_time_s == pytest.approx(4.0)
+    assert rt.total_fps.mean == pytest.approx(4.0)
+    assert rt.collection_fps.mean == pytest.approx(4.0)
+    assert rt.iterations_per_s.mean == pytest.approx(0.5)
+
+
 def test_build_training_bundle_round_trips(tmp_path):
     run = builders.build_run_identity(
         run_id="x",

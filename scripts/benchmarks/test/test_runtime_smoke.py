@@ -29,6 +29,8 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         "16",
         "--num_frames",
         "20",
+        "--warmup_frames",
+        "2",
         "--seed",
         "0",
         "--device",
@@ -54,4 +56,6 @@ def test_runtime_writes_all_requested_formats(tmp_path):
 
     schema_data = json.loads(schema_files[0].read_text())
     assert schema_data["run"]["config"]["physics_backend"] == "newton_mjwarp"
+    assert schema_data["runtime"]["iterations_completed"] == 20
+    assert schema_data["extra"]["warmup_frames"] == 2
     assert "runtime" in json.loads(omniperf_files[0].read_text())

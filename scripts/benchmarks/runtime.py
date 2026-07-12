@@ -15,7 +15,7 @@ Usage example::
 
     uv run isaaclab benchmark runtime \\
         --task Isaac-Cartpole-Direct \\
-        --num_envs 16 --num_frames 100 \\
+        --num_envs 16 --num_frames 1000 --warmup_frames 50 \\
         presets=newton_mjwarp --headless
 """
 
@@ -41,7 +41,13 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(description="Benchmark environment runtime (random actions, no policy).")
     parser.add_argument("--task", type=str, required=True, help="Gym task id to benchmark.")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of parallel environments.")
-    parser.add_argument("--num_frames", type=int, default=100, help="Number of environment steps to benchmark.")
+    parser.add_argument("--num_frames", type=int, default=1000, help="Number of environment steps to benchmark.")
+    parser.add_argument(
+        "--warmup_frames",
+        type=int,
+        default=50,
+        help="Number of environment steps to run after reset and exclude from runtime metrics.",
+    )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
@@ -57,6 +63,10 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
+    if args.num_frames <= 0:
+        parser.error("--num_frames must be greater than zero")
+    if args.warmup_frames < 0:
+        parser.error("--warmup_frames must be non-negative")
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
 
@@ -123,6 +133,7 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args.task},
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
+                    {"name": "warmup_frames", "data": args.warmup_frames},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -135,14 +146,19 @@ def run(argv: list[str]) -> None:
             num_envs = env.unwrapped.num_envs
 
             with BenchmarkMonitor(benchmark, interval=1.0):
-                step_times_s = stepping.run_runtime_loop(env, args.num_frames)
+                all_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames + args.num_frames)
+
+            # Keep the actual first step as a startup diagnostic while excluding all requested
+            # warmup steps from steady-state runtime metrics.
+            first_step_s = all_step_times_s[0]
+            step_times_s = all_step_times_s[args.warmup_frames :]
 
             benchmark.update_manual_recorders()
 
             startup = StartupTime(
                 app_launch=(app_t1 - app_t0) / 1e9,
                 env_creation=(env_t1 - env_t0) / 1e9,
-                first_step=(step_times_s[0] if step_times_s else 0.0),
+                first_step=first_step_s,
                 python_imports=(imports_t1 - imports_t0) / 1e9,
                 task_config=(task_config_t1 - task_config_t0) / 1e9,
             )
@@ -154,6 +170,7 @@ def run(argv: list[str]) -> None:
                 collection_fps=fps,
                 total_fps=fps,
                 steps_per_iteration=num_envs,
+                aggregate_throughput=True,
             )
 
             versions = capture.capture_versions(benchmark)
@@ -183,6 +200,7 @@ def run(argv: list[str]) -> None:
                 hardware=hardware,
                 runtime=runtime,
                 resources=resources,
+                extra={"warmup_frames": args.warmup_frames},
             )
 
             benchmark.attach_bundle(bundle)

@@ -123,6 +123,7 @@ def build_runtime(
     collection_fps: Sequence[float],
     total_fps: Sequence[float],
     steps_per_iteration: int,
+    aggregate_throughput: bool = False,
 ) -> Runtime:
     """Assemble a :class:`~isaaclab.test.benchmark.schema.Runtime` from raw series.
 
@@ -133,6 +134,9 @@ def build_runtime(
             [frames/s].
         total_fps: Per-iteration end-to-end throughput [frames/s].
         steps_per_iteration: Environment steps collected per iteration.
+        aggregate_throughput: When ``True``, report throughput means as total
+            completed steps divided by total wall time. Standard deviation and
+            peak remain aggregated from the per-iteration throughput samples.
 
     Returns:
         Populated :class:`~isaaclab.test.benchmark.schema.Runtime` with
@@ -140,15 +144,37 @@ def build_runtime(
     """
     iter_times = list(iteration_times_s)
     iter_per_s = [1.0 / t for t in iter_times if t > 0]
+    collection_fps_agg = mean_std_peak(collection_fps)
+    total_fps_agg = mean_std_peak(total_fps)
+    iterations_per_s_agg = mean_std_peak(iter_per_s)
+    if aggregate_throughput and iter_times:
+        total_wall_time_s = float(sum(iter_times))
+        effective_iterations_per_s = len(iter_times) / total_wall_time_s
+        effective_fps = steps_per_iteration * effective_iterations_per_s
+        collection_fps_agg = MeanStd(
+            mean=effective_fps,
+            std=collection_fps_agg.std,
+            peak=collection_fps_agg.peak,
+        )
+        total_fps_agg = MeanStd(
+            mean=effective_fps,
+            std=total_fps_agg.std,
+            peak=total_fps_agg.peak,
+        )
+        iterations_per_s_agg = MeanStd(
+            mean=effective_iterations_per_s,
+            std=iterations_per_s_agg.std,
+            peak=iterations_per_s_agg.peak,
+        )
     return Runtime(
         startup_time_s=startup_time_s,
         iterations_completed=len(iter_times),
         total_wall_time_s=float(sum(iter_times)),
         steps_per_iteration=steps_per_iteration,
         iteration_time_s=mean_std_peak(iter_times),
-        collection_fps=mean_std_peak(collection_fps),
-        total_fps=mean_std_peak(total_fps),
-        iterations_per_s=mean_std_peak(iter_per_s),
+        collection_fps=collection_fps_agg,
+        total_fps=total_fps_agg,
+        iterations_per_s=iterations_per_s_agg,
     )
 
 
