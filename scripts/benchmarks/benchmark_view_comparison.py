@@ -138,25 +138,23 @@ def benchmark_usd_or_fabric(view_type: str, num_iterations: int) -> dict[str, fl
 @torch.no_grad()
 def benchmark_newton(num_iterations: int) -> dict[str, float]:
     """Benchmark Newton FrameView."""
+    from isaaclab import cloner
     from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
     from isaaclab.sim import SimulationCfg, build_simulation_context
-    from isaaclab.utils.configclass import configclass
 
     timing_results = {}
+    num_envs = args_cli.num_envs
 
-    @configclass
-    class _SceneCfg(InteractiveSceneCfg):
-        cube: RigidObjectCfg = RigidObjectCfg(
-            prim_path="{ENV_REGEX_NS}/Cube",
-            spawn=sim_utils.CuboidCfg(
-                size=(0.2, 0.2, 0.2),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-            ),
-            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
-        )
+    cube_cfg = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.2, 0.2, 0.2),
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+    )
 
     print("  Setting up Newton scene")
     newton_cfg = SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg()), device=args_cli.device)
@@ -164,22 +162,30 @@ def benchmark_newton(num_iterations: int) -> dict[str, float]:
     ctx = build_simulation_context(device=args_cli.device, sim_cfg=newton_cfg, add_ground_plane=True)
     sim = ctx.__enter__()
     sim._app_control_on_stop_handle = None
-    InteractiveScene(_SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
 
+    # Newton sites register with the scene and clone during replication, so the
+    # sensor frame and the view are created inside the replication session.
     stage = sim_utils.get_current_stage()
-    for i in range(args_cli.num_envs):
-        prim = stage.DefinePrim(f"/World/envs/env_{i}/Cube/Sensor", "Xform")
+    stage.DefinePrim("/World/envs/env_0", "Xform")
+    env_ids = torch.arange(num_envs, dtype=torch.long, device=args_cli.device)
+    env_origins, _ = cloner.grid_transforms(num_envs, 2.0, device=args_cli.device)
+    with cloner.disabled_fabric_change_notifies(stage, restore=False):
+        cloner.usd_replicate(stage, ["/World/envs/env_0"], ["/World/envs/env_{}"], env_ids, positions=env_origins)
+    with cloner.ReplicateSession([cube_cfg], num_clones=num_envs, env_spacing=2.0, device=args_cli.device, stage=stage):
+        cube_cfg.class_type(cube_cfg)
+        prim = stage.DefinePrim("/World/envs/env_0/Cube/Sensor", "Xform")
         sim_utils.standardize_xform_ops(prim)
         prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
         prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
+        init_start = time.perf_counter()
+        view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
+        timing_results["init"] = time.perf_counter() - init_start
+
     sim.reset()
     print(f"  Newton scene setup: {time.perf_counter() - start_time:.4f}s")
 
-    start_time = time.perf_counter()
-    view = NewtonSiteFrameView("/World/envs/env_.*/Cube/Sensor", device=args_cli.device)
     num_prims = view.count
-    timing_results["init"] = time.perf_counter() - start_time
 
     print(f"  Newton FrameView managing {num_prims} prims")
 

@@ -10,6 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
+from isaaclab.sim import SimulationContext
+
 from .cloner_strategies import sequential
 
 if TYPE_CHECKING:
@@ -31,8 +33,6 @@ def replicate(plan: ClonePlan, *, stage: Usd.Stage) -> None:
     ascending ``replicate_priority`` order. The queue is cleared up front, so a backend
     failure cannot leak stale entries into the next call.
     """
-    from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
     queued = list(REPLICATION_QUEUE)
     REPLICATION_QUEUE.clear()
 
@@ -120,6 +120,10 @@ class ReplicateSession:
         from .cloner_utils import make_clone_plan  # noqa: PLC0415
 
         self._plan = make_clone_plan(self._cfgs, **self._kwargs)
+        # Publish immediately: the plan is complete once built, and entities
+        # constructed inside the session (sensors, frame views, ray casters) resolve
+        # prims through it the same way post-replication code does.
+        SimulationContext.instance().set_clone_plan(self._plan)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
@@ -127,8 +131,10 @@ class ReplicateSession:
             assert self._plan is not None
             replicate(self._plan, stage=self._stage)
         else:
-            # Drop cfgs registered before the failure so the next session is clean.
+            # Drop cfgs registered before the failure so the next session is clean,
+            # and unpublish the failed plan — its destinations were never created.
             REPLICATION_QUEUE.clear()
+            SimulationContext.instance().set_clone_plan(None)
 
     @property
     def plan(self) -> ClonePlan:

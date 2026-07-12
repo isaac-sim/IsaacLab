@@ -239,7 +239,7 @@ class PhysicsManager(ABC):
         cls._callback_id += 1
 
         if wrap_weak_ref:
-            callback = cls._wrap_weak_ref(callback)
+            callback = cls._wrap_weak_ref(callback, cid)
 
         subscription = cls._subscribe_to_event(cid, callback, event, order, name)
 
@@ -271,7 +271,14 @@ class PhysicsManager(ABC):
             event: The event to dispatch.
             payload: Optional data to pass to callbacks.
         """
-        matching = [(cid, cb, order) for cid, (ev, cb, order, name, sub) in cls._callbacks.items() if ev == event]
+        # Snapshot the keys before filtering: weak-ref finalizers deregister entries
+        # when their owner is collected, and a collection can run at any allocation,
+        # so the registry must not be iterated directly while building the snapshot.
+        matching = []
+        for cid in list(cls._callbacks):
+            entry = cls._callbacks.get(cid)
+            if entry is not None and entry[0] == event:
+                matching.append((cid, entry[1], entry[2]))
         matching.sort(key=lambda x: x[2])
 
         for _, callback, _ in matching:
@@ -298,17 +305,21 @@ class PhysicsManager(ABC):
         cls._callbacks.clear()
 
     @classmethod
-    def _wrap_weak_ref(cls, callback: Callable) -> Callable:
+    def _wrap_weak_ref(cls, callback: Callable, callback_id: int) -> Callable:
         """Wrap bound methods with weak references to prevent leaks.
+
+        The registry entry is deregistered when the owner is garbage-collected, so
+        stale callbacks do not accumulate between dispatches.
 
         Args:
             callback: The callback to wrap.
+            callback_id: Registry id to deregister when the owner is collected.
 
         Returns:
             Wrapped callback if it's a bound method, otherwise original.
         """
         if hasattr(callback, "__self__"):
-            obj_ref = weakref.proxy(callback.__self__)
+            obj_ref = weakref.proxy(callback.__self__, lambda _proxy: cls.deregister_callback(callback_id))
             method_name = callback.__name__
 
             def weak_callback(payload: Any) -> Any:

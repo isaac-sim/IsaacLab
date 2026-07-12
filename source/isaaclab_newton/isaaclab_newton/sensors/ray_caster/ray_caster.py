@@ -129,6 +129,11 @@ class _NewtonRayCasterMixin:
         resolved = resolve_clone_plan_source(prim_expr, plan) if plan is not None else None
         if resolved is not None:
             source_path, dest_glob, asset_suffix = resolved
+            # ``resolve_clone_plan_source`` returns a glob-style destination root;
+            # Newton site patterns are regexes, so restore the ``.*`` env wildcard.
+            # The same expressions are recomputed by ``BaseMultiMeshRayCaster``
+            # when it initializes tracked targets, so both derivations must match.
+            dest_expr = dest_glob.replace("*", ".*")
             walk_root = source_path + asset_suffix
             source_prims = sim_utils.find_matching_prims(walk_root)
             if not source_prims:
@@ -143,7 +148,7 @@ class _NewtonRayCasterMixin:
                         " to dynamic targets."
                     )
                 owner_prim_path = str(body.GetPath())
-                owner_exprs.append(dest_glob + owner_prim_path[len(source_path) :])
+                owner_exprs.append(dest_expr + owner_prim_path[len(source_path) :])
             return list(dict.fromkeys(owner_exprs))
 
         # Legacy fallback: no clone plan, or the target is not owned by any plan row.

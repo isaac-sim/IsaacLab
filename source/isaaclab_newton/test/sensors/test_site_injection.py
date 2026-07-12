@@ -60,7 +60,7 @@ class TestTransformToVecQuat:
 
 
 # ---------------------------------------------------------------------------
-# NewtonManager._cl_inject_sites_fallback
+# NewtonManager._cl_inject_sites_flat / cl_register_site window
 # ---------------------------------------------------------------------------
 
 
@@ -86,8 +86,8 @@ class TestFallbackGlobalSite:
 
     def test_global_site_entry_is_int_none_tuple(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {(None, False, tuple(xform)): ("ft_0", xform)}
-        NewtonManager._cl_inject_sites_fallback()
+        NewtonManager._cl_pending_sites = {(None, False, None, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_inject_sites_flat()
 
         entry = NewtonManager._cl_site_index_map["ft_0"]
         global_idx, per_world = entry
@@ -96,8 +96,8 @@ class TestFallbackGlobalSite:
 
     def test_global_site_pending_cleared(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {(None, False, tuple(xform)): ("ft_0", xform)}
-        NewtonManager._cl_inject_sites_fallback()
+        NewtonManager._cl_pending_sites = {(None, False, None, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_inject_sites_flat()
 
         assert len(NewtonManager._cl_pending_sites) == 0
 
@@ -111,8 +111,8 @@ class TestFallbackLocalSingleBody:
 
     def test_single_body_entry_shape(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/base", False, tuple(xform)): ("ft_0", xform)}
-        NewtonManager._cl_inject_sites_fallback()
+        NewtonManager._cl_pending_sites = {("Robot/base", False, None, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_inject_sites_flat()
 
         entry = NewtonManager._cl_site_index_map["ft_0"]
         global_idx, per_world = entry
@@ -132,8 +132,8 @@ class TestFallbackLocalWildcard:
 
     def test_wildcard_entry_shape(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/.*_foot", False, tuple(xform)): ("ft_0", xform)}
-        NewtonManager._cl_inject_sites_fallback()
+        NewtonManager._cl_pending_sites = {("Robot/.*_foot", False, None, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_inject_sites_flat()
 
         entry = NewtonManager._cl_site_index_map["ft_0"]
         global_idx, per_world = entry
@@ -143,9 +143,9 @@ class TestFallbackLocalWildcard:
 
     def test_no_match_raises(self):
         xform = wp.transform()
-        NewtonManager._cl_pending_sites = {("Robot/nonexistent", False, tuple(xform)): ("ft_0", xform)}
+        NewtonManager._cl_pending_sites = {("Robot/nonexistent", False, None, tuple(xform)): ("ft_0", xform)}
         with pytest.raises(ValueError):
-            NewtonManager._cl_inject_sites_fallback()
+            NewtonManager._cl_inject_sites_flat()
 
 
 class TestWorldSite:
@@ -153,7 +153,6 @@ class TestWorldSite:
 
     def setup_method(self):
         NewtonManager.clear()
-        NewtonManager._builder = MockBuilder([])
 
     def test_world_site_reuses_label(self):
         xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
@@ -162,10 +161,11 @@ class TestWorldSite:
 
         assert label_0 == label_1
 
-    def test_world_site_fallback_entry_is_local(self):
+    def test_world_site_flat_entry_is_local(self):
         xform = wp.transform((1.0, 2.0, 3.0), wp.quat_identity())
         label = NewtonManager.cl_register_site(None, xform, per_world=True)
-        NewtonManager._cl_inject_sites_fallback()
+        NewtonManager._builder = MockBuilder([])
+        NewtonManager._cl_inject_sites_flat()
 
         global_idx, per_world = NewtonManager._cl_site_index_map[label]
         assert global_idx is None
@@ -180,8 +180,106 @@ class TestWorldSite:
 
         assert global_sites == {}
         assert proto_sites == {}
-        assert world_sites[label] == xform
+        assert world_sites[label] == (xform, None)
         assert NewtonManager._cl_pending_sites == {}
+
+
+class TestRegistrationWindow:
+    """Site registration is rejected once the scene builder exists."""
+
+    def setup_method(self):
+        NewtonManager.clear()
+
+    def teardown_method(self):
+        NewtonManager.clear()
+
+    def test_register_after_builder_raises(self):
+        NewtonManager._builder = MockBuilder([])
+        with pytest.raises(RuntimeError, match="after the scene was built"):
+            NewtonManager.cl_register_site("Robot/base", wp.transform())
+
+    def test_register_after_model_raises(self):
+        NewtonManager._model = object()
+        with pytest.raises(RuntimeError, match="after the scene was built"):
+            NewtonManager.cl_register_site(None, wp.transform(), per_world=True)
+
+
+class TestPerWorldMembership:
+    """Per-world sites registered with explicit worlds only land in those worlds."""
+
+    def setup_method(self):
+        NewtonManager.clear()
+
+    def teardown_method(self):
+        NewtonManager.clear()
+
+    def test_worlds_partition_the_envs(self):
+        import torch
+        from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+        from newton import ModelBuilder
+
+        xform_a = wp.transform((0.1, 0.0, 0.0), wp.quat_identity())
+        xform_b = wp.transform((0.2, 0.0, 0.0), wp.quat_identity())
+        label_a = NewtonManager.cl_register_site(None, xform_a, per_world=True, worlds=(0, 2))
+        label_b = NewtonManager.cl_register_site(None, xform_b, per_world=True, worlds=(1, 3))
+        assert label_a != label_b
+
+        main_builder = ModelBuilder()
+        _, _, env_root_sites = NewtonManager._cl_inject_sites(main_builder, {})
+
+        num_envs = 4
+        positions = torch.zeros((num_envs, 3))
+        quaternions = torch.zeros((num_envs, 4))
+        quaternions[:, 3] = 1.0
+        mapping = torch.ones((1, num_envs), dtype=torch.bool)
+        local_site_map, _ = replicate_builder_mapping(
+            main_builder, (), mapping[0:0], positions, quaternions, {}, env_root_sites=env_root_sites
+        )
+
+        per_world_a = local_site_map[label_a]
+        per_world_b = local_site_map[label_b]
+        assert [len(sites) for sites in per_world_a] == [1, 0, 1, 0]
+        assert [len(sites) for sites in per_world_b] == [0, 1, 0, 1]
+
+    def test_worlds_without_per_world_raises(self):
+        with pytest.raises(ValueError, match="worlds"):
+            NewtonManager.cl_register_site(None, wp.transform(), worlds=(0,))
+
+
+class TestInjectSitesMainBuilderBodies:
+    """Body sites on non-cloned (main-builder) bodies inject once, like globals."""
+
+    def setup_method(self):
+        NewtonManager.clear()
+
+    def teardown_method(self):
+        NewtonManager.clear()
+
+    def test_main_builder_body_site_is_global_entry(self):
+        xform = wp.transform()
+        label = NewtonManager.cl_register_site("/World/Table", xform)
+        global_sites, proto_sites, world_sites = NewtonManager._cl_inject_sites(
+            MockBuilder(["/World/Table"]), {"/World/envs/env_0/Robot": MockBuilder(["/World/envs/env_0/Robot/base"])}
+        )
+
+        assert label in global_sites
+        assert proto_sites == {}
+        assert world_sites == {}
+
+    def test_ambiguous_main_builder_match_raises(self):
+        NewtonManager.cl_register_site("/World/Table.*", wp.transform())
+        with pytest.raises(ValueError, match="multiple non-cloned"):
+            NewtonManager._cl_inject_sites(MockBuilder(["/World/Table_a", "/World/Table_b"]), {})
+
+    def test_source_match_wins_over_main_builder(self):
+        label = NewtonManager.cl_register_site("/World/.*/base", wp.transform())
+        source = MockBuilder(["/World/envs/env_0/Robot/base"])
+        global_sites, proto_sites, _ = NewtonManager._cl_inject_sites(
+            MockBuilder(["/World/Station/base"]), {"/World/envs/env_0/Robot": source}
+        )
+
+        assert label not in global_sites
+        assert proto_sites == {id(source): {label: [0]}}
 
 
 # ---------------------------------------------------------------------------

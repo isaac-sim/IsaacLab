@@ -50,17 +50,15 @@ from isaaclab_physx.sim.views import FabricFrameView
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
+from isaaclab import cloner
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.views import UsdFrameView
-from isaaclab.utils.configclass import configclass
 
 
-@configclass
-class _NewtonSceneCfg(InteractiveSceneCfg):
-    cube: RigidObjectCfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Object",
+def _newton_cube_cfg() -> RigidObjectCfg:
+    return RigidObjectCfg(
+        prim_path="/World/envs/env_.*/Object",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(),
@@ -97,20 +95,28 @@ def benchmark_frame_view(  # noqa: C901
         ctx = build_simulation_context(device=device, sim_cfg=newton_cfg, add_ground_plane=True)
         sim = ctx.__enter__()
         sim._app_control_on_stop_handle = None
-        InteractiveScene(_NewtonSceneCfg(num_envs=num_envs, env_spacing=2.0))
 
+        # Newton sites register with the scene and clone during replication, so the
+        # sensor frame and the view are created inside the replication session.
         stage = sim_utils.get_current_stage()
-        for i in range(num_envs):
-            prim = stage.DefinePrim(f"/World/envs/env_{i}/Object/Sensor", "Xform")
+        stage.DefinePrim("/World/envs/env_0", "Xform")
+        env_ids = torch.arange(num_envs, dtype=torch.long, device=device)
+        env_origins, _ = cloner.grid_transforms(num_envs, 2.0, device=device)
+        with cloner.disabled_fabric_change_notifies(stage, restore=False):
+            cloner.usd_replicate(stage, ["/World/envs/env_0"], ["/World/envs/env_{}"], env_ids, positions=env_origins)
+        cube_cfg = _newton_cube_cfg()
+        with cloner.ReplicateSession([cube_cfg], num_clones=num_envs, env_spacing=2.0, device=device, stage=stage):
+            cube_cfg.class_type(cube_cfg)
+            prim = stage.DefinePrim("/World/envs/env_0/Object/Sensor", "Xform")
             sim_utils.standardize_xform_ops(prim)
             prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.1, 0.0, 0.05))
             prim.GetAttribute("xformOp:orient").Set(Gf.Quatd(1.0, 0.0, 0.0, 0.0))
 
-        sim.reset()
+            start_time = time.perf_counter()
+            xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
+            timing_results["init"] = time.perf_counter() - start_time
 
-        start_time = time.perf_counter()
-        xform_view = NewtonSiteFrameView("/World/envs/env_.*/Object/Sensor", device=device)
-        timing_results["init"] = time.perf_counter() - start_time
+        sim.reset()
         cleanup = lambda: ctx.__exit__(None, None, None)  # noqa: E731
 
     else:

@@ -14,12 +14,18 @@ import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
+import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager
+from isaaclab.cloner.cloner_utils import iter_clone_plan_matches
+from isaaclab.physics import PhysicsEvent
+from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp import fabric as fabric_utils
+
+from isaaclab_physx.physics import PhysxManager
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +191,10 @@ class FabricFrameView(BaseFrameView):
                 :class:`~isaaclab.sim.views.FrameView` factory can forward backend-agnostic
                 kwargs without each backend having to know about every option.
         """
-        self._usd_view = UsdFrameView(prim_path, device=device, validate_xform_ops=validate_xform_ops, stage=stage)
+        self._prim_path_expr = prim_path
+        self._validate_xform_ops = validate_xform_ops
+        self._usd_stage = stage if stage is not None else sim_utils.get_current_stage()
+        self._usd_view: UsdFrameView | None = None
         self._device = device
 
         settings = SettingsManager.instance()
@@ -224,6 +233,49 @@ class FabricFrameView(BaseFrameView):
 
         # Sentinel passed to compose/decompose kernels for unused slots.
         self._fabric_empty_2d_array_sentinel: wp.array | None = None
+
+        # Uniform two-phase lifecycle: a USD-backed view is ready as soon as its
+        # prims are fully authored, so all current consumers initialize at
+        # construction exactly as before. Only expressions whose prims are still
+        # to be cloned (e.g. a camera frame constructed before replication) defer
+        # to PHYSICS_READY.
+        if self._prims_authored(prim_path, self._usd_stage):
+            self._initialize_callback()
+        else:
+            PhysxManager.register_callback(
+                self._initialize_callback, PhysicsEvent.PHYSICS_READY, name=f"fabric_frame_view_{prim_path}"
+            )
+
+    @staticmethod
+    def _prims_authored(prim_path: str, stage: Usd.Stage) -> bool:
+        """Whether the expression's prims are fully authored on the stage.
+
+        For an expression owned by the clone plan, the source prim exists before
+        replication authors the per-environment clones, so readiness is judged by
+        the last environment's destination prim rather than the first match.
+        """
+        ctx = SimulationContext.instance()
+        if ctx is None:
+            # No backend: the USD stage holds all the prims there will ever be.
+            return True
+        if sim_utils.find_first_matching_prim(prim_path, stage) is None:
+            return False
+        plan = ctx.get_clone_plan()
+        matches = tuple(iter_clone_plan_matches(plan, prim_path)) if plan is not None else ()
+        if not matches:
+            return True
+        source_root, destination_template, source_path, env_ids = matches[0]
+        suffix = source_path[len(source_root) :]
+        return stage.GetPrimAtPath(destination_template.format(env_ids[-1]) + suffix).IsValid()
+
+    def _initialize_impl(self) -> None:
+        """Resolve the wrapped USD view once the expression's prims are authored."""
+        self._usd_view = UsdFrameView(
+            self._prim_path_expr,
+            device=self._device,
+            validate_xform_ops=self._validate_xform_ops,
+            stage=self._usd_stage,
+        )
 
     # ------------------------------------------------------------------
     # Delegated properties

@@ -658,6 +658,37 @@ def test_replicate_session_clears_queue_when_asset_init_fails(sim):
     sentinel_cls.assert_not_called()
 
 
+def test_replicate_session_publishes_plan_on_enter(sim):
+    """The clone plan is visible to entities constructed inside the session."""
+    from isaaclab.cloner import ReplicateSession
+
+    with ReplicateSession(
+        cfgs=[],
+        num_clones=2,
+        env_spacing=1.0,
+        device=sim.cfg.device,
+        stage=sim_utils.get_current_stage(),
+    ) as session:
+        assert sim.get_clone_plan() is session.plan
+
+
+def test_replicate_session_unpublishes_plan_when_asset_init_fails(sim):
+    """A failed session does not leave its never-replicated plan published."""
+    from isaaclab.cloner import ReplicateSession
+
+    with pytest.raises(RuntimeError, match="asset boom"):
+        with ReplicateSession(
+            cfgs=[],
+            num_clones=2,
+            env_spacing=1.0,
+            device=sim.cfg.device,
+            stage=sim_utils.get_current_stage(),
+        ):
+            raise RuntimeError("asset boom")
+
+    assert sim.get_clone_plan() is None
+
+
 def test_iter_clone_plan_matches(sim):
     """ClonePlan entries can be matched by destination path expression."""
     plan = ClonePlan(

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import abc
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
@@ -46,9 +46,33 @@ class BaseFrameView(abc.ABC):
     scope first.
     """
 
+    _is_initialized: bool = False
+    """Whether :meth:`_initialize_impl` has run. Class-level default; set on the
+    instance by :meth:`_initialize_callback`."""
+
     # Class-level default; instance-level value is set by the writer's
     # __enter__ / __exit__ to track the active scope on this view.
     _active_writer: FrameViewSpaceWriterBase | None = None
+
+    def _initialize_callback(self, event: Any = None) -> None:
+        """Complete initialization exactly once.
+
+        Constructors call this directly when their physics backend is already ready,
+        or hook it to the backend's ready event, so views can be constructed
+        alongside the rest of the scene and initialize once the backend is.
+        """
+        if not self._is_initialized:
+            self._initialize_impl()
+            self._is_initialized = True
+
+    def _initialize_impl(self) -> None:
+        """Complete initialization once the physics backend is ready.
+
+        Backends whose state is unavailable at construction override this and defer
+        the corresponding work (prim resolution, backend bindings) to it; views whose
+        state is fully available at construction initialize in ``__init__`` and keep
+        the default no-op.
+        """
 
     @property
     @abc.abstractmethod
