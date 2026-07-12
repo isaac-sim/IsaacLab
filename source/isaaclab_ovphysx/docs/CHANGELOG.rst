@@ -1,6 +1,17 @@
 Changelog
 ---------
 
+6.3.1 (2026-07-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``fix_root_link=True`` for OVPhysX fragment-based articulation spawns by relocating the
+  articulation root to the parser-required parent, including when an existing disabled world fixed
+  joint is re-enabled.
+
+
 6.3.0 (2026-07-09)
 ~~~~~~~~~~~~~~~~~~
 
