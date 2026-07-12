@@ -1,6 +1,18 @@
 Changelog
 ---------
 
+8.1.8 (2026-07-11)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed preset-enabled command-line tools rejecting ``--help`` when required
+  arguments were omitted.
+* Fixed Cartpole camera ``newton_renderer`` presets to use tile dimensions
+  compatible with the 100x100 camera resolution.
+
+
 8.1.7 (2026-07-08)
 ~~~~~~~~~~~~~~~~~~
 

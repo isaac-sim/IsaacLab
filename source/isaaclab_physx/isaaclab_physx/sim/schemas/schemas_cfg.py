@@ -11,6 +11,7 @@ from typing import ClassVar
 
 from isaaclab.sim.schemas.schemas_cfg import (
     ArticulationRootBaseCfg,
+    ArticulationRootFragment,
     CollisionBaseCfg,
     CollisionFragment,
     DeformableBodyPropertiesBaseCfg,
@@ -590,6 +591,51 @@ class PhysxArticulationRootPropertiesCfg(ArticulationRootBaseCfg):
 
     stabilization_threshold: float | None = None
     """The mass-normalized kinetic energy threshold below which an articulation may participate in stabilization."""
+
+
+@configclass
+class PhysxArticulationCfg(ArticulationRootFragment):
+    """``physxArticulation:*`` articulation-root attributes from `PhysxArticulationAPI`_.
+
+    A single-namespace fragment (see :class:`~isaaclab.sim.schemas.SchemaFragment`) for the PhysX
+    articulation add-on schema. Applied alongside other articulation-root fragments via
+    :func:`~isaaclab.sim.schemas.apply_articulation_root_properties`, which applies the
+    ``UsdPhysics.ArticulationRootAPI`` anchor (presence-gated). This fragment owns the
+    ``PhysxArticulationAPI`` applied schema.
+
+    .. _PhysxArticulationAPI: https://docs.omniverse.nvidia.com/kit/docs/omni_usd_schema_physics/104.2/class_physx_schema_physx_articulation_a_p_i.html
+    """
+
+    _usd_namespace: ClassVar[str | None] = "physxArticulation"
+    _usd_applied_schema: ClassVar[str | None] = "PhysxArticulationAPI"
+
+    articulation_enabled: bool | None = None
+    """Whether to enable or disable the articulation.
+
+    PhysX honors this per-articulation at sim time via ``physxArticulation:articulationEnabled``:
+    setting False makes PhysX skip the articulation in its solver passes.
+    """
+
+    enabled_self_collisions: bool | None = None
+    """Whether self-collisions between bodies in the same articulation are enabled.
+
+    Written to ``physxArticulation:enabledSelfCollisions``. The Newton-native counterpart is
+    :attr:`~isaaclab_newton.sim.schemas.NewtonArticulationCfg.self_collision_enabled`
+    (``newton:selfCollisionEnabled``).
+    """
+
+    solver_position_iteration_count: int | None = None
+    """Solver position iteration counts for the articulation."""
+
+    solver_velocity_iteration_count: int | None = None
+    """Solver velocity iteration counts for the articulation."""
+
+    sleep_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an actor may go to sleep [m²/s²]."""
+
+    stabilization_threshold: float | None = None
+    """Mass-normalized kinetic energy threshold below which an articulation may participate in
+    stabilization [m²/s²]."""
 
 
 @configclass

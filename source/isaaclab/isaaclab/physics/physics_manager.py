@@ -14,6 +14,7 @@ from collections.abc import Callable
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils._device import set_cuda_device
 
 if TYPE_CHECKING:
@@ -100,6 +101,110 @@ class PhysicsManager(ABC):
             Whether the backend's integrator has implicit numerical damping.
         """
         return True
+
+    @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Ensure that an articulation root has one enabled world fixed joint.
+
+        The base implementation leaves the root in place. Backends whose parser requires a different
+        root topology may relocate it and return the resulting root prim.
+
+        Args:
+            articulation_prim: The articulation-root prim to fix.
+            stage: The stage containing the prim. Defaults to the current stage.
+
+        Returns:
+            The articulation-root prim after backend normalization.
+
+        Raises:
+            NotImplementedError: If a new joint is needed and the root is not a rigid body.
+        """
+        # Keep this import local to avoid the SimulationContext -> PhysicsManager ->
+        # sim.utils.queries -> SimulationContext import cycle.
+        # Keep pxr local as well: this module is imported while environment configs load (via the
+        # manager classes), and config loading must not pull USD/omni modules before the simulation
+        # app starts.
+        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+
+        from isaaclab.sim.utils import find_global_fixed_joint_prim  # noqa: PLC0415
+
+        if stage is None:
+            stage = get_current_stage()
+        root_path = articulation_prim.GetPath().pathString
+        joint = find_global_fixed_joint_prim(root_path, stage=stage)
+        if joint is not None:
+            joint.GetJointEnabledAttr().Set(True)
+            return articulation_prim
+        if not articulation_prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            raise NotImplementedError(f"Cannot fix non-rigid articulation root '{root_path}'.")
+
+        joint_path = f"{root_path}/FixedJoint"
+        index = 0
+        while stage.GetPrimAtPath(joint_path).IsValid():
+            index += 1
+            joint_path = f"{root_path}/FixedJoint{index}"
+
+        world_xform = UsdGeom.XformCache().GetLocalToWorldTransform(articulation_prim).RemoveScaleShear()
+        joint = UsdPhysics.FixedJoint.Define(stage, joint_path)
+        joint.CreateBody1Rel().SetTargets([articulation_prim.GetPath()])
+        joint.CreateLocalPos0Attr().Set(Gf.Vec3f(world_xform.ExtractTranslation()))
+        joint.CreateLocalRot0Attr().Set(Gf.Quatf(world_xform.ExtractRotationQuat()))
+        return articulation_prim
+
+    @staticmethod
+    def _relocate_articulation_root(
+        articulation_prim: Any,
+        companion_schema: str,
+        companion_namespace: str,
+    ) -> Any:
+        """Move root-bearing schemas and authored properties to the root link's parent."""
+        # Keep pxr local: this module is imported while environment configs load (via the manager
+        # classes), and config loading must not pull USD/omni modules before the simulation app
+        # starts.
+        from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+        new_root = articulation_prim.GetParent()
+        if new_root.HasAPI(UsdPhysics.ArticulationRootAPI):
+            raise RuntimeError(
+                f"Cannot relocate '{articulation_prim.GetPath()}' to existing articulation root '{new_root.GetPath()}'."
+            )
+
+        registry = Usd.SchemaRegistry()
+        root_schema = UsdPhysics.Tokens.PhysicsArticulationRootAPI
+        schemas_to_move = []
+        for schema_name in articulation_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+            definition = registry.FindAppliedAPIPrimDefinition(schema_name)
+            if schema_name == companion_schema:
+                properties = list(articulation_prim.GetAuthoredPropertiesInNamespace(companion_namespace))
+            elif schema_name == root_schema or (
+                definition is not None and root_schema in definition.GetAppliedAPISchemas()
+            ):
+                properties = []
+                if definition is not None:
+                    for property_name in definition.GetPropertyNames():
+                        prop = articulation_prim.GetProperty(property_name)
+                        if prop and prop.IsAuthored():
+                            properties.append(prop)
+            else:
+                continue
+            schemas_to_move.append((schema_name, properties))
+
+        for schema_name, properties in schemas_to_move:
+            if not new_root.AddAppliedSchema(schema_name):
+                raise RuntimeError(f"Failed to apply '{schema_name}' to '{new_root.GetPath()}'.")
+            for prop in properties:
+                if not prop.FlattenTo(new_root):
+                    raise RuntimeError(f"Failed to move '{prop.GetPath()}' to '{new_root.GetPath()}'.")
+        for schema_name, _ in schemas_to_move:
+            if not articulation_prim.RemoveAppliedSchema(schema_name):
+                raise RuntimeError(f"Failed to remove '{schema_name}' from '{articulation_prim.GetPath()}'.")
+        if articulation_prim.HasAPI(UsdPhysics.ArticulationRootAPI) or not new_root.HasAPI(
+            UsdPhysics.ArticulationRootAPI
+        ):
+            raise RuntimeError(
+                f"Failed to relocate articulation root '{articulation_prim.GetPath()}' to '{new_root.GetPath()}'."
+            )
+        return new_root
 
     @classmethod
     def register_callback(
