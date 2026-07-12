@@ -74,6 +74,7 @@ def test_training_and_play_write_bundles(
         _TASK,
         "--num_envs",
         str(num_envs),
+        "--measure_simulation_step_time",
         "presets=newton_mjwarp",
         "--headless",
         "--benchmark_formatter",

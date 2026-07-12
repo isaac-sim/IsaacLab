@@ -61,6 +61,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
+        "--measure_simulation_step_time",
+        action="store_true",
+        help="Measure synchronized simulation time and Isaac Lab overhead.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -178,7 +183,7 @@ def run(argv: list[str]) -> None:
         runner.load(resume_path)
         policy = runner.get_inference_policy(device=env.unwrapped.device)
 
-        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args.measure_simulation_step_time)
         with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args.num_frames)
 

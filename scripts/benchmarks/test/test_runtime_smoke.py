@@ -31,6 +31,7 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         "20",
         "--warmup_frames",
         "2",
+        "--measure_simulation_step_time",
         "--seed",
         "0",
         "--device",

@@ -125,6 +125,11 @@ def _parse_args(argv: list[str]):
 
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
+        "--measure_simulation_step_time",
+        action="store_true",
+        help="Measure synchronized simulation time and Isaac Lab overhead.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -298,7 +303,7 @@ def run(argv: list[str]) -> None:
         cb = BenchmarkCallback()
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
 
-        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args_cli.measure_simulation_step_time)
         with (
             contextlib.suppress(KeyboardInterrupt),
             success_context,

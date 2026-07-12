@@ -59,6 +59,11 @@ def _parse_args(argv: list[str]):
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
+        "--measure_simulation_step_time",
+        action="store_true",
+        help="Measure synchronized simulation time and Isaac Lab overhead.",
+    )
+    parser.add_argument(
         "--benchmark_formatter",
         type=str,
         default="schema",
@@ -217,7 +222,7 @@ def run(argv: list[str]) -> None:
             obs = agent.obs_to_torch(obs)
             return agent.get_action(obs, is_deterministic=agent.is_deterministic)
 
-        environment_step_timer = stepping.EnvironmentStepTimer(env)
+        environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args_cli.measure_simulation_step_time)
         with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)
 

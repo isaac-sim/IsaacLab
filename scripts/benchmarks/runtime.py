@@ -52,8 +52,8 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         "--measure_simulation_step_time",
         dest="measure_simulation_step_time",
         action="store_true",
-        default=True,
-        help="Measure synchronized wall time inside SimulationContext.step during measured frames (default).",
+        default=False,
+        help="Measure synchronized wall time inside SimulationContext.step during measured frames when enabled.",
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
@@ -154,7 +154,7 @@ def run(argv: list[str]) -> None:
             num_envs = env.unwrapped.num_envs
 
             warmup_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames)
-            environment_step_timer = stepping.EnvironmentStepTimer(env)
+            environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args.measure_simulation_step_time)
             with BenchmarkMonitor(benchmark, interval=1.0):
                 timer_context = environment_step_timer
                 with timer_context:

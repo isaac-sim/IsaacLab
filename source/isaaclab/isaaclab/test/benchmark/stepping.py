@@ -126,31 +126,35 @@ class EnvironmentStepTimer(AbstractContextManager):
 
     Args:
         env: Environment interface whose ``step`` method is called by the workload.
+        enabled: Whether to install the timers.
         synchronize: Whether to synchronize the simulation device before
             stopping each simulation-step timer.
     """
 
-    def __init__(self, env, *, synchronize: bool = True):
+    def __init__(self, env, *, enabled: bool = True, synchronize: bool = True):
         self._env = env
-        self._simulation_timer = SimulationStepTimer(env, synchronize=synchronize)
+        self._enabled = enabled
+        self._simulation_timer = SimulationStepTimer(env, synchronize=synchronize) if enabled else None
         self._had_instance_step = "step" in vars(env)
         self._instance_step = vars(env).get("step")
         self._original_step = None
-        self.total_time_s = 0.0
-        self.num_calls = 0
+        self.total_time_s = 0.0 if enabled else None
+        self.num_calls = 0 if enabled else None
 
     @property
-    def simulation_time_s(self) -> float:
+    def simulation_time_s(self) -> float | None:
         """Wall time inside synchronized simulation-step calls [s]."""
-        return self._simulation_timer.total_time_s
+        return self._simulation_timer.total_time_s if self._simulation_timer is not None else None
 
     @property
-    def simulation_step_calls(self) -> int:
+    def simulation_step_calls(self) -> int | None:
         """Number of measured simulation-step calls."""
-        return self._simulation_timer.num_calls
+        return self._simulation_timer.num_calls if self._simulation_timer is not None else None
 
     def __enter__(self) -> EnvironmentStepTimer:
         """Install environment and simulation-step timers."""
+        if not self._enabled:
+            return self
         if self._original_step is not None:
             raise RuntimeError("EnvironmentStepTimer is already active")
 
@@ -178,7 +182,8 @@ class EnvironmentStepTimer(AbstractContextManager):
             else:
                 del self._env.step
             self._original_step = None
-        self._simulation_timer.__exit__(exc_type, exc_value, traceback)
+        if self._simulation_timer is not None:
+            self._simulation_timer.__exit__(exc_type, exc_value, traceback)
 
 
 def run_runtime_loop(env, num_frames: int, *, reset: bool = True) -> list[float]:

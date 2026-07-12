@@ -108,6 +108,20 @@ def test_simulation_step_timer_restores_method_after_exception():
     assert simulation_context.step.__func__ is original_step.__func__
 
 
+def test_environment_step_timer_disabled_does_not_instrument():
+    env = _Env()
+
+    with EnvironmentStepTimer(env, enabled=False) as timer:
+        run_runtime_loop(env, num_frames=2, reset=False)
+
+    assert timer.total_time_s is None
+    assert timer.simulation_time_s is None
+    assert timer.num_calls is None
+    assert timer.simulation_step_calls is None
+    assert "step" not in vars(env)
+    assert "step" not in vars(env.unwrapped.sim)
+
+
 def test_environment_step_timer_measures_only_step_calls():
     env = _Env()
 
