@@ -131,7 +131,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = actions.clone()
+        self.actions = actions
 
     def _apply_action(self) -> None:
         forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)

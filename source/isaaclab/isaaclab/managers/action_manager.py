@@ -205,6 +205,9 @@ class ActionManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
+        # cache action dimensions since they are queried every environment step
+        self._action_term_dim = [term.action_dim for term in self._terms.values()]
+        self._total_action_dim = sum(self._action_term_dim)
         # create buffers to store actions
         self._action = torch.zeros((self.num_envs, self.total_action_dim), device=self.device)
         self._prev_action = torch.zeros_like(self._action)
@@ -241,7 +244,7 @@ class ActionManager(ManagerBase):
     @property
     def total_action_dim(self) -> int:
         """Total dimension of actions."""
-        return sum(self.action_term_dim)
+        return self._total_action_dim
 
     @property
     def active_terms(self) -> list[str]:
@@ -251,7 +254,7 @@ class ActionManager(ManagerBase):
     @property
     def action_term_dim(self) -> list[int]:
         """Shape of each action term."""
-        return [term.action_dim for term in self._terms.values()]
+        return self._action_term_dim
 
     @property
     def action(self) -> torch.Tensor:

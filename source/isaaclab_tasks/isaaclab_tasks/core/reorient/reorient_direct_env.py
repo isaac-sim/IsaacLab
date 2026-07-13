@@ -128,7 +128,7 @@ class ReorientDirectEnv(DirectRLEnv):
         return JointWrenchSensor(JointWrenchSensorCfg(prim_path=self.cfg.robot_cfg.prim_path))
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = actions.clone()
+        self.actions = actions
 
     def _apply_action(self) -> None:
         self.cur_targets[:, self.actuated_dof_indices] = unscale_transform(

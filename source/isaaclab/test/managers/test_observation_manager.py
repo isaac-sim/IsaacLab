@@ -372,6 +372,51 @@ def test_compute(setup_env):
     assert torch.equal(obs_policy[:, 8:11], obs_critic[:, 3:6])
 
 
+def test_compute_preserves_source_data(setup_env):
+    env = setup_env
+    """Test that observation outputs cannot mutate source tensors."""
+
+    @configclass
+    class MyObservationManagerCfg:
+        """Test config class for observation manager."""
+
+        @configclass
+        class PolicyCfg(ObservationGroupCfg):
+            """Test config class for concatenated raw observations."""
+
+            term_1 = ObservationTermCfg(func=pos_w_data)
+            term_2 = ObservationTermCfg(func=lin_vel_w_data)
+
+        @configclass
+        class CriticCfg(ObservationGroupCfg):
+            """Test config class for non-concatenated raw observations."""
+
+            concatenate_terms = False
+            term_1 = ObservationTermCfg(func=pos_w_data)
+
+        @configclass
+        class ScaledCfg(ObservationGroupCfg):
+            """Test config class for concatenated observations with in-place post-processing."""
+
+            term_1 = ObservationTermCfg(func=pos_w_data, scale=2.0)
+
+        policy: ObservationGroupCfg = PolicyCfg()
+        critic: ObservationGroupCfg = CriticCfg()
+        scaled: ObservationGroupCfg = ScaledCfg()
+
+    cfg = MyObservationManagerCfg()
+    obs_man = ObservationManager(cfg, env)
+
+    pos_before = env.data.pos_w.clone()
+    observations = obs_man.compute()
+
+    observations["policy"][:, :3] = 0.0
+    observations["critic"]["term_1"][:] = 0.0
+
+    torch.testing.assert_close(env.data.pos_w, pos_before)
+    torch.testing.assert_close(observations["scaled"], pos_before * 2.0)
+
+
 def test_compute_with_history(setup_env):
     env = setup_env
     """Test the observation computation with history buffers."""
