@@ -28,6 +28,8 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from newton.solvers import SolverNotifyFlags
 
+from pxr import UsdPhysics
+
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
@@ -780,6 +782,29 @@ def test_initialization_hand_with_tendons(sim, num_articulations, device, articu
         sim.step()
         # update articulation
         articulation.update(sim.cfg.dt)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("add_ground_plane", [True])
+@pytest.mark.parametrize("articulation_type", ["anymal"])
+def test_fragment_fix_root_link_uses_base_manager(sim, device, add_ground_plane, articulation_type):
+    """Newton consumes the base manager's world joint without relocating the root API."""
+    articulation_cfg = deepcopy(generate_articulation_cfg(articulation_type=articulation_type))
+    articulation_cfg.spawn.articulation_props = []
+    articulation_cfg.spawn.fix_root_link = True
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations=1, device=device)
+
+    root = sim_utils.get_first_matching_child_prim(
+        "/World/Env_0/Robot",
+        lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI),
+        stage=sim.stage,
+    )
+    assert root is not None and root.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert sim_utils.find_global_fixed_joint_prim("/World/Env_0/Robot", stage=sim.stage) is not None
+
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

@@ -40,6 +40,16 @@ class OVRTXRendererCfg(RendererCfg):
     log_file_path: str = os.path.join(tempfile.gettempdir(), "ovrtx_renderer.log")
     """Path for OVRTX log file. Defaults to ``<system temp>/ovrtx_renderer.log``."""
 
+    colorize_semantic_segmentation: bool = True
+    """Whether to colorize semantic segmentation output. Defaults to True.
+
+    If True, semantic IDs are mapped to RGBA colors and returned as a ``uint8`` 4-channel array.
+    If False, raw semantic IDs are returned as an ``int32`` 1-channel array.
+
+    Regardless of this setting, the semantic ID (or color) to label mapping is exposed via
+    ``camera.data.info["semantic_segmentation"]["idToLabels"]``.
+    """
+
     colorize_instance_segmentation: bool = True
     """Whether to colorize instance segmentation output. Defaults to True.
 

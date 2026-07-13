@@ -47,6 +47,7 @@ RUN apt-get update && \
     ncurses-term \
     cmake \
     git \
+    git-lfs \
     wget
 
 # Install the Carbonite env shim (libcarb.env.shim.so) that serializes glibc's

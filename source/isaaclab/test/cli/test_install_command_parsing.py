@@ -160,6 +160,9 @@ _PATCHES = [
     f"{_INSTALL_MODULE}._install_isaaclab_submodules",
     f"{_INSTALL_MODULE}._install_extra_feature",
     f"{_INSTALL_MODULE}._install_optional_submodule_extra_dependencies",
+    # Centralized dependency installs read the root pyproject and shell out to pip.
+    f"{_INSTALL_MODULE}._root_core_dependencies",
+    f"{_INSTALL_MODULE}._install_root_extra",
     f"{_INSTALL_MODULE}._install_isaacsim",
     f"{_INSTALL_MODULE}._ensure_cuda_torch",
     f"{_INSTALL_MODULE}._maybe_preinstall_arm_nlopt",

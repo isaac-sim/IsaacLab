@@ -302,6 +302,18 @@ class PhysxManager(PhysicsManager):
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
 
     @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix and normalize an articulation root for the PhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
+
+    @classmethod
     def reset(cls, soft: bool = False) -> None:
         """Reset the physics simulation."""
         if not soft:

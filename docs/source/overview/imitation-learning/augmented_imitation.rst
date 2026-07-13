@@ -27,14 +27,16 @@ In the following example, we will show you how to use Isaac Lab Mimic to generat
     ./isaaclab.sh -p scripts/imitation_learning/isaaclab_mimic/generate_dataset.py \
     --device cpu --enable_cameras --num_envs 10 --generation_num_trials 1000 \
     --input_file ./datasets/annotated_dataset.hdf5 --output_file ./datasets/mimic_dataset_1k.hdf5 \
-    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0 \
-    --rendering_mode performance
+    --task Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-Mimic-v0
 
 The number of demonstrations can be increased or decreased, 1000 demonstrations have been shown to provide good training results for this task.
 
 Additionally, the number of environments in the ``--num_envs`` parameter can be adjusted to speed up data generation.
 The suggested number of 10 can be executed on a moderate laptop CPU.
 On a more powerful desktop machine, use a larger number of environments for a significant speedup of this step.
+When running large camera-heavy jobs, switch to the RTX Minimal renderer for higher throughput, or
+override the task's high-fidelity RTX settings directly if they are more expensive than your workflow
+requires.
 
 Cosmos Augmentation
 ~~~~~~~~~~~~~~~~~~~
@@ -392,8 +394,7 @@ Example usage for the cube stacking task:
     --log_file result \
     --enable_cameras \
     --seeds 0 \
-    --num_rollouts 15 \
-    --rendering_mode performance
+    --num_rollouts 15
 
 .. tip::
    Verify that the models directory is not empty. By default, the training script saves models every 20 epochs starting from epoch 100.

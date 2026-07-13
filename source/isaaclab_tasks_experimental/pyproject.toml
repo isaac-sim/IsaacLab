@@ -16,9 +16,8 @@ authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "rl", "il", "learning"]
 requires-python = ">=3.12"
-dependencies = [
-    "isaaclab_tasks",
-]
+# Third-party requirements are centralized in the root pyproject.toml.
+dependencies = []
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

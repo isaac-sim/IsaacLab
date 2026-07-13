@@ -25,7 +25,7 @@ def _repo_root() -> Path:
 
 def test_isaaclab_usd_core_pin_stays_on_isaacsim_compatible_usd25_abi():
     """The kit-less USD package must stay on the Isaac Sim compatible USD 25 ABI."""
-    with (_repo_root() / "source/isaaclab/pyproject.toml").open("rb") as f:
+    with (_repo_root() / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
     usd_core_dependencies = [
@@ -37,7 +37,7 @@ def test_isaaclab_usd_core_pin_stays_on_isaacsim_compatible_usd25_abi():
 
 def test_isaaclab_standalone_usd_providers_are_platform_disjoint():
     """Standalone USD packages must not overlap on platforms where both ship ``pxr``."""
-    with (_repo_root() / "source/isaaclab/pyproject.toml").open("rb") as f:
+    with (_repo_root() / "pyproject.toml").open("rb") as f:
         pyproject = tomllib.load(f)
 
     usd_exchange_dependencies = [

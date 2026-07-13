@@ -58,6 +58,8 @@ import pytest
 import torch
 import warp as wp
 
+from pxr import UsdPhysics
+
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
@@ -722,6 +724,47 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 
         torch.testing.assert_close(articulation.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
+
+
+@pytest.mark.parametrize("device", ["cpu"])
+def test_fragment_fix_root_reenables_existing_joint(sim, device):
+    """The fragment path must normalize OVPhysX topology even when a disabled fixed joint exists."""
+    articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
+    articulation_cfg.spawn.articulation_props = []
+    articulation_cfg.spawn.fix_root_link = None
+    articulation, _ = generate_articulation(articulation_cfg, num_articulations=1, device=device)
+
+    stage = sim.stage
+    asset_path = "/World/Env_0/Robot"
+    root = sim_utils.get_first_matching_child_prim(
+        asset_path, lambda prim: prim.HasAPI(UsdPhysics.ArticulationRootAPI), stage=stage
+    )
+    assert root is not None and root.HasAPI(UsdPhysics.RigidBodyAPI)
+    old_root_path = root.GetPath().pathString
+    final_root = root.GetParent()
+
+    joint = UsdPhysics.FixedJoint.Define(stage, f"{old_root_path}/PreAuthoredFixedJoint")
+    joint.CreateBody1Rel().SetTargets([root.GetPath()])
+    joint.CreateJointEnabledAttr().Set(False)
+
+    assert sim_utils.apply_articulation_root_properties(asset_path, [], stage, fix_root_link=True)
+    assert joint.GetJointEnabledAttr().Get() is True
+    world_joints = []
+    for prim in sim_utils.get_all_matching_child_prims(
+        asset_path, lambda prim: prim.IsA(UsdPhysics.FixedJoint), stage=stage
+    ):
+        usd_joint = UsdPhysics.Joint(prim)
+        has_body_0 = bool(usd_joint.GetBody0Rel().GetTargets())
+        has_body_1 = bool(usd_joint.GetBody1Rel().GetTargets())
+        if has_body_0 != has_body_1:
+            world_joints.append(prim)
+    assert world_joints == [joint.GetPrim()]
+    assert final_root.HasAPI(UsdPhysics.ArticulationRootAPI)
+    assert not root.HasAPI(UsdPhysics.ArticulationRootAPI)
+
+    sim.reset()
+    assert articulation.is_initialized
+    assert articulation.is_fixed_base
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])

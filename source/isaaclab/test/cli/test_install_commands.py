@@ -365,10 +365,10 @@ class TestEnsureCudaTorch:
     # ---- x86 scenarios -------------------------------------------------------
 
     def test_x86_skips_install_when_correct_version_present(self, tmp_path):
-        """x86: torch 2.10.0+cu128 already installed → pip install is not called."""
+        """x86: torch 2.11.0+cu128 already installed → pip install is not called."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.10.0+cu128\n"
+        pip_show_out = "Name: torch\nVersion: 2.11.0+cu128\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
@@ -413,7 +413,7 @@ class TestEnsureCudaTorch:
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.10.0+cu130\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.11.0+cu130\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
@@ -454,10 +454,10 @@ class TestEnsureCudaTorch:
         assert "cu130" in combined
 
     def test_arm_skips_install_when_correct_version_present(self, tmp_path):
-        """ARM: torch 2.10.0+cu130 already installed → pip install is not called."""
+        """ARM: torch 2.11.0+cu130 already installed → pip install is not called."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.10.0+cu130\n"
+        pip_show_out = "Name: torch\nVersion: 2.11.0+cu130\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
@@ -477,7 +477,7 @@ class TestEnsureCudaTorch:
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.10.0+cu128\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.11.0+cu128\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
