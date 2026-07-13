@@ -318,8 +318,8 @@ class NewtonCoupler(NewtonVBDManager):
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:
             values["contact_pairs"] = [
-                SolverCoupledADMM.ContactPair(**cls._matching_config_values(SolverCoupledADMM.ContactPair, pair))
-                for pair in solver_cfg.contact_pairs
+                SolverCoupledADMM.ContactPair(source=source, destination=destination)
+                for source, destination in solver_cfg.contact_pairs
             ]
         coupling = SolverCoupledADMM.Config(**values)
         return SolverCoupledADMM(model=model, entries=entries, coupling=coupling)

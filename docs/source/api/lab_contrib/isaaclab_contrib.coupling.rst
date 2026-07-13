@@ -11,7 +11,6 @@ isaaclab_contrib.coupling
     coupler_cfg.CouplerCfg
     coupler_cfg.CouplerProxyMappingCfg
     coupler_cfg.CouplerProxyCfg
-    coupler_cfg.CouplerAdmmContactPairCfg
     coupler_cfg.CouplerAdmmCfg
     coupler.NewtonCoupler
 
@@ -34,11 +33,6 @@ Coupler Configurations
   :exclude-members: __init__
 
 .. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerProxyCfg
-  :members:
-  :show-inheritance:
-  :exclude-members: __init__
-
-.. autoclass:: isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmContactPairCfg
   :members:
   :show-inheritance:
   :exclude-members: __init__

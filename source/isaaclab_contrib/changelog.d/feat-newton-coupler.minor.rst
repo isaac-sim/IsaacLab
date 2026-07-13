@@ -31,9 +31,7 @@ Added
   The coupler partitions the Newton model among explicit, named
   :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerEntryCfg`
   entries, instantiates each sub-solver from its config, and connects entries
-  through named proxy mappings or typed
-  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerAdmmContactPairCfg`
-  interfaces.
+  through named proxy mappings or symmetric ADMM contact pairs.
 
 * Added support for raw prim-path regex strings (e.g.
   ``"/World/envs/env_.*/MyCube"``) in the body-selector lists of

@@ -33,7 +33,6 @@ from isaaclab.managers import SceneEntityCfg
 
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
-    CouplerAdmmContactPairCfg,
     CouplerCfg,
     CouplerEntryCfg,
     CouplerProxyCfg,
@@ -596,8 +595,8 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     cfg = CouplerAdmmCfg(
         entries=[entry.config for entry in resolved_entries],
         contact_pairs=[
-            CouplerAdmmContactPairCfg("robot", "object"),
-            CouplerAdmmContactPairCfg("object", "world"),
+            ("robot", "object"),
+            ("object", "world"),
         ],
         iterations=7,
         joint_proximal_bodies=False,

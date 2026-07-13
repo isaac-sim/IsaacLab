@@ -167,22 +167,11 @@ class CouplerProxyCfg(CouplerCfg):
 
 
 @configclass
-class CouplerAdmmContactPairCfg:
-    """Configuration for one symmetric ADMM contact interface."""
-
-    source: str = MISSING
-    """Name of one solver entry."""
-
-    destination: str = MISSING
-    """Name of the other solver entry."""
-
-
-@configclass
 class CouplerAdmmCfg(CouplerCfg):
     """Configuration for Newton's linearized ADMM coupling."""
 
-    contact_pairs: list[CouplerAdmmContactPairCfg] | None = None
-    """Symmetric contact interfaces between named solver entries.
+    contact_pairs: list[tuple[str, str]] | None = None
+    """Symmetric contact interfaces as ``(entry_name, entry_name)`` pairs.
 
     ``None`` asks Newton to detect every distinct entry pair automatically.
     An empty list disables ADMM contact coupling.
