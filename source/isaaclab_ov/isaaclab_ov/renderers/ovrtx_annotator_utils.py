@@ -88,6 +88,8 @@ def _decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[tuple[tupl
     if data.size < 4:
         return []
 
+    # ``<u4`` (little-endian): matches the ovannotators reference decoder. kit writes native ``uint32_t``
+    # struct fields with no byte-swap, so this is correct on the (little-endian) platforms it targets.
     entry_dtype = np.dtype([("id", "<u4", (4,)), ("label_length", "<u4"), ("label_offset", "<u4")])
     num_entries = int.from_bytes(data[-4:].tobytes(), byteorder="little")
     entries_size = num_entries * entry_dtype.itemsize
