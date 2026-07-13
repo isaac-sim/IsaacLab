@@ -29,6 +29,7 @@
 /source/isaaclab/isaaclab/envs/ @ooctipus @AntoineRichard @matthewtrepte @kellyguo11 @StafaH
 /source/isaaclab/isaaclab/envs/manager_based_* @ooctipus @AntoineRichard @matthewtrepte @StafaH
 /source/isaaclab/isaaclab/envs/direct_* @ooctipus @AntoineRichard @matthewtrepte @kellyguo11
+/source/isaaclab/isaaclab/envs/mimic_* @peterd-NV @kellyguo11
 /source/isaaclab/isaaclab/envs/mdp/ @ooctipus @AntoineRichard @StafaH @jmart-nv @kellyguo11
 /source/isaaclab/isaaclab/envs/ui/ @ooctipus @matthewtrepte @kellyguo11
 /source/isaaclab/isaaclab/envs/utils/ @Toni-SM @matthewtrepte @hujc @kellyguo11 @ooctipus @AntoineRichard
@@ -58,7 +59,7 @@
 /source/isaaclab/isaaclab/ui/ @matthewtrepte @hujc @ooctipus
 /source/isaaclab/isaaclab/utils/ @AntoineRichard @ooctipus @hujc @kellyguo11 @rilei-nvidia @pbarejko
 /source/isaaclab/isaaclab/utils/buffers/ @ooctipus @AntoineRichard
-/source/isaaclab/isaaclab/utils/datasets/ @kellyguo11 @peterd-nv
+/source/isaaclab/isaaclab/utils/datasets/ @kellyguo11 @peterd-NV
 /source/isaaclab/isaaclab/utils/interpolation/ @hujc @AntoineRichard
 /source/isaaclab/isaaclab/utils/io/ @ooctipus @AntoineRichard
 /source/isaaclab/isaaclab/utils/leapp/ @frlai @AntoineRichard @kellyguo11 @StafaH
@@ -110,10 +111,12 @@
 /source/isaaclab_visualizers/ @matthewtrepte @daniela-hase @StafaH
 
 # RL and tasks
-/source/isaaclab_rl/ @ooctipus @StafaH @Mayankm96 @ClemensSchwarke @pbarejko
+/source/isaaclab_rl/ @ooctipus @StafaH @Mayankm96 @ClemensSchwarke
 /source/isaaclab_rl/test/export/ @frlai @StafaH
-/source/isaaclab_rl/isaaclab_rl/rsl_rl/ @ClemensSchwarke @ooctipus
-/source/isaaclab_rl/isaaclab_rl/rl_games/ @Toni-SM @StafaH @ooctipus @AntoineRichard @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/rsl_rl/ @ClemensSchwarke @ooctipus @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/rl_games/ @Toni-SM @ooctipus @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/sb3.py @Toni-SM @ooctipus @kellyguo11
+/source/isaaclab_rl/isaaclab_rl/skrl.py @Toni-SM @ooctipus @kellyguo11
 /source/isaaclab_tasks/ @AntoineRichard @ooctipus @StafaH @kellyguo11 @hujc
 /source/isaaclab_tasks/isaaclab_tasks/core/ @StafaH @AntoineRichard @ooctipus @hujc @kellyguo11 @Mayankm96 @ClemensSchwarke @pascal-roth
 /source/isaaclab_tasks/isaaclab_tasks/core/fourbar_pole/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @StafaH
@@ -139,8 +142,8 @@
 /scripts/benchmarks/ @AntoineRichard @StafaH @kellyguo11 @ooctipus @jmart-nv @pv-nvidia
 /scripts/demos/ @ooctipus @pbarejko @mmichelis @maxkra15 @AntoineRichard @hujc
 /scripts/environments/ @ooctipus @StafaH @hujc
-/scripts/imitation_learning/ @peterd-nv @StafaH @pbarejko @jaybdub
-/scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-nv
+/scripts/imitation_learning/ @peterd-NV @StafaH @pbarejko @jaybdub
+/scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-NV
 /scripts/reinforcement_learning/ @StafaH @AntoineRichard @hujc @ooctipus @kellyguo11 @Toni-SM
 /scripts/reinforcement_learning/leapp/ @frlai @StafaH
 /scripts/reinforcement_learning/rl_games/ @Toni-SM @ooctipus @kellyguo11
