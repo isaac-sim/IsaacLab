@@ -282,7 +282,9 @@ def test_proxy_validation_rejects_cross_entry_joint():
     cfg, entries, proxies = _valid_proxy_setup()
 
     with pytest.raises(ValueError, match="does not support cross-entry joint"):
-        NewtonCouplerManager._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
+        NewtonCouplerManager._validate_no_cross_entry_proxy_joints(
+            model, {entry.config.name: entry for entry in entries}
+        )
 
 
 def test_shape_label_patterns_and_static_shape_selection_are_additive():
