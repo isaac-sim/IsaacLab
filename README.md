@@ -253,6 +253,17 @@ cd ~/openarm_can/setup
 sudo ./my_arm 
 ```
 
+Deploy in joint states trained model
+
+```
+python deploy_smolvla_pickup_jointspace.py \
+    --checkpoint ethanCSL/openarm_visuomotor_no_domain_randomization_1000_joints \
+    --body-cam-index 4 --wrist-cam-index 10 \
+    --inference-hz 10 \
+    --max-joint-speed 0.3 \
+    --max-episode-seconds 10
+```
+
 ## OpenARM Motors Check
 
 ```
