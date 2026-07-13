@@ -1223,6 +1223,9 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("FrankaCloth env cfg does not define an ovphysx preset yet.")
+
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
@@ -1344,6 +1347,9 @@ def rendering_test_franka_soft(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("FrankaSoft env cfg does not define an ovphysx preset yet.")
+
     if physics_backend == "physx" and renderer == "newton_renderer":
         pytest.skip("physx + newton_renderer crashes (https://github.com/newton-physics/newton/issues/3228).")
 
