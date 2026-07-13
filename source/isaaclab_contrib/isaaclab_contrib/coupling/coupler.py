@@ -277,11 +277,8 @@ class NewtonCouplerManager(NewtonVBDManager):
         solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
         proxies = [SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs]
-        return SolverCoupledProxy(
-            model=model,
-            entries=entries,
-            coupling=SolverCoupledProxy.Config(proxies=proxies, iterations=solver_cfg.iterations),
-        )
+        coupling = SolverCoupledProxy.Config(proxies=proxies, iterations=solver_cfg.iterations)
+        return SolverCoupledProxy(model=model, entries=entries, coupling=coupling)
 
     @classmethod
     def _build_admm_coupled_solver(
