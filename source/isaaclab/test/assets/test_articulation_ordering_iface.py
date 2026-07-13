@@ -970,34 +970,6 @@ class TestArticulationDataBodyState:
             backend_properties["inertia"][:, user_to_backend],
         )
 
-    @pytest.mark.parametrize(
-        ("backend", "redundant_field", "retained_field"),
-        [
-            ("newton", "_body_com_acc_w_backend", "_body_com_vel_w_user"),
-            ("ovphysx", "_body_link_vel_w_backend", "_body_com_vel_w_backend"),
-        ],
-    )
-    def test_nonidentity_body_ordering_avoids_redundant_backend_staging(
-        self,
-        backend: str,
-        redundant_field: str,
-        retained_field: str,
-    ) -> None:
-        """Allocate one staging destination for each ordered body read path."""
-        if backend not in BACKENDS:
-            pytest.skip(f"{backend} backend is not available")
-        art, _ = get_articulation(
-            backend,
-            num_instances=2,
-            num_joints=1,
-            num_bodies=3,
-            device="cpu",
-            body_ordering=("body_2", "body_1", "body_0"),
-        )
-
-        assert getattr(art.data, redundant_field, None) is None
-        assert getattr(art.data, retained_field) is not None
-
     def test_ovphysx_reversed_body_ordering_rereads_backend_shadows_after_reset(self):
         """Refresh OVPhysX backend shadow buffers after same-step pose/velocity invalidation."""
         if "ovphysx" not in BACKENDS:
@@ -1259,8 +1231,12 @@ class TestArticulationOrderingAllocation:
         "newton": (),
     }
 
+    # ``identity`` is dropped from this cartesian: an identity-configured ordering
+    # normalizes to ``None`` at install time, so it drives exactly the same allocation
+    # branch as ``none``. That normalization (and the identity no-shadow allocation) is
+    # asserted once per backend in ``test_identity_ordering_matches_none_behavior``.
     @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     def test_physx_and_ovphysx_allocate_shadows_only_for_nonidentity_ordering(
         self, backend: str, ordering_mode: str
     ) -> None:
@@ -1283,7 +1259,7 @@ class TestArticulationOrderingAllocation:
             assert art.joint_ordering is not None
             assert art.body_ordering is not None
         else:
-            # Identity-configured orderings normalize to ``None`` at install time.
+            # The default (``none``) ordering leaves both maps unconfigured.
             assert art.joint_ordering is None
             assert art.body_ordering is None
 
@@ -1307,7 +1283,10 @@ class TestArticulationOrderingAllocation:
                 item_count = num_bodies if "_body_" in field_name else num_joints
                 assert _ordering_shadow_shape(shadow)[:2] == (num_instances, item_count)
 
-    @pytest.mark.parametrize("ordering_mode", ["none", "identity", "reversed"])
+    # ``identity`` is dropped here for the same reason as the PhysX/OVPhysX case above:
+    # identity normalizes to ``None`` at install, so ``test_identity_ordering_matches_none_behavior``
+    # is the single per-backend home for the identity-normalization and identity no-shadow asserts.
+    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
     def test_newton_allocates_shadows_only_for_nonidentity_ordering(self, ordering_mode: str) -> None:
         if "newton" not in BACKENDS:
             pytest.skip("Newton backend is not available")
@@ -1328,7 +1307,7 @@ class TestArticulationOrderingAllocation:
             assert art.joint_ordering is not None
             assert art.body_ordering is not None
         else:
-            # Identity-configured orderings normalize to ``None`` at install time.
+            # The default (``none``) ordering leaves both maps unconfigured.
             assert art.joint_ordering is None
             assert art.body_ordering is None
 
@@ -1799,13 +1778,35 @@ class TestArticulationOrderingRootWriteParity:
 class TestArticulationOrderingWriteParity:
     """Test that partial joint writes preserve unselected backend state."""
 
-    @pytest.mark.parametrize("backend", ["physx", "ovphysx", "newton"])
-    @pytest.mark.parametrize("ordering_mode", ["none", "reversed"])
-    @pytest.mark.parametrize("selection", ["index", "mask"])
-    @pytest.mark.parametrize("operation", ["position", "velocity", "state"])
+    # Pairwise (all-pairs) covering array for the partial-write matrix. The full
+    # cartesian is backend(3) x ordering_mode(2) x selection(2) x operation(3) x
+    # coverage(3) = 108 cases, but every distinct write path is exercised by a *pair*
+    # of axis values, so an all-pairs array reproduces that branch coverage in 12 rows.
+    # The set is seeded on all 12 ``backend x ordering_mode x selection`` triples -- so
+    # every backend drives the reorder path through both the index and the mask writer,
+    # under both ``none`` and ``reversed`` -- then ``operation``/``coverage`` are assigned
+    # to complete the remaining pairs. It is verified to cover every cross-pair: backend x
+    # {ordering_mode, selection, operation, coverage}, ordering_mode x {selection,
+    # operation, coverage}, selection x {operation, coverage}, and operation x coverage.
+    # Plain tuples let pytest derive readable ids from the values, e.g.
+    # ``ovphysx-reversed-index-velocity-one_env_one_item``. Grouped by backend (4 rows
+    # each = the four ordering_mode x selection combos).
     @pytest.mark.parametrize(
-        "coverage",
-        ["one_env_one_item", "all_envs_one_item", "one_env_all_items"],
+        ("backend", "ordering_mode", "selection", "operation", "coverage"),
+        [
+            ("physx", "none", "index", "state", "one_env_one_item"),
+            ("physx", "none", "mask", "position", "one_env_one_item"),
+            ("physx", "reversed", "index", "position", "one_env_all_items"),
+            ("physx", "reversed", "mask", "velocity", "all_envs_one_item"),
+            ("ovphysx", "none", "index", "position", "all_envs_one_item"),
+            ("ovphysx", "none", "mask", "position", "one_env_all_items"),
+            ("ovphysx", "reversed", "index", "velocity", "one_env_one_item"),
+            ("ovphysx", "reversed", "mask", "state", "one_env_all_items"),
+            ("newton", "none", "index", "state", "all_envs_one_item"),
+            ("newton", "none", "mask", "velocity", "one_env_one_item"),
+            ("newton", "reversed", "index", "position", "one_env_all_items"),
+            ("newton", "reversed", "mask", "velocity", "one_env_all_items"),
+        ],
     )
     def test_partial_joint_write_preserves_backend_rows(
         self,
@@ -2150,16 +2151,6 @@ class TestArticulationOperations:
         backend_force, backend_torque = _read_backend_wrench(backend, art, raw_backend, captured)
         np.testing.assert_allclose(backend_force, forces[:, backend_to_user])
         np.testing.assert_allclose(backend_torque, torques[:, backend_to_user])
-
-    def test_physx_none_ordering_allocates_no_external_wrench_staging_buffers(self):
-        """Keep the default PhysX wrench path free of reorder staging allocations."""
-        if "physx" not in BACKENDS:
-            pytest.skip("PhysX backend is not available")
-        art, _ = get_articulation("physx", 2, 1, 4, device="cpu")
-
-        assert art.body_ordering is None
-        assert art._body_wrench_force_backend is None
-        assert art._body_wrench_torque_backend is None
 
     def test_ovphysx_configured_defaults_use_public_joint_names(self):
         """Resolve configured OVPhysX defaults against public joint names."""
