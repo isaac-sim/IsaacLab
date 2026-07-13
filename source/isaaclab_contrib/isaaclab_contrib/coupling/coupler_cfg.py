@@ -92,11 +92,13 @@ class CouplerProxyMappingCfg:
     destination: str = MISSING
     """Name of the entry that receives the proxy bodies."""
 
-    bodies: list[SceneEntityCfg | str] = field(default_factory=list)
+    bodies: list[SceneEntityCfg | str | int] = field(default_factory=list)
     """Source bodies exposed as proxies in the destination entry.
 
     Selectors use the same scene-entity and full-label-regex semantics as
-    :attr:`CouplerEntryCfg.bodies`.
+    :attr:`CouplerEntryCfg.bodies`, and raw Newton body ids may be given directly
+    as integers. The coupler resolves selectors to body ids in place, so after
+    build this list holds only integers.
     """
 
     particles: list[int] = field(default_factory=list)

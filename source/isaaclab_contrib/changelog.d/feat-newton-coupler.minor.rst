@@ -37,7 +37,9 @@ Added
   ``"/World/envs/env_.*/MyCube"``) in the body-selector lists of
   :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerEntryCfg`
   and :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg`,
-  alongside :class:`~isaaclab.managers.SceneEntityCfg` selectors.
+  alongside :class:`~isaaclab.managers.SceneEntityCfg` selectors. Raw Newton
+  body ids may also be given directly as integers in
+  :attr:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg.bodies`.
 
 * Added :class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg`,
   a shared solver-config base whose ``model_cfg``

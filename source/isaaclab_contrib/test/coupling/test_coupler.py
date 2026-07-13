@@ -133,7 +133,7 @@ def _valid_proxy_setup(
 ) -> tuple[
     CouplerProxyCfg,
     list[NewtonCouplerManager._ResolvedEntry],
-    list[NewtonCouplerManager._ResolvedProxy],
+    list[CouplerProxyMappingCfg],
 ]:
     """Build a complete two-entry proxy configuration."""
     entries = [
@@ -147,13 +147,7 @@ def _valid_proxy_setup(
             proxies=[proxy_cfg],
         ),
         entries,
-        [
-            NewtonCouplerManager._ResolvedProxy(
-                config=proxy_cfg,
-                bodies=[int(body) for body in proxy_cfg.bodies],
-                particles=list(proxy_cfg.particles),
-            )
-        ],
+        [proxy_cfg],
     )
 
 
@@ -194,6 +188,32 @@ def test_raw_body_label_selector_reports_no_matches():
             None,
             "entry 'missing'",
         )
+
+
+def test_raw_body_id_selectors_pass_through_and_dedupe():
+    """Integer selectors resolve to themselves, preserving order and removing duplicates."""
+    assert NewtonCouplerManager._resolve_entities_to_body_ids(_FakeModel(), [2, 0, 2], None, "proxy 'a'->'b'") == [2, 0]
+
+
+def test_out_of_range_body_id_selector_is_rejected():
+    with pytest.raises(ValueError, match="out of range"):
+        NewtonCouplerManager._resolve_entities_to_body_ids(_FakeModel(), [5], None, "proxy 'a'->'b'")
+
+
+def test_proxy_resolution_writes_body_ids_into_config_in_place():
+    """Resolution replaces the proxy's selectors with body ids and is idempotent."""
+    model = _FakeModel()
+    proxy = CouplerProxyMappingCfg(
+        source="rigid", destination="soft", bodies=[SceneEntityCfg("robot")], particles=[1, 1]
+    )
+
+    resolved = NewtonCouplerManager._resolve_proxy(model, proxy, _FakeSceneCfg())
+
+    assert resolved is proxy
+    assert proxy.bodies == [0, 1]
+    assert proxy.particles == [1]
+    # Re-resolving the now-integer selectors yields the same result.
+    assert NewtonCouplerManager._resolve_proxy(model, proxy, None).bodies == [0, 1]
 
 
 def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
@@ -361,8 +381,7 @@ def test_proxy_shape_overrides_apply_only_to_selected_body_shapes():
         shape_gap=0.002,
     )
 
-    resolved_proxy = NewtonCouplerManager._ResolvedProxy(config=proxy, bodies=[1], particles=[])
-    NewtonCouplerManager._apply_proxy_shape_overrides(model, [resolved_proxy])
+    NewtonCouplerManager._apply_proxy_shape_overrides(model, [proxy])
 
     np.testing.assert_allclose(model.shape_material_ke.data, [1.0, 10.0, 1.0, 1.0])
     np.testing.assert_allclose(model.shape_material_kd.data, [2.0, 20.0, 2.0, 2.0])
@@ -509,9 +528,7 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         "_resolve_proxy",
         classmethod(
             lambda cls, model, proxy_cfg, scene_cfg: next(
-                p
-                for p in resolved_proxies
-                if (p.config.source, p.config.destination) == (proxy_cfg.source, proxy_cfg.destination)
+                p for p in resolved_proxies if (p.source, p.destination) == (proxy_cfg.source, proxy_cfg.destination)
             )
         ),
     )
