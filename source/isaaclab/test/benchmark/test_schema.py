@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the v1.1 Isaac Lab benchmark schema."""
+"""Tests for the v1.2 Isaac Lab benchmark schema."""
 
 import dataclasses
 import json
@@ -94,6 +94,7 @@ def _runtime() -> Runtime:
         iterations_per_s=MeanStd(mean=0.2618, std=0.0028),
         environment_step_timing=EnvironmentStepTiming(
             environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
+            environment_step_fps=MeanStd(mean=200_000.0, std=2_000.0, peak=205_000.0),
             simulation_step_time_s=MeanStd(mean=0.05, std=0.01, peak=0.07),
             overhead_step_time_s=MeanStd(mean=0.03, std=0.005, peak=0.04),
             overhead_fraction=0.4,

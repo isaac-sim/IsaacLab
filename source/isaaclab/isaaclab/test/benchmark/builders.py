@@ -125,6 +125,7 @@ def build_runtime(
     total_fps: Sequence[float],
     steps_per_iteration: int,
     aggregate_throughput: bool = False,
+    frames_per_environment_step: int | None = None,
     environment_step_times_s: Sequence[float] | None = None,
     simulation_step_times_s: Sequence[float] | None = None,
     simulation_step_calls: int | None = None,
@@ -138,6 +139,7 @@ def build_runtime(
             [frames/s].
         total_fps: Per-iteration end-to-end throughput [frames/s].
         steps_per_iteration: Environment steps collected per iteration.
+        frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         aggregate_throughput: When ``True``, report throughput means as total
             completed steps divided by total wall time. Standard deviation and
             peak remain aggregated from the per-iteration throughput samples.
@@ -175,22 +177,46 @@ def build_runtime(
         )
     environment_step_timing = None
     if environment_step_times_s is not None:
-        if simulation_step_times_s is None or simulation_step_calls is None:
-            raise ValueError("Complete environment-step timing values are required")
+        if frames_per_environment_step is None or frames_per_environment_step <= 0:
+            raise ValueError("frames_per_environment_step must be greater than zero")
         environment_samples = list(environment_step_times_s)
-        simulation_samples = list(simulation_step_times_s)
-        if len(environment_samples) != len(simulation_samples):
-            raise ValueError("Environment and simulation timing samples must have the same length")
-        overhead_samples = [total - simulation for total, simulation in zip(environment_samples, simulation_samples)]
         total_environment_time_s = sum(environment_samples)
+        environment_fps_samples = [frames_per_environment_step / value for value in environment_samples if value > 0]
+        environment_step_fps = mean_std_peak(environment_fps_samples)
+        if total_environment_time_s > 0:
+            environment_step_fps = MeanStd(
+                mean=frames_per_environment_step * len(environment_samples) / total_environment_time_s,
+                std=environment_step_fps.std,
+                peak=environment_step_fps.peak,
+            )
+
+        simulation_step_time_s = None
+        overhead_step_time_s = None
+        overhead_fraction = None
+        if simulation_step_times_s is not None:
+            if simulation_step_calls is None:
+                raise ValueError("simulation_step_calls is required with simulation_step_times_s")
+            simulation_samples = list(simulation_step_times_s)
+            if len(environment_samples) != len(simulation_samples):
+                raise ValueError("Environment and simulation timing samples must have the same length")
+            overhead_samples = [
+                total - simulation for total, simulation in zip(environment_samples, simulation_samples)
+            ]
+            simulation_step_time_s = mean_std_peak(simulation_samples)
+            overhead_step_time_s = mean_std_peak(overhead_samples)
+            overhead_fraction = sum(overhead_samples) / total_environment_time_s
+        elif simulation_step_calls is not None:
+            raise ValueError("simulation_step_times_s is required with simulation_step_calls")
+
         environment_step_timing = EnvironmentStepTiming(
             environment_step_time_s=mean_std_peak(environment_samples),
-            simulation_step_time_s=mean_std_peak(simulation_samples),
-            overhead_step_time_s=mean_std_peak(overhead_samples),
-            overhead_fraction=sum(overhead_samples) / total_environment_time_s,
+            environment_step_fps=environment_step_fps,
+            simulation_step_time_s=simulation_step_time_s,
+            overhead_step_time_s=overhead_step_time_s,
+            overhead_fraction=overhead_fraction,
             environment_step_calls=len(environment_samples),
             simulation_step_calls=simulation_step_calls,
-            synchronized=True,
+            synchronized=simulation_step_times_s is not None,
         )
 
     return Runtime(

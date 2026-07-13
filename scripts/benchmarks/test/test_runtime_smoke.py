@@ -31,7 +31,6 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         "20",
         "--warmup_frames",
         "2",
-        "--measure_simulation_step_time",
         "--seed",
         "0",
         "--device",
@@ -61,10 +60,11 @@ def test_runtime_writes_all_requested_formats(tmp_path):
     assert schema_data["extra"]["warmup_frames"] == 2
     timing = schema_data["runtime"]["environment_step_timing"]
     assert timing["environment_step_calls"] == 20
-    assert timing["simulation_step_calls"] > 0
-    assert timing["synchronized"]
-    assert timing["environment_step_time_s"]["mean"] == pytest.approx(
-        timing["simulation_step_time_s"]["mean"] + timing["overhead_step_time_s"]["mean"]
-    )
+    assert timing["environment_step_fps"]["mean"] > 0
+    assert timing["simulation_step_calls"] is None
+    assert timing["simulation_step_time_s"] is None
+    assert timing["overhead_step_time_s"] is None
+    assert timing["overhead_fraction"] is None
+    assert not timing["synchronized"]
     assert timing["environment_step_time_s"]["std"] >= 0.0
     assert "runtime" in json.loads(omniperf_files[0].read_text())

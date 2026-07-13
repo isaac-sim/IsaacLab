@@ -120,6 +120,7 @@ def test_build_runtime_adds_environment_step_timing():
         collection_fps=[4.0],
         total_fps=[4.0],
         steps_per_iteration=8,
+        frames_per_environment_step=8,
         environment_step_times_s=[1.0, 2.0],
         simulation_step_times_s=[0.5, 0.5],
         simulation_step_calls=8,
@@ -128,12 +129,33 @@ def test_build_runtime_adds_environment_step_timing():
     assert rt.environment_step_timing is not None
     assert rt.environment_step_timing.environment_step_time_s.mean == pytest.approx(1.5)
     assert rt.environment_step_timing.environment_step_time_s.std == pytest.approx(2**-0.5)
+    assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
     assert rt.environment_step_timing.simulation_step_time_s.mean == pytest.approx(0.5)
     assert rt.environment_step_timing.overhead_step_time_s.mean == pytest.approx(1.0)
     assert rt.environment_step_timing.overhead_fraction == pytest.approx(2.0 / 3.0)
     assert rt.environment_step_timing.environment_step_calls == 2
     assert rt.environment_step_timing.simulation_step_calls == 8
     assert rt.environment_step_timing.synchronized
+
+
+def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown():
+    rt = builders.build_runtime(
+        startup_time_s=StartupTime(0.1, 0.2, 0.3),
+        iteration_times_s=[2.0],
+        collection_fps=[4.0],
+        total_fps=[4.0],
+        steps_per_iteration=8,
+        frames_per_environment_step=8,
+        environment_step_times_s=[1.0, 2.0],
+    )
+
+    assert rt.environment_step_timing is not None
+    assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
+    assert rt.environment_step_timing.simulation_step_time_s is None
+    assert rt.environment_step_timing.overhead_step_time_s is None
+    assert rt.environment_step_timing.overhead_fraction is None
+    assert rt.environment_step_timing.simulation_step_calls is None
+    assert not rt.environment_step_timing.synchronized
 
 
 def test_build_training_bundle_round_trips(tmp_path):

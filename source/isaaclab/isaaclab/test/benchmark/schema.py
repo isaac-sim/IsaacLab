@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Public schema for Isaac Lab benchmark bundles (v1.1).
+"""Public schema for Isaac Lab benchmark bundles (v1.2).
 
 Defines the on-disk JSON schema produced by the standalone benchmark scripts
 under ``scripts/benchmarks/`` (``runtime.py``, ``training.py``, ``startup.py``).
@@ -17,7 +17,7 @@ Each bundle is self-contained: every top-level bundle carries its own
 :class:`Versions` and :class:`Hardware` metadata so a reader need not
 cross-reference other files in the bundle directory.
 
-Current version: 1.1
+Current version: 1.2
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 
 Framework = Literal["rsl_rl", "rl_games", "skrl", "sb3"]
 PhysicsBackend = Literal["physx", "newton_mjwarp", "newton_kamino", "ovphysx"]
@@ -195,24 +195,26 @@ class StartupTime:
 
 @dataclass(frozen=True)
 class EnvironmentStepTiming:
-    """Synchronized environment-step wall-time breakdown.
+    """Environment-step wall-time and optional synchronized simulation breakdown.
 
     Args:
         environment_step_time_s: Per-environment-step wall time [s].
-        simulation_step_time_s: Synchronized simulation wall time per environment step [s].
-        overhead_step_time_s: Time outside simulation calls per environment step [s].
-        overhead_fraction: Fraction of environment-step time outside simulation-step calls.
+        environment_step_fps: Environment-step throughput [frames/s].
+        simulation_step_time_s: Synchronized simulation wall time per environment step [s], when measured.
+        overhead_step_time_s: Time outside simulation calls per environment step [s], when measured.
+        overhead_fraction: Fraction of environment-step time outside simulation-step calls, when measured.
         environment_step_calls: Number of measured environment-step calls.
-        simulation_step_calls: Number of measured simulation-step calls.
-        synchronized: Whether device completion was included in each measured boundary.
+        simulation_step_calls: Number of measured simulation-step calls, when measured.
+        synchronized: Whether explicit device synchronization was included in each measured boundary.
     """
 
     environment_step_time_s: MeanStd
-    simulation_step_time_s: MeanStd
-    overhead_step_time_s: MeanStd
-    overhead_fraction: float
+    environment_step_fps: MeanStd
+    simulation_step_time_s: MeanStd | None
+    overhead_step_time_s: MeanStd | None
+    overhead_fraction: float | None
     environment_step_calls: int
-    simulation_step_calls: int
+    simulation_step_calls: int | None
     synchronized: bool
 
 
@@ -233,7 +235,7 @@ class Runtime:
             FPS (the scripts' "Total FPS" / "effective FPS"). For pure runtime runs with no
             learning, this equals :attr:`collection_fps`.
         iterations_per_s: Iteration rate [iter/s].
-        environment_step_timing: Synchronized environment-step timing, when measured.
+        environment_step_timing: Environment-step timing and optional synchronized simulation breakdown, when measured.
     """
 
     startup_time_s: StartupTime

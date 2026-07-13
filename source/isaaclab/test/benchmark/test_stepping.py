@@ -78,13 +78,13 @@ def test_run_runtime_loop_can_skip_reset():
     assert not env.reset_called and env.steps == 2
 
 
-def test_environment_step_timer_disabled_does_not_instrument():
+def test_environment_step_timer_measures_env_step_without_simulation_timing():
     env = _Env()
 
-    with EnvironmentStepTimingRecorder(env, enabled=False) as timer:
+    with EnvironmentStepTimingRecorder(env) as timer:
         run_runtime_loop(env, num_frames=2, reset=False)
 
-    assert timer.step_times_s is None
+    assert len(timer.step_times_s) == 2
     assert timer.simulation_step_times_s is None
     assert timer.simulation_step_calls is None
     assert "step" not in vars(env)
@@ -94,7 +94,7 @@ def test_environment_step_timer_disabled_does_not_instrument():
 def test_environment_step_timer_measures_only_step_calls():
     env = _Env()
 
-    with EnvironmentStepTimingRecorder(env) as timer:
+    with EnvironmentStepTimingRecorder(env, measure_simulation_step_time=True) as timer:
         run_runtime_loop(env, num_frames=3, reset=False)
 
     assert len(timer.step_times_s) == 3

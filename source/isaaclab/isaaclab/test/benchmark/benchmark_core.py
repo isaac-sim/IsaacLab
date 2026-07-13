@@ -103,6 +103,10 @@ def _runtime_measurements(runtime: "Runtime") -> dict[str, list[Measurement]]:
     runtime_metrics.extend(_stat_measurements("Iteration Time", runtime.iteration_time_s, "ms", 1000.0))
     runtime_metrics.extend(_stat_measurements("Collection FPS", runtime.collection_fps, "FPS"))
     runtime_metrics.extend(_stat_measurements("Total FPS", runtime.total_fps, "FPS"))
+    if runtime.environment_step_timing is not None:
+        runtime_metrics.extend(
+            _stat_measurements("Environment Step FPS", runtime.environment_step_timing.environment_step_fps, "FPS")
+        )
     runtime_metrics.extend(_stat_measurements("Iterations per Second", runtime.iterations_per_s, "iterations/s"))
     return {"startup": startup, "runtime": runtime_metrics}
 
