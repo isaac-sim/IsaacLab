@@ -274,7 +274,7 @@ def _cmd_docker(args: argparse.Namespace) -> int:
 
     _maybe_build_wheel(args, repo_root)
 
-    _install_ci_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
+    _install_ci_dir = repo_root / "tests" / "integration" / "install_ci"
     dockerfile = _install_ci_dir / "Dockerfile.installci"
     image_tag = f"isaaclab-installci:{args.base_image.replace(':', '-').replace('/', '-')}"
 
@@ -367,7 +367,7 @@ def _cmd_native(args: argparse.Namespace) -> int:
     """Run tests directly on the host OS."""
 
     repo_root = _find_repo_root()
-    test_dir = repo_root / "source" / "isaaclab" / "test" / "install_ci"
+    test_dir = repo_root / "tests" / "integration" / "install_ci"
 
     _maybe_build_wheel(args, repo_root)
 

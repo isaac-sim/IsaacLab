@@ -65,8 +65,12 @@ _build
 # Teleop Recorded Dataset
 /datasets/
 
-# Tests
-/tests/
+# Tests — ignore generated CI artifacts under tests/ but not source test code
+/tests/*.xml
+/tests/codex/
+/tests/comparison-images/
+/tests/__pycache__/
+/tests/**/__pycache__/
 
 # Docker history
 .isaac-lab-docker-history

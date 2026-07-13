@@ -984,9 +984,10 @@ def _collect_test_files(
             pytest.exit("Source directory not found", returncode=1)
 
         for root, _, files in os.walk(source_dir):
-            # source/isaaclab/test/install_ci/ has its own pytest config and conftest.
-            # It is run via .github/actions/install-ci-run, never via this collector,
-            # so skip the whole subtree to keep install_ci tests out of build.yaml jobs.
+            # tests/integration/install_ci/ has its own pytest config and conftest.
+            # It is run via .github/actions/install-ci-run, never via this collector.
+            # This guard is a safety net in case any stale install_ci files remain
+            # under source/ after the migration to tests/integration/install_ci/.
             if "install_ci" in root.replace("\\", "/").split("/"):
                 continue
 

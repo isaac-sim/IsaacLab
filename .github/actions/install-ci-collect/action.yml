@@ -5,7 +5,7 @@
 
 name: 'Collect Installation CI Tests'
 description: >
-  Runs `pytest --collect-only` against source/isaaclab/test/install_ci in a
+  Runs `pytest --collect-only` against tests/integration/install_ci in a
   throw-away venv and writes the collected test list to the GitHub step
   summary. Used to gate the heavy install jobs on a fast inventory check.
 
@@ -33,7 +33,7 @@ runs:
         "$venv/bin/pip" install --quiet pytest pytest-timeout
         # -m "not skip" hides tests with @pytest.mark.skip; they would just
         # report SKIPPED at run time and clutter the collected inventory.
-        args=( --collect-only -q -m "not skip" source/isaaclab/test/install_ci )
+        args=( --collect-only -q -m "not skip" tests/integration/install_ci )
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         "$venv/bin/pytest" "${args[@]}" 2>&1 | tee "$collected"
         rc=${PIPESTATUS[0]}

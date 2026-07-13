@@ -55,6 +55,7 @@ jobs:
             $'^apps/\tStandalone apps'
             $'^tools/\tBuild tooling'
             $'^source/\tLibrary source code'
+            $'^tests/integration/\tIntegration test source code'
             $'^\\.github/actions/run-package-tests/\tTest action'
             $'^\\.github/actions/install-ci-(collect|run)/\tInstall-ci composite actions'
             $'^\\.github/workflows/install-ci\\.yml$\tThis workflow file'
