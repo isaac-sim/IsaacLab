@@ -24,12 +24,12 @@ pytestmark = [
 if not _MISSING_MODULES:
     import numpy as np  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_annotator_utils import (  # noqa: E402
+        _parse_semantic_label,
         build_instance_id_to_labels_and_semantics,
         build_semantic_id_to_labels,
         decode_semantic_id_map,
         decode_stable_id_map,
         decode_stable_id_semantic_id_map,
-        parse_semantic_label,
     )
 
 
@@ -55,9 +55,9 @@ def _encode_semantic_id_map(entries: list[tuple[int, str]]) -> "np.ndarray":
 
 def test_parse_semantic_label_splits_type_and_label():
     """Raw ``"<type>: <label>;"`` strings parse into ``{type: label}`` dicts like Replicator idToLabels."""
-    assert parse_semantic_label("class: cone;") == {"class": "cone"}
-    assert parse_semantic_label("class: robot; type: arm;") == {"class": "robot", "type": "arm"}
-    assert parse_semantic_label("") == {}
+    assert _parse_semantic_label("class: cone;") == {"class": "cone"}
+    assert _parse_semantic_label("class: robot; type: arm;") == {"class": "robot", "type": "arm"}
+    assert _parse_semantic_label("") == {}
 
 
 def test_decode_semantic_id_map_round_trips_entries():

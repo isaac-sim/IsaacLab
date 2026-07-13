@@ -25,27 +25,27 @@ from .ovrtx_renderer_kernels import generate_random_colors_from_ids_kernel
 # Reserved semantic IDs shared by the OVRTX SemanticSegmentation AOV and Isaac RTX / Replicator:
 # ID 0 is BACKGROUND (no prim), ID 1 is UNLABELLED (a prim with no matching semantic label). Entries
 # with ID >= 2 are decoded from the SemanticIdMap render var.
-SEMANTIC_ID_BACKGROUND = 0
-SEMANTIC_ID_UNLABELLED = 1
+_SEMANTIC_ID_BACKGROUND = 0
+_SEMANTIC_ID_UNLABELLED = 1
 # Single source of truth for the reserved ID 0/1 label names, shared across every segmentation map and
 # matching the ``"BACKGROUND"`` / ``"UNLABELLED"`` strings Replicator writes for pixel IDs 0 and 1.
 _RESERVED_LABEL_NAMES: dict[int, str] = {
-    SEMANTIC_ID_BACKGROUND: "BACKGROUND",
-    SEMANTIC_ID_UNLABELLED: "UNLABELLED",
+    _SEMANTIC_ID_BACKGROUND: "BACKGROUND",
+    _SEMANTIC_ID_UNLABELLED: "UNLABELLED",
 }
 # Number of reserved IDs (BACKGROUND, UNLABELLED). Real per-instance entries are offset by this count: entry
-# ``i`` of the StableIdSemanticIdMap corresponds to pixel ID ``i + NUM_RESERVED_IDS``, and semantic IDs
-# ``>= NUM_RESERVED_IDS`` are real (see the ``+ 2`` offset in the ovrtx / Replicator contract).
-NUM_RESERVED_IDS = len(_RESERVED_LABEL_NAMES)
+# ``i`` of the StableIdSemanticIdMap corresponds to pixel ID ``i + _NUM_RESERVED_IDS``, and semantic IDs
+# ``>= _NUM_RESERVED_IDS`` are real (see the ``+ 2`` offset in the ovrtx / Replicator contract).
+_NUM_RESERVED_IDS = len(_RESERVED_LABEL_NAMES)
 # Reserved prim-path labels (plain strings) for the instance-segmentation ``idToLabels`` mapping.
-RESERVED_INSTANCE_LABELS: dict[int, str] = dict(_RESERVED_LABEL_NAMES)
+_RESERVED_INSTANCE_LABELS: dict[int, str] = dict(_RESERVED_LABEL_NAMES)
 # Reserved ``{type: label}`` dicts for the semantic ``idToLabels`` and instance ``idToSemantics`` mappings.
-RESERVED_SEMANTIC_LABELS: dict[int, dict[str, str]] = {
+_RESERVED_SEMANTIC_LABELS: dict[int, dict[str, str]] = {
     reserved_id: {"class": name} for reserved_id, name in _RESERVED_LABEL_NAMES.items()
 }
 
 
-def parse_semantic_label(raw_label: str) -> dict[str, str]:
+def _parse_semantic_label(raw_label: str) -> dict[str, str]:
     """Parse a raw OVRTX semantic label string into a ``{semantic_type: label}`` dict.
 
     OVRTX encodes labels as ``"<type>: <label>;"`` segments (e.g. ``"class: cone;"``), matching the
@@ -125,17 +125,17 @@ def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
     """Decode the OVRTX ``SemanticIdMap`` render var buffer into ``{semantic_id: {type: label}}``.
 
     The ``id[0]`` field of each :func:`_decode_identifier_map` entry is the semantic ID, and the label is
-    parsed with :func:`parse_semantic_label`.
+    parsed with :func:`_parse_semantic_label`.
 
     Args:
         id_map: Raw SemanticIdMap buffer mapped to host memory (any dtype; viewed as bytes).
 
     Returns:
         Mapping from semantic ID (>= 2) to its parsed ``{type: label}`` dict. Reserved IDs (0/1) are not
-        included; callers add BACKGROUND/UNLABELLED separately (see :data:`RESERVED_SEMANTIC_LABELS`).
+        included; callers add BACKGROUND/UNLABELLED separately (see :data:`_RESERVED_SEMANTIC_LABELS`).
     """
     return {
-        id_words[0]: parse_semantic_label(raw_label)
+        id_words[0]: _parse_semantic_label(raw_label)
         for id_words, raw_label in _decode_identifier_map(id_map, "SemanticIdMap")
     }
 
@@ -161,13 +161,13 @@ def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[tuple[int
     Unlike the identifier maps, this buffer is a pure fixed-size array of ``StableIdSemanticIdMapValues``
     entries ``{uint32 stableId[4]; uint32 semanticId[4]}`` (32 bytes each) with no label blob and no trailing
     count; the entry count is ``buffer_bytes // 32``. Array position ``i`` corresponds to the instance-segmentation
-    pixel ID ``i + NUM_RESERVED_IDS`` (IDs 0 and 1 are the reserved BACKGROUND/UNLABELLED values).
+    pixel ID ``i + _NUM_RESERVED_IDS`` (IDs 0 and 1 are the reserved BACKGROUND/UNLABELLED values).
 
     Args:
         id_map: Raw StableIdSemanticIdMap buffer mapped to host memory (any dtype; viewed as bytes).
 
     Returns:
-        One ``(stable_id, semantic_id)`` per entry, indexed by ``pixel_id - NUM_RESERVED_IDS``. ``stable_id``
+        One ``(stable_id, semantic_id)`` per entry, indexed by ``pixel_id - _NUM_RESERVED_IDS``. ``stable_id``
         is the four ``uint32`` stable-ID words (the :func:`decode_stable_id_map` key); ``semantic_id`` is
         ``semanticId[0]``.
     """
@@ -180,7 +180,7 @@ def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[tuple[int
     return [(tuple(int(word) for word in entry["stable_id"]), int(entry["semantic_id"][0])) for entry in entries]
 
 
-def color_keys_for_ids(ids: list[int], device: str) -> list[tuple[int, int, int, int]]:
+def _color_keys_for_ids(ids: list[int], device: str) -> list[tuple[int, int, int, int]]:
     """Return the ``(r, g, b, a)`` color-tuple key for each segmentation ID.
 
     Colors are computed with the same kernel that colorizes the segmentation buffer
@@ -227,13 +227,13 @@ def build_semantic_id_to_labels(
         Mapping from key to ``{type: label}``, always including the reserved BACKGROUND (ID 0) and UNLABELLED
         (ID 1) entries.
     """
-    id_labels: dict[int, dict[str, str]] = {**RESERVED_SEMANTIC_LABELS, **labels_by_id}
+    id_labels: dict[int, dict[str, str]] = {**_RESERVED_SEMANTIC_LABELS, **labels_by_id}
     sorted_ids = sorted(id_labels)
 
     if not colorize:
         return {str(semantic_id): id_labels[semantic_id] for semantic_id in sorted_ids}
 
-    color_keys = color_keys_for_ids(sorted_ids, device)
+    color_keys = _color_keys_for_ids(sorted_ids, device)
     return {color_keys[idx]: id_labels[semantic_id] for idx, semantic_id in enumerate(sorted_ids)}
 
 
@@ -247,14 +247,15 @@ def build_instance_id_to_labels_and_semantics(
     """Build the instance-segmentation ``idToLabels`` and ``idToSemantics`` mappings.
 
     Resolves each instance pixel ID through the three decoded maps, following the ovrtx / Replicator chain:
-    pixel ID ``i + NUM_RESERVED_IDS`` indexes ``stable_id_semantic_id_map[i]`` to get its stable ID and semantic ID; the
-    stable ID resolves to a USD prim path via ``stable_id_to_path`` (``idToLabels``) and the semantic ID
+    pixel ID ``i + _NUM_RESERVED_IDS`` indexes ``stable_id_semantic_id_map[i]`` to get its stable ID and
+    semantic ID; the stable ID resolves to a USD prim path via ``stable_id_to_path`` (``idToLabels``) and the
+    semantic ID
     resolves to a ``{type: label}`` dict via ``semantic_id_to_labels`` (``idToSemantics``). Pixel IDs 0 and 1
     are the reserved BACKGROUND / UNLABELLED entries and are always included.
 
     Args:
         stable_id_semantic_id_map: Decoded ``StableIdSemanticIdMap`` entries from
-            :func:`decode_stable_id_semantic_id_map`, indexed by ``pixel_id - NUM_RESERVED_IDS``.
+            :func:`decode_stable_id_semantic_id_map`, indexed by ``pixel_id - _NUM_RESERVED_IDS``.
         stable_id_to_path: Decoded ``{stable_id: prim_path}`` from :func:`decode_stable_id_map`.
         semantic_id_to_labels: Decoded ``{semantic_id: {type: label}}`` from :func:`decode_semantic_id_map`.
         colorize: If True, keys are ``(r, g, b, a)`` color tuples matching the colorized segmentation buffer
@@ -266,24 +267,24 @@ def build_instance_id_to_labels_and_semantics(
         A ``(idToLabels, idToSemantics)`` tuple. ``idToLabels`` maps each key to a USD prim-path string;
         ``idToSemantics`` maps each key to a ``{type: label}`` dict.
     """
-    # Pixel IDs 0/1 are reserved; entry ``i`` corresponds to pixel ID ``i + NUM_RESERVED_IDS``.
-    pixel_ids: list[int] = [SEMANTIC_ID_BACKGROUND, SEMANTIC_ID_UNLABELLED]
+    # Pixel IDs 0/1 are reserved; entry ``i`` corresponds to pixel ID ``i + _NUM_RESERVED_IDS``.
+    pixel_ids: list[int] = [_SEMANTIC_ID_BACKGROUND, _SEMANTIC_ID_UNLABELLED]
     prim_paths: list[str] = [
-        RESERVED_INSTANCE_LABELS[SEMANTIC_ID_BACKGROUND],
-        RESERVED_INSTANCE_LABELS[SEMANTIC_ID_UNLABELLED],
+        _RESERVED_INSTANCE_LABELS[_SEMANTIC_ID_BACKGROUND],
+        _RESERVED_INSTANCE_LABELS[_SEMANTIC_ID_UNLABELLED],
     ]
     semantics: list[dict[str, str]] = [
-        RESERVED_SEMANTIC_LABELS[SEMANTIC_ID_BACKGROUND],
-        RESERVED_SEMANTIC_LABELS[SEMANTIC_ID_UNLABELLED],
+        _RESERVED_SEMANTIC_LABELS[_SEMANTIC_ID_BACKGROUND],
+        _RESERVED_SEMANTIC_LABELS[_SEMANTIC_ID_UNLABELLED],
     ]
     for index, (stable_id, semantic_id) in enumerate(stable_id_semantic_id_map):
-        pixel_ids.append(index + NUM_RESERVED_IDS)
+        pixel_ids.append(index + _NUM_RESERVED_IDS)
         # Fall back to UNLABELLED when a stable/semantic ID is missing from its map (defensive; the producer
         # only emits pixel IDs >= 2 for labelled prims, so both lookups are expected to hit).
-        prim_paths.append(stable_id_to_path.get(stable_id, RESERVED_INSTANCE_LABELS[SEMANTIC_ID_UNLABELLED]))
-        semantics.append(semantic_id_to_labels.get(semantic_id, RESERVED_SEMANTIC_LABELS[SEMANTIC_ID_UNLABELLED]))
+        prim_paths.append(stable_id_to_path.get(stable_id, _RESERVED_INSTANCE_LABELS[_SEMANTIC_ID_UNLABELLED]))
+        semantics.append(semantic_id_to_labels.get(semantic_id, _RESERVED_SEMANTIC_LABELS[_SEMANTIC_ID_UNLABELLED]))
 
-    keys = color_keys_for_ids(pixel_ids, device) if colorize else [str(pixel_id) for pixel_id in pixel_ids]
+    keys = _color_keys_for_ids(pixel_ids, device) if colorize else [str(pixel_id) for pixel_id in pixel_ids]
     id_to_labels = {key: prim_paths[idx] for idx, key in enumerate(keys)}
     id_to_semantics = {key: semantics[idx] for idx, key in enumerate(keys)}
     return id_to_labels, id_to_semantics
