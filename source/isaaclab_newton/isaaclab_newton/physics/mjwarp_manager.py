@@ -34,7 +34,10 @@ class NewtonMJWarpManager(NewtonManager):
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> SolverMuJoCo:
         """Construct the configured MuJoCo Warp solver."""
-        return SolverMuJoCo(model, **cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg))
+        kwargs = cls._filter_solver_kwargs(SolverMuJoCo, solver_cfg)
+        # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
+        kwargs.pop("ls_parallel", None)
+        return SolverMuJoCo(model, **kwargs)
 
     @classmethod
     def _build_solver(cls, model: Model, solver_cfg: MJWarpSolverCfg) -> None:

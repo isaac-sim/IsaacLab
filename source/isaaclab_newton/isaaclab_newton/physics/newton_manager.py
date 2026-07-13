@@ -1523,10 +1523,7 @@ class NewtonManager(PhysicsManager):
         are always excluded — ``model`` is passed positionally at construction.
         """
         valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
-        # ls_parallel is deprecated in newton; forwarding it (even as False) emits a warning.
-        kwargs.pop("ls_parallel", None)
-        return kwargs
+        return {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
 
     @classmethod
     def _step_solver(
