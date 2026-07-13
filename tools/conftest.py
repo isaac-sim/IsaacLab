@@ -1111,6 +1111,7 @@ def pytest_sessionstart(session):
     source_dirs = [
         os.path.join(workspace_root, "scripts"),
         os.path.join(workspace_root, "source"),
+        os.path.join(workspace_root, "tests", "integration"),
     ]
 
     # Get filter pattern from environment variable or command line

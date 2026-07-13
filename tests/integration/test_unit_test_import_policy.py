@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-pytestmark = pytest.mark.unit
+pytestmark = pytest.mark.integration
 
 
 def _repo_root() -> Path:
@@ -35,11 +35,7 @@ def _declared_import_names(extension_toml: Path) -> frozenset[str]:
 
 def _unit_test_files(test_root: Path) -> list[Path]:
     """Return all test_*.py files that carry pytestmark = pytest.mark.unit."""
-    return [
-        p
-        for p in test_root.rglob("test_*.py")
-        if "pytest.mark.unit" in p.read_text(encoding="utf-8")
-    ]
+    return [p for p in test_root.rglob("test_*.py") if "pytest.mark.unit" in p.read_text(encoding="utf-8")]
 
 
 def _top_level_imports(path: Path) -> set[str]:
@@ -73,10 +69,7 @@ def test_unit_tests_only_import_declared_deps():
             bad = sorted(
                 name
                 for name in _top_level_imports(test_file)
-                if name not in stdlib
-                and name != "pytest"
-                and not name.startswith("isaaclab")
-                and name not in declared
+                if name not in stdlib and name != "pytest" and not name.startswith("isaaclab") and name not in declared
             )
             if bad:
                 violations[str(test_file.relative_to(root))] = bad
