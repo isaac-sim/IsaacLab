@@ -38,7 +38,7 @@ runs:
         args=(docker --gpu --base-image "$BASE_IMAGE"
               --build-wheel
               --results-dir "${{ github.workspace }}/results"
-              -- --tb=short --show-capture=failed --log-level=WARNING)
+              -- --tb=short --show-capture=all)
         [ -n "$TEST_FILTER" ] && args+=(-k "$TEST_FILTER")
         # Make `python3` resolve to the uv-managed 3.12 for build.sh's gen_pyproject.py.
         # --seed installs pip/setuptools/wheel into the venv so build.sh's `python3 -m pip install`
