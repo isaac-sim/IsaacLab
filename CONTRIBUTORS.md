@@ -134,6 +134,7 @@ Guidelines for modifications:
 * Mateo Guaman Castro
 * Matthew Taylor
 * Maurice Rahme
+* Maximilian Krause
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
