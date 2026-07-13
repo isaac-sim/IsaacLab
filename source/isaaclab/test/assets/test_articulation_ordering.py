@@ -94,12 +94,14 @@ def test_parse_articulation_ordering_convention_rejects_unknown_string() -> None
         parse_articulation_ordering_convention("backend")
 
 
-@pytest.mark.parametrize(
-    "entrypoint",
-    ["resolve_names", "resolve_convention", "physx", "mjwarp", "robot_schema"],
-)
+@pytest.mark.parametrize("entrypoint", ["resolve_names", "resolve_convention", "get_ordering"])
 def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
-    """Reject misspelled element kinds at every resolver entry point."""
+    """Reject a misspelled element kind at each distinct resolver validation site.
+
+    ``get_articulation_name_ordering`` validates ``kind`` before parsing the convention, so its
+    ``physx``/``mjwarp``/``robot_schema`` aliases all reach one guard; a single public call covers
+    them.
+    """
 
     class _Articulation:
         __backend_name__ = "physx"
@@ -121,12 +123,8 @@ def test_ordering_resolvers_reject_invalid_kind(entrypoint: str) -> None:
                 convention="physx",
                 kind="dof",  # type: ignore[arg-type]
             )
-        elif entrypoint == "physx":
-            get_articulation_name_ordering(articulation, "physx", kind="dof")  # type: ignore[arg-type]
-        elif entrypoint == "mjwarp":
-            get_articulation_name_ordering(articulation, "mjwarp", kind="dof")  # type: ignore[arg-type]
         else:
-            get_articulation_name_ordering(articulation, "robot_schema", kind="dof")  # type: ignore[arg-type]
+            get_articulation_name_ordering(articulation, "physx", kind="dof")  # type: ignore[arg-type]
 
 
 def test_articulation_cfg_accepts_optional_ordering_fields() -> None:
@@ -181,18 +179,6 @@ def test_build_articulation_name_map_reports_non_string_name_element() -> None:
         )
 
 
-def test_resolve_articulation_ordering_names_accepts_explicit_sequence() -> None:
-    """Resolve explicit public ordering names from config."""
-    user_names = _resolve_articulation_ordering_names(
-        kind="joint",
-        backend_names=("joint_0", "joint_1", "joint_2"),
-        ordering=("joint_2", "joint_0", "joint_1"),
-        active_backend_name="physx",
-    )
-
-    assert user_names == ("joint_2", "joint_0", "joint_1")
-
-
 @pytest.mark.parametrize("sequence_type", [list, tuple])
 def test_resolve_articulation_ordering_names_accepts_list_and_tuple(sequence_type) -> None:
     """Resolve explicit orderings from both plain sequence forms, normalized to a tuple."""
@@ -236,15 +222,16 @@ def test_resolve_articulation_ordering_names_reports_non_string_element() -> Non
 @pytest.mark.parametrize(
     ("ordering", "type_name"),
     [
-        (7, "int"),
-        (b"", "bytes"),
-        (b"joint_0", "bytes"),
-        (bytearray(), "bytearray"),
-        (bytearray(b"joint_0"), "bytearray"),
+        pytest.param(7, "int", id="scalar-int"),
+        pytest.param(b"joint_0", "bytes", id="bytes-like"),
     ],
 )
 def test_resolve_articulation_ordering_names_reports_unsupported_type(ordering, type_name: str) -> None:
-    """Report accepted resolver inputs for unsupported scalar orderings."""
+    """Report the offending type for unsupported scalar orderings.
+
+    All unsupported scalars hit one ``else`` branch, so a plain scalar and a bytes-like value -- which
+    must not be silently iterated into per-character names -- pin the rule and its error message.
+    """
     with pytest.raises(TypeError) as exc_info:
         _resolve_articulation_ordering_names(
             kind="joint",
@@ -534,50 +521,70 @@ def _install_source_asset_resolver(monkeypatch: pytest.MonkeyPatch, resolve_matc
     monkeypatch.setitem(sys.modules, "isaaclab.sim.utils.queries", queries_mod)
 
 
+_ROBOT_SCHEMA_PRIM_PATH = "/World/envs/env_0/Robot"
+_ROBOT_SCHEMA_SOURCE_EXPR = "/World/envs/env_.*/Robot"
+
+
 def _author_robot_schema_relationship(prim: Usd.Prim, relationship_name: str, target_paths: list[str]) -> None:
     """Author a robot-schema relationship on a real prim with the given target prim paths."""
     prim.CreateRelationship(relationship_name).SetTargets([Sdf.Path(path) for path in target_paths])
+
+
+def _author_robot_schema_stage(child_names: tuple[str, ...]) -> tuple[Usd.Stage, Usd.Prim]:
+    """Create an in-memory stage with a robot prim and the named leaf child prims."""
+    stage = Usd.Stage.CreateInMemory()
+    robot_prim = stage.DefinePrim(_ROBOT_SCHEMA_PRIM_PATH, "Xform")
+    for child in child_names:
+        stage.DefinePrim(f"{_ROBOT_SCHEMA_PRIM_PATH}/{child}", "Xform")
+    return stage, robot_prim
+
+
+def _install_robot_schema_source_asset(monkeypatch: pytest.MonkeyPatch, robot_prim: Usd.Prim) -> None:
+    """Route source-asset resolution to a single authored robot prim for robot-schema discovery."""
+
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        assert path_expr == _ROBOT_SCHEMA_SOURCE_EXPR
+        return [(robot_prim, _ROBOT_SCHEMA_SOURCE_EXPR)]
+
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
+
+
+def _make_robot_schema_articulation(
+    *,
+    backend_joint_names: tuple[str, ...] | None = None,
+    backend_body_names: tuple[str, ...] | None = None,
+) -> types.SimpleNamespace:
+    """Build an articulation surface that resolves robot-schema ordering from an in-memory stage."""
+    return types.SimpleNamespace(
+        __backend_name__="newton",
+        _ordering_convention_name_cache={},
+        cfg=types.SimpleNamespace(prim_path=_ROBOT_SCHEMA_SOURCE_EXPR, articulation_root_prim_path=None),
+        backend_joint_names=list(backend_joint_names) if backend_joint_names is not None else [],
+        backend_body_names=list(backend_body_names) if backend_body_names is not None else [],
+    )
 
 
 def test_robot_schema_ordering_helper_resolves_canonical_name_override_spelling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Resolve joint ordering from authored relationships honoring the canonical ``isaac:NameOverride``."""
-    stage = Usd.Stage.CreateInMemory()
-    robot_path = "/World/envs/env_0/Robot"
-    robot_prim = stage.DefinePrim(robot_path, "Xform")
-    for child in ("joint_a_prim", "joint_b", "joint_c"):
-        stage.DefinePrim(f"{robot_path}/{child}", "Xform")
+    stage, robot_prim = _author_robot_schema_stage(("joint_a_prim", "joint_b", "joint_c"))
     _author_robot_schema_relationship(
         robot_prim,
         "isaac:physics:robotJoints",
-        [f"{robot_path}/joint_b", f"{robot_path}/joint_a_prim", f"{robot_path}/joint_c"],
+        [
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_b",
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_a_prim",
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_c",
+        ],
     )
     # The canonical uppercase ``NameOverride`` renames the target prim to its backend joint name.
-    stage.GetPrimAtPath(f"{robot_path}/joint_a_prim").CreateAttribute(
+    stage.GetPrimAtPath(f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_a_prim").CreateAttribute(
         "isaac:NameOverride", Sdf.ValueTypeNames.String
     ).Set("joint_a")
+    _install_robot_schema_source_asset(monkeypatch, robot_prim)
 
-    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
-        return [(robot_prim, "/World/envs/env_.*/Robot")]
-
-    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
-
-    class _Articulation:
-        __backend_name__ = "newton"
-        _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_a", "joint_b", "joint_c"]
-
-        @property
-        def backend_body_names(self) -> list[str]:
-            return []
-
-    articulation = _Articulation()
+    articulation = _make_robot_schema_articulation(backend_joint_names=("joint_a", "joint_b", "joint_c"))
 
     assert get_articulation_name_ordering(articulation, "robot_schema", kind="joint") == (
         "joint_b",
@@ -598,75 +605,43 @@ def test_robot_schema_ordering_helper_resolves_fallback_name_override_spelling(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Resolve body ordering via the fallback ``isaac:nameOverride`` spelling, dropping extra targets."""
-    stage = Usd.Stage.CreateInMemory()
-    robot_path = "/World/envs/env_0/Robot"
-    robot_prim = stage.DefinePrim(robot_path, "Xform")
-    for child in ("base_prim", "tool_site", "thigh", "foot"):
-        stage.DefinePrim(f"{robot_path}/{child}", "Xform")
+    stage, robot_prim = _author_robot_schema_stage(("base_prim", "tool_site", "thigh", "foot"))
     _author_robot_schema_relationship(
         robot_prim,
         "isaac:physics:robotLinks",
-        [f"{robot_path}/base_prim", f"{robot_path}/tool_site", f"{robot_path}/thigh", f"{robot_path}/foot"],
+        [
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/base_prim",
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/tool_site",
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/thigh",
+            f"{_ROBOT_SCHEMA_PRIM_PATH}/foot",
+        ],
     )
     # The fallback lowercase ``nameOverride`` renames the root target; tool_site is absent from the
     # backend names and must be dropped by the complete-permutation filter.
-    stage.GetPrimAtPath(f"{robot_path}/base_prim").CreateAttribute(
+    stage.GetPrimAtPath(f"{_ROBOT_SCHEMA_PRIM_PATH}/base_prim").CreateAttribute(
         "isaac:nameOverride", Sdf.ValueTypeNames.String
     ).Set("base")
+    _install_robot_schema_source_asset(monkeypatch, robot_prim)
 
-    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        assert path_expr == "/World/envs/env_.*/Robot"
-        return [(robot_prim, "/World/envs/env_.*/Robot")]
-
-    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
-
-    class _Articulation:
-        __backend_name__ = "newton"
-        _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return []
-
-        @property
-        def backend_body_names(self) -> list[str]:
-            return ["base", "thigh", "foot"]
-
-    articulation = _Articulation()
+    articulation = _make_robot_schema_articulation(backend_body_names=("base", "thigh", "foot"))
 
     assert get_articulation_name_ordering(articulation, "robot_schema", kind="body") == ("base", "thigh", "foot")
 
 
 def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
     """Reject robot schema relationships that are not complete backend-name permutations."""
-    stage = Usd.Stage.CreateInMemory()
-    robot_path = "/World/envs/env_0/Robot"
-    robot_prim = stage.DefinePrim(robot_path, "Xform")
-    for child in ("joint_a", "joint_b"):
-        stage.DefinePrim(f"{robot_path}/{child}", "Xform")
+    stage, robot_prim = _author_robot_schema_stage(("joint_a", "joint_b"))
     _author_robot_schema_relationship(
         robot_prim,
         "isaac:physics:robotJoints",
-        [f"{robot_path}/joint_b", f"{robot_path}/joint_a"],
+        [f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_b", f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_a"],
     )
+    _install_robot_schema_source_asset(monkeypatch, robot_prim)
 
-    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        return [(robot_prim, "/World/envs/env_.*/Robot")]
-
-    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
-
-    class _Articulation:
-        __backend_name__ = "newton"
-        _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_a", "joint_b", "joint_c"]
+    articulation = _make_robot_schema_articulation(backend_joint_names=("joint_a", "joint_b", "joint_c"))
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_articulation_name_ordering(_Articulation(), "robot_schema", kind="joint")
+        get_articulation_name_ordering(articulation, "robot_schema", kind="joint")
 
     message = str(exc_info.value)
     assert "Unable to resolve 'robot_schema' joint ordering" in message
@@ -677,40 +652,25 @@ def test_robot_schema_ordering_helper_reports_unresolvable_relationship_target(
     monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     """Name the unresolvable target in both the warning log and the terminal failure message."""
-    stage = Usd.Stage.CreateInMemory()
-    robot_path = "/World/envs/env_0/Robot"
-    robot_prim = stage.DefinePrim(robot_path, "Xform")
-    stage.DefinePrim(f"{robot_path}/joint_a", "Xform")
+    stage, robot_prim = _author_robot_schema_stage(("joint_a",))
     # joint_typo is authored as a relationship target but never defined on the stage, so USD resolves
     # it to an invalid prim.
-    unresolved_target_path = f"{robot_path}/joint_typo"
+    unresolved_target_path = f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_typo"
     _author_robot_schema_relationship(
         robot_prim,
         "isaac:physics:robotJoints",
-        [f"{robot_path}/joint_a", unresolved_target_path],
+        [f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_a", unresolved_target_path],
     )
+    _install_robot_schema_source_asset(monkeypatch, robot_prim)
 
-    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        return [(robot_prim, "/World/envs/env_.*/Robot")]
-
-    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
-
-    class _Articulation:
-        __backend_name__ = "newton"
-        _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            # A second backend joint name that the single resolvable target cannot cover, so
-            # resolution falls through to the terminal failure instead of an incomplete-but-silent
-            # success.
-            return ["joint_a", "joint_b"]
+    # A second backend joint name that the single resolvable target cannot cover, so resolution falls
+    # through to the terminal failure instead of an incomplete-but-silent success.
+    articulation = _make_robot_schema_articulation(backend_joint_names=("joint_a", "joint_b"))
 
     caplog.set_level(logging.WARNING, logger="isaaclab.assets.articulation.ordering_resolvers")
 
     with pytest.raises(NotImplementedError) as exc_info:
-        get_articulation_name_ordering(_Articulation(), "robot_schema", kind="joint")
+        get_articulation_name_ordering(articulation, "robot_schema", kind="joint")
 
     message = str(exc_info.value)
     assert unresolved_target_path in message
@@ -726,37 +686,24 @@ def test_robot_schema_ordering_helper_rejects_duplicate_relationship_targets(
     stage can express is the same leaf prim reached through two distinct nested robot-schema
     relationships. That nested case is exactly what the resolver must reject rather than dedupe.
     """
-    stage = Usd.Stage.CreateInMemory()
-    robot_path = "/World/envs/env_0/Robot"
-    robot_prim = stage.DefinePrim(robot_path, "Xform")
-    sub_a_prim = stage.DefinePrim(f"{robot_path}/sub_a", "Xform")
-    sub_b_prim = stage.DefinePrim(f"{robot_path}/sub_b", "Xform")
-    duplicated_target_path = f"{robot_path}/joint_a"
+    stage, robot_prim = _author_robot_schema_stage(("sub_a", "sub_b"))
+    sub_a_prim = stage.GetPrimAtPath(f"{_ROBOT_SCHEMA_PRIM_PATH}/sub_a")
+    sub_b_prim = stage.GetPrimAtPath(f"{_ROBOT_SCHEMA_PRIM_PATH}/sub_b")
+    duplicated_target_path = f"{_ROBOT_SCHEMA_PRIM_PATH}/joint_a"
     stage.DefinePrim(duplicated_target_path, "Xform")
     _author_robot_schema_relationship(
         robot_prim,
         "isaac:physics:robotJoints",
-        [f"{robot_path}/sub_a", f"{robot_path}/sub_b"],
+        [f"{_ROBOT_SCHEMA_PRIM_PATH}/sub_a", f"{_ROBOT_SCHEMA_PRIM_PATH}/sub_b"],
     )
     _author_robot_schema_relationship(sub_a_prim, "isaac:physics:robotJoints", [duplicated_target_path])
     _author_robot_schema_relationship(sub_b_prim, "isaac:physics:robotJoints", [duplicated_target_path])
+    _install_robot_schema_source_asset(monkeypatch, robot_prim)
 
-    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
-        return [(robot_prim, "/World/envs/env_.*/Robot")]
-
-    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
-
-    class _Articulation:
-        __backend_name__ = "newton"
-        _ordering_convention_name_cache: dict = {}
-        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
-
-        @property
-        def backend_joint_names(self) -> list[str]:
-            return ["joint_a", "joint_b"]
+    articulation = _make_robot_schema_articulation(backend_joint_names=("joint_a", "joint_b"))
 
     with pytest.raises(ValueError, match=f"Duplicate .* target '{duplicated_target_path}'"):
-        get_articulation_name_ordering(_Articulation(), "robot_schema", kind="joint")
+        get_articulation_name_ordering(articulation, "robot_schema", kind="joint")
 
 
 def _install_newton_usd_builder_mocks(monkeypatch: pytest.MonkeyPatch, stage: Usd.Stage, calls: dict, view_names: dict):
@@ -1378,3 +1325,60 @@ def test_ordering_state_lives_only_on_data() -> None:
     ):
         for name in names:
             assert not hasattr(owner, name), f"{owner.__name__}.{name} should be deleted"
+
+
+_NONIDENTITY_ORDERING = types.SimpleNamespace(
+    user_to_backend_indices=(0, 2, 1),
+    backend_to_user_indices=(0, 2, 1),
+    is_identity=False,
+)
+
+
+class _MapBodyIdsSurface:
+    """Minimal surface exercising the real body-id translation method."""
+
+    map_body_ids_to_backend = BaseArticulation.map_body_ids_to_backend
+
+    def __init__(self, body_ordering):
+        self.body_ordering = body_ordering
+
+
+class _MapJointIdsSurface:
+    """Minimal surface exercising the real joint-id translation method."""
+
+    map_joint_ids_to_backend = BaseArticulation.map_joint_ids_to_backend
+
+    def __init__(self, joint_ordering):
+        self.joint_ordering = joint_ordering
+
+
+def test_map_body_ids_to_backend_returns_input_unchanged_for_default_ordering() -> None:
+    """A ``None`` body ordering returns the input object unchanged.
+
+    ``None`` covers identity-configured orderings too: assets normalize
+    identity maps away at install time, so this is the only fast-path state.
+    """
+    asset = _MapBodyIdsSurface(None)
+    body_ids = [2, 0, 1]
+    assert asset.map_body_ids_to_backend(body_ids) is body_ids
+
+
+def test_map_body_ids_to_backend_permutes_ids_for_nonidentity_ordering() -> None:
+    """A nonidentity body ordering gathers public IDs into backend order."""
+    asset = _MapBodyIdsSurface(_NONIDENTITY_ORDERING)
+    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
+    assert asset.map_body_ids_to_backend([1, 2]) == [2, 1]
+
+
+def test_map_joint_ids_to_backend_returns_input_unchanged_for_default_ordering() -> None:
+    """A ``None`` (default) joint ordering returns the input object unchanged."""
+    asset = _MapJointIdsSurface(None)
+    joint_ids = [2, 0, 1]
+    assert asset.map_joint_ids_to_backend(joint_ids) is joint_ids
+
+
+def test_map_joint_ids_to_backend_permutes_ids_for_nonidentity_ordering() -> None:
+    """A nonidentity joint ordering gathers public IDs into backend order."""
+    asset = _MapJointIdsSurface(_NONIDENTITY_ORDERING)
+    # user_to_backend_indices == (0, 2, 1): public 1 -> backend 2, public 2 -> backend 1
+    assert asset.map_joint_ids_to_backend([1, 2]) == [2, 1]
