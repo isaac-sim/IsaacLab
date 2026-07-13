@@ -539,31 +539,24 @@ def _author_robot_schema_relationship(prim: Usd.Prim, relationship_name: str, ta
     prim.CreateRelationship(relationship_name).SetTargets([Sdf.Path(path) for path in target_paths])
 
 
-def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Resolve explicit robot schema ordering from authored USD relationship targets."""
+def test_robot_schema_ordering_helper_resolves_canonical_name_override_spelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolve joint ordering from authored relationships honoring the canonical ``isaac:NameOverride``."""
     stage = Usd.Stage.CreateInMemory()
     robot_path = "/World/envs/env_0/Robot"
     robot_prim = stage.DefinePrim(robot_path, "Xform")
-    for child in ("joint_a_prim", "joint_b", "joint_c", "base_prim", "tool_site", "thigh", "foot"):
+    for child in ("joint_a_prim", "joint_b", "joint_c"):
         stage.DefinePrim(f"{robot_path}/{child}", "Xform")
     _author_robot_schema_relationship(
         robot_prim,
         "isaac:physics:robotJoints",
         [f"{robot_path}/joint_b", f"{robot_path}/joint_a_prim", f"{robot_path}/joint_c"],
     )
-    _author_robot_schema_relationship(
-        robot_prim,
-        "isaac:physics:robotLinks",
-        [f"{robot_path}/base_prim", f"{robot_path}/tool_site", f"{robot_path}/thigh", f"{robot_path}/foot"],
-    )
-    # A name override renames the target prim, and a target absent from the backend names (tool_site)
-    # must be dropped by the complete-permutation filter.
+    # The canonical uppercase ``NameOverride`` renames the target prim to its backend joint name.
     stage.GetPrimAtPath(f"{robot_path}/joint_a_prim").CreateAttribute(
-        "isaac:nameOverride", Sdf.ValueTypeNames.String
+        "isaac:NameOverride", Sdf.ValueTypeNames.String
     ).Set("joint_a")
-    stage.GetPrimAtPath(f"{robot_path}/base_prim").CreateAttribute("isaac:nameOverride", Sdf.ValueTypeNames.String).Set(
-        "base"
-    )
 
     def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
         assert path_expr == "/World/envs/env_.*/Robot"
@@ -582,7 +575,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
 
         @property
         def backend_body_names(self) -> list[str]:
-            return ["base", "thigh", "foot"]
+            return []
 
     articulation = _Articulation()
 
@@ -591,7 +584,7 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
         "joint_a",
         "joint_c",
     )
-    assert get_articulation_name_ordering(articulation, "robot_schema", kind="body") == ("base", "thigh", "foot")
+    # The public resolver entry point routes through the same authored-relationship discovery.
     assert _resolve_articulation_ordering_names(
         kind="joint",
         backend_names=tuple(articulation.backend_joint_names),
@@ -601,21 +594,48 @@ def test_robot_schema_ordering_helper_reads_authored_relationships(monkeypatch: 
     ) == ("joint_b", "joint_a", "joint_c")
 
 
-def test_robot_schema_name_override_ignores_capitalized_spelling() -> None:
-    """Only the schema-defined ``isaac:nameOverride`` spelling is honored, for both kinds."""
+def test_robot_schema_ordering_helper_resolves_fallback_name_override_spelling(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Resolve body ordering via the fallback ``isaac:nameOverride`` spelling, dropping extra targets."""
     stage = Usd.Stage.CreateInMemory()
-    robot_path = "/World/Robot"
-    joint_prim = stage.DefinePrim(f"{robot_path}/joint_a_prim", "Xform")
-    body_prim = stage.DefinePrim(f"{robot_path}/base_prim", "Xform")
-    # Capitalized spelling is not part of isaacsim.robot.schema: fall back to the prim name.
-    joint_prim.CreateAttribute("isaac:NameOverride", Sdf.ValueTypeNames.String).Set("joint_a")
-    body_prim.CreateAttribute("isaac:NameOverride", Sdf.ValueTypeNames.String).Set("base")
-    assert ordering_resolvers._get_robot_schema_target_name(joint_prim) == "joint_a_prim"
-    assert ordering_resolvers._get_robot_schema_target_name(body_prim) == "base_prim"
+    robot_path = "/World/envs/env_0/Robot"
+    robot_prim = stage.DefinePrim(robot_path, "Xform")
+    for child in ("base_prim", "tool_site", "thigh", "foot"):
+        stage.DefinePrim(f"{robot_path}/{child}", "Xform")
+    _author_robot_schema_relationship(
+        robot_prim,
+        "isaac:physics:robotLinks",
+        [f"{robot_path}/base_prim", f"{robot_path}/tool_site", f"{robot_path}/thigh", f"{robot_path}/foot"],
+    )
+    # The fallback lowercase ``nameOverride`` renames the root target; tool_site is absent from the
+    # backend names and must be dropped by the complete-permutation filter.
+    stage.GetPrimAtPath(f"{robot_path}/base_prim").CreateAttribute(
+        "isaac:nameOverride", Sdf.ValueTypeNames.String
+    ).Set("base")
 
-    lower_joint = stage.DefinePrim(f"{robot_path}/j", "Xform")
-    lower_joint.CreateAttribute("isaac:nameOverride", Sdf.ValueTypeNames.String).Set("hip")
-    assert ordering_resolvers._get_robot_schema_target_name(lower_joint) == "hip"
+    def _resolve_matching_prims_from_source(path_expr, predicate=None, expected_num_matches=None):
+        assert path_expr == "/World/envs/env_.*/Robot"
+        return [(robot_prim, "/World/envs/env_.*/Robot")]
+
+    _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
+
+    class _Articulation:
+        __backend_name__ = "newton"
+        _ordering_convention_name_cache: dict = {}
+        cfg = types.SimpleNamespace(prim_path="/World/envs/env_.*/Robot", articulation_root_prim_path=None)
+
+        @property
+        def backend_joint_names(self) -> list[str]:
+            return []
+
+        @property
+        def backend_body_names(self) -> list[str]:
+            return ["base", "thigh", "foot"]
+
+    articulation = _Articulation()
+
+    assert get_articulation_name_ordering(articulation, "robot_schema", kind="body") == ("base", "thigh", "foot")
 
 
 def test_robot_schema_ordering_helper_rejects_incomplete_relationships(monkeypatch: pytest.MonkeyPatch) -> None:
