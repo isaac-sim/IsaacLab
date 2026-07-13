@@ -8,8 +8,9 @@
 from __future__ import annotations
 
 import argparse
-import tomllib
 from pathlib import Path
+
+import tomllib
 
 
 def generate_uv_overrides(root_pyproject: Path, output_path: Path) -> None:
