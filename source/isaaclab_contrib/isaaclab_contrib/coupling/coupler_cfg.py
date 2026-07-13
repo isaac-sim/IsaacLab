@@ -117,23 +117,8 @@ class CouplerProxyMappingCfg:
     positive integers.
     """
 
-    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = None
+    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = lambda model_view: CollisionPipeline(model_view, broad_phase="explicit")
     """Optional factory for the proxy destination's collision pipeline."""
-
-    shape_material_ke: float | None = None
-    """Optional contact-stiffness override for shapes on selected proxy bodies [N/m]."""
-
-    shape_material_kd: float | None = None
-    """Optional contact-damping override for shapes on selected proxy bodies [N*s/m]."""
-
-    shape_material_mu: float | None = None
-    """Optional friction override for shapes on selected proxy bodies."""
-
-    shape_margin: float | None = None
-    """Optional contact-margin override for shapes on selected proxy bodies [m]."""
-
-    shape_gap: float | None = None
-    """Optional contact-gap override for shapes on selected proxy bodies [m]."""
 
 
 @configclass

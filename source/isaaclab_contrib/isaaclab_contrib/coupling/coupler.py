@@ -282,7 +282,6 @@ class NewtonCouplerManager(NewtonVBDManager):
         proxies: list[CouplerProxyMappingCfg],
         solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
-        cls._apply_proxy_shape_overrides(model, proxies)
         proxy_mappings = []
         for proxy in proxies:
             values = cls._matching_config_values(SolverCoupledProxy.Proxy, proxy)
@@ -330,17 +329,3 @@ class NewtonCouplerManager(NewtonVBDManager):
                     f"{parent_owner!r} and {child_owner!r}; keep the articulation in one entry "
                     "or use ADMM coupling."
                 )
-
-    @classmethod
-    def _apply_proxy_shape_overrides(cls, model: Model, proxies: list[CouplerProxyMappingCfg]) -> None:
-        shape_bodies = model.shape_body.numpy()
-        for proxy in proxies:
-            body_set = set(proxy.bodies)
-            shape_ids = [shape for shape, body in enumerate(shape_bodies) if int(body) in body_set]
-            for name in ("shape_material_ke", "shape_material_kd", "shape_material_mu", "shape_margin", "shape_gap"):
-                value = getattr(proxy, name)
-                array = getattr(model, name, None)
-                if value is not None and shape_ids and array is not None:
-                    values = array.numpy()
-                    values[np.asarray(shape_ids, dtype=np.int32)] = float(value)
-                    array.assign(values)
