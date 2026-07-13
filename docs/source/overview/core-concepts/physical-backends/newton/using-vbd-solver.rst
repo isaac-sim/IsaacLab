@@ -222,8 +222,44 @@ alternating coupling when only a small set of rigid bodies (e.g. the fingers of
 a gripper) actually needs to touch the deformable, since the bulk of the
 articulation is solved purely by MJWarp without seeing the particle contacts.
 
+Choose between the two MJWarp + VBD presets based on how much of the rigid
+model needs to interact with the deformable:
+
+.. list-table:: Alternating MJWarp + VBD versus proxy coupling
+    :header-rows: 1
+    :widths: 20 40 40
+
+    * - Consideration
+      - Alternating ``newton_mjwarp_vbd``
+      - Proxy ``newton_mjwarp_vbd_proxy``
+    * - Interaction model
+      - Runs MJWarp and VBD over the shared model and injects deformable
+        reactions into the rigid solve in two-way mode.
+      - Partitions the model into solver views and exposes only selected source
+        bodies or particles as virtual proxies in the destination view.
+    * - Advantages
+      - Provides direct, same-substep two-way feedback for contacts across the
+        rigid model. It is the simpler choice when many robot links may contact
+        the deformable.
+      - Restricts coupled contact work to a small interface, which can scale
+        better when only a gripper or another small body subset interacts with
+        the deformable. Named entries also allow supported solver combinations
+        beyond the dedicated MJWarp + VBD manager.
+    * - Trade-offs and limits
+      - Uses a dedicated MJWarp + VBD path and performs shared contact work even
+        when only a few rigid bodies need deformable contact.
+      - Feedback is lagged or staggered and can be more timestep-sensitive.
+        Newton's proxy solver currently supports at most two entries, does not
+        support joints that cross entry boundaries, and couples only explicitly
+        selected proxy bodies or particles.
+    * - Choose it when
+      - Tight two-way feedback across much of the articulation matters more than
+        limiting the coupling interface.
+      - Contact is localized to a known body subset and the reduced interface is
+        worth the proxy approximation and topology restrictions.
+
 The Franka soft-body task ships a ``newton_mjwarp_vbd_proxy`` preset (the new
-default for ``Isaac-Lift-Soft-Franka-v0``) that demonstrates the typical
+default for ``Isaac-Lift-Soft-Franka``) that demonstrates the typical
 configuration:
 
 .. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
@@ -258,6 +294,19 @@ What the selectors do:
   so VBD only ever sees three rigid proxies regardless of how many links the
   arm has.
 
+.. important::
+
+    The coupler currently rejects
+    :class:`~isaaclab_newton.physics.KaminoSolverCfg` entries and
+    :class:`~isaaclab_newton.physics.MPMSolverCfg` entries configured with
+    ``project_outside_colliders=True``, as well as
+    :class:`~isaaclab_newton.physics.MJWarpSolverCfg` entries configured with
+    ``use_mujoco_cpu=True``. These configurations require manager-specific
+    build, forward-kinematics, reset, or per-step lifecycle hooks that are not
+    yet available to nested solvers. Use MPM with
+    ``project_outside_colliders=False`` and GPU MJWarp, or run these solvers
+    through their standalone managers until nested lifecycle support is added.
+
 Key proxy-specific parameters:
 
 .. list-table::
@@ -284,32 +333,26 @@ Key proxy-specific parameters:
         in the VBD view. Increase it to make proxies behave more like fixed
         obstacles to VBD.
 
-Because the coupler resolves
-:class:`~isaaclab.managers.SceneEntityCfg` selectors against the scene at
-solver-build time, the env's ``__post_init__`` sets
-:attr:`~isaaclab_contrib.coupling.CouplerCfg.scene_cfg` to ``self.scene``
-on the coupler config. The Franka soft env sets it on both the named
-``newton_mjwarp_vbd_proxy`` preset and the ``default`` alias that the preset
-resolver falls back to when no preset is selected:
-
-.. literalinclude:: ../../../../../../source/isaaclab_tasks/isaaclab_tasks/core/lift/config/franka_soft/franka_soft_env_cfg.py
-    :language: python
-    :start-at: self.sim.physics.newton_mjwarp_vbd_proxy.solver_cfg.scene_cfg
-    :end-at: self.sim.physics.default.solver_cfg.scene_cfg
-    :dedent: 8
+The shipped preset uses full Newton body-label regexes, so it has no runtime
+dependency on the environment scene config. If an application instead uses
+:class:`~isaaclab.managers.SceneEntityCfg` selectors, assign that environment's
+scene config to :attr:`~isaaclab_contrib.coupling.CouplerCfg.scene_cfg` before
+the solver is built. This explicit dependency is required only for resolving
+scene-entity names and ``body_names``; raw label regexes and integer body ids do
+not need it.
 
 Try the demo:
 
 .. code-block:: bash
 
     # zero-agent visual smoke test (default preset is now the proxy-coupled one)
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka-v0 --num_envs 1 --visualizer kit
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 --visualizer kit
 
     # scripted pick-and-lift via state machine
     ./isaaclab.sh -p scripts/environments/state_machine/lift_franka_soft.py --num_envs 1
 
     # explicitly select the alternating-substep preset instead
-    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka-v0 --num_envs 1 presets=newton_mjwarp_vbd
+    ./isaaclab.sh -p scripts/environments/zero_agent.py --task Isaac-Lift-Soft-Franka --num_envs 1 presets=newton_mjwarp_vbd
 
 
 Contact and Material Parameters

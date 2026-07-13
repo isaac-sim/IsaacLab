@@ -151,7 +151,7 @@ class PhysicsCfg(PresetCfg):
                         ls_iterations=20,
                         integrator="implicitfast",
                     ),
-                    bodies=[SceneEntityCfg("robot")],
+                    bodies=[r"/World/envs/env_.*/Robot"],
                 ),
                 CouplerEntryCfg(
                     name="soft",
@@ -165,10 +165,8 @@ class PhysicsCfg(PresetCfg):
                     source="rigid",
                     destination="soft",
                     bodies=[
-                        SceneEntityCfg(
-                            "robot",
-                            body_names=["panda_hand", "panda_(left|right)finger"],
-                        )
+                        r"/World/envs/env_.*/Robot/panda_hand",
+                        r"/World/envs/env_.*/Robot/panda_(left|right)finger",
                     ],
                     collide_interval=5,
                 )
@@ -470,12 +468,6 @@ class FrankaSoftEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.render_interval = self.decimation
         self.sim.gravity = (0.0, 0.0, 0.0)
         self.sim.physics = PhysicsCfg()
-
-        # The coupled proxy solver resolves SceneEntityCfg selectors against the scene at
-        # solver-build time. Wire the scene on the named preset (used when selected by name)
-        # and on the ``default`` alias the resolver falls back to when no preset is given.
-        self.sim.physics.newton_mjwarp_vbd_proxy.solver_cfg.scene_cfg = self.scene
-        self.sim.physics.default.solver_cfg.scene_cfg = self.scene
 
         viewer_cfg = dict(eye=(1.25, -1.5, 0.75), lookat=(0.0, 0.0, 0.0), window_width=1920, window_height=1080)
         self.sim.visualizer_cfgs = [KitVisualizerCfg(**viewer_cfg), NewtonVisualizerCfg(**viewer_cfg)]

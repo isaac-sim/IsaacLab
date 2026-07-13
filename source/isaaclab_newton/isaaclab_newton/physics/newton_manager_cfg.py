@@ -57,11 +57,11 @@ class NewtonSolverCfg:
 class NewtonShapeCfg:
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
-    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Only fields Isaac
-    Lab actually overrides are declared here; unspecified fields keep Newton's
-    upstream default. The struct is forwarded onto Newton's upstream
-    ``ShapeConfig`` via :func:`~isaaclab.utils.checked_apply` at builder
-    construction.
+    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Fields that Isaac
+    Lab overrides or exposes for user overrides are declared here; fields not
+    represented keep Newton's upstream defaults. The struct is forwarded onto
+    Newton's upstream ``ShapeConfig`` via
+    :func:`~isaaclab.utils.checked_apply` at builder construction.
     """
 
     margin: float = 0.0
