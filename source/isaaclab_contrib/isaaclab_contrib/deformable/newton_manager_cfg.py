@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import FeatherstoneSolverCfg, MJWarpSolverCfg, NewtonSolverCfg
 
@@ -39,7 +39,8 @@ class NewtonModelCfg:
 
     Effective per-contact friction is ``sqrt(soft_contact_mu * shape_mu)``, where
     ``shape_mu`` is the rigid shape's own friction coefficient (from its per-asset
-    material or :attr:`NewtonShapeCfg.mu` default), not set by this config.
+    material or :attr:`~isaaclab_newton.physics.NewtonShapeCfg.mu` default), not
+    set by this config.
     """
 
 
@@ -134,7 +135,7 @@ class CoupledMJWarpVBDSolverCfg(NewtonModelSolverCfg):
     soft_solver_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
     """VBD sub-solver configuration for cloth/particle dynamics."""
 
-    coupling_mode: str = "two_way"
+    coupling_mode: Literal["one_way", "two_way"] = "two_way"
     """Coupling direction between the rigid and VBD solvers.
 
     - ``"one_way"``: Rigid -> soft only.
@@ -159,7 +160,7 @@ class CoupledFeatherstoneVBDSolverCfg(NewtonModelSolverCfg):
     soft_solver_cfg: VBDSolverCfg = VBDSolverCfg(integrate_with_external_rigid_solver=True)
     """VBD sub-solver configuration for cloth/particle dynamics."""
 
-    coupling_mode: str = "kinematic"
+    coupling_mode: Literal["one_way", "two_way", "kinematic"] = "kinematic"
     """Coupling direction between the rigid and VBD solvers.
 
     Accepts the same values as :attr:`CoupledMJWarpVBDSolverCfg.coupling_mode`,

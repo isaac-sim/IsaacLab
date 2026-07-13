@@ -55,6 +55,12 @@ class NewtonCoupledFeatherstoneVBDManager(NewtonVBDManager):
         VBD always uses Newton's :class:`CollisionPipeline` and steps with
         separate input/output states, so the flags are fixed.
         """
+        if solver_cfg.coupling_mode not in {"kinematic", "one_way", "two_way"}:
+            raise ValueError(
+                f"Unknown coupling_mode={solver_cfg.coupling_mode!r}; "
+                "expected one of {'kinematic', 'one_way', 'two_way'}."
+            )
+
         cls._coupling_mode = solver_cfg.coupling_mode
 
         cls._rigid_solver = SolverFeatherstone(
