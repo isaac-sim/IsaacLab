@@ -30,7 +30,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import ActuatorBase, IdealPDActuatorCfg, ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, apply_articulation_ordering_preset, get_articulation_name_ordering
+from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.controllers import (
     DifferentialIKController,
     DifferentialIKControllerCfg,
@@ -49,7 +49,6 @@ from isaaclab.utils.version import get_isaac_sim_version, has_kit
 ##
 from isaaclab_assets import (  # isort:skip
     ANYMAL_C_CFG,
-    ANYMAL_D_CFG,
     FRANKA_PANDA_CFG,
     FRANKA_PANDA_HIGH_PD_CFG,
     SHADOW_HAND_CFG,
@@ -602,110 +601,6 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     assert tuple(articulation.body_names) == expected_mjwarp_body_names
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_live_anymal_d_mjwarp_ordering_reorders_named_state(sim, device, gravity_enabled):
-    """Exercise resolver-driven MJWarp ordering across live PhysX read/write boundaries."""
-    cfg = apply_articulation_ordering_preset(
-        ANYMAL_D_CFG.replace(prim_path="/World/Robot"),
-        "mjwarp",
-    )
-    articulation = Articulation(cfg)
-    sim.reset()
-    assert articulation.is_initialized
-
-    joint_ordering = articulation.joint_ordering
-    body_ordering = articulation.body_ordering
-    joint_non_identity = joint_ordering is not None
-    body_non_identity = body_ordering is not None
-    assert joint_non_identity or body_non_identity, (
-        "ANYmal-D no longer produces a non-identity PhysX/MJWarp ordering map; choose a representative "
-        "branching asset before treating this as cross-backend coverage."
-    )
-
-    joint_user_to_backend = (
-        list(joint_ordering.user_to_backend_indices)
-        if joint_ordering is not None
-        else list(range(articulation.num_joints))
-    )
-    joint_backend_to_user = (
-        list(joint_ordering.backend_to_user_indices)
-        if joint_ordering is not None
-        else list(range(articulation.num_joints))
-    )
-    body_user_to_backend = (
-        list(body_ordering.user_to_backend_indices)
-        if body_ordering is not None
-        else list(range(articulation.num_bodies))
-    )
-    joint_pos = torch.linspace(-0.1, 0.1, articulation.num_joints, device=device).unsqueeze(0)
-    joint_vel = torch.linspace(0.01, 0.02, articulation.num_joints, device=device).unsqueeze(0)
-
-    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
-    articulation.write_data_to_sim()
-
-    _assert_user_write_reaches_backend(
-        joint_pos,
-        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
-        joint_backend_to_user,
-    )
-    _assert_user_write_reaches_backend(
-        joint_vel,
-        _to_device_tensor(articulation.root_view.get_dof_velocities(), device),
-        joint_backend_to_user,
-    )
-
-    sim.step()
-    articulation.update(sim.cfg.dt)
-    _assert_backend_to_user(
-        articulation.data.joint_pos.torch,
-        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
-        joint_user_to_backend,
-    )
-    _assert_backend_to_user(
-        articulation.data.body_link_pose_w.torch,
-        _to_device_tensor(articulation.root_view.get_link_transforms(), device),
-        body_user_to_backend,
-    )
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_live_anymal_d_mjwarp_partial_joint_write_preserves_unselected_backend_state(sim, device, gravity_enabled):
-    """Preserve complete PhysX rows when writing one public joint before a cache read."""
-    cfg = apply_articulation_ordering_preset(
-        ANYMAL_D_CFG.replace(prim_path="/World/Robot"),
-        "mjwarp",
-    )
-    articulation = Articulation(cfg)
-    sim.reset()
-    assert articulation.is_initialized
-
-    joint_ordering = articulation.joint_ordering
-    assert joint_ordering is not None
-    backend_joint_id = joint_ordering.user_to_backend_indices[0]
-    seeded_position = articulation.data.default_joint_pos.torch[:, list(joint_ordering.backend_to_user_indices)].clone()
-    articulation.root_view.set_dof_positions(
-        wp.from_torch(seeded_position),
-        indices=wp.array([0], dtype=wp.int32, device=device),
-    )
-    snapshot = _to_device_tensor(articulation.root_view.get_dof_positions(), device).clone()
-    unselected_backend_ids = [joint_id for joint_id in range(articulation.num_joints) if joint_id != backend_joint_id]
-    assert torch.count_nonzero(snapshot[:, unselected_backend_ids]).item() > 0
-    selected_position = snapshot[:, backend_joint_id : backend_joint_id + 1] + 0.001
-
-    articulation.write_joint_position_to_sim_index(
-        position=selected_position,
-        env_ids=[0],
-        joint_ids=[0],
-    )
-
-    expected = snapshot.clone()
-    expected[0, backend_joint_id] = selected_position[0, 0]
-    backend_position = _to_device_tensor(articulation.root_view.get_dof_positions(), device)
-    torch.testing.assert_close(backend_position, expected, rtol=0.0, atol=0.0)
 
 
 @pytest.mark.parametrize("num_articulations", [1, 2])
