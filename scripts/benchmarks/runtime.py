@@ -49,11 +49,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         help="Number of environment steps to exclude; the first startup step is always excluded.",
     )
     parser.add_argument(
-        "--measure_isaaclab_overhead",
-        dest="measure_isaaclab_overhead",
+        "--measure_synchronized_step_breakdown",
+        dest="measure_synchronized_step_breakdown",
         action="store_true",
         default=False,
-        help="Measure synchronized simulation time and Isaac Lab overhead.",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
@@ -141,7 +141,12 @@ def run(argv: list[str]) -> None:
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
                     {"name": "warmup_frames", "data": args.warmup_frames},
-                    {"name": "measure_isaaclab_overhead", "data": args.measure_isaaclab_overhead},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": (
+                            "serialized_synchronized" if args.measure_synchronized_step_breakdown else "host_return"
+                        ),
+                    },
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -157,7 +162,7 @@ def run(argv: list[str]) -> None:
             # even when no additional warmup frames are requested.
             warmup_step_times_s = stepping.run_runtime_warmup(env, args.warmup_frames)
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-                env, measure_isaaclab_overhead=args.measure_isaaclab_overhead
+                env, measure_synchronized_step_breakdown=args.measure_synchronized_step_breakdown
             )
             with BenchmarkMonitor(benchmark, interval=1.0):
                 timer_context = environment_step_timer

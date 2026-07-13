@@ -122,7 +122,8 @@ Measure environment stepping performance without any RL library:
    uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole \
        --num_envs 4096 \
-       --num_frames 100 \
+       --num_frames 1000 \
+       --warmup_frames 50 \
        --benchmark_formatter json \
        --output_path ./results
 
@@ -186,6 +187,50 @@ The checkpoint is resolved in the following order:
    episodes.  Set ``--num_frames`` larger than the task's episode length so at
    least one episode finishes during the rollout; otherwise these fields remain
    ``null`` (the inference throughput is still reported).
+
+Environment-Step Timing Semantics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Runtime, training, and play benchmarks report
+:class:`~isaaclab.test.benchmark.EnvironmentStepTiming`. The default
+``host_return`` measurement mode records wall time until ``env.step()`` returns
+without forcing queued device work to complete. It describes the host-visible
+call boundary, not a device-complete boundary; asynchronously queued work can be
+paid at a later synchronization point.
+
+Pass ``--measure_synchronized_step_breakdown`` to collect the
+``serialized_synchronized`` diagnostic. It synchronizes at every measured
+environment and simulation boundary, then partitions synchronized
+environment-step wall time into:
+
+* time inside nested ``SimulationContext.step()`` calls; and
+* time outside those calls.
+
+The outside-simulation remainder includes required action and actuator
+processing, state updates, observations, rewards, terminations, resets,
+manager execution, wrappers, and measurement synchronization. It is therefore
+not an estimate of removable Isaac Lab overhead.
+
+.. warning::
+
+   The synchronized diagnostic serializes device work and changes the execution
+   schedule it measures. Every timing and throughput field in such a run,
+   including ``collection_fps``, ``total_fps``, ``iteration_time_s``, and
+   ``total_wall_time_s``, is observer-perturbed. Flat formatters prefix those
+   fields with ``Serialized Diagnostic``. Compare results only when
+   ``measurement_mode`` is the same, and do not treat the instrumented rates as
+   production throughput.
+   Estimating a specific removable overhead requires a paired counterfactual
+   benchmark with that feature enabled and disabled under the same workload.
+
+For example, add the diagnostic flag to any runtime, training, or play command:
+
+.. code-block:: bash
+
+   uv run isaaclab benchmark runtime \
+       --task Isaac-Ant-Direct \
+       --num_envs 4096 \
+       --measure_synchronized_step_breakdown
 
 PhysX Micro-Benchmarks
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -327,8 +372,14 @@ Non-RL / Runtime Benchmark Arguments
      - ``None`` (task config)
      - Number of parallel environments
    * - ``--num_frames``
-     - ``100``
-     - Number of simulation frames to run
+     - ``1000``
+     - Number of environment steps to measure
+   * - ``--warmup_frames``
+     - ``50``
+     - Number of environment steps to exclude before measurement
+   * - ``--measure_synchronized_step_breakdown``
+     - ``false``
+     - Collect the serialized synchronized diagnostic described above
    * - ``--enable_cameras``
      - ``false``
      - Enable camera rendering (for RGB/depth tasks)
@@ -355,6 +406,9 @@ RL Training Arguments
    * - ``--max_iterations``
      - ``None`` (task config)
      - Number of training iterations
+   * - ``--measure_synchronized_step_breakdown``
+     - ``false``
+     - Collect the serialized synchronized diagnostic described above
 
 RL Play Arguments
 ~~~~~~~~~~~~~~~~~
@@ -384,6 +438,9 @@ RL Play Arguments
    * - ``--benchmark_formatter``
      - ``schema``
      - Output formatter(s), comma-separated (``schema``, ``json``, ``osmo``, ``omniperf``, ``summary``)
+   * - ``--measure_synchronized_step_breakdown``
+     - ``false``
+     - Collect the serialized synchronized diagnostic described above
 
 Measurement Types
 -----------------
@@ -722,7 +779,7 @@ The benchmark entry points under ``scripts/benchmarks/`` are designed for CI/CD 
    - name: Run Runtime Benchmark
      run: |
        uv run isaaclab benchmark runtime \
-           --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
+           --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
            --benchmark_formatter json --output_path ./benchmark_results
 
    - name: Run Training Benchmark
@@ -743,7 +800,7 @@ For Osmo integration, use the ``osmo`` formatter:
 .. code-block:: bash
 
    uv run isaaclab benchmark runtime \
-       --task Isaac-Cartpole --num_envs 4096 --num_frames 100 \
+       --task Isaac-Cartpole --num_envs 4096 --num_frames 1000 \
        --benchmark_formatter osmo --output_path ./results
    # Results are in Osmo-compatible JSON format
 

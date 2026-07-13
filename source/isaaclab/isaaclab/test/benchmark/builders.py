@@ -12,6 +12,7 @@ serialised by :func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Sequence
 from datetime import datetime
@@ -195,21 +196,30 @@ def build_runtime(
             )
 
         simulation_step_time_s = None
-        overhead_step_time_s = None
-        overhead_fraction = None
+        outside_simulation_step_time_s = None
+        outside_simulation_step_fraction = None
         if simulation_step_times_s is not None:
             if simulation_step_calls is None:
                 raise ValueError("simulation_step_calls is required with simulation_step_times_s")
+            if simulation_step_calls <= 0:
+                raise ValueError("simulation_step_calls must be greater than zero")
             simulation_samples = list(simulation_step_times_s)
+            if not simulation_samples or any(value <= 0 for value in simulation_samples):
+                raise ValueError("simulation_step_times_s must contain only positive samples")
             if len(environment_samples) != len(simulation_samples):
                 raise ValueError("Environment and simulation timing samples must have the same length")
-            # Floor derived overhead because nested wall timers can cross by clock-resolution noise.
-            overhead_samples = [
-                max(total - simulation, 0.0) for total, simulation in zip(environment_samples, simulation_samples)
-            ]
+            outside_simulation_samples = []
+            for total, simulation in zip(environment_samples, simulation_samples):
+                outside = total - simulation
+                if outside < 0.0:
+                    if not math.isclose(total, simulation, rel_tol=1e-9, abs_tol=1e-12):
+                        raise ValueError("simulation time cannot exceed environment-step time")
+                    # Preserve a non-negative partition for clock-resolution noise only.
+                    outside = 0.0
+                outside_simulation_samples.append(outside)
             simulation_step_time_s = mean_std_peak(simulation_samples)
-            overhead_step_time_s = mean_std_peak(overhead_samples)
-            overhead_fraction = sum(overhead_samples) / total_environment_time_s
+            outside_simulation_step_time_s = mean_std_peak(outside_simulation_samples)
+            outside_simulation_step_fraction = sum(outside_simulation_samples) / total_environment_time_s
         elif simulation_step_calls is not None:
             raise ValueError("simulation_step_times_s is required with simulation_step_calls")
 
@@ -217,11 +227,11 @@ def build_runtime(
             environment_step_time_s=mean_std_peak(environment_samples),
             environment_step_fps=environment_step_fps,
             simulation_step_time_s=simulation_step_time_s,
-            overhead_step_time_s=overhead_step_time_s,
-            overhead_fraction=overhead_fraction,
+            outside_simulation_step_time_s=outside_simulation_step_time_s,
+            outside_simulation_step_fraction=outside_simulation_step_fraction,
             environment_step_calls=len(environment_samples),
             simulation_step_calls=simulation_step_calls,
-            synchronized=simulation_step_times_s is not None,
+            measurement_mode=("serialized_synchronized" if simulation_step_times_s is not None else "host_return"),
         )
 
     return Runtime(

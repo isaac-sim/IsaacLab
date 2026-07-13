@@ -61,38 +61,47 @@ def sample_random_actions(env) -> torch.Tensor | dict[str, torch.Tensor]:
 
 
 class EnvironmentStepTimingRecorder(AbstractContextManager):
-    """Record environment-step time and optionally synchronized simulation time.
+    """Record host-return step time or an optional synchronized step breakdown.
 
-    This context manager always intercepts the environment ``step`` call with a
-    lightweight wall timer. When simulation timing is requested, it also
-    intercepts simulation ``step`` calls, drains pending work before each
-    environment and simulation boundary, and uses
-    :class:`isaaclab.utils.timer.Timer` to synchronize their completion.
+    By default, this context manager records host wall time until ``env.step()``
+    returns without forcing queued device work to complete. When synchronized
+    breakdown is requested, it also intercepts ``SimulationContext.step()``,
+    drains pending work before every measured boundary, and uses
+    :class:`isaaclab.utils.timer.Timer` to synchronize completion.
+
+    The synchronized mode serializes execution and perturbs throughput. Its
+    arithmetic remainder is time outside simulation calls in that instrumented
+    schedule. The remainder includes required task, manager, reset, wrapper,
+    and synchronization work; it is not removable Isaac Lab overhead.
 
     Args:
         env: Environment interface whose ``step`` method is called by the workload.
-        measure_isaaclab_overhead: Whether to add synchronized simulation-step timing.
+        measure_synchronized_step_breakdown: Whether to collect the serialized
+            synchronized simulation and outside-simulation breakdown.
     """
 
-    def __init__(self, env, *, measure_isaaclab_overhead: bool = False):
+    def __init__(self, env, *, measure_synchronized_step_breakdown: bool = False):
         self._env = env
-        self._measure_isaaclab_overhead = measure_isaaclab_overhead
-        self._simulation_context = env.unwrapped.sim if measure_isaaclab_overhead else None
+        self._measure_synchronized_step_breakdown = measure_synchronized_step_breakdown
+        self._simulation_context = env.unwrapped.sim if measure_synchronized_step_breakdown else None
         self._had_env_instance_step = "step" in vars(env)
         self._env_instance_step = vars(env).get("step")
-        self._had_sim_instance_step = measure_isaaclab_overhead and "step" in vars(self._simulation_context)
-        self._sim_instance_step = vars(self._simulation_context).get("step") if measure_isaaclab_overhead else None
+        self._had_sim_instance_step = measure_synchronized_step_breakdown and "step" in vars(self._simulation_context)
+        self._sim_instance_step = (
+            vars(self._simulation_context).get("step") if measure_synchronized_step_breakdown else None
+        )
         self._original_env_step = None
         self._original_sim_step = None
         self._simulation_total_time_s = 0.0
         self._simulation_step_calls = 0
+        self._inside_environment_step = False
         self.step_times_s: list[float] = []
-        self.simulation_step_times_s: list[float] | None = [] if measure_isaaclab_overhead else None
+        self.simulation_step_times_s: list[float] | None = [] if measure_synchronized_step_breakdown else None
 
     @property
     def simulation_step_calls(self) -> int | None:
         """Number of measured simulation-step calls."""
-        return self._simulation_step_calls if self._measure_isaaclab_overhead else None
+        return self._simulation_step_calls if self._measure_synchronized_step_breakdown else None
 
     def __enter__(self) -> EnvironmentStepTimingRecorder:
         """Install the recording wrappers and reset measurements."""
@@ -102,19 +111,22 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         self.step_times_s.clear()
         self._original_env_step = self._env.step
 
-        if self._measure_isaaclab_overhead:
+        if self._measure_synchronized_step_breakdown:
             import warp as wp  # noqa: PLC0415
 
             from isaaclab.utils.timer import Timer  # noqa: PLC0415
 
             assert self.simulation_step_times_s is not None
             self.simulation_step_times_s.clear()
+            self._inside_environment_step = False
             self._simulation_total_time_s = 0.0
             self._simulation_step_calls = 0
             assert self._simulation_context is not None
             self._original_sim_step = self._simulation_context.step
 
             def timed_simulation_step(*args, **kwargs):
+                if not self._inside_environment_step:
+                    return self._original_sim_step(*args, **kwargs)
                 wp.synchronize()
                 timer = Timer()
                 try:
@@ -130,10 +142,12 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                 simulation_start_time_s = self._simulation_total_time_s
                 wp.synchronize()
                 timer = Timer()
+                self._inside_environment_step = True
                 try:
                     with timer:
                         return self._original_env_step(*args, **kwargs)
                 finally:
+                    self._inside_environment_step = False
                     self.step_times_s.append(timer.total_run_time)
                     self.simulation_step_times_s.append(self._simulation_total_time_s - simulation_start_time_s)
 

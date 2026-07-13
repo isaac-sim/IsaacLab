@@ -134,30 +134,26 @@ def test_build_runtime_adds_environment_step_timing():
     assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
     assert rt.environment_step_timing.environment_step_fps.std == pytest.approx((80.0 / 9.0) ** 0.5)
     assert rt.environment_step_timing.simulation_step_time_s.mean == pytest.approx(0.5)
-    assert rt.environment_step_timing.overhead_step_time_s.mean == pytest.approx(1.0)
-    assert rt.environment_step_timing.overhead_fraction == pytest.approx(2.0 / 3.0)
+    assert rt.environment_step_timing.outside_simulation_step_time_s.mean == pytest.approx(1.0)
+    assert rt.environment_step_timing.outside_simulation_step_fraction == pytest.approx(2.0 / 3.0)
     assert rt.environment_step_timing.environment_step_calls == 2
     assert rt.environment_step_timing.simulation_step_calls == 8
-    assert rt.environment_step_timing.synchronized
+    assert rt.environment_step_timing.measurement_mode == "serialized_synchronized"
 
 
-def test_build_runtime_clamps_negative_overhead_samples():
-    rt = builders.build_runtime(
-        startup_time_s=StartupTime(0.1, 0.2, 0.3),
-        iteration_times_s=[1.0, 2.0],
-        collection_fps=[8.0, 4.0],
-        total_fps=[8.0, 4.0],
-        steps_per_iteration=8,
-        frames_per_environment_step=8,
-        environment_step_times_s=[1.0, 2.0],
-        simulation_step_times_s=[1.1, 1.5],
-        simulation_step_calls=2,
-    )
-
-    assert rt.environment_step_timing is not None
-    assert rt.environment_step_timing.overhead_step_time_s is not None
-    assert rt.environment_step_timing.overhead_step_time_s.mean == pytest.approx(0.25)
-    assert rt.environment_step_timing.overhead_fraction == pytest.approx(1.0 / 6.0)
+def test_build_runtime_rejects_simulation_time_above_environment_time():
+    with pytest.raises(ValueError, match="simulation time cannot exceed environment-step time"):
+        builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[1.0, 2.0],
+            collection_fps=[8.0, 4.0],
+            total_fps=[8.0, 4.0],
+            steps_per_iteration=8,
+            frames_per_environment_step=8,
+            environment_step_times_s=[1.0, 2.0],
+            simulation_step_times_s=[1.1, 1.5],
+            simulation_step_calls=2,
+        )
 
 
 def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown():
@@ -174,10 +170,41 @@ def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown
     assert rt.environment_step_timing is not None
     assert rt.environment_step_timing.environment_step_fps.mean == pytest.approx(16.0 / 3.0)
     assert rt.environment_step_timing.simulation_step_time_s is None
-    assert rt.environment_step_timing.overhead_step_time_s is None
-    assert rt.environment_step_timing.overhead_fraction is None
+    assert rt.environment_step_timing.outside_simulation_step_time_s is None
+    assert rt.environment_step_timing.outside_simulation_step_fraction is None
     assert rt.environment_step_timing.simulation_step_calls is None
-    assert not rt.environment_step_timing.synchronized
+    assert rt.environment_step_timing.measurement_mode == "host_return"
+
+
+@pytest.mark.parametrize("simulation_step_times_s", [[], [0.0, 0.5], [-0.1, 0.5]])
+def test_build_runtime_rejects_non_positive_simulation_step_times(simulation_step_times_s):
+    with pytest.raises(ValueError, match="simulation_step_times_s must contain only positive samples"):
+        builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[2.0],
+            collection_fps=[4.0],
+            total_fps=[4.0],
+            steps_per_iteration=8,
+            frames_per_environment_step=8,
+            environment_step_times_s=[1.0, 2.0],
+            simulation_step_times_s=simulation_step_times_s,
+            simulation_step_calls=2,
+        )
+
+
+def test_build_runtime_rejects_non_positive_simulation_step_calls():
+    with pytest.raises(ValueError, match="simulation_step_calls must be greater than zero"):
+        builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[2.0],
+            collection_fps=[4.0],
+            total_fps=[4.0],
+            steps_per_iteration=8,
+            frames_per_environment_step=8,
+            environment_step_times_s=[1.0],
+            simulation_step_times_s=[0.5],
+            simulation_step_calls=0,
+        )
 
 
 @pytest.mark.parametrize("environment_step_times_s", [[], [0.0], [-1.0]])

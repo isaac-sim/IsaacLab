@@ -61,9 +61,9 @@ def _parse_args(argv: list[str]):
 
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--measure_isaaclab_overhead",
+        "--measure_synchronized_step_breakdown",
         action="store_true",
-        help="Measure synchronized simulation time and Isaac Lab overhead.",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
         "--benchmark_formatter",
@@ -188,6 +188,12 @@ def run(argv: list[str]) -> None:
                     {"name": "seed", "data": agent_cfg.seed},
                     {"name": "num_envs", "data": env_cfg.scene.num_envs},
                     {"name": "max_iterations", "data": agent_cfg.max_iterations},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": (
+                            "serialized_synchronized" if args_cli.measure_synchronized_step_breakdown else "host_return"
+                        ),
+                    },
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -226,7 +232,7 @@ def run(argv: list[str]) -> None:
         )
 
         environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-            env, measure_isaaclab_overhead=args_cli.measure_isaaclab_overhead
+            env, measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown
         )
         with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)

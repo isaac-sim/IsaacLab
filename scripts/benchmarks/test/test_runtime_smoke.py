@@ -16,8 +16,10 @@ ROOT = Path(__file__).resolve().parents[3]
 _TASK = "Isaac-Cartpole-Direct"
 
 
-@pytest.mark.parametrize("measure_isaaclab_overhead", [False, True], ids=["default", "overhead"])
-def test_runtime_writes_all_requested_formats(tmp_path, measure_isaaclab_overhead: bool):
+@pytest.mark.parametrize(
+    "measure_synchronized_step_breakdown", [False, True], ids=["default", "synchronized_breakdown"]
+)
+def test_runtime_writes_all_requested_formats(tmp_path, measure_synchronized_step_breakdown: bool):
     """The runtime entry point writes schema and OmniPerf data in one run."""
     sh = ROOT / "isaaclab.sh"
     cmd = [
@@ -40,7 +42,7 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_isaaclab_overhea
         str(tmp_path),
         "--benchmark_formatter",
         "schema,omniperf",
-        *(["--measure_isaaclab_overhead"] if measure_isaaclab_overhead else []),
+        *(["--measure_synchronized_step_breakdown"] if measure_synchronized_step_breakdown else []),
         "presets=newton_mjwarp",
         "--headless",
     ]
@@ -64,17 +66,24 @@ def test_runtime_writes_all_requested_formats(tmp_path, measure_isaaclab_overhea
     timing = schema_data["runtime"]["environment_step_timing"]
     assert timing["environment_step_calls"] == 20
     assert timing["environment_step_fps"]["mean"] > 0
-    if measure_isaaclab_overhead:
+    if measure_synchronized_step_breakdown:
         assert timing["simulation_step_calls"] > 0
         assert timing["simulation_step_time_s"]["mean"] > 0.0
-        assert timing["overhead_step_time_s"]["mean"] >= 0.0
-        assert timing["overhead_fraction"] >= 0.0
-        assert timing["synchronized"]
+        assert timing["outside_simulation_step_time_s"]["mean"] >= 0.0
+        assert timing["outside_simulation_step_fraction"] >= 0.0
+        assert timing["measurement_mode"] == "serialized_synchronized"
     else:
         assert timing["simulation_step_calls"] is None
         assert timing["simulation_step_time_s"] is None
-        assert timing["overhead_step_time_s"] is None
-        assert timing["overhead_fraction"] is None
-        assert not timing["synchronized"]
+        assert timing["outside_simulation_step_time_s"] is None
+        assert timing["outside_simulation_step_fraction"] is None
+        assert timing["measurement_mode"] == "host_return"
     assert timing["environment_step_time_s"]["std"] >= 0.0
-    assert "runtime" in json.loads(omniperf_files[0].read_text())
+    omniperf_data = json.loads(omniperf_files[0].read_text())
+    assert omniperf_data["benchmark_info"]["environment_step_measurement_mode"] == timing["measurement_mode"]
+    if measure_synchronized_step_breakdown:
+        assert "Mean Serialized Diagnostic Total FPS" in omniperf_data["runtime"]
+        assert "Mean Total FPS" not in omniperf_data["runtime"]
+    else:
+        assert "Mean Total FPS" in omniperf_data["runtime"]
+        assert "Mean Serialized Diagnostic Total FPS" not in omniperf_data["runtime"]

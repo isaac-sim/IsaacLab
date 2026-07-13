@@ -67,9 +67,9 @@ def _parse_args(argv: list[str]):
     )
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--measure_isaaclab_overhead",
+        "--measure_synchronized_step_breakdown",
         action="store_true",
-        help="Measure synchronized simulation time and Isaac Lab overhead.",
+        help="Measure a serialized synchronized simulation and outside-simulation step breakdown.",
     )
     parser.add_argument(
         "--benchmark_formatter",
@@ -165,6 +165,12 @@ def run(argv: list[str]) -> None:
                     {"name": "task", "data": args_cli.task},
                     {"name": "num_envs", "data": args_cli.num_envs},
                     {"name": "num_frames", "data": args_cli.num_frames},
+                    {
+                        "name": "environment_step_measurement_mode",
+                        "data": (
+                            "serialized_synchronized" if args_cli.measure_synchronized_step_breakdown else "host_return"
+                        ),
+                    },
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -216,7 +222,7 @@ def run(argv: list[str]) -> None:
             return actions
 
         environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-            env, measure_isaaclab_overhead=args_cli.measure_isaaclab_overhead
+            env, measure_synchronized_step_breakdown=args_cli.measure_synchronized_step_breakdown
         )
         with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)

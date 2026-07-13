@@ -8,6 +8,7 @@
 import time
 
 import numpy as np
+import pytest
 import torch
 
 from isaaclab.test.benchmark.stepping import (
@@ -106,12 +107,13 @@ def test_environment_step_timer_measures_env_step_without_simulation_timing():
 def test_environment_step_timer_measures_only_step_calls():
     env = _Env()
 
-    with EnvironmentStepTimingRecorder(env, measure_isaaclab_overhead=True) as timer:
+    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True) as timer:
+        env.unwrapped.sim.step()
         run_runtime_loop(env, num_frames=3, reset=False)
+        env.unwrapped.sim.step()
 
     assert len(timer.step_times_s) == 3
     assert timer.simulation_step_calls == 6
-    assert len(timer.step_times_s) == 3
     assert len(timer.simulation_step_times_s) == 3
     assert all(total >= simulation for total, simulation in zip(timer.step_times_s, timer.simulation_step_times_s))
     assert "step" not in vars(env)
@@ -138,7 +140,7 @@ def test_environment_step_timer_synchronizes_before_environment_and_simulation_s
     env.unwrapped.sim.step = logged_simulation_step
     monkeypatch.setattr(wp, "synchronize", lambda: events.append("synchronize"))
 
-    with EnvironmentStepTimingRecorder(env, measure_isaaclab_overhead=True):
+    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True):
         env.step(None)
 
     assert events[:2] == ["synchronize", "environment"]
@@ -162,10 +164,46 @@ def test_environment_step_timer_excludes_pending_work_before_step(monkeypatch):
     monkeypatch.setattr(time, "perf_counter", lambda: clock_s)
     monkeypatch.setattr(wp, "synchronize", drain_pending_work)
 
-    with EnvironmentStepTimingRecorder(env, measure_isaaclab_overhead=True) as timer:
+    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True) as timer:
         env.step(None)
 
     assert timer.step_times_s == [0.0]
+
+
+def test_environment_step_timer_attributes_queued_work_to_its_boundary(monkeypatch):
+    import warp as wp
+
+    env = _Env()
+    clock_s = 0.0
+    pending_work_s = 0.0
+
+    def queue_work(duration_s: float):
+        nonlocal pending_work_s
+        pending_work_s += duration_s
+
+    def drain_pending_work():
+        nonlocal clock_s, pending_work_s
+        clock_s += pending_work_s
+        pending_work_s = 0.0
+
+    def simulation_step():
+        queue_work(0.02)
+
+    def environment_step(actions):
+        queue_work(0.01)
+        env.unwrapped.sim.step()
+        queue_work(0.03)
+
+    env.step = environment_step
+    env.unwrapped.sim.step = simulation_step
+    monkeypatch.setattr(time, "perf_counter", lambda: clock_s)
+    monkeypatch.setattr(wp, "synchronize", drain_pending_work)
+
+    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True) as timer:
+        env.step(None)
+
+    assert timer.step_times_s == pytest.approx([0.06])
+    assert timer.simulation_step_times_s == pytest.approx([0.02])
 
 
 class _MASpace:

@@ -22,6 +22,7 @@ Current version: 1.2
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -195,27 +196,93 @@ class StartupTime:
 
 @dataclass(frozen=True)
 class EnvironmentStepTiming:
-    """Environment-step wall-time and optional synchronized simulation breakdown.
+    """Environment-step wall time and optional synchronized simulation breakdown.
+
+    ``host_return`` mode records how long the host spends inside ``env.step()``
+    without forcing device completion. ``serialized_synchronized`` mode drains
+    pending work at every environment and simulation boundary so the measured
+    environment time can be partitioned into time inside and outside nested
+    ``SimulationContext.step()`` calls. The latter mode serializes device work
+    and is an observer-perturbed diagnostic, not production throughput.
+
+    When the serialized mode is active, every timing and throughput aggregate
+    in the enclosing :class:`Runtime` was collected under that instrumented
+    schedule, not only the fields in this breakdown.
+
+    Time outside simulation calls includes required action, actuator, state,
+    manager, reset, wrapper, and synchronization work. It is not an estimate of
+    removable Isaac Lab overhead.
 
     Args:
-        environment_step_time_s: Per-environment-step wall time [s].
-        environment_step_fps: Environment-step throughput [frames/s].
+        environment_step_time_s: Per-environment-step wall time [s], interpreted
+            according to :attr:`measurement_mode`.
+        environment_step_fps: Reciprocal environment-step rate [frames/s],
+            interpreted according to :attr:`measurement_mode`.
         simulation_step_time_s: Synchronized simulation wall time per environment step [s], when measured.
-        overhead_step_time_s: Time outside simulation calls per environment step [s], when measured.
-        overhead_fraction: Fraction of environment-step time outside simulation-step calls, when measured.
+        outside_simulation_step_time_s: Time outside simulation calls per environment step [s], when measured.
+        outside_simulation_step_fraction: Fraction of synchronized environment-step time outside simulation calls.
         environment_step_calls: Number of measured environment-step calls.
         simulation_step_calls: Number of measured simulation-step calls, when measured.
-        synchronized: Whether explicit device synchronization was included in each measured boundary.
+        measurement_mode: Timing boundary semantics. ``host_return`` does not
+            force device completion. ``serialized_synchronized`` explicitly
+            synchronizes every measured boundary.
     """
 
     environment_step_time_s: MeanStd
     environment_step_fps: MeanStd
     simulation_step_time_s: MeanStd | None
-    overhead_step_time_s: MeanStd | None
-    overhead_fraction: float | None
+    outside_simulation_step_time_s: MeanStd | None
+    outside_simulation_step_fraction: float | None
     environment_step_calls: int
     simulation_step_calls: int | None
-    synchronized: bool
+    measurement_mode: Literal["host_return", "serialized_synchronized"]
+
+    def __post_init__(self) -> None:
+        """Validate that the timing fields form one consistent measurement mode."""
+        if self.environment_step_calls <= 0:
+            raise ValueError("environment_step_calls must be greater than zero")
+
+        breakdown = (
+            self.simulation_step_time_s,
+            self.outside_simulation_step_time_s,
+            self.outside_simulation_step_fraction,
+            self.simulation_step_calls,
+        )
+        if self.measurement_mode == "host_return":
+            if any(value is not None for value in breakdown):
+                raise ValueError("host_return timing cannot contain a synchronized simulation breakdown")
+            return
+        if self.measurement_mode != "serialized_synchronized":
+            raise ValueError(f"Unsupported environment-step measurement mode: {self.measurement_mode}")
+        if any(value is None for value in breakdown):
+            raise ValueError("serialized_synchronized timing requires a complete simulation breakdown")
+
+        assert self.simulation_step_time_s is not None
+        assert self.outside_simulation_step_time_s is not None
+        assert self.outside_simulation_step_fraction is not None
+        assert self.simulation_step_calls is not None
+        if self.simulation_step_calls <= 0:
+            raise ValueError("simulation_step_calls must be greater than zero")
+        if self.environment_step_time_s.mean <= 0.0 or self.simulation_step_time_s.mean <= 0.0:
+            raise ValueError("synchronized environment and simulation step times must be greater than zero")
+        if self.outside_simulation_step_time_s.mean < 0.0:
+            raise ValueError("outside-simulation step time must not be negative")
+        if not 0.0 <= self.outside_simulation_step_fraction <= 1.0:
+            raise ValueError("outside_simulation_step_fraction must be in the range [0, 1]")
+        if not math.isclose(
+            self.environment_step_time_s.mean,
+            self.simulation_step_time_s.mean + self.outside_simulation_step_time_s.mean,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("synchronized environment time must equal simulation plus outside-simulation time")
+        if not math.isclose(
+            self.outside_simulation_step_fraction,
+            self.outside_simulation_step_time_s.mean / self.environment_step_time_s.mean,
+            rel_tol=1e-9,
+            abs_tol=1e-12,
+        ):
+            raise ValueError("outside_simulation_step_fraction must match the aggregate timing ratio")
 
 
 @dataclass(frozen=True)
@@ -235,7 +302,9 @@ class Runtime:
             FPS (the scripts' "Total FPS" / "effective FPS"). For pure runtime runs with no
             learning, this equals :attr:`collection_fps`.
         iterations_per_s: Iteration rate [iter/s].
-        environment_step_timing: Environment-step timing and optional synchronized simulation breakdown, when measured.
+        environment_step_timing: Environment-step timing and optional synchronized
+            simulation breakdown, when measured. Its measurement mode also
+            describes the schedule used by the enclosing timing and rate fields.
     """
 
     startup_time_s: StartupTime

@@ -128,9 +128,9 @@ def test_training_and_play_write_bundles(
     assert training_timing["environment_step_fps"]["mean"] > 0
     assert training_timing["simulation_step_calls"] is None
     assert training_timing["simulation_step_time_s"] is None
-    assert training_timing["overhead_step_time_s"] is None
-    assert training_timing["overhead_fraction"] is None
-    assert not training_timing["synchronized"]
+    assert training_timing["outside_simulation_step_time_s"] is None
+    assert training_timing["outside_simulation_step_fraction"] is None
+    assert training_timing["measurement_mode"] == "host_return"
     assert training_data["learning"]["reward"]["series_per_iter"] is not None
     assert training_data["learning"]["reward"]["final_ema"] is not None
     if expect_reward_series:
@@ -162,9 +162,9 @@ def test_training_and_play_write_bundles(
     assert play_timing["environment_step_fps"]["mean"] > 0
     assert play_timing["simulation_step_calls"] is None
     assert play_timing["simulation_step_time_s"] is None
-    assert play_timing["overhead_step_time_s"] is None
-    assert play_timing["overhead_fraction"] is None
-    assert not play_timing["synchronized"]
+    assert play_timing["outside_simulation_step_time_s"] is None
+    assert play_timing["outside_simulation_step_fraction"] is None
+    assert play_timing["measurement_mode"] == "host_return"
     assert play_data["checkpoint_path"]
     assert play_data["reward"] is not None
     assert "mean" in play_data["reward"]
@@ -177,7 +177,7 @@ def test_training_and_play_write_bundles(
                 "-p",
                 "scripts/benchmarks/play.py",
                 *common_args[:6],
-                "--measure_isaaclab_overhead",
+                "--measure_synchronized_step_breakdown",
                 *common_args[6:],
                 "--num_frames",
                 "10",
@@ -192,9 +192,9 @@ def test_training_and_play_write_bundles(
         assert synchronized_timing["environment_step_calls"] == 10
         assert synchronized_timing["simulation_step_calls"] > 0
         assert synchronized_timing["simulation_step_time_s"]["mean"] > 0.0
-        assert synchronized_timing["overhead_step_time_s"]["mean"] >= 0.0
-        assert synchronized_timing["overhead_fraction"] >= 0.0
-        assert synchronized_timing["synchronized"]
+        assert synchronized_timing["outside_simulation_step_time_s"]["mean"] >= 0.0
+        assert synchronized_timing["outside_simulation_step_fraction"] >= 0.0
+        assert synchronized_timing["measurement_mode"] == "serialized_synchronized"
 
     if "omniperf" in formatter:
         training_omniperf = json.loads(next(training_output.glob("*_omniperf.json")).read_text())
@@ -203,3 +203,13 @@ def test_training_and_play_write_bundles(
             training_data["runtime"]["total_fps"]["mean"]
         )
         assert play_omniperf["runtime"]["Mean Total FPS"] == pytest.approx(play_data["runtime"]["total_fps"]["mean"])
+        assert training_omniperf["benchmark_info"]["environment_step_measurement_mode"] == "host_return"
+        assert play_omniperf["benchmark_info"]["environment_step_measurement_mode"] == "host_return"
+        if library == "rsl_rl":
+            synchronized_omniperf = json.loads(next(synchronized_play_output.glob("*_omniperf.json")).read_text())
+            assert (
+                synchronized_omniperf["benchmark_info"]["environment_step_measurement_mode"]
+                == "serialized_synchronized"
+            )
+            assert "Mean Serialized Diagnostic Total FPS" in synchronized_omniperf["runtime"]
+            assert "Mean Total FPS" not in synchronized_omniperf["runtime"]
