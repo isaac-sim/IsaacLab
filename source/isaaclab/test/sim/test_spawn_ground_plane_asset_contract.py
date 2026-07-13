@@ -14,7 +14,6 @@ overrides when the corresponding prims exist. See: https://github.com/isaac-sim/
 from __future__ import annotations
 
 import logging
-import types
 
 import pytest
 
@@ -181,7 +180,7 @@ def test_legacy_grid_asset_keeps_full_behavior(stage, legacy_grid_asset):
 
 
 """
-Tests - TerrainImporter.import_ground_plane.
+Tests - TerrainImporter ground-plane color contract.
 """
 
 
@@ -193,32 +192,12 @@ Tests - TerrainImporter.import_ground_plane.
         pytest.param(sim_utils.GlassMdlCfg(), None, id="material_without_diffuse_color"),
     ],
 )
-def test_import_ground_plane_color_contract(stage, monkeypatch, visual_material, expected_color):
+def test_ground_plane_color_contract(visual_material, expected_color, caplog):
     """The terrain importer only overrides the ground-plane color when a diffuse color is configured."""
-    import isaaclab.terrains.terrain_importer as terrain_importer_module
-    from isaaclab.terrains import TerrainImporter, TerrainImporterCfg
+    from isaaclab.terrains.terrain_importer import _ground_plane_color
 
-    captured = {}
+    with caplog.at_level(logging.WARNING):
+        assert _ground_plane_color(visual_material) == expected_color
 
-    def _spy_ground_plane_cfg(**kwargs):
-        captured.update(kwargs)
-        return types.SimpleNamespace(func=lambda *args, **_kwargs: None, **kwargs)
-
-    monkeypatch.setattr(terrain_importer_module.sim_utils, "GroundPlaneCfg", _spy_ground_plane_cfg)
-    monkeypatch.setattr(
-        terrain_importer_module.sim_utils.SimulationContext,
-        "instance",
-        classmethod(lambda _cls: types.SimpleNamespace(device="cpu")),
-    )
-
-    cfg = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        num_envs=1,
-        env_spacing=1.0,
-        physics_material=None,
-        visual_material=visual_material,
-    )
-    TerrainImporter(cfg)
-
-    assert captured["color"] == expected_color
+    if visual_material is not None and expected_color is None:
+        assert "Skipping the color override" in caplog.text

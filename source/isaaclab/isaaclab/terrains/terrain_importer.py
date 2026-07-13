@@ -25,6 +25,23 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _ground_plane_color(visual_material) -> tuple[float, float, float] | None:
+    """Return the ground-plane color for a configured visual material, or None to keep the asset's own.
+
+    A None color keeps the spawned asset's color unchanged — the case when no visual material
+    is configured or when the material does not provide a diffuse color.
+    """
+    if visual_material is None:
+        return None
+    material = visual_material.to_dict()
+    if "diffuse_color" not in material:
+        logger.warning(
+            "Visual material specified for ground plane but no diffuse color found. Skipping the color override."
+        )
+        return None
+    return material["diffuse_color"]
+
+
 class TerrainImporter:
     r"""A class to handle terrain meshes and import them into the simulator.
 
@@ -206,21 +223,8 @@ class TerrainImporter:
         # store the mesh name
         self.terrain_prim_paths.append(prim_path)
 
-        # obtain ground plane color from the configured visual material
-        # note: a None color keeps the spawned asset's color unchanged. This is the case when
-        #   no visual material is configured or when it does not provide a diffuse color.
-        color = None
-        if self.cfg.visual_material is not None:
-            material = self.cfg.visual_material.to_dict()
-            if "diffuse_color" in material:
-                color = material["diffuse_color"]
-            else:
-                logger.warning(
-                    "Visual material specified for ground plane but no diffuse color found."
-                    " Skipping the color override."
-                )
-
         # get the mesh
+        color = _ground_plane_color(self.cfg.visual_material)
         ground_plane_cfg = sim_utils.GroundPlaneCfg(physics_material=self.cfg.physics_material, size=size, color=color)
         ground_plane_cfg.func(prim_path, ground_plane_cfg)
 
