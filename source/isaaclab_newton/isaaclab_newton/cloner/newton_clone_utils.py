@@ -67,22 +67,41 @@ def replicate_builder_mapping(
     num_worlds = mapping.size(1)
     local_site_map: dict[str, list[list[int]]] = {}
     world_xforms: list[wp.transform] = []
-    source_world_indices = mapping.to(dtype=torch.int64).argmax(dim=1)
+    mapping_rows = mapping.detach().cpu().tolist()
+    rows_by_world: list[list[int]] = [[] for _ in range(num_worlds)]
+    source_world_indices: list[int] = []
+    for row, world_mask in enumerate(mapping_rows):
+        source_col = 0
+        source_col_found = False
+        for col, is_mapped in enumerate(world_mask):
+            if is_mapped:
+                rows_by_world[col].append(row)
+                if not source_col_found:
+                    source_col = col
+                    source_col_found = True
+        source_world_indices.append(source_col)
 
-    for col in range(num_worlds):
+    positions_list = positions.detach().cpu().tolist()
+    quaternions_list = quaternions.detach().cpu().tolist()
+    source_xforms = [
+        wp.transform(positions_list[source_col], quaternions_list[source_col]) for source_col in source_world_indices
+    ]
+
+    for col, rows in enumerate(rows_by_world):
         builder.begin_world()
-        world_xform = wp.transform(positions[col], quaternions[col])
+        world_position = positions_list[col]
+        world_quaternion = quaternions_list[col]
+        world_xform = wp.transform(world_position, world_quaternion)
         world_xforms.append(world_xform)
 
         for label, xform in env_root_sites.items():
             site_idx = builder.add_site(body=-1, xform=wp.transform_multiply(world_xform, xform), label=label)
             local_site_map.setdefault(label, [[] for _ in range(num_worlds)])[col].append(site_idx)
 
-        for row in torch.nonzero(mapping[:, col], as_tuple=True)[0].tolist():
-            source_builder = source_builders[sources[int(row)]]
+        for row in rows:
+            source_builder = source_builders[sources[row]]
             offset = builder.shape_count
-            source_col = int(source_world_indices[int(row)])
-            source_xform = wp.transform(positions[source_col], quaternions[source_col])
+            source_xform = source_xforms[row]
             builder.add_builder(
                 source_builder, xform=wp.transform_multiply(world_xform, wp.transform_inverse(source_xform))
             )
@@ -92,7 +111,7 @@ def replicate_builder_mapping(
                 local_indices.extend(offset + shape_idx for shape_idx in source_shape_indices)
 
         for hook in per_world_builder_hooks:
-            hook(builder, col, positions[col].tolist(), quaternions[col].tolist())
+            hook(builder, col, world_position, world_quaternion)
         builder.end_world()
 
     for hook in post_replicate_hooks:
