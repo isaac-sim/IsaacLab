@@ -1167,9 +1167,6 @@ def rendering_test_franka_cloth(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("ovphysx is not supported yet.")
-
     from isaaclab.envs import ManagerBasedRLEnv
 
     env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
