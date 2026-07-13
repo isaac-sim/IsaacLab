@@ -9,7 +9,7 @@ ShadowHand Over environment.
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments.
@@ -21,9 +21,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.handover_env_cfg:HandoverEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-        "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_ippo_cfg.yaml",
-        "skrl_mappo_cfg_entry_point": f"{agents.__name__}:skrl_mappo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_ppo_cfg.yaml",
+        "skrl_ippo_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_ippo_cfg.yaml",
+        "skrl_mappo_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_mappo_cfg.yaml",
     },
 )

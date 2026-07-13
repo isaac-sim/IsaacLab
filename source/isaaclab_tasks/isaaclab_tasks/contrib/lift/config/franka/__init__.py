@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import gymnasium as gym
 
-from isaaclab_tasks.core.lift.config.franka import agents
+_AGENTS_MODULE = "isaaclab_tasks.core.lift.config.franka.agents"
 
 ##
 # Register Gym environments.
@@ -32,7 +32,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.ik_rel_env_cfg:FrankaCubeLiftEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc.json",
     },
     disable_env_checker=True,
 )

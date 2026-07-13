@@ -9,7 +9,7 @@ AMP Humanoid locomotion environment.
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments.
@@ -21,7 +21,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpDanceEnvCfg",
-        "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_dance_amp_cfg.yaml",
+        "skrl_amp_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_dance_amp_cfg.yaml",
     },
 )
 
@@ -31,7 +31,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpRunEnvCfg",
-        "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_run_amp_cfg.yaml",
+        "skrl_amp_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_run_amp_cfg.yaml",
     },
 )
 
@@ -41,6 +41,6 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_amp_env_cfg:HumanoidAmpWalkEnvCfg",
-        "skrl_amp_cfg_entry_point": f"{agents.__name__}:skrl_walk_amp_cfg.yaml",
+        "skrl_amp_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_walk_amp_cfg.yaml",
     },
 )

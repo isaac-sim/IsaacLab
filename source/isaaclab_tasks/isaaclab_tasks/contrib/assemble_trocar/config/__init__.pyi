@@ -3,6 +3,5 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.module import lazy_export
-
-lazy_export()
+from .camera_config import CameraBaseCfg, CameraPresets
+from .robot_config import G1_29DOF_BODY_JOINT_INDICES, G1_DEX3_JOINT_INDICES, G1RobotPresets

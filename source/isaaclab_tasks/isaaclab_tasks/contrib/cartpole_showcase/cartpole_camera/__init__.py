@@ -9,7 +9,7 @@ Cartpole balancing environment with camera.
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ###########################
 # Register Gym environments
@@ -27,15 +27,15 @@ gym.register(
         "env_cfg_entry_point": (
             f"{__name__}.cartpole_camera_env_cfg:CartpoleCameraShowcasePresetsEnvCfg"
         ),
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
-        "skrl_box_box_cfg_entry_point": f"{agents.__name__}:skrl_box_box_ppo_cfg.yaml",
-        "skrl_box_discrete_cfg_entry_point": f"{agents.__name__}:skrl_box_discrete_ppo_cfg.yaml",
-        "skrl_box_multidiscrete_cfg_entry_point": f"{agents.__name__}:skrl_box_multidiscrete_ppo_cfg.yaml",
-        "skrl_dict_box_cfg_entry_point": f"{agents.__name__}:skrl_dict_box_ppo_cfg.yaml",
-        "skrl_dict_discrete_cfg_entry_point": f"{agents.__name__}:skrl_dict_discrete_ppo_cfg.yaml",
-        "skrl_dict_multidiscrete_cfg_entry_point": f"{agents.__name__}:skrl_dict_multidiscrete_ppo_cfg.yaml",
-        "skrl_tuple_box_cfg_entry_point": f"{agents.__name__}:skrl_tuple_box_ppo_cfg.yaml",
-        "skrl_tuple_discrete_cfg_entry_point": f"{agents.__name__}:skrl_tuple_discrete_ppo_cfg.yaml",
-        "skrl_tuple_multidiscrete_cfg_entry_point": f"{agents.__name__}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_box_box_ppo_cfg.yaml",
+        "skrl_box_box_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_box_box_ppo_cfg.yaml",
+        "skrl_box_discrete_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_box_discrete_ppo_cfg.yaml",
+        "skrl_box_multidiscrete_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_box_multidiscrete_ppo_cfg.yaml",
+        "skrl_dict_box_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_dict_box_ppo_cfg.yaml",
+        "skrl_dict_discrete_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_dict_discrete_ppo_cfg.yaml",
+        "skrl_dict_multidiscrete_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_dict_multidiscrete_ppo_cfg.yaml",
+        "skrl_tuple_box_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_tuple_box_ppo_cfg.yaml",
+        "skrl_tuple_discrete_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_tuple_discrete_ppo_cfg.yaml",
+        "skrl_tuple_multidiscrete_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_tuple_multidiscrete_ppo_cfg.yaml",
     },
 )

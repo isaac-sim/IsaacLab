@@ -7,7 +7,7 @@
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 gym.register(
     id="Isaac-DrLegs-HoldPose-v0",
@@ -15,7 +15,7 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.hold_pose_env_cfg:DrLegsHoldPoseEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DrLegsHoldPosePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:DrLegsHoldPosePPORunnerCfg",
     },
 )
 
@@ -25,6 +25,6 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.walk_env_cfg:DrLegsWalkEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:DrLegsWalkPPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:DrLegsWalkPPORunnerCfg",
     },
 )

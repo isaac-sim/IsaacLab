@@ -8,14 +8,14 @@
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 gym.register(
     id="IsaacContrib-PickPlace-Locomanipulation-G1-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.locomanipulation_g1_env_cfg:LocomanipulationG1EnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )

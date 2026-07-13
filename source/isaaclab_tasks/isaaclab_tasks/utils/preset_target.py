@@ -26,9 +26,7 @@ from __future__ import annotations
 
 import enum
 import functools
-
-from isaaclab.physics import PhysicsCfg
-from isaaclab.renderers.renderer_cfg import RendererCfg
+import importlib
 
 
 class PresetTarget(enum.Enum):
@@ -52,10 +50,14 @@ class PresetTarget(enum.Enum):
     Adding a new target = appending one enum member.
     """
 
-    # Members. Tuple values are (label, base_classes, legacy_aliases); the
+    # Members. Tuple values are (label, base_class_paths, legacy_aliases); the
     # enum metaclass collects the whole namespace before constructing members,
     # so ``__new__`` below unpacks each tuple regardless of declaration order.
-    PHYSICS = ("physics", (PhysicsCfg,), {"newton": "newton_mjwarp", "kamino": "newton_kamino"})
+    PHYSICS = (
+        "physics",
+        ("isaaclab.physics:PhysicsCfg",),
+        {"newton": "newton_mjwarp", "kamino": "newton_kamino"},
+    )
     """Physics backends -- ``physics=NAME`` selector.
 
     Legacy aliases ``newton`` -> ``newton_mjwarp`` and ``kamino`` -> ``newton_kamino``
@@ -68,7 +70,11 @@ class PresetTarget(enum.Enum):
     future release.
     """
 
-    RENDERER = ("renderer", (RendererCfg,), {"ovrtx_renderer": "ovrtx", "isaacsim_rtx_renderer": "isaacsim_rtx"})
+    RENDERER = (
+        "renderer",
+        ("isaaclab.renderers.renderer_cfg:RendererCfg",),
+        {"ovrtx_renderer": "ovrtx", "isaacsim_rtx_renderer": "isaacsim_rtx"},
+    )
     """Camera-sensor renderers -- ``renderer=NAME`` selector.
 
     Legacy aliases ``ovrtx_renderer`` -> ``ovrtx`` and
@@ -94,17 +100,17 @@ class PresetTarget(enum.Enum):
     def __new__(
         cls,
         label: str,
-        base_classes: tuple[type, ...] = (),
+        base_class_paths: tuple[str, ...] = (),
         legacy_aliases: dict[str, str] | None = None,
     ):
-        """Construct a member from its ``(label, base_classes, legacy_aliases)`` tuple.
+        """Construct a member from its ``(label, base_class_paths, legacy_aliases)`` tuple.
 
         Args:
             label: Hydra-style selector key (e.g. ``"physics"`` is recognized
                 as the ``physics=NAME`` token and becomes ``self.value``).
-            base_classes: Cfg base classes whose instances route to this
-                target via :func:`isinstance`. Defaults to ``()`` (no typed
-                routing).
+            base_class_paths: Import paths for cfg base classes whose instances
+                route to this target via :func:`isinstance`. Defaults to ``()``
+                (no typed routing).
             legacy_aliases: Optional deprecated-to-canonical map for this
                 target; copied so members cannot alias each other's tables.
 
@@ -114,9 +120,23 @@ class PresetTarget(enum.Enum):
         """
         obj = object.__new__(cls)
         obj._value_ = label
-        obj.base_classes = tuple(base_classes)
+        obj._base_class_paths = tuple(base_class_paths)
+        obj._base_classes = None
+        obj.base_class_names = tuple(path.rsplit(":", 1)[-1] for path in base_class_paths)
+        obj.is_typed = bool(base_class_paths)
         obj.legacy_aliases = dict(legacy_aliases) if legacy_aliases else {}
         return obj
+
+    @property
+    def base_classes(self) -> tuple[type, ...]:
+        """Cfg base classes whose instances route to this target.
+
+        The classes are imported lazily so normal CLI parsing can use selector
+        metadata without importing backend config modules, torch, or Warp.
+        """
+        if self._base_classes is None:
+            self._base_classes = tuple(_import_symbol(path) for path in self._base_class_paths)
+        return self._base_classes
 
     @classmethod
     @functools.cache
@@ -135,3 +155,9 @@ class PresetTarget(enum.Enum):
             aggregated across all members.
         """
         return {name: rep for target in cls for name, rep in target.legacy_aliases.items()}
+
+
+def _import_symbol(path: str) -> type:
+    """Import ``module:attribute`` and return the attribute."""
+    module_name, attr_name = path.split(":", 1)
+    return getattr(importlib.import_module(module_name), attr_name)

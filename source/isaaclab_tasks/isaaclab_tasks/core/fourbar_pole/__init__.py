@@ -7,7 +7,7 @@
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments -- manager-based workflow.
@@ -19,6 +19,6 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.fourbar_pole_manager_env_cfg:FourbarPoleSwingupEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_manager_ppo_cfg:FourbarPolePPORunnerCfg",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_manager_ppo_cfg:FourbarPolePPORunnerCfg",
     },
 )

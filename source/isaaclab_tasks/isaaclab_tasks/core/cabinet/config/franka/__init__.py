@@ -5,7 +5,7 @@
 
 import gymnasium as gym
 
-from isaaclab_tasks.core.cabinet.config.franka import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments -- manager-based workflow.
@@ -16,9 +16,9 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCabinetEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_manager_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_manager_ppo_cfg.yaml",
     },
     disable_env_checker=True,
 )
@@ -28,9 +28,9 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.joint_pos_env_cfg:FrankaCabinetEnvCfg_PLAY",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CabinetPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_manager_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_manager_ppo_cfg.yaml",
     },
     disable_env_checker=True,
 )
@@ -45,8 +45,8 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cabinet_direct_env_cfg:FrankaCabinetDirectEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:FrankaCabinetPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_direct_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:FrankaCabinetPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_direct_ppo_cfg.yaml",
     },
 )

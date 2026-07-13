@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.machinery
 import pkgutil
 import sys
 
@@ -15,11 +16,12 @@ import sys
 def import_packages(package_name: str, blacklist_pkgs: list[str] | None = None):
     """Import all sub-packages in a package recursively.
 
-    Only **packages** (directories with ``__init__.py``) are imported — plain
-    ``.py`` modules (e.g. ``env_cfg.py``, ``env.py``) are skipped.  This is
-    sufficient because ``gym.register()`` calls live exclusively in
-    ``__init__.py`` files, and avoids eagerly importing every config module
-    at startup.
+    Only **packages** (directories with ``__init__.py``) that contain
+    ``gym.register`` calls are imported — plain ``.py`` modules (e.g.
+    ``env_cfg.py``, ``env.py``) and registry-free package parents are skipped.
+    This is sufficient because task registration calls live exclusively in
+    ``__init__.py`` files, and avoids eagerly importing config helper modules
+    while walking the tree.
 
     Args:
         package_name: The package name.
@@ -71,26 +73,43 @@ def _walk_packages(
         if any([black_pkg_name in info.name for black_pkg_name in blacklist_pkgs]):
             continue
 
-        # Only import packages (directories with __init__.py), not plain .py
-        # modules.  The walk exists to trigger gym.register() calls which live
-        # exclusively in __init__.py files.  Skipping bare modules avoids
-        # eagerly importing every env_cfg / env / agent config at startup.
         if not info.ispkg:
             continue
 
-        yield info
+        module_spec = info.module_finder.find_spec(info.name, None)
+        if module_spec is None:
+            continue
 
-        try:
-            __import__(info.name)
-        except Exception:
-            if onerror is not None:
-                onerror(info.name)
+        child_path: list = list(module_spec.submodule_search_locations or [])
+
+        # Only import package initializers that actually register tasks.  We
+        # still recurse into registry-free parents using the package paths from
+        # the module spec so nested registration packages are discovered without
+        # executing every parent ``__init__``.
+        if _has_gym_registration(module_spec):
+            yield info
+
+            try:
+                __import__(info.name)
+            except Exception:
+                if onerror is not None:
+                    onerror(info.name)
+                else:
+                    raise
             else:
-                raise
-        else:
-            path: list = getattr(sys.modules[info.name], "__path__", [])
+                child_path = list(getattr(sys.modules[info.name], "__path__", child_path))
 
-            # don't traverse path items we've seen before
-            path = [p for p in path if not seen(p)]
+        child_path = [p for p in child_path if not seen(p)]
+        yield from _walk_packages(child_path, info.name + ".", onerror, blacklist_pkgs)
 
-            yield from _walk_packages(path, info.name + ".", onerror, blacklist_pkgs)
+
+def _has_gym_registration(module_spec: importlib.machinery.ModuleSpec) -> bool:
+    """Return whether a package initializer contains Gym task registrations."""
+    init_path = module_spec.origin
+    if init_path is None:
+        return False
+    try:
+        with open(init_path, "rb") as init_file:
+            return b"gym.register" in init_file.read()
+    except OSError:
+        return False

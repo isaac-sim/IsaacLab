@@ -319,7 +319,7 @@ def _pick_alternative(
             consumed_selected.add(name)
         if typed_hits is not None:
             # record which typed targets (physics/renderer) this name landed on
-            targets = {t for t in PresetTarget if t.base_classes and isinstance(val, t.base_classes)}
+            targets = {t for t in PresetTarget if t.is_typed and isinstance(val, t.base_classes)}
             if targets:
                 typed_hits.setdefault(raw_name, set()).update(targets)
                 typed_hits.setdefault(name, set()).update(targets)
@@ -595,7 +595,7 @@ def register_task(task_name: str, agent_entry: str) -> tuple:
     # CLI preset tokens: ``presets=NAME[,...]`` broadcasts (no typing claim),
     # while ``physics=NAME`` / ``renderer=NAME`` are typed selectors that must
     # resolve against a config of that type (enforced after resolution).
-    typed_labels = {target.value: target for target in PresetTarget if target.base_classes}
+    typed_labels = {target.value: target for target in PresetTarget if target.is_typed}
     global_presets: list[str] = []
     requested_targets: dict[PresetTarget, set[str]] = {}
     override_items: list[tuple[str, str, str]] = []

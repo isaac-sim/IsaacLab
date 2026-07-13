@@ -47,6 +47,7 @@ from .utils import import_packages
 # during that window, __init__ runs again and re-registers every gym env.
 # We stash a flag on builtins because it is never evicted from sys.modules.
 if not getattr(builtins, "_isaaclab_tasks_registered", False):
-    _BLACKLIST_PKGS = ["utils", ".mdp", "contrib.humanoid_amp.motions"]
+    # Agent config packages are resolved lazily through Gym entry-point strings.
+    _BLACKLIST_PKGS = ["utils", ".mdp", ".agents", "contrib.humanoid_amp.motions"]
     import_packages(__name__, _BLACKLIST_PKGS)
     builtins._isaaclab_tasks_registered = True

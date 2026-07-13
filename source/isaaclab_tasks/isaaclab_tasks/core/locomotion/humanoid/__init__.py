@@ -13,7 +13,7 @@ package layout.
 
 import gymnasium as gym
 
-from isaaclab_tasks.core.locomotion.humanoid import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments -- direct workflow.
@@ -25,9 +25,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_direct_env_cfg:HumanoidEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidDirectPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_direct_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:HumanoidDirectPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_direct_ppo_cfg.yaml",
     },
 )
 
@@ -41,9 +41,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.humanoid_manager_env_cfg:HumanoidEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
-        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_manager_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:HumanoidPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_manager_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_manager_ppo_cfg.yaml",
+        "sb3_cfg_entry_point": f"{_AGENTS_MODULE}:sb3_manager_ppo_cfg.yaml",
     },
 )

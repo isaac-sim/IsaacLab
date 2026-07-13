@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments.
@@ -44,7 +44,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -54,7 +54,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_visuomotor_env_cfg:FrankaCubeStackVisuomotorEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_200.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_image_200.json",
     },
     disable_env_checker=True,
 )
@@ -66,7 +66,7 @@ gym.register(
         "env_cfg_entry_point": (
             f"{__name__}.stack_ik_rel_visuomotor_cosmos_env_cfg:FrankaCubeStackVisuomotorCosmosEnvCfg"
         ),
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_image_cosmos.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_image_cosmos.json",
     },
     disable_env_checker=True,
 )
@@ -76,7 +76,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackRedGreenEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -86,7 +86,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackRedGreenBlueEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -97,7 +97,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackBlueGreenEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -107,7 +107,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackBlueGreenRedEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -117,7 +117,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_abs_env_cfg:FrankaCubeStackEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -147,7 +147,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg_skillgen:FrankaCubeStackSkillgenEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )
@@ -157,7 +157,7 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.bin_stack_ik_rel_env_cfg:FrankaBinStackEnvCfg",
-        "robomimic_bc_cfg_entry_point": f"{agents.__name__}:robomimic/bc_rnn_low_dim.json",
+        "robomimic_bc_cfg_entry_point": f"{_AGENTS_MODULE}:robomimic/bc_rnn_low_dim.json",
     },
     disable_env_checker=True,
 )

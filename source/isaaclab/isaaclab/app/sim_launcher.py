@@ -19,19 +19,12 @@ import sys
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any
-
-from isaaclab_newton.physics import NewtonCfg
-from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_ovphysx.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
-from isaaclab.physics.physics_manager_cfg import PhysicsCfg
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
-from isaaclab.utils._device import set_cuda_device
+
+if TYPE_CHECKING:
+    from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 
 logger = logging.getLogger(__name__)
 
@@ -64,8 +57,12 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         ValueError: If *physics_cfg_str* does not name a known backend.
     """
     if physics_cfg_str == "physx":
+        from isaaclab_physx.physics import PhysxCfg
+
         return PhysxCfg()
     if physics_cfg_str == "newton_mjwarp":
+        from isaaclab_newton.physics import NewtonCfg
+
         return NewtonCfg()
     if physics_cfg_str == "newton_vbd":
         # lazy import: core depends on isaaclab_contrib only when VBD is requested
@@ -79,6 +76,8 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
 
         return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
+        from isaaclab_ovphysx.physics import OvPhysxCfg
+
         return OvPhysxCfg()
     raise ValueError(
         f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
@@ -92,7 +91,7 @@ Node Predicates.
 
 def _is_ovrtx_renderer(node) -> bool:
     """True when the node is an OVRTX renderer config."""
-    return isinstance(node, RendererCfg) and getattr(node, "renderer_type", None) == "ovrtx"
+    return getattr(node, "renderer_type", None) == "ovrtx"
 
 
 def _is_auto_rtx_renderer(node) -> bool:
@@ -102,6 +101,9 @@ def _is_auto_rtx_renderer(node) -> bool:
 
 def _is_kit_camera(node) -> bool:
     """True for a CameraCfg whose renderer requires Kit (not Newton)."""
+    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from isaaclab.sensors.camera.camera_cfg import CameraCfg
+
     if not isinstance(node, CameraCfg):
         return False
     renderer_cfg = getattr(node, "renderer_cfg", None)
@@ -236,6 +238,9 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     place). Automatic RTX renderer placeholders (``renderer_type="auto_rtx"``) are
     also resolved at this stage using the full *launcher_args* context.
     """
+    from isaaclab.physics.physics_manager_cfg import PhysicsCfg
+    from isaaclab.sensors.camera.camera_cfg import CameraCfg
+
     physics_str = _get_arg(launcher_args, "physics", None)
     physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
@@ -298,7 +303,14 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
         return config_scan
 
     use_isaac_sim = _uses_isaac_sim_runtime(config_scan, launcher_args)
-    renderer_factory = IsaacRtxRendererCfg if use_isaac_sim else OVRTXRendererCfg
+    if use_isaac_sim:
+        from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+        renderer_factory = IsaacRtxRendererCfg
+    else:
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+
+        renderer_factory = OVRTXRendererCfg
 
     # Resolve every auto RTX placeholder in place, tracking camera renderers that may require Kit.
     has_auto_camera = False
@@ -394,6 +406,8 @@ def _resolve_distributed_device(cfg, launcher_args: argparse.Namespace | dict | 
     sim_cfg = getattr(cfg, "sim", None)
     if sim_cfg is not None:
         sim_cfg.device = device_str
+    from isaaclab.utils._device import set_cuda_device
+
     set_cuda_device(device_str)
     logger.info(
         "Distributed device resolved to %s (local_rank=%d, visible_gpus=%d)",

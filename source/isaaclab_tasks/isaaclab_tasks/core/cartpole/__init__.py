@@ -13,7 +13,7 @@ disambiguate the two workflows within the flat package layout.
 
 import gymnasium as gym
 
-from . import agents
+_AGENTS_MODULE = f"{__name__}.agents"
 
 ##
 # Register Gym environments -- direct workflow.
@@ -25,10 +25,10 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_direct_env_cfg:CartpoleEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_direct_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_ppo_cfg.yaml",
-        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_direct_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CartpoleDirectPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_direct_ppo_cfg.yaml",
+        "sb3_cfg_entry_point": f"{_AGENTS_MODULE}:sb3_ppo_cfg.yaml",
     },
 )
 
@@ -38,9 +38,9 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_direct_camera_env_cfg:CartpoleCameraEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraDirectPPORunnerCfg",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_direct_camera_ppo_cfg.yaml",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_camera_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CartpoleCameraDirectPPORunnerCfg",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_direct_camera_ppo_cfg.yaml",
     },
 )
 
@@ -54,13 +54,13 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_manager_env_cfg:CartpoleEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_manager_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_manager_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CartpolePPORunnerCfg",
         "rsl_rl_with_symmetry_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
+            f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CartpolePPORunnerWithSymmetryCfg"
         ),
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_manager_ppo_cfg.yaml",
-        "sb3_cfg_entry_point": f"{agents.__name__}:sb3_ppo_cfg.yaml",
+        "skrl_cfg_entry_point": f"{_AGENTS_MODULE}:skrl_manager_ppo_cfg.yaml",
+        "sb3_cfg_entry_point": f"{_AGENTS_MODULE}:sb3_ppo_cfg.yaml",
     },
 )
 
@@ -70,11 +70,11 @@ gym.register(
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.cartpole_manager_camera_env_cfg:CartpoleCameraEnvCfg",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_camera_ppo_cfg.yaml",
-        "rl_games_feature_cfg_entry_point": f"{agents.__name__}:rl_games_manager_feature_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",
+        "rl_games_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_camera_ppo_cfg.yaml",
+        "rl_games_feature_cfg_entry_point": f"{_AGENTS_MODULE}:rl_games_manager_feature_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CartpoleCameraPPORunnerCfg",
         "rsl_rl_feature_cfg_entry_point": (
-            f"{agents.__name__}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
+            f"{_AGENTS_MODULE}.rsl_rl_ppo_cfg:CartpoleCameraFeaturePPORunnerCfg"
         ),
     },
 )

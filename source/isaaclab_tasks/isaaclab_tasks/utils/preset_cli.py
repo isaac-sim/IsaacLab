@@ -240,15 +240,15 @@ class _DescriptionBuilder:
     @staticmethod
     def _syntax(target: PresetTarget) -> str:
         """User-facing selector form: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
-        if target.base_classes:  # typed: single name
+        if target.is_typed:  # typed: single name
             return f"{target.value}=NAME"
         return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
 
     @staticmethod
     def _description(target: PresetTarget) -> str:
         """One-line description; for typed targets includes the cfg base class name."""
-        if target.base_classes:
-            return f"(typed) selects a {target.base_classes[0].__name__} variant"
+        if target.is_typed:
+            return f"(typed) selects a {target.base_class_names[0]} variant"
         return "broadcast: applied to every matching PresetCfg"
 
 
@@ -315,7 +315,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` bucket automatically
     regardless of what name the env_cfg gives the field.
     """
-    typed_targets = [t for t in PresetTarget if t.base_classes]
+    typed_targets = [t for t in PresetTarget if t.is_typed]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in walked.values():
         for name, cfg in path_dict.items():
