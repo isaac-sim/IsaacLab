@@ -100,8 +100,11 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     in ``data_types`` so PPISP can consume the HDR AOV alongside the LDR
     destination on the same render product, plus ``SemanticIdMap`` when
     ``"semantic_segmentation"`` is requested so the semantic-ID-to-label
-    mapping can be decoded for ``camera.data.info``. Other multi-AOV
-    combinations are not supported.
+    mapping can be decoded for ``camera.data.info``, plus the
+    ``StableIdSemanticIdMap`` / ``SemanticIdMap`` / ``StableIdMap`` trio when
+    ``"instance_segmentation_fast"`` is requested so the instance-ID-to-prim-path
+    (``idToLabels``) and instance-ID-to-semantic (``idToSemantics``) mappings can be
+    decoded. Other multi-AOV combinations are not supported.
     """
     data_types = data_types if data_types else ["rgb"]
     render_vars: list[tuple[str, str, str]] = [get_render_var_config(data_types)]
@@ -112,6 +115,13 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     # renderer can decode the semantic-ID-to-label mapping into camera.data.info["semantic_segmentation"].
     if render_vars[0][2] == "SemanticSegmentation":
         render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
+    # When instance segmentation is the resolved AOV, author the three map render vars needed to resolve each
+    # NonStableInstanceSegmentation pixel ID to a prim path (StableIdSemanticIdMap -> StableIdMap) and a
+    # semantic label (StableIdSemanticIdMap -> SemanticIdMap) for camera.data.info["instance_segmentation_fast"].
+    if render_vars[0][2] == "NonStableInstanceSegmentation":
+        render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
+        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
+        render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
     return render_vars
 
 
