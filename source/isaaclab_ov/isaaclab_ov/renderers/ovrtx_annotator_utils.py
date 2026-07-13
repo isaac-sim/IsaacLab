@@ -64,7 +64,7 @@ def parse_semantic_label(raw_label: str) -> dict[str, str]:
     return labels
 
 
-def decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[tuple[tuple[int, int, int, int], str]]:
+def _decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[tuple[tuple[int, int, int, int], str]]:
     """Decode an OVRTX ``IdentifierMap``-layout render var buffer into ``(id, raw_label)`` pairs.
 
     Shared layout for the ``SemanticIdMap`` and ``StableIdMap`` render vars: the buffer packs, in order,
@@ -118,7 +118,7 @@ def decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[tuple[tuple
 def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
     """Decode the OVRTX ``SemanticIdMap`` render var buffer into ``{semantic_id: {type: label}}``.
 
-    The ``id[0]`` field of each :func:`decode_identifier_map` entry is the semantic ID, and the label is
+    The ``id[0]`` field of each :func:`_decode_identifier_map` entry is the semantic ID, and the label is
     parsed with :func:`parse_semantic_label`.
 
     Args:
@@ -130,14 +130,14 @@ def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
     """
     return {
         id_words[0]: parse_semantic_label(raw_label)
-        for id_words, raw_label in decode_identifier_map(id_map, "SemanticIdMap")
+        for id_words, raw_label in _decode_identifier_map(id_map, "SemanticIdMap")
     }
 
 
 def decode_stable_id_map(id_map: np.ndarray) -> dict[tuple[int, int, int, int], str]:
     """Decode the OVRTX ``StableIdMap`` render var buffer into ``{stable_id: prim_path}``.
 
-    Same :func:`decode_identifier_map` layout as the SemanticIdMap, but the four ``id`` words form the
+    Same :func:`_decode_identifier_map` layout as the SemanticIdMap, but the four ``id`` words form the
     128-bit stable ID key and the label is a USD prim-path string (not a semantic label, so it is not parsed).
 
     Args:
@@ -146,7 +146,7 @@ def decode_stable_id_map(id_map: np.ndarray) -> dict[tuple[int, int, int, int], 
     Returns:
         Mapping from the four-word stable ID to its USD prim-path string.
     """
-    return {id_words: raw_label for id_words, raw_label in decode_identifier_map(id_map, "StableIdMap")}
+    return {id_words: raw_label for id_words, raw_label in _decode_identifier_map(id_map, "StableIdMap")}
 
 
 def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[tuple[int, int, int, int], int]]:
