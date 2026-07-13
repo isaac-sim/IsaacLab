@@ -817,3 +817,149 @@ def shift_jacobian_com_to_origin(
     dst[n, b, 3, dof] = omega[0]
     dst[n, b, 4, dof] = omega[1]
     dst[n, b, 5, dof] = omega[2]
+
+
+"""
+Deprecated kernels.
+
+These kernels are retained for backward compatibility and will be removed in a future release. Prefer the
+public-order asset write APIs (:meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index` and its
+siblings), which apply the ordering conversion internally, or the public-order reorder kernels from
+``isaaclab.assets.articulation.ordering_kernels``. Because Warp kernels cannot emit a runtime deprecation warning
+without breaking :func:`warp.launch`, the deprecation is documented here and in the changelog rather than raised at
+call time.
+"""
+
+
+@wp.kernel
+def write_joint_vel_data_index(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint velocity data to the output buffers.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_index` (or the
+    ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    This kernel writes joint velocity data from the input array to the output buffers.
+    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
+
+    Args:
+        in_data: Input array containing joint velocity data. Shape is (num_selected_envs, num_selected_joints).
+        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
+        joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
+        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output array where previous joint velocities are written. Shape is
+            (num_envs, num_joints).
+        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
+            (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
+    prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
+    joint_acc[env_ids[i], joint_ids[j]] = 0.0
+
+
+@wp.kernel
+def write_joint_vel_data_mask(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint velocity data to the output buffers.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_mask` (or the
+    ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    This kernel writes joint velocity data from the input array to the output buffers.
+    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
+
+    Args:
+        in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints).
+        env_mask: Input array of environment mask. Shape is (num_envs,).
+        joint_mask: Input array of joint mask. Shape is (num_joints,).
+        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output array where previous joint velocities are written. Shape is
+            (num_envs, num_joints).
+        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
+            (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        joint_vel[i, j] = in_data[i, j]
+        prev_joint_vel[i, j] = in_data[i, j]
+        joint_acc[i, j] = 0.0
+
+
+@wp.kernel
+def write_joint_state_data_index(
+    pos_data: wp.array2d(dtype=wp.float32),
+    vel_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity data in a single kernel launch.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_state_to_sim` and its indexed siblings
+    (or the ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    Args:
+        pos_data: Input joint positions. Shape is (num_selected_envs, num_selected_joints).
+        vel_data: Input joint velocities. Shape is (num_selected_envs, num_selected_joints).
+        env_ids: Environment indices. Shape is (num_selected_envs,).
+        joint_ids: Joint indices. Shape is (num_selected_joints,).
+        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
+        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
+        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    joint_pos[env_ids[i], joint_ids[j]] = pos_data[i, j]
+    joint_vel[env_ids[i], joint_ids[j]] = vel_data[i, j]
+    prev_joint_vel[env_ids[i], joint_ids[j]] = vel_data[i, j]
+    joint_acc[env_ids[i], joint_ids[j]] = 0.0
+
+
+@wp.kernel
+def write_joint_state_data_mask(
+    pos_data: wp.array2d(dtype=wp.float32),
+    vel_data: wp.array2d(dtype=wp.float32),
+    env_mask: wp.array(dtype=wp.bool),
+    joint_mask: wp.array(dtype=wp.bool),
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity data in a single kernel launch using masks.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_state_to_sim` and its masked siblings
+    (or the ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    Args:
+        pos_data: Input joint positions. Shape is (num_envs, num_joints).
+        vel_data: Input joint velocities. Shape is (num_envs, num_joints).
+        env_mask: Environment mask. Shape is (num_envs,).
+        joint_mask: Joint mask. Shape is (num_joints,).
+        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
+        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
+        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if env_mask[i] and joint_mask[j]:
+        joint_pos[i, j] = pos_data[i, j]
+        joint_vel[i, j] = vel_data[i, j]
+        prev_joint_vel[i, j] = vel_data[i, j]
+        joint_acc[i, j] = 0.0

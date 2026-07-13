@@ -468,3 +468,101 @@ def shift_jacobian_com_to_origin(
     dst[n, b, 3, dof] = omega[0]
     dst[n, b, 4, dof] = omega[1]
     dst[n, b, 5, dof] = omega[2]
+
+
+"""
+Deprecated kernels.
+
+These kernels are retained for backward compatibility and will be removed in a future release. Prefer the
+public-order asset write APIs (:meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index` and its
+siblings), which apply the ordering conversion internally, or the public-order reorder kernels from
+``isaaclab.assets.articulation.ordering_kernels``. Because Warp kernels cannot emit a runtime deprecation warning
+without breaking :func:`warp.launch`, the deprecation is documented here and in the changelog rather than raised at
+call time.
+"""
+
+
+@wp.kernel
+def write_joint_vel_data(
+    in_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    from_mask: bool,
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint velocity data to the output buffers.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_velocity_to_sim_index` (or the
+    ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    This kernel writes joint velocity data from the input array to the output buffers.
+    It also updates the previous joint velocity buffer and resets the joint acceleration to 0.0.
+
+    Args:
+        in_data: Input array containing joint velocity data. Shape is (num_envs, num_joints) or
+            (num_selected_envs, num_selected_joints) depending on from_mask.
+        env_ids: Input array of environment indices to write to. Shape is (num_selected_envs,).
+        joint_ids: Input array of joint indices to write to. Shape is (num_selected_joints,).
+        from_mask: Input flag indicating whether to use masked indexing. If True, indices from
+            env_ids and joint_ids are used to index into in_data. If False, in_data is indexed
+            directly using the thread indices.
+        joint_vel: Output array where joint velocities are written. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output array where previous joint velocities are written. Shape is
+            (num_envs, num_joints).
+        joint_acc: Output array where joint accelerations are reset to 0.0. Shape is
+            (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if from_mask:
+        joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
+        prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[env_ids[i], joint_ids[j]]
+    else:
+        joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
+        prev_joint_vel[env_ids[i], joint_ids[j]] = in_data[i, j]
+    joint_acc[env_ids[i], joint_ids[j]] = 0.0
+
+
+@wp.kernel
+def write_joint_state_data(
+    pos_data: wp.array2d(dtype=wp.float32),
+    vel_data: wp.array2d(dtype=wp.float32),
+    env_ids: wp.array(dtype=wp.int32),
+    joint_ids: wp.array(dtype=wp.int32),
+    full_data: bool,
+    joint_pos: wp.array2d(dtype=wp.float32),
+    joint_vel: wp.array2d(dtype=wp.float32),
+    prev_joint_vel: wp.array2d(dtype=wp.float32),
+    joint_acc: wp.array2d(dtype=wp.float32),
+):
+    """Write joint position and velocity data in a single kernel launch.
+
+    Deprecated. Prefer :meth:`~isaaclab.assets.Articulation.write_joint_position_to_sim_index` and its siblings
+    (or the ``ordering_kernels`` reorder family), which apply the public-to-backend ordering conversion internally.
+
+    Args:
+        pos_data: Input joint positions. Shape is (num_envs, num_joints) if full_data,
+            otherwise (num_selected_envs, num_selected_joints).
+        vel_data: Input joint velocities. Shape is (num_envs, num_joints) if full_data,
+            otherwise (num_selected_envs, num_selected_joints).
+        env_ids: Environment indices. Shape is (num_selected_envs,).
+        joint_ids: Joint indices. Shape is (num_selected_joints,).
+        full_data: If True, data has full (num_envs, num_joints) shape and env_ids/joint_ids
+            index into it. If False, data is pre-sliced and indexed by thread position.
+        joint_pos: Output joint positions. Shape is (num_envs, num_joints).
+        joint_vel: Output joint velocities. Shape is (num_envs, num_joints).
+        prev_joint_vel: Output previous joint velocities. Shape is (num_envs, num_joints).
+        joint_acc: Output joint accelerations (reset to 0). Shape is (num_envs, num_joints).
+    """
+    i, j = wp.tid()
+    if full_data:
+        p = pos_data[env_ids[i], joint_ids[j]]
+        v = vel_data[env_ids[i], joint_ids[j]]
+    else:
+        p = pos_data[i, j]
+        v = vel_data[i, j]
+    joint_pos[env_ids[i], joint_ids[j]] = p
+    joint_vel[env_ids[i], joint_ids[j]] = v
+    prev_joint_vel[env_ids[i], joint_ids[j]] = v
+    joint_acc[env_ids[i], joint_ids[j]] = 0.0

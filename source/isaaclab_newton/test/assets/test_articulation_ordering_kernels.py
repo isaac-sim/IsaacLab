@@ -100,3 +100,107 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
     )
     np.testing.assert_allclose(default_pos.numpy(), np.asarray([[0.0, 3.0, 4.0], [0.0, 0.0, 0.0]], dtype=np.float32))
     assert clamped_defaults.numpy()[0] == 2
+
+
+def test_deprecated_write_joint_vel_data_index_scatters_and_resets_acc() -> None:
+    """Deprecated kernel still scatters selected joint velocities and resets acceleration."""
+    in_data = wp.array(np.asarray([[10.0, 11.0], [20.0, 21.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    env_ids = wp.array(np.asarray([1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    joint_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        articulation_kernels.write_joint_vel_data_index,
+        dim=in_data.shape,
+        inputs=[in_data, env_ids, joint_ids],
+        outputs=[joint_vel, prev_joint_vel, joint_acc],
+        device="cpu",
+    )
+
+    expected_vel = np.asarray([[21.0, 0.0, 20.0], [11.0, 0.0, 10.0]], dtype=np.float32)
+    np.testing.assert_allclose(joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(prev_joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(joint_acc.numpy(), np.asarray([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32))
+
+
+def test_deprecated_write_joint_vel_data_mask_writes_only_masked_cells() -> None:
+    """Deprecated masked kernel only touches cells selected by both masks."""
+    in_data = wp.array(
+        np.asarray([[10.0, 11.0, 12.0], [20.0, 21.0, 22.0]], dtype=np.float32), dtype=wp.float32, device="cpu"
+    )
+    env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
+    joint_mask = wp.array(np.asarray([True, False, True]), dtype=wp.bool, device="cpu")
+    joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        articulation_kernels.write_joint_vel_data_mask,
+        dim=in_data.shape,
+        inputs=[in_data, env_mask, joint_mask],
+        outputs=[joint_vel, prev_joint_vel, joint_acc],
+        device="cpu",
+    )
+
+    expected_vel = np.asarray([[10.0, 0.0, 12.0], [0.0, 0.0, 0.0]], dtype=np.float32)
+    np.testing.assert_allclose(joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(prev_joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(joint_acc.numpy(), np.asarray([[0.0, 1.0, 0.0], [1.0, 1.0, 1.0]], dtype=np.float32))
+
+
+def test_deprecated_write_joint_state_data_index_scatters_pos_and_vel() -> None:
+    """Deprecated kernel scatters selected joint positions/velocities and resets acceleration."""
+    pos_data = wp.array(np.asarray([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    vel_data = wp.array(np.asarray([[5.0, 6.0], [7.0, 8.0]], dtype=np.float32), dtype=wp.float32, device="cpu")
+    env_ids = wp.array(np.asarray([1, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    joint_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
+    joint_pos = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        articulation_kernels.write_joint_state_data_index,
+        dim=pos_data.shape,
+        inputs=[pos_data, vel_data, env_ids, joint_ids],
+        outputs=[joint_pos, joint_vel, prev_joint_vel, joint_acc],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(joint_pos.numpy(), np.asarray([[4.0, 0.0, 3.0], [2.0, 0.0, 1.0]], dtype=np.float32))
+    expected_vel = np.asarray([[8.0, 0.0, 7.0], [6.0, 0.0, 5.0]], dtype=np.float32)
+    np.testing.assert_allclose(joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(prev_joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(joint_acc.numpy(), np.asarray([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]], dtype=np.float32))
+
+
+def test_deprecated_write_joint_state_data_mask_writes_only_masked_cells() -> None:
+    """Deprecated masked kernel only writes joint state where both masks select the cell."""
+    pos_data = wp.array(
+        np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32), dtype=wp.float32, device="cpu"
+    )
+    vel_data = wp.array(
+        np.asarray([[7.0, 8.0, 9.0], [10.0, 11.0, 12.0]], dtype=np.float32), dtype=wp.float32, device="cpu"
+    )
+    env_mask = wp.array(np.asarray([True, False]), dtype=wp.bool, device="cpu")
+    joint_mask = wp.array(np.asarray([False, True, True]), dtype=wp.bool, device="cpu")
+    joint_pos = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    prev_joint_vel = wp.zeros((2, 3), dtype=wp.float32, device="cpu")
+    joint_acc = wp.array(np.ones((2, 3), dtype=np.float32), dtype=wp.float32, device="cpu")
+
+    wp.launch(
+        articulation_kernels.write_joint_state_data_mask,
+        dim=pos_data.shape,
+        inputs=[pos_data, vel_data, env_mask, joint_mask],
+        outputs=[joint_pos, joint_vel, prev_joint_vel, joint_acc],
+        device="cpu",
+    )
+
+    np.testing.assert_allclose(joint_pos.numpy(), np.asarray([[0.0, 2.0, 3.0], [0.0, 0.0, 0.0]], dtype=np.float32))
+    expected_vel = np.asarray([[0.0, 8.0, 9.0], [0.0, 0.0, 0.0]], dtype=np.float32)
+    np.testing.assert_allclose(joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(prev_joint_vel.numpy(), expected_vel)
+    np.testing.assert_allclose(joint_acc.numpy(), np.asarray([[1.0, 0.0, 0.0], [1.0, 1.0, 1.0]], dtype=np.float32))
