@@ -208,6 +208,7 @@ runs:
             -e ISAAC_SIM_LOW_MEMORY=1 \
             -e PYTHONUNBUFFERED=1 \
             -e PYTHONIOENCODING=utf-8 \
+            -e CARB_LOG_LEVEL=Warn \
             -e GITHUB_ACTIONS=${GITHUB_ACTIONS:-} \
             -e TEST_RESULT_FILE=$result_file"
 
@@ -415,7 +416,7 @@ runs:
                 esac
               fi
               echo 'Starting pytest with path: $test_path'
-              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file
+              ./isaaclab.sh -p -m pytest --ignore=tools/conftest.py $test_path $pytest_options --junitxml=tests/$result_file
             "
 
           # Stream container logs in background.
