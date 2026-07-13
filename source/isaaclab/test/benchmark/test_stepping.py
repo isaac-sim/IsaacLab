@@ -13,6 +13,7 @@ import torch
 from isaaclab.test.benchmark.stepping import (
     EnvironmentStepTimingRecorder,
     run_runtime_loop,
+    run_runtime_warmup,
     sample_random_actions,
 )
 
@@ -78,6 +79,15 @@ def test_run_runtime_loop_can_skip_reset():
     env = _Env()
     run_runtime_loop(env, num_frames=2, reset=False)
     assert not env.reset_called and env.steps == 2
+
+
+def test_run_runtime_warmup_keeps_startup_probe_when_zero_requested():
+    env = _Env()
+
+    times = run_runtime_warmup(env, num_frames=0)
+
+    assert env.reset_called and env.steps == 1
+    assert len(times) == 1
 
 
 def test_environment_step_timer_measures_env_step_without_simulation_timing():

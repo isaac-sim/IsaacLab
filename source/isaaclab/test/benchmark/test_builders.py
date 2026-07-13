@@ -141,6 +141,25 @@ def test_build_runtime_adds_environment_step_timing():
     assert rt.environment_step_timing.synchronized
 
 
+def test_build_runtime_clamps_negative_overhead_samples():
+    rt = builders.build_runtime(
+        startup_time_s=StartupTime(0.1, 0.2, 0.3),
+        iteration_times_s=[1.0, 2.0],
+        collection_fps=[8.0, 4.0],
+        total_fps=[8.0, 4.0],
+        steps_per_iteration=8,
+        frames_per_environment_step=8,
+        environment_step_times_s=[1.0, 2.0],
+        simulation_step_times_s=[1.1, 1.5],
+        simulation_step_calls=2,
+    )
+
+    assert rt.environment_step_timing is not None
+    assert rt.environment_step_timing.overhead_step_time_s is not None
+    assert rt.environment_step_timing.overhead_step_time_s.mean == pytest.approx(0.25)
+    assert rt.environment_step_timing.overhead_fraction == pytest.approx(1.0 / 6.0)
+
+
 def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown():
     rt = builders.build_runtime(
         startup_time_s=StartupTime(0.1, 0.2, 0.3),

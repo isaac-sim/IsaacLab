@@ -203,8 +203,9 @@ def build_runtime(
             simulation_samples = list(simulation_step_times_s)
             if len(environment_samples) != len(simulation_samples):
                 raise ValueError("Environment and simulation timing samples must have the same length")
+            # Floor derived overhead because nested wall timers can cross by clock-resolution noise.
             overhead_samples = [
-                total - simulation for total, simulation in zip(environment_samples, simulation_samples)
+                max(total - simulation, 0.0) for total, simulation in zip(environment_samples, simulation_samples)
             ]
             simulation_step_time_s = mean_std_peak(simulation_samples)
             overhead_step_time_s = mean_std_peak(overhead_samples)

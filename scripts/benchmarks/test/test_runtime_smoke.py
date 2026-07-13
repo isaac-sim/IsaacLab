@@ -16,7 +16,8 @@ ROOT = Path(__file__).resolve().parents[3]
 _TASK = "Isaac-Cartpole-Direct"
 
 
-def test_runtime_writes_all_requested_formats(tmp_path):
+@pytest.mark.parametrize("measure_isaaclab_overhead", [False, True], ids=["default", "overhead"])
+def test_runtime_writes_all_requested_formats(tmp_path, measure_isaaclab_overhead: bool):
     """The runtime entry point writes schema and OmniPerf data in one run."""
     sh = ROOT / "isaaclab.sh"
     cmd = [
@@ -30,7 +31,7 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         "--num_frames",
         "20",
         "--warmup_frames",
-        "2",
+        "0",
         "--seed",
         "0",
         "--device",
@@ -39,6 +40,7 @@ def test_runtime_writes_all_requested_formats(tmp_path):
         str(tmp_path),
         "--benchmark_formatter",
         "schema,omniperf",
+        *(["--measure_isaaclab_overhead"] if measure_isaaclab_overhead else []),
         "presets=newton_mjwarp",
         "--headless",
     ]
@@ -57,14 +59,22 @@ def test_runtime_writes_all_requested_formats(tmp_path):
     schema_data = json.loads(schema_files[0].read_text())
     assert schema_data["run"]["config"]["physics_backend"] == "newton_mjwarp"
     assert schema_data["runtime"]["iterations_completed"] == 20
-    assert schema_data["extra"]["warmup_frames"] == 2
+    assert schema_data["extra"]["warmup_frames"] == 0
+    assert schema_data["runtime"]["startup_time_s"]["first_step"] > 0.0
     timing = schema_data["runtime"]["environment_step_timing"]
     assert timing["environment_step_calls"] == 20
     assert timing["environment_step_fps"]["mean"] > 0
-    assert timing["simulation_step_calls"] is None
-    assert timing["simulation_step_time_s"] is None
-    assert timing["overhead_step_time_s"] is None
-    assert timing["overhead_fraction"] is None
-    assert not timing["synchronized"]
+    if measure_isaaclab_overhead:
+        assert timing["simulation_step_calls"] > 0
+        assert timing["simulation_step_time_s"]["mean"] > 0.0
+        assert timing["overhead_step_time_s"]["mean"] >= 0.0
+        assert timing["overhead_fraction"] >= 0.0
+        assert timing["synchronized"]
+    else:
+        assert timing["simulation_step_calls"] is None
+        assert timing["simulation_step_time_s"] is None
+        assert timing["overhead_step_time_s"] is None
+        assert timing["overhead_fraction"] is None
+        assert not timing["synchronized"]
     assert timing["environment_step_time_s"]["std"] >= 0.0
     assert "runtime" in json.loads(omniperf_files[0].read_text())
