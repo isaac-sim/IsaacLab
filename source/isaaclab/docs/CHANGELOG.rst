@@ -1,6 +1,39 @@
 Changelog
 ---------
 
+11.2.0 (2026-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.sim.utils.has_deformable_body_api` to detect applied deformable body API
+  schemas, including schemas authored as unregistered tokens (e.g. by Newton).
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab.utils.buffers.CircularBuffer.append` to apply the first-push
+  backfill branchlessly with :func:`torch.where`, removing a host-synchronizing ``nonzero``
+  and a device-scalar branch per append while resets are pending.
+* **Breaking:** Changed :func:`~isaaclab.sim.schemas.define_deformable_body_properties` to no longer
+  remove a pre-existing deformable body setup before authoring a new one. Clear any previous setup
+  before calling it, or use :func:`~isaaclab.sim.schemas.modify_deformable_body_properties` to update
+  properties on an existing deformable body.
+
+Fixed
+^^^^^
+
+* Fixed ``--video`` recording crashing with ``TypeError: must be real number, not NoneType``
+  on fresh installs by bounding ``moviepy`` to ``>=1.0.3,<2.0.0.dev0``. The unbounded dependency
+  let prerelease-allowing installs (as the documented Isaac Sim pip install performs) resolve
+  the broken ``2.0.0.dev2`` build, whose ``write_videofile`` does not fall back to the clip fps;
+  stable 2.x cannot be used because it caps ``pillow`` below the version Isaac Lab requires.
+* Fixed Newton kitless deformable mesh spawning to avoid requiring Kit-only PhysX helpers.
+* Fixed detection of deformable body API schemas authored as unregistered tokens (e.g. by Newton),
+  so such assets are modified in place instead of being re-defined during spawning.
+
+
 11.1.0 (2026-07-12)
 ~~~~~~~~~~~~~~~~~~~
 
