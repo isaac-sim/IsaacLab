@@ -13,6 +13,8 @@ from isaaclab.assets.articulation.ordering_kernels import (
     reorder_2d_backend_to_user,
     reorder_2d_user_to_backend,
     reorder_3d_backend_to_user,
+    reorder_body_state_backend_to_user,
+    reorder_joint_state_backend_to_user,
     reorder_joint_targets_user_to_backend,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
@@ -105,6 +107,57 @@ def test_reorder_3d_backend_to_user_gathers_user_axis() -> None:
     )
 
     np.testing.assert_allclose(user_data.numpy(), backend_data_np[:, [1, 2, 0], :])
+
+
+def test_reorder_joint_state_backend_to_user_gathers_position_and_velocity() -> None:
+    """Fuse the two joint-state publish gathers under a single shared joint map."""
+    backend_pos_np = np.asarray([[10.0, 11.0, 12.0], [20.0, 21.0, 22.0]], dtype=np.float32)
+    backend_vel_np = backend_pos_np + 100.0
+    # Non-identity permutation: public joint i draws from backend joint user_to_backend[i].
+    user_to_backend_np = np.asarray([2, 0, 1], dtype=np.int32)
+
+    backend_pos = wp.array(backend_pos_np, dtype=wp.float32, device="cpu")
+    backend_vel = wp.array(backend_vel_np, dtype=wp.float32, device="cpu")
+    user_to_backend = wp.array(user_to_backend_np, dtype=wp.int32, device="cpu")
+    user_pos = wp.zeros_like(backend_pos)
+    user_vel = wp.zeros_like(backend_vel)
+
+    wp.launch(
+        reorder_joint_state_backend_to_user,
+        dim=(backend_pos_np.shape[0], backend_pos_np.shape[1]),
+        inputs=[backend_pos, backend_vel, user_to_backend],
+        outputs=[user_pos, user_vel],
+        device="cpu",
+    )
+
+    np.testing.assert_array_equal(user_pos.numpy(), backend_pos_np[:, user_to_backend_np])
+    np.testing.assert_array_equal(user_vel.numpy(), backend_vel_np[:, user_to_backend_np])
+
+
+def test_reorder_body_state_backend_to_user_gathers_pose_and_velocity() -> None:
+    """Fuse the transform and spatial-vector body-state publish gathers under one body map."""
+    num_envs, num_bodies = 2, 3
+    backend_pose_np = np.arange(num_envs * num_bodies * 7, dtype=np.float32).reshape(num_envs, num_bodies, 7)
+    backend_vel_np = np.arange(num_envs * num_bodies * 6, dtype=np.float32).reshape(num_envs, num_bodies, 6) + 500.0
+    # Non-identity permutation: public body i draws from backend body user_to_backend[i].
+    user_to_backend_np = np.asarray([2, 0, 1], dtype=np.int32)
+
+    backend_pose = wp.array(backend_pose_np, dtype=wp.transformf, device="cpu")
+    backend_vel = wp.array(backend_vel_np, dtype=wp.spatial_vectorf, device="cpu")
+    user_to_backend = wp.array(user_to_backend_np, dtype=wp.int32, device="cpu")
+    user_pose = wp.zeros_like(backend_pose)
+    user_vel = wp.zeros_like(backend_vel)
+
+    wp.launch(
+        reorder_body_state_backend_to_user,
+        dim=(num_envs, num_bodies),
+        inputs=[backend_pose, backend_vel, user_to_backend],
+        outputs=[user_pose, user_vel],
+        device="cpu",
+    )
+
+    np.testing.assert_array_equal(user_pose.numpy(), backend_pose_np[:, user_to_backend_np, :])
+    np.testing.assert_array_equal(user_vel.numpy(), backend_vel_np[:, user_to_backend_np, :])
 
 
 @pytest.mark.parametrize(
