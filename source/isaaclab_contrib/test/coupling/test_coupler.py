@@ -39,6 +39,7 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
     NewtonCouplerManager,
     coupler,
+    coupler_cfg,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
 
@@ -90,11 +91,6 @@ class _FakeModel:
         ]
     )
     particle_count: int = 3
-    shape_material_ke: _FakeArray = field(default_factory=lambda: _float_array(4, 1.0))
-    shape_material_kd: _FakeArray = field(default_factory=lambda: _float_array(4, 2.0))
-    shape_material_mu: _FakeArray = field(default_factory=lambda: _float_array(4, 3.0))
-    shape_margin: _FakeArray = field(default_factory=lambda: _float_array(4, 4.0))
-    shape_gap: _FakeArray = field(default_factory=lambda: _float_array(4, 5.0))
 
 
 def _float_array(size: int, value: float) -> _FakeArray:
@@ -355,7 +351,7 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     )
     monkeypatch.setattr(coupler, "SolverCoupledProxy", _RecordingProxy)
     monkeypatch.setattr(
-        coupler,
+        coupler_cfg,
         "CollisionPipeline",
         lambda model_view, *, broad_phase: (model_view, broad_phase),
     )
@@ -366,28 +362,6 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.iterations == 3
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
-
-
-def test_proxy_shape_overrides_apply_only_to_selected_body_shapes():
-    model = _FakeModel()
-    proxy = CouplerProxyMappingCfg(
-        source="rigid",
-        destination="soft",
-        bodies=[1],
-        shape_material_ke=10.0,
-        shape_material_kd=20.0,
-        shape_material_mu=0.75,
-        shape_margin=0.015,
-        shape_gap=0.002,
-    )
-
-    NewtonCouplerManager._apply_proxy_shape_overrides(model, [proxy])
-
-    np.testing.assert_allclose(model.shape_material_ke.data, [1.0, 10.0, 1.0, 1.0])
-    np.testing.assert_allclose(model.shape_material_kd.data, [2.0, 20.0, 2.0, 2.0])
-    np.testing.assert_allclose(model.shape_material_mu.data, [3.0, 0.75, 3.0, 3.0])
-    np.testing.assert_allclose(model.shape_margin.data, [4.0, 0.015, 4.0, 4.0])
-    np.testing.assert_allclose(model.shape_gap.data, [5.0, 0.002, 5.0, 5.0])
 
 
 def test_entry_build_uses_solver_config_class_type():

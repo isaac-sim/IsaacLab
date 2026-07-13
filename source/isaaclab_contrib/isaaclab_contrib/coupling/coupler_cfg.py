@@ -17,6 +17,7 @@ from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonSolverCfg
+from newton import CollisionPipeline
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
@@ -25,7 +26,7 @@ from ..deformable.newton_manager_cfg import NewtonModelSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
-    from newton import CollisionPipeline, ModelView
+    from newton import ModelView
 
     from isaaclab.scene import InteractiveSceneCfg
 
@@ -117,8 +118,13 @@ class CouplerProxyMappingCfg:
     positive integers.
     """
 
-    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = lambda model_view: CollisionPipeline(model_view, broad_phase="explicit")
-    """Optional factory for the proxy destination's collision pipeline."""
+    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = lambda model_view: CollisionPipeline(
+        model_view, broad_phase="explicit"
+    )
+    """Optional factory for the proxy destination's collision pipeline.
+
+    Defaults to a pipeline with ``broad_phase="explicit"``.
+    """
 
 
 @configclass
