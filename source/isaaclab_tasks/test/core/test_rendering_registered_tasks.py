@@ -19,12 +19,10 @@ import pytest  # noqa: E402
 import torch  # noqa: E402
 from rendering_test_utils import (  # noqa: E402
     MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME,
-    REGISTERED_TASK_RENDERING_COMBINATIONS,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
     maybe_save_stage,
-    should_compare_golden_stage,
     validate_camera_outputs,
 )
 
@@ -64,9 +62,30 @@ def _collect_camera_outputs(env: object) -> dict[str, dict[str, torch.Tensor]]:
 
 
 # Task IDs that expose camera/tiled_camera image observations; each is validated for non-blank
-# rendering. The parametrization is defined in ``rendering_test_utils`` so the golden-stage registry
-# and this test share one source of truth (see ``REGISTERED_TASK_RENDERING_COMBINATIONS``).
-@pytest.mark.parametrize("task_id, presets, env_name", REGISTERED_TASK_RENDERING_COMBINATIONS)
+# rendering. The max different pixels percentage is set based on the screen space taken up by the
+# env. The ``presets`` column selects a data-type variant on the consolidated cartpole camera task;
+# ``None`` uses the default.
+_RENDER_CORRECTNESS_TASK_IDS = [
+    ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "depth", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
+    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
+    pytest.param(
+        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
+        None,
+        "shadow_hand",
+        # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
+        # exceeds the 3% diff threshold by a fraction of a percent. Allow up to 3 attempts and
+        # require at least one pass while we tighten the validation tolerances for this scene.
+        marks=pytest.mark.flaky(max_runs=3, min_passes=1),
+    ),
+]
+
+
+@pytest.mark.parametrize("task_id, presets, env_name", _RENDER_CORRECTNESS_TASK_IDS)
 def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name: str, enable_scene_partition):
     """Test registered tasks rendering correctness."""
     env = None
@@ -91,7 +110,7 @@ def test_rendering_registered_tasks(task_id: str, presets: str | None, env_name:
             "default_physics",
             "default_renderer",
             "stage",
-            compare_golden=should_compare_golden_stage("test_rendering_registered_tasks", task_id, presets, env_name),
+            compare_golden=(presets is None),
         )
 
         camera_outputs_nested_dict = _collect_camera_outputs(env)

@@ -14,17 +14,9 @@ from unittest import mock
 import pytest
 from rendering_test_utils import (
     _GOLDEN_STAGES_DIRECTORY,
-    GOLDEN_STAGE_RENDERING_TESTS,
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
-    GoldenStageRenderingTest,
-    _parametrize_case_id_and_values,
     compare_golden_stage,
-    golden_stage_pytest_node_ids,
     maybe_save_stage,
-    should_compare_golden_stage,
 )
-
-_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _usda_with_robot(translate: tuple[float, float, float] = (0.0, 0.0, 0.0), *, extra_prim: bool = False) -> str:
@@ -141,115 +133,6 @@ def test_maybe_save_stage_noop_without_dump_or_compare():
         save_stage_mock.assert_not_called()
 
 
-def test_golden_stage_node_ids_match_selected_cases():
-    """Generation node IDs are exactly the cases ``should_compare`` selects, with no duplicates."""
-    node_ids = golden_stage_pytest_node_ids()
-
-    expected = [node_id for rt in GOLDEN_STAGE_RENDERING_TESTS for node_id in rt.pytest_node_ids()]
-    assert list(node_ids) == expected
-    assert len(set(node_ids)) == len(node_ids), "duplicate node IDs would double-generate a golden"
-    # The representative subset selects one AOV per cartpole backend/renderer and the default variant
-    # per registered task; guard the expected count so an accidental predicate change is caught.
-    assert len(node_ids) == 5
-
-
-def test_runtime_selection_matches_generation_selection():
-    """The call-site dispatcher selects exactly the cases golden generation bootstraps.
-
-    If these diverged, a normally-run test could compare against a golden the generator never
-    created, failing with "Golden stage not found" for a baseline nobody committed.
-    """
-    for rendering_test in GOLDEN_STAGE_RENDERING_TESTS:
-        generated = set(rendering_test.pytest_node_ids())
-        for entry in rendering_test.combinations:
-            case_id, values = _parametrize_case_id_and_values(entry)
-            node_id = (
-                f"{rendering_test.test_root}/{rendering_test.test_module}::{rendering_test.test_function}[{case_id}]"
-            )
-            assert should_compare_golden_stage(rendering_test.test_function, *values) == (node_id in generated)
-    assert not should_compare_golden_stage("test_not_registered", "x")
-
-
-def test_kitless_cartpole_cases_do_not_compare_golden():
-    """Kit-less cartpole cases must not trigger golden comparison for baselines never generated.
-
-    ``rendering_test_cartpole`` is shared by ``test_rendering_cartpole`` and its kit-less variant,
-    dispatching golden selection through the hardcoded ``"test_rendering_cartpole"`` function name.
-    The kit-less parametrization (e.g. ``newton`` + ``newton_renderer``) is not part of the golden
-    generation set, so selecting it would fail at runtime with "Golden stage not found".
-    """
-    generated = {
-        _parametrize_case_id_and_values(entry)[1]
-        for rt in GOLDEN_STAGE_RENDERING_TESTS
-        if rt.test_function == "test_rendering_cartpole"
-        for entry in rt.combinations
-    }
-    for entry in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS:
-        values = _parametrize_case_id_and_values(entry)[1]
-        if values not in generated:
-            assert not should_compare_golden_stage("test_rendering_cartpole", *values), (
-                f"kit-less case {values} has no generated golden but was selected for comparison"
-            )
-
-
 def test_golden_stages_directory_exists_in_repo():
     """The checked-in golden stage directory is present for LFS baselines."""
     assert os.path.isdir(_GOLDEN_STAGES_DIRECTORY)
-
-
-def test_representative_subset_covers_every_backend_and_task():
-    """The selected cartpole cases span every backend/renderer, one AOV each; registered spans tasks."""
-    cartpole = next(rt for rt in GOLDEN_STAGE_RENDERING_TESTS if rt.test_function == "test_rendering_cartpole")
-    selected = [
-        _parametrize_case_id_and_values(e)[1]
-        for e in cartpole.combinations
-        if should_compare_golden_stage("test_rendering_cartpole", *_parametrize_case_id_and_values(e)[1])
-    ]
-    # One selected case per (physics_backend, renderer), all rgb.
-    backend_renderers = {(values[0], values[1]) for values in selected}
-    assert backend_renderers == {
-        ("physx", "isaacsim_rtx_renderer"),
-        ("newton", "isaacsim_rtx_renderer"),
-        ("physx", "newton_renderer"),
-    }
-    assert all(values[2] == "rgb" for values in selected)
-
-
-def test_registry_test_functions_are_unique():
-    """``should_compare_golden_stage`` keys on ``test_function``, so each must be distinct."""
-    functions = [rendering_test.test_function for rendering_test in GOLDEN_STAGE_RENDERING_TESTS]
-    assert len(functions) == len(set(functions))
-
-
-def test_registry_targets_exist_on_disk():
-    """Guard against a module rename/move silently orphaning a golden-stage registry entry."""
-    for rendering_test in GOLDEN_STAGE_RENDERING_TESTS:
-        module_path = _REPO_ROOT / rendering_test.test_root / rendering_test.test_module
-        assert module_path.is_file(), f"missing test module: {module_path}"
-        source = module_path.read_text(encoding="utf-8")
-        assert f"def {rendering_test.test_function}(" in source, (
-            f"{rendering_test.test_module} no longer defines {rendering_test.test_function}"
-        )
-
-
-def test_pytest_param_without_explicit_id_is_parsed():
-    """A ``pytest.param`` without ``id=`` yields its values (ParameterSet is itself a tuple)."""
-    param = pytest.param("Isaac-Cartpole-Camera-Direct", None, "cartpole", marks=pytest.mark.flaky)
-    case_id, values = _parametrize_case_id_and_values(param)
-
-    assert values == ("Isaac-Cartpole-Camera-Direct", None, "cartpole")
-    assert case_id == "Isaac-Cartpole-Camera-Direct-None-cartpole"
-
-
-def test_pytest_node_id_derived_from_id_less_param():
-    """An id-less ``pytest.param`` still yields pytest's default node ID (ParameterSet is a tuple)."""
-    rendering_test = GoldenStageRenderingTest(
-        test_module="test_rendering_registered_tasks.py",
-        test_function="test_rendering_registered_tasks",
-        combinations=[pytest.param("Isaac-Cartpole-Camera-Direct", None, "cartpole", marks=pytest.mark.flaky)],
-        should_compare=lambda *_: True,
-    )
-    assert rendering_test.pytest_node_ids() == (
-        "source/isaaclab_tasks/test/core/test_rendering_registered_tasks.py"
-        "::test_rendering_registered_tasks[Isaac-Cartpole-Camera-Direct-None-cartpole]",
-    )

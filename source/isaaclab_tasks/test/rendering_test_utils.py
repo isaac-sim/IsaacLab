@@ -7,8 +7,8 @@
 
 import logging
 import os
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+import re
+import tempfile
 from datetime import datetime
 from typing import Any
 
@@ -151,153 +151,6 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
     ),
 ]
 
-# Registered-task rendering combinations. Defined here (rather than in the test module) so the
-# golden-stage registry below and ``test_rendering_registered_tasks.py``'s
-# ``@pytest.mark.parametrize`` share one source of truth, mirroring how the cartpole test consumes
-# ``PHYSICS_RENDERER_AOV_COMBINATIONS``. Each row is ``(task_id, presets, env_name)``; ``presets``
-# selects a data-type variant on the consolidated cartpole camera task (``None`` uses the default).
-REGISTERED_TASK_RENDERING_COMBINATIONS = [
-    ("Isaac-Cartpole-Camera-Direct", None, "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "albedo", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "depth", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "rgb", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
-    pytest.param(
-        "Isaac-Reorient-Cube-Shadow-Camera-Direct",
-        None,
-        "shadow_hand",
-        # The Shadow-Vision render is right at the SSIM/diff-pixel tolerance and intermittently
-        # exceeds the 3% diff threshold by a fraction of a percent. Allow up to 3 attempts and
-        # require at least one pass while we tighten the validation tolerances for this scene.
-        marks=pytest.mark.flaky(max_runs=3, min_passes=1),
-    ),
-]
-
-_RENDERING_TEST_CORE_DIR = "source/isaaclab_tasks/test/core"
-
-
-def _parametrize_case_id_and_values(entry: Any) -> tuple[str, tuple[Any, ...]]:
-    """Return ``(pytest_case_id, values)`` for one ``@pytest.mark.parametrize`` entry.
-
-    Handles plain tuples/scalars as well as :func:`pytest.param` (``ParameterSet``) entries,
-    including params created without an explicit ``id=`` — for those, the default id is
-    reconstructed exactly as pytest does for simple values (``"-"``-joined, ``None`` rendered
-    as ``"None"``). ``ParameterSet`` is itself a tuple, so it must be detected via its ``values``
-    attribute before the plain-tuple branch.
-    """
-    if hasattr(entry, "values") and hasattr(entry, "id"):
-        values = tuple(entry.values)
-        case_id = entry.id if entry.id is not None else _default_case_id(values)
-    elif isinstance(entry, tuple):
-        values = entry
-        case_id = _default_case_id(values)
-    else:
-        values = (entry,)
-        case_id = _default_case_id(values)
-    return case_id, values
-
-
-def _default_case_id(values: tuple[Any, ...]) -> str:
-    """Reconstruct pytest's default parametrize id for simple (str/None) values."""
-    return "-".join("None" if value is None else str(value) for value in values)
-
-
-@dataclass(frozen=True)
-class GoldenStageRenderingTest:
-    """A parametrized rendering test whose selected cases export a golden USD stage.
-
-    A golden *stage* (prim structure + transforms) is essentially independent of the camera AOV,
-    so only a representative subset of the parametrized cases needs a baseline. ``should_compare``
-    receives a case's parametrize values positionally — in the same order as the test's
-    ``@pytest.mark.parametrize`` argnames — and returns whether that case participates. Keeping the
-    predicate value-based (e.g. one AOV per backend/renderer) means adding a backend or task to the
-    shared ``combinations`` list automatically extends coverage to it, with no per-case registration.
-    """
-
-    test_module: str
-    test_function: str
-    combinations: Sequence[Any]
-    should_compare: Callable[..., bool]
-    test_root: str = _RENDERING_TEST_CORE_DIR
-
-    def pytest_node_ids(self) -> tuple[str, ...]:
-        """Build pytest node IDs for the parametrized cases selected by ``should_compare``."""
-        node_ids: list[str] = []
-        for entry in self.combinations:
-            case_id, values = _parametrize_case_id_and_values(entry)
-            if self.should_compare(*values):
-                node_ids.append(f"{self.test_root}/{self.test_module}::{self.test_function}[{case_id}]")
-        return tuple(node_ids)
-
-    def should_compare_case(self, case_values: tuple[Any, ...]) -> bool:
-        """Return whether ``case_values`` is one of the registered combinations that carries a golden.
-
-        The shared test body is also reused by kit-less variants whose parametrized combinations are
-        not part of this golden set (and therefore have no generated baseline). Requiring membership
-        in :attr:`combinations` keeps the runtime comparison and :meth:`pytest_node_ids` generation a
-        single source of truth, so a kit-less-only case never asks for a baseline that was never
-        generated.
-        """
-        for entry in self.combinations:
-            _, values = _parametrize_case_id_and_values(entry)
-            if tuple(values) == tuple(case_values):
-                return self.should_compare(*case_values)
-        return False
-
-
-def should_compare_golden_stage_cartpole(physics_backend: str, renderer: str, data_type: str) -> bool:
-    """Select one representative cartpole case per (physics backend, renderer): the ``rgb`` AOV."""
-    del physics_backend, renderer
-    return data_type == "rgb"
-
-
-def should_compare_golden_stage_registered_task(task_id: str, presets: str | None, env_name: str) -> bool:
-    """Select one representative registered-task case per task: the default (no-preset) variant."""
-    del task_id, env_name
-    return presets is None
-
-
-# Rendering tests whose selected cases validate their exported USD stage against a golden baseline.
-# Each entry shares its ``combinations`` object with the test's ``@pytest.mark.parametrize`` so the
-# generated node IDs and the cases the test runs stay a single source of truth.
-GOLDEN_STAGE_RENDERING_TESTS = (
-    GoldenStageRenderingTest(
-        test_module="test_rendering_cartpole.py",
-        test_function="test_rendering_cartpole",
-        combinations=PHYSICS_RENDERER_AOV_COMBINATIONS,
-        should_compare=should_compare_golden_stage_cartpole,
-    ),
-    GoldenStageRenderingTest(
-        test_module="test_rendering_registered_tasks.py",
-        test_function="test_rendering_registered_tasks",
-        combinations=REGISTERED_TASK_RENDERING_COMBINATIONS,
-        should_compare=should_compare_golden_stage_registered_task,
-    ),
-)
-
-
-def should_compare_golden_stage(test_function: str, *case_values: Any) -> bool:
-    """Return whether a parametrized rendering case validates its exported USD stage.
-
-    Single dispatch point shared by the test call sites and ``generate_golden_stages.py`` so the
-    runtime comparison and the golden-generation selection can never diverge. ``case_values`` are
-    the case's parametrize values, in parametrize-argname order.
-    """
-    for rendering_test in GOLDEN_STAGE_RENDERING_TESTS:
-        if rendering_test.test_function == test_function:
-            return rendering_test.should_compare_case(case_values)
-    return False
-
-
-def golden_stage_pytest_node_ids() -> tuple[str, ...]:
-    """Return pytest node IDs for rendering tests that compare golden USD stages."""
-    return tuple(
-        node_id for rendering_test in GOLDEN_STAGE_RENDERING_TESTS for node_id in rendering_test.pytest_node_ids()
-    )
-
-
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("ovphysx", "ovrtx"),
     *_make_sensor_data_type_params("newton", "ovrtx"),
@@ -420,8 +273,6 @@ def _sanitize_golden_stage_text(text: str) -> str:
     host-specific paths without affecting correctness. Portable asset tokens (e.g. ``@OmniPBR.mdl@``)
     have no leading drive/slash and are left untouched.
     """
-    import re  # noqa: PLC0415
-
     text = re.sub(r'doc = """.*?"""', 'doc = """"""', text, flags=re.DOTALL)
     text = re.sub(r"@(?:[A-Za-z]:)?[\\/][^@\n]*@", "@<MASKED_ASSET_PATH>@", text)
     # Ensure a single trailing newline so regeneration stays clean under the end-of-file hook.
@@ -447,8 +298,6 @@ def maybe_save_stage(
     out_dir = os.environ.get("ISAAC_LAB_SAVE_STAGES")
     if not out_dir and not compare_golden:
         return
-
-    import tempfile
 
     import isaaclab.sim as sim_utils
 
@@ -1092,6 +941,8 @@ def rendering_test_cartpole(
     renderer: str,
     data_type: str,
     comparison_scores: list[dict],
+    *,
+    compare_golden: bool = False,
 ) -> None:
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
@@ -1183,7 +1034,7 @@ def rendering_test_cartpole(
             physics_backend,
             renderer,
             data_type,
-            compare_golden=should_compare_golden_stage("test_rendering_cartpole", physics_backend, renderer, data_type),
+            compare_golden=compare_golden and data_type == "rgb",
         )
         validate_camera_outputs(
             "cartpole",
