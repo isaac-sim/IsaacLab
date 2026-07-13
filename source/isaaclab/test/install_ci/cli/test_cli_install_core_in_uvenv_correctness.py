@@ -111,7 +111,7 @@ class Test_Cli_Install_Core_In_Uvenv_Correctness(UV_Mixin):
 
             test_dir = str(isaaclab_root / "source" / "isaaclab_physx" / "test")
             result = self.run_in_uv_env(
-                ["python", "-m", "pytest", test_dir, "-sv", "--tb=short"],
+                ["python", "-m", "pytest", test_dir, "-v", "--show-capture=all", "--tb=short"],
                 cwd=isaaclab_root,
                 timeout=3200,
             )
