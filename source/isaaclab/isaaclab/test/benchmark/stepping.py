@@ -65,8 +65,9 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
 
     This context manager always intercepts the environment ``step`` call with a
     lightweight wall timer. When simulation timing is requested, it also
-    intercepts simulation ``step`` calls and uses
-    :class:`isaaclab.utils.timer.Timer` to synchronize both boundaries.
+    intercepts simulation ``step`` calls, drains pending work before each
+    environment and simulation boundary, and uses
+    :class:`isaaclab.utils.timer.Timer` to synchronize their completion.
 
     Args:
         env: Environment interface whose ``step`` method is called by the workload.
@@ -102,6 +103,8 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         self._original_env_step = self._env.step
 
         if self._measure_isaaclab_overhead:
+            import warp as wp  # noqa: PLC0415
+
             from isaaclab.utils.timer import Timer  # noqa: PLC0415
 
             assert self.simulation_step_times_s is not None
@@ -112,6 +115,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
             self._original_sim_step = self._simulation_context.step
 
             def timed_simulation_step(*args, **kwargs):
+                wp.synchronize()
                 timer = Timer()
                 try:
                     with timer:
@@ -124,6 +128,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
 
             def timed_environment_step(*args, **kwargs):
                 simulation_start_time_s = self._simulation_total_time_s
+                wp.synchronize()
                 timer = Timer()
                 try:
                     with timer:

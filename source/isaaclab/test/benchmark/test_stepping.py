@@ -106,6 +106,35 @@ def test_environment_step_timer_measures_only_step_calls():
     assert "step" not in vars(env.unwrapped.sim)
 
 
+def test_environment_step_timer_synchronizes_before_environment_and_simulation_steps(monkeypatch):
+    import warp as wp
+
+    events = []
+    env = _Env()
+    env_step = env.step
+    simulation_step = env.unwrapped.sim.step
+
+    def logged_environment_step(actions):
+        events.append("environment")
+        return env_step(actions)
+
+    def logged_simulation_step():
+        events.append("simulation")
+        return simulation_step()
+
+    env.step = logged_environment_step
+    env.unwrapped.sim.step = logged_simulation_step
+    monkeypatch.setattr(wp, "synchronize", lambda: events.append("synchronize"))
+
+    with EnvironmentStepTimingRecorder(env, measure_isaaclab_overhead=True):
+        env.step(None)
+
+    assert events[:2] == ["synchronize", "environment"]
+    simulation_indices = [index for index, event in enumerate(events) if event == "simulation"]
+    assert simulation_indices
+    assert all(events[index - 1] == "synchronize" for index in simulation_indices)
+
+
 class _MASpace:
     def __init__(self, n):
         self._n = n
