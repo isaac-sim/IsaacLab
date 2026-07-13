@@ -79,6 +79,20 @@ _SSIM_DISABLED_DATA_TYPES: set[str] = {
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 _COMPARISON_IMAGE_SUBDIR = "images"
 
+_COPY_ICON_SVG = (
+    '<svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>'
+    '<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'
+    "</svg>"
+)
+_CHECK_ICON_SVG = (
+    '<svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M20 6 9 17l-5-5"/>'
+    "</svg>"
+)
+
 # ---------------------------------------------------------------------------
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
@@ -308,6 +322,15 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
     return path
 
 
+def _format_bcompare_command(actual_path: str, golden_path: str) -> str:
+    """Build a shell command that opens actual and golden images in Beyond Compare."""
+    return (
+        "bcompare \\\n"
+        f"  {actual_path} \\\n"
+        f"  {golden_path}"
+    )
+
+
 def generate_html_report(comparison_scores: list[dict], report_filename: str) -> None:
     """Generate and save an HTML report of comparison scores."""
     if not comparison_scores:
@@ -324,11 +347,20 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
         actual_img_html = ""
         golden_img_html = ""
+        compare_html = ""
         if entry.get("img_result_path"):
             actual_fname = os.path.relpath(entry["img_result_path"], _COMPARISON_IMAGES_DIR)
             golden_fname = os.path.relpath(entry["img_golden_path"], _COMPARISON_IMAGES_DIR)
             actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
             golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
+            compare_cmd = _format_bcompare_command(actual_fname, golden_fname)
+            compare_html = (
+                '<div class="compare-cmd-wrap">'
+                f'<code class="compare-cmd">{compare_cmd}</code>'
+                '<button type="button" class="copy-btn" title="Copy command" aria-label="Copy command"'
+                f' onclick="copyCompareCmd(this)">{_COPY_ICON_SVG}{_CHECK_ICON_SVG}</button>'
+                "</div>"
+            )
 
         ssim_checked = entry.get("ssim_checked", True)
         ssim_cell_class = "" if ssim_checked else ' class="ssim-disabled"'
@@ -349,10 +381,11 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f'<td class="status-{status_class}">{status_text}</td>'
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
+            f'<td class="compare-cell">{compare_html}</td>'
             "</tr>"
         )
 
-    html = (
+    report_html = (
         "<!DOCTYPE html>\n"
         "<html>\n"
         "<head>\n"
@@ -371,7 +404,33 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
         "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
+        "  .compare-cell { max-width: 420px; }\n"
+        "  .compare-cmd-wrap { position: relative; }\n"
+        "  .compare-cmd { display: block; font-size: 11px; white-space: pre-wrap; word-break: break-all;"
+        " background: #f8f8f8; padding: 4px 28px 4px 6px; border: 1px solid #ddd; border-radius: 3px;"
+        " user-select: all; }\n"
+        "  .copy-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0;"
+        " border: none; border-radius: 4px; background: transparent; color: #666; cursor: pointer; }\n"
+        "  .copy-btn:hover { background: #e8e8e8; color: #333; }\n"
+        "  .copy-btn svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"
+        " width: 14px; height: 14px; }\n"
+        "  .copy-btn .check-icon { display: none; }\n"
+        "  .copy-btn.copied .copy-icon { display: none; }\n"
+        "  .copy-btn.copied .check-icon { display: block; }\n"
         "</style>\n"
+        "<script>\n"
+        "function copyCompareCmd(btn) {\n"
+        "  const text = btn.previousElementSibling.textContent;\n"
+        "  navigator.clipboard.writeText(text).then(() => {\n"
+        "    btn.classList.add('copied');\n"
+        "    btn.title = 'Copied!';\n"
+        "    setTimeout(() => {\n"
+        "      btn.classList.remove('copied');\n"
+        "      btn.title = 'Copy command';\n"
+        "    }, 1500);\n"
+        "  });\n"
+        "}\n"
+        "</script>\n"
         "</head>\n"
         "<body>\n"
         "<h1>Rendering Correctness - Image Comparison Report</h1>\n"
@@ -389,6 +448,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>Status</th>"
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
+        "<th>Beyond Compare Command</th>"
         "</tr></thead>\n"
         "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n"
         f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
@@ -397,7 +457,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
     )
 
     with open(report_path, "w", encoding="utf-8") as file:
-        file.write(html)
+        file.write(report_html)
 
 
 def attach_comparison_properties(
@@ -1288,11 +1348,11 @@ def rendering_test_franka_soft(
     data_type: str,
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "ovphysx":
-        pytest.skip("ovphysx is not supported yet.")
-
     if physics_backend == "physx" and renderer == "newton_renderer":
-        pytest.skip("physx + newton_renderer crashes on tetmesh import (NVBUG#6445358).")
+        pytest.skip("physx + newton_renderer crashes (https://github.com/newton-physics/newton/issues/3228).")
+
+    if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type == "rgb":
+        pytest.skip("30% pixel difference from run to run likely caused by inconsistent lighting. Investigating.")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
