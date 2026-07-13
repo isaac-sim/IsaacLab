@@ -180,6 +180,76 @@
     "license": null
   },
   {
+    "package": "nvidia-cublas",
+    "license": null
+  },
+  {
+    "package": "nvidia-cuda-cupti",
+    "license": null
+  },
+  {
+    "package": "nvidia-cuda-nvrtc",
+    "license": null
+  },
+  {
+    "package": "nvidia-cuda-runtime",
+    "license": null
+  },
+  {
+    "package": "nvidia-cudnn-cu13",
+    "license": null
+  },
+  {
+    "package": "nvidia-cufft",
+    "license": null
+  },
+  {
+    "package": "nvidia-cufile",
+    "license": null
+  },
+  {
+    "package": "nvidia-curand",
+    "license": null
+  },
+  {
+    "package": "nvidia-cusolver",
+    "license": null
+  },
+  {
+    "package": "nvidia-cusparse",
+    "license": null
+  },
+  {
+    "package": "nvidia-cusparselt-cu13",
+    "license": null
+  },
+  {
+    "package": "nvidia-nccl-cu13",
+    "license": null
+  },
+  {
+    "package": "nvidia-nvjitlink",
+    "license": null
+  },
+  {
+    "package": "nvidia-nvshmem-cu13",
+    "license": null
+  },
+  {
+    "package": "nvidia-nvtx",
+    "license": null
+  },
+  {
+    "package": "cuda-bindings",
+    "license": "LicenseRef-NVIDIA-SOFTWARE-LICENSE",
+    "comment": "NVIDIA"
+  },
+  {
+    "package": "cuda-toolkit",
+    "license": null,
+    "comment": "NVIDIA CUDA Toolkit EULA (LicenseRef-NVIDIA-SOFTWARE-LICENSE); wheel ships no license metadata"
+  },
+  {
     "package": "omniverse-kit",
     "license": null
   },
@@ -312,8 +382,8 @@
   },
   {
     "package": "typing_extensions",
-    "license": "Python Software Foundation License",
-    "comment": "PSFL / OSRB"
+    "license": null,
+    "comment": "PSFL / OSRB; wheel metadata reports variants ('Python Software Foundation License', 'PSF-2.0')"
   },
   {
     "package": "urllib3",
