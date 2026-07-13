@@ -21,31 +21,36 @@ from isaaclab_assets import ANYMAL_B_CFG  # isort: skip
 
 
 @configclass
-class PhysicsCfg(RoughPhysicsCfg):
-    feather_pgs = NewtonCfg(
-        solver_cfg=FeatherPGSSolverCfg(
-            angular_damping=0.5,
-            update_mass_matrix_interval=1,
-            enable_joint_limits=True,
-            pgs_iterations=16,
-            pgs_beta=0.02,
-            pgs_cfm=1.0e-5,
-            pgs_omega=0.8,
-            dense_max_constraints=64,
-            pgs_warmstart=False,
-            pgs_mode="split",
-            mf_max_constraints=512,
-        ),
-        collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
-        num_substeps=1,
-        debug_mode=False,
-        use_cuda_graph=False,
-        default_shape_cfg=NewtonShapeCfg(margin=0.01),
-    )
-
-
-@configclass
 class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
+    @configclass
+    class PhysicsCfg(RoughPhysicsCfg):
+        """ANYmal-B rough solver presets owned by this task composition."""
+
+        feather_pgs = NewtonCfg(
+            solver_cfg=FeatherPGSSolverCfg(
+                pgs_mode="matrix_free",
+                update_mass_matrix_interval=2,
+                enable_joint_limits=True,
+                joint_limit_activation_gap=0.1,
+                pgs_iterations=8,
+                pgs_velocity_iterations=0,
+                dense_max_constraints=128,
+                mf_max_constraints=32,
+                hinv_jt_kernel="auto",
+                pgs_warmstart=False,
+                pgs_omega=1.0,
+                pgs_beta=0.05,
+                pgs_cfm=1.0e-6,
+                serial_kernel_block_dim=64,
+                row_watermark=False,
+            ),
+            collision_cfg=NewtonCollisionPipelineCfg(max_triangle_pairs=2_500_000),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+            default_shape_cfg=NewtonShapeCfg(margin=0.01),
+        )
+
     sim: SimulationCfg = SimulationCfg(physics=PhysicsCfg())
 
     def __post_init__(self):
@@ -53,7 +58,7 @@ class AnymalBRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
         # switch robot to anymal-b
         self.scene.robot = ANYMAL_B_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.actuators["legs"].armature = preset(default=0.0, feather_pgs=0.05)
+        self.scene.robot.actuators["legs"].armature = preset(default=0.0, feather_pgs=0.30)
 
 
 @configclass

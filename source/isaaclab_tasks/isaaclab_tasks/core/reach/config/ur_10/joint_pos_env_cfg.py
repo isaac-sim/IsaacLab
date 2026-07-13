@@ -5,10 +5,12 @@
 
 import math
 
+from isaaclab_newton.physics import FeatherPGSSolverCfg, NewtonCfg
+
 import isaaclab.envs.mdp as mdp
 from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
+from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg, ReachPhysicsCfg
 
 ##
 # Pre-defined configs
@@ -23,9 +25,37 @@ from isaaclab_assets import UR10_CFG  # isort: skip
 
 @configclass
 class UR10ReachEnvCfg(ReachEnvCfg):
+    @configclass
+    class PhysicsCfg(ReachPhysicsCfg):
+        """UR10 reach solver presets owned by this task composition."""
+
+        feather_pgs = NewtonCfg(
+            solver_cfg=FeatherPGSSolverCfg(
+                pgs_mode="matrix_free",
+                update_mass_matrix_interval=1,
+                enable_joint_limits=True,
+                joint_limit_activation_gap=0.1,
+                pgs_iterations=8,
+                pgs_velocity_iterations=0,
+                dense_max_constraints=32,
+                mf_max_constraints=32,
+                hinv_jt_kernel="auto",
+                pgs_warmstart=False,
+                pgs_omega=1.0,
+                pgs_beta=0.05,
+                pgs_cfm=1.0e-6,
+                serial_kernel_block_dim=64,
+                row_watermark=False,
+            ),
+            num_substeps=1,
+            debug_mode=False,
+            use_cuda_graph=True,
+        )
+
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+        self.sim.physics = self.PhysicsCfg()
 
         # switch robot to ur10
         self.scene.robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
