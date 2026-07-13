@@ -284,7 +284,7 @@ class NewtonCoupler(NewtonVBDManager):
         cls,
         model: Model,
         entries: list[SolverCoupled.Entry],
-        proxies: list[SolverCoupledProxy.Proxy],
+        proxies: list[_ResolvedProxy],
         solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
         cls._apply_proxy_shape_overrides(model, proxies)
