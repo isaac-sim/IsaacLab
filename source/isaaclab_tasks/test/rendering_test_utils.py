@@ -1295,7 +1295,7 @@ def rendering_test_franka_soft(
         pytest.skip("ovphysx is not supported yet.")
 
     if physics_backend == "physx" and renderer == "newton_renderer":
-        pytest.skip("physx + newton_renderer is not supported yet.")
+        pytest.skip("physx + newton_renderer crashes on tetmesh import (NVBUG#6445358).")
 
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
