@@ -27,6 +27,7 @@ from isaaclab_ovphysx.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.physics.physics_manager_cfg import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sensors.camera.camera_cfg import CameraCfg
@@ -54,7 +55,7 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
     """Build a concrete physics config for the requested backend.
 
     Args:
-        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, or ``"ovphysx"``.
+        physics_cfg_str: Backend selector: ``"physx"``, ``"newton_mjwarp"``, ``"newton_vbd"``, or ``"ovphysx"``.
 
     Returns:
         A new physics config instance for the requested backend.
@@ -66,9 +67,22 @@ def make_physics_cfg(physics_cfg_str: str) -> PhysicsCfg:
         return PhysxCfg()
     if physics_cfg_str == "newton_mjwarp":
         return NewtonCfg()
+    if physics_cfg_str == "newton_vbd":
+        # lazy import: core depends on isaaclab_contrib only when VBD is requested
+        try:
+            from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
+        except ImportError as err:
+            raise ImportError(
+                "The 'newton_vbd' physics backend requires the isaaclab_contrib package."
+                " Install it with `./isaaclab.sh -i contrib`."
+            ) from err
+
+        return NewtonCfg(solver_cfg=VBDSolverCfg())
     if physics_cfg_str == "ovphysx":
         return OvPhysxCfg()
-    raise ValueError(f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', or 'ovphysx').")
+    raise ValueError(
+        f"Invalid physics config: {physics_cfg_str!r} (expected 'physx', 'newton_mjwarp', 'newton_vbd', or 'ovphysx')."
+    )
 
 
 """
@@ -434,6 +448,11 @@ def launch_simulation(
     _validate_runtime(config_scan, launcher_args)
     needs_kit = _uses_isaac_sim_runtime(config_scan, launcher_args)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
+
+    # Kit-based backends apply the Python logging level inside AppLauncher; kitless backends
+    # never construct it, so honor --verbose / --info here to keep behavior consistent.
+    if not needs_kit:
+        apply_python_logging_level(resolve_python_logging_level(launcher_args))
 
     if needs_kit and config_scan.has_kit_camera and launcher_args is not None:
         if not _get_arg(launcher_args, "enable_cameras", False):

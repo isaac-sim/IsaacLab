@@ -886,6 +886,8 @@ def rendering_test_cartpole(
     )
 
     env_cfg.scene.num_envs = 4
+    if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
+        env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)

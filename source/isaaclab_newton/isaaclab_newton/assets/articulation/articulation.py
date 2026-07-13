@@ -3745,6 +3745,7 @@ class Articulation(BaseArticulation):
                     num_envs=self.num_instances,
                     num_joints=self.num_joints,
                     dof_offset=arti_start,
+                    env_stride=adapter.num_joints,
                     device=self.device,
                 )
             else:

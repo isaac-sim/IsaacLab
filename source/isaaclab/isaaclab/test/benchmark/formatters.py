@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from isaaclab.test.benchmark.measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
 if TYPE_CHECKING:
-    from isaaclab.test.benchmark.schema import RuntimeBundle, StartupBundle, TrainingBundle
+    from isaaclab.test.benchmark.schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
 
@@ -661,7 +661,7 @@ class SchemaBundleFile(MetricsFormatterInterface):
         self,
         output_path: str,
         output_filename: str,
-        bundle: "RuntimeBundle | TrainingBundle | StartupBundle | None" = None,
+        bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle | None" = None,
         **kwargs,
     ) -> None:
         """Write the attached bundle to a schema-v1 JSON file.

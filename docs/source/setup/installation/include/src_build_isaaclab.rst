@@ -9,7 +9,7 @@ Installation
       sudo apt install cmake build-essential
 
    On **aarch64** systems (e.g., DGX Spark), Python, OpenGL and X11 development packages are also required.
-   The ``imgui-bundle`` and ``quadprog`` dependencies do not provide pre-built wheels for aarch64 and must be
+   Some Python packages, notably ``imgui-bundle``, do not provide pre-built wheels for aarch64 and must be
    compiled from source, which needs these headers and libraries:
 
    .. code:: bash

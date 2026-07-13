@@ -29,7 +29,7 @@ Here we have explicitly removed the bias from one of the sensors, and we can see
 
 Notice that the right front foot explicitly has a bias of (0,0,0).  In the visualization, you should see that the arrow indicating the acceleration from the right IMU rapidly changes over time, while the arrow visualizing the left IMU points constantly along the vertical axis.
 
-Retrieving values form the sensor is done in the usual way
+Retrieving values from the sensor is done in the usual way
 
 .. code-block:: python
 
@@ -56,7 +56,7 @@ Retrieving values form the sensor is done in the usual way
       print("Received linear acceleration: ", scene["imu_RF"].data.lin_acc_b)
       print("Received angular acceleration: ", scene["imu_RF"].data.ang_acc_b)
 
-The oscillations in the values reported by the sensor are a direct result of of how the sensor calculates the acceleration, which is through a finite difference approximation between adjacent ground truth velocity values as reported by the sim.  We can see this in the reported result (pay attention to the **linear acceleration**) because the acceleration from the right foot is small, but explicitly zero.
+The oscillations in the values reported by the sensor are a direct result of how the sensor calculates the acceleration, which is through a finite difference approximation between adjacent ground truth velocity values as reported by the sim.  We can see this in the reported result (pay attention to the **linear acceleration**) because the acceleration from the right foot is small, but explicitly zero.
 
 .. code-block:: bash
 
