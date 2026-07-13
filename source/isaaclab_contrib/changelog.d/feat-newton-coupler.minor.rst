@@ -20,7 +20,7 @@ Added
 ^^^^^
 
 * Added :mod:`isaaclab_contrib.coupling`, exposing
-  :class:`~isaaclab_contrib.coupling.coupler.NewtonCoupler`
+  :class:`~isaaclab_contrib.coupling.coupler.NewtonCouplerManager`
   together with the
   :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerCfg`
   base config and two algorithm-specific subclasses:

@@ -143,7 +143,7 @@ class CouplerCfg(NewtonModelSolverCfg):
     concrete subclass to configure the coupling interfaces.
     """
 
-    class_type: type[NewtonManager] | str = "{DIR}.coupler:NewtonCoupler"
+    class_type: type[NewtonManager] | str = "{DIR}.coupler:NewtonCouplerManager"
     """Coupler implementation class."""
 
     entries: list[CouplerEntryCfg] = field(default_factory=list)

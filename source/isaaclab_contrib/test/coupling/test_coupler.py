@@ -37,7 +37,7 @@ from isaaclab_contrib.coupling import (
     CouplerEntryCfg,
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
-    NewtonCoupler,
+    NewtonCouplerManager,
     coupler,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import VBDSolverCfg
@@ -58,7 +58,7 @@ class _FakeArray:
 
 def test_public_coupler_config_resolves_renamed_class():
     """The package-level config points at the renamed coupler implementation."""
-    assert CouplerCfg().class_type.__name__ == "NewtonCoupler"
+    assert CouplerCfg().class_type.__name__ == "NewtonCouplerManager"
 
 
 @dataclass
@@ -117,9 +117,9 @@ def _entry(
     *,
     bodies: list[int] | None = None,
     particles: list[int] | None = None,
-) -> NewtonCoupler._ResolvedEntry:
+) -> NewtonCouplerManager._ResolvedEntry:
     """Build an already-resolved entry for validation tests."""
-    return NewtonCoupler._ResolvedEntry(
+    return NewtonCouplerManager._ResolvedEntry(
         config=CouplerEntryCfg(name=name, solver_cfg=XPBDSolverCfg()),
         bodies=list(bodies or []),
         particles=list(particles or []),
@@ -132,8 +132,8 @@ def _valid_proxy_setup(
     *, proxy: CouplerProxyMappingCfg | None = None
 ) -> tuple[
     CouplerProxyCfg,
-    list[NewtonCoupler._ResolvedEntry],
-    list[NewtonCoupler._ResolvedProxy],
+    list[NewtonCouplerManager._ResolvedEntry],
+    list[NewtonCouplerManager._ResolvedProxy],
 ]:
     """Build a complete two-entry proxy configuration."""
     entries = [
@@ -148,7 +148,7 @@ def _valid_proxy_setup(
         ),
         entries,
         [
-            NewtonCoupler._ResolvedProxy(
+            NewtonCouplerManager._ResolvedProxy(
                 config=proxy_cfg,
                 bodies=[int(body) for body in proxy_cfg.bodies],
                 particles=list(proxy_cfg.particles),
@@ -162,13 +162,13 @@ def test_scene_entity_and_string_selectors_resolve_full_body_labels():
     model = _FakeModel()
     scene_cfg = _FakeSceneCfg()
 
-    assert NewtonCoupler._resolve_entities_to_body_ids(
+    assert NewtonCouplerManager._resolve_entities_to_body_ids(
         model,
         [SceneEntityCfg("robot", body_names=["hand"])],
         scene_cfg,
         "entry 'rigid'",
     ) == [1]
-    assert NewtonCoupler._resolve_entities_to_body_ids(
+    assert NewtonCouplerManager._resolve_entities_to_body_ids(
         model,
         ["/World/envs/env_.*/Object/body"],
         None,
@@ -178,7 +178,7 @@ def test_scene_entity_and_string_selectors_resolve_full_body_labels():
 
 def test_scene_entity_selector_reports_unmatched_body_pattern():
     with pytest.raises(ValueError, match="could not match body patterns"):
-        NewtonCoupler._resolve_entities_to_body_ids(
+        NewtonCouplerManager._resolve_entities_to_body_ids(
             _FakeModel(),
             [SceneEntityCfg("robot", body_names=["missing"])],
             _FakeSceneCfg(),
@@ -188,7 +188,7 @@ def test_scene_entity_selector_reports_unmatched_body_pattern():
 
 def test_raw_body_label_selector_reports_no_matches():
     with pytest.raises(ValueError, match="matched no Newton bodies"):
-        NewtonCoupler._resolve_entities_to_body_ids(
+        NewtonCouplerManager._resolve_entities_to_body_ids(
             _FakeModel(),
             ["/World/envs/env_.*/Missing"],
             None,
@@ -219,7 +219,7 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
         ),
     ]
 
-    resolved = [NewtonCoupler._resolve_entry(model, entry, scene_cfg) for entry in entries]
+    resolved = [NewtonCouplerManager._resolve_entry(model, entry, scene_cfg) for entry in entries]
 
     assert resolved[0].bodies == [0, 1]
     assert resolved[0].joints == [0]
@@ -254,7 +254,7 @@ def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
         ),
     ]
 
-    resolved = [NewtonCoupler._resolve_entry(model, entry, _FakeSceneCfg()) for entry in entries]
+    resolved = [NewtonCouplerManager._resolve_entry(model, entry, _FakeSceneCfg()) for entry in entries]
 
     assert resolved[0].joints == [0]
     assert resolved[1].joints == []
@@ -266,11 +266,11 @@ def test_proxy_validation_rejects_cross_entry_joint():
     cfg, entries, proxies = _valid_proxy_setup()
 
     with pytest.raises(ValueError, match="does not support cross-entry joint"):
-        NewtonCoupler._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
+        NewtonCouplerManager._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
 
 
 def test_shape_label_patterns_and_static_shape_selection_are_additive():
-    entry = NewtonCoupler._resolve_entry(
+    entry = NewtonCouplerManager._resolve_entry(
         _FakeModel(),
         CouplerEntryCfg(
             name="special",
@@ -291,7 +291,7 @@ def test_proxy_resolution_keeps_only_collidable_selected_bodies():
     model.shape_flags = _FakeArray(
         np.asarray([int(ShapeFlags.COLLIDE_SHAPES), 0, int(ShapeFlags.COLLIDE_SHAPES), 0], dtype=np.int32)
     )
-    proxy = NewtonCoupler._resolve_proxy(
+    proxy = NewtonCouplerManager._resolve_proxy(
         model,
         CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[SceneEntityCfg("robot")]),
         _FakeSceneCfg(),
@@ -340,8 +340,8 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
         lambda model_view, *, broad_phase: (model_view, broad_phase),
     )
 
-    proxies = [NewtonCoupler._resolve_proxy(model, proxy, _FakeSceneCfg()) for proxy in cfg.proxies]
-    solver = NewtonCoupler._build_proxy_coupled_solver(model, [], proxies, cfg)
+    proxies = [NewtonCouplerManager._resolve_proxy(model, proxy, _FakeSceneCfg()) for proxy in cfg.proxies]
+    solver = NewtonCouplerManager._build_proxy_coupled_solver(model, [], proxies, cfg)
 
     assert solver.coupling.iterations == 3
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
@@ -361,8 +361,8 @@ def test_proxy_shape_overrides_apply_only_to_selected_body_shapes():
         shape_gap=0.002,
     )
 
-    resolved_proxy = NewtonCoupler._ResolvedProxy(config=proxy, bodies=[1], particles=[])
-    NewtonCoupler._apply_proxy_shape_overrides(model, [resolved_proxy])
+    resolved_proxy = NewtonCouplerManager._ResolvedProxy(config=proxy, bodies=[1], particles=[])
+    NewtonCouplerManager._apply_proxy_shape_overrides(model, [resolved_proxy])
 
     np.testing.assert_allclose(model.shape_material_ke.data, [1.0, 10.0, 1.0, 1.0])
     np.testing.assert_allclose(model.shape_material_kd.data, [2.0, 20.0, 2.0, 2.0])
@@ -379,7 +379,7 @@ def test_entry_build_uses_solver_config_class_type():
 
     solver_cfg = XPBDSolverCfg()
     solver_cfg.class_type = _RecordingManager
-    entry = NewtonCoupler._ResolvedEntry(
+    entry = NewtonCouplerManager._ResolvedEntry(
         config=CouplerEntryCfg(
             name="entry",
             solver_cfg=solver_cfg,
@@ -390,7 +390,7 @@ def test_entry_build_uses_solver_config_class_type():
         shapes=[],
     )
 
-    solver_entry = NewtonCoupler._build_entry(entry)
+    solver_entry = NewtonCouplerManager._build_entry(entry)
     solver = solver_entry.solver("entry-view")
 
     assert solver.model == "entry-view"
@@ -422,7 +422,7 @@ def test_mpm_entry_forwards_config_and_execution_policy():
 
     solver_cfg = MPMSolverCfg(grid_type="fixed", max_active_cell_count=256)
     solver_cfg.class_type = _RecordingMpmManager
-    entry = NewtonCoupler._ResolvedEntry(
+    entry = NewtonCouplerManager._ResolvedEntry(
         config=CouplerEntryCfg(
             name="media",
             solver_cfg=solver_cfg,
@@ -435,7 +435,7 @@ def test_mpm_entry_forwards_config_and_execution_policy():
         shapes=[],
     )
 
-    solver_entry = NewtonCoupler._build_entry(entry)
+    solver_entry = NewtonCouplerManager._build_entry(entry)
     solver = solver_entry.solver("media-view")
 
     assert solver.model == "media-view"
@@ -464,8 +464,8 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
         classmethod(lambda cls, value: events.append(("finalize", value))),
     )
 
-    NewtonCoupler._register_builder_attributes(builder)
-    NewtonCoupler._prepare_builder_for_finalize(builder)
+    NewtonCouplerManager._register_builder_attributes(builder)
+    NewtonCouplerManager._prepare_builder_for_finalize(builder)
 
     assert events == [("register", builder), ("finalize", builder)]
 
@@ -483,7 +483,7 @@ def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
     monkeypatch.setattr(coupler.NewtonManager, "_solver", solver)
     monkeypatch.setattr(coupler.NewtonManager, "_contacts", contacts)
 
-    NewtonCoupler._initialize_contacts()
+    NewtonCouplerManager._initialize_contacts()
 
     assert events == [("initialize", None), ("prepare", contacts)]
 
@@ -497,7 +497,7 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     recorded_scene_cfgs: list[object] = []
 
     monkeypatch.setattr(
-        NewtonCoupler,
+        NewtonCouplerManager,
         "_resolve_entry",
         classmethod(
             lambda cls, model, entry_cfg, scene_cfg: recorded_scene_cfgs.append(scene_cfg)
@@ -505,7 +505,7 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        NewtonCoupler,
+        NewtonCouplerManager,
         "_resolve_proxy",
         classmethod(
             lambda cls, model, proxy_cfg, scene_cfg: next(
@@ -516,17 +516,17 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        NewtonCoupler,
+        NewtonCouplerManager,
         "_build_entry",
         classmethod(lambda cls, entry: recorded_entries.append(entry.config.name) or entry.config.name),
     )
     monkeypatch.setattr(
-        NewtonCoupler,
+        NewtonCouplerManager,
         "_build_proxy_coupled_solver",
         classmethod(lambda cls, model, entries, proxies, cfg: SimpleNamespace(kind="proxy")),
     )
     monkeypatch.setattr(
-        NewtonCoupler,
+        NewtonCouplerManager,
         "_build_admm_coupled_solver",
         classmethod(lambda cls, model, entries, cfg: SimpleNamespace(kind="admm")),
     )
@@ -537,7 +537,7 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
     old_needs_fk = coupler.NewtonManager._needs_fk_before_step
     try:
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg()
-        NewtonCoupler._build_solver(model, proxy_cfg)
+        NewtonCouplerManager._build_solver(model, proxy_cfg)
         assert coupler.NewtonManager._needs_collision_pipeline is False
         assert coupler.NewtonManager._needs_fk_before_step is False
         assert coupler.NewtonManager._supports_contact_sensors is False
@@ -545,22 +545,22 @@ def test_algorithms_select_expected_outer_collision_pipeline(monkeypatch):
         assert all(sc is proxy_cfg.scene_cfg for sc in recorded_scene_cfgs)
 
         resolved_entries[0].config.solver_cfg.use_mujoco_contacts = False
-        NewtonCoupler._build_solver(model, proxy_cfg)
+        NewtonCouplerManager._build_solver(model, proxy_cfg)
         assert coupler.NewtonManager._needs_collision_pipeline is True
 
         resolved_entries[0].config.solver_cfg = MPMSolverCfg()
-        NewtonCoupler._build_solver(model, proxy_cfg)
+        NewtonCouplerManager._build_solver(model, proxy_cfg)
         assert coupler.NewtonManager._needs_fk_before_step is True
 
         recorded_entries.clear()
         admm_cfg = CouplerAdmmCfg(entries=proxy_cfg.entries)
-        NewtonCoupler._build_solver(model, admm_cfg)
+        NewtonCouplerManager._build_solver(model, admm_cfg)
         assert coupler.NewtonManager._needs_collision_pipeline is True
         assert recorded_entries == ["rigid", "soft"]
 
         coupler.NewtonManager._report_contacts = True
         with pytest.raises(NotImplementedError, match="contact sensors"):
-            NewtonCoupler._build_solver(model, proxy_cfg)
+            NewtonCouplerManager._build_solver(model, proxy_cfg)
     finally:
         coupler.NewtonManager._solver = old_solver
         coupler.NewtonManager._needs_collision_pipeline = old_outer
@@ -609,7 +609,7 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     )
     monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
 
-    solver = NewtonCoupler._build_admm_coupled_solver(model, [], cfg)
+    solver = NewtonCouplerManager._build_admm_coupled_solver(model, [], cfg)
 
     assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
         ("robot", "object"),
@@ -636,7 +636,7 @@ def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch)
     cfg = CouplerAdmmCfg(entries=[entry.config for entry in resolved_entries])
     monkeypatch.setattr(coupler, "SolverCoupledADMM", _RecordingAdmm)
 
-    solver = NewtonCoupler._build_admm_coupled_solver(model, entries, cfg)
+    solver = NewtonCouplerManager._build_admm_coupled_solver(model, entries, cfg)
 
     assert [(pair.source, pair.destination) for pair in solver.coupling.contact_pairs] == [
         ("a", "b"),
@@ -645,5 +645,5 @@ def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch)
     ]
 
     cfg.contact_pairs = []
-    solver = NewtonCoupler._build_admm_coupled_solver(model, entries, cfg)
+    solver = NewtonCouplerManager._build_admm_coupled_solver(model, entries, cfg)
     assert list(solver.coupling.contact_pairs) == []

@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from isaaclab.scene import InteractiveSceneCfg
 
 
-class NewtonCoupler(NewtonVBDManager):
+class NewtonCouplerManager(NewtonVBDManager):
     """Couple named Newton solver entries through proxy or ADMM interfaces."""
 
     @dataclass
