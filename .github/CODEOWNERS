@@ -176,7 +176,7 @@
 /docs/source/tutorials/01_assets/run_deformable_object.rst @mmichelis @AntoineRichard
 /docs/source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp.rst @frlai @StafaH @AntoineRichard
 /docs/source/overview/core-concepts/physical-backends/newton/kamino-solver.rst @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
-/docs/source/overview/core-concepts/physical-backends/solver-comparison.rst @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/docs/source/overview/core-concepts/physical-backends/solver-comparison.rst @AntoineRichard @StafaH
 /docs/source/overview/imitation-learning/humanoids_imitation.rst @jaybdub @kellyguo11
 /docs/source/policy_deployment/03_compass_with_NuRec/ @sameerchavan0027
 /docs/source/policy_deployment/05_leapp/ @frlai
