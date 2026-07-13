@@ -1881,8 +1881,9 @@ class reset_root_state_uniform(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
         # get default root state
-        default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
-        default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
+        # tensor indexing already returns a copy, and the values are only read below
+        default_root_pose = asset.data.default_root_pose.torch[env_ids]
+        default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
         # poses
         ranges = self._pose_ranges
