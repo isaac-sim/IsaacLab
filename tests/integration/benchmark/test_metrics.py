@@ -21,6 +21,8 @@ from isaaclab.test.benchmark.metrics import (
 )
 from isaaclab.test.benchmark.schema import MeanStd
 
+pytestmark = pytest.mark.benchmark
+
 
 @pytest.mark.parametrize(
     ("framework", "tfevents_pattern", "reward_tag", "ep_length_tag"),

@@ -6,9 +6,12 @@
 """Tests for the runtime stepping helpers."""
 
 import numpy as np
+import pytest
 import torch
 
 from isaaclab.test.benchmark.stepping import run_runtime_loop, sample_random_actions
+
+pytestmark = pytest.mark.benchmark
 
 
 class _Space:

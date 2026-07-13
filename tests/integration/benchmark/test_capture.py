@@ -28,6 +28,8 @@ from isaaclab.test.benchmark.measurements import (
 )
 from isaaclab.test.benchmark.schema import Hardware, Resources, Versions
 
+pytestmark = pytest.mark.benchmark
+
 
 class _Rec:
     def __init__(self, data):

@@ -8,7 +8,11 @@
 import cProfile
 import os
 
+import pytest
+
 from isaaclab.test.benchmark.profiling import parse_cprofile_stats
+
+pytestmark = pytest.mark.benchmark
 
 
 def _profiled():

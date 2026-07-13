@@ -26,6 +26,8 @@ from isaaclab.test.benchmark.schema import (
     Versions,
 )
 
+pytestmark = pytest.mark.benchmark
+
 
 def _minimal_runtime_bundle() -> RuntimeBundle:
     return RuntimeBundle(
