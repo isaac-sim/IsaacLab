@@ -278,14 +278,14 @@ class NewtonCouplerManager(NewtonVBDManager):
         cls,
         model: Model,
         entries: list[SolverCoupled.Entry],
-        proxies: list[CouplerProxyMappingCfg],
+        proxy_cfgs: list[CouplerProxyMappingCfg],
         solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
-        proxy_mappings = [SolverCoupledProxy.Proxy(**vars(proxy)) for proxy in proxies]
+        proxies = [SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs]
         return SolverCoupledProxy(
             model=model,
             entries=entries,
-            coupling=SolverCoupledProxy.Config(proxies=proxy_mappings, iterations=solver_cfg.iterations),
+            coupling=SolverCoupledProxy.Config(proxies=proxies, iterations=solver_cfg.iterations),
         )
 
     @classmethod
