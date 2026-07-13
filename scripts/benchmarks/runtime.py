@@ -49,11 +49,11 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         help="Number of environment steps to run after reset and exclude from runtime metrics.",
     )
     parser.add_argument(
-        "--measure_simulation_step_time",
-        dest="measure_simulation_step_time",
+        "--measure_isaaclab_overhead",
+        dest="measure_isaaclab_overhead",
         action="store_true",
         default=False,
-        help="Measure synchronized wall time inside SimulationContext.step during measured frames when enabled.",
+        help="Measure synchronized simulation time and Isaac Lab overhead.",
     )
     parser.add_argument("--seed", type=int, default=None, help="Environment seed.")
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
@@ -141,7 +141,7 @@ def run(argv: list[str]) -> None:
                     {"name": "num_envs", "data": args.num_envs},
                     {"name": "num_frames", "data": args.num_frames},
                     {"name": "warmup_frames", "data": args.warmup_frames},
-                    {"name": "measure_simulation_step_time", "data": args.measure_simulation_step_time},
+                    {"name": "measure_isaaclab_overhead", "data": args.measure_isaaclab_overhead},
                     {"name": "presets", "data": ",".join(cfg.presets)},
                 ]
             },
@@ -155,7 +155,7 @@ def run(argv: list[str]) -> None:
 
             warmup_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames)
             environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-                env, measure_simulation_step_time=args.measure_simulation_step_time
+                env, measure_isaaclab_overhead=args.measure_isaaclab_overhead
             )
             with BenchmarkMonitor(benchmark, interval=1.0):
                 timer_context = environment_step_timer

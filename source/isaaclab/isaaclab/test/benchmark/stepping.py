@@ -70,28 +70,28 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
 
     Args:
         env: Environment interface whose ``step`` method is called by the workload.
-        measure_simulation_step_time: Whether to add synchronized simulation-step timing.
+        measure_isaaclab_overhead: Whether to add synchronized simulation-step timing.
     """
 
-    def __init__(self, env, *, measure_simulation_step_time: bool = False):
+    def __init__(self, env, *, measure_isaaclab_overhead: bool = False):
         self._env = env
-        self._measure_simulation_step_time = measure_simulation_step_time
-        self._simulation_context = env.unwrapped.sim if measure_simulation_step_time else None
+        self._measure_isaaclab_overhead = measure_isaaclab_overhead
+        self._simulation_context = env.unwrapped.sim if measure_isaaclab_overhead else None
         self._had_env_instance_step = "step" in vars(env)
         self._env_instance_step = vars(env).get("step")
-        self._had_sim_instance_step = measure_simulation_step_time and "step" in vars(self._simulation_context)
-        self._sim_instance_step = vars(self._simulation_context).get("step") if measure_simulation_step_time else None
+        self._had_sim_instance_step = measure_isaaclab_overhead and "step" in vars(self._simulation_context)
+        self._sim_instance_step = vars(self._simulation_context).get("step") if measure_isaaclab_overhead else None
         self._original_env_step = None
         self._original_sim_step = None
         self._simulation_total_time_s = 0.0
         self._simulation_step_calls = 0
         self.step_times_s: list[float] = []
-        self.simulation_step_times_s: list[float] | None = [] if measure_simulation_step_time else None
+        self.simulation_step_times_s: list[float] | None = [] if measure_isaaclab_overhead else None
 
     @property
     def simulation_step_calls(self) -> int | None:
         """Number of measured simulation-step calls."""
-        return self._simulation_step_calls if self._measure_simulation_step_time else None
+        return self._simulation_step_calls if self._measure_isaaclab_overhead else None
 
     def __enter__(self) -> EnvironmentStepTimingRecorder:
         """Install the recording wrappers and reset measurements."""
@@ -101,7 +101,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
         self.step_times_s.clear()
         self._original_env_step = self._env.step
 
-        if self._measure_simulation_step_time:
+        if self._measure_isaaclab_overhead:
             from isaaclab.utils.timer import Timer  # noqa: PLC0415
 
             assert self.simulation_step_times_s is not None

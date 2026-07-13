@@ -94,7 +94,7 @@ def test_environment_step_timer_measures_env_step_without_simulation_timing():
 def test_environment_step_timer_measures_only_step_calls():
     env = _Env()
 
-    with EnvironmentStepTimingRecorder(env, measure_simulation_step_time=True) as timer:
+    with EnvironmentStepTimingRecorder(env, measure_isaaclab_overhead=True) as timer:
         run_runtime_loop(env, num_frames=3, reset=False)
 
     assert len(timer.step_times_s) == 3

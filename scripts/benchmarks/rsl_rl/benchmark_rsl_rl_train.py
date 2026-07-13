@@ -61,7 +61,7 @@ def _parse_args(argv: list[str]):
 
     parser.add_argument("--output_path", type=str, default=".", help="Directory to write the output JSON.")
     parser.add_argument(
-        "--measure_simulation_step_time",
+        "--measure_isaaclab_overhead",
         action="store_true",
         help="Measure synchronized simulation time and Isaac Lab overhead.",
     )
@@ -224,7 +224,7 @@ def run(argv: list[str]) -> None:
         )
 
         environment_step_timer = stepping.EnvironmentStepTimingRecorder(
-            env, measure_simulation_step_time=args_cli.measure_simulation_step_time
+            env, measure_isaaclab_overhead=args_cli.measure_isaaclab_overhead
         )
         with early, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
