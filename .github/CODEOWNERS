@@ -120,21 +120,16 @@
 /source/isaaclab_tasks/ @AntoineRichard @ooctipus @StafaH @kellyguo11 @hujc
 /source/isaaclab_tasks/isaaclab_tasks/core/ @StafaH @AntoineRichard @ooctipus @hujc @kellyguo11 @Mayankm96 @ClemensSchwarke @pascal-roth
 /source/isaaclab_tasks/isaaclab_tasks/core/fourbar_pole/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @StafaH
-/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ @AntoineRichard @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/core/direct_locomotion/ @AntoineRichard @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/core/direct_ant/ @AntoineRichard @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/core/direct_humanoid/ @AntoineRichard @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/core/manager_ant/ @AntoineRichard @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/core/manager_humanoid/ @AntoineRichard @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/core/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @ooctipus
+/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/core/locomotion/humanoid/ @AntoineRichard @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/core/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @ooctipus @AntoineRichard
 /source/isaaclab_tasks/isaaclab_tasks/contrib/ @StafaH @ooctipus @AntoineRichard @kellyguo11 @hujc
 /source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 /source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/ @Mayankm96 @pascal-roth @ClemensSchwarke
-/source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @StafaH @ooctipus
-/source/isaaclab_tasks/isaaclab_tasks/direct/ @AntoineRichard @hujc @StafaH @ooctipus @kellyguo11
-/source/isaaclab_tasks/isaaclab_tasks/manager_based/ @AntoineRichard @hujc @StafaH @ooctipus @kellyguo11
+/source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @StafaH @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/utils/ @AntoineRichard @StafaH @ooctipus @pbarejko
 /source/isaaclab_tasks_experimental/ @StafaH @AntoineRichard @ooctipus @hujc
 
