@@ -697,6 +697,53 @@ def test_dir_resolution_uses_declaring_class_for_inherited_field():
     assert str(cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
 
 
+def test_dir_resolution_cache_updates_when_module_changes():
+    """{DIR} cache should follow module changes on the declaring class."""
+
+    @configclass
+    class _BaseCfg:
+        class_type: type | str = "{DIR}.base_mod:BaseSymbol"
+
+    @configclass
+    class _ChildCfg(_BaseCfg):
+        pass
+
+    _BaseCfg.__module__ = "test_pkg.parent.base_cfg"
+    cfg = _ChildCfg()
+
+    assert str(cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
+
+    _BaseCfg.__module__ = "updated_pkg.parent.base_cfg"
+    cfg = _ChildCfg()
+
+    assert str(cfg.class_type) == "updated_pkg.parent.base_mod:BaseSymbol"
+
+
+def test_post_init_added_mutable_attribute_is_copied():
+    """Mutable attributes added by user post-init should remain instance-owned."""
+    shared_values = ["shared"]
+
+    @configclass
+    class _PostInitMutableCfg:
+        value: int = 0
+
+        def __post_init__(self):
+            self.extra_values = shared_values
+
+    cfg_a = _PostInitMutableCfg()
+    cfg_b = _PostInitMutableCfg()
+
+    assert cfg_a.extra_values == ["shared"]
+    assert cfg_b.extra_values == ["shared"]
+    assert cfg_a.extra_values is not shared_values
+    assert cfg_b.extra_values is not shared_values
+    assert cfg_a.extra_values is not cfg_b.extra_values
+
+    cfg_a.extra_values.append("a")
+
+    assert cfg_b.extra_values == ["shared"]
+
+
 def test_config_update_different_iterable_lengths():
     """Iterables are whole replaced, even if their lengths are different."""
 

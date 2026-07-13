@@ -23,6 +23,15 @@ _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[
 _CONFIGCLASS_METHODS = ["to_dict", "from_dict", "replace", "copy", "validate"]
 """List of class methods added at runtime to dataclass."""
 
+_CONFIGCLASS_FIELD_MODULE_DIR_CACHE = "__configclass_field_module_dir_cache__"
+"""Name of the per-class cache storing field module directories."""
+
+_CACHE_MISS = object()
+"""Sentinel value used for cache lookups."""
+
+_IMMUTABLE_VALUE_TYPES = (str, int, float, bool, bytes, type(None))
+"""Exact immutable value types that do not need :func:`deepcopy`."""
+
 """
 Wrapper around dataclass.
 """
@@ -188,37 +197,59 @@ def _copy_class(obj: object) -> object:
 def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
     """Return module parent package path for an object or one of its declared fields."""
     cls = type(obj)
-    if key is not None:
-        # Use nearest declaration in MRO (subclass override wins).
-        # We prefer __configclass_own_fields__ (the snapshot taken before
-        # _process_mutable_types copies parent fields into every subclass's
-        # __dict__) so that {DIR} resolves relative to the class that
-        # *originally* declared the field, not the subclass that inherited it.
-        for mro_cls in cls.__mro__:
-            if mro_cls is object:
-                continue
-            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
-            if own_fields is not None:
-                if key in own_fields:
-                    cls = mro_cls
-                    break
-            elif key in mro_cls.__dict__:
-                cls = mro_cls
+    if key is None:
+        return _module_dir(cls)
+
+    cache = getattr(cls, _CONFIGCLASS_FIELD_MODULE_DIR_CACHE, None)
+    if cache is None:
+        cache = {}
+        setattr(cls, _CONFIGCLASS_FIELD_MODULE_DIR_CACHE, cache)
+
+    cached_value = cache.get(key, _CACHE_MISS)
+    if cached_value is not _CACHE_MISS:
+        declaring_cls, module_name, module_dir = cached_value
+        if getattr(declaring_cls, "__module__", "") == module_name:
+            return module_dir
+
+    # Use nearest declaration in MRO (subclass override wins).  We prefer
+    # __configclass_own_fields__ (the snapshot taken before
+    # _process_mutable_types copies parent fields into every subclass's
+    # __dict__) so that {DIR} resolves relative to the class that originally
+    # declared the field, not the subclass that inherited it.
+    declaring_cls = cls
+    for mro_cls in cls.__mro__:
+        if mro_cls is object:
+            continue
+        own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+        if own_fields is not None:
+            if key in own_fields:
+                declaring_cls = mro_cls
                 break
-    module_name = getattr(cls, "__module__", "")
-    return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
+        elif key in mro_cls.__dict__:
+            declaring_cls = mro_cls
+            break
+
+    module_dir = _module_dir(declaring_cls)
+    cache[key] = (declaring_cls, getattr(declaring_cls, "__module__", ""), module_dir)
+    return module_dir
 
 
 def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: set[int] | None = None) -> Any:
     """Recursively wrap callable-like strings with :class:`ResolvableString`."""
-    if isinstance(value, str) and (_CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value)):
-        if "{DIR}" in value:
-            if module_dir is None:
-                raise ValueError(f"Cannot resolve '{{DIR}}' in '{value}' because no module context is available.")
-            value = value.replace("{DIR}", module_dir)
-        return ResolvableString(value)
-    is_dataclass_instance = hasattr(value, "__dataclass_fields__") and hasattr(value, "__dict__")
+    if isinstance(value, ResolvableString):
+        return value
+    if isinstance(value, str):
+        if _CALLABLE_STR_RE.match(value) or _CALLABLE_STR_WITH_DIR_RE.match(value):
+            if "{DIR}" in value:
+                if module_dir is None:
+                    raise ValueError(f"Cannot resolve '{{DIR}}' in '{value}' because no module context is available.")
+                value = value.replace("{DIR}", module_dir)
+            return ResolvableString(value)
+        return value
     is_container = isinstance(value, (list, tuple, dict))
+    is_dataclass_instance = hasattr(value, "__dict__") and hasattr(value, "__dataclass_fields__")
+    if not is_container and not is_dataclass_instance:
+        return value
     if is_dataclass_instance or is_container:
         if _seen is None:
             _seen = set()
@@ -492,17 +523,20 @@ def _custom_post_init(obj):
     proxy type i.e. a read only proxy for mapping objects. The error is thrown when using hierarchical data-classes
     for configuration.
     """
-    for key in dir(obj):
+    try:
+        items = tuple(obj.__dict__.items())
+    except AttributeError:
+        items = tuple((field.name, getattr(obj, field.name)) for field in dataclasses.fields(obj))
+
+    for key, value in items:
         # skip dunder members
         if key.startswith("__"):
             continue
-        # get data member
-        value = getattr(obj, key)
         # check annotation
         ann = obj.__class__.__dict__.get(key)
         # duplicate data members that are mutable
         if not callable(value) and not isinstance(ann, property):
-            copied_value = deepcopy(value)
+            copied_value = _copy_config_value(value)
             setattr(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
 
 
@@ -581,6 +615,19 @@ def _skippable_class_member(key: str, value: Any, hints: dict | None = None) -> 
     return False
 
 
+def _module_dir(cls: type) -> str | None:
+    """Return the parent module path for a class."""
+    module_name = getattr(cls, "__module__", "")
+    return module_name.rsplit(".", 1)[0] if "." in module_name else (module_name or None)
+
+
+def _copy_config_value(value: Any) -> Any:
+    """Copy a config value while preserving immutable scalar identities."""
+    if type(value) in _IMMUTABLE_VALUE_TYPES:
+        return value
+    return deepcopy(value)
+
+
 def _return_f(f: Any) -> Callable[[], Any]:
     """Returns default factory function for creating mutable/immutable variables.
 
@@ -597,11 +644,11 @@ def _return_f(f: Any) -> Callable[[], Any]:
     def _wrap():
         if isinstance(f, Field):
             if f.default_factory is MISSING:
-                return deepcopy(f.default)
+                return _copy_config_value(f.default)
             else:
                 return f.default_factory
         else:
-            return deepcopy(f)
+            return _copy_config_value(f)
 
     return _wrap
 
