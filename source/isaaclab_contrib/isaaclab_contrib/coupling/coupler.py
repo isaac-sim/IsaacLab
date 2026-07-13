@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import (
@@ -268,11 +268,6 @@ class NewtonCouplerManager(NewtonVBDManager):
             in_place=entry_cfg.in_place,
         )
 
-    @staticmethod
-    def _matching_config_values(target_type: type, config) -> dict:
-        """Return config values whose names match a target dataclass."""
-        return {field.name: getattr(config, field.name) for field in fields(target_type) if hasattr(config, field.name)}
-
     @classmethod
     def _build_proxy_coupled_solver(
         cls,
@@ -295,7 +290,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         entries: list[SolverCoupled.Entry],
         solver_cfg: CouplerAdmmCfg,
     ) -> SolverCoupledADMM:
-        values = cls._matching_config_values(SolverCoupledADMM.Config, solver_cfg)
+        values = cls._filter_solver_kwargs(SolverCoupledADMM.Config, solver_cfg)
         if solver_cfg.contact_pairs is None:
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:
