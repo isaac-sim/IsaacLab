@@ -52,7 +52,7 @@ the arguments to the :class:`~controllers.OperationalSpaceControllerCfg` should 
 in mind.
 
 For the motion control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
-``target_types: "pose_abs"``) or relative the the end-effector's current pose (i.e., ``target_types: "pose_rel"``).
+``target_types: "pose_abs"``) or relative to the end-effector's current pose (i.e., ``target_types: "pose_rel"``).
 For the force control, the task space targets could be given as absolute (i.e., defined w.r.t. the robot base,
 ``target_types: "force_abs"``). If it is desired to apply pose and force control simultaneously, the ``target_types``
 should be a list such as ``["pose_abs", "wrench_abs"]`` or ``["pose_rel", "wrench_abs"]``.

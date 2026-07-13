@@ -28,6 +28,7 @@ from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
 from .isaac_rtx_renderer_utils import (
+    apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
@@ -121,6 +122,8 @@ class IsaacRtxRenderer(BaseRenderer):
         self.cfg = cfg
         settings = get_settings_manager()
         apply_isaac_rtx_global_settings(self.cfg.global_settings, settings)
+        if settings.get("/isaaclab/render/deterministic", False):
+            apply_isaac_rtx_determinism_settings(settings)
         # RTX rendering requires the app to be launched with ``--enable_cameras``.
         if not settings.get("/isaaclab/cameras_enabled"):
             raise RuntimeError(
@@ -571,10 +574,17 @@ class IsaacRtxRenderer(BaseRenderer):
 
     def read_output(self, render_data: IsaacRtxRenderData, camera_data: CameraData) -> None:
         """Populate per-output metadata collected during render(). Pixel data already written in render().
+
+        This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
+        which is ``None`` when its annotator produced none (``renderer_info`` only ever holds a subset of
+        the outputs, so iterating ``camera_data.info`` both preserves its ``output``-mirroring key set and
+        resets any metadata that went away to ``None``). Without this, a stale mapping from a previous frame
+        would linger once an annotator stops emitting one.
+
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`."""
-        for output_name, info in render_data.renderer_info.items():
-            if info is not None:
-                camera_data.info[output_name] = info
+        assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+        for output_name in camera_data.info:
+            camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def cleanup(self, render_data: IsaacRtxRenderData | None):
         """Detach annotators from render product.

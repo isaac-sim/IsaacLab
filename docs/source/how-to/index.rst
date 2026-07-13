@@ -82,7 +82,7 @@ This guide demonstrates how to estimate the number of cameras one can run on the
 Configure Rendering
 -------------------
 
-This guide demonstrates how to select rendering mode presets and overwrite preset rendering settings.
+This guide demonstrates how to customize the RTX rendering settings.
 
 .. toctree::
     :maxdepth: 1

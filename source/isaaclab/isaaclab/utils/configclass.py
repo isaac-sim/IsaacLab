@@ -283,20 +283,25 @@ def _add_annotation_types(cls):
             continue
         # get base class annotations
         ann = base.__dict__.get("__annotations__", {})
-        # directly add all annotations from base class
-        hints.update(ann)
         # iterate over base class members
         # Note: Do not change this to dir(base) since it orders the members alphabetically.
         #   This is not desirable since the order of the members is important in some cases.
+        # Note: We add annotated members while iterating over the class members (instead of
+        #   bulk-adding all annotations beforehand) to preserve the declaration order when
+        #   only some members have type annotations. Otherwise, annotated members would jump
+        #   ahead of non-annotated ones in the resulting field order.
         for key in base.__dict__:
             # get class member
             value = getattr(base, key)
             # skip members
             if _skippable_class_member(key, value, hints):
                 continue
+            # add type annotations for members that have explicit type annotations
+            if key in ann:
+                hints[key] = ann[key]
             # add type annotations for members that don't have explicit type annotations
             # for these, we deduce the type from the default value
-            if not isinstance(value, type):
+            elif not isinstance(value, type):
                 if key not in hints:
                     # check if var type is not MISSING
                     # we cannot deduce type from MISSING!
@@ -312,6 +317,10 @@ def _add_annotation_types(cls):
                 #   the name of the type matches the name of the variable.
                 # since Python 3.10, type hints are stored as strings
                 hints[key] = f"type[{value.__name__}]"
+        # add remaining annotations that do not have a corresponding class member (e.g. annotation-only
+        # declarations) or whose member was skipped above. For keys already present in the hints,
+        # this only refreshes the type and keeps their original position.
+        hints.update(ann)
 
     # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
     #   `cls.__annotations__` because of inheritance.

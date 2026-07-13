@@ -135,7 +135,7 @@ class RunConfig:
         rendering_backend: Rendering backend, or ``"none"`` for headless runs
             with no camera sensors.
         presets: Active Hydra preset tokens applied to the run (e.g.
-            ``["rgb", "ovrtx_renderer"]``). Open-ended so sensor data types,
+            ``["rgb", "ovrtx"]``). Open-ended so sensor data types,
             resolutions, and any other domain presets are captured without a
             closed enum; ``physics_backend`` / ``rendering_backend`` surface the
             two primary grouping dimensions as typed fields.
@@ -304,6 +304,46 @@ class TrainingBundle:
     resources: Resources
     learning: Learning
     success_rate: float | None = None
+    checkpoint_path: str | None = None
+    video_path: str | None = None
+    extra: dict[str, float | int | str | bool] | None = None
+    schema_version: str = SCHEMA_VERSION
+
+
+@dataclass(frozen=True)
+class PlayBundle:
+    """Top-level shape of ``play.json`` — a checkpoint-driven inference rollout.
+
+    Mirrors :class:`RuntimeBundle` (with :attr:`RunIdentity.framework` set to the
+    RL library that produced the checkpoint) and adds the inference-evaluation
+    aggregates: a success rate plus scalar reward and episode-length statistics.
+    Unlike :class:`TrainingBundle`, :attr:`reward` and :attr:`ep_length` are
+    scalar :class:`MeanStd` aggregates over completed episodes, **not**
+    per-iteration learning curves.
+
+    Args:
+        success_rate: Mean success rate ``[0..1]`` over completed episodes, or
+            ``None`` when the task does not report one.
+        reward: Episode-return aggregate over completed episodes, or ``None``
+            when no episode completed.
+        ep_length: Episode-length aggregate over completed episodes, or ``None``
+            when no episode completed.
+        checkpoint_path: Path to the policy checkpoint that was rolled out.
+        video_path: Path to a recorded rollout video/gif, if any.
+        extra: Optional free-form scalar values (experimental or producer-specific)
+            that are **not** part of the stable schema contract. Consumers must
+            tolerate its absence and must not depend on specific keys; promote a key
+            to a typed field once it is stable and broadly useful.
+    """
+
+    run: RunIdentity
+    versions: Versions
+    hardware: Hardware
+    runtime: Runtime
+    resources: Resources
+    success_rate: float | None = None
+    reward: MeanStd | None = None
+    ep_length: MeanStd | None = None
     checkpoint_path: str | None = None
     video_path: str | None = None
     extra: dict[str, float | int | str | bool] | None = None
