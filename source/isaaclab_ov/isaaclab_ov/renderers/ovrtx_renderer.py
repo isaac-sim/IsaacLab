@@ -300,8 +300,8 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding = None
         self._object_newton_indices: wp.array | None = None
         self._deformable_points_binding = None
-        self._deformable_points_buffers: list[wp.array] = []
         self._deformable_particle_offsets: list[int] = []
+        self._deformable_particle_counts: list[int] = []
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
         self._camera_rel_path: str | None = None
@@ -608,8 +608,8 @@ class OVRTXRenderer(BaseRenderer):
                 f"deformable entries have a mismatched offset count:\n{details}"
             )
 
-        self._deformable_points_buffers = []
         self._deformable_particle_offsets = []
+        self._deformable_particle_counts = []
 
         vis_mesh_prim_paths: list[str] = []
 
@@ -628,11 +628,8 @@ class OVRTXRenderer(BaseRenderer):
         # of deriving env ids from ``enumerate(entry.particle_offsets)``.
         for entry in deformable_registry:
             for idx, particle_offset in enumerate(entry.particle_offsets):
-                self._deformable_points_buffers.append(
-                    wp.empty(entry.particles_per_body, dtype=wp.vec3f, device=self._device)
-                )
-
                 self._deformable_particle_offsets.append(particle_offset)
+                self._deformable_particle_counts.append(entry.particles_per_body)
 
                 vis_mesh_prim_paths.append(re.sub(r"(?<=[Ee]nv_)\.\*", str(idx), entry.vis_mesh_prim_path))
 
@@ -759,28 +756,29 @@ class OVRTXRenderer(BaseRenderer):
         if particle_q is None:
             raise RuntimeError("Newton state has no particle_q but deformable bindings exist")
 
-        for points_buffer, particle_offset in zip(
-            self._deformable_points_buffers,
-            self._deformable_particle_offsets,
-            strict=True,
-        ):
-            particle_count = points_buffer.shape[0]
-            particle_end = particle_offset + particle_count
-            wp.copy(points_buffer, particle_q[particle_offset:particle_end])
+        # OVRTX ``write()`` needs one DLPack tensor per mesh prim, not one flat
+        # ``particle_q`` plus offsets. Warp slices are zero-copy views with
+        # distinct base pointers, so this list satisfies that contract without
+        # staging buffers or ``wp.copy`` calls.
+        particle_slices = [
+            particle_q[particle_offset : particle_offset + particle_count]
+            for particle_offset, particle_count in zip(
+                self._deformable_particle_offsets,
+                self._deformable_particle_counts,
+                strict=True,
+            )
+        ]
 
-        # Array attribute bindings (``bind_array_attribute``) do not expose one mapped GPU
-        # tensor for all deformable ``points``. OVRTX expects a per-prim ``List[DLTensor]`` via
-        # ``write()``, so we stage copies here and hand them off asynchronously instead of
-        # using ``binding.map()`` like rigid-body transforms.
-        #
-        # ``DataAccess.ASYNC`` is zero-copy: OVRTX reads our staging buffers in place. The
-        # ``cuda_stream`` handle tells OVRTX which Warp stream the preceding ``wp.copy``
-        # calls were enqueued on, so it can wait for those copies on the GPU before reading
-        # the buffers. That bridges Warp and OVRTX execution without a host-side
-        # ``wp.synchronize_device()``.
+        # Array attributes cannot use ``binding.map()`` like rigid-body xforms, and
+        # ``DataAccess.ASYNC`` lets OVRTX read the slices in place (no copy on ingest).
+        # Because the slices alias ``particle_q``, OVRTX must not read them until the
+        # Warp kernels that wrote ``particle_q`` have finished. Passing ``cuda_stream``
+        # hands OVRTX the Warp stream those kernels were enqueued on so it can insert a
+        # GPU-side wait (a cross-stream dependency) before its read, instead of us
+        # forcing a host-side ``wp.synchronize_device()`` that would stall the CPU.
         cuda_stream = wp.get_stream(self._device).cuda_stream
         self._deformable_points_binding.write(
-            cast(Any, self._deformable_points_buffers),
+            cast(Any, particle_slices),
             data_access=DataAccess.ASYNC,
             cuda_stream=cuda_stream,
         )
@@ -1171,8 +1169,8 @@ class OVRTXRenderer(BaseRenderer):
         _safe_unbind(self._deformable_points_binding, "deformable points")
         self._deformable_points_binding = None
 
-        self._deformable_points_buffers = []
         self._deformable_particle_offsets = []
+        self._deformable_particle_counts = []
 
         if self._renderer:
             try:

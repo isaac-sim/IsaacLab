@@ -95,8 +95,8 @@ def _make_renderer_without_backend(device: str = "cpu") -> tuple[OVRTXRenderer, 
     renderer._camera_rel_path = "Camera"
     renderer._renderer = _FakeOVRTXBackend()
     renderer._deformable_points_binding = None
-    renderer._deformable_points_buffers = []
     renderer._deformable_particle_offsets = []
+    renderer._deformable_particle_counts = []
     return renderer, renderer._renderer
 
 
@@ -133,8 +133,8 @@ def test_setup_deformable_bindings_binds_surface_mesh_points(monkeypatch: pytest
     assert backend.writes[0]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
     assert backend.writes[1]["attribute_name"] == "omni:xform"
     assert backend.writes[1]["prim_paths"] == ["/World/envs/env_0/Deformable/mesh"]
-    assert len(renderer._deformable_points_buffers) == 1
-    assert renderer._deformable_points_buffers[0].shape == (3,)
+    assert len(renderer._deformable_particle_counts) == 1
+    assert renderer._deformable_particle_counts[0] == 3
     assert renderer._deformable_particle_offsets == [7]
 
 
@@ -189,7 +189,7 @@ def test_setup_deformable_bindings_binds_mixed_surface_and_volume_entries(monkey
         "/World/envs/env_1/DeformableVolume/mesh",
     ]
     assert renderer._deformable_particle_offsets == [0, 3, 6, 9]
-    assert len(renderer._deformable_points_buffers) == 4
+    assert renderer._deformable_particle_counts == [3, 3, 3, 3]
 
 
 def test_setup_deformable_bindings_works_without_stage(monkeypatch: pytest.MonkeyPatch):
@@ -231,15 +231,15 @@ def test_setup_deformable_bindings_binds_all_surface_mesh_instances(monkeypatch:
     expected_paths = [f"/World/envs/env_{i}/Deformable/mesh" for i in range(4)]
     assert backend.calls[0]["prim_paths"] == expected_paths
     assert renderer._deformable_particle_offsets == [0, 3, 6, 9]
-    assert len(renderer._deformable_points_buffers) == 4
+    assert renderer._deformable_particle_counts == [3, 3, 3, 3]
 
 
 def test_update_deformable_points_writes_world_particle_positions(monkeypatch: pytest.MonkeyPatch):
-    """Newton ``particle_q`` is synced through :meth:`OVRTXRenderer.update_geometries`."""
+    """Newton ``particle_q`` slices are handed to OVRTX through :meth:`OVRTXRenderer.update_geometries`."""
     renderer, _backend = _make_renderer_without_backend()
     renderer._deformable_points_binding = _FakePointsBinding("points")
-    renderer._deformable_points_buffers = [wp.empty(3, dtype=wp.vec3f, device="cpu")]
     renderer._deformable_particle_offsets = [1]
+    renderer._deformable_particle_counts = [3]
     particle_q = wp.array(
         [
             wp.vec3f(-1.0, -1.0, -1.0),
@@ -252,26 +252,21 @@ def test_update_deformable_points_writes_world_particle_positions(monkeypatch: p
     )
     monkeypatch.setattr(NewtonManager, "get_state", classmethod(lambda cls: SimpleNamespace(particle_q=particle_q)))
 
-    launch_calls: list[tuple] = []
-
     class _FakeStream:
         cuda_stream = 42
 
-    monkeypatch.setattr(
-        ovrtx_renderer_module.wp,
-        "launch",
-        lambda kernel, dim, inputs, device: launch_calls.append((kernel, dim, inputs)),  # noqa: ARG005
-    )
     monkeypatch.setattr(ovrtx_renderer_module.wp, "get_stream", lambda device: _FakeStream())  # noqa: ARG005
 
     renderer.update_geometries()
 
-    assert launch_calls == []
-    assert renderer._deformable_points_binding.written is renderer._deformable_points_buffers
+    written = renderer._deformable_points_binding.written
+    assert written is not None
+    assert len(written) == 1
+    assert written[0].ptr == particle_q[1:4].ptr
     assert renderer._deformable_points_binding.write_kwargs is not None
     assert renderer._deformable_points_binding.write_kwargs["data_access"] is DataAccess.ASYNC
     assert renderer._deformable_points_binding.write_kwargs["cuda_stream"] == 42
-    assert renderer._deformable_points_buffers[0].numpy().tolist() == [
+    assert written[0].numpy().tolist() == [
         [1.0, 2.0, 3.0],
         [4.0, 5.0, 6.0],
         [7.0, 8.0, 9.0],
@@ -307,14 +302,11 @@ def test_setup_deformable_bindings_rejects_offset_count_mismatch(monkeypatch: py
 
 
 def test_update_geometries_rejects_inconsistent_deformable_mapping(monkeypatch: pytest.MonkeyPatch):
-    """Geometry sync fails fast when binding arrays drift out of alignment."""
+    """Geometry sync fails fast when offset and count metadata drift out of alignment."""
     renderer, _backend = _make_renderer_without_backend()
     renderer._deformable_points_binding = _FakePointsBinding("points")
-    renderer._deformable_points_buffers = [
-        wp.empty(3, dtype=wp.vec3f, device="cpu"),
-        wp.empty(3, dtype=wp.vec3f, device="cpu"),
-    ]
     renderer._deformable_particle_offsets = [0]
+    renderer._deformable_particle_counts = [3, 3]
     particle_q = wp.array(
         [wp.vec3f(float(i), 0.0, 0.0) for i in range(4)],
         dtype=wp.vec3f,
