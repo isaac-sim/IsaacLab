@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import ast
 import sys
-import tomllib
 from pathlib import Path
 
 import pytest
+import tomllib
 
 pytestmark = pytest.mark.integration
 
