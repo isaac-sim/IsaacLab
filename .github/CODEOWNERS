@@ -2,11 +2,13 @@
 # responsible for reviewing and approving PRs that modify files matching
 # the pattern.
 #
-# Codeowners are not the same as contributors. They are selected from the
-# people most familiar with an area of the codebase.
+# Codeowners are not the same as contributors. They are not
+# automatically added to the PR, but they will be requested to
+# review the PR when it is created.
 #
-# Ownership below was refreshed against upstream/develop using recent
-# contribution history from the past few months.
+# As a general rule, the codeowners are the people who are
+# most familiar with the code that the PR is modifying. If you
+# are not sure who to add, ask in the issue or in the PR itself.
 #
 # Format:
 # <file pattern> <codeowners>
@@ -67,8 +69,8 @@
 
 # Source packages
 /source/isaaclab_assets/ @AntoineRichard @StafaH @hujc
-/source/isaaclab_assets/isaaclab_assets/robots/fourbar_pole.py @david-cao-mueller @AntoineRichard
-/source/isaaclab_assets/isaaclab_assets/robots/dr_legs.py @david-cao-mueller @AntoineRichard
+/source/isaaclab_assets/isaaclab_assets/robots/fourbar_pole.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/source/isaaclab_assets/isaaclab_assets/robots/dr_legs.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 /source/isaaclab_contrib/ @AntoineRichard @ooctipus @StafaH @mmichelis @pascal-roth
 /source/isaaclab_contrib/isaaclab_contrib/deformable/ @mmichelis @AntoineRichard
 /source/isaaclab_experimental/ @hujc @AntoineRichard @ooctipus @StafaH
@@ -88,13 +90,13 @@
 /source/isaaclab_newton/isaaclab_newton/test/ @AntoineRichard @ooctipus @hujc
 /source/isaaclab_newton/isaaclab_newton/video_recording/ @matthewtrepte @pbarejko
 /source/isaaclab_newton/test/ @AntoineRichard @ooctipus @hujc
-/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @AntoineRichard @ooctipus @hujc
-/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager_cfg.py @david-cao-mueller @AntoineRichard @ooctipus @hujc
-/source/isaaclab_newton/isaaclab_newton/physics/newton_manager.py @david-cao-mueller @AntoineRichard @ooctipus @hujc @daniela-hase
-/source/isaaclab_newton/isaaclab_newton/physics/newton_manager_cfg.py @david-cao-mueller @AntoineRichard @ooctipus @hujc @daniela-hase
-/source/isaaclab_newton/isaaclab_newton/cloner/newton_clone_utils.py @david-cao-mueller @huidongc @AntoineRichard
+/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/physics/kamino_manager_cfg.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/isaaclab_newton/physics/newton_manager.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc @daniela-hase
+/source/isaaclab_newton/isaaclab_newton/physics/newton_manager_cfg.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc @daniela-hase
+/source/isaaclab_newton/isaaclab_newton/cloner/newton_clone_utils.py @david-cao-mueller @aserifi @rubengrandia @huidongc @AntoineRichard
 /source/isaaclab_newton/isaaclab_newton/sim/views/ @pv-nvidia @huidongc @AntoineRichard
-/source/isaaclab_newton/test/physics/test_newton_manager_abstraction.py @david-cao-mueller @AntoineRichard @ooctipus @hujc
+/source/isaaclab_newton/test/physics/test_newton_manager_abstraction.py @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @ooctipus @hujc
 /source/isaaclab_ov/ @huidongc @rilei-nvidia @pbarejko @daniela-hase
 /source/isaaclab_ovphysx/ @AntoineRichard @marcodiiga @hujc
 /source/isaaclab_ovphysx/isaaclab_ovphysx/assets/articulation/ @marcodiiga @AntoineRichard @hujc
@@ -114,7 +116,7 @@
 /source/isaaclab_rl/isaaclab_rl/rl_games/ @Toni-SM @StafaH @ooctipus @AntoineRichard @kellyguo11
 /source/isaaclab_tasks/ @AntoineRichard @ooctipus @StafaH @kellyguo11 @hujc
 /source/isaaclab_tasks/isaaclab_tasks/core/ @StafaH @AntoineRichard @ooctipus @hujc @kellyguo11 @Mayankm96 @ClemensSchwarke @pascal-roth
-/source/isaaclab_tasks/isaaclab_tasks/core/fourbar_pole/ @david-cao-mueller @AntoineRichard @StafaH
+/source/isaaclab_tasks/isaaclab_tasks/core/fourbar_pole/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @StafaH
 /source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/core/direct_locomotion/ @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/core/direct_ant/ @AntoineRichard @ooctipus
@@ -123,11 +125,11 @@
 /source/isaaclab_tasks/isaaclab_tasks/core/manager_humanoid/ @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/core/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/contrib/ @StafaH @ooctipus @AntoineRichard @kellyguo11 @hujc
-/source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/ @david-cao-mueller @AntoineRichard
+/source/isaaclab_tasks/isaaclab_tasks/contrib/dr_legs/ @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 /source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/contrib/humanoid_amp/ @Mayankm96 @pascal-roth @ClemensSchwarke @AntoineRichard @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/contrib/navigation/ @Mayankm96 @pascal-roth @ClemensSchwarke
-/source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @david-cao-mueller @AntoineRichard @StafaH @ooctipus
+/source/isaaclab_tasks/isaaclab_tasks/contrib/velocity/ @Mayankm96 @pascal-roth @ClemensSchwarke @david-cao-mueller @aserifi @rubengrandia @AntoineRichard @StafaH @ooctipus
 /source/isaaclab_tasks/isaaclab_tasks/direct/ @AntoineRichard @hujc @StafaH @ooctipus @kellyguo11
 /source/isaaclab_tasks/isaaclab_tasks/manager_based/ @AntoineRichard @hujc @StafaH @ooctipus @kellyguo11
 /source/isaaclab_tasks/isaaclab_tasks/utils/ @AntoineRichard @StafaH @ooctipus @pbarejko
@@ -141,7 +143,7 @@
 /scripts/imitation_learning/locomanipulation_sdg/ @jaybdub @peterd-nv
 /scripts/reinforcement_learning/ @StafaH @AntoineRichard @hujc @ooctipus @kellyguo11 @Toni-SM
 /scripts/reinforcement_learning/leapp/ @frlai @StafaH
-/scripts/reinforcement_learning/rl_games/ @Toni-SM @StafaH @AntoineRichard @kellyguo11
+/scripts/reinforcement_learning/rl_games/ @Toni-SM @ooctipus @kellyguo11
 /scripts/reinforcement_learning/sb3/ @Toni-SM @ooctipus @kellyguo11
 /scripts/reinforcement_learning/skrl/ @Toni-SM @ooctipus @kellyguo11
 /scripts/sim2sim_transfer/ @StafaH @ooctipus @AntoineRichard
@@ -173,8 +175,8 @@
 /docs/source/api/lab_visualizers/ @matthewtrepte @daniela-hase @StafaH @ooctipus
 /docs/source/tutorials/01_assets/run_deformable_object.rst @mmichelis @AntoineRichard
 /docs/source/tutorials/06_exporting/exporting_direct_workflow_policies_with_leapp.rst @frlai @StafaH @AntoineRichard
-/docs/source/overview/core-concepts/physical-backends/newton/kamino-solver.rst @david-cao-mueller @AntoineRichard
-/docs/source/overview/core-concepts/physical-backends/solver-comparison.rst @david-cao-mueller @AntoineRichard
+/docs/source/overview/core-concepts/physical-backends/newton/kamino-solver.rst @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
+/docs/source/overview/core-concepts/physical-backends/solver-comparison.rst @david-cao-mueller @aserifi @rubengrandia @AntoineRichard
 /docs/source/overview/imitation-learning/humanoids_imitation.rst @jaybdub @kellyguo11
 /docs/source/policy_deployment/03_compass_with_NuRec/ @sameerchavan0027
 /docs/source/policy_deployment/05_leapp/ @frlai
