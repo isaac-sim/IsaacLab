@@ -1,0 +1,101 @@
+{
+  "defaults": {
+    "type": "benchmark",
+    "runs_on": "gpu-l40s",
+    "preset": "default",
+    "seed": 42,
+    "num_envs": 512,
+    "num_frames": 300,
+    "warmup_frames": 100,
+    "camera_resolution": null,
+    "timeout_minutes": 10,
+    "tags": ["always"]
+  },
+  "tasks": [
+    {
+      "task_id": "Isaac-Cartpole-Direct",
+      "num_envs": 4096,
+      "backends": [
+        {"physics": "physx"},
+        {"physics": "newton"}
+      ],
+      "fps_mean_thresholds": {
+        "l40s": {
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 100.0}
+          ],
+          "newton": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ]
+        }
+      }
+    },
+    {
+      "task_id": "IsaacContrib-Factory-GearMesh-Direct",
+      "timeout_minutes": 15,
+      "backends": [
+        {"physics": "physx"}
+      ],
+      "fps_mean_thresholds": {
+        "l40s": {
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 30.0}
+          ]
+        }
+      }
+    },
+    {
+      "task_id": "Isaac-Reorient-Cube-Shadow-Camera-Benchmark-Direct",
+      "timeout_minutes": 20,
+      "tags": ["camera"],
+      "backends": [
+        {"physics": "physx"},
+        {"physics": "physx", "render": "newton_renderer"},
+        {"physics": "newton"},
+        {"physics": "newton", "render": "newton_renderer"}
+      ],
+      "fps_mean_thresholds": {
+        "l40s": {
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 20.0}
+          ],
+          "physx_newton_renderer": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ],
+          "newton": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ],
+          "newton_newton_renderer": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ]
+        }
+      }
+    },
+    {
+      "task_id": "Isaac-Velocity-Flat-G1",
+      "timeout_minutes": 12,
+      "backends": [
+        {"physics": "physx"},
+        {"physics": "newton"}
+      ],
+      "fps_mean_thresholds": {
+        "l40s": {
+          "physx": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 40.0}
+          ],
+          "newton": [
+            {"threshold_verdict": "BLOCK", "threshold_name": "hard-floor", "threshold": 0.0}
+          ]
+        }
+      },
+      "noise_floor_pct": {
+        "rtx_pro_6000_blackwell": {
+          "newton": 2.52
+        },
+        "l40s": {
+          "newton": 2.06
+        }
+      }
+    }
+  ]
+}
