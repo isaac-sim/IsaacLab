@@ -689,8 +689,8 @@ def _resolve_articulation_convention_name_ordering(
     raise NotImplementedError(
         f"Unable to resolve '{parsed_convention.value}' {kind} ordering for active backend "
         f"'{active_backend_name}'. Ensure the source USD and required ordering dependencies are available, "
-        f"set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or use None to keep "
-        f"active-backend order.{attempted_resolutions}"
+        f"set ArticulationCfg.{config_field} to an explicit {kind}-name permutation on the articulation's "
+        f"configuration, or use None to keep active-backend order.{attempted_resolutions}"
     )
 
 
@@ -828,6 +828,6 @@ def _resolve_articulation_ordering_names(
     config_field = "joint_ordering" if kind == "joint" else "body_ordering"
     raise NotImplementedError(
         f"Unable to resolve '{convention.value}' {kind} ordering for active backend '{active_backend_name}'. "
-        f"Set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or supply an articulation "
-        "whose source USD can provide that convention."
+        f"Set ArticulationCfg.{config_field} to an explicit {kind}-name permutation on the articulation's "
+        "configuration, or supply an articulation whose source USD can provide that convention."
     )
