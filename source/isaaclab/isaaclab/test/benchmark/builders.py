@@ -12,6 +12,7 @@ serialised by :func:`~isaaclab.test.benchmark.serialize.write_bundle_file`.
 
 from __future__ import annotations
 
+import statistics
 from collections.abc import Sequence
 from datetime import datetime
 
@@ -117,6 +118,18 @@ def build_run_identity(
     )
 
 
+def _with_effective_mean(stats: MeanStd, samples: Sequence[float], effective_mean: float) -> MeanStd:
+    """Return throughput statistics centered on an effective aggregate mean."""
+    values = list(samples)
+    if not values:
+        return stats
+    return MeanStd(
+        mean=effective_mean,
+        std=statistics.stdev(values, xbar=effective_mean) if len(values) > 1 else 0.0,
+        peak=stats.peak,
+    )
+
+
 def build_runtime(
     *,
     startup_time_s: StartupTime,
@@ -141,8 +154,9 @@ def build_runtime(
         steps_per_iteration: Environment steps collected per iteration.
         frames_per_environment_step: Number of environment frames processed by each vectorized ``env.step()`` call.
         aggregate_throughput: When ``True``, report throughput means as total
-            completed steps divided by total wall time. Standard deviation and
-            peak remain aggregated from the per-iteration throughput samples.
+            completed steps divided by total wall time. Standard deviation
+            measures per-iteration dispersion around the effective mean, and
+            peak remains the maximum per-iteration throughput.
         environment_step_times_s: Per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
@@ -160,21 +174,9 @@ def build_runtime(
         total_wall_time_s = float(sum(iter_times))
         effective_iterations_per_s = len(iter_times) / total_wall_time_s
         effective_fps = steps_per_iteration * effective_iterations_per_s
-        collection_fps_agg = MeanStd(
-            mean=effective_fps,
-            std=collection_fps_agg.std,
-            peak=collection_fps_agg.peak,
-        )
-        total_fps_agg = MeanStd(
-            mean=effective_fps,
-            std=total_fps_agg.std,
-            peak=total_fps_agg.peak,
-        )
-        iterations_per_s_agg = MeanStd(
-            mean=effective_iterations_per_s,
-            std=iterations_per_s_agg.std,
-            peak=iterations_per_s_agg.peak,
-        )
+        collection_fps_agg = _with_effective_mean(collection_fps_agg, collection_fps, effective_fps)
+        total_fps_agg = _with_effective_mean(total_fps_agg, total_fps, effective_fps)
+        iterations_per_s_agg = _with_effective_mean(iterations_per_s_agg, iter_per_s, effective_iterations_per_s)
     environment_step_timing = None
     if environment_step_times_s is not None:
         if frames_per_environment_step is None or frames_per_environment_step <= 0:
@@ -184,10 +186,10 @@ def build_runtime(
         environment_fps_samples = [frames_per_environment_step / value for value in environment_samples if value > 0]
         environment_step_fps = mean_std_peak(environment_fps_samples)
         if total_environment_time_s > 0:
-            environment_step_fps = MeanStd(
-                mean=frames_per_environment_step * len(environment_samples) / total_environment_time_s,
-                std=environment_step_fps.std,
-                peak=environment_step_fps.peak,
+            environment_step_fps = _with_effective_mean(
+                environment_step_fps,
+                environment_fps_samples,
+                frames_per_environment_step * len(environment_samples) / total_environment_time_s,
             )
 
         simulation_step_time_s = None
