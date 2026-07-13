@@ -5,6 +5,8 @@
 
 """Tests for the runtime stepping helpers."""
 
+import time
+
 import numpy as np
 import torch
 
@@ -133,6 +135,27 @@ def test_environment_step_timer_synchronizes_before_environment_and_simulation_s
     simulation_indices = [index for index, event in enumerate(events) if event == "simulation"]
     assert simulation_indices
     assert all(events[index - 1] == "synchronize" for index in simulation_indices)
+
+
+def test_environment_step_timer_excludes_pending_work_before_step(monkeypatch):
+    import warp as wp
+
+    env = _Env()
+    clock_s = 0.0
+    pending_work_s = 0.05
+
+    def drain_pending_work():
+        nonlocal clock_s, pending_work_s
+        clock_s += pending_work_s
+        pending_work_s = 0.0
+
+    monkeypatch.setattr(time, "perf_counter", lambda: clock_s)
+    monkeypatch.setattr(wp, "synchronize", drain_pending_work)
+
+    with EnvironmentStepTimingRecorder(env, measure_isaaclab_overhead=True) as timer:
+        env.step(None)
+
+    assert timer.step_times_s == [0.0]
 
 
 class _MASpace:

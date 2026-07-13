@@ -96,7 +96,6 @@ def test_training_and_play_write_bundles(
         _TASK,
         "--num_envs",
         str(num_envs),
-        "--measure_isaaclab_overhead",
         "presets=newton_mjwarp",
         "--headless",
         "--benchmark_formatter",
@@ -127,8 +126,11 @@ def test_training_and_play_write_bundles(
     training_timing = training_data["runtime"]["environment_step_timing"]
     assert training_timing["environment_step_calls"] > 0
     assert training_timing["environment_step_fps"]["mean"] > 0
-    assert training_timing["simulation_step_calls"] > 0
-    assert training_timing["overhead_step_time_s"]["mean"] >= 0.0
+    assert training_timing["simulation_step_calls"] is None
+    assert training_timing["simulation_step_time_s"] is None
+    assert training_timing["overhead_step_time_s"] is None
+    assert training_timing["overhead_fraction"] is None
+    assert not training_timing["synchronized"]
     assert training_data["learning"]["reward"]["series_per_iter"] is not None
     assert training_data["learning"]["reward"]["final_ema"] is not None
     if expect_reward_series:
@@ -158,11 +160,41 @@ def test_training_and_play_write_bundles(
     play_timing = play_data["runtime"]["environment_step_timing"]
     assert play_timing["environment_step_calls"] == 250
     assert play_timing["environment_step_fps"]["mean"] > 0
-    assert play_timing["simulation_step_calls"] > 0
-    assert play_timing["overhead_step_time_s"]["mean"] >= 0.0
+    assert play_timing["simulation_step_calls"] is None
+    assert play_timing["simulation_step_time_s"] is None
+    assert play_timing["overhead_step_time_s"] is None
+    assert play_timing["overhead_fraction"] is None
+    assert not play_timing["synchronized"]
     assert play_data["checkpoint_path"]
     assert play_data["reward"] is not None
     assert "mean" in play_data["reward"]
+
+    if library == "rsl_rl":
+        synchronized_play_output = tmp_path / "play_synchronized"
+        _run(
+            [
+                str(ROOT / "isaaclab.sh"),
+                "-p",
+                "scripts/benchmarks/play.py",
+                *common_args[:6],
+                "--measure_isaaclab_overhead",
+                *common_args[6:],
+                "--num_frames",
+                "10",
+                "--checkpoint",
+                "latest",
+                "--output_path",
+                str(synchronized_play_output),
+            ]
+        )
+        synchronized_play_data = _load_play_bundle(synchronized_play_output)
+        synchronized_timing = synchronized_play_data["runtime"]["environment_step_timing"]
+        assert synchronized_timing["environment_step_calls"] == 10
+        assert synchronized_timing["simulation_step_calls"] > 0
+        assert synchronized_timing["simulation_step_time_s"]["mean"] > 0.0
+        assert synchronized_timing["overhead_step_time_s"]["mean"] >= 0.0
+        assert synchronized_timing["overhead_fraction"] >= 0.0
+        assert synchronized_timing["synchronized"]
 
     if "omniperf" in formatter:
         training_omniperf = json.loads(next(training_output.glob("*_omniperf.json")).read_text())
