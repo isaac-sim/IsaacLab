@@ -78,28 +78,16 @@ class ImplicitActuator(ActuatorBase):
                 )
 
         # velocity limits
-        if cfg.velocity_limit_sim is None and cfg.velocity_limit is not None:
-            # throw a warning that previously this was not set
-            # it leads to different simulation behavior so we want to remain backwards compatible
-            logger.warning(
-                "The <ImplicitActuatorCfg> object has a value for 'velocity_limit'."
-                " Previously, although this value was specified, it was not getting used by implicit"
-                " actuators. Since this parameter affects the simulation behavior, we continue to not"
-                " use it. This parameter will be removed in the future."
-                " To set the velocity limit, please use 'velocity_limit_sim' instead."
-            )
-            cfg.velocity_limit = None
-        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
-            # TODO: Eventually we want to get rid of 'velocity_limit' for implicit actuators.
-            #   We should do this once all parameters have an "_sim" suffix.
+        # 'velocity_limit' is the motor's rated speed: it feeds the data buffers
+        # (:attr:`ArticulationData.soft_joint_vel_limits`, read by e.g. the
+        # ``joint_vel_out_of_limit`` termination) but is NOT pushed to the physics
+        # solver. 'velocity_limit_sim' is a solver-level hard clamp (PhysX
+        # ``maxJointVelocity``) with no physical counterpart -- a real motor limits
+        # speed through its torque curve, not a kinematic clamp. The two are
+        # therefore resolved independently; when only the sim clamp is given, it
+        # doubles as the motor limit so the data buffers stay meaningful.
+        if cfg.velocity_limit_sim is not None and cfg.velocity_limit is None:
             cfg.velocity_limit = cfg.velocity_limit_sim
-        elif cfg.velocity_limit_sim is not None and cfg.velocity_limit is not None:
-            if cfg.velocity_limit_sim != cfg.velocity_limit:
-                raise ValueError(
-                    "The <ImplicitActuatorCfg> object has set both 'velocity_limit_sim' and 'velocity_limit'"
-                    f" and they have different values {cfg.velocity_limit_sim} != {cfg.velocity_limit}."
-                    " Please only set 'velocity_limit_sim' for implicit actuators."
-                )
 
         # set implicit actuator model flag
         ImplicitActuator.is_implicit_model = True
