@@ -71,7 +71,10 @@ dependencies = [
     # ----- rl utilities -----
     "hydra-core",
     "h5py>=3.15.0",
-    "moviepy",
+    # bounded to the 1.x line: moviepy 2.x stable caps pillow below our pin, so
+    # prerelease-allowing resolvers fell through to the broken 2.0.0.dev2 build,
+    # whose write_videofile drops the clip fps and crashes video recording
+    "moviepy>=1.0.3,<2.0.0.dev0",
     "packaging",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.4.1",  # default RL framework

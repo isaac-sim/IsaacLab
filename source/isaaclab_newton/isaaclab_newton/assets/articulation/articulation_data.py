@@ -1655,6 +1655,12 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_root_com_vel_w = wp.zeros(
                 (self._num_instances), dtype=wp.spatial_vectorf, device=self.device
             )
+        # Body velocities are well-defined regardless of the base type (fixed-base articulations
+        # still report link velocities); fall back to zeros only when the view genuinely cannot
+        # provide them. Zeroing this binding together with the root velocity silently zeroes
+        # every body-velocity read for fixed-base robots.
+        if self._root_view.get_link_velocities(SimulationManager.get_state_0()) is None:
+            logger.warning("Failed to get body com velocities. Setting body com velocities to zeros.")
             self._sim_bind_body_com_vel_w = wp.zeros(
                 (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
             )
