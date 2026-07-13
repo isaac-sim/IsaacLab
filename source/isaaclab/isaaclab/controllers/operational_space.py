@@ -78,16 +78,26 @@ class OperationalSpaceController:
         self._selection_matrix_force_b = torch.zeros_like(self._selection_matrix_force_task)
         # -- commands
         self._task_space_target_task = torch.zeros(self.num_envs, self.target_dim, device=self._device)
+        self._identity_task_frame_pose_b = torch.zeros(self.num_envs, 7, device=self._device)
+        self._identity_task_frame_pose_b[:, 6] = 1.0
         # -- Placeholders for motion/force control
         self.desired_ee_pose_task = None
         self.desired_ee_pose_b = None
         self.desired_ee_wrench_task = None
         self.desired_ee_wrench_b = None
+        # -- reusable target buffers
+        self._desired_ee_pose_task = torch.zeros(self.num_envs, 7, device=self._device)
+        self._desired_ee_pose_b = torch.zeros_like(self._desired_ee_pose_task)
+        self._desired_ee_wrench_task = torch.zeros(self.num_envs, 6, device=self._device)
+        self._desired_ee_wrench_b = torch.zeros_like(self._desired_ee_wrench_task)
         # -- buffer for operational space mass matrix
         self._os_mass_matrix_b = torch.zeros(self.num_envs, 6, 6, device=self._device)
         # -- Placeholder for the inverse of joint space mass matrix
         self._mass_matrix_inv = None
         # -- motion control gains
+        self._motion_damping_ratio_task = torch.as_tensor(
+            self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device
+        ).reshape(1, -1)
         self._motion_p_gains_task = torch.diag_embed(
             torch.ones(self.num_envs, 6, device=self._device)
             * torch.tensor(self.cfg.motion_stiffness_task, dtype=torch.float, device=self._device)
@@ -96,9 +106,7 @@ class OperationalSpaceController:
         # -- -- to act due to coupling
         self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
         self._motion_d_gains_task = torch.diag_embed(
-            2
-            * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-            * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(1, -1)
+            2 * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt() * self._motion_damping_ratio_task
         )
         # -- -- motion control gains in root frame
         self._motion_p_gains_b = torch.zeros_like(self._motion_p_gains_task)
@@ -229,12 +237,8 @@ class OperationalSpaceController:
             self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
             self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
             self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task = torch.diag_embed(
-                2
-                * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-                * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(
-                    1, -1
-                )
+            self._motion_d_gains_task[:] = torch.diag_embed(
+                2 * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt() * self._motion_damping_ratio_task
             )
         elif self.cfg.impedance_mode == "variable":
             # split input command
@@ -257,10 +261,7 @@ class OperationalSpaceController:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
         if current_task_frame_pose_b is None:
-            # xyzw format: identity quat is [0, 0, 0, 1]
-            current_task_frame_pose_b = torch.tensor(
-                [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]] * self.num_envs, device=self._device
-            )
+            current_task_frame_pose_b = self._identity_task_frame_pose_b
 
         # Resolve the target commands
         target_groups = torch.split(self._task_space_target_task, self.target_list, dim=1)
@@ -280,13 +281,17 @@ class OperationalSpaceController:
                 desired_ee_pos_task, desired_ee_rot_task = apply_delta_pose(
                     current_ee_pos_task, current_ee_rot_task, target
                 )
-                self.desired_ee_pose_task = torch.cat([desired_ee_pos_task, desired_ee_rot_task], dim=-1)
+                self.desired_ee_pose_task = self._desired_ee_pose_task
+                self.desired_ee_pose_task[:, :3] = desired_ee_pos_task
+                self.desired_ee_pose_task[:, 3:] = desired_ee_rot_task
             elif command_type == "pose_abs":
                 # compute targets
-                self.desired_ee_pose_task = target.clone()
+                self.desired_ee_pose_task = self._desired_ee_pose_task
+                self.desired_ee_pose_task[:] = target
             elif command_type == "wrench_abs":
                 # compute targets
-                self.desired_ee_wrench_task = target.clone()
+                self.desired_ee_wrench_task = self._desired_ee_wrench_task
+                self.desired_ee_wrench_task[:] = target
             else:
                 raise ValueError(f"Invalid control command: {command_type}.")
 
@@ -328,7 +333,7 @@ class OperationalSpaceController:
 
         # Transform desired pose from task frame to root frame
         if self.desired_ee_pose_task is not None:
-            self.desired_ee_pose_b = torch.zeros_like(self.desired_ee_pose_task)
+            self.desired_ee_pose_b = self._desired_ee_pose_b
             self.desired_ee_pose_b[:, :3], self.desired_ee_pose_b[:, 3:] = combine_frame_transforms(
                 current_task_frame_pose_b[:, :3],
                 current_task_frame_pose_b[:, 3:],
@@ -338,7 +343,7 @@ class OperationalSpaceController:
 
         # Transform desired wrenches to root frame
         if self.desired_ee_wrench_task is not None:
-            self.desired_ee_wrench_b = torch.zeros_like(self.desired_ee_wrench_task)
+            self.desired_ee_wrench_b = self._desired_ee_wrench_b
             self.desired_ee_wrench_b[:, :3] = (R_task_b @ self.desired_ee_wrench_task[:, :3].unsqueeze(-1)).squeeze(-1)
             self.desired_ee_wrench_b[:, 3:] = (R_task_b @ self.desired_ee_wrench_task[:, 3:].unsqueeze(-1)).squeeze(
                 -1

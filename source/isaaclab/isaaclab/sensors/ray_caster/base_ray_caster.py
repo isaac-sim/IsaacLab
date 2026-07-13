@@ -232,6 +232,8 @@ class BaseRayCaster(SensorBase):
 
         # Data buffers
         self._data.create_buffers(self._view_count, self.num_rays, self._device)
+        self._view_poses_w_torch = torch.empty((self._view_count, 7), device=self._device)
+        self._view_poses_w = wp.from_torch(self._view_poses_w_torch).view(wp.transformf)
 
         # Dummy distance/normal buffers required by the merged raycast_mesh_masked_kernel signature.
         # Sized (1, 1) even though the kernel is launched at (num_envs, num_rays): the kernel only
@@ -252,8 +254,18 @@ class BaseRayCaster(SensorBase):
         pos_w, quat_w = self._view.get_world_poses()
         pos_torch = pos_w.torch.reshape(-1, 3)
         quat_torch = quat_w.torch.reshape(-1, 4)
-        poses = torch.cat([pos_torch, quat_torch], dim=-1).contiguous()
-        return wp.from_torch(poses).view(wp.transformf)
+        if (
+            not hasattr(self, "_view_poses_w_torch")
+            or self._view_poses_w_torch.shape[0] != pos_torch.shape[0]
+            or self._view_poses_w_torch.dtype != pos_torch.dtype
+            or self._view_poses_w_torch.device != pos_torch.device
+        ):
+            self._view_poses_w_torch = torch.empty(
+                (pos_torch.shape[0], 7), device=pos_torch.device, dtype=pos_torch.dtype
+            )
+            self._view_poses_w = wp.from_torch(self._view_poses_w_torch).view(wp.transformf)
+        torch.cat((pos_torch, quat_torch), dim=-1, out=self._view_poses_w_torch)
+        return self._view_poses_w
 
     def _update_ray_infos(self, env_mask: wp.array):
         """Updates sensor poses and ray world-frame buffers via a single warp kernel."""

@@ -80,6 +80,7 @@ class DifferentialIKController:
                 else tuple(float(value) for value in ori_weight)
             )
             self._orientation_weight = torch.tensor(weight_tuple, device=self._device)
+        self._eye_matrices: dict[int, torch.Tensor] = {}
         # -- optional joint position limits for null-space joint-limit avoidance (set externally)
         self._joint_pos_lower = None
         self._joint_pos_upper = None
@@ -200,7 +201,8 @@ class DifferentialIKController:
         # compute the delta in joint-space
         delta_joint_pos = self._compute_delta_joint_pos(delta_pose=task_error, jacobian=task_jacobian)
         # add an optional null-space joint-limit-avoidance bias (a no-op when joint_limit_avoidance_gain == 0)
-        delta_joint_pos = delta_joint_pos + self._joint_limit_avoidance(joint_pos, task_jacobian)
+        if self.cfg.joint_limit_avoidance_gain > 0.0 and self._joint_pos_lower is not None:
+            delta_joint_pos = delta_joint_pos + self._joint_limit_avoidance(joint_pos, task_jacobian)
         # return the desired joint positions
         return joint_pos + delta_joint_pos
 
@@ -260,11 +262,11 @@ class DifferentialIKController:
             lambda_val = self.cfg.ik_params["lambda_val"]
             # computation
             jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
-            lambda_matrix = (lambda_val**2) * torch.eye(n=jacobian.shape[1], device=self._device)
-            delta_joint_pos = (
-                jacobian_T @ torch.inverse(jacobian @ jacobian_T + lambda_matrix) @ delta_pose.unsqueeze(-1)
-            )
-            delta_joint_pos = delta_joint_pos.squeeze(-1)
+            lambda_matrix = (lambda_val**2) * self._get_eye_matrix(jacobian.shape[1])
+            delta_joint_pos = torch.bmm(
+                jacobian_T,
+                torch.linalg.solve(torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)),
+            ).squeeze(-1)
         elif self.cfg.ik_method == "adaptive_dls":  # manipulability-aware damped least squares
             # parameters
             lambda_min = self.cfg.ik_params["lambda_min"]
@@ -278,7 +280,7 @@ class DifferentialIKController:
             ratio = (sigma_min / sigma_thresh).clamp(max=1.0)
             lambda_sq = lambda_min**2 + (1.0 - ratio**2) * (lambda_max**2 - lambda_min**2)  # (N,)
             jacobian_T = torch.transpose(jacobian, dim0=1, dim1=2)
-            lambda_matrix = lambda_sq.view(-1, 1, 1) * torch.eye(n=jacobian.shape[1], device=self._device)
+            lambda_matrix = lambda_sq.view(-1, 1, 1) * self._get_eye_matrix(jacobian.shape[1])
             delta_joint_pos = torch.bmm(
                 jacobian_T,
                 torch.linalg.solve(torch.bmm(jacobian, jacobian_T) + lambda_matrix, delta_pose.unsqueeze(-1)),
@@ -287,6 +289,12 @@ class DifferentialIKController:
             raise ValueError(f"Unsupported inverse-kinematics method: {self.cfg.ik_method}")
 
         return delta_joint_pos
+
+    def _get_eye_matrix(self, size: int) -> torch.Tensor:
+        """Return a cached identity matrix on the controller device."""
+        if size not in self._eye_matrices:
+            self._eye_matrices[size] = torch.eye(n=size, device=self._device)
+        return self._eye_matrices[size]
 
     def _compute_pose_task(
         self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor
@@ -347,5 +355,5 @@ class DifferentialIKController:
         j_pos = task_jacobian[:, :3, :]
         j_pos_pinv = torch.linalg.pinv(j_pos)
         num_joints = task_jacobian.shape[2]
-        null_proj = torch.eye(num_joints, device=self._device) - torch.bmm(j_pos_pinv, j_pos)
+        null_proj = self._get_eye_matrix(num_joints) - torch.bmm(j_pos_pinv, j_pos)
         return torch.bmm(null_proj, dq_center.unsqueeze(-1)).squeeze(-1)
