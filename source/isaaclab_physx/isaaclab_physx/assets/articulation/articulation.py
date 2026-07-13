@@ -24,7 +24,11 @@ from pxr import UsdPhysics
 from isaaclab.actuators import ActuatorBase, ActuatorBaseCfg, ImplicitActuator
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.cloner import queue_usd_replication
-from isaaclab.sim.utils.queries import find_first_matching_prim, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import (
+    find_first_matching_prim,
+    find_matching_prim_paths,
+    resolve_matching_prims_from_source,
+)
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.types import ArticulationActions
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -3867,13 +3871,29 @@ class Articulation(BaseArticulation):
             resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
             _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
         # -- articulation
-        from isaaclab.sim.utils.queries import find_matching_prim_paths
-
-        from .view_patterns import resolve_view_path_patterns
-
-        self._root_view = self._physics_sim_view.create_articulation_view(
-            resolve_view_path_patterns(root_prim_path_expr, find_matching_prim_paths)
-        )
+        view_pattern: str | list[str] = root_prim_path_expr.replace(".*", "*")
+        if view_pattern.count("*") > 1:
+            # one articulation per sub-asset (e.g. ``env_.*/Rig/parts/part_.*``) cannot form a
+            # single view: expand the extra wildcard dimensions into one single-wildcard
+            # pattern per sub-asset path. The sub-asset set must match across environments.
+            tokens = view_pattern.split("/")
+            env_index = next(index for index, token in enumerate(tokens) if "*" in token)
+            per_env: dict[str, set[str]] = {}
+            for path in find_matching_prim_paths(root_prim_path_expr):
+                parts = path.split("/")
+                per_env.setdefault(parts[env_index], set()).add("/".join(parts[env_index + 1 :]))
+            if not per_env:
+                raise RuntimeError(f"No prims match the articulation root expression: {root_prim_path_expr}")
+            sub_asset_paths = sorted(next(iter(per_env.values())))
+            if any(sorted(paths) != sub_asset_paths for paths in per_env.values()):
+                raise RuntimeError(
+                    "The articulation root expression resolves to different sub-asset sets across"
+                    f" environments; a shared view needs the same articulations in every environment:"
+                    f" {root_prim_path_expr}"
+                )
+            env_base = "/".join(tokens[: env_index + 1])
+            view_pattern = [f"{env_base}/{sub_asset_path}" for sub_asset_path in sub_asset_paths]
+        self._root_view = self._physics_sim_view.create_articulation_view(view_pattern)
 
         # check if the articulation was created
         if self.root_view._backend is None:
