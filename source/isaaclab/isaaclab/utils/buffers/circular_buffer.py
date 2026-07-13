@@ -139,6 +139,9 @@ class CircularBuffer:
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
+        # nothing to reset; arming the backfill would cost one full-buffer pass in append
+        if batch_ids is not None and len(batch_ids) == 0:
+            return
         batch_ids_resolved: Sequence[int] | slice
         if batch_ids is None:
             batch_ids_resolved = slice(None)
@@ -189,12 +192,15 @@ class CircularBuffer:
             self._buffer.narrow(k_pos, k - 1, 1).copy_(data.unsqueeze(k_pos))
 
         if self._need_reset:
+            # branchless backfill: boolean-mask indexing and an any() gate both synchronize
+            # the stream; torch.where(out=...) stays on-device
             is_first_push = self._num_pushes == 0
-            if torch.any(is_first_push):
-                if self._stack_dim_internal is None:
-                    self._buffer[:, is_first_push] = data[is_first_push]
-                else:
-                    self._buffer[is_first_push] = data[is_first_push].unsqueeze(self._stack_dim_internal)
+            if self._stack_dim_internal is None:
+                mask = is_first_push.view(1, -1, *([1] * (data.ndim - 1)))
+                torch.where(mask, data.unsqueeze(0), self._buffer, out=self._buffer)
+            else:
+                mask = is_first_push.view(-1, *([1] * (self._buffer.ndim - 1)))
+                torch.where(mask, data.unsqueeze(self._stack_dim_internal), self._buffer, out=self._buffer)
             self._need_reset = False
 
         self._num_pushes += 1
