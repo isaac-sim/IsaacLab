@@ -303,7 +303,9 @@ def run(argv: list[str]) -> None:
         cb = BenchmarkCallback()
         checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
 
-        environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args_cli.measure_simulation_step_time)
+        environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+            env, enabled=args_cli.measure_simulation_step_time
+        )
         with (
             contextlib.suppress(KeyboardInterrupt),
             success_context,
@@ -349,9 +351,8 @@ def run(argv: list[str]) -> None:
             collection_fps=collection_fps,
             total_fps=total_fps,
             steps_per_iteration=steps_per_iteration,
-            environment_step_total_time_s=environment_step_timer.total_time_s,
-            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
-            environment_step_calls=environment_step_timer.num_calls,
+            environment_step_times_s=environment_step_timer.step_times_s,
+            simulation_step_times_s=environment_step_timer.simulation_step_times_s,
             simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 

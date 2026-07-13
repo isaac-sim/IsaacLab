@@ -351,7 +351,9 @@ def run(argv: list[str]) -> None:
         runner = _BenchmarkRunner(env, agent_cfg)
         bt = runner._trainer
 
-        environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args_cli.measure_simulation_step_time)
+        environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+            env, enabled=args_cli.measure_simulation_step_time
+        )
         with success_context, environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             runner.run()
 
@@ -381,9 +383,8 @@ def run(argv: list[str]) -> None:
             collection_fps=collection_fps,
             total_fps=total_fps,
             steps_per_iteration=steps_per_iteration,
-            environment_step_total_time_s=environment_step_timer.total_time_s,
-            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
-            environment_step_calls=environment_step_timer.num_calls,
+            environment_step_times_s=environment_step_timer.step_times_s,
+            simulation_step_times_s=environment_step_timer.simulation_step_times_s,
             simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 

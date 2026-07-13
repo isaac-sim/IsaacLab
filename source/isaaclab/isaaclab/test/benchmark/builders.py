@@ -125,9 +125,8 @@ def build_runtime(
     total_fps: Sequence[float],
     steps_per_iteration: int,
     aggregate_throughput: bool = False,
-    environment_step_total_time_s: float | None = None,
-    simulation_step_total_time_s: float | None = None,
-    environment_step_calls: int | None = None,
+    environment_step_times_s: Sequence[float] | None = None,
+    simulation_step_times_s: Sequence[float] | None = None,
     simulation_step_calls: int | None = None,
 ) -> Runtime:
     """Assemble a :class:`~isaaclab.test.benchmark.schema.Runtime` from raw series.
@@ -142,9 +141,8 @@ def build_runtime(
         aggregate_throughput: When ``True``, report throughput means as total
             completed steps divided by total wall time. Standard deviation and
             peak remain aggregated from the per-iteration throughput samples.
-        environment_step_total_time_s: Measured environment-step wall time [s].
-        simulation_step_total_time_s: Synchronized simulation-step wall time [s].
-        environment_step_calls: Number of measured environment-step calls.
+        environment_step_times_s: Per-environment-step wall times [s].
+        simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
 
     Returns:
@@ -176,16 +174,21 @@ def build_runtime(
             peak=iterations_per_s_agg.peak,
         )
     environment_step_timing = None
-    if environment_step_total_time_s is not None:
-        if simulation_step_total_time_s is None or environment_step_calls is None or simulation_step_calls is None:
+    if environment_step_times_s is not None:
+        if simulation_step_times_s is None or simulation_step_calls is None:
             raise ValueError("Complete environment-step timing values are required")
-        overhead_time_s = environment_step_total_time_s - simulation_step_total_time_s
+        environment_samples = list(environment_step_times_s)
+        simulation_samples = list(simulation_step_times_s)
+        if len(environment_samples) != len(simulation_samples):
+            raise ValueError("Environment and simulation timing samples must have the same length")
+        overhead_samples = [total - simulation for total, simulation in zip(environment_samples, simulation_samples)]
+        total_environment_time_s = sum(environment_samples)
         environment_step_timing = EnvironmentStepTiming(
-            total_time_s=environment_step_total_time_s,
-            simulation_time_s=simulation_step_total_time_s,
-            overhead_time_s=overhead_time_s,
-            overhead_fraction=overhead_time_s / environment_step_total_time_s,
-            environment_step_calls=environment_step_calls,
+            environment_step_time_s=mean_std_peak(environment_samples),
+            simulation_step_time_s=mean_std_peak(simulation_samples),
+            overhead_step_time_s=mean_std_peak(overhead_samples),
+            overhead_fraction=sum(overhead_samples) / total_environment_time_s,
+            environment_step_calls=len(environment_samples),
             simulation_step_calls=simulation_step_calls,
             synchronized=True,
         )

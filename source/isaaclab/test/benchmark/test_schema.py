@@ -93,9 +93,9 @@ def _runtime() -> Runtime:
         total_fps=MeanStd(mean=1_071_780.0, std=11_200.0),
         iterations_per_s=MeanStd(mean=0.2618, std=0.0028),
         environment_step_timing=EnvironmentStepTiming(
-            total_time_s=1000.0,
-            simulation_time_s=600.0,
-            overhead_time_s=400.0,
+            environment_step_time_s=MeanStd(mean=0.08, std=0.01, peak=0.1),
+            simulation_step_time_s=MeanStd(mean=0.05, std=0.01, peak=0.07),
+            overhead_step_time_s=MeanStd(mean=0.03, std=0.005, peak=0.04),
             overhead_fraction=0.4,
             environment_step_calls=12000,
             simulation_step_calls=48000,

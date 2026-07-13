@@ -105,7 +105,7 @@ def test_training_and_play_write_bundles(
     training_timing = training_data["runtime"]["environment_step_timing"]
     assert training_timing["environment_step_calls"] > 0
     assert training_timing["simulation_step_calls"] > 0
-    assert training_timing["overhead_time_s"] >= 0.0
+    assert training_timing["overhead_step_time_s"]["mean"] >= 0.0
     assert training_data["learning"]["reward"]["series_per_iter"] is not None
     assert training_data["learning"]["reward"]["final_ema"] is not None
     if expect_reward_series:
@@ -135,7 +135,7 @@ def test_training_and_play_write_bundles(
     play_timing = play_data["runtime"]["environment_step_timing"]
     assert play_timing["environment_step_calls"] == 250
     assert play_timing["simulation_step_calls"] > 0
-    assert play_timing["overhead_time_s"] >= 0.0
+    assert play_timing["overhead_step_time_s"]["mean"] >= 0.0
     assert play_data["checkpoint_path"]
     assert play_data["reward"] is not None
     assert "mean" in play_data["reward"]

@@ -63,5 +63,8 @@ def test_runtime_writes_all_requested_formats(tmp_path):
     assert timing["environment_step_calls"] == 20
     assert timing["simulation_step_calls"] > 0
     assert timing["synchronized"]
-    assert timing["simulation_time_s"] + timing["overhead_time_s"] == pytest.approx(timing["total_time_s"])
+    assert timing["environment_step_time_s"]["mean"] == pytest.approx(
+        timing["simulation_step_time_s"]["mean"] + timing["overhead_step_time_s"]["mean"]
+    )
+    assert timing["environment_step_time_s"]["std"] >= 0.0
     assert "runtime" in json.loads(omniperf_files[0].read_text())

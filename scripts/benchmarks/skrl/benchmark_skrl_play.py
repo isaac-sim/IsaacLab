@@ -235,7 +235,9 @@ def run(argv: list[str]) -> None:
             outputs = runner.agent.act(obs, states, timestep=0, timesteps=0)
             return outputs[-1].get("mean_actions", outputs[0])
 
-        environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args_cli.measure_simulation_step_time)
+        environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+            env, enabled=args_cli.measure_simulation_step_time
+        )
         with environment_step_timer, BenchmarkMonitor(benchmark, interval=1.0):
             step_times, reward, ep_length, success_rate = stepping.run_play_loop(env, policy, args_cli.num_frames)
 
@@ -254,9 +256,8 @@ def run(argv: list[str]) -> None:
             collection_fps=fps,
             total_fps=fps,
             steps_per_iteration=num_envs,
-            environment_step_total_time_s=environment_step_timer.total_time_s,
-            simulation_step_total_time_s=environment_step_timer.simulation_time_s,
-            environment_step_calls=environment_step_timer.num_calls,
+            environment_step_times_s=environment_step_timer.step_times_s,
+            simulation_step_times_s=environment_step_timer.simulation_step_times_s,
             simulation_step_calls=environment_step_timer.simulation_step_calls,
         )
 

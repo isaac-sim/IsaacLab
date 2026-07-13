@@ -154,7 +154,9 @@ def run(argv: list[str]) -> None:
             num_envs = env.unwrapped.num_envs
 
             warmup_step_times_s = stepping.run_runtime_loop(env, args.warmup_frames)
-            environment_step_timer = stepping.EnvironmentStepTimer(env, enabled=args.measure_simulation_step_time)
+            environment_step_timer = stepping.EnvironmentStepTimingRecorder(
+                env, enabled=args.measure_simulation_step_time
+            )
             with BenchmarkMonitor(benchmark, interval=1.0):
                 timer_context = environment_step_timer
                 with timer_context:
@@ -182,9 +184,8 @@ def run(argv: list[str]) -> None:
                 total_fps=fps,
                 steps_per_iteration=num_envs,
                 aggregate_throughput=True,
-                environment_step_total_time_s=environment_step_timer.total_time_s,
-                simulation_step_total_time_s=environment_step_timer.simulation_time_s,
-                environment_step_calls=environment_step_timer.num_calls,
+                environment_step_times_s=environment_step_timer.step_times_s,
+                simulation_step_times_s=environment_step_timer.simulation_step_times_s,
                 simulation_step_calls=environment_step_timer.simulation_step_calls,
             )
 

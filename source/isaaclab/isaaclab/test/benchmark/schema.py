@@ -198,18 +198,18 @@ class EnvironmentStepTiming:
     """Synchronized environment-step wall-time breakdown.
 
     Args:
-        total_time_s: Wall time inside environment-step calls [s].
-        simulation_time_s: Wall time inside synchronized simulation-step calls [s].
-        overhead_time_s: Environment-step time outside simulation-step calls [s].
+        environment_step_time_s: Per-environment-step wall time [s].
+        simulation_step_time_s: Synchronized simulation wall time per environment step [s].
+        overhead_step_time_s: Time outside simulation calls per environment step [s].
         overhead_fraction: Fraction of environment-step time outside simulation-step calls.
         environment_step_calls: Number of measured environment-step calls.
         simulation_step_calls: Number of measured simulation-step calls.
-        synchronized: Whether device completion was included in each simulation call.
+        synchronized: Whether device completion was included in each measured boundary.
     """
 
-    total_time_s: float
-    simulation_time_s: float
-    overhead_time_s: float
+    environment_step_time_s: MeanStd
+    simulation_step_time_s: MeanStd
+    overhead_step_time_s: MeanStd
     overhead_fraction: float
     environment_step_calls: int
     simulation_step_calls: int
