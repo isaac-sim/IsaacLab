@@ -1,0 +1,126 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Perf Smoke — Auto Era Roll
+#
+# Makes the gate self-sufficient: when a protected-branch push moves the container
+# era (docker/.env.base), CI automatically publishes+records an immutable image for
+# the new era and seeds its baselines, instead of relying on someone remembering to
+# run "Publish CI Image" by hand.
+#
+# The era key is the single source of truth. `detect` computes it from HEAD and
+# resolves it against the manifest on perf-baselines; a miss means a new era, so:
+#   publish -> build + push sha-<short> and record era_key -> image (reuses
+#              perf-smoke-publish-image.yaml)
+#   seed    -> benchmark the era-boundary commit MIN_BASELINE_SAMPLES times so the
+#              new bucket is immediately gate-usable (reuses perf-smoke-seed-
+#              baselines.yaml). A new era has no prior history to seed from, so we
+#              seed HEAD x N rather than N recent commits.
+#
+# GPU is only spent on an actual era change; the detect job is cheap and runs every
+# push. Serialized so two near-simultaneous pushes can't double-publish an era.
+
+name: Perf Smoke — Auto Era Roll
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Roll even if the era is already recorded (rebuild + reseed)."
+        type: boolean
+        required: false
+        default: false
+      dry_run:
+        description: "Detect and log only; do not publish/record/seed."
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  # Serialize so a queued push sees the prior run's recorded era and skips re-rolling.
+  group: perf-smoke-era-roll
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # called workflows record the era + push seeded baselines
+
+jobs:
+  detect:
+    name: Detect new era
+    runs-on: ubuntu-latest
+    outputs:
+      should_roll: ${{ steps.era.outputs.should_roll }}
+      era_key: ${{ steps.era.outputs.era_key }}
+      commit: ${{ steps.era.outputs.commit }}
+      min_samples: ${{ steps.era.outputs.min_samples }}
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+    - id: era
+      env:
+        FORCE: ${{ inputs.force || 'false' }}
+      run: |
+        set -euo pipefail
+        # Resolve this commit's era against the manifest on perf-baselines. A miss
+        # (matched=false) means the container era moved and no image is recorded yet.
+        ERA_JSON="$(python3 tools/perf_smoke_test/image_era.py \
+          --source_root . \
+          --manifest_from_git \
+          --branch perf-baselines \
+          --remote origin)"
+        echo "${ERA_JSON}"
+        ERA_KEY="$(echo "${ERA_JSON}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["era_key"])')"
+        MATCHED="$(echo "${ERA_JSON}" | python3 -c 'import json,sys; print(str(json.load(sys.stdin)["matched"]).lower())')"
+        # Emit MIN_BASELINE_SAMPLES from gate_config so seeding fills exactly one
+        # gate-usable window (no hard-coded constant to drift).
+        MIN_SAMPLES="$(python3 -c 'import sys; sys.path.insert(0, "tools/perf_smoke_test"); from gate_config import MIN_BASELINE_SAMPLES; print(MIN_BASELINE_SAMPLES)')"
+
+        SHOULD_ROLL=false
+        if [ "${MATCHED}" != "true" ] || [ "${FORCE}" = "true" ]; then
+          SHOULD_ROLL=true
+        fi
+
+        echo "era_key=${ERA_KEY}" >> "$GITHUB_OUTPUT"
+        echo "commit=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+        echo "min_samples=${MIN_SAMPLES}" >> "$GITHUB_OUTPUT"
+        echo "should_roll=${SHOULD_ROLL}" >> "$GITHUB_OUTPUT"
+
+        {
+          echo "### Perf-smoke era roll"
+          echo ""
+          echo "- era_key: \`${ERA_KEY}\`"
+          echo "- recorded already: ${MATCHED}"
+          echo "- min_baseline_samples: ${MIN_SAMPLES}"
+          echo "- **should_roll: ${SHOULD_ROLL}**"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+  # Build + push the immutable image for the new era and record era_key -> image.
+  publish:
+    name: Publish era image
+    needs: [detect]
+    if: ${{ needs.detect.outputs.should_roll == 'true' && inputs.dry_run != true }}
+    uses: ./.github/workflows/perf-smoke-publish-image.yaml
+    secrets: inherit
+
+  # Seed the era-boundary commit N times so the new bucket is immediately blocking.
+  # The seeder resolves the era image from the manifest the publish job just wrote,
+  # so seed and gate share one environment. `branches: "<sha>:develop"` seeds exactly
+  # that commit (count 1) stamped target=develop.
+  seed:
+    name: Seed new era baselines
+    needs: [detect, publish]
+    if: ${{ needs.detect.outputs.should_roll == 'true' && inputs.dry_run != true }}
+    uses: ./.github/workflows/perf-smoke-seed-baselines.yaml
+    secrets: inherit
+    with:
+      branches: "${{ needs.detect.outputs.commit }}:develop"
+      commit_count: "1"
+      samples_per_commit: ${{ needs.detect.outputs.min_samples }}
+      target_branch: develop
+      strict_ancestry: true
+      dry_run: false

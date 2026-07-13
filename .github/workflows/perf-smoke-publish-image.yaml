@@ -1,0 +1,208 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Perf Smoke — Publish CI Image
+#
+# Builds docker/Dockerfile.base once, publishes it to NGC (nvcr.io) with both a
+# moving tag and an immutable sha-<short> tag, and records the era_key -> immutable
+# image mapping into the manifest on the perf-baselines branch. The gate and seeder
+# then auto-resolve that immutable image for the era (docker/.env.base), so no
+# manual PERF_SMOKE_CI_IMAGE is needed. On a manifest miss they degrade to the main
+# IsaacLab image published by publish-images.yaml.
+#
+# Usage:
+#   1. Run this workflow (Actions tab -> "Perf Smoke - Publish CI Image" -> Run workflow).
+#      Default target is the main IsaacLab image repository with a perf-<sha>
+#      tag. Override the `registry` / `tag` inputs to publish elsewhere.
+#   2. The immutable sha-<short> image is recorded into the era manifest
+#      automatically, so the gate/seeder pick it up for this era with no further
+#      action. Setting PERF_SMOKE_CI_IMAGE is only needed to force a specific image
+#      regardless of era.
+#   3. Re-run whenever docker/.env.base (the era inputs) changes, so the new era has
+#      a published, recorded image before PRs on that era run the gate.
+#
+# Runs on the same shared GPU runner pool as the gate: the build needs nvcr.io
+# access for the Isaac Sim base image and enough disk for it, which GitHub-hosted
+# runners lack.
+
+name: Perf Smoke — Publish CI Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      registry:
+        description: 'Target image repository (no tag). Default nvcr.io/nvidian/isaac-lab.'
+        required: false
+        default: ''
+      tag:
+        description: 'Image tag to publish. Defaults to perf-<sha>.'
+        required: false
+        default: ''
+  # Reusable: the era-roll orchestrator calls this on a new era. Caller must pass
+  # `secrets: inherit` so NGC_API_KEY is available for the nvcr.io build/push.
+  workflow_call:
+    inputs:
+      registry:
+        description: 'Target image repository (no tag). Default nvcr.io/nvidian/isaac-lab.'
+        required: false
+        default: ''
+        type: string
+      tag:
+        description: 'Image tag to publish. Defaults to perf-<sha>.'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  # write: the immutable image is recorded into the era manifest on perf-baselines.
+  contents: write
+
+env:
+  # Lets the build log into nvcr.io to pull the Isaac Sim base image.
+  NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+
+jobs:
+  publish:
+    name: Build + Publish CI image
+    runs-on: ${{ fromJSON(vars.PERF_SMOKE_RUNS_ON || '["self-hosted","gpu"]') }}
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+      with:
+        fetch-depth: 1
+        lfs: true
+
+    - name: Resolve image config
+      id: cfg
+      run: |
+        set -euo pipefail
+        f=.github/workflows/config.yaml
+        IMG="$(yq -r .isaacsim_image_name "$f")"
+        TAG="$(yq -r .isaacsim_image_tag "$f")"
+        ISAACLAB_IMAGE_NAME="$(yq -r .isaaclab_image_name "$f")"
+        echo "isaacsim_image_name=${IMG}" >> "$GITHUB_OUTPUT"
+        echo "isaacsim_image_tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+        # Default target repo: the shared IsaacLab NGC repo (reachable from the RTX fleet,
+        # same registry the post-merge job publishes to). Override via the `registry` input.
+        TARGET_REPO="${{ inputs.registry }}"
+        if [ -z "${TARGET_REPO}" ]; then
+          TARGET_REPO="${{ vars.PERF_SMOKE_PUBLISH_REPO }}"
+        fi
+        if [ -z "${TARGET_REPO}" ]; then
+          TARGET_REPO="${ISAACLAB_IMAGE_NAME}"
+        fi
+
+        # Default tag: a stable, human-friendly tag (mirrors IsaacLab's latest-develop).
+        # Pass `tag: sha-<short>` for an immutable, reproducible reference.
+        TARGET_TAG="${{ inputs.tag }}"
+        if [ -z "${TARGET_TAG}" ]; then
+          TARGET_TAG="perf-${GITHUB_SHA::7}"
+        fi
+
+        # Always also publish an immutable sha-<short> tag so a past era stays pinnable
+        # (the moving tag above is overwritten each publish). Mirrors IsaacLab pushing
+        # both latest-develop and latest-develop-<sha>. Skipped only when the chosen tag
+        # already IS the immutable one.
+        IMMUTABLE_TAG="sha-${GITHUB_SHA::7}"
+        echo "target_image=${TARGET_REPO}:${TARGET_TAG}" >> "$GITHUB_OUTPUT"
+        if [ "${TARGET_TAG}" != "${IMMUTABLE_TAG}" ]; then
+          echo "target_image_immutable=${TARGET_REPO}:${IMMUTABLE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "🔵 Will publish: ${TARGET_REPO}:${TARGET_TAG} + ${TARGET_REPO}:${IMMUTABLE_TAG}"
+        else
+          echo "target_image_immutable=" >> "$GITHUB_OUTPUT"
+          echo "🔵 Will publish: ${TARGET_REPO}:${TARGET_TAG}"
+        fi
+
+    # Build (or reuse the gha layer cache for) the image locally, tagged perf-smoke-publish:local.
+    - name: Build CI image
+      uses: ./.github/actions/ecr-build-push-pull
+      with:
+        image-tag: perf-smoke-publish:local
+        isaacsim-base-image: ${{ steps.cfg.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ steps.cfg.outputs.isaacsim_image_tag }}
+        dockerfile-path: docker/Dockerfile.base
+        cache-tag: cache-base
+        # Shares the gate's GHA layer-cache scope so a publish primes the gate's fallback
+        # cache and vice versa.
+        gha-cache-scope: perf-smoke-base
+
+    - name: Push image to target registry
+      env:
+        TARGET_IMAGE: ${{ steps.cfg.outputs.target_image }}
+        TARGET_IMAGE_IMMUTABLE: ${{ steps.cfg.outputs.target_image_immutable }}
+      run: |
+        set -euo pipefail
+
+        # credsStore on the runner is broken ("not implemented"); disable it before login.
+        # With credsStore disabled, docker writes the NGC key to config.json in clear
+        # text, so wipe the temp dir on ANY exit -- a failed docker push must not leave
+        # the long-lived credential on the self-hosted runner's filesystem.
+        DOCKER_CONFIG_DIR="$(mktemp -d)"
+        trap 'rm -rf "${DOCKER_CONFIG_DIR}"' EXIT
+        echo '{"credsStore":""}' > "${DOCKER_CONFIG_DIR}/config.json"
+        export DOCKER_CONFIG="${DOCKER_CONFIG_DIR}"
+
+        REGISTRY="${TARGET_IMAGE%%/*}"
+        case "${REGISTRY}" in
+          nvcr.io)
+            if [ -z "${NGC_API_KEY:-}" ]; then
+              echo "::error::NGC_API_KEY is required to push to nvcr.io"
+              exit 1
+            fi
+            echo "🔵 Logging into nvcr.io..."
+            echo "${NGC_API_KEY}" | docker login nvcr.io -u '$oauthtoken' --password-stdin
+            ;;
+          *)
+            echo "::error::Unsupported target registry '${REGISTRY}'. The perf smoke publishes to nvcr.io."
+            exit 1
+            ;;
+        esac
+
+        # Push the (moving) primary tag and, when distinct, the immutable sha tag.
+        PUSHED=()
+        for IMG in "${TARGET_IMAGE}" "${TARGET_IMAGE_IMMUTABLE}"; do
+          [ -z "${IMG}" ] && continue
+          docker tag perf-smoke-publish:local "${IMG}"
+          echo "🔵 Pushing ${IMG}..."
+          docker push "${IMG}"
+          PUSHED+=("${IMG}")
+        done
+
+        {
+          echo "## Published perf-smoke CI image"
+          echo ""
+          echo '```'
+          for IMG in "${PUSHED[@]}"; do echo "${IMG}"; done
+          echo '```'
+          echo ""
+          echo "Set the repo variable \`PERF_SMOKE_CI_IMAGE\` to one of these images when the gate or seeder must use a perf-specific image."
+          echo "The immutable \`sha-<short>\` tag is for pinning a past era (e.g. bisection)."
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    # Record era_key -> immutable image into the manifest on perf-baselines so the
+    # gate and seeder auto-resolve the pinned image for this era (no manual
+    # PERF_SMOKE_CI_IMAGE needed). Always records the immutable sha-<short> tag,
+    # never the moving tag, so a past era stays reproducible. Idempotent: a re-run
+    # for an already-recorded era is a no-op.
+    - name: Record era -> image mapping
+      env:
+        TARGET_IMAGE: ${{ steps.cfg.outputs.target_image }}
+        TARGET_IMAGE_IMMUTABLE: ${{ steps.cfg.outputs.target_image_immutable }}
+        ISAACSIM_VERSION: ${{ steps.cfg.outputs.isaacsim_image_tag }}
+      run: |
+        set -euo pipefail
+        # The immutable tag is preferred; when the chosen tag already IS immutable
+        # (sha-<short>), target_image_immutable is empty and target_image is used.
+        IMMUTABLE_REF="${TARGET_IMAGE_IMMUTABLE:-${TARGET_IMAGE}}"
+        echo "🔵 Recording era mapping for ${IMMUTABLE_REF}"
+        python3 tools/perf_smoke_test/image_era.py \
+          --source_root . \
+          --record_image "${IMMUTABLE_REF}" \
+          --branch perf-baselines \
+          --remote origin \
+          --extra "isaacsim_version=${ISAACSIM_VERSION}" \
+          --extra "published_commit=${GITHUB_SHA}" \
+          --extra "published_run=${GITHUB_RUN_ID}"
