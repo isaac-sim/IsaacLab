@@ -376,7 +376,7 @@ def test_mjwarp_ordering_helper_reports_actionable_cross_backend_failure(
     message = str(exc_info.value)
     assert f"Unable to resolve 'mjwarp' {kind} ordering" in message
     assert "active backend 'physx'" in message
-    assert f"env.scene.robot.{config_field}" in message
+    assert f"ArticulationCfg.{config_field}" in message
     assert f"explicit {kind}-name permutation" in message
     assert "mjwarp_usd_builder: the Newton USD builder returned no articulation names" in message
 
