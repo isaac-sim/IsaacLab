@@ -324,11 +324,7 @@ def _save_comparison_image(img: Image.Image, filename: str) -> str:
 
 def _format_bcompare_command(actual_path: str, golden_path: str) -> str:
     """Build a shell command that opens actual and golden images in Beyond Compare."""
-    return (
-        "bcompare \\\n"
-        f"  {actual_path} \\\n"
-        f"  {golden_path}"
-    )
+    return f"bcompare \\\n  {actual_path} \\\n  {golden_path}"
 
 
 def generate_html_report(comparison_scores: list[dict], report_filename: str) -> None:
