@@ -11,6 +11,7 @@ BUILDDIR      = _build
 .PHONY: multi-docs
 multi-docs:
 	@sphinx-multiversion "$(SOURCEDIR)" "$(BUILDDIR)" --jobs=auto $(SPHINXOPTS)
+	@python postprocess_multiversion_source_links.py "$(BUILDDIR)"
 	@cp _redirect/index.html $(BUILDDIR)/index.html
 
 .PHONY: current-docs

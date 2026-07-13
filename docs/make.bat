@@ -26,6 +26,8 @@ if "%1" == "multi-docs" (
 		exit /b 1
 	)
 	%SPHINXBUILD% %SOURCEDIR% %BUILDDIR% %SPHINXOPTS% %O%
+	python postprocess_multiversion_source_links.py %BUILDDIR%
+	if errorlevel 1 exit /b 1
 
 	REM Copy the redirect index.html to the build directory
 	copy _redirect\index.html %BUILDDIR%\index.html
