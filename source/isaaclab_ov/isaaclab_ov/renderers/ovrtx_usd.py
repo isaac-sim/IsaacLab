@@ -111,17 +111,17 @@ def get_render_var_configs(data_types: list[str]) -> list[tuple[str, str, str]]:
     use_rgb = any(dt in ["rgb", "rgba"] for dt in data_types)
     if use_rgb and "rgb_hdr" in data_types:
         render_vars.append(("/Render/Vars/HdrColor", "HdrColor", "HdrColor"))
-    # When semantic segmentation is the resolved AOV, also author the SemanticIdMap render var so the
-    # renderer can decode the semantic-ID-to-label mapping into camera.data.info["semantic_segmentation"].
-    if render_vars[0][2] == "SemanticSegmentation":
-        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
-    # When instance segmentation is the resolved AOV, author the three map render vars needed to resolve each
-    # NonStableInstanceSegmentation pixel ID to a prim path (StableIdSemanticIdMap -> StableIdMap) and a
-    # semantic label (StableIdSemanticIdMap -> SemanticIdMap) for camera.data.info["instance_segmentation_fast"].
-    if render_vars[0][2] == "NonStableInstanceSegmentation":
+    # Author the ID-to-label map render vars needed to decode the segmentation info dicts. These are keyed off
+    # the requested data types (not the single AOV resolved by get_render_var_config) so they are still authored
+    # when segmentation is combined with other outputs. instance_segmentation_fast needs StableIdSemanticIdMap +
+    # StableIdMap to resolve each pixel to a prim path.
+    if "instance_segmentation_fast" in data_types:
         render_vars.append(("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"))
-        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
         render_vars.append(("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"))
+    # SemanticIdMap resolves the semantic-ID-to-label mapping and is shared by both semantic_segmentation and
+    # instance_segmentation_fast, so it is authored once when either output is requested.
+    if "semantic_segmentation" in data_types or "instance_segmentation_fast" in data_types:
+        render_vars.append(("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"))
     return render_vars
 
 

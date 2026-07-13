@@ -174,8 +174,8 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
             "NonStableInstanceSegmentation",
         ),
         ("/Render/Vars/StableIdSemanticIdMap", "StableIdSemanticIdMap", "StableIdSemanticIdMap"),
-        ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
         ("/Render/Vars/StableIdMap", "StableIdMap", "StableIdMap"),
+        ("/Render/Vars/SemanticIdMap", "SemanticIdMap", "SemanticIdMap"),
     ]
 
     render_scope = build_render_scope_usd(
@@ -191,10 +191,20 @@ def test_ovrtx_instance_segmentation_authors_pixel_and_map_render_vars():
 
     assert (
         "rel orderedVars = [</Render/Vars/NonStableInstanceSegmentation>, </Render/Vars/StableIdSemanticIdMap>,"
-        " </Render/Vars/SemanticIdMap>, </Render/Vars/StableIdMap>]" in render_scope
+        " </Render/Vars/StableIdMap>, </Render/Vars/SemanticIdMap>]" in render_scope
     )
     assert 'uniform string sourceName = "StableIdSemanticIdMap"' in render_scope
     assert 'uniform string sourceName = "StableIdMap"' in render_scope
+
+
+def test_ovrtx_semantic_and_instance_segmentation_share_a_single_semantic_id_map():
+    """Requesting both segmentation outputs authors ``SemanticIdMap`` exactly once (it is shared)."""
+    render_var_configs = get_render_var_configs(["semantic_segmentation", "instance_segmentation_fast"])
+
+    sources = [source for _, _, source in render_var_configs]
+    assert sources.count("SemanticIdMap") == 1
+    # Both segmentations' map render vars are authored regardless of which AOV get_render_var_config resolves.
+    assert {"SemanticIdMap", "StableIdSemanticIdMap", "StableIdMap"} <= set(sources)
 
 
 def test_export_stage_keeps_all_env_content_when_all_roots_are_sources():
