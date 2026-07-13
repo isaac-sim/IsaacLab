@@ -180,6 +180,14 @@ Follow conventional commit message practices.
 
 - **Always verify regression tests fail without the fix.** When writing a regression test for a bug fix, temporarily revert the fix and run the test to confirm it fails. Then reapply the fix and verify the test passes. This ensures the test actually covers the bug.
 
+### Unit vs. integration test placement
+
+- **Unit tests may only import packages declared in the root `pyproject.toml`** (under `[project.dependencies]`). If a test imports anything else, one of the following must happen:
+  1. The missing package is a genuine dependency → add it to `pyproject.toml` before writing the test.
+  2. The test actually requires the simulator or other integration infrastructure → mark it `pytest.mark.integration` and place it in the appropriate `source/<package>/test/` subdirectory (not alongside unit tests).
+- **Do not silently rely on transitive or ambient packages.** If a unit test needs `scipy`, `torch`, or `warp`, those must be listed as explicit deps in the root `pyproject.toml`; do not assume they will be present because another package happened to install them.
+- The authoritative reference for what "unit-test-safe" imports look like is the root `pyproject.toml` `[project.dependencies]` section. When in doubt, check that file before adding a new import to a unit test.
+
 ### Install CI tests (`tests/integration/install_ci/`)
 
 These tests exist to validate documented installation paths end-to-end. Follow the rules below exactly. If a rule conflicts with what you want to do, push back to the maintainer rather than deviating.

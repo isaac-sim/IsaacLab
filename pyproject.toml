@@ -39,6 +39,7 @@ dependencies = [
     "isaaclab-visualizers",
     # ----- generic -----
     "numpy>=2",
+    "scipy>=1.10",
     "torch>=2.11",
     "torchvision>=0.26.0",
     "torchaudio>=2.11",
