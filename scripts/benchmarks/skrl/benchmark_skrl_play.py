@@ -97,6 +97,8 @@ def _parse_args(argv: list[str]):
     add_isaaclab_launcher_args(parser)
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    if args_cli.num_frames <= 0:
+        parser.error("--num_frames must be greater than zero")
     sys.argv = [sys.argv[0]] + remaining_args
 
     return args_cli, remaining_args

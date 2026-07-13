@@ -161,6 +161,20 @@ def test_build_runtime_adds_environment_step_timing_without_simulation_breakdown
     assert not rt.environment_step_timing.synchronized
 
 
+@pytest.mark.parametrize("environment_step_times_s", [[], [0.0], [-1.0]])
+def test_build_runtime_rejects_non_positive_environment_step_times(environment_step_times_s):
+    with pytest.raises(ValueError, match="environment_step_times_s must contain only positive samples"):
+        builders.build_runtime(
+            startup_time_s=StartupTime(0.1, 0.2, 0.3),
+            iteration_times_s=[],
+            collection_fps=[],
+            total_fps=[],
+            steps_per_iteration=8,
+            frames_per_environment_step=8,
+            environment_step_times_s=environment_step_times_s,
+        )
+
+
 def test_build_training_bundle_round_trips(tmp_path):
     run = builders.build_run_identity(
         run_id="x",

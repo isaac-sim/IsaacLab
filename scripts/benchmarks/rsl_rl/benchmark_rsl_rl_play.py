@@ -78,6 +78,8 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     add_launcher_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
+    if args.num_frames <= 0:
+        parser.error("--num_frames must be greater than zero")
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
 

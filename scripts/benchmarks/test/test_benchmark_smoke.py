@@ -5,6 +5,7 @@
 
 """End-to-end smoke tests for training and playing benchmarked policies."""
 
+import importlib.util
 import json
 import subprocess
 from pathlib import Path
@@ -34,6 +35,27 @@ def _run(command: list[str]) -> None:
             f"{Path(command[2]).name} rc={result.returncode}\n"
             f"STDOUT:\n{result.stdout[-2000:]}\nSTDERR:\n{result.stderr[-2000:]}"
         )
+
+
+def _load_adapter(library: str, workflow: str):
+    path = ROOT / "scripts" / "benchmarks" / library / f"benchmark_{library}_{workflow}.py"
+    spec = importlib.util.spec_from_file_location(f"benchmark_{library}_{workflow}_validation", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize("library", ["rsl_rl", "rl_games", "skrl", "sb3"])
+@pytest.mark.parametrize(("workflow", "argument"), [("play", "--num_frames"), ("train", "--max_iterations")])
+def test_adapters_reject_non_positive_workloads(library: str, workflow: str, argument: str):
+    """Benchmark adapters reject workloads that cannot produce timing samples."""
+    module = _load_adapter(library, workflow)
+
+    with pytest.raises(SystemExit) as exc_info:
+        module._parse_args(["--task", _TASK, argument, "0", "--headless"])
+
+    assert exc_info.value.code == 2
 
 
 @pytest.mark.parametrize(

@@ -157,7 +157,7 @@ def build_runtime(
             completed steps divided by total wall time. Standard deviation
             measures per-iteration dispersion around the effective mean, and
             peak remains the maximum per-iteration throughput.
-        environment_step_times_s: Per-environment-step wall times [s].
+        environment_step_times_s: Positive per-environment-step wall times [s].
         simulation_step_times_s: Synchronized simulation wall times per environment step [s].
         simulation_step_calls: Number of measured simulation-step calls.
 
@@ -182,8 +182,10 @@ def build_runtime(
         if frames_per_environment_step is None or frames_per_environment_step <= 0:
             raise ValueError("frames_per_environment_step must be greater than zero")
         environment_samples = list(environment_step_times_s)
+        if not environment_samples or any(value <= 0 for value in environment_samples):
+            raise ValueError("environment_step_times_s must contain only positive samples")
         total_environment_time_s = sum(environment_samples)
-        environment_fps_samples = [frames_per_environment_step / value for value in environment_samples if value > 0]
+        environment_fps_samples = [frames_per_environment_step / value for value in environment_samples]
         environment_step_fps = mean_std_peak(environment_fps_samples)
         if total_environment_time_s > 0:
             environment_step_fps = _with_effective_mean(

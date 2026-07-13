@@ -198,6 +198,8 @@ def _parse_args(argv: list[str]):
         parser.error("Distributed training benchmarks are not supported.")
 
     args_cli, remaining_args = setup_preset_cli(parser, argv)
+    if args_cli.max_iterations is not None and args_cli.max_iterations <= 0:
+        parser.error("--max_iterations must be greater than zero")
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + remaining_args
 
