@@ -50,8 +50,10 @@ class CouplerEntryCfg:
     """Bodies owned by this entry.
 
     A :class:`~isaaclab.managers.SceneEntityCfg` selects bodies below the
-    corresponding scene asset and may narrow them with ``body_names``. A
-    string is treated as a regex matched against full Newton body labels.
+    corresponding scene asset and may narrow them with ``body_names``; only
+    ``name``, ``body_names``, and ``preserve_order`` are supported. A string is
+    treated as a regex matched against full Newton body labels, and a match
+    also selects all descendant body labels below that path.
     """
 
     particles: list[int] = field(default_factory=list)
@@ -61,7 +63,13 @@ class CouplerEntryCfg:
     """Whether this entry owns every particle in the parent model."""
 
     include_child_joints: bool = True
-    """Whether joints whose child body is selected are owned by this entry."""
+    """Whether fully selected child joints are owned by this entry.
+
+    A joint is owned when its child body is selected and its parent is either
+    the world or selected by the same entry. A joint with exactly one selected
+    body endpoint is rejected because otherwise it would not be integrated by
+    any entry.
+    """
 
     include_body_shapes: bool = True
     """Whether shapes attached to selected bodies are owned by this entry."""
@@ -79,7 +87,8 @@ class CouplerEntryCfg:
     """Whether this entry steps in-place instead of using a second state buffer.
 
     Use this only for solvers, such as implicit MPM, whose public stepping
-    contract explicitly supports identical input and output states.
+    contract explicitly supports identical input and output states. Coupled
+    MPM entries require this field to be ``True``.
     """
 
 
@@ -109,21 +118,24 @@ class CouplerProxyMappingCfg:
     """Proxy transfer mode passed to Newton's coupled-proxy solver."""
 
     mass_scale: float = 1.0
-    """Scale applied to proxy effective mass and inertia in the destination view."""
+    """Scale applied to proxy body mass/inertia and particle mass in the destination view."""
 
     collide_interval: int | None = None
-    """Collision refresh interval when :attr:`collision_pipeline` is set.
+    """Proxy-local collision refresh interval.
 
     ``None`` refreshes contacts on every proxy pass. Explicit values must be
-    positive integers.
+    positive integers and require :attr:`collision_pipeline` to be a factory.
     """
 
-    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = lambda model_view: CollisionPipeline(
+    collision_pipeline: Callable[[ModelView], CollisionPipeline] | None = lambda model_view: CollisionPipeline(
         model_view, broad_phase="explicit"
     )
-    """Optional factory for the proxy destination's collision pipeline.
+    """Factory for the proxy destination's collision pipeline, or ``None``.
 
-    Defaults to a pipeline with ``broad_phase="explicit"``.
+    The default creates a proxy-local pipeline with ``broad_phase="explicit"``.
+    Set this field itself to ``None`` to pass the shared outer contacts to the
+    destination. A configured factory must return a collision pipeline; a
+    callable that returns ``None`` is rejected.
     """
 
 
@@ -144,13 +156,16 @@ class CouplerCfg(NewtonModelSolverCfg):
 
     scene_cfg: InteractiveSceneCfg | None = None
     """Scene cfg used to resolve :class:`~isaaclab.managers.SceneEntityCfg` selectors
-    to Newton bodies at solver-build time. Typically assigned from the env cfg's
-    ``__post_init__``."""
+    to Newton bodies at solver-build time. This is unnecessary when all body
+    selectors are full Newton label regexes or integer ids."""
 
 
 @configclass
 class CouplerProxyCfg(CouplerCfg):
-    """Configuration for Newton's lagged-impulse virtual-proxy coupling."""
+    """Configuration for Newton's lagged-impulse virtual-proxy coupling.
+
+    Newton's proxy coupler currently supports at most two solver entries.
+    """
 
     proxies: list[CouplerProxyMappingCfg] = field(default_factory=list)
     """Directed proxy mappings between named solver entries."""
