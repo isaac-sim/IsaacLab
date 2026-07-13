@@ -1297,8 +1297,7 @@ def rendering_test_franka_soft(
     if physics_backend == "physx" and renderer == "newton_renderer":
         pytest.skip("physx + newton_renderer is not supported yet.")
 
-    if data_type == "motion_vectors":
-        pytest.skip("motion_vectors is not supported yet.")
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
 
@@ -1320,6 +1319,19 @@ def rendering_test_franka_soft(
     try:
         env = ManagerBasedRLEnv(env_cfg)
 
+        if data_type == "motion_vectors":
+            # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
+            arm_action = env.action_manager.get_term("arm_action")
+            ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
+            ee_pos_curr[0] += 0.05
+
+            actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+            actions[:, 0:3] = ee_pos_curr
+            actions[:, 3:7] = ee_quat_curr
+
+            env.step(actions)
+
+        # This workaround invalidates the physx data views and would lead to issues if it was done before stepping.
         _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_type)
