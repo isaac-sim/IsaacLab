@@ -23,6 +23,11 @@ dependencies = [
     "isaaclab_tasks",
 ]
 
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
+isaaclab_assets = { path = "../isaaclab_assets", editable = true }
+isaaclab_tasks = { path = "../isaaclab_tasks", editable = true }
+
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
 Repository = "https://github.com/isaac-sim/IsaacLab"
