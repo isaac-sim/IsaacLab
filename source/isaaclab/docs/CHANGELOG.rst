@@ -1,6 +1,85 @@
 Changelog
 ---------
 
+11.3.0 (2026-07-14)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`isaaclab.test.utils.DeviceScope`,
+  :func:`isaaclab.test.utils.test_devices`, and
+  :func:`isaaclab.test.utils.resolve_test_sim_device` to parametrize unit tests
+  and launch Kit from the same runtime device mask. Composable scopes cover
+  common cases, string masks support custom combinations, and multi-GPU CI
+  narrows the runtime to one non-default GPU per shard without changing
+  single-GPU CI behavior.
+* Added :func:`~isaaclab.utils.warp.warp_math.replace_background_depth_wp` to replace non-positive
+  (background / beyond-far) depth values with a fill value, for ray tracers that use ``0.0`` rather
+  than ``+inf`` as the depth background sentinel.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Converted :func:`~isaaclab.envs.mdp.reset_root_state_uniform` and
+  :func:`~isaaclab.envs.mdp.joint_vel_out_of_limit` to class-based manager terms that bake
+  their range and joint-index tensors at construction, removing a synchronizing
+  host-to-device copy per call. Configurations referencing the terms through
+  ``func=mdp.<term>`` are unaffected; direct function calls must construct the term first.
+* Changed :meth:`~isaaclab.managers.TerminationManager.reset` to move episodic termination
+  statistics to the host in one transfer instead of one synchronizing ``.item()`` per term.
+* Changed :class:`~isaaclab.envs.mdp.randomize_physics_scene_gravity` to rewrite its baked
+  distribution tensors only when the requested ranges change, removing six small
+  host-to-device copies per reset batch.
+
+Fixed
+^^^^^
+
+* Fixed first runs through the CLI failing out of the box on Linux aarch64 (e.g. DGX Spark):
+  python subprocesses now preload the system ``libgomp`` automatically instead of exiting with
+  a warning banner that asks the user to export ``LD_PRELOAD`` by hand. Also documented
+  ``OMNI_KIT_ACCEPT_EULA=yes`` for non-interactive first launches and the aarch64 build path
+  in the source installation guide.
+* Fixed deformable-body support being uninstallable on Linux aarch64: ``pytetwild`` was
+  platform-gated to x86_64 from when it had no aarch64 wheel, so the deformables demo and
+  tutorial failed with ``ModuleNotFoundError`` after a full install. Version 0.3.0 ships
+  manylinux aarch64 wheels and is now installed there (with its ``[all]`` extra, since it
+  imports ``pyvista`` at import time but only declares it in that extra).
+
+
+11.2.0 (2026-07-13)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab.sim.utils.has_deformable_body_api` to detect applied deformable body API
+  schemas, including schemas authored as unregistered tokens (e.g. by Newton).
+
+Changed
+^^^^^^^
+
+* Changed :meth:`~isaaclab.utils.buffers.CircularBuffer.append` to apply the first-push
+  backfill branchlessly with :func:`torch.where`, removing a host-synchronizing ``nonzero``
+  and a device-scalar branch per append while resets are pending.
+* **Breaking:** Changed :func:`~isaaclab.sim.schemas.define_deformable_body_properties` to no longer
+  remove a pre-existing deformable body setup before authoring a new one. Clear any previous setup
+  before calling it, or use :func:`~isaaclab.sim.schemas.modify_deformable_body_properties` to update
+  properties on an existing deformable body.
+
+Fixed
+^^^^^
+
+* Fixed ``--video`` recording crashing with ``TypeError: must be real number, not NoneType``
+  on fresh installs by bounding ``moviepy`` to ``>=1.0.3,<2.0.0.dev0``. The unbounded dependency
+  let prerelease-allowing installs (as the documented Isaac Sim pip install performs) resolve
+  the broken ``2.0.0.dev2`` build, whose ``write_videofile`` does not fall back to the clip fps;
+  stable 2.x cannot be used because it caps ``pillow`` below the version Isaac Lab requires.
+* Fixed Newton kitless deformable mesh spawning to avoid requiring Kit-only PhysX helpers.
+* Fixed detection of deformable body API schemas authored as unregistered tokens (e.g. by Newton),
+  so such assets are modified in place instead of being re-defined during spawning.
+
+
 11.1.0 (2026-07-12)
 ~~~~~~~~~~~~~~~~~~~
 

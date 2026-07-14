@@ -26,6 +26,7 @@ from isaaclab.sim.utils import (
     create_prim,
     get_current_stage,
     get_first_matching_child_prim,
+    has_deformable_body_api,
     select_usd_variants,
     set_prim_visibility,
 )
@@ -477,7 +478,7 @@ def _spawn_from_usd_file(
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
         )
-        if "OmniPhysicsDeformableBodyAPI" in prim.GetAppliedSchemas():
+        if has_deformable_body_api(prim):
             schemas.modify_deformable_body_properties(prim_path, cfg.deformable_props, stage)
         else:
             schemas.define_deformable_body_properties(prim_path, cfg.deformable_props, stage, deformable_type)
@@ -491,15 +492,15 @@ def _spawn_from_usd_file(
     if cfg.visual_material is not None:
         if not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
-            return stage.GetPrimAtPath(prim_path)
-        if not cfg.visual_material_path.startswith("/"):
-            material_path = f"{prim_path}/{cfg.visual_material_path}"
         else:
-            material_path = cfg.visual_material_path
-        # create material
-        cfg.visual_material.func(material_path, cfg.visual_material)
-        # apply material
-        bind_visual_material(prim_path, material_path, stage=stage)
+            if not cfg.visual_material_path.startswith("/"):
+                material_path = f"{prim_path}/{cfg.visual_material_path}"
+            else:
+                material_path = cfg.visual_material_path
+            # create material
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            # apply material
+            bind_visual_material(prim_path, material_path, stage=stage)
 
     # apply physics material
     if cfg.physics_material is not None:

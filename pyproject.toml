@@ -38,9 +38,11 @@ dependencies = [
     "gymnasium>=1.2.0",
     "trimesh",
     "pyglet>=2.1.6,<3",
-    # x86_64-only wheel (sdist fails to build on aarch64). Pinned ==0.2.3: >=0.3
-    # imports pyvista at import time.
+    # pytetwild: keep the behavior-stable 0.2.3 pin on x86_64. 0.3.0 added manylinux
+    # aarch64 wheels; it imports pyvista at import time but only declares it in its
+    # [all] extra, so depend on that extra there.
     "pytetwild==0.2.3 ; platform_machine in 'x86_64 AMD64'",
+    "pytetwild[all]>=0.3.0,<0.4 ; platform_machine in 'aarch64 arm64'",
     "transformers==4.57.6",
     "einops",
     "warp-lang==1.15.0.dev20260626",
@@ -71,7 +73,10 @@ dependencies = [
     # ----- rl utilities -----
     "hydra-core",
     "h5py>=3.15.0",
-    "moviepy",
+    # bounded to the 1.x line: moviepy 2.x stable caps pillow below our pin, so
+    # prerelease-allowing resolvers fell through to the broken 2.0.0.dev2 build,
+    # whose write_videofile drops the clip fps and crashes video recording
+    "moviepy>=1.0.3,<2.0.0.dev0",
     "packaging",
     "tqdm>=4.67.1",
     "rsl-rl-lib==5.4.1",  # default RL framework
@@ -285,7 +290,7 @@ reportPrivateUsage = "warning"
 skip = '*.usd,*.usda,*.usdz,*.svg,*.png,_isaac_sim*,*.bib,*.css,*/_build'
 quiet-level = 0
 # the world list should always have words in lower case
-ignore-words-list = "haa,slq,collapsable,buss,reacher,thirdparty,segway"
+ignore-words-list = "aheared,collet,followng,haa,publically,rouines,slq,collapsable,buss,reacher,thirdparty,segway,wel"
 
 
 [tool.pytest.ini_options]
