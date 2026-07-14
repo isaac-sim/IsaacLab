@@ -3,27 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Demonstration of randomized bin-packing with Isaac Lab.
+"""Demonstration of heterogeneous bin-packing layouts with the cloner API.
 
-This script tiles multiple environments, spawns a configurable set of grocery
-objects, and continuously randomizes their poses, velocities, mass properties,
-and active/cached state to mimic a bin filling workflow. It showcases how to
-use ``RigidObjectCollection`` utilities for bulk pose resets, cache management,
-and out-of-bounds recovery inside an interactive simulation loop.
+This script samples a different number of grocery objects for every environment
+and declares each sampled layout as a clone combination on the scene's
+:class:`~isaaclab.cloner.CloneCfg`. The scene's replication pipeline then spawns
+only the sampled subset of objects into each environment, so environments
+genuinely differ in object count instead of parking unused objects in an
+off-screen cache. The simulation loop periodically re-drops every spawned
+grocery into its bin with pose, velocity, and mass noise, and teleports
+out-of-bounds objects back in.
+
+.. note::
+    Heterogeneous per-environment object counts require the PhysX backend.
+    Newton requires every environment to hold an identical body set, so with
+    ``--physics newton_mjwarp`` the demo samples a single object count and
+    applies it to all environments.
 
 .. code-block:: bash
 
     # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/bin_packing.py
 
-    # Usage with Newton visualizer and default PhysX physics.
-    ./isaaclab.sh -p scripts/demos/bin_packing.py --visualizer newton
+    # Reproducible layout sampling.
+    ./isaaclab.sh -p scripts/demos/bin_packing.py --seed 42
 
-    # Usage with Newton (MJWarp) physics and default kit visualizer.
+    # Usage with Newton (MJWarp) physics (homogeneous layouts).
     ./isaaclab.sh -p scripts/demos/bin_packing.py --physics newton_mjwarp
-
-    # Usage with Newton visualizer and Newton (MJWarp) physics.
-    ./isaaclab.sh -p scripts/demos/bin_packing.py --visualizer newton --physics newton_mjwarp
 
 """
 
@@ -37,11 +43,18 @@ from typing import TYPE_CHECKING
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(
-    description="Demo usage of RigidObjectCollection through bin packing example",
+    description="Demo of heterogeneous bin-packing layouts through the cloner API",
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
 parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
+parser.add_argument("--seed", type=int, default=None, help="Seed for the per-environment layout sampling.")
+parser.add_argument(
+    "--max_steps",
+    type=int,
+    default=-1,
+    help="Maximum physics steps before exit. Negative values run until the app closes.",
+)
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
@@ -52,13 +65,10 @@ import torch
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-
-##
-# Pre-defined configs
-##
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import Timer
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
@@ -66,208 +76,134 @@ from isaaclab.utils.configclass import configclass
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 
 if TYPE_CHECKING:
-    from isaaclab.assets import RigidObjectCollection
+    from isaaclab.scene import InteractiveScene
 
 ##
 # Scene Configuration
 ##
 
 # Layout and spawn counts.
-MAX_NUM_OBJECTS = 24  # Hard cap on objects managed per environment (active + cached).
-MAX_OBJECTS_PER_BIN = 24  # Maximum active objects we plan to fit inside the bin.
-MIN_OBJECTS_PER_BIN = 1  # Lower bound for randomized active object count.
-NUM_OBJECTS_PER_LAYER = 4  # Number of groceries spawned on each layer of the active stack.
-
-# Cached staging area and grid spacing.
-CACHE_HEIGHT = 2.5  # Height (m) at which inactive groceries wait out of view.
-ACTIVE_LAYER_SPACING = 0.1  # Vertical spacing (m) between layers inside the bin.
-CACHE_SPACING = 0.25  # XY spacing (m) between cached groceries.
+MAX_OBJECTS_PER_BIN = 24  # Maximum objects a sampled layout can place inside the bin.
+MIN_OBJECTS_PER_BIN = 1  # Lower bound for the sampled per-environment object count.
+NUM_OBJECTS_PER_LAYER = 4  # Number of groceries spawned on each layer of the stack.
+LAYER_SPACING = 0.1  # Vertical spacing (m) between layers of the spawn stack above the bin.
 
 # Bin dimensions and bounds.
 BIN_DIMENSIONS = (0.2, 0.3, 0.15)  # Physical size (m) of the storage bin.
-BIN_XY_BOUND = ((-0.2, -0.3), (0.2, 0.3))  # Valid XY region (min/max) for active groceries.
+BIN_XY_BOUND = ((-0.2, -0.3), (0.2, 0.3))  # Valid XY region (min/max) for groceries.
 
-# Randomization ranges (radians for rotations, m/s and rad/s for velocities).
-POSE_RANGE = {"roll": (-3.14, 3.14), "pitch": (-3.14, 3.14), "yaw": (-3.14, 3.14)}
-VELOCITY_RANGE = {"roll": (-0.2, 1.0), "pitch": (-0.2, 1.0), "yaw": (-0.2, 1.0)}
+# Uniform reset noise ranges per [x, y, z, roll, pitch, yaw] ([m], [rad] and [m/s], [rad/s]).
+POSE_NOISE_RANGE = ((0.0, 0.0),) * 3 + ((-3.14, 3.14),) * 3
+VELOCITY_NOISE_RANGE = ((0.0, 0.0),) * 3 + ((-0.2, 1.0),) * 3
 
-# Object layout configuration
+GROCERY_USDS = [
+    f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
+    f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
+    f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
+    f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
+]
 
-GROCERIES = {
-    "OBJECT_A": sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/004_sugar_box.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
-    ),
-    "OBJECT_B": sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/003_cracker_box.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
-    ),
-    "OBJECT_C": sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/005_tomato_soup_can.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
-    ),
-    "OBJECT_D": sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/YCB/Axis_Aligned_Physics/006_mustard_bottle.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4),
-    ),
-}
+GROCERY_NAMES = [f"grocery_{slot:02d}" for slot in range(MAX_OBJECTS_PER_BIN)]
 
 
-@configclass
-class MultiObjectSceneCfg(InteractiveSceneCfg):
-    """Configuration for a multi-object scene."""
+def grocery_spawn_poses(device: str = "cpu") -> torch.Tensor:
+    """Create the stacked spawn grid above the bin, one pose per grocery slot.
 
-    # ground plane
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
-
-    # lights
-    dome_light = AssetBaseCfg(
-        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    )
-
-    # rigid object
-    object: RigidObjectCfg = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/Object",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
-            scale=(2.0, 2.0, 2.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0, kinematic_enabled=True
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
-    )
-
-    groceries: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
-        # Instantiate four grocery variants per layer and replicate across all layers in each environment.
-        rigid_objects={
-            f"Object_{label}_Layer{layer}": RigidObjectCfg(
-                prim_path=f"/World/envs/env_.*/Groceries/Object_{label}_Layer{layer}",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(x, y, 0.2 + (layer) * 0.2)),
-                spawn=GROCERIES.get(f"OBJECT_{label}"),
-            )
-            for layer in range(MAX_NUM_OBJECTS // NUM_OBJECTS_PER_LAYER)
-            for label, (x, y) in zip(["A", "B", "C", "D"], [(-0.035, -0.1), (-0.035, 0.1), (0.035, 0.1), (0.035, -0.1)])
-        }
-    )
-
-
-def reset_object_collections(
-    scene: InteractiveScene,
-    asset_name: str,
-    poses: torch.Tensor,
-    vels: torch.Tensor,
-    view_ids: torch.Tensor,
-    noise: bool = False,
-) -> None:
-    """Apply poses and velocities to a subset of a collection, with optional noise.
-
-    Updates ``poses`` and ``vels`` in-place for ``view_ids`` and writes them
-    to the PhysX view for the collection ``asset_name``. When ``noise`` is True, adds
-    uniform perturbations to pose (XYZ + Euler) and velocities using ``POSE_RANGE`` and
-    ``VELOCITY_RANGE``.
+    The slots fill layer by layer: slot ``i`` sits on layer ``i // NUM_OBJECTS_PER_LAYER``
+    at position ``i % NUM_OBJECTS_PER_LAYER`` of a small XY grid over the bin opening.
 
     Args:
-        scene: Interactive scene containing the collection.
-        asset_name: Key in the scene (e.g., ``"groceries"``) for the RigidObjectCollection.
-        poses: Env-major body poses [m, rad], shape ``(num_envs, num_bodies, 7)``.
-        vels: Env-major body velocities [m/s, rad/s], shape ``(num_envs, num_bodies, 6)``.
-        view_ids: 1D tensor of env-major flattened indices into ``poses`` and ``vels`` to update.
-        noise: If True, apply pose and velocity noise before writing.
-
-    Returns:
-        None: This function updates ``poses``, ``vels``, and the underlying PhysX view in-place.
-    """
-    rigid_object_collection: RigidObjectCollection = scene[asset_name]
-    flat_poses = poses.view(-1, poses.shape[-1])
-    flat_velocities = vels.view(-1, vels.shape[-1])
-    selected_poses = flat_poses[view_ids]
-    positions = selected_poses[:, :3]
-    orientations = selected_poses[:, 3:7]
-    # poses
-    if noise:
-        range_list = [POSE_RANGE.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        ranges = torch.tensor(range_list, device=scene.device)
-        samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(view_ids), 6), device=scene.device)
-        positions += samples[..., 0:3]
-
-        # Compose new orientations by applying the sampled euler noise in quaternion space.
-        orientations_delta = math_utils.quat_from_euler_xyz(samples[..., 3], samples[..., 4], samples[..., 5])
-        orientations = math_utils.quat_mul(orientations, orientations_delta)
-
-    # velocities
-    new_velocities = flat_velocities[view_ids]
-    if noise:
-        range_list = [VELOCITY_RANGE.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-        ranges = torch.tensor(range_list, device=scene.device)
-        samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(view_ids), 6), device=scene.device)
-        new_velocities += samples
-    else:
-        new_velocities[:] = 0.0
-
-    flat_poses[view_ids, :3] = positions
-    flat_poses[view_ids, 3:7] = orientations
-    flat_velocities[view_ids] = new_velocities
-
-    rigid_object_collection.write_body_link_pose_to_sim_index(body_poses=poses)
-    rigid_object_collection.write_body_com_velocity_to_sim_index(body_velocities=vels)
-
-
-def build_grocery_defaults(
-    num_envs: int,
-    device: str = "cpu",
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Create default active/cached spawn poses for all environments.
-
-    - Active poses: stacked 3D grid over the bin with ``ACTIVE_LAYER_SPACING`` per layer.
-    - Cached poses: 2D grid at ``CACHE_HEIGHT`` to park inactive objects out of view.
-
-    Args:
-        num_envs: Number of environments to tile the poses for.
         device: Torch device for allocation (e.g., ``"cuda:0"`` or ``"cpu"``).
 
     Returns:
-        tuple[torch.Tensor, torch.Tensor]: Active and cached spawn poses, each shaped
-        ``(num_envs, M, 7)`` with ``[x, y, z, qx, qy, qz, qw]`` where ``M`` equals
-        ``MAX_NUM_OBJECTS``.
+        Spawn poses in the local environment frame [m], shape
+        ``(MAX_OBJECTS_PER_BIN, 7)`` with ``[x, y, z, qx, qy, qz, qw]``.
     """
-
-    # The bin has a size of 0.2 x 0.3 x 0.15 m
     bin_x_dim, bin_y_dim, bin_z_dim = BIN_DIMENSIONS
-    # First, we calculate the number of layers and objects per layer
     num_layers = math.ceil(MAX_OBJECTS_PER_BIN / NUM_OBJECTS_PER_LAYER)
     num_x_objects = math.ceil(math.sqrt(NUM_OBJECTS_PER_LAYER))
     num_y_objects = math.ceil(NUM_OBJECTS_PER_LAYER / num_x_objects)
-    total_objects = num_x_objects * num_y_objects * num_layers
-    # Then, we create a 3D grid that allows for IxJxN objects to be placed on top of the bin.
+    # Create a 3D grid that stacks NUM_OBJECTS_PER_LAYER objects per layer above the bin.
     x = torch.linspace(-bin_x_dim * (2 / 6), bin_x_dim * (2 / 6), num_x_objects, device=device)
     y = torch.linspace(-bin_y_dim * (2 / 6), bin_y_dim * (2 / 6), num_y_objects, device=device)
-    z = torch.linspace(0, ACTIVE_LAYER_SPACING * (num_layers - 1), num_layers, device=device) + bin_z_dim * 2
+    z = torch.linspace(0, LAYER_SPACING * (num_layers - 1), num_layers, device=device) + bin_z_dim * 2
     grid_z, grid_y, grid_x = torch.meshgrid(z, y, x, indexing="ij")  # Note Z first, this stacks the layers.
-    # Using this grid plus a reference quaternion, create the poses for the groceries to be spawned above the bin.
-    ref_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(total_objects, 1)
-    positions = torch.stack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten()), dim=-1)
-    poses = torch.cat((positions, ref_quat), dim=-1)
-    # Duplicate across environments, cap at max_num_objects
-    active_spawn_poses = poses.unsqueeze(0).repeat(num_envs, 1, 1)[:, :MAX_NUM_OBJECTS, :]
+    positions = torch.stack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten()), dim=-1)[:MAX_OBJECTS_PER_BIN]
+    ref_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(len(positions), 1)
+    return torch.cat((positions, ref_quat), dim=-1)
 
-    # We'll also create a buffer for the cached groceries. They'll be spawned below the bin so they can't be seen.
-    num_x_objects = math.ceil(math.sqrt(MAX_NUM_OBJECTS))
-    num_y_objects = math.ceil(MAX_NUM_OBJECTS / num_x_objects)
-    # We create a XY grid only and fix the Z height for the cache.
-    x = CACHE_SPACING * torch.arange(num_x_objects, device=device)
-    y = CACHE_SPACING * torch.arange(num_y_objects, device=device)
-    grid_y, grid_x = torch.meshgrid(y, x, indexing="ij")
-    grid_z = CACHE_HEIGHT * torch.ones_like(grid_x)
-    # We can then create the poses for the cached groceries.
-    ref_quat = torch.tensor([[0.0, 0.0, 0.0, 1.0]], device=device).repeat(num_x_objects * num_y_objects, 1)
-    positions = torch.stack((grid_x.flatten(), grid_y.flatten(), grid_z.flatten()), dim=-1)
-    poses = torch.cat((positions, ref_quat), dim=-1)
-    # Duplicate across environments, cap at max_num_objects
-    cached_spawn_poses = poses.unsqueeze(0).repeat(num_envs, 1, 1)[:, :MAX_NUM_OBJECTS, :]
 
-    return active_spawn_poses, cached_spawn_poses
+def make_bin_packing_scene_cfg(
+    layout_counts: list[int],
+    num_envs: int,
+    env_spacing: float,
+    replicate_physics: bool,
+) -> InteractiveSceneCfg:
+    """Build the scene configuration whose clone combinations encode the sampled layouts.
+
+    One :class:`~isaaclab.assets.RigidObjectCfg` field is declared per grocery slot,
+    and each sampled layout becomes one :class:`~isaaclab.cloner.InclusionSet`
+    activating the first ``count`` slots. With the :func:`~isaaclab.cloner.sequential`
+    clone strategy and one combination per environment, environment ``i`` receives
+    exactly ``layout_counts[i]`` objects.
+
+    Args:
+        layout_counts: Sampled object count per environment.
+        num_envs: Number of environments to spawn.
+        env_spacing: Distance between environment origins [m].
+        replicate_physics: Whether physics replication is enabled on the scene.
+
+    Returns:
+        The configured scene instance.
+    """
+    rigid_props = sim_utils.RigidBodyPropertiesCfg(solver_position_iteration_count=4)
+    spawn_poses = grocery_spawn_poses()
+    namespace = {
+        "__module__": __name__,
+        "__doc__": "Bin-packing scene with per-environment heterogeneous grocery layouts.",
+        # ground plane
+        "ground": AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg()),
+        # lights
+        "dome_light": AssetBaseCfg(
+            prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+        ),
+        # storage bin
+        "packing_bin": RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Bin",
+            spawn=sim_utils.UsdFileCfg(
+                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
+                scale=(2.0, 2.0, 2.0),
+                rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                    solver_position_iteration_count=4, solver_velocity_iteration_count=0, kinematic_enabled=True
+                ),
+                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
+        ),
+        # one grocery slot per possible object, cycling through the grocery variants
+        **{
+            name: RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Groceries/Grocery_{slot:02d}",
+                init_state=RigidObjectCfg.InitialStateCfg(pos=tuple(spawn_poses[slot, :3].tolist())),
+                spawn=sim_utils.UsdFileCfg(usd_path=GROCERY_USDS[slot % len(GROCERY_USDS)], rigid_props=rigid_props),
+            )
+            for slot, name in enumerate(GROCERY_NAMES)
+        },
+    }
+    scene_cfg_cls = configclass(type("BinPackingSceneCfg", (InteractiveSceneCfg,), namespace))
+    # One clone combination per environment; the bin, ground, and light are not
+    # referenced by any combination, so they stay active in every environment.
+    # The zero-weight row claims every slot without spawning anything: assets no
+    # combination mentions would otherwise default to active in every environment,
+    # which would wrongly spawn the slots above the largest sampled count.
+    clone_cfg = CloneCfg(
+        clone_combinations=[InclusionSet(assets=GROCERY_NAMES[:count]) for count in layout_counts]
+        + [InclusionSet(assets=GROCERY_NAMES, weight=0)],
+        clone_strategy=sequential,
+    )
+    return scene_cfg_cls(
+        num_envs=num_envs, env_spacing=env_spacing, replicate_physics=replicate_physics, clone_cfg=clone_cfg
+    )
 
 
 ##
@@ -278,73 +214,85 @@ def build_grocery_defaults(
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
     """Runs the simulation loop that coordinates spawn randomization and stepping.
 
+    A heterogeneous scene gives each grocery slot its own physics view whose
+    instance count is the number of environments containing that slot, not
+    ``num_envs``. Env membership is read from the view's own prim paths, so all
+    buffers are sized and ordered exactly like the view. Resets are full-buffer
+    writes followed by one global :meth:`~isaaclab.scene.InteractiveScene.reset`,
+    and the out-of-bounds pass indexes the view buffer directly.
+
     Returns:
         None: The simulator side-effects are applied through ``scene`` and ``sim``.
     """
-    # Extract scene entities
-    # note: we only do this here for readability.
-    groceries: RigidObjectCollection = scene["groceries"]
-    num_objects = groceries.num_bodies
-    num_envs = scene.num_envs
     device = scene.device
-    view_indices = torch.arange(num_envs * num_objects, device=device)
-    default_pose_w = groceries.data.default_body_pose.torch.clone()
-    default_pose_w[..., :3] = default_pose_w[..., :3] + scene.env_origins.unsqueeze(1)
-    default_vel_w = groceries.data.default_body_vel.torch.clone()
-    # Define simulation stepping
+    # Resolve each spawned slot once: (asset, env ids owning an instance, world spawn poses).
+    spawn_poses = grocery_spawn_poses(device)
+    groceries = []
+    for slot, name in enumerate(GROCERY_NAMES):
+        if name not in scene.rigid_objects:
+            continue
+        asset = scene[name]
+        prim_paths = getattr(asset.root_view, "prim_paths", None)
+        if prim_paths is not None and len(prim_paths) == asset.num_instances:
+            env_ids = [int(path.partition("/env_")[2].partition("/")[0]) for path in prim_paths]
+        else:
+            # Homogeneous fallback (e.g. Newton): one instance per environment.
+            env_ids = range(asset.num_instances)
+        env_ids = torch.tensor(list(env_ids), dtype=torch.long, device=device)
+        spawn_pose_w = spawn_poses[slot].repeat(len(env_ids), 1)
+        spawn_pose_w[:, :3] += scene.env_origins[env_ids]
+        groceries.append((asset, env_ids, spawn_pose_w))
+
+    pose_ranges = torch.tensor(POSE_NOISE_RANGE, device=device)
+    velocity_ranges = torch.tensor(VELOCITY_NOISE_RANGE, device=device)
+    bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device)
     sim_dt = sim.get_physics_dt()
     count = 0
+    step = 0
 
-    # Pre-compute canonical spawn poses for each object both inside the bin and in the cache.
-    active_spawn_poses, cached_spawn_poses = build_grocery_defaults(num_envs, device)
-    # Offset poses into each environment's world frame.
-    active_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
-    cached_spawn_poses[..., :3] += scene.env_origins.view(-1, 1, 3)
-    spawn_poses_w = default_pose_w.clone()
-    spawn_vel_w = default_vel_w.clone()
-
-    groceries_mask_helper = torch.arange(num_objects * num_envs, device=device) % num_objects
-    # Precompute a helper mask to toggle objects between active and cached sets.
-    # Precompute XY bounds [[x_min,y_min],[x_max,y_max]]
-    bounds_xy = torch.as_tensor(BIN_XY_BOUND, device=device, dtype=spawn_poses_w.dtype)
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
     while sim.is_headless_or_exist_active_visualizer():
-        # Reset
+        if args_cli.max_steps >= 0 and step >= args_cli.max_steps:
+            break
+        # Drop every spawned grocery back into its bin with pose, velocity, and mass noise.
         if count % 250 == 0:
-            # reset counter
             count = 0
-            # Randomly choose how many groceries stay active in each environment.
-            num_active_groceries = torch.randint(MIN_OBJECTS_PER_BIN, num_objects, (num_envs, 1), device=device)
-            groceries_mask = (groceries_mask_helper.view(num_envs, -1) < num_active_groceries).unsqueeze(-1)
-            spawn_poses_w[:] = cached_spawn_poses * (~groceries_mask) + active_spawn_poses * groceries_mask
-            # Retrieve positions
             with Timer("[INFO] Time to reset scene: "):
-                active_indices = view_indices[~groceries_mask.view(-1)]
-                reset_object_collections(scene, "groceries", spawn_poses_w, spawn_vel_w, active_indices)
-                cached_indices = view_indices[groceries_mask.view(-1)]
-                reset_object_collections(scene, "groceries", spawn_poses_w, spawn_vel_w, cached_indices, noise=True)
-                # Vary the mass and gravity settings so cached objects stay parked.
-                random_masses = torch.rand((groceries.num_instances, num_objects), device=device) * 0.2 + 0.2
-                groceries.set_masses_index(masses=random_masses)
+                for asset, env_ids, spawn_pose_w in groceries:
+                    num_instances = len(env_ids)
+                    noise = math_utils.sample_uniform(
+                        pose_ranges[:, 0], pose_ranges[:, 1], (num_instances, 6), device=device
+                    )
+                    pose = spawn_pose_w.clone()
+                    pose[:, :3] += noise[:, :3]
+                    noise_quat = math_utils.quat_from_euler_xyz(noise[:, 3], noise[:, 4], noise[:, 5])
+                    pose[:, 3:7] = math_utils.quat_mul(pose[:, 3:7], noise_quat)
+                    asset.write_root_pose_to_sim_index(root_pose=pose)
+                    asset.write_root_velocity_to_sim_index(
+                        root_velocity=math_utils.sample_uniform(
+                            velocity_ranges[:, 0], velocity_ranges[:, 1], (num_instances, 6), device=device
+                        )
+                    )
+                    # Vary the mass so the drop behavior differs between resets.
+                    asset.set_masses_index(masses=torch.rand((num_instances, 1), device=device) * 0.2 + 0.2)
                 scene.reset()
 
         # Write data to sim
         scene.write_data_to_sim()
         # Perform step
         sim.step()
-
-        # Bring out-of-bounds objects back to the bin in one pass.
-        xy = (groceries.data.body_link_pos_w.torch - scene.env_origins.unsqueeze(1))[..., :2]
-        out_bound = torch.nonzero((~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).view(-1)).flatten()
-        if out_bound.numel():
-            # Teleport stray objects back into the active stack to keep the bin tidy.
-            body_pose_w = groceries.data.body_link_pose_w.torch.clone()
-            body_vel_w = groceries.data.body_com_vel_w.torch.clone()
-            body_pose_w.view(-1, 7)[out_bound] = spawn_poses_w.view(-1, 7)[out_bound]
-            body_vel_w.view(-1, 6)[out_bound] = spawn_vel_w.view(-1, 6)[out_bound]
-            reset_object_collections(scene, "groceries", body_pose_w, body_vel_w, out_bound)
-        # Increment counter
+        # Teleport groceries that escaped the bin's XY bounds back to their spawn poses.
+        for asset, env_ids, spawn_pose_w in groceries:
+            xy = asset.data.root_link_pose_w.torch[:, :2] - scene.env_origins[env_ids, :2]
+            stray = torch.nonzero(~((xy >= bounds_xy[0]) & (xy <= bounds_xy[1])).all(dim=-1)).flatten()
+            if stray.numel():
+                asset.write_root_pose_to_sim_index(root_pose=spawn_pose_w[stray], env_ids=stray)
+                asset.write_root_velocity_to_sim_index(
+                    root_velocity=torch.zeros((stray.numel(), 6), device=device), env_ids=stray
+                )
+        # Increment counters
         count += 1
+        step += 1
         # Update buffers
         scene.update(sim_dt)
 
@@ -362,14 +310,31 @@ def main():
             physics_cfg.solver_cfg.naconmax = 2048
             physics_cfg.solver_cfg.njmax = 512
 
+        if args_cli.seed is not None:
+            torch.manual_seed(args_cli.seed)
+
+        # Sample one bin layout per environment. Newton requires an identical body set
+        # in every environment, so it gets a single shared layout instead.
+        counts = torch.randint(MIN_OBJECTS_PER_BIN, MAX_OBJECTS_PER_BIN + 1, (args_cli.num_envs,)).tolist()
+        layout_counts = counts if not isinstance(physics_cfg, NewtonCfg) else [counts[0]] * args_cli.num_envs
+        print(f"[INFO] Sampled bin layouts (objects per environment): {layout_counts}")
+
         # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view((2.5, 0.0, 4.0), (0.0, 0.0, 2.0))
 
-        # Design scene
-        scene_cfg = MultiObjectSceneCfg(num_envs=args_cli.num_envs, env_spacing=1.0, replicate_physics=True)
+        # Design scene. PhysX's replicate_physics fast path parses env_0 once and
+        # replicates it, which requires identical environments; the heterogeneous
+        # layouts here need per-environment parsing. The homogeneous Newton
+        # fallback keeps the fast path.
+        scene_cfg = make_bin_packing_scene_cfg(
+            layout_counts,
+            num_envs=args_cli.num_envs,
+            env_spacing=1.0,
+            replicate_physics=isinstance(physics_cfg, NewtonCfg),
+        )
         with Timer("[INFO] Time to create scene: "):
             scene = scene_cfg.class_type(scene_cfg)
 
