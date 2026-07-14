@@ -179,8 +179,8 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
                     physics_backend=physics,
                     render_backend=render,
                     preset=merged["preset"],
-                    num_envs=merged["num_envs"],
-                    num_frames=merged["num_frames"],
+                    num_envs=int(merged["num_envs"]),
+                    num_frames=int(merged["num_frames"]),
                     warmup_frames=int(merged.get("warmup_frames", 0)),
                     camera_resolution=camera_resolution,
                     timeout_minutes=int(merged["timeout_minutes"]),
@@ -190,7 +190,7 @@ def load_tasks(tasks_json_path: Path | str | None = None) -> list[TaskConfig]:
                     tags=merged["tags"],
                     task_type=merged["type"],
                     runs_on=merged["runs_on"],
-                    seed=merged.get("seed"),
+                    seed=int(merged["seed"]) if merged.get("seed") is not None else None,
                     baseline_epoch=int(merged.get("baseline_epoch", 1)),
                 )
             )
