@@ -39,6 +39,14 @@ if exist "%ISAACLAB_PATH%\_isaac_sim\" (
         echo [WARNING] _isaac_sim is present but _isaac_sim\setup_conda_env.bat is missing; Isaac Sim env vars not exported. 1>&2
         echo [WARNING] Re-extract the Isaac Sim Windows zip if you intend to use the bundled binary. 1>&2
     )
+    rem In OV/Isaac Sim environments omni.usd.libs ships the authoritative pxr
+    rem runtime (NVIDIA-patched OpenUSD).  usd-core is a kit-less fallback
+    rem installed for environments without Isaac Sim.  When both are present,
+    rem omni.usd.libs must take precedence so that Isaac Sim's pxr patches and
+    rem schema customisations are active rather than the vanilla usd-core build.
+    for /d %%D in ("%ISAACLAB_PATH%\_isaac_sim\extscache\omni.usd.libs-*") do (
+        set "PYTHONPATH=%%D;!PYTHONPATH!"
+    )
 )
 
 rem Execute CLI.
