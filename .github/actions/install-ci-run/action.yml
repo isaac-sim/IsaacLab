@@ -24,9 +24,9 @@ runs:
   steps:
     # Host runs tools/run_install_ci.py (which in turn calls tools/wheel_builder/build.sh).
     # build.sh / gen_pyproject.py use stdlib ``tomllib`` (Python 3.11+). x86 runners default
-    # to Python 3.10, so install a managed 3.12 with uv and activate it for this step.
-    - name: Set up Python 3.12 via uv
-      uses: astral-sh/setup-uv@v6
+    # to Python 3.10, so install a managed 3.12 and uv, then activate a venv for this step.
+    - name: Set up Python 3.12 and uv
+      uses: ./.github/actions/setup-uv
       with:
         python-version: "3.12"
     - name: Run Tests

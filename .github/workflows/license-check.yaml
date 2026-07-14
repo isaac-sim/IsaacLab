@@ -181,7 +181,7 @@ jobs:
 
 
     - name: Set up uv
-      uses: astral-sh/setup-uv@v6
+      uses: ./.github/actions/setup-uv
       with:
         python-version: '3.12'
         enable-cache: true
