@@ -147,7 +147,7 @@ jobs:
     name: Installation Tests (ARM)
     needs: [changes]
     if: needs.changes.outputs.run_install_tests == 'true'
-    runs-on: [self-hosted, aarch64]
+    runs-on: [self-hosted, spark]
     timeout-minutes: 90
     steps:
       - name: Checkout
