@@ -1,6 +1,6 @@
 ---
 name: isaaclab-installing-isaac-lab
-description: Routes fresh Isaac Lab installations to the correct install page (pip, binary, source, kit-less, or Docker) for the selected Isaac Lab ref and target platform (Linux x86_64, Linux aarch64, or Windows 11). Use when installing Isaac Lab for the first time, picking between install combinations, installing from a specific branch or tag, or asking for install commands for a specific platform.
+description: Routes fresh Isaac Lab installations to the correct install page (pip, binary, source, kit-less, or Docker) for the Isaac Lab checkout and target platform (Linux x86_64, Linux aarch64, or Windows 11). Use when installing Isaac Lab for the first time, picking between install combinations, or asking for install commands for a specific platform.
 audience: user
 status: experimental
 owners:
@@ -13,15 +13,16 @@ owners:
 
 Use this skill when a user wants to install Isaac Lab from scratch and either has not yet picked an install method or wants the exact commands from the current docs for the method they picked.
 
+This skill operates on the currently-checked-out Isaac Lab ref. If the user wants to install a different ref (a specific branch or tag), have them check that ref out first, then invoke the skill.
+
 Do not use this skill for post-install issues. Use `isaaclab-setup-troubleshooting` for import failures, launch failures, verification failures, and other diagnostic questions after the install completed.
 
 Do not vendor install commands, version pins, or troubleshooting steps into this skill. The install pages under `docs/source/setup/installation/index.rst` and their siblings are the source of truth.
 
 ## Workflow
 
-1. Ask the user which Isaac Lab ref to install (branch or tag). Default to the latest release.
-2. Identify the target platform: Linux x86_64, Linux aarch64, or Windows 11.
-3. Identify the intended install method. Read the ref's `docs/source/setup/installation/index.rst` comparison table and route by user context:
+1. Identify the target platform: Linux x86_64, Linux aarch64, or Windows 11.
+2. Identify the intended install method. Read `docs/source/setup/installation/index.rst` from the Isaac Lab checkout and route by user context:
    - First-time full-feature user on a supported Linux distro or Windows 11: pip installation with uv.
    - Older Linux distro (GLIBC below the pip Isaac Sim minimum): binary Isaac Sim installation.
    - Isaac Sim contributor: source build.
@@ -29,19 +30,19 @@ Do not vendor install commands, version pins, or troubleshooting steps into this
    - Newton physics only, no Isaac Sim required: kit-less installation.
    - Containerized deployment: Docker.
    - Experimental zero-env workflow: `uv run` path.
-4. Confirm platform-specific prerequisites before prescribing commands: NVIDIA driver, GLIBC on Linux, Python 3.12, disk headroom, and any method-specific extras (Visual Studio Build Tools for Windows source builds; Docker Engine, Docker Compose, and NVIDIA Container Toolkit for the Docker path).
-5. Read the ref's install page and prescribe its commands verbatim. Do not paraphrase, reorder, or substitute steps.
-6. Prefer the docs-declared Recommended path for new users unless the user has a documented reason to pick another combination.
-7. Run the docs-defined minimal verification command for the chosen method before running examples, training, or rendering workflows.
+3. Confirm platform-specific prerequisites before prescribing commands: NVIDIA driver, GLIBC on Linux, Python 3.12, disk headroom, and any method-specific extras (Visual Studio Build Tools for Windows source builds; Docker Engine, Docker Compose, and NVIDIA Container Toolkit for the Docker path).
+4. Read the install page from the checkout and prescribe its commands verbatim. Do not paraphrase, reorder, or substitute steps.
+5. Prefer the docs-declared Recommended path for new users unless the user has a documented reason to pick another combination.
+6. Run the docs-defined minimal verification command for the chosen method before running examples, training, or rendering workflows.
 
 ## Validation
 
 Use this checklist:
 
 1. Confirm the user is on a supported OS documented in `docs/source/setup/installation/index.rst`.
-2. Confirm the NVIDIA driver meets or exceeds the ref's documented minimum for the target platform.
+2. Confirm the NVIDIA driver meets or exceeds the documented minimum for the target platform in `docs/source/setup/installation/index.rst`.
 3. On Linux, confirm GLIBC meets the pip Isaac Sim minimum before recommending a pip path. If it does not, route to a binary or kit-less path instead.
-4. Ensure the Python environment matches the ref's required Python version for the current Isaac Sim series.
+4. Ensure the Python environment matches the checkout's required Python version for the current Isaac Sim series.
 5. Run the docs-defined minimal verification command before running examples, training, or rendering:
 
 ```bash

@@ -12,7 +12,7 @@ Developer skills:
 
 User skills:
 
-- `user/install-isaac-lab/`: install Isaac Lab from source, pip, binary, kit-less, or Docker following the install docs of the selected Isaac Lab ref, across Linux (x86_64, aarch64) and Windows 11.
+- `user/install-isaac-lab/`: install Isaac Lab from source, pip, binary, kit-less, or Docker following the current install docs, across Linux (x86_64, aarch64) and Windows 11.
 - `user/migrate-from-isaac-gym/`: migrate Isaac Gym tasks, assets, and training workflows to Isaac Lab.
 - `user/migrate-2x-to-3x/`: migrate Isaac Lab 2.x projects to Isaac Lab 3.0 using the official migration guide.
 - `user/domain-randomization-events/`: implement domain randomization through Isaac Lab event terms.

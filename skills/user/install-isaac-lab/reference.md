@@ -2,7 +2,7 @@
 
 ## Install Method Routing
 
-Consult the ref's `docs/source/setup/installation/index.rst` comparison table first, then route the user to the specific install page for the chosen method.
+Consult `docs/source/setup/installation/index.rst` from the Isaac Lab checkout first, then route the user to the specific install page for the chosen method.
 
 | User context | Docs page |
 | --- | --- |
@@ -16,7 +16,7 @@ Consult the ref's `docs/source/setup/installation/index.rst` comparison table fi
 
 ## Prerequisite Minimums
 
-Read the ref's copy of `docs/source/setup/installation/index.rst` for current minimums rather than relying on cached values. Common gates:
+Read `docs/source/setup/installation/index.rst` from the checkout for current minimums rather than relying on cached values. Common gates:
 
 - NVIDIA driver minimum (varies by platform; documented in the install index).
 - Python version required by the current Isaac Sim series.

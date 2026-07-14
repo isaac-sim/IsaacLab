@@ -6,14 +6,14 @@ Query: "Help me install Isaac Lab on my Ubuntu 22.04 machine."
 
 Expected behavior:
 
-- Asks for the target Isaac Lab ref (defaults to the latest release) and confirms Ubuntu 22.04 with an NVIDIA GPU and driver.
+- Confirms Ubuntu 22.04 with an NVIDIA GPU and driver against the minimums in `docs/source/setup/installation/index.rst`.
 - Routes to `docs/source/setup/installation/pip_installation.rst` (the docs-Recommended path) using uv.
-- Reads the pip install page's commands verbatim from that ref before prescribing.
+- Reads the pip install page's commands verbatim before prescribing.
 - Ends with the docs-defined minimal verification command.
 
 Known failure modes:
 
-- Copies pip install commands or version pins from memory without reading the ref's current install page.
+- Copies pip install commands or version pins from memory without reading the current install page.
 - Prescribes source or binary paths when the user has no reason to depart from the Recommended path.
 - Skips the verification step or substitutes a paraphrased verification command.
 
@@ -31,7 +31,7 @@ Expected behavior:
 Known failure modes:
 
 - Recommends the pip path anyway and lets the user hit a `GLIBC` version error at install time.
-- Copies old GLIBC minimums from memory rather than reading the ref's `docs/source/setup/installation/index.rst`.
+- Copies old GLIBC minimums from memory rather than reading `docs/source/setup/installation/index.rst` from the checkout.
 - Sends the user to the pip page and then improvises a binary workaround if pip fails.
 
 ## Scenario 3: Windows 11 Install
@@ -40,8 +40,8 @@ Query: "Install Isaac Lab on Windows 11."
 
 Expected behavior:
 
-- Confirms the NVIDIA Windows driver meets the ref's minimum, Python 3.12 is present, and Visual Studio Build Tools are installed if the user picks the source build.
-- Follows the Windows tab in the ref's install page for command form and long-path support.
+- Confirms the NVIDIA Windows driver meets the checkout's minimum, Python 3.12 is present, and Visual Studio Build Tools are installed if the user picks the source build.
+- Follows the Windows tab in the install page for command form and long-path support.
 - Uses the Windows-specific commands from the install page rather than paraphrasing shell equivalents.
 - Verifies with the docs-defined verification command.
 

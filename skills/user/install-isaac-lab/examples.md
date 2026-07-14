@@ -6,11 +6,10 @@ User: "Install Isaac Lab on my Ubuntu 22.04 desktop."
 
 Suggested agent response:
 
-1. Confirm the target Isaac Lab ref (default: latest release).
-2. Confirm the NVIDIA driver is at or above the minimum in the ref's `docs/source/setup/installation/index.rst`.
-3. Route to `docs/source/setup/installation/pip_installation.rst`.
-4. Prescribe the install page's commands in order without paraphrasing.
-5. After install, run `uv run python -c "import isaaclab; print('ok')"`.
+1. Confirm the NVIDIA driver is at or above the minimum in `docs/source/setup/installation/index.rst`.
+2. Route to `docs/source/setup/installation/pip_installation.rst`.
+3. Prescribe the install page's commands in order without paraphrasing.
+4. After install, run `uv run python -c "import isaaclab; print('ok')"`.
 
 ## Example 2: Binary Install On Ubuntu 20.04
 
@@ -29,7 +28,7 @@ User: "Install Isaac Lab on Windows 11."
 
 Suggested agent response:
 
-1. Confirm the Windows tab in `docs/source/setup/installation/index.rst` and the ref's chosen install page.
+1. Confirm the Windows tab in `docs/source/setup/installation/index.rst` and the checkout's chosen install page.
 2. Confirm NVIDIA Windows driver, Python 3.12, and any Windows extras named in the page.
 3. Enable Windows long-path support per the install page before starting the install.
 4. Prescribe the Windows tab commands from the install page verbatim.
