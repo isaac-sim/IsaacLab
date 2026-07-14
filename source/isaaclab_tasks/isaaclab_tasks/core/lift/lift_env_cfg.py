@@ -89,7 +89,7 @@ class ActionsCfg:
 
     # will be set by derived env cfg
     arm_action: mdp.JointPositionActionCfg | mdp.DifferentialInverseKinematicsActionCfg = MISSING
-    gripper_action: mdp.BinaryJointPositionActionCfg = MISSING
+    gripper_action: mdp.BinaryJointPositionActionCfg | mdp.JointPositionActionCfg = MISSING
 
 
 @configclass

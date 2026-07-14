@@ -21,12 +21,69 @@ if TYPE_CHECKING:
     from isaaclab.sensors import FrameTransformer
 
 
-def object_is_lifted(
-    env: ManagerBasedRLEnv, minimal_height: float, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
+def object_grasped(
+    env: ManagerBasedRLEnv,
+    stall_position_range: tuple[float, float],
+    max_object_distance: float = 0.025,
+    robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
 ) -> torch.Tensor:
-    """Reward the agent for lifting the object above the minimal height."""
+    """Reward the agent for holding the object between the gripper jaws.
+
+    The object counts as grasped when the end-effector grasp center is within
+    :paramref:`max_object_distance` of the object and every gripper joint selected by
+    :paramref:`robot_cfg` is stalled inside :paramref:`stall_position_range`, i.e. the jaws
+    are closed onto the object instead of fully open or shut on nothing. This distinguishes
+    a true pinch grasp from balancing or scooping the object with the gripper, which
+    grippers that need precise alignment (e.g. single-jaw designs) otherwise learn as a
+    local optimum.
+
+    Args:
+        env: The environment instance.
+        stall_position_range: Gripper joint position band [m or rad, depending on joint type]
+            that the jaws stall in when closed onto the object.
+        max_object_distance: Maximum grasp-center-to-object distance [m].
+        robot_cfg: The robot entity with the gripper joints selected via ``joint_names``.
+        ee_frame_cfg: The end-effector frame entity providing the grasp center.
+        object_cfg: The object entity.
+
+    Returns:
+        Reward tensor with shape ``(num_envs,)``.
+    """
+    # resolve the entity cfg here: when nested inside another term's params (the
+    # ``grasp_params`` gates of :func:`object_is_lifted` and :class:`object_goal_distance`),
+    # the manager does not resolve it
+    if robot_cfg.joint_names is not None and isinstance(robot_cfg.joint_ids, slice):
+        robot_cfg.resolve(env.scene)
+    robot: Articulation = env.scene[robot_cfg.name]
+    ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
     object: RigidObject = env.scene[object_cfg.name]
-    return torch.where(object.data.root_pos_w.torch[:, 2] > minimal_height, 1.0, 0.0)
+    gripper_pos = robot.data.joint_pos.torch[:, robot_cfg.joint_ids]
+    stalled = ((gripper_pos > stall_position_range[0]) & (gripper_pos < stall_position_range[1])).all(dim=1)
+    ee_w = ee_frame.data.target_pos_w.torch[..., 0, :]
+    object_ee_distance = torch.linalg.norm(object.data.root_pos_w.torch - ee_w, dim=1)
+    return (stalled & (object_ee_distance < max_object_distance)).float()
+
+
+def object_is_lifted(
+    env: ManagerBasedRLEnv,
+    minimal_height: float,
+    object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
+    grasp_params: dict | None = None,
+) -> torch.Tensor:
+    """Reward the agent for lifting the object above the minimal height.
+
+    If :paramref:`grasp_params` is provided, the reward additionally requires the object to
+    be held in the gripper jaws (see :func:`object_grasped`, which receives these
+    parameters). Use this for grippers that can otherwise exploit balancing or scooping the
+    object instead of grasping it.
+    """
+    object: RigidObject = env.scene[object_cfg.name]
+    lifted = torch.where(object.data.root_pos_w.torch[:, 2] > minimal_height, 1.0, 0.0)
+    if grasp_params is not None:
+        lifted = lifted * object_grasped(env, **grasp_params)
+    return lifted
 
 
 def object_ee_distance(
@@ -56,6 +113,10 @@ class object_goal_distance(ManagerTermBase):
     success (sticky binary: object ever within ``success_threshold`` of the commanded goal
     while lifted above ``minimal_height``) and logs the mean across environments under
     ``Metrics/success_rate`` on reset.
+
+    If ``grasp_params`` is provided, tracking rewards (and tracked successes) only count
+    while the object is held in the gripper jaws (see :func:`object_grasped`, which
+    receives these parameters).
     """
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
@@ -80,6 +141,7 @@ class object_goal_distance(ManagerTermBase):
         robot_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
         object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
         success_threshold: float | None = None,
+        grasp_params: dict | None = None,
     ) -> torch.Tensor:
         robot: RigidObject = env.scene[robot_cfg.name]
         obj: RigidObject = env.scene[object_cfg.name]
@@ -90,6 +152,9 @@ class object_goal_distance(ManagerTermBase):
         object_pos_w = obj.data.root_pos_w.torch
         distance = torch.linalg.norm(des_pos_w - object_pos_w, dim=1)
         is_lifted = object_pos_w[:, 2] > minimal_height
+        if grasp_params is not None:
+            # only credit tracking (and successes) while the object is held in the jaws
+            is_lifted &= object_grasped(env, **grasp_params).bool()
         if success_threshold is not None:
             self._succeeded |= is_lifted & (distance < success_threshold)
         return is_lifted.float() * (1 - torch.tanh(distance / std))
