@@ -9,6 +9,8 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+from isaaclab_newton.physics import NewtonCfg
+from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
@@ -16,6 +18,8 @@ from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
 from isaaclab.utils.math import sample_uniform, wrap_to_pi
+
+from isaaclab_tasks.core.cartpole.cartpole_post_step import _CartpolePostStepBuffers
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
@@ -35,6 +39,12 @@ class CartpoleEnv(DirectRLEnv):
 
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
+        self._use_fused_post_step = self._supports_fused_post_step()
+        self._fused_inputs_require_refresh = isinstance(self.cfg.sim.physics, PhysxCfg)
+        if self._use_fused_post_step:
+            self._joint_position_warp = self.cartpole.data.joint_pos.warp
+            self._joint_velocity_warp = self.cartpole.data.joint_vel.warp
+            self._post_step_buffers = _CartpolePostStepBuffers(self.num_envs, self.device)
 
     def _setup_scene(self):
         self.cartpole = Articulation(self.cfg.robot_cfg)
@@ -57,12 +67,16 @@ class CartpoleEnv(DirectRLEnv):
         light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = self.action_scale * actions.clone()
-
-    def _apply_action(self) -> None:
+        self.actions = self.action_scale * actions
         self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
 
+    def _apply_action(self) -> None:
+        # Joint effort targets persist in the articulation command buffer across decimation substeps.
+        pass
+
     def _get_observations(self) -> dict:
+        if self._use_fused_post_step:
+            return {"policy": self._post_step_buffers.observation_torch}
         joint_pos_rel = self.joint_pos - self.cartpole.data.default_joint_pos.torch
         joint_vel_rel = self.joint_vel - self.cartpole.data.default_joint_vel.torch
         obs = torch.cat(
@@ -78,6 +92,8 @@ class CartpoleEnv(DirectRLEnv):
         return observations
 
     def _get_rewards(self) -> torch.Tensor:
+        if self._use_fused_post_step:
+            return self._post_step_buffers.reward_torch
         total_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
@@ -93,11 +109,14 @@ class CartpoleEnv(DirectRLEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        if self._use_fused_post_step:
+            self._refresh_fused_post_step_inputs()
+            self._post_step_buffers.compute_post_step(self)
+            return self._post_step_buffers.terminated_torch, self._post_step_buffers.time_out_torch
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
-
         time_out = self.episode_length_buf >= self.max_episode_length
-        out_of_bounds = torch.any(torch.abs(self.joint_pos[:, self._cart_dof_idx]) > self.cfg.max_cart_pos, dim=1)
+        out_of_bounds = torch.abs(self.joint_pos[:, self._cart_dof_idx[0]]) > self.cfg.max_cart_pos
         return out_of_bounds, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -154,6 +173,29 @@ class CartpoleEnv(DirectRLEnv):
         self.cartpole.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
         self.cartpole.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
         self.cartpole.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+        if getattr(self, "_use_fused_post_step", False):
+            self._post_step_buffers.compute_observation(self)
+
+    def _supports_fused_post_step(self) -> bool:
+        """Return whether live state can safely supply fused post-step calculations."""
+        return (
+            isinstance(self.cfg.sim.physics, (NewtonCfg, PhysxCfg))
+            and self.cfg.observation_space == 4
+            and not self.cfg.compute_final_obs
+            and not self.cfg.events
+            and type(self)._get_observations is CartpoleEnv._get_observations
+            and type(self)._get_rewards is CartpoleEnv._get_rewards
+            and type(self)._get_dones is CartpoleEnv._get_dones
+            and type(self)._reset_idx is CartpoleEnv._reset_idx
+        )
+
+    def _refresh_fused_post_step_inputs(self) -> None:
+        """Pull current PhysX joint state into the stable buffers consumed by the fused kernel."""
+        if not self._fused_inputs_require_refresh:
+            return
+
+        data = self.cartpole.data
+        _ = data.joint_pos, data.joint_vel
 
 
 @torch.jit.script
