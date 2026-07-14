@@ -58,6 +58,7 @@ Guidelines for modifications:
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou
