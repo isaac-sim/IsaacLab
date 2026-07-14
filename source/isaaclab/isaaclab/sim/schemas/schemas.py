@@ -553,25 +553,25 @@ def _resolve_fragment_targets(
     stage: Usd.Stage,
     apply_fresh: bool,
 ) -> tuple[list, bool]:
-    """Resolve the prims a fragment family writer should author on.
+    """Resolve the prims that a fragment family writer should author on.
 
-    Mirrors the legacy nested writers: prims under ``prim_path`` that already carry ``api_type``
-    are modified in place, without descending past a match (nested applications of the same
-    physics schema are not allowed, so a match's descendants are pruned). Only when the subtree
-    carries no such prim is the defining API freshly applied to ``prim_path`` itself -- the
-    bare-prim case used by the shape and mesh spawners. Instanced prims cannot be authored on and
-    are skipped with a warning.
+    This mirrors the legacy nested writers: prims under ``prim_path`` that already carry
+    ``api_type`` are modified in place, and the search does not descend past a match, since
+    nested applications of the same physics schema are not allowed. Only when the subtree
+    carries no such prim is the defining API applied freshly to ``prim_path`` itself -- the
+    bare-prim case used by the shape and mesh spawners. Instanced prims cannot be edited, so
+    they are skipped with a warning.
 
     Args:
         prim_path: The prim path whose subtree is searched.
         api_type: The defining USD API schema type (e.g. ``UsdPhysics.RigidBodyAPI``).
         stage: The stage containing the prim.
-        apply_fresh: Whether to apply ``api_type`` on ``prim_path`` when the subtree has no
-            carrier of it (presence-gated define-fresh).
+        apply_fresh: Whether to apply ``api_type`` to ``prim_path`` when the subtree contains
+            no carrier of it.
 
     Returns:
-        A tuple ``(targets, any_skipped)``: the writable target prims, and whether any instanced
-        prim had to be skipped.
+        A tuple ``(targets, any_skipped)`` holding the writable target prims and whether any
+        instanced prim was skipped.
 
     Raises:
         ValueError: When the prim path is not valid.
@@ -622,13 +622,13 @@ def apply_rigid_body_properties(
 ) -> bool:
     """Apply a list of rigid-body fragments to the rigid bodies under a prim.
 
-    Existing rigid bodies in the subtree are modified in place (matching the legacy nested
-    writer): real assets author ``UsdPhysics.RigidBodyAPI`` on their link prims, and anchoring a
-    fresh rigid body on the spawn prim instead would nest those links under a new body -- the
-    PhysX parser then drops the articulation's joint graph. Only when the subtree carries no
-    rigid body is ``UsdPhysics.RigidBodyAPI`` applied to ``prim_path`` itself (the bare-prim case
-    used by the shape and mesh spawners). Each fragment is dispatched to every resolved target
-    via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`; backend fragments carry
+    Existing rigid bodies in the subtree are modified in place, matching the legacy nested
+    writer. Real assets author ``UsdPhysics.RigidBodyAPI`` on their link prims, so anchoring a
+    fresh rigid body on the spawn prim instead would nest those links under a new body and the
+    PhysX parser would drop the articulation's joint graph. Only when the subtree carries no
+    rigid body is ``UsdPhysics.RigidBodyAPI`` applied to ``prim_path`` itself -- the bare-prim
+    case used by the shape and mesh spawners. Each fragment is dispatched to every resolved
+    target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend fragments carry
     backend-specific funcs, so core never imports a backend.
 
     Args:
@@ -638,7 +638,7 @@ def apply_rigid_body_properties(
             stage is used.
 
     Returns:
-        True if every target and fragment succeeds and no instanced prim was skipped.
+        True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
         ValueError: When the prim path is not valid.
@@ -856,11 +856,11 @@ def apply_collision_properties(
 ) -> bool:
     """Apply a list of collision fragments to a prim.
 
-    Existing colliders in the subtree are modified in place (matching the legacy nested writer):
-    real assets author ``UsdPhysics.CollisionAPI`` on their collider prims, and anchoring a fresh
-    collider on the spawn prim would change what the physics parser collides. Only when the
+    Existing colliders in the subtree are modified in place, matching the legacy nested writer.
+    Real assets author ``UsdPhysics.CollisionAPI`` on their collider prims, so anchoring a fresh
+    collider on the spawn prim would change the scene's collision geometry. Only when the
     subtree carries no collider is ``UsdPhysics.CollisionAPI`` applied to ``prim_path`` itself
-    (the bare-prim case used by the shape and mesh spawners). Each fragment is dispatched to
+    -- the bare-prim case used by the shape and mesh spawners. Each fragment is dispatched to
     every resolved target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`. Backend
     fragments carry backend-specific funcs, so core never imports a backend.
 
@@ -871,7 +871,7 @@ def apply_collision_properties(
             stage is used.
 
     Returns:
-        True if every target and fragment succeeds and no instanced prim was skipped.
+        True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
         ValueError: When the prim path is not valid.
@@ -991,11 +991,11 @@ def apply_mass_properties(
 ) -> bool:
     """Apply a list of mass fragments to a prim.
 
-    Existing mass-bearing prims in the subtree are modified in place (matching the legacy nested
-    writer): real assets author ``UsdPhysics.MassAPI`` on their link prims. Only when the subtree
-    carries none is ``UsdPhysics.MassAPI`` applied to ``prim_path`` itself (the bare-prim case
-    used by the shape and mesh spawners). Each fragment is dispatched to every resolved target
-    via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
+    Existing mass-bearing prims in the subtree are modified in place, matching the legacy nested
+    writer, since real assets author ``UsdPhysics.MassAPI`` on their link prims. Only when the
+    subtree carries none is ``UsdPhysics.MassAPI`` applied to ``prim_path`` itself -- the
+    bare-prim case used by the shape and mesh spawners. Each fragment is dispatched to every
+    resolved target via its :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
 
     Args:
         prim_path: The prim path whose subtree is searched for mass-bearing prims.
@@ -1004,7 +1004,7 @@ def apply_mass_properties(
             stage is used.
 
     Returns:
-        True if every target and fragment succeeds and no instanced prim was skipped.
+        True if every target and fragment succeeded and no instanced prim was skipped.
 
     Raises:
         ValueError: When the prim path is not valid.
