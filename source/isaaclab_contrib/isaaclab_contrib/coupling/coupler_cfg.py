@@ -17,7 +17,6 @@ from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
-from newton import CollisionPipeline
 
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.configclass import configclass
@@ -26,7 +25,7 @@ from ..deformable.newton_manager_cfg import NewtonModelSolverCfg
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager
-    from newton import ModelView
+    from newton import ModelView, CollisionPipeline
 
     from isaaclab.scene import InteractiveSceneCfg
 
