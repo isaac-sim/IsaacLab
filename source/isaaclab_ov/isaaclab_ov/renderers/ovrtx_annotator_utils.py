@@ -17,10 +17,22 @@ For colorized outputs the keys are raw ``(r, g, b, a)`` tuples, matching Replica
 
 from __future__ import annotations
 
+from typing import TypeAlias
+
 import numpy as np
 import warp as wp
 
 from .ovrtx_renderer_kernels import generate_random_colors_from_ids_kernel
+
+# A 128-bit identifier as four ``uint32`` words, low word first: the stable ID key of the StableIdMap /
+# StableIdSemanticIdMap, and the raw ``id`` field of every IdentifierMap entry.
+StableId: TypeAlias = tuple[int, int, int, int]
+# A colorized segmentation key: the ``(r, g, b, a)`` value of a colorized instance/semantic pixel.
+RgbaColor: TypeAlias = tuple[int, int, int, int]
+# A decoded, right-stripped UTF-8 label from an IdentifierMap entry (a semantic label or a USD prim path).
+RawLabel: TypeAlias = str
+# One decoded IdentifierMap entry: its 128-bit id paired with its label.
+StableIdLabelPair: TypeAlias = tuple[StableId, RawLabel]
 
 # Reserved semantic IDs shared by the OVRTX SemanticSegmentation AOV and Isaac RTX / Replicator:
 # ID 0 is BACKGROUND (no prim), ID 1 is UNLABELLED (a prim with no matching semantic label). Entries
@@ -68,7 +80,7 @@ def _parse_semantic_label(raw_label: str) -> dict[str, str]:
     return labels
 
 
-def _decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[tuple[tuple[int, int, int, int], str]]:
+def _decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[StableIdLabelPair]:
     """Decode an OVRTX ``IdentifierMap``-layout render var buffer into ``(id, raw_label)`` pairs.
 
     Shared layout for the ``SemanticIdMap`` and ``StableIdMap`` render vars: the buffer packs, in order,
@@ -106,7 +118,7 @@ def _decode_identifier_map(id_map: np.ndarray, map_name: str) -> list[tuple[tupl
     # before ``data.size - 4`` (never spilling into the count field), consistent with the check above.
     labels_end = data.size - 4
     entries = data[:entries_size].view(entry_dtype).reshape(num_entries)
-    decoded: list[tuple[tuple[int, int, int, int], str]] = []
+    decoded: list[StableIdLabelPair] = []
     for entry in entries:
         id_words = tuple(int(word) for word in entry["id"])
         label_offset = int(entry["label_offset"])
@@ -140,7 +152,7 @@ def decode_semantic_id_map(id_map: np.ndarray) -> dict[int, dict[str, str]]:
     }
 
 
-def decode_stable_id_map(id_map: np.ndarray) -> dict[tuple[int, int, int, int], str]:
+def decode_stable_id_map(id_map: np.ndarray) -> dict[StableId, RawLabel]:
     """Decode the OVRTX ``StableIdMap`` render var buffer into ``{stable_id: prim_path}``.
 
     Same :func:`_decode_identifier_map` layout as the SemanticIdMap, but the four ``id`` words form the
@@ -155,7 +167,7 @@ def decode_stable_id_map(id_map: np.ndarray) -> dict[tuple[int, int, int, int], 
     return {id_words: raw_label for id_words, raw_label in _decode_identifier_map(id_map, "StableIdMap")}
 
 
-def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[tuple[int, int, int, int], int]]:
+def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[StableId, int]]:
     """Decode the OVRTX ``StableIdSemanticIdMap`` render var buffer into per-instance ``(stable_id, semantic_id)``.
 
     Unlike the identifier maps, this buffer is a pure fixed-size array of ``StableIdSemanticIdMapValues``
@@ -180,7 +192,7 @@ def decode_stable_id_semantic_id_map(id_map: np.ndarray) -> list[tuple[tuple[int
     return [(tuple(int(word) for word in entry["stable_id"]), int(entry["semantic_id"][0])) for entry in entries]
 
 
-def _color_keys_for_ids(ids: list[int], device: str) -> list[tuple[int, int, int, int]]:
+def _color_keys_for_ids(ids: list[int], device: str) -> list[RgbaColor]:
     """Return the ``(r, g, b, a)`` color-tuple key for each segmentation ID.
 
     Colors are computed with the same kernel that colorizes the segmentation buffer
@@ -204,7 +216,7 @@ def _color_keys_for_ids(ids: list[int], device: str) -> list[tuple[int, int, int
         inputs=[ids_wp, colors_wp],
         device=device,
     )
-    keys: list[tuple[int, int, int, int]] = []
+    keys: list[RgbaColor] = []
     for color in colors_wp.numpy().reshape(-1):
         color = int(color)
         keys.append((color & 0xFF, (color >> 8) & 0xFF, (color >> 16) & 0xFF, (color >> 24) & 0xFF))
@@ -213,7 +225,7 @@ def _color_keys_for_ids(ids: list[int], device: str) -> list[tuple[int, int, int
 
 def build_semantic_id_to_labels(
     labels_by_id: dict[int, dict[str, str]], colorize: bool, device: str
-) -> dict[tuple[int, int, int, int] | str, dict[str, str]]:
+) -> dict[RgbaColor | str, dict[str, str]]:
     """Build the ``idToLabels`` mapping from decoded semantic IDs, keyed by RGBA color tuple or ID.
 
     Args:
@@ -238,12 +250,12 @@ def build_semantic_id_to_labels(
 
 
 def build_instance_id_to_labels_and_semantics(
-    stable_id_semantic_id_map: list[tuple[tuple[int, int, int, int], int]],
-    stable_id_to_path: dict[tuple[int, int, int, int], str],
+    stable_id_semantic_id_map: list[tuple[StableId, int]],
+    stable_id_to_path: dict[StableId, RawLabel],
     semantic_id_to_labels: dict[int, dict[str, str]],
     colorize: bool,
     device: str,
-) -> tuple[dict[tuple[int, int, int, int] | str, str], dict[tuple[int, int, int, int] | str, dict[str, str]]]:
+) -> tuple[dict[RgbaColor | str, str], dict[RgbaColor | str, dict[str, str]]]:
     """Build the instance-segmentation ``idToLabels`` and ``idToSemantics`` mappings.
 
     Resolves each instance pixel ID through the three decoded maps, following the ovrtx / Replicator chain:

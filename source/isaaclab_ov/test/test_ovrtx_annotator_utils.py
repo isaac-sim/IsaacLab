@@ -24,6 +24,8 @@ pytestmark = [
 if not _MISSING_MODULES:
     import numpy as np  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_annotator_utils import (  # noqa: E402
+        StableId,
+        StableIdLabelPair,
         _parse_semantic_label,
         build_instance_id_to_labels_and_semantics,
         build_semantic_id_to_labels,
@@ -112,7 +114,7 @@ def test_build_semantic_id_to_labels_colorize_keys_by_color():
     assert len(id_to_labels) == 3
 
 
-def _encode_identifier_map(entries: "list[tuple[tuple[int, int, int, int], str]]") -> "np.ndarray":
+def _encode_identifier_map(entries: "list[StableIdLabelPair]") -> "np.ndarray":
     """Encode ``(id_words, raw_label)`` pairs into an IdentifierMap byte buffer (SemanticIdMap / StableIdMap).
 
     Layout mirrors the OVRTX render var: packed ``IdentifierMap`` entries, the UTF-8 label blob, then a
@@ -132,7 +134,7 @@ def _encode_identifier_map(entries: "list[tuple[tuple[int, int, int, int], str]]
     return np.frombuffer(buffer, dtype=np.uint8).copy()
 
 
-def _encode_stable_id_semantic_id_map(entries: "list[tuple[tuple[int, int, int, int], int]]") -> "np.ndarray":
+def _encode_stable_id_semantic_id_map(entries: "list[tuple[StableId, int]]") -> "np.ndarray":
     """Encode ``(stable_id_words, semantic_id)`` pairs into a StableIdSemanticIdMap byte buffer.
 
     Layout mirrors the OVRTX render var: a pure fixed-size array of ``StableIdSemanticIdMapValues`` entries
