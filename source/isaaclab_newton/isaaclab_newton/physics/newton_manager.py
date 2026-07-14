@@ -186,8 +186,9 @@ class NewtonSceneDataBackend(SceneDataBackend):
         return NewtonManager.get_model()
 
     @property
-    def state(self) -> Model:
-        return NewtonManager.get_state_0()
+    def state(self) -> State:
+        """Return Newton state after applying pending forward kinematics."""
+        return NewtonManager.get_state()
 
 
 def _eval_fk_unbound(world_reset_mask: wp.array | None, fk_mask: wp.array | None) -> None:
@@ -211,7 +212,8 @@ class NewtonManager(PhysicsManager):
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
-    :meth:`_solver_specific_clear`, and :meth:`_log_solver_debug`.
+    :meth:`_reset_solver_internals`, :meth:`_solver_specific_clear`, and
+    :meth:`_log_solver_debug`.
 
     Subclasses are selected via :attr:`NewtonSolverCfg.class_type`, which
     :meth:`NewtonCfg.__post_init__` propagates onto :attr:`NewtonCfg.class_type`
@@ -257,7 +259,6 @@ class NewtonManager(PhysicsManager):
     # Collision and contacts
     _contacts: Contacts | None = None
     _needs_collision_pipeline: bool = False
-    _needs_fk_before_step: bool = False
     _collision_pipeline = None
     _collision_cfg: NewtonCollisionPipelineCfg | None = None
     _newton_contact_sensors: dict = {}  # Maps sensor_key to NewtonContactSensor
@@ -290,6 +291,7 @@ class NewtonManager(PhysicsManager):
     _newton_index_attr = "newton:index"
     _clone_physics_only = False
     _transforms_dirty: bool = False
+    _transforms_may_change_on_graph_replay: bool = False
     _particles_dirty: bool = False
     _newton_particle_offset_attr = "newton:particleOffset"
     _newton_particle_count_attr = "newton:particleCount"
@@ -409,6 +411,7 @@ class NewtonManager(PhysicsManager):
         data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
         base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
         """
+        cls._reset_solver_internals(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
@@ -417,7 +420,11 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def pre_render(cls) -> None:
-        """Flush deferred Fabric writes before cameras/visualizers read the scene."""
+        """Refresh derived Newton state before cameras and visualizers read it."""
+        if cls._fk_reset_mask is not None:
+            cls.forward()
+            if NewtonManager._transforms_may_change_on_graph_replay:
+                NewtonManager._transforms_dirty = True
         cls.sync_transforms_to_usd()
         cls.sync_particles_to_usd()
 
@@ -605,6 +612,12 @@ class NewtonManager(PhysicsManager):
         """
         NewtonManager._transforms_dirty = True
 
+        device = PhysicsManager._device
+        if device is not None:
+            device = wp.get_device(device)
+            if device.is_cuda and device.stream.is_capturing:
+                NewtonManager._transforms_may_change_on_graph_replay = True
+
     @classmethod
     def _mark_particles_dirty(cls) -> None:
         """Flag that particle positions have changed and Fabric needs re-sync.
@@ -677,6 +690,8 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
 
+        cls._reset_solver_internals(cls._world_reset_mask)
+
         # Notify solver of model changes
         if cls._model_changes:
             with wp.ScopedDevice(PhysicsManager._device):
@@ -701,19 +716,8 @@ class NewtonManager(PhysicsManager):
             else:
                 logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
 
-        # Ensure body_q is up-to-date before solvers read rigid transforms.
-        # After env resets or kinematic root writes, joint_q is written but
-        # body_q is stale until FK runs. Collision-based solvers need this for
-        # broadphase/narrowphase; collider-based solvers such as MPM need it
-        # for their internal collider queries. Maximal-coordinate solvers
-        # that treat body state as the main state (e.g. Kamino) require FK before step.
-        # Only runs FK for dirtied articulations via the accumulated mask.
-        if cls._needs_collision_pipeline or cls._needs_fk_before_step:
-            cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
-
-        # Zero both masks after consumption
-        NewtonManager._world_reset_mask.zero_()
-        NewtonManager._fk_reset_mask.zero_()
+        # Reconcile authored state after any mutating graph warmup and before the requested physics step.
+        cls.forward()
 
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
@@ -805,7 +809,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager._control = None
         NewtonManager._contacts = None
         NewtonManager._needs_collision_pipeline = False
-        NewtonManager._needs_fk_before_step = False
         NewtonManager._eval_fk = _eval_fk_unbound
         NewtonManager._collision_pipeline = None
         NewtonManager._collision_cfg = None
@@ -829,6 +832,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
+        NewtonManager._transforms_may_change_on_graph_replay = False
         NewtonManager._particles_dirty = False
         NewtonManager._particle_visual_prims = {}
         NewtonManager._mpm_object_registry = []
@@ -872,12 +876,19 @@ class NewtonManager(PhysicsManager):
         Returns:
             New builder with up-axis and per-shape defaults (gap, margin) applied.
         """
-        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
-        cls._register_builder_attributes(builder)
         # Resolve which NewtonShapeCfg to apply: user override if active config
         # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton
         # contexts (tests, early construction) still get the rough-terrain margin.
         cfg = PhysicsManager._cfg
+
+        builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
+        builder.default_bvh_cfg = ModelBuilder.BvhConfig(
+            mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
+            gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
+            shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
+        )
+
+        cls._register_builder_attributes(builder)
         shape_cfg = cfg.default_shape_cfg if isinstance(cfg, NewtonCfg) else NewtonShapeCfg()
         checked_apply(shape_cfg, builder.default_shape_cfg)
         return builder
@@ -1094,8 +1105,8 @@ class NewtonManager(PhysicsManager):
         """Mark environments as needing FK recomputation and solver reset.
 
         Called by asset write methods that modify joint coordinates or root
-        transforms. The masks are consumed in :meth:`step` before physics
-        stepping.
+        transforms. The masks are consumed by the next forward, raw-state,
+        rendering, or physics-step boundary.
 
         Args:
             env_mask: Boolean mask of dirtied environments. Shape ``(num_envs,)``.
@@ -1420,6 +1431,24 @@ class NewtonManager(PhysicsManager):
         (e.g. constraint violations, contact forces, etc.) after stepping.
         """
 
+    @classmethod
+    def _reset_solver_internals(cls, world_mask: wp.array | None) -> None:
+        """Clear solver-internal state for environments reset since the last boundary.
+
+        The hook runs immediately before reset masks are consumed by :meth:`step`
+        and :meth:`forward`. The base implementation delegates to
+        :meth:`SolverBase.reset` with ``flags=0``, preserving the joint state
+        authored by Isaac Lab while clearing solver-owned buffers. Solvers with
+        no reset implementation are unaffected.
+
+        Args:
+            world_mask: Per-world reset mask, or ``None`` when no simulation
+                state is available.
+        """
+        if world_mask is None:
+            return
+        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+
     # ----- Lifecycle orchestration ----------------------------------------
 
     @classmethod
@@ -1536,7 +1565,7 @@ class NewtonManager(PhysicsManager):
             with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
                 if cls._usdrt_stage is None:
                     simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-                    with wp.ScopedCapture() as capture:
+                    with wp.ScopedCapture(device=device) as capture:
                         simulate()
                     NewtonManager._graph = capture.graph
                     logger.info("Newton CUDA graph captured (standard Warp mode)")
@@ -1802,10 +1831,11 @@ class NewtonManager(PhysicsManager):
         backend-agnostic Newton ``State``. When the sim backend is PhysX this
         refreshes the shadow ``_state_0.body_q`` from the live PhysX scene via
         :meth:`update_visualization_state` before returning, so callers never
-        observe stale transforms. Under the Newton sim backend
-        :meth:`update_visualization_state` is a no-op and this is equivalent to
-        :meth:`get_state_0`.
+        observe stale transforms. Under the Newton sim backend, pending
+        forward kinematics is applied before returning the live state.
         """
+        if cls._fk_reset_mask is not None and cls._backend_is_newton(scene_data_provider):
+            cls.forward()
         cls.update_visualization_state(scene_data_provider)
         return cls.get_state_0()
 

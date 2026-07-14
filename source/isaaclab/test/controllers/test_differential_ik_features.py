@@ -18,6 +18,8 @@ import torch
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 
+pytestmark = pytest.mark.integration
+
 _NUM_JOINTS = 5
 _ID_QUAT = [0.0, 0.0, 0.0, 1.0]  # xyzw identity
 

@@ -26,6 +26,8 @@ pytest.importorskip("isaaclab_ov")
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 
 class _FakeBackend(BaseRenderer):
     """Test double for :class:`BaseRenderer`; does not load PhysX/Newton/OV renderer classes."""

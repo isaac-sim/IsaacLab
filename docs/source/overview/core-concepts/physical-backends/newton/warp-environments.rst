@@ -260,8 +260,8 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
 Benchmarking Your Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The performance table above was produced with ``scripts/benchmarks/benchmark_rsl_rl.py``,
-which runs a fixed iteration count and reports step-time statistics. Use the same script
+The performance table above was produced with ``isaaclab benchmark training``,
+which runs a fixed iteration count and reports step-time statistics. Use the same command
 to estimate the gain for your own task before committing to a migration.
 
 **Single-task A/B**
@@ -269,33 +269,35 @@ to estimate the gain for your own task before committing to a migration.
 .. code-block:: bash
 
     # Stable variant
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+    uv run isaaclab benchmark training \
+        --rl_library rsl_rl \
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --benchmark_backend summary \
+        --benchmark_formatter summary \
         --output_path benchmarks/stable
 
     # Warp variant — same task with -Warp- suffix
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+    uv run isaaclab benchmark training \
+        --rl_library rsl_rl \
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --benchmark_backend summary \
+        --benchmark_formatter summary \
         --output_path benchmarks/warp
 
-The ``summary`` backend prints step time (mean / p50 / p99) and total throughput. Compare
+The ``summary`` formatter prints step time (min / mean / max) and total throughput. Compare
 "step time" between the two runs to estimate the gain per env step.
 
 **Sweep across all available tasks**
 
-``scripts/benchmarks/run_training_benchmarks.sh`` runs the full set of stable tasks listed
-in the script (cartpole, ant, humanoid, locomotion, manipulation). Pair it with a
-warp-tasks variant (substitute the ``-Warp-`` suffixed task ids) and diff the two outputs.
+Run ``isaaclab benchmark training`` for each task in the stable set (cartpole, ant, humanoid,
+locomotion, manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
+directories.
 
 **What to look at in the output**
 
-- *Step time (mean / p99)*: the headline number — what each env step costs.
+- *Step time (min / mean / max)*: the headline number — what each env step costs.
 - *Iteration time*: includes policy update; useful for end-to-end training throughput.
 - *Capture overhead*: for warp runs, the first few iterations include CUDA graph capture
   cost; exclude those when comparing steady-state numbers.
@@ -309,7 +311,7 @@ step time and look at where it's spent:
 - ``step_time`` dominated by ``manager.compute_*`` calls → expect large gains, since those
   are exactly what the warp managers replace with captured kernel launches.
 
-Use ``--num_frames`` on ``benchmark_non_rl.py`` for a no-policy step-time microbenchmark
+Use ``--num_frames`` on ``runtime.py`` for a no-policy step-time microbenchmark
 when you want to isolate env overhead from policy compute.
 
 

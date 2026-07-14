@@ -693,6 +693,64 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
                 torch.testing.assert_close(cp_kd_after[env_idx], cp_kd_before[env_idx])
 
 
+class TestNewtonActuatorGainSnapshotEnvStride(unittest.TestCase):
+    """Regression: the init-time kp/kd snapshot must be correct for every env.
+
+    ``build_newton_actuator_defaults`` scatters each Newton actuator's
+    ``controller.kp`` / ``controller.kd`` into a per-articulation
+    ``(num_envs, num_joints)`` tensor (``newton_default_stiffness`` /
+    ``newton_default_damping``), which ``randomize_actuator_gains`` reads as
+    its DR baseline. On a floating-base articulation the actuator ``indices``
+    are laid out env-major with a per-env stride equal to the *whole model's*
+    per-env DOF count (free-root DOFs + joints), which exceeds
+    ``articulation.num_joints``. If the scatter decodes the env with
+    ``num_joints`` instead of that stride, env 1's DOFs alias to the wrong
+    rows (and partly out of bounds), corrupting the snapshot for every env
+    past the first.
+
+    ANYmal-C is floating base (6 free-root DOFs + 12 actuated joints -> a
+    per-env stride of 18 vs. ``num_joints == 12``), so the bug manifests here
+    with ``NUM_ENVS == 2``: without the fix, ``newton_default_stiffness[1]``
+    is not uniformly the configured gain (its leading entries stay zero, as
+    they are never written).
+    """
+
+    def test_snapshot_matches_config_for_all_envs(self):
+        sim_cfg = SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=True)
+        with build_simulation_context(
+            device="cuda:0",
+            gravity_enabled=True,
+            add_ground_plane=True,
+            sim_cfg=sim_cfg,
+        ) as sim:
+            sim._app_control_on_stop_handle = None
+            for i in range(NUM_ENVS):
+                sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
+            art_cfg = ANYMAL_C_CFG.replace(
+                actuators=IDEAL_PD_ACTUATORS,
+                prim_path="/World/Env_.*/Robot",
+            )
+            anymal = Articulation(art_cfg)
+            sim.reset()
+            assert anymal.is_initialized
+
+            stiffness = anymal.newton_default_stiffness
+            damping = anymal.newton_default_damping
+            self.assertIsNotNone(stiffness, "expected a Newton kp snapshot with use_newton_actuators=True")
+            self.assertIsNotNone(damping, "expected a Newton kd snapshot with use_newton_actuators=True")
+
+            n_j = anymal.num_joints
+            self.assertEqual(tuple(stiffness.shape), (NUM_ENVS, n_j))
+            self.assertEqual(tuple(damping.shape), (NUM_ENVS, n_j))
+
+            # IDEAL_PD_ACTUATORS covers all 12 joints with constant gains, so
+            # every cell of both env rows must equal the configured value.
+            expected_kp = torch.full((NUM_ENVS, n_j), 40.0, device=anymal.device)
+            expected_kd = torch.full((NUM_ENVS, n_j), 5.0, device=anymal.device)
+            torch.testing.assert_close(stiffness, expected_kp)
+            torch.testing.assert_close(damping, expected_kd)
+
+
 # ---------------------------------------------------------------------------
 # DelayedPD equivalence: PD with actuator command delay
 # ---------------------------------------------------------------------------

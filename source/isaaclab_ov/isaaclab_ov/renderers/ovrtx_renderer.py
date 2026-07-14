@@ -57,6 +57,7 @@ from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from .ovrtx_annotator_utils import build_semantic_id_to_labels, decode_semantic_id_map
 from .ovrtx_renderer_cfg import OVRTXRendererCfg
 from .ovrtx_renderer_kernels import (
     create_camera_transforms_kernel,
@@ -213,6 +214,9 @@ class OVRTXRenderData:
         self.num_cols = math.ceil(math.sqrt(self.num_envs))
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
+        # Per-output metadata collected during render() and copied into CameraData.info by read_output().
+        # Currently only "semantic_segmentation" is populated (with an "idToLabels" mapping).
+        self.renderer_info: dict[str, Any] = {}
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -250,6 +254,11 @@ class OVRTXRenderer(BaseRenderer):
             if self.cfg.colorize_instance_id_segmentation
             else RenderBufferSpec(1, wp.uint32)
         )
+        # Semantic segmentation: colorized RGBA (uint8), else raw int32 IDs (matches Isaac RTX, whose
+        # non-colorized per-pixel value is the semantic ID).
+        semantic_seg_spec = (
+            RenderBufferSpec(4, wp.uint8) if self.cfg.colorize_semantic_segmentation else RenderBufferSpec(1, wp.int32)
+        )
         return {
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
@@ -258,7 +267,7 @@ class OVRTXRenderer(BaseRenderer):
             RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_FULL_MDL: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: semantic_seg_spec,
             RenderBufferKind.INSTANCE_SEGMENTATION_FAST: instance_seg_spec,
             RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST: instance_id_seg_spec,
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
@@ -633,15 +642,30 @@ class OVRTXRenderer(BaseRenderer):
         render_data: OVRTXRenderData,
         camera_data: CameraData,
     ) -> None:
-        """No-op: outputs already live in the caller's torch storage.
+        """Forward per-output metadata collected during :meth:`render` into ``camera_data.info``.
 
-        :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
-        zero-copy warp array stored in ``render_data.warp_buffers``, and
-        :meth:`render` writes the rendered tiles directly into those warp
-        arrays. There is therefore nothing to copy here.
+        This is a *replace*, not a *merge*: every seeded output key is reset to this frame's metadata,
+        which is ``None`` when its render var was absent. Because :meth:`render` rebuilds ``renderer_info``
+        from scratch each frame (see the ``renderer_info.clear()`` in :meth:`_process_render_frame`), a render
+        var that disappears on a later frame (e.g. a missing ``SemanticIdMap``) must clear the corresponding
+        ``camera_data.info`` entry too, or downstream consumers would keep reading stale labels. ``renderer_info``
+        only ever holds a subset of the outputs, so iterating ``camera_data.info`` both preserves its
+        ``output``-mirroring key set and resets any dropped metadata to ``None``.
+
+        Present entries are stored by reference (a shallow assignment, not a deep copy): ``camera_data.info``
+        shares the same metadata dict objects as ``render_data.renderer_info`` (e.g. the semantic
+        ``idToLabels`` mapping). Those references stay valid even after ``renderer_info`` is cleared or
+        rebuilt, and each render builds a fresh metadata dict, so no aliased object is mutated in place.
+
+        Pixel data needs no handling here: :meth:`set_outputs` wraps each ``camera_data.output`` tensor as a
+        zero-copy warp array stored in ``render_data.warp_buffers``, and :meth:`render` writes the rendered
+        tiles directly into those warp arrays.
 
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.read_output`.
         """
+        assert camera_data.info is not None, "CameraData.info should be created in CameraData.allocate"
+        for output_name in camera_data.info:
+            camera_data.info[output_name] = render_data.renderer_info.get(output_name)
 
     def _generate_random_colors_from_ids(self, input_ids: wp.array, output_colors: wp.array | None) -> wp.array:
         """Generate pseudo-random RGBA colors from uint32 IDs into a reusable output buffer.
@@ -717,6 +741,30 @@ class OVRTXRenderer(BaseRenderer):
                     data_torch = data_torch.unsqueeze(-1)
                 tiled_data = wp.from_torch(data_torch, dtype=wp.uint32)
                 self._launch_extract_all_tiles(render_data, tiled_data, output_buffers[buffer_key])
+
+    def _process_semantic_id_map(self, render_data: OVRTXRenderData, frame) -> None:
+        """Decode the ``SemanticIdMap`` render var into ``render_data.renderer_info["semantic_segmentation"]``.
+
+        Populates an ``"idToLabels"`` mapping compatible with Isaac RTX / Replicator: keys are the raw semantic
+        IDs (``colorize_semantic_segmentation=False``) or the RGBA color tuples the segmentation buffer uses
+        (``colorize_semantic_segmentation=True``); values are ``{semantic_type: label}`` dicts. The reserved
+        BACKGROUND (ID 0) and UNLABELLED (ID 1) entries are always included.
+
+        Args:
+            render_data: OVRTX render data for the current frame.
+            frame: OVRTX frame holding the mapped render vars.
+        """
+        if "SemanticIdMap" not in frame.render_vars:
+            return
+
+        with frame.render_vars["SemanticIdMap"].map(device=Device.CPU) as mapping:
+            labels_by_id = decode_semantic_id_map(np.from_dlpack(mapping.tensor))
+
+        render_data.renderer_info["semantic_segmentation"] = {
+            "idToLabels": build_semantic_id_to_labels(
+                labels_by_id, colorize=self.cfg.colorize_semantic_segmentation, device=self._device
+            )
+        }
 
     def _launch_extract_all_tiles(
         self, render_data: OVRTXRenderData, tiled_buffer: wp.array, output_buffer: wp.array
@@ -811,6 +859,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def _process_render_frame(self, render_data: OVRTXRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
+        # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
+        # present), metadata like the semantic ``idToLabels`` is only repopulated below when its render var
+        # is available, so without this a missing SemanticIdMap on a later frame would leave a stale mapping.
+        render_data.renderer_info.clear()
+
         if "LdrColor" in frame.render_vars:
             buffer_key = None
 
@@ -852,16 +905,17 @@ class OVRTXRenderer(BaseRenderer):
                 tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)
 
-        # Semantic segmentation is always colorized: unlike instance (id) segmentation, there is no
-        # raw-uint32 output mode exposed for it (see OVRTXRenderer.supported_output_types).
         self._process_id_segmentation_render_var(
             render_data,
             frame,
             output_buffers,
             "SemanticSegmentation",
             "semantic_segmentation",
-            True,
+            self.cfg.colorize_semantic_segmentation,
         )
+        # Decode the SemanticIdMap into camera.data.info["semantic_segmentation"]["idToLabels"].
+        if "semantic_segmentation" in output_buffers:
+            self._process_semantic_id_map(render_data, frame)
 
         self._process_id_segmentation_render_var(
             render_data,

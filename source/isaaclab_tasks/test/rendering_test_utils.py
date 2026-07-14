@@ -102,18 +102,46 @@ _DEFAULT_SENSOR_DATA_TYPES = (
 )
 
 
+# Data types the Newton Warp renderer (``newton_renderer``) supports. Expand this tuple as the
+# renderer gains support for additional output types.
+_NEWTON_WARP_DATA_TYPES = (
+    "rgb",
+    "depth",
+    "distance_to_camera",
+    "distance_to_image_plane",
+    "normals",
+)
+
+
 def _make_sensor_data_type_params(
-    physics_backend: str, renderer: str, sensor_data_types: list[str] = None
+    physics_backend: str,
+    renderer: str,
+    sensor_data_types: list[str] = None,
+    *,
+    flaky: bool = True,
+    renderer_label: str | None = None,
 ) -> list[pytest.param]:
-    """Create golden-image parameter entries for every supported output type."""
+    """Create golden-image parameter entries for the given data types.
+
+    Args:
+        physics_backend: Physics backend label (e.g. ``"physx"``, ``"newton"``, ``"ovphysx"``).
+        renderer: Renderer nickname; the camera renderer argument becomes ``f"{renderer}_renderer"``.
+        sensor_data_types: Data types to parametrize. Defaults to :data:`_DEFAULT_SENSOR_DATA_TYPES`.
+        flaky: Whether to apply the retry mark. RTX renderers are non-deterministic and need it; the
+            deterministic Warp rasterizer does not.
+        renderer_label: Overrides the renderer segment of the test id. Defaults to ``renderer``; used
+            to keep the ``newton_warp`` id distinct from its ``newton_renderer`` argument.
+    """
     sensor_data_types = sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES
+    label = renderer_label or renderer
+    marks = _FLAKY_MARK if flaky else ()
     return [
         pytest.param(
             physics_backend,
             f"{renderer}_renderer",
             data_type,
-            id=f"{physics_backend}-{renderer}-{data_type}",
-            marks=_FLAKY_MARK,
+            id=f"{physics_backend}-{label}-{data_type}",
+            marks=marks,
         )
         for data_type in sensor_data_types
     ]
@@ -122,67 +150,19 @@ def _make_sensor_data_type_params(
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
     *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
-    # physx + newton_renderer (warp)
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "rgb",
-        id="physx-newton_warp-rgb",
-    ),
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "depth",
-        id="physx-newton_warp-depth",
-    ),
-    pytest.param(
-        "physx",
-        "newton_renderer",
-        "normals",
-        id="physx-newton_warp-normals",
+    *_make_sensor_data_type_params(
+        "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
 ]
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
     *_make_sensor_data_type_params("ovphysx", "ovrtx"),
     *_make_sensor_data_type_params("newton", "ovrtx"),
-    # ovphysx + newton_renderer (warp)
-    pytest.param(
-        "ovphysx",
-        "newton_renderer",
-        "rgb",
-        id="ovphysx-newton_warp-rgb",
+    *_make_sensor_data_type_params(
+        "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
-    pytest.param(
-        "ovphysx",
-        "newton_renderer",
-        "depth",
-        id="ovphysx-newton_warp-depth",
-    ),
-    pytest.param(
-        "ovphysx",
-        "newton_renderer",
-        "normals",
-        id="ovphysx-newton_warp-normals",
-    ),
-    # newton + newton_renderer (warp)
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "rgb",
-        id="newton-newton_warp-rgb",
-    ),
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "depth",
-        id="newton-newton_warp-depth",
-    ),
-    pytest.param(
-        "newton",
-        "newton_renderer",
-        "normals",
-        id="newton-newton_warp-normals",
+    *_make_sensor_data_type_params(
+        "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
 ]
 
@@ -680,6 +660,33 @@ def validate_camera_outputs(
         pytest.fail(reason)
 
 
+def maybe_validate_semantic_segmentation(
+    data_type: str,
+    info: dict[str, Any] | None,
+    expected_id_to_labels: dict[str, dict[str, str]],
+) -> None:
+    """For the ``semantic_segmentation`` data type, assert ``camera.data.info`` matches ground truth.
+
+    No-op for any other data type. The ``idToLabels`` mapping (keyed by RGBA color for the default colorized
+    output) is a Replicator contract that both the Isaac RTX and OVRTX renderers must satisfy, so it is
+    compared for exact equality against the expected mapping.
+
+    Args:
+        data_type: The camera data type under test.
+        info: The ``camera.data.info`` dict (or ``None``) produced by the renderer.
+        expected_id_to_labels: Expected ``idToLabels`` mapping (color/ID key -> ``{semantic_type: label}``).
+    """
+    if data_type != "semantic_segmentation":
+        return
+
+    assert info is not None, "camera.data.info is None; renderer did not populate segmentation metadata."
+    assert info["semantic_segmentation"]["idToLabels"] == expected_id_to_labels, (
+        f"semantic_segmentation idToLabels mismatch.\n"
+        f"  expected: {expected_id_to_labels}\n"
+        f"  actual:   {info['semantic_segmentation']}"
+    )
+
+
 def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
@@ -768,6 +775,19 @@ def rendering_test_shadow_hand(
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["shadow_hand"],
             comparison_scores=comparison_scores,
         )
+
+        # The ShadowHand task has a ``class:cube`` on the manipulated object; the hand is UNLABELLED and empty
+        # space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this same
+        # idToLabels mapping in camera.data.info.
+        maybe_validate_semantic_segmentation(
+            data_type,
+            env._tiled_camera.data.info,
+            expected_id_to_labels={
+                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
+                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
+                "(33, 243, 3, 255)": {"class": "cube"},
+            },
+        )
     finally:
         if env is not None:
             env.close()
@@ -816,6 +836,11 @@ def rendering_test_cartpole(
 
     @configclass
     class _CartpoleCameraTestEnvCfg(CartpoleCameraEnvCfg):
+        # Use the semantically-tagged robot (class:cartpole) so semantic_segmentation produces a non-trivial
+        # idToLabels mapping; the base env's semantic_segmentation variant leaves the robot untagged.
+        semantic_segmentation = _BaseCartpoleCameraEnvTestCfg(
+            observation_space=[4, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
+        )
         distance_to_camera = _BaseCartpoleCameraEnvTestCfg(
             observation_space=[1, 100, 100], tiled_camera=_CartpoleTiledCameraTestCfg()
         )
@@ -841,6 +866,8 @@ def rendering_test_cartpole(
     )
 
     env_cfg.scene.num_envs = 4
+    if getattr(env_cfg.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
+        env_cfg.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
     if renderer == "ovrtx_renderer":
         _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
@@ -876,6 +903,19 @@ def rendering_test_cartpole(
             camera_outputs,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME["cartpole"],
             comparison_scores=comparison_scores,
+        )
+
+        # We augment the cartpole task to author ``class:cartpole`` on the robot; everything else is UNLABELLED
+        # and empty space is BACKGROUND. Both the Isaac RTX (ground truth) and OVRTX renderers must expose this
+        # same idToLabels mapping in camera.data.info.
+        maybe_validate_semantic_segmentation(
+            data_type,
+            env._tiled_camera.data.info,
+            expected_id_to_labels={
+                "(0, 0, 0, 0)": {"class": "BACKGROUND"},
+                "(0, 0, 0, 255)": {"class": "UNLABELLED"},
+                "(33, 243, 3, 255)": {"class": "cartpole"},
+            },
         )
     finally:
         if env is not None:

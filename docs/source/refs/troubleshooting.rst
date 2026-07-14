@@ -1,6 +1,13 @@
 Tricks and Troubleshooting
 ==========================
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
+   (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 .. note::
 
     The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
@@ -40,6 +47,30 @@ packages.
 
 Include ``assets`` in your install command, or use ``./isaaclab.sh -i`` to install
 everything.
+
+``ModuleNotFoundError: No module named 'isaaclab_tasks'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``isaaclab_tasks`` package contains the registered task environments. This
+error usually means the command is not running in the Isaac Lab Python
+environment or the repository packages were not installed in editable mode.
+
+Try the following checks:
+
+1. Run from the Isaac Lab repository root using uv:
+
+   .. code-block:: bash
+
+      uv run python -c "import isaaclab_tasks; print('ok')"
+
+2. If the import still fails, recreate the documented source-install
+   environment for your workflow.
+
+3. Re-run the task command from the repository root instead of a system Python:
+
+   .. code-block:: bash
+
+      uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 4
 
 ``<package> requires <version>, but <other-package> requires <version>``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
