@@ -17,9 +17,10 @@ from isaaclab.assets import Articulation, RigidObject
 from isaaclab.sensors import Camera
 from isaaclab.utils.math import scale_transform
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, compute_cube_keypoints
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor
 from isaaclab_tasks.core.reorient.reorient_direct_env import ReorientDirectEnv
-from isaaclab_tasks.core.reorient.reorient_task_constants import CAMERA_GOAL_MARKER_POSITION
+from isaaclab_tasks.core.reorient.reorient_kernels import compute_cube_keypoints
+from isaaclab_tasks.core.reorient.reorient_task_base import CAMERA_GOAL_MARKER_POSITION
 
 if TYPE_CHECKING:
     from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import ShadowHandCameraEnvCfg
@@ -128,6 +129,9 @@ class ShadowHandCameraEnv(ReorientDirectEnv):
         return state
 
     def _get_observations(self) -> dict:
+        # refresh the torch-side state snapshots this observation path reads; the base
+        # environment computes its observations in Warp kernels and no longer updates them
+        self._compute_intermediate_values()
         # proprioception observations
         state_obs = self._compute_proprio_observations()
         # vision observations from CMM

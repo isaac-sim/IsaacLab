@@ -12,6 +12,9 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
 from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_env_cfg import ShadowHandEnvCfg
+from isaaclab_tasks.core.reorient.reorient_task_base import (
+    CAMERA_PLAY_NUM_ENVS,
+)
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
@@ -168,7 +171,9 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 @configclass
 class ShadowHandCameraEnvPlayCfg(ShadowHandCameraEnvCfg):
     # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=64, env_spacing=2.0, replicate_physics=True)
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(
+        num_envs=CAMERA_PLAY_NUM_ENVS, env_spacing=2.0, replicate_physics=True
+    )
     # inference for CNN
     feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(train=False, load_checkpoint=True)
 

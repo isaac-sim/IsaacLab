@@ -26,10 +26,10 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_manager_env_cfg
     TerminationsCfg,
     _ShadowHandManagerSceneCfg,
 )
-from isaaclab_tasks.core.reorient.reorient_task_constants import (
+from isaaclab_tasks.core.reorient.reorient_task_base import (
     CAMERA_GOAL_MARKER_POSITION,
+    CAMERA_PLAY_NUM_ENVS,
     SHADOW_FINGERTIP_BODY_NAMES,
-    SHADOW_FORCE_TORQUE_OBS_SCALE,
 )
 from isaaclab_tasks.utils import PresetCfg
 
@@ -48,10 +48,16 @@ class ShadowHandCameraManagerSceneCfg(PresetCfg):
     """Backend-specific camera scene alternatives for training and benchmarking."""
 
     physx = _ShadowHandCameraManagerSceneCfg(
-        num_envs=1225, env_spacing=2.0, replicate_physics=True, clone_in_fabric=True
+        num_envs=1225,
+        env_spacing=2.0,
+        replicate_physics=True,
+        clone_in_fabric=True,
     )
     newton_mjwarp = _ShadowHandCameraManagerSceneCfg(
-        num_envs=1225, env_spacing=2.0, replicate_physics=True, clone_in_fabric=False
+        num_envs=1225,
+        env_spacing=2.0,
+        replicate_physics=True,
+        clone_in_fabric=False,
     )
     ovphysx = physx
     default = physx
@@ -61,12 +67,23 @@ class ShadowHandCameraManagerSceneCfg(PresetCfg):
 class ShadowHandCameraManagerPlaySceneCfg(PresetCfg):
     """Reduced backend-specific camera scenes for checkpoint playback."""
 
-    physx = _ShadowHandCameraManagerSceneCfg(num_envs=64, env_spacing=2.0, replicate_physics=True, clone_in_fabric=True)
+    physx = _ShadowHandCameraManagerSceneCfg(
+        num_envs=CAMERA_PLAY_NUM_ENVS,
+        env_spacing=2.0,
+        replicate_physics=True,
+        clone_in_fabric=True,
+    )
     newton_mjwarp = _ShadowHandCameraManagerSceneCfg(
-        num_envs=64, env_spacing=2.0, replicate_physics=True, clone_in_fabric=False
+        num_envs=CAMERA_PLAY_NUM_ENVS,
+        env_spacing=2.0,
+        replicate_physics=True,
+        clone_in_fabric=False,
     )
     ovphysx = _ShadowHandCameraManagerSceneCfg(
-        num_envs=64, env_spacing=2.0, replicate_physics=True, clone_in_fabric=True
+        num_envs=CAMERA_PLAY_NUM_ENVS,
+        env_spacing=2.0,
+        replicate_physics=True,
+        clone_in_fabric=True,
     )
     default = physx
 
@@ -103,7 +120,7 @@ class CameraCriticCfg(FullStateWithoutActionCfg):
 
     fingertip_wrench = ObsTerm(
         func=mdp.fingertip_wrench,
-        scale=SHADOW_FORCE_TORQUE_OBS_SCALE,
+        scale=10.0,
         params={
             "sensor_cfg": SceneEntityCfg("joint_wrench", body_names=SHADOW_FINGERTIP_BODY_NAMES, preserve_order=False)
         },
