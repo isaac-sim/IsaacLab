@@ -317,7 +317,7 @@ class Articulation(BaseArticulation):
                     composer.out_force_b.warp,
                     composer.out_torque_b.warp,
                     self._body_user_to_backend_map(),
-                    self.data.body_ordering is not None,
+                    self.data.has_body_ordering,
                     self._data._sim_bind_body_external_wrench,
                     self._ALL_ENV_MASK,
                     self._ALL_BODY_MASK,
@@ -1059,7 +1059,7 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_user = self.data._joint_pos_user
             joint_vel_user = self.data._joint_vel_user
@@ -1126,7 +1126,7 @@ class Articulation(BaseArticulation):
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_user = self.data._joint_pos_user
             joint_vel_user = self.data._joint_vel_user
@@ -1191,7 +1191,7 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(position, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "position")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_user = self.data._joint_pos_user
         else:
@@ -1242,7 +1242,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(position, (env_mask, joint_mask), wp.float32, "position")
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_user = self.data._joint_pos_user
         else:
@@ -1294,7 +1294,7 @@ class Articulation(BaseArticulation):
         joint_ids = self._resolve_joint_ids(joint_ids)
         self.assert_shape_and_dtype(velocity, (env_ids.shape[0], joint_ids.shape[0]), wp.float32, "velocity")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_vel_user = self.data._joint_vel_user
         else:
@@ -1352,7 +1352,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
         self.assert_shape_and_dtype_mask(velocity, (env_mask, joint_mask), wp.float32, "velocity")
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_vel_user = self.data._joint_vel_user
         else:
@@ -1396,7 +1396,7 @@ class Articulation(BaseArticulation):
         """Write a user-order float joint property into public and backend buffers using indices."""
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             user_data = user_buffer
         else:
@@ -1432,7 +1432,7 @@ class Articulation(BaseArticulation):
         """Write a user-order float joint property into public and backend buffers using masks."""
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             user_data = user_buffer
         else:
@@ -1642,7 +1642,7 @@ class Articulation(BaseArticulation):
 
         env_ids_long = env_ids.to(self.device, dtype=torch.long).unsqueeze(1)
         joint_ids_backend = joint_ids.to(self.device, dtype=torch.long)
-        if self.data.joint_ordering is not None:
+        if self.data.has_joint_ordering:
             joint_ids_backend = self._joint_user_to_backend_torch[joint_ids_backend]
         joint_ids_backend = joint_ids_backend.unsqueeze(0)
 
@@ -1693,7 +1693,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
 
         _ = self.data.joint_pos_limits
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_limits_lower_user = self.data._joint_pos_limits_lower_user
             joint_pos_limits_upper_user = self.data._joint_pos_limits_upper_user
@@ -1767,7 +1767,7 @@ class Articulation(BaseArticulation):
         self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
 
         _ = self.data.joint_pos_limits
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_pos_limits_lower_user = self.data._joint_pos_limits_lower_user
             joint_pos_limits_upper_user = self.data._joint_pos_limits_upper_user
@@ -2143,7 +2143,7 @@ class Articulation(BaseArticulation):
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(masses, (env_ids.shape[0], body_ids.shape[0]), wp.float32, "masses")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_float_user_to_backend_with_indices(
             masses,
             env_ids,
@@ -2183,7 +2183,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(masses, (env_mask, body_mask), wp.float32, "masses")
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_float_user_to_backend_with_mask(
             masses,
             env_mask,
@@ -2229,7 +2229,7 @@ class Articulation(BaseArticulation):
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_2d_user_to_backend_with_indices(
             coms,
             env_ids,
@@ -2277,7 +2277,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_2d_user_to_backend_with_mask(
             coms,
             env_mask,
@@ -2319,7 +2319,7 @@ class Articulation(BaseArticulation):
         body_ids = self._resolve_body_ids(body_ids)
         self.assert_shape_and_dtype(inertias, (env_ids.shape[0], body_ids.shape[0], 9), wp.float32, "inertias")
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_3d_user_to_backend_with_indices(
             inertias,
             env_ids,
@@ -2360,7 +2360,7 @@ class Articulation(BaseArticulation):
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         body_mask = self._resolve_mask(body_mask, self._ALL_BODY_MASK)
         self.assert_shape_and_dtype_mask(inertias, (env_mask, body_mask), wp.float32, "inertias", trailing_dims=(9,))
-        has_body_ordering = self.data.body_ordering is not None
+        has_body_ordering = self.data.has_body_ordering
         ordering_kernels.write_3d_user_to_backend_with_mask(
             inertias,
             env_mask,
@@ -3464,7 +3464,7 @@ class Articulation(BaseArticulation):
         # The stored handle is the exact bound method ``_clear_callbacks`` later
         # deregisters.
         self._post_step_callback = None
-        if self.data.joint_ordering is not None or self.data.body_ordering is not None:
+        if self.data.has_joint_ordering or self.data.has_body_ordering:
             self._post_step_callback = self._data._refresh_user_order_state
             SimulationManager.register_post_step_callback(self._post_step_callback)
         # tendon names are set in _process_tendons function
@@ -3693,7 +3693,7 @@ class Articulation(BaseArticulation):
                         self._data._sim_bind_joint_effort,
                         self._data._sim_bind_joint_computed_effort,
                         self._joint_user_to_backend_map(),
-                        self.data.joint_ordering is not None,
+                        self.data.has_joint_ordering,
                     ],
                     outputs=[
                         self._data._computed_torque,
@@ -3820,7 +3820,7 @@ class Articulation(BaseArticulation):
             if j_ids.dtype == torch.int64:
                 j_ids = j_ids.to(torch.int32)
             j_ids = wp.from_torch(j_ids, dtype=wp.int32)
-        has_joint_ordering = self.data.joint_ordering is not None
+        has_joint_ordering = self.data.has_joint_ordering
         if has_joint_ordering:
             joint_armature_user = self.data._joint_armature_user
             joint_friction_coeff_user = self.data._joint_friction_coeff_user
