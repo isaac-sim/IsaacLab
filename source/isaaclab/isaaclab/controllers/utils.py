@@ -39,9 +39,11 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
     Returns:
         A tuple containing the paths to the URDF file and the mesh directory.
     """
-    from isaacsim.core.experimental.utils.app import enable_extension
+    import omni.kit.app  # noqa: PLC0415
 
-    enable_extension("isaacsim.asset.exporter.urdf")
+    extension_manager = omni.kit.app.get_app().get_extension_manager()
+    if not extension_manager.is_extension_enabled("isaacsim.asset.exporter.urdf"):
+        extension_manager.set_extension_enabled_immediate("isaacsim.asset.exporter.urdf", True)
 
     urdf_output_dir = os.path.join(output_path, "urdf")
     urdf_file_name = os.path.splitext(os.path.basename(usd_path))[0] + ".urdf"

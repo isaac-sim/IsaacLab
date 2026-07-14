@@ -21,6 +21,8 @@ from types import ModuleType
 import pytest
 import torch
 
+import omni.kit.app
+
 from isaaclab.controllers.utils import (
     change_revolute_to_fixed,
     change_revolute_to_fixed_regex,
@@ -134,23 +136,29 @@ def _mock_module(monkeypatch, name: str) -> ModuleType:
     return module
 
 
-def _mock_isaacsim_app(monkeypatch):
-    for module_name in (
-        "isaacsim",
-        "isaacsim.core",
-        "isaacsim.core.experimental",
-        "isaacsim.core.experimental.utils",
-    ):
-        _mock_module(monkeypatch, module_name).__path__ = []
+def _mock_kit_app(monkeypatch):
     enabled_extensions = []
-    app_module = _mock_module(monkeypatch, "isaacsim.core.experimental.utils.app")
-    app_module.enable_extension = enabled_extensions.append
+
+    class MockExtensionManager:
+        def is_extension_enabled(self, _name):
+            return False
+
+        def set_extension_enabled_immediate(self, name, enabled):
+            if enabled:
+                enabled_extensions.append(name)
+            return True
+
+    class MockApp:
+        def get_extension_manager(self):
+            return MockExtensionManager()
+
+    monkeypatch.setattr(omni.kit.app, "get_app", MockApp)
     return enabled_extensions
 
 
 def test_convert_usd_to_urdf_uses_isaacsim_exporter(monkeypatch, tmp_path):
     """Test that USD-to-URDF conversion uses Isaac Sim's URDF exporter."""
-    enabled_extensions = _mock_isaacsim_app(monkeypatch)
+    enabled_extensions = _mock_kit_app(monkeypatch)
     for module_name in ("isaacsim.asset", "isaacsim.asset.exporter"):
         _mock_module(monkeypatch, module_name).__path__ = []
 
