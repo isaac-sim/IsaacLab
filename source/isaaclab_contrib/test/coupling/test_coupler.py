@@ -31,8 +31,6 @@ from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
 
-from isaaclab.managers import SceneEntityCfg
-
 from isaaclab_contrib.coupling import (
     CouplerAdmmCfg,
     CouplerCfg,
@@ -104,17 +102,6 @@ class _FakeModel:
 
 def _float_array(size: int, value: float) -> _FakeArray:
     return _FakeArray(np.full(size, value, dtype=np.float32))
-
-
-@dataclass
-class _FakeAsset:
-    prim_path: str
-
-
-@dataclass
-class _FakeSceneCfg:
-    robot: _FakeAsset = field(default_factory=lambda: _FakeAsset("/World/envs/env_.*/Robot"))
-    object: _FakeAsset = field(default_factory=lambda: _FakeAsset("/World/envs/env_.*/Object"))
 
 
 def _entry(
@@ -206,70 +193,19 @@ def test_config_validation_requires_concrete_nested_factory():
         NewtonCouplerManager._validate_config(cfg)
 
 
-def test_scene_entity_and_string_selectors_resolve_full_body_labels():
-    """Scene selectors filter short names while strings match full labels."""
-    model = _FakeModel()
-    scene_cfg = _FakeSceneCfg()
-
-    assert NewtonCouplerManager._resolve_entities_to_body_ids(
-        model,
-        [SceneEntityCfg("robot", body_names=["hand"])],
-        scene_cfg,
-        "entry 'rigid'",
-    ) == [1]
-    assert NewtonCouplerManager._resolve_entities_to_body_ids(
-        model,
-        ["/World/envs/env_.*/Object/body"],
-        None,
-        "entry 'object'",
-    ) == [2]
-
-
-def test_scene_entity_selector_reports_unmatched_body_pattern():
-    with pytest.raises(ValueError, match="could not match body patterns"):
-        NewtonCouplerManager._resolve_entities_to_body_ids(
-            _FakeModel(),
-            [SceneEntityCfg("robot", body_names=["missing"])],
-            _FakeSceneCfg(),
-            "entry 'rigid'",
-        )
-
-
-def test_scene_entity_selector_reports_unset_scene_cfg():
-    with pytest.raises(ValueError, match="scene_cfg is unset"):
-        NewtonCouplerManager._resolve_entities_to_body_ids(
-            _FakeModel(),
-            [SceneEntityCfg("robot")],
-            None,
-            "entry 'rigid'",
-        )
-
-
-def test_scene_entity_selector_rejects_unsupported_fields():
-    with pytest.raises(ValueError, match="unsupported fields.*body_ids"):
-        NewtonCouplerManager._resolve_entities_to_body_ids(
-            _FakeModel(),
-            [SceneEntityCfg("robot", body_ids=[0])],
-            _FakeSceneCfg(),
-            "entry 'rigid'",
-        )
-
-
-def test_scene_entity_selector_honors_preserve_order():
+def test_string_selector_resolves_full_body_labels_and_descendants():
     assert NewtonCouplerManager._resolve_entities_to_body_ids(
         _FakeModel(),
-        [SceneEntityCfg("robot", body_names=["hand", "base"], preserve_order=True)],
-        _FakeSceneCfg(),
+        ["/World/envs/env_.*/Robot"],
         "entry 'rigid'",
-    ) == [1, 0]
+    ) == [0, 1]
 
 
 def test_body_selector_rejects_unknown_types():
-    with pytest.raises(TypeError, match="expected a SceneEntityCfg"):
+    with pytest.raises(TypeError, match="expected a full-label regex string"):
         NewtonCouplerManager._resolve_entities_to_body_ids(
             _FakeModel(),
             [object()],
-            _FakeSceneCfg(),
             "entry 'rigid'",
         )
 
@@ -279,46 +215,44 @@ def test_raw_body_label_selector_reports_no_matches():
         NewtonCouplerManager._resolve_entities_to_body_ids(
             _FakeModel(),
             ["/World/envs/env_.*/Missing"],
-            None,
             "entry 'missing'",
         )
 
 
 def test_raw_body_id_selectors_pass_through_and_dedupe():
     """Integer selectors resolve to themselves, preserving order and removing duplicates."""
-    assert NewtonCouplerManager._resolve_entities_to_body_ids(_FakeModel(), [2, 0, 2], None, "proxy 'a'->'b'") == [2, 0]
+    assert NewtonCouplerManager._resolve_entities_to_body_ids(_FakeModel(), [2, 0, 2], "proxy 'a'->'b'") == [2, 0]
 
 
 def test_out_of_range_body_id_selector_is_rejected():
     with pytest.raises(ValueError, match="out of range"):
-        NewtonCouplerManager._resolve_entities_to_body_ids(_FakeModel(), [5], None, "proxy 'a'->'b'")
+        NewtonCouplerManager._resolve_entities_to_body_ids(_FakeModel(), [5], "proxy 'a'->'b'")
 
 
 def test_proxy_resolution_writes_body_ids_into_config_in_place():
     """Resolution replaces the proxy's selectors with body ids and is idempotent."""
     model = _FakeModel()
     proxy = CouplerProxyMappingCfg(
-        source="rigid", destination="soft", bodies=[SceneEntityCfg("robot")], particles=[1, 1]
+        source="rigid", destination="soft", bodies=[r"/World/envs/env_.*/Robot"], particles=[1, 1]
     )
 
-    resolved = NewtonCouplerManager._resolve_proxy(model, proxy, _FakeSceneCfg())
+    resolved = NewtonCouplerManager._resolve_proxy(model, proxy)
 
     assert resolved is proxy
     assert proxy.bodies == [0, 1]
     assert proxy.particles == [1]
     # Re-resolving the now-integer selectors yields the same result.
-    assert NewtonCouplerManager._resolve_proxy(model, proxy, None).bodies == [0, 1]
+    assert NewtonCouplerManager._resolve_proxy(model, proxy).bodies == [0, 1]
 
 
 def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
     """Derived joint/shape ownership follows each entry's selected bodies."""
     model = _FakeModel()
-    scene_cfg = _FakeSceneCfg()
     entries = [
         CouplerEntryCfg(
             name="rigid",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[SceneEntityCfg("robot")],
+            bodies=[r"/World/envs/env_.*/Robot"],
         ),
         CouplerEntryCfg(
             name="object",
@@ -333,7 +267,7 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
         ),
     ]
 
-    resolved = [NewtonCouplerManager._resolve_entry(model, entry, scene_cfg) for entry in entries]
+    resolved = [NewtonCouplerManager._resolve_entry(model, entry) for entry in entries]
 
     assert resolved[0].bodies == [0, 1]
     assert resolved[0].joints == [0]
@@ -345,7 +279,7 @@ def test_three_named_entries_partition_bodies_joints_shapes_and_particles():
     assert resolved[2].bodies == []
     assert resolved[2].joints == []
     assert resolved[2].shapes == [3]
-    assert isinstance(entries[0].bodies[0], SceneEntityCfg)
+    assert entries[0].bodies == [r"/World/envs/env_.*/Robot"]
     assert entries[1].bodies == ["/World/envs/env_.*/Object"]
 
 
@@ -357,18 +291,18 @@ def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
         CouplerEntryCfg(
             name="robot",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[SceneEntityCfg("robot")],
+            bodies=[r"/World/envs/env_.*/Robot"],
         ),
         CouplerEntryCfg(
             name="object",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[SceneEntityCfg("object")],
+            bodies=[r"/World/envs/env_.*/Object"],
             all_particles=True,
             include_static_shapes=True,
         ),
     ]
 
-    resolved = [NewtonCouplerManager._resolve_entry(model, entry, _FakeSceneCfg()) for entry in entries]
+    resolved = [NewtonCouplerManager._resolve_entry(model, entry) for entry in entries]
 
     assert resolved[0].joints == [0]
     assert resolved[1].joints == []
@@ -417,12 +351,11 @@ def test_shape_label_patterns_and_static_shape_selection_are_additive():
         CouplerEntryCfg(
             name="special",
             solver_cfg=XPBDSolverCfg(),
-            bodies=[SceneEntityCfg("robot", body_names=["base"])],
+            bodies=[r"/World/envs/env_.*/Robot/base"],
             include_body_shapes=False,
             include_static_shapes=True,
             shape_label_patterns=[r".*/Object/object_collision"],
         ),
-        _FakeSceneCfg(),
     )
     assert entry.bodies == [0]
     assert entry.shapes == [3, 2]
@@ -435,8 +368,7 @@ def test_proxy_resolution_keeps_only_collidable_selected_bodies():
     )
     proxy = NewtonCouplerManager._resolve_proxy(
         model,
-        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[SceneEntityCfg("robot")]),
-        _FakeSceneCfg(),
+        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[r"/World/envs/env_.*/Robot"]),
     )
     assert proxy.bodies == [0]
 
@@ -485,7 +417,7 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
         lambda model_view, **kwargs: (model_view, kwargs["broad_phase"]),
     )
 
-    proxies = [NewtonCouplerManager._resolve_proxy(model, proxy, _FakeSceneCfg()) for proxy in cfg.proxies]
+    proxies = [NewtonCouplerManager._resolve_proxy(model, proxy) for proxy in cfg.proxies]
     solver = NewtonCouplerManager._build_proxy_coupled_solver(model, [], proxies, cfg)
 
     assert solver.coupling.iterations == 3
@@ -654,9 +586,7 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     else:
         fallback_proxy = None
     proxy_cfg, resolved_entries, resolved_proxies = _valid_proxy_setup(proxy=fallback_proxy)
-    proxy_cfg.scene_cfg = _FakeSceneCfg()
     recorded_entries: list[str] = []
-    recorded_scene_cfgs: list[object] = []
 
     if case == "mjwarp_external":
         resolved_entries[0].config.solver_cfg = MJWarpSolverCfg(use_mujoco_contacts=False)
@@ -680,15 +610,16 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
         NewtonCouplerManager,
         "_resolve_entry",
         classmethod(
-            lambda cls, model, entry_cfg, scene_cfg: recorded_scene_cfgs.append(scene_cfg)
-            or next(entry for entry in resolved_entries if entry.config.name == entry_cfg.name)
+            lambda cls, model, entry_cfg: next(
+                entry for entry in resolved_entries if entry.config.name == entry_cfg.name
+            )
         ),
     )
     monkeypatch.setattr(
         NewtonCouplerManager,
         "_resolve_proxy",
         classmethod(
-            lambda cls, model, proxy_cfg, scene_cfg: next(
+            lambda cls, model, proxy_cfg: next(
                 p for p in resolved_proxies if (p.source, p.destination) == (proxy_cfg.source, proxy_cfg.destination)
             )
         ),
@@ -716,7 +647,6 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     assert coupler.NewtonManager._needs_fk_before_step is expected_fk
     assert coupler.NewtonManager._supports_contact_sensors is False
     assert recorded_entries == ["rigid", "soft"]
-    assert all(sc is proxy_cfg.scene_cfg for sc in recorded_scene_cfgs)
 
 
 def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
@@ -736,7 +666,7 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
         NewtonCouplerManager,
         "_resolve_entry",
         classmethod(
-            lambda cls, model, entry_cfg, scene_cfg: next(
+            lambda cls, model, entry_cfg: next(
                 entry for entry in resolved_entries if entry.config.name == entry_cfg.name
             )
         ),

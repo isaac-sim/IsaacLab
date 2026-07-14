@@ -274,10 +274,8 @@ What the selectors do:
   :class:`~isaaclab_contrib.coupling.CouplerEntryCfg` per sub-solver. Each
   entry has a stable ``name``, its own ``solver_cfg``, and explicit model
   ownership selectors.
-* An entry's ``bodies`` selectors are either a
-  :class:`~isaaclab.managers.SceneEntityCfg` (resolved against the scene's
-  ``prim_path``, optionally narrowed by ``body_names``) or a full Newton body
-  label regex string. By default, joints inherit their child body's owner and
+* An entry's ``bodies`` selectors are full Newton body-label regex strings.
+  By default, joints inherit their child body's owner and
   shapes inherit their body's owner. Use ``all_particles=True`` to own all
   deformable particles and ``include_static_shapes=True`` to own world
   geometry. Bodies, particles, joints, and shapes may be assigned to at most
@@ -333,13 +331,8 @@ Key proxy-specific parameters:
         in the VBD view. Increase it to make proxies behave more like fixed
         obstacles to VBD.
 
-The shipped preset uses full Newton body-label regexes, so it has no runtime
-dependency on the environment scene config. If an application instead uses
-:class:`~isaaclab.managers.SceneEntityCfg` selectors, assign that environment's
-scene config to :attr:`~isaaclab_contrib.coupling.CouplerCfg.scene_cfg` before
-the solver is built. This explicit dependency is required only for resolving
-scene-entity names and ``body_names``; raw label regexes and integer body ids do
-not need it.
+Body selectors must use full Newton body-label regexes, such as
+``/World/envs/env_.*/Robot``. Proxy mappings also accept raw Newton body ids.
 
 Try the demo:
 

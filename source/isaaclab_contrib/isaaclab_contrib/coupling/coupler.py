@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
@@ -23,7 +22,6 @@ from isaaclab_newton.physics.newton_manager import NewtonManager
 from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsManager
 from isaaclab.utils.string import resolve_matching_names
 
@@ -35,9 +33,6 @@ from .coupler_cfg import (
     CouplerProxyCfg,
     CouplerProxyMappingCfg,
 )
-
-if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveSceneCfg
 
 
 class NewtonCouplerManager(NewtonVBDManager):
@@ -83,13 +78,11 @@ class NewtonCouplerManager(NewtonVBDManager):
             )
 
         cls._validate_config(solver_cfg)
-        scene_cfg = solver_cfg.scene_cfg
-
-        resolved_entries = [cls._resolve_entry(model, entry, scene_cfg) for entry in solver_cfg.entries]
+        resolved_entries = [cls._resolve_entry(model, entry) for entry in solver_cfg.entries]
         proxies: list[CouplerProxyMappingCfg] = []
         active_proxy_destinations: set[str] = set()
         if isinstance(solver_cfg, CouplerProxyCfg):
-            proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
+            proxies = [cls._resolve_proxy(model, proxy) for proxy in solver_cfg.proxies]
             active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
         cls._validate_resolved_entries(model, resolved_entries, solver_cfg, active_proxy_destinations)
         entries = [cls._build_entry(entry) for entry in resolved_entries]
@@ -233,10 +226,9 @@ class NewtonCouplerManager(NewtonVBDManager):
         cls,
         model: Model,
         entry_cfg: CouplerEntryCfg,
-        scene_cfg: InteractiveSceneCfg | None,
     ) -> _ResolvedEntry:
         """Resolve one entry's selectors and derived ownership."""
-        bodies = cls._resolve_entities_to_body_ids(model, entry_cfg.bodies, scene_cfg, f"entry {entry_cfg.name!r}")
+        bodies = cls._resolve_entities_to_body_ids(model, entry_cfg.bodies, f"entry {entry_cfg.name!r}")
 
         particles = list(dict.fromkeys(map(int, entry_cfg.particles)))
         if entry_cfg.all_particles:
@@ -287,11 +279,10 @@ class NewtonCouplerManager(NewtonVBDManager):
         cls,
         model: Model,
         proxy_cfg: CouplerProxyMappingCfg,
-        scene_cfg: InteractiveSceneCfg | None,
     ) -> CouplerProxyMappingCfg:
         """Resolve a proxy mapping's selectors to collidable body ids, writing them into the config in place."""
         selected = cls._resolve_entities_to_body_ids(
-            model, proxy_cfg.bodies, scene_cfg, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}"
+            model, proxy_cfg.bodies, f"proxy {proxy_cfg.source!r}->{proxy_cfg.destination!r}"
         )
         collide_flag = int(ShapeFlags.COLLIDE_SHAPES)
         collide_bodies = {
@@ -313,11 +304,10 @@ class NewtonCouplerManager(NewtonVBDManager):
     def _resolve_entities_to_body_ids(
         cls,
         model: Model,
-        specs: list[SceneEntityCfg | str | int],
-        scene_cfg: InteractiveSceneCfg | None,
+        specs: list[str | int],
         field: str,
     ) -> list[int]:
-        """Resolve scene entities, body-label regexes, or raw body ids to unique, order-preserving body ids."""
+        """Resolve body-label regexes or raw body ids to unique, order-preserving body ids."""
         labels = list(model.body_label)
         body_ids: list[int] = []
         for spec in specs:
@@ -333,66 +323,11 @@ class NewtonCouplerManager(NewtonVBDManager):
                 body_ids.extend(matched)
                 continue
 
-            if not isinstance(spec, SceneEntityCfg):
-                raise TypeError(
-                    f"CouplerCfg {field}: expected a SceneEntityCfg, full-label regex string, or raw body id; "
-                    f"got {type(spec).__name__}."
-                )
-            if scene_cfg is None:
-                raise ValueError(
-                    f"CouplerCfg {field}: scene_cfg is unset; assign the environment scene cfg before using "
-                    f"SceneEntityCfg({spec.name!r}) selectors."
-                )
-            unsupported_fields = cls._unsupported_scene_entity_fields(spec)
-            if unsupported_fields:
-                raise ValueError(
-                    f"CouplerCfg {field}: SceneEntityCfg({spec.name!r}) sets unsupported fields "
-                    f"{unsupported_fields}; coupler selectors use only name, body_names, and preserve_order."
-                )
-
-            asset_cfg = getattr(scene_cfg, spec.name, None)
-            if asset_cfg is None or not hasattr(asset_cfg, "prim_path"):
-                raise ValueError(f"CouplerCfg {field}: scene entity {spec.name!r} is not on the attached scene cfg.")
-            asset_body_ids, _ = resolve_matching_names(
-                f"(?:{asset_cfg.prim_path})(?:/.*)?", labels, raise_when_no_match=False
+            raise TypeError(
+                f"CouplerCfg {field}: expected a full-label regex string or raw body id; got {type(spec).__name__}."
             )
-            if not asset_body_ids:
-                raise ValueError(f"CouplerCfg {field}: scene entity {spec.name!r} matched no Newton bodies.")
-            if spec.body_names is None:
-                body_ids.extend(asset_body_ids)
-                continue
-
-            body_patterns = [spec.body_names] if isinstance(spec.body_names, str) else spec.body_names
-            short_names = [labels[index].rsplit("/", 1)[-1] for index in asset_body_ids]
-            try:
-                local_body_ids, _ = resolve_matching_names(
-                    body_patterns, short_names, preserve_order=spec.preserve_order
-                )
-            except ValueError as error:
-                raise ValueError(
-                    f"CouplerCfg {field}: scene entity {spec.name!r} could not match body patterns {body_patterns}."
-                ) from error
-            body_ids.extend(asset_body_ids[index] for index in local_body_ids)
 
         return list(dict.fromkeys(body_ids))
-
-    @staticmethod
-    def _unsupported_scene_entity_fields(spec: SceneEntityCfg) -> list[str]:
-        """Return selector fields whose asset-local semantics cannot map safely to Newton labels."""
-        unsupported = []
-        defaults = {
-            "joint_names": None,
-            "joint_ids": slice(None),
-            "fixed_tendon_names": None,
-            "fixed_tendon_ids": slice(None),
-            "body_ids": slice(None),
-            "object_collection_names": None,
-            "object_collection_ids": slice(None),
-        }
-        for name, default in defaults.items():
-            if getattr(spec, name) != default:
-                unsupported.append(name)
-        return unsupported
 
     @classmethod
     def _build_entry(cls, entry: _ResolvedEntry) -> SolverCoupled.Entry:

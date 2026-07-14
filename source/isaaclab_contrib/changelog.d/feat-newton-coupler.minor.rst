@@ -33,22 +33,17 @@ Added
   entries, instantiates each sub-solver from its config, and connects entries
   through named proxy mappings or symmetric ADMM contact pairs.
 
-* Added support for raw prim-path regex strings (e.g.
+* Added support for prim-path regex strings (e.g.
   ``"/World/envs/env_.*/MyCube"``) in the body-selector lists of
   :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerEntryCfg`
-  and :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg`,
-  alongside :class:`~isaaclab.managers.SceneEntityCfg` selectors. Raw Newton
-  body ids may also be given directly as integers in
+  and :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg`.
+  Raw Newton body ids may also be given directly as integers in
   :attr:`~isaaclab_contrib.coupling.coupler_cfg.CouplerProxyMappingCfg.bodies`.
 
 * Added :class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelSolverCfg`,
   a shared solver-config base whose ``model_cfg``
   (:class:`~isaaclab_contrib.deformable.newton_manager_cfg.NewtonModelCfg`) is
-  applied to the finalized Newton model. The VBD and coupler configs
-  inherit it, and
-  :class:`~isaaclab_contrib.coupling.coupler_cfg.CouplerCfg`
-  additionally exposes ``scene_cfg`` for resolving scene-entity selectors at
-  solver-build time.
+  applied to the finalized Newton model. The VBD and coupler configs inherit it.
 
 * Added implicit MPM support for coupled-solver entries, including per-entry
   substeps and in-place stepping.
