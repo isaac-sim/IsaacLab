@@ -67,6 +67,7 @@ class OpenXRDevice(DeviceBase):
     """
 
     TELEOP_COMMAND_EVENT_TYPE = "teleop_command"
+    _EXPECTED_CONTROLLER_SAMPLE_ERRORS = (AttributeError, KeyError, TypeError, ValueError)
 
     def __init__(
         self,
@@ -118,6 +119,13 @@ class OpenXRDevice(DeviceBase):
 
         # Button binding support
         self.__button_subscriptions: dict[str, dict] = {}
+        # A missing controller sample is safe only when it is observable.  The
+        # dVRK retargeter holds the affected side, while callers can inspect
+        # this per-side state before continuing bimanual control.
+        self._controller_faults: dict[DeviceBase.TrackingTarget, str | None] = {
+            DeviceBase.TrackingTarget.CONTROLLER_LEFT: None,
+            DeviceBase.TrackingTarget.CONTROLLER_RIGHT: None,
+        }
 
         # Optional anchor synchronizer
         self._anchor_sync: XrAnchorSynchronizer | None = None
@@ -235,6 +243,17 @@ class OpenXRDevice(DeviceBase):
         """
         self._additional_callbacks[key] = func
 
+    @property
+    def controller_faults(self) -> dict[DeviceBase.TrackingTarget, str | None]:
+        """Latest expected acquisition fault for each motion-controller side.
+
+        ``None`` means the most recent sample was acquired successfully.
+        Unexpected runtime/API exceptions propagate instead of being
+        misrepresented as ordinary tracking loss.
+        """
+
+        return self._controller_faults.copy()
+
     def _get_raw_data(self) -> Any:
         """Get the latest tracking data from the OpenXR runtime.
 
@@ -263,25 +282,63 @@ class OpenXRDevice(DeviceBase):
             data[DeviceBase.TrackingTarget.HEAD] = self._calculate_headpose()
 
         if RetargeterBase.Requirement.MOTION_CONTROLLER in self._required_features:
-            # Optionally include motion controller pose+inputs if devices are available
-            try:
-                left_dev = XRCore.get_singleton().get_input_device("/user/hand/left")
-                right_dev = XRCore.get_singleton().get_input_device("/user/hand/right")
-                left_ctrl = self._query_controller(left_dev) if left_dev is not None else np.array([])
-                right_ctrl = self._query_controller(right_dev) if right_dev is not None else np.array([])
-                if left_ctrl.size:
-                    data[DeviceBase.TrackingTarget.CONTROLLER_LEFT] = left_ctrl
-                if right_ctrl.size:
-                    data[DeviceBase.TrackingTarget.CONTROLLER_RIGHT] = right_ctrl
-            except Exception:
-                # Ignore controller data if XRCore/controller APIs are unavailable
-                pass
+            left_ctrl = self._get_controller_sample("/user/hand/left", DeviceBase.TrackingTarget.CONTROLLER_LEFT)
+            if left_ctrl is not None and left_ctrl.size:
+                data[DeviceBase.TrackingTarget.CONTROLLER_LEFT] = left_ctrl
+            right_ctrl = self._get_controller_sample("/user/hand/right", DeviceBase.TrackingTarget.CONTROLLER_RIGHT)
+            if right_ctrl is not None and right_ctrl.size:
+                data[DeviceBase.TrackingTarget.CONTROLLER_RIGHT] = right_ctrl
 
         return data
 
     """
     Internal helpers.
     """
+
+    def _get_controller_sample(self, input_path: str, target: DeviceBase.TrackingTarget) -> np.ndarray | None:
+        """Read one side, preserving independent operation without hiding faults."""
+
+        try:
+            input_device = XRCore.get_singleton().get_input_device(input_path)
+            if input_device is None:
+                self._record_controller_fault(target, input_path, "InputDeviceUnavailable: no input device")
+                return None
+            sample = self._query_controller(input_device)
+        except self._EXPECTED_CONTROLLER_SAMPLE_ERRORS as error:
+            fault = f"{type(error).__name__}: {error}"
+            self._record_controller_fault(target, input_path, fault)
+            return None
+
+        expected_shape = (len(DeviceBase.MotionControllerDataRowIndex), len(DeviceBase.MotionControllerInputIndex))
+        if sample.shape != expected_shape:
+            self._record_controller_fault(
+                target, input_path, f"MalformedSample: expected {expected_shape}, got {sample.shape}"
+            )
+            return None
+        if not np.isfinite(sample).all():
+            self._record_controller_fault(
+                target, input_path, "NonFiniteSample: controller data contains NaN or infinity"
+            )
+            return None
+        if not DeviceBase.motion_controller_sample_is_valid(sample):
+            self._record_controller_fault(
+                target, input_path, "TrackingInvalid: grip pose flags or quaternion are invalid"
+            )
+            return None
+        self._controller_faults[target] = None
+        return sample
+
+    def _record_controller_fault(
+        self,
+        target: DeviceBase.TrackingTarget,
+        input_path: str,
+        fault: str,
+    ) -> None:
+        """Record and log a changed expected controller fault once."""
+
+        if self._controller_faults[target] != fault:
+            logger.warning("OpenXR controller %s unavailable: %s", input_path, fault)
+        self._controller_faults[target] = fault
 
     def _calculate_joint_poses(
         self, hand_device: Any, previous_joint_poses: dict[str, np.ndarray]
@@ -429,12 +486,19 @@ class OpenXRDevice(DeviceBase):
         """Query motion controller pose and inputs as a 2x7 array.
 
         Row 0 (POSE): [x, y, z, w, x, y, z]
-        Row 1 (INPUTS): [thumbstick_x, thumbstick_y, trigger, squeeze, button_0, button_1, padding]
+        Row 1 (INPUTS): [thumbstick_x, thumbstick_y, trigger, squeeze, button_0, button_1, pose_valid]
+
+        The grip descriptor is required so stale pose values are never reported
+        as valid. Callers omit this controller sample if the descriptor API is
+        unavailable or malformed.
         """
         if input_device is None:
             return np.array([])
 
-        pose = input_device.get_virtual_world_pose()
+        pose_desc = input_device.get_virtual_world_pose_desc("grip")
+        pose = pose_desc.pose_matrix
+        required_pose_flags = XRPoseValidityFlags.POSITION_VALID | XRPoseValidityFlags.ORIENTATION_VALID
+        pose_valid = (pose_desc.validity_flags & required_pose_flags) == required_pose_flags
         position = pose.ExtractTranslation()
         quat = pose.ExtractRotationQuat()
 
@@ -483,7 +547,7 @@ class OpenXRDevice(DeviceBase):
             squeeze,
             button_0,
             button_1,
-            0.0,
+            float(pose_valid),
         ]
 
         return np.array([pose_row, input_row], dtype=np.float32)

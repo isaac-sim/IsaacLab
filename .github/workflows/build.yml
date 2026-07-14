@@ -33,7 +33,6 @@ jobs:
   test-isaaclab-tasks:
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
-    continue-on-error: true
 
     steps:
     - name: Checkout Code

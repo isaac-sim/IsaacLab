@@ -256,6 +256,12 @@ def run_individual_tests(test_files, workspace_root, isaacsim_ci):
     return failed_tests, test_status
 
 
+def dispatcher_return_code(failed_tests):
+    """Return non-zero for every failed, timed-out, or unreported test file."""
+
+    return 1 if failed_tests else 0
+
+
 def pytest_sessionstart(session):
     """Intercept pytest startup to execute tests in the correct order."""
     # Get the workspace root directory (one level up from tools)
@@ -417,4 +423,7 @@ def pytest_sessionstart(session):
     print(summary_str)
 
     # Exit pytest after custom execution to prevent normal pytest from overwriting our report
-    pytest.exit("Custom test execution completed", returncode=0 if num_failing == 0 else 1)
+    # ``failed_tests`` also contains timed-out subprocesses and missing or
+    # unreadable JUnit reports.  The composite CI action now trusts this exit
+    # status, so every dispatcher-level failure must remain non-zero.
+    pytest.exit("Custom test execution completed", returncode=dispatcher_return_code(failed_tests))

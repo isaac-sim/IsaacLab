@@ -107,11 +107,16 @@ runs:
               cd /workspace/isaaclab
               mkdir -p tests
               echo 'Starting pytest with path: $test_path'
-              /isaac-sim/python.sh -m pytest --ignore=tools/conftest.py $test_path $pytest_options -v --junitxml=tests/$result_file || echo 'Pytest completed with exit code: $?'
+              # tools/conftest.py dispatches each Isaac Sim test in its own process,
+              # applies TEST_FILTER_PATTERN, and combines the per-test reports.  It
+              # must be loaded: ignoring it would leave the CI jobs with no
+              # meaningful task/device test coverage.
+              /isaac-sim/python.sh -m pytest $test_path $pytest_options -v --junitxml=tests/$result_file
             "; then
             echo "✅ Docker container completed successfully"
           else
-            echo "⚠️ Docker container failed, but continuing to copy results..."
+            test_status=$?
+            echo "❌ Docker container failed; preserving reports before failing this action."
           fi
 
           # Copy test results with error handling
@@ -151,6 +156,7 @@ runs:
           # Clean up container
           echo "🧹 Cleaning up Docker container..."
           docker rm $container_name 2>/dev/null || echo "⚠️ Container cleanup failed, but continuing..."
+          return ${test_status:-0}
         }
 
         # Call the function with provided parameters

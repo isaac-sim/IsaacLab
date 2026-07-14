@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+import numpy as np
 import torch
 
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
@@ -157,4 +158,28 @@ class DeviceBase(ABC):
         SQUEEZE = 3
         BUTTON_0 = 4
         BUTTON_1 = 5
+        POSE_VALID = 6
+        """Whether both the controller grip position and orientation are valid."""
+
+        # Compatibility alias for consumers that treated the final slot as padding.
         PADDING = 6
+
+    @classmethod
+    def motion_controller_sample_is_valid(cls, controller_data: Any) -> bool:
+        """Return whether a controller sample is complete, finite, and tracked."""
+
+        try:
+            sample = np.asarray(controller_data, dtype=np.float64)
+        except (OverflowError, TypeError, ValueError):
+            return False
+        expected_shape = (len(cls.MotionControllerDataRowIndex), len(cls.MotionControllerInputIndex))
+        return bool(
+            sample.shape == expected_shape
+            and np.isfinite(sample).all()
+            and sample[
+                cls.MotionControllerDataRowIndex.INPUTS.value,
+                cls.MotionControllerInputIndex.POSE_VALID.value,
+            ]
+            == 1.0
+            and np.linalg.norm(sample[cls.MotionControllerDataRowIndex.POSE.value, 3:7]) > 1.0e-9
+        )
