@@ -18,8 +18,6 @@ Tests:
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
     - import pinocchio -> verify importable
-    - inspect built wheel -> verify each promoted extension keeps
-        isaaclab/source/<ext>/config/extension.toml for Kit discovery
 """
 
 from __future__ import annotations
