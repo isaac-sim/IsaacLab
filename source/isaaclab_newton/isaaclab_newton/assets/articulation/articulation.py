@@ -1299,6 +1299,10 @@ class Articulation(BaseArticulation):
             joint_vel_user = self.data._joint_vel_user
         else:
             joint_vel_user = self.data._sim_bind_joint_vel
+        # Two-tier ordering-kernel contract: hot per-step write paths like this one launch the raw
+        # ``ordering_kernels`` kernel directly, since inputs are already Warp-native (or torch tensors
+        # Warp ingests). The ``ordering_kernels.write_*`` Python wrappers are used instead in the
+        # property setters, where torch->warp adaptation (dtype/shape coercion) is needed first.
         wp.launch(
             ordering_kernels.write_joint_vel_user_to_backend_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
