@@ -7,10 +7,7 @@
 
 from __future__ import annotations
 
-import logging
-from collections import Counter
-from dataclasses import dataclass, fields
-from functools import wraps
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import (
@@ -39,9 +36,6 @@ from .coupler_cfg import (
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveSceneCfg
-
-
-logger = logging.getLogger(__name__)
 
 
 class NewtonCouplerManager(NewtonVBDManager):
@@ -90,27 +84,35 @@ class NewtonCouplerManager(NewtonVBDManager):
         scene_cfg = solver_cfg.scene_cfg
 
         resolved_entries = [cls._resolve_entry(model, entry, scene_cfg) for entry in solver_cfg.entries]
-        cls._validate_resolved_entries(model, resolved_entries, solver_cfg)
+        proxies: list[CouplerProxyMappingCfg] = []
+        active_proxy_destinations: set[str] = set()
+        if isinstance(solver_cfg, CouplerProxyCfg):
+            proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
+            active_proxy_destinations = {proxy.destination for proxy in proxies if proxy.bodies or proxy.particles}
+        cls._validate_resolved_entries(model, resolved_entries, solver_cfg, active_proxy_destinations)
         entries = [cls._build_entry(entry) for entry in resolved_entries]
 
         if isinstance(solver_cfg, CouplerProxyCfg):
-            proxies = [cls._resolve_proxy(model, proxy, scene_cfg) for proxy in solver_cfg.proxies]
-            NewtonManager._solver = cls._build_proxy_coupled_solver(model, entries, proxies, solver_cfg)
-            proxy_destinations = {proxy.destination for proxy in proxies}
-            outer_contact_destinations = {proxy.destination for proxy in proxies if proxy.collision_pipeline is None}
+            solver = cls._build_proxy_coupled_solver(model, entries, proxies, solver_cfg)
+            directions = {(proxy.source, proxy.destination) for proxy in proxies}
+            proxy_destinations = {destination for _, destination in directions}
+            outer_contact_entries = {
+                entry.config.name for entry in resolved_entries if entry.config.name not in proxy_destinations
+            }
+            outer_contact_entries.update(source for source, _ in directions)
+            outer_contact_entries.update(
+                destination
+                for source, destination in directions
+                if solver.get_proxy_contacts(source, destination) is None
+            )
+            NewtonManager._solver = solver
             needs_collision_pipeline = any(
-                (entry.config.name not in proxy_destinations or entry.config.name in outer_contact_destinations)
-                and cls._requires_external_contacts(entry.config.solver_cfg)
+                entry.config.name in outer_contact_entries and cls._requires_external_contacts(entry.config.solver_cfg)
                 for entry in resolved_entries
             )
-        elif isinstance(solver_cfg, CouplerAdmmCfg):
+        else:
             NewtonManager._solver = cls._build_admm_coupled_solver(model, entries, solver_cfg)
             needs_collision_pipeline = True
-        else:
-            raise TypeError(
-                f"CouplerCfg subclass {type(solver_cfg).__name__!r} is not supported; "
-                "use CouplerProxyCfg or CouplerAdmmCfg."
-            )
 
         NewtonManager._use_single_state = False
         NewtonManager._supports_contact_sensors = False
@@ -121,7 +123,7 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     @classmethod
     def _validate_config(cls, solver_cfg: CouplerCfg) -> None:
-        """Validate references and unsupported nested-manager behavior before construction."""
+        """Validate adapter-specific nested-manager constraints before construction."""
         if not isinstance(solver_cfg, (CouplerProxyCfg, CouplerAdmmCfg)):
             raise TypeError(
                 f"CouplerCfg subclass {type(solver_cfg).__name__!r} is not supported; "
@@ -130,13 +132,8 @@ class NewtonCouplerManager(NewtonVBDManager):
         if not solver_cfg.entries:
             raise ValueError("CouplerCfg.entries must contain at least one solver entry.")
 
-        names = [entry.name for entry in solver_cfg.entries]
-        if any(not isinstance(name, str) or not name for name in names):
+        if any(not isinstance(entry.name, str) or not entry.name for entry in solver_cfg.entries):
             raise ValueError("CouplerCfg entry names must be non-empty strings.")
-        duplicate_names = sorted(name for name, count in Counter(names).items() if count > 1)
-        if duplicate_names:
-            raise ValueError(f"CouplerCfg entry names must be unique; duplicates: {duplicate_names}.")
-        name_set = set(names)
 
         for entry in solver_cfg.entries:
             nested_cfg = entry.solver_cfg
@@ -179,113 +176,23 @@ class NewtonCouplerManager(NewtonVBDManager):
                     "state cannot yet preserve the manager's per-world reset-mask lifecycle inside a coupled entry."
                 )
 
-        if isinstance(solver_cfg, CouplerProxyCfg):
-            if len(solver_cfg.entries) > 2:
-                raise ValueError("CouplerProxyCfg supports at most two solver entries.")
-            for proxy in solver_cfg.proxies:
-                cls._validate_entry_reference(name_set, proxy.source, "proxy source")
-                cls._validate_entry_reference(name_set, proxy.destination, "proxy destination")
-                if proxy.source == proxy.destination:
-                    raise ValueError(
-                        f"CouplerProxyMappingCfg source and destination must differ, got {proxy.source!r}."
-                    )
-                if proxy.collision_pipeline is not None and not callable(proxy.collision_pipeline):
-                    raise TypeError("CouplerProxyMappingCfg.collision_pipeline must be callable or None.")
-                if proxy.collision_pipeline is None and proxy.collide_interval is not None:
-                    raise ValueError(
-                        "CouplerProxyMappingCfg.collide_interval requires a proxy-local collision_pipeline."
-                    )
-        else:
-            if solver_cfg.contact_pairs is not None:
-                for source, destination in solver_cfg.contact_pairs:
-                    cls._validate_entry_reference(name_set, source, "ADMM contact-pair source")
-                    cls._validate_entry_reference(name_set, destination, "ADMM contact-pair destination")
-                    if source == destination:
-                        raise ValueError(f"ADMM contact-pair entries must differ, got {source!r}.")
-            if solver_cfg.joint_proximal_destination_entries is not None:
-                for name in solver_cfg.joint_proximal_destination_entries:
-                    cls._validate_entry_reference(name_set, name, "ADMM joint-proximal destination")
-
-    @staticmethod
-    def _validate_entry_reference(entry_names: set[str], name: str, field: str) -> None:
-        """Raise when a coupling reference does not name a configured entry."""
-        if name not in entry_names:
-            raise ValueError(f"CouplerCfg {field} {name!r} is not one of the configured entries {sorted(entry_names)}.")
-
     @classmethod
     def _validate_resolved_entries(
         cls,
         model: Model,
         entries: list[_ResolvedEntry],
         solver_cfg: CouplerCfg,
+        active_proxy_destinations: set[str] | None = None,
     ) -> None:
-        """Validate resolved ownership and report intentionally unassigned model elements."""
+        """Reject entries that neither own nor receive model elements."""
+        active_proxy_destinations = active_proxy_destinations or set()
         for entry in entries:
-            counts = (len(entry.bodies), len(entry.particles), len(entry.joints), len(entry.shapes))
-            if not any(counts):
-                raise ValueError(f"CouplerEntryCfg {entry.config.name!r} owns no bodies, particles, joints, or shapes.")
-            logger.info(
-                "[COUPLER] Entry %r owns %d bodies, %d particles, %d joints, and %d shapes.",
-                entry.config.name,
-                *counts,
-            )
-
-        owners = {
-            "bodies": cls._build_ownership_map(model.body_count, entries, "bodies"),
-            "particles": cls._build_ownership_map(model.particle_count, entries, "particles"),
-            "joints": cls._build_ownership_map(model.joint_count, entries, "joints"),
-            "shapes": cls._build_ownership_map(model.shape_count, entries, "shapes"),
-        }
-        cls._validate_partial_joint_ownership(model, owners["bodies"])
-
-        unassigned = {name: sum(owner is None for owner in values) for name, values in owners.items()}
-        logger.info(
-            "[COUPLER] Unassigned model elements: %d bodies, %d particles, %d joints, and %d shapes. "
-            "Unassigned elements remain outside nested solver views.",
-            unassigned["bodies"],
-            unassigned["particles"],
-            unassigned["joints"],
-            unassigned["shapes"],
-        )
+            owns_any = any((entry.bodies, entry.particles, entry.joints, entry.shapes))
+            if not owns_any and entry.config.name not in active_proxy_destinations:
+                raise ValueError(f"CouplerEntryCfg {entry.config.name!r} neither owns nor receives any model elements.")
 
         if isinstance(solver_cfg, CouplerProxyCfg):
             cls._validate_no_cross_entry_proxy_joints(model, {entry.config.name: entry for entry in entries})
-
-    @staticmethod
-    def _build_ownership_map(count: int, entries: list[_ResolvedEntry], field: str) -> list[str | None]:
-        """Build one ownership map while validating ranges and overlap."""
-        owners: list[str | None] = [None] * int(count)
-        for entry in entries:
-            for raw_index in getattr(entry, field):
-                index = int(raw_index)
-                if not 0 <= index < count:
-                    raise ValueError(
-                        f"CouplerEntryCfg {entry.config.name!r} {field} index {index} is out of range [0, {count})."
-                    )
-                if owners[index] is not None:
-                    raise ValueError(
-                        f"CouplerCfg {field} index {index} is owned by both {owners[index]!r} "
-                        f"and {entry.config.name!r}."
-                    )
-                owners[index] = entry.config.name
-        return owners
-
-    @staticmethod
-    def _validate_partial_joint_ownership(model: Model, body_owners: list[str | None]) -> None:
-        """Reject articulation joints with exactly one endpoint assigned to an entry."""
-        for joint, (parent_raw, child_raw) in enumerate(zip(model.joint_parent.numpy(), model.joint_child.numpy())):
-            parent = int(parent_raw)
-            child = int(child_raw)
-            if parent < 0:
-                continue
-            parent_owner = body_owners[parent]
-            child_owner = body_owners[child]
-            if (parent_owner is None) != (child_owner is None):
-                raise ValueError(
-                    f"CouplerCfg joint {joint} has only one owned endpoint: parent body {parent} is owned by "
-                    f"{parent_owner!r}, child body {child} is owned by {child_owner!r}. Assign both articulation "
-                    "bodies or leave both unassigned."
-                )
 
     @classmethod
     def _register_builder_attributes(cls, builder: ModelBuilder) -> None:
@@ -511,33 +418,8 @@ class NewtonCouplerManager(NewtonVBDManager):
         proxy_cfgs: list[CouplerProxyMappingCfg],
         solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
-        proxies = []
-        checked_factories: list[tuple[str, str, object, object]] = []
-        for proxy_cfg in proxy_cfgs:
-            values = cls._checked_config_values(SolverCoupledProxy.Proxy, proxy_cfg)
-            factory = values.get("collision_pipeline")
-            if factory is not None:
-                checked_factory = next(
-                    (
-                        checked
-                        for source, destination, original, checked in checked_factories
-                        if source == proxy_cfg.source and destination == proxy_cfg.destination and original is factory
-                    ),
-                    None,
-                )
-                if checked_factory is None:
-                    checked_factory = cls._checked_collision_pipeline_factory(
-                        factory, proxy_cfg.source, proxy_cfg.destination
-                    )
-                    checked_factories.append((proxy_cfg.source, proxy_cfg.destination, factory, checked_factory))
-                values["collision_pipeline"] = checked_factory
-            proxies.append(SolverCoupledProxy.Proxy(**values))
-
-        coupling_values = cls._checked_config_values(
-            SolverCoupledProxy.Config,
-            solver_cfg,
-            handled_fields={"class_type", "solver_type", "model_cfg", "entries", "scene_cfg", "proxies"},
-        )
+        proxies = [SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs]
+        coupling_values = cls._filter_solver_kwargs(SolverCoupledProxy.Config, solver_cfg)
         coupling_values["proxies"] = proxies
         coupling = SolverCoupledProxy.Config(**coupling_values)
         return SolverCoupledProxy(model=model, entries=entries, coupling=coupling)
@@ -549,18 +431,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         entries: list[SolverCoupled.Entry],
         solver_cfg: CouplerAdmmCfg,
     ) -> SolverCoupledADMM:
-        values = cls._checked_config_values(
-            SolverCoupledADMM.Config,
-            solver_cfg,
-            handled_fields={
-                "class_type",
-                "solver_type",
-                "model_cfg",
-                "entries",
-                "scene_cfg",
-                "contact_pairs",
-            },
-        )
+        values = cls._filter_solver_kwargs(SolverCoupledADMM.Config, solver_cfg)
         if solver_cfg.contact_pairs is None:
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:
@@ -570,37 +441,6 @@ class NewtonCouplerManager(NewtonVBDManager):
             ]
         coupling = SolverCoupledADMM.Config(**values)
         return SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
-
-    @staticmethod
-    def _checked_config_values(target_type: type, config, *, handled_fields: set[str] | None = None) -> dict:
-        """Forward every config field or fail loudly when the Newton schema drifts."""
-        handled_fields = handled_fields or set()
-        target_fields = {field.name for field in fields(target_type)}
-        config_fields = {field.name for field in fields(config)}
-        unhandled = config_fields - target_fields - handled_fields
-        if unhandled:
-            raise TypeError(
-                f"Cannot forward {type(config).__name__} to {target_type.__qualname__}; "
-                f"unhandled fields: {sorted(unhandled)}."
-            )
-        return {name: getattr(config, name) for name in config_fields & target_fields if name not in handled_fields}
-
-    @staticmethod
-    def _checked_collision_pipeline_factory(factory, source: str, destination: str):
-        """Wrap a proxy-local collision factory so a silent outer-contact fallback is impossible."""
-
-        @wraps(factory)
-        def checked_factory(model_view):
-            pipeline = factory(model_view)
-            if pipeline is None:
-                raise TypeError(
-                    "CouplerProxyMappingCfg collision_pipeline factory for "
-                    f"{source!r}->{destination!r} returned None. Set collision_pipeline=None explicitly "
-                    "to use the shared outer contacts."
-                )
-            return pipeline
-
-        return checked_factory
 
     @staticmethod
     def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _ResolvedEntry]) -> None:

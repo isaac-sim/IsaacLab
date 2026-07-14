@@ -122,6 +122,7 @@ def _entry(
     *,
     bodies: list[int] | None = None,
     particles: list[int] | None = None,
+    shapes: list[int] | None = None,
 ) -> NewtonCouplerManager._ResolvedEntry:
     """Build an already-resolved entry for validation tests."""
     return NewtonCouplerManager._ResolvedEntry(
@@ -129,7 +130,7 @@ def _entry(
         bodies=list(bodies or []),
         particles=list(particles or []),
         joints=[],
-        shapes=[],
+        shapes=list(shapes or []),
     )
 
 
@@ -167,66 +168,11 @@ def test_config_validation_requires_nonempty_entry_names():
         NewtonCouplerManager._validate_config(cfg)
 
 
-def test_config_validation_rejects_duplicate_entry_names():
-    cfg = CouplerAdmmCfg(
-        entries=[
-            CouplerEntryCfg(name="duplicate", solver_cfg=XPBDSolverCfg()),
-            CouplerEntryCfg(name="duplicate", solver_cfg=XPBDSolverCfg()),
-        ]
-    )
-    with pytest.raises(ValueError, match="entry names must be unique"):
-        NewtonCouplerManager._validate_config(cfg)
-
-
 def test_config_validation_requires_newton_solver_config():
     cfg = CouplerAdmmCfg(
         entries=[CouplerEntryCfg(name="entry", solver_cfg=object())]  # type: ignore[arg-type]
     )
     with pytest.raises(TypeError, match="solver_cfg must be a NewtonSolverCfg"):
-        NewtonCouplerManager._validate_config(cfg)
-
-
-@pytest.mark.parametrize(
-    ("cfg", "match"),
-    [
-        (
-            CouplerProxyCfg(
-                entries=[CouplerEntryCfg(name="a", solver_cfg=XPBDSolverCfg())],
-                proxies=[CouplerProxyMappingCfg(source="missing", destination="a")],
-            ),
-            "proxy source 'missing'",
-        ),
-        (
-            CouplerProxyCfg(
-                entries=[CouplerEntryCfg(name="a", solver_cfg=XPBDSolverCfg())],
-                proxies=[CouplerProxyMappingCfg(source="a", destination="a")],
-            ),
-            "source and destination must differ",
-        ),
-        (
-            CouplerAdmmCfg(
-                entries=[CouplerEntryCfg(name="a", solver_cfg=XPBDSolverCfg())],
-                contact_pairs=[("a", "missing")],
-            ),
-            "contact-pair destination 'missing'",
-        ),
-        (
-            CouplerAdmmCfg(
-                entries=[CouplerEntryCfg(name="a", solver_cfg=XPBDSolverCfg())],
-                joint_proximal_destination_entries=["missing"],
-            ),
-            "joint-proximal destination 'missing'",
-        ),
-    ],
-)
-def test_config_validation_rejects_invalid_entry_references(cfg, match):
-    with pytest.raises(ValueError, match=match):
-        NewtonCouplerManager._validate_config(cfg)
-
-
-def test_proxy_config_validation_rejects_more_than_two_entries():
-    cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name=name, solver_cfg=XPBDSolverCfg()) for name in ("a", "b", "c")])
-    with pytest.raises(ValueError, match="at most two"):
         NewtonCouplerManager._validate_config(cfg)
 
 
@@ -257,33 +203,6 @@ def test_config_validation_requires_concrete_nested_factory():
     solver_cfg.class_type = NewtonManager
     cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=solver_cfg)])
     with pytest.raises(TypeError, match="does not implement nested solver construction"):
-        NewtonCouplerManager._validate_config(cfg)
-
-
-def test_proxy_outer_contact_fallback_rejects_collision_interval():
-    cfg, _, _ = _valid_proxy_setup(
-        proxy=CouplerProxyMappingCfg(
-            source="rigid",
-            destination="soft",
-            bodies=[1],
-            collision_pipeline=None,
-            collide_interval=2,
-        )
-    )
-    with pytest.raises(ValueError, match="requires a proxy-local collision_pipeline"):
-        NewtonCouplerManager._validate_config(cfg)
-
-
-def test_proxy_config_validation_rejects_noncallable_collision_pipeline():
-    cfg, _, _ = _valid_proxy_setup(
-        proxy=CouplerProxyMappingCfg(
-            source="rigid",
-            destination="soft",
-            bodies=[1],
-            collision_pipeline=1,  # type: ignore[arg-type]
-        )
-    )
-    with pytest.raises(TypeError, match="must be callable or None"):
         NewtonCouplerManager._validate_config(cfg)
 
 
@@ -455,8 +374,8 @@ def test_cross_entry_joint_is_left_unowned_for_admm_attachment():
     assert resolved[1].joints == []
 
 
-def test_resolved_entry_validation_rejects_empty_ownership():
-    with pytest.raises(ValueError, match="owns no bodies, particles, joints, or shapes"):
+def test_resolved_entry_validation_rejects_inactive_entry():
+    with pytest.raises(ValueError, match="neither owns nor receives any model elements"):
         NewtonCouplerManager._validate_resolved_entries(
             _FakeModel(),
             [_entry("empty")],
@@ -464,42 +383,21 @@ def test_resolved_entry_validation_rejects_empty_ownership():
         )
 
 
-@pytest.mark.parametrize("owned_body", [0, 1])
-def test_resolved_entry_validation_rejects_joint_with_one_owned_endpoint(owned_body):
-    model = _FakeModel()
-    model.joint_count = 1
-    model.joint_parent = _FakeArray(np.asarray([0], dtype=np.int32))
-    model.joint_child = _FakeArray(np.asarray([1], dtype=np.int32))
-    with pytest.raises(ValueError, match="only one owned endpoint"):
-        NewtonCouplerManager._validate_resolved_entries(
-            model,
-            [_entry("partial", bodies=[owned_body])],
-            CouplerAdmmCfg(),
-        )
+def test_resolved_entry_validation_accepts_active_proxy_destination():
+    NewtonCouplerManager._validate_resolved_entries(
+        _FakeModel(),
+        [_entry("source", bodies=[0]), _entry("destination")],
+        CouplerProxyCfg(),
+        {"destination"},
+    )
 
 
-def test_resolved_entry_validation_rejects_duplicate_ownership():
-    with pytest.raises(ValueError, match="owned by both"):
-        NewtonCouplerManager._validate_resolved_entries(
-            _FakeModel(),
-            [_entry("a", bodies=[0]), _entry("b", bodies=[0])],
-            CouplerAdmmCfg(),
-        )
-
-
-def test_resolved_entry_validation_logs_ownership_summary(caplog):
-    model = _FakeModel()
-    model.joint_count = 0
-    model.joint_parent = _FakeArray(np.asarray([], dtype=np.int32))
-    model.joint_child = _FakeArray(np.asarray([], dtype=np.int32))
-    with caplog.at_level("INFO", logger=coupler.__name__):
-        NewtonCouplerManager._validate_resolved_entries(
-            model,
-            [_entry("partial", bodies=[0])],
-            CouplerAdmmCfg(),
-        )
-    assert "Entry 'partial' owns 1 bodies" in caplog.text
-    assert "Unassigned model elements: 2 bodies" in caplog.text
+def test_resolved_entry_validation_accepts_static_shape_ownership():
+    NewtonCouplerManager._validate_resolved_entries(
+        _FakeModel(),
+        [_entry("ground", shapes=[3])],
+        CouplerAdmmCfg(),
+    )
 
 
 def test_proxy_validation_rejects_cross_entry_joint():
@@ -594,52 +492,8 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.proxies[0].mode == "staggered"
     assert solver.coupling.proxies[0].mass_scale == pytest.approx(0.25)
     assert solver.coupling.proxies[0].collide_interval == 4
-    assert solver.coupling.proxies[0].collision_pipeline("custom-view") == "custom-view"
+    assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
-
-
-def test_proxy_collision_factory_returning_none_is_rejected(monkeypatch):
-    cfg, _, proxies = _valid_proxy_setup(
-        proxy=CouplerProxyMappingCfg(
-            source="rigid",
-            destination="soft",
-            bodies=[1],
-            collision_pipeline=lambda model_view: None,
-        )
-    )
-    monkeypatch.setattr(coupler, "SolverCoupledProxy", _RecordingProxy)
-    solver = NewtonCouplerManager._build_proxy_coupled_solver(_FakeModel(), [], proxies, cfg)
-
-    with pytest.raises(TypeError, match="returned None"):
-        solver.coupling.proxies[0].collision_pipeline("soft-view")
-
-
-def test_repeated_proxy_mappings_reuse_checked_collision_factory(monkeypatch):
-    """Newton requires one factory object for every mapping in the same direction."""
-
-    def collision_pipeline(model_view):
-        return model_view
-
-    cfg = CouplerProxyCfg(
-        entries=[
-            CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg()),
-            CouplerEntryCfg(name="soft", solver_cfg=XPBDSolverCfg()),
-        ],
-        proxies=[
-            CouplerProxyMappingCfg(
-                source="rigid", destination="soft", bodies=[0], collision_pipeline=collision_pipeline
-            ),
-            CouplerProxyMappingCfg(
-                source="rigid", destination="soft", particles=[0], collision_pipeline=collision_pipeline
-            ),
-        ],
-    )
-    monkeypatch.setattr(coupler, "SolverCoupledProxy", _RecordingProxy)
-
-    solver = NewtonCouplerManager._build_proxy_coupled_solver(_FakeModel(), [], cfg.proxies, cfg)
-
-    first, second = solver.coupling.proxies
-    assert first.collision_pipeline is second.collision_pipeline
 
 
 def test_entry_build_uses_solver_config_class_type():
@@ -784,16 +638,20 @@ def test_contact_initialization_prepares_coupled_solver_buffers(monkeypatch):
         ("mjwarp_external", True, False),
         ("mpm", False, True),
         ("destination_fallback", True, False),
+        ("destination_factory_fallback", True, False),
     ],
 )
 def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expected_outer, expected_fk):
     """Proxy entries request shared contacts only when one of their solve paths consumes them."""
     model = _FakeModel()
-    fallback_proxy = (
-        CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[1], collision_pipeline=None)
-        if case == "destination_fallback"
-        else None
-    )
+    if case == "destination_fallback":
+        fallback_proxy = CouplerProxyMappingCfg(source="rigid", destination="soft", bodies=[1], collision_pipeline=None)
+    elif case == "destination_factory_fallback":
+        fallback_proxy = CouplerProxyMappingCfg(
+            source="rigid", destination="soft", bodies=[1], collision_pipeline=lambda model_view: None
+        )
+    else:
+        fallback_proxy = None
     proxy_cfg, resolved_entries, resolved_proxies = _valid_proxy_setup(proxy=fallback_proxy)
     proxy_cfg.scene_cfg = _FakeSceneCfg()
     recorded_entries: list[str] = []
@@ -842,7 +700,14 @@ def test_proxy_selects_expected_outer_collision_pipeline(monkeypatch, case, expe
     monkeypatch.setattr(
         NewtonCouplerManager,
         "_build_proxy_coupled_solver",
-        classmethod(lambda cls, model, entries, proxies, cfg: SimpleNamespace(kind="proxy")),
+        classmethod(
+            lambda cls, model, entries, proxies, cfg: SimpleNamespace(
+                kind="proxy",
+                get_proxy_contacts=lambda source, destination: (
+                    None if case in {"destination_fallback", "destination_factory_fallback"} else object()
+                ),
+            )
+        ),
     )
     NewtonCouplerManager._build_solver(model, proxy_cfg)
 
@@ -978,27 +843,6 @@ def test_admm_build_forwards_multiple_pairs_matching_and_proximal_options(monkey
     assert solver.coupling.contact_matching_pos_threshold == pytest.approx(0.01)
     assert solver.coupling.contact_matching_normal_dot_threshold == pytest.approx(0.8)
     assert solver.coupling.contact_matching_force_scale == pytest.approx(0.7)
-
-
-def test_checked_forwarding_rejects_native_schema_drift():
-    @dataclass
-    class _NativeConfigWithoutRho:
-        iterations: int = 1
-
-    cfg = CouplerAdmmCfg(entries=[CouplerEntryCfg(name="entry", solver_cfg=XPBDSolverCfg())])
-    with pytest.raises(TypeError, match="unhandled fields:.*rho"):
-        NewtonCouplerManager._checked_config_values(
-            _NativeConfigWithoutRho,
-            cfg,
-            handled_fields={
-                "class_type",
-                "solver_type",
-                "model_cfg",
-                "entries",
-                "scene_cfg",
-                "contact_pairs",
-            },
-        )
 
 
 def test_admm_build_auto_detects_symmetric_contact_pairs_by_default(monkeypatch):

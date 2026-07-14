@@ -66,9 +66,7 @@ class CouplerEntryCfg:
     """Whether fully selected child joints are owned by this entry.
 
     A joint is owned when its child body is selected and its parent is either
-    the world or selected by the same entry. A joint with exactly one selected
-    body endpoint is rejected because otherwise it would not be integrated by
-    any entry.
+    the world or selected by the same entry.
     """
 
     include_body_shapes: bool = True
@@ -127,15 +125,14 @@ class CouplerProxyMappingCfg:
     positive integers and require :attr:`collision_pipeline` to be a factory.
     """
 
-    collision_pipeline: Callable[[ModelView], CollisionPipeline] | None = lambda model_view: CollisionPipeline(
+    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = lambda model_view: CollisionPipeline(
         model_view, broad_phase="explicit"
     )
     """Factory for the proxy destination's collision pipeline, or ``None``.
 
     The default creates a proxy-local pipeline with ``broad_phase="explicit"``.
-    Set this field itself to ``None`` to pass the shared outer contacts to the
-    destination. A configured factory must return a collision pipeline; a
-    callable that returns ``None`` is rejected.
+    Setting the field or returning ``None`` from the factory passes shared
+    outer contacts to the destination.
     """
 
 

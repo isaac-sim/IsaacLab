@@ -77,6 +77,32 @@ def _entry_configs() -> list[CouplerEntryCfg]:
     ]
 
 
+def test_proxy_destination_can_receive_only_proxy_bodies(isolated_newton_manager):
+    model = _build_overlapping_body_model()
+    solver_cfg = CouplerProxyCfg(
+        entries=[
+            CouplerEntryCfg(
+                name="source",
+                solver_cfg=XPBDSolverCfg(iterations=2),
+                bodies=[r"/World/Source/body"],
+            ),
+            CouplerEntryCfg(name="destination", solver_cfg=XPBDSolverCfg(iterations=2)),
+        ],
+        proxies=[
+            CouplerProxyMappingCfg(
+                source="source",
+                destination="destination",
+                bodies=[r"/World/Source/body"],
+            )
+        ],
+    )
+
+    NewtonManager._model = model
+    NewtonCouplerManager._build_solver(model, solver_cfg)
+
+    assert NewtonManager._solver._entries["destination"].proxy_body_local_indices.numpy().tolist() == [0]
+
+
 @pytest.mark.parametrize(
     ("algorithm", "expected_solver_type"),
     [
