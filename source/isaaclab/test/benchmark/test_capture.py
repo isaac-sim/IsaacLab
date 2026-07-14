@@ -72,7 +72,7 @@ def test_capture_versions_preserves_runtime_packages():
         StringMetadata(name="ovphysx_version", data="3.0.5"),
         StringMetadata(name="mujoco_version", data="3.8.1"),
         StringMetadata(name="cuda_bindings_version", data="12.9.4"),
-        StringMetadata(name="usd_core_version", data="25.11"),
+        StringMetadata(name="usd_core_version", data="26.05"),
         StringMetadata(name="isaaclab_release_version", data="3.0.0"),
     ]
     bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
@@ -89,7 +89,7 @@ def test_capture_versions_preserves_runtime_packages():
     assert versions.ovphysx == "3.0.5"
     assert versions.mujoco == "3.8.1"
     assert versions.cuda_bindings == "12.9.4"
-    assert versions.usd_core == "25.11"
+    assert versions.usd_core == "26.05"
     assert versions.isaaclab_release == "3.0.0"
 
 
