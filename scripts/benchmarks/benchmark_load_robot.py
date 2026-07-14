@@ -19,6 +19,7 @@ cameras when the scene contains camera sensors that use a Kit renderer).
 
 import argparse
 import time
+from typing import TYPE_CHECKING
 
 from isaaclab.app import AppLauncher
 
@@ -33,11 +34,11 @@ parser.add_argument(
     help="Choose which robot to load: anymal_d, h1, or g1.",
 )
 parser.add_argument(
-    "--benchmark_backend",
+    "--benchmark_formatter",
     type=str,
     default="omniperf",
     choices=["json", "osmo", "omniperf", "summary"],
-    help="Benchmarking backend options, defaults omniperf",
+    help="Benchmark output formatter, defaults omniperf",
 )
 parser.add_argument("--output_path", type=str, default=".", help="Path to output benchmark results.")
 # append AppLauncher cli args
@@ -57,12 +58,15 @@ import torch
 # runtime classes (``SimulationContext``, ``InteractiveScene``) eagerly import ``pxr`` and must therefore
 # be imported only after the simulation app has been launched (see :func:`main`).
 import isaaclab.sim as sim_utils
+from isaaclab.app import launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils.configclass import configclass
 
-from isaaclab.app import launch_simulation
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sim import SimulationContext
 
 ##
 # Pre-defined configs
@@ -72,27 +76,6 @@ from isaaclab_assets import ANYMAL_D_CFG, G1_MINIMAL_CFG, H1_MINIMAL_CFG  # isor
 
 # Stop the timer for imports
 imports_time_end = time.perf_counter_ns()
-
-# Create the benchmark. This is constructed at module scope (before the simulation app is launched),
-# matching the other benchmark scripts. The Kit-based frametime recorders provided by
-# ``isaacsim.benchmark.services`` are only available once the app is running, so they are gracefully
-# skipped here; the remaining recorders (CPU/GPU/memory/version) and timing measurements do not
-# require Kit.
-backend_type = args_cli.benchmark_backend
-benchmark = BaseIsaacLabBenchmark(
-    benchmark_name="benchmark_load_robot",
-    backend_type=backend_type,
-    output_path=args_cli.output_path,
-    use_recorders=True,
-    frametime_recorders=backend_type in ("summary", "omniperf"),
-    output_prefix="benchmark_load_robot",
-    workflow_metadata={
-        "metadata": [
-            {"name": "robot", "data": args_cli.robot},
-            {"name": "num_envs", "data": args_cli.num_envs},
-        ]
-    },
-)
 
 
 @configclass
@@ -175,7 +158,7 @@ def run_simulator(sim: "SimulationContext", scene: "InteractiveScene", benchmark
     )
 
 
-def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float):
+def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float, benchmark: BaseIsaacLabBenchmark):
     """Main function."""
     # Import runtime classes only now that the simulation app has been launched. These modules import
     # USD/``omni`` bindings at import time, so importing them before the app is running crashes the simulator.
@@ -232,6 +215,11 @@ def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float):
 
 
 if __name__ == "__main__":
+    # Use the full Kit experience in both headless and windowed modes so benchmark services have
+    # the same extension dependencies available. An explicit CLI override still takes precedence.
+    if not args_cli.experience:
+        args_cli.experience = "isaaclab.python.kit"
+
     # Build the scene configuration up front so that launch_simulation() can scan it and
     # select the appropriate experience file (e.g. auto-enable cameras when camera sensors
     # are present in the scene).
@@ -244,5 +232,22 @@ if __name__ == "__main__":
         # End the timer for app start
         app_start_time_end = time.perf_counter_ns()
         app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
+        # Create the benchmark after Kit startup, matching the runtime benchmark lifecycle.
+        formatter_types = [value.strip() for value in args_cli.benchmark_formatter.split(",") if value.strip()]
+        formatter_types = formatter_types or ["omniperf"]
+        benchmark = BaseIsaacLabBenchmark(
+            benchmark_name="benchmark_load_robot",
+            formatter_type=args_cli.benchmark_formatter,
+            output_path=args_cli.output_path,
+            use_recorders=True,
+            frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            output_prefix="benchmark_load_robot",
+            workflow_metadata={
+                "metadata": [
+                    {"name": "robot", "data": args_cli.robot},
+                    {"name": "num_envs", "data": args_cli.num_envs},
+                ]
+            },
+        )
         # run the main function
-        main(scene_cfg, app_start_time_ms)
+        main(scene_cfg, app_start_time_ms, benchmark)
