@@ -94,7 +94,6 @@ class LocomotionDirectEnv(DirectRLEnv):
             joint_gears = self.cfg.joint_gears
         self.joint_gears = torch.tensor(joint_gears, dtype=torch.float32, device=self.sim.device)
         self.motor_effort_ratio = torch.ones_like(self.joint_gears, device=self.sim.device)
-        self._joint_dof_idx, _ = self.robot.find_joints(".*")
 
         self.potentials = torch.zeros(self.num_envs, dtype=torch.float32, device=self.sim.device)
         self.prev_potentials = torch.zeros_like(self.potentials)
@@ -132,10 +131,12 @@ class LocomotionDirectEnv(DirectRLEnv):
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         self.actions = actions.clone()
+        forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
+        self.robot.set_joint_effort_target_index(target=forces)
 
     def _apply_action(self) -> None:
-        forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
-        self.robot.set_joint_effort_target_index(target=forces, joint_ids=self._joint_dof_idx)
+        # Joint effort targets persist in the articulation command buffer across decimation substeps.
+        pass
 
     def _compute_intermediate_values(self):
         self.torso_position, self.torso_rotation = (
@@ -232,24 +233,27 @@ class LocomotionDirectEnv(DirectRLEnv):
 
         # Log survival success rate (survived = timed out without falling)
         survived = self.reset_time_outs[env_ids].float()
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean()
 
-        self.robot.reset(env_ids)
         super()._reset_idx(env_ids)
 
-        joint_pos = self.robot.data.default_joint_pos.torch[env_ids].clone()
-        joint_vel = self.robot.data.default_joint_vel.torch[env_ids].clone()
-        default_root_pose = self.robot.data.default_root_pose.torch[env_ids].clone()
-        default_root_vel = self.robot.data.default_root_vel.torch[env_ids].clone()
+        joint_pos = self.robot.data.default_joint_pos.torch[env_ids]
+        joint_vel = self.robot.data.default_joint_vel.torch[env_ids]
+        default_root_pose = self.robot.data.default_root_pose.torch[env_ids]
+        default_root_vel = self.robot.data.default_root_vel.torch[env_ids]
         default_root_pose[:, :3] += self.scene.env_origins[env_ids]
 
         self.robot.write_root_pose_to_sim_index(root_pose=default_root_pose, env_ids=env_ids)
         self.robot.write_root_velocity_to_sim_index(root_velocity=default_root_vel, env_ids=env_ids)
-        self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
-        self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
+        if hasattr(self.robot, "write_joint_state_to_sim_index"):
+            self.robot.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
+        else:
+            # OVPhysX does not yet provide the fused writer.
+            self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+            self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
         to_target = self.targets[env_ids] - default_root_pose[:, :3]
-        to_target[:, 2] = 0.0
+        to_target[:, 2].zero_()
         self.potentials[env_ids] = -torch.linalg.norm(to_target, ord=2, dim=-1) / self.cfg.sim.dt
 
         self._compute_intermediate_values()
@@ -327,7 +331,7 @@ def compute_intermediate_values(
     dt: float,
 ):
     to_target = targets - torso_position
-    to_target[:, 2] = 0.0
+    to_target[:, 2].zero_()
 
     torso_quat, up_proj, heading_proj, up_vec, heading_vec = compute_heading_and_up(
         torso_rotation, inv_start_rot, to_target, basis_vec0, basis_vec1, 2
