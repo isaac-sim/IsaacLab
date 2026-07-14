@@ -18,7 +18,8 @@ to controller arrays.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
@@ -26,11 +27,15 @@ import warp as wp
 from newton.actuators import Actuator, Clamping, Delay
 
 from .kernels import (
+    build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
     scatter_gain_kernel,
     set_mask_kernel,
     zero_at_indices_kernel,
 )
+
+if TYPE_CHECKING:
+    from isaaclab.actuators import ActuatorBase
 
 # ---------------------------------------------------------------------------
 # Abstract base — backend-independent logic
@@ -44,6 +49,34 @@ class NewtonActuatorAdapter:
     stepping, reset, and the pre-clamp computed-effort buffer the
     in-graph telemetry kernel reads on the post-actuator hook.
     """
+
+    @dataclass(frozen=True)
+    class ArticulationBinding:
+        """Newton fast-path init state for one articulation.
+
+        Returned by :meth:`bind_articulation`. Bundles the pieces the
+        articulation formerly assembled from separate free-function calls:
+        the initial gain snapshot, the implicit-DOF mask, and the
+        per-articulation view of the adapter's computed-effort buffer.
+        """
+
+        stiffness: torch.Tensor
+        """Initial stiffness gains [N/m or N·m/rad, depending on joint type], shape ``(num_envs, num_joints)``."""
+
+        damping: torch.Tensor
+        """Initial damping gains [N·s/m or N·m·s/rad, depending on joint type], shape ``(num_envs, num_joints)``."""
+
+        joint_indices: torch.Tensor | slice
+        """Managed columns; ``slice(None)`` when every joint is managed, else a ``torch.int32`` index tensor."""
+
+        implicit_dof_mask: wp.array
+        """Per-DOF mask consumed by ``sync_torque_telemetry``; ``1`` on implicit-actuator DOFs, ``0`` otherwise."""
+
+        implicit_dof_mask_owner: torch.Tensor
+        """Torch tensor owning the memory :attr:`implicit_dof_mask` aliases; keep referenced for the mask's lifetime."""
+
+        computed_effort_view: wp.array
+        """This articulation's slice of the adapter's pre-clamp computed-effort buffer, ``(num_envs, num_joints)``."""
 
     def __init__(
         self,
@@ -180,6 +213,64 @@ class NewtonActuatorAdapter:
                 sa.reset(per_dof_mask)
             if sb is not None:
                 sb.reset(per_dof_mask)
+
+    def bind_articulation(
+        self,
+        *,
+        lab_actuators: dict[str, ActuatorBase],
+        dof_offset: int,
+        num_joints: int,
+        joint_user_to_backend_indices: Sequence[int] | None = None,
+    ) -> ArticulationBinding:
+        """Assemble the Newton fast-path init state for one articulation.
+
+        Consolidates the pieces the articulation formerly built with
+        separate :func:`build_newton_actuator_defaults` and
+        :func:`build_implicit_dof_mask` calls plus a manual
+        computed-effort slice: it snapshots the initial gains, builds the
+        implicit-DOF mask, and slices this adapter's computed-effort buffer
+        to the articulation's columns. Whole-model quantities
+        (:attr:`actuators`, :attr:`num_joints` as the env stride,
+        ``num_envs``, ``device``) come from the adapter; only the
+        articulation-local placement varies per call.
+
+        Args:
+            lab_actuators: The articulation's Isaac Lab actuator groups in
+                public joint order. Only :class:`~isaaclab.actuators.ImplicitActuator`
+                groups contribute to :attr:`ArticulationBinding.implicit_dof_mask`.
+            dof_offset: Offset of this articulation's DOFs in the adapter's
+                env-major global index space (``0`` on PhysX, view-dependent
+                on Newton).
+            num_joints: Articulation-local joint count. Distinct from
+                :attr:`num_joints`, which is the whole-model per-env DOF
+                stride used to lay out the actuator index arrays.
+            joint_user_to_backend_indices: Complete permutation from public
+                joint indices to adapter-local joint indices. ``None``
+                preserves adapter-local order (the PhysX case, whose adapter
+                is already built from public joint names).
+
+        Returns:
+            The bundled :class:`ArticulationBinding` for this articulation.
+        """
+        stiffness, damping, joint_indices = build_newton_actuator_defaults(
+            actuators=self.actuators,
+            num_envs=self._num_envs,
+            num_joints=num_joints,
+            dof_offset=dof_offset,
+            env_stride=self.num_joints,
+            device=self._device,
+            joint_user_to_backend_indices=joint_user_to_backend_indices,
+        )
+        implicit_dof_mask, implicit_dof_mask_owner = build_implicit_dof_mask(lab_actuators, num_joints, self._device)
+        computed_effort_view = self.computed_effort_2d[:, dof_offset : dof_offset + num_joints]
+        return self.ArticulationBinding(
+            stiffness=stiffness,
+            damping=damping,
+            joint_indices=joint_indices,
+            implicit_dof_mask=implicit_dof_mask,
+            implicit_dof_mask_owner=implicit_dof_mask_owner,
+            computed_effort_view=computed_effort_view,
+        )
 
     @property
     def is_all_graphable(self) -> bool:

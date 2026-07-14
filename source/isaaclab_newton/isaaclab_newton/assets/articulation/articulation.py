@@ -3577,10 +3577,7 @@ class Articulation(BaseArticulation):
         if _use_newton_actuators and _HAS_NEWTON_ACTUATORS:
             from newton import Model as NewtonModel  # noqa: PLC0415
 
-            from isaaclab_newton.actuators import (  # noqa: PLC0415
-                build_implicit_dof_mask,
-                build_newton_actuator_defaults,
-            )
+            from isaaclab_newton.actuators import build_implicit_dof_mask  # noqa: PLC0415
             from isaaclab_newton.actuators import kernels as actuator_kernels  # noqa: PLC0415
 
             # Enable the fast path even for all-implicit articulations:
@@ -3626,26 +3623,19 @@ class Articulation(BaseArticulation):
                 else:
                     self._create_lab_actuator(actuator_name, actuator_cfg, properties_only=True)
 
-            # ``_implicit_dof_mask_owner`` is the underlying torch tensor that owns
-            # the GPU memory aliased by ``_implicit_dof_mask``. We keep it as an
-            # instance attribute so the memory isn't freed while a CUDA graph
-            # holds a captured pointer into it.
-            self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
-                self.actuators,
-                self.num_joints,
-                self.device,
-            )
-
             # Run the implicit-DOF FF-routing + telemetry kernel inside the
             # captured graph, right after the actuator step. Closure captures
             # the buffers we need via ``self._data``.
 
-            # Per-articulation view of the global adapter's pre-clamp
-            # computed-effort buffer. Set up once here (the adapter is
-            # already built by ``activate_newton_actuator_path``) so the
-            # callback below has nothing to resolve. Falls back to a zero
-            # buffer for all-implicit scenes where no global adapter
-            # exists — the kernel only reads it on explicit DOFs.
+            # Bind this articulation to the global adapter (already built by
+            # ``activate_newton_actuator_path``): one call snapshots the initial
+            # gains, builds the implicit-DOF mask, and slices the adapter's
+            # computed-effort buffer to this articulation's columns.
+            # ``_implicit_dof_mask_owner`` is retained as an instance attribute
+            # so the torch tensor backing ``_implicit_dof_mask`` isn't freed
+            # while a captured CUDA graph holds a pointer into it. Falls back to
+            # a zero computed-effort buffer for all-implicit scenes where no
+            # global adapter exists — the kernel only reads it on explicit DOFs.
             adapter = SimulationManager._adapter
             if adapter is not None:
                 dof_layout = self._root_view.frequency_layouts[NewtonModel.AttributeFrequency.JOINT_DOF]
@@ -3655,26 +3645,27 @@ class Articulation(BaseArticulation):
                     arti_start = int(dof_layout.indices.numpy()[0])
                 else:
                     arti_start = 0
-                self._data._sim_bind_joint_computed_effort = adapter.computed_effort_2d[
-                    :, arti_start : arti_start + self.num_joints
-                ]
-                self.newton_actuator_adapter = adapter
-                (
-                    self.newton_default_stiffness,
-                    self.newton_default_damping,
-                    self.newton_managed_local_joints,
-                ) = build_newton_actuator_defaults(
-                    actuators=adapter.actuators,
-                    num_envs=self.num_instances,
-                    num_joints=self.num_joints,
+                binding = adapter.bind_articulation(
+                    lab_actuators=self.actuators,
                     dof_offset=arti_start,
-                    env_stride=adapter.num_joints,
-                    device=self.device,
+                    num_joints=self.num_joints,
                     joint_user_to_backend_indices=(
                         self.joint_ordering.user_to_backend_indices if self.joint_ordering is not None else None
                     ),
                 )
+                self.newton_actuator_adapter = adapter
+                self.newton_default_stiffness = binding.stiffness
+                self.newton_default_damping = binding.damping
+                self.newton_managed_local_joints = binding.joint_indices
+                self._implicit_dof_mask = binding.implicit_dof_mask
+                self._implicit_dof_mask_owner = binding.implicit_dof_mask_owner
+                self._data._sim_bind_joint_computed_effort = binding.computed_effort_view
             else:
+                self._implicit_dof_mask, self._implicit_dof_mask_owner = build_implicit_dof_mask(
+                    self.actuators,
+                    self.num_joints,
+                    self.device,
+                )
                 self._data._sim_bind_joint_computed_effort = wp.zeros(
                     (self.num_instances, self.num_joints),
                     dtype=wp.float32,
