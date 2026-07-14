@@ -579,17 +579,22 @@ def _resolve_fragment_targets(
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    # breadth-first collection; pruning descendants of a match reproduces the legacy nested
-    # writer's stop-on-success traversal
-    matches = []
-    for candidate in get_all_matching_child_prims(
+    # collect every carrier in the subtree, then keep only the outermost ones: nested
+    # applications of the same physics schema are not allowed, and the legacy nested writers
+    # stop descending at the first carrier on each branch. The pruning is a second pass over
+    # the full result so it does not depend on the traversal order of the query.
+    candidates = get_all_matching_child_prims(
         prim_path,
         lambda p: p.HasAPI(api_type),
         stage=stage,
         traverse_instance_prims=True,
-    ):
-        if not any(candidate.GetPath().HasPrefix(match.GetPath()) for match in matches):
-            matches.append(candidate)
+    )
+    candidate_paths = [candidate.GetPath() for candidate in candidates]
+    matches = [
+        candidate
+        for candidate, path in zip(candidates, candidate_paths)
+        if not any(path != other and path.HasPrefix(other) for other in candidate_paths)
+    ]
     targets = []
     skipped = []
     for match in matches:

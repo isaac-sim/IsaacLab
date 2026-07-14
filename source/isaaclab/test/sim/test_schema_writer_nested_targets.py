@@ -15,14 +15,13 @@ simulation_app = AppLauncher(headless=True).app
 import os
 
 import pytest
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.schemas import MassCfg
-
-from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 
 def _author_robot_usd(path: str) -> None:
@@ -138,12 +137,8 @@ def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path)
     _author_robot_usd(usd_path)
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
-    legacy_cfg = UsdFileCfg(
-        usd_path=usd_path, rigid_props=PhysxRigidBodyPropertiesCfg(max_depenetration_velocity=5.0)
-    )
-    frag_cfg = UsdFileCfg(
-        usd_path=usd_path, rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]
-    )
+    legacy_cfg = UsdFileCfg(usd_path=usd_path, rigid_props=PhysxRigidBodyPropertiesCfg(max_depenetration_velocity=5.0))
+    frag_cfg = UsdFileCfg(usd_path=usd_path, rigid_props=[PhysxRigidBodyCfg(max_depenetration_velocity=5.0)])
     _spawn_from_usd_file("/World/Legacy", usd_path, legacy_cfg)
     _spawn_from_usd_file("/World/Frag", usd_path, frag_cfg)
     stage = sim_utils.get_current_stage()
