@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+0.11.17 (2026-07-13)
+~~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``Isaac-NeedlePass-dVRK-IK-Abs-v0`` manager-based environment with a stable 18-dimensional
+  bimanual action interface, an initially donor-held needle pose selected by Isaac Sim's native grasp generator,
+  and measured jaw-contact hand-off phases.
+
 0.11.16 (2026-04-21)
 ~~~~~~~~~~~~~~~~~~~~
 

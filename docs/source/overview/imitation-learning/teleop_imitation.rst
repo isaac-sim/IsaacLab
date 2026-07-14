@@ -114,6 +114,65 @@ To collect demonstrations with teleoperation for the environment ``Isaac-Stack-C
    # step a: replay the collected dataset
    ./isaaclab.sh -p scripts/tools/replay_demos.py --task Isaac-Stack-Cube-Franka-IK-Rel-v0 --device cpu --dataset_file ./datasets/dataset.hdf5
 
+The bimanual dVRK needle-pass task uses the same stock scripts with its paired Quest motion controllers.
+It references the dVRK PSM, SDF suture needle, and suture pad from the Isaac for Healthcare
+``0.6.0`` asset catalogue at content revision ``c189487``; the remote assets are not redistributed
+with Isaac Lab. Each reset begins with the free dynamic needle physically held between the closed donor
+jaws while the receiver jaws remain open. The operator therefore starts by preserving the donor hold,
+then acquires the receiver grasp and releases the donor; the task does not begin with an ungrasped needle.
+After configuring CloudXR as described in :ref:`cloudxr-teleoperation`, first check manual control with
+the stock teleoperation entry point. Asset digest verification is an explicit
+online preflight so task discovery and configuration remain offline-safe:
+
+.. code:: bash
+
+   ./isaaclab.sh -p scripts/tools/preflight_dvrk_needle_pass_assets.py
+
+   ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+      --task Isaac-NeedlePass-dVRK-IK-Abs-v0 \
+      --teleop_device motion_controllers \
+      --device cuda:0 --xr
+
+Then record and replay one successful demonstration with:
+
+.. code:: bash
+
+   # record one successful demonstration
+   ./isaaclab.sh -p scripts/tools/record_demos.py \
+      --task Isaac-NeedlePass-dVRK-IK-Abs-v0 \
+      --teleop_device motion_controllers \
+      --dataset_file ./datasets/dvrk_needle_pass.hdf5 \
+      --num_demos 1 --num_success_steps 10 --step_hz 30 --device cuda:0 --xr
+
+   # replay the recorded demonstration
+   ./isaaclab.sh -p scripts/tools/replay_demos.py \
+      --task Isaac-NeedlePass-dVRK-IK-Abs-v0 \
+      --dataset_file ./datasets/dvrk_needle_pass.hdf5 \
+      --num_envs 1 --device cuda:0 --validate_success_rate
+
+The needle remains a free dynamic rigid body throughout the episode. Reset is
+the only operation that writes its pose or velocity; donor hold, co-hold,
+receiver-only hold, and retained lift are advanced from filtered bilateral jaw
+contact and simulated needle motion. The recorder therefore exports success
+only after a contact-driven transfer and retained receiver lift, without a
+grasp joint, attachment, or scripted object following.
+
+The dVRK needle-pass task requires CUDA PhysX.  CPU is intentionally rejected:
+the contact-qualified grasp and hand-off contracts are validated only on the
+CUDA simulation path.
+
+To retain a reviewable CUDA-physics video of the one-environment runtime
+verification trace, set an output directory before running its test:
+
+.. code-block:: bash
+
+   ISAACLAB_DVRK_NEEDLE_PASS_VIDEO_DIR=$PWD/output/dvrk-needle-pass \
+     ./isaaclab.sh -p -m pytest \
+       source/isaaclab_tasks/test/test_dvrk_needle_pass_physics.py \
+       -k native_grasp_generator_handoff_video -q
+
+The test fails if Gymnasium's ``RecordVideo`` wrapper does not write the MP4.
+
 
 .. note::
 

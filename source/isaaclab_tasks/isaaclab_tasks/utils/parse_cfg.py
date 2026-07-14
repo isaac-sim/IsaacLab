@@ -145,6 +145,12 @@ def parse_env_cfg(
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
+    # Some tasks deliberately rely on CUDA PhysX contact behaviour.  Rejecting
+    # a CPU override here prevents their documented control and qualification
+    # workflows from silently running against an unsupported backend.
+    if getattr(cfg, "requires_cuda", False) and not device.startswith("cuda"):
+        raise ValueError(f"Task '{task_name}' requires a CUDA simulation device, got {device!r}")
+
     # simulation device
     cfg.sim.device = device
     # Teleoperation configurations are commonly constructed from the default
