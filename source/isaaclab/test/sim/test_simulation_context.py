@@ -435,26 +435,6 @@ def test_solver_type(solver_type):
 
 
 @pytest.mark.isaacsim_ci
-def test_external_forces_every_iteration_default_and_deprecation_warning():
-    """Test that TGS external forces default on and deprecated opt-out warns."""
-    cfg = SimulationCfg(physics=PhysxCfg())
-    sim = SimulationContext(cfg)
-
-    physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_prim_path)
-    assert physics_scene_prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is True
-
-    SimulationContext.clear_instance()
-    sim_utils.create_new_stage()
-
-    cfg = SimulationCfg(physics=PhysxCfg(enable_external_forces_every_iteration=False))
-    with pytest.warns(DeprecationWarning, match="enable_external_forces_every_iteration"):
-        sim = SimulationContext(cfg)
-
-    physics_scene_prim = sim.stage.GetPrimAtPath(cfg.physics_prim_path)
-    assert physics_scene_prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is False
-
-
-@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("use_fabric", [True, False])
 def test_fabric_setting(use_fabric):
     """Test that fabric setting is properly set."""

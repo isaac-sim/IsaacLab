@@ -682,7 +682,8 @@ class PhysxManager(PhysicsManager):
         if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
             warnings.warn(
                 "PhysxCfg.enable_external_forces_every_iteration is deprecated and will be removed in a future "
-                "PhysX release. External forces are applied every iteration by default; remove this override.",
+                "PhysX release. External forces are applied every iteration by default; remove this override. "
+                "Disabling this behavior with the TGS solver may cause noisy velocities.",
                 DeprecationWarning,
                 stacklevel=2,
             )
