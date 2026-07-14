@@ -1356,6 +1356,9 @@ def rendering_test_franka_soft(
     if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type == "rgb":
         pytest.skip("30% pixel difference from run to run likely caused by inconsistent lighting. Investigating.")
 
+    if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
+        pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
+
     _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
