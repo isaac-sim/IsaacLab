@@ -23,7 +23,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from .menagerie import MENAGERIE_ASSET_ROOT, MenagerieUsdFileCfg
+from .menagerie import MENAGERIE_ASSET_ROOT, MenageriePatchedUsdFileCfg
 
 ##
 # Configuration
@@ -72,7 +72,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
 
 
 ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
-    spawn=MenagerieUsdFileCfg(
+    spawn=MenageriePatchedUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/wonik_allegro/right_hand/right_hand.usda",
         # The Menagerie exports default to the "physx" variant; Newton/MJWarp needs "mujoco".
         # For PhysX runs, replace with variants={"Physics": "physx"}.
@@ -91,8 +91,8 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             # The conversion splits the fingertip geoms into welded ``*_tip`` bodies,
             # manufacturing tip<->medial collision pairs that cannot exist in MuJoCo
-            # (same-body geoms never collide). The pairs are filtered at spawn via
-            # :attr:`~isaaclab_assets.robots.menagerie.MenagerieUsdFileCfg.filtered_body_pairs`,
+            # (same-body geoms never collide). The pairs are filtered in the patched asset via
+            # :attr:`~isaaclab_assets.robots.menagerie.MenageriePatchedUsdFileCfg.filtered_body_pairs`,
             # so self-collisions can be re-enabled after a training revalidation.
             enabled_self_collisions=False,
             solver_position_iteration_count=8,
@@ -103,17 +103,20 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         # The mujoco variant authors no UsdPhysics drives (actuation is declared as MjcActuator
         # prims); IsaacLab's implicit actuators require the drive APIs to exist.
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
-        # Conversion-defect fixes applied at load time by the Menagerie adapter: the
-        # unauthored static friction is copied from the asset's sliding coefficient
-        # (the converter authors only ``physics:dynamicFriction``, so static falls
-        # back to zero), and the collision pairs manufactured by the fingertip weld
-        # split are filtered.
+        # Conversion-defect fixes written into a patched copy of the asset on disk by the
+        # Menagerie patcher (see :class:`~isaaclab_assets.robots.menagerie.MenageriePatchedUsdFileCfg`):
+        # the unauthored static friction is copied from the asset's sliding coefficient
+        # (the converter authors only ``physics:dynamicFriction``, so static falls back to
+        # zero); the collision pairs manufactured by the fingertip weld split are filtered;
+        # and a 360 deg/s joint velocity limit (from the legacy asset) is authored into the
+        # ``physx`` layer, inert for this ``mujoco`` variant but completing the patched asset.
         filtered_body_pairs=[
             ("ff_tip", "ff_medial"),
             ("mf_tip", "mf_medial"),
             ("rf_tip", "rf_medial"),
             ("th_tip", "th_medial"),
         ],
+        joint_velocity_limit_deg_s=360.0,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         # Offset so the cube's measured rest point coincides with the task's in-hand target

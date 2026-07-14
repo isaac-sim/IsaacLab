@@ -17,17 +17,12 @@ Reference:
 
 """
 
-from typing import TYPE_CHECKING
-
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-from .menagerie import MENAGERIE_ASSET_ROOT, MenagerieUsdFileCfg
-
-if TYPE_CHECKING:
-    from pxr import Usd
+from .menagerie import MENAGERIE_ASSET_ROOT, MenageriePatchedUsdFileCfg
 
 ##
 # Configuration
@@ -94,7 +89,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
 
 
 SHADOW_HAND_MENAGERIE_CFG = ArticulationCfg(
-    spawn=MenagerieUsdFileCfg(
+    spawn=MenageriePatchedUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
         # The Menagerie exports default to the "physx" variant; Newton/MJWarp needs the
         # "mujoco" variant, which composes the MjcTendon distal couplings.
@@ -108,6 +103,12 @@ SHADOW_HAND_MENAGERIE_CFG = ArticulationCfg(
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=True),
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
         fixed_tendons_props=sim_utils.FixedTendonPropertiesCfg(damping=0.1),
+        # The mujoco variant needs only the static-friction fix at runtime, but it shares a
+        # patched cache directory with the physx variant below. The patch parameters describe
+        # the full asset fix set so the cache is complete regardless of which variant spawns
+        # first; the physx-layer fixes (velocity limit, tendons) are inert for this variant.
+        joint_velocity_limit_deg_s=5729.6,
+        author_shadow_tendons=True,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
@@ -161,46 +162,16 @@ only the joint/body naming differs.
 """
 
 
-def _author_shadow_hand_fixed_tendons(prim: "Usd.Prim") -> None:
-    """Author the PhysX fixed tendons that the Menagerie ``physx`` layer omits.
-
-    Replicates the legacy ``ShadowHand`` asset's distal-middle finger couplings: per finger,
-    tendon length ``-0.00805 * theta_middle + 0.00705 * theta_distal`` constrained to
-    ``+/-0.001`` around rest length 0, so the distal joint tracks the middle joint.
-    """
-    from pxr import Sdf, Usd
-
-    joints = {p.GetName(): p for p in Usd.PrimRange(prim) if p.GetName().startswith("rh_")}
-    for finger in ("FF", "MF", "RF", "LF"):
-        tendon = f"rh_T_{finger}J1c"
-        root_joint = joints[f"rh_{finger}J2"]
-        axis_joint = joints[f"rh_{finger}J1"]
-        root_joint.AddAppliedSchema(f"PhysxTendonAxisRootAPI:{tendon}")
-        for attr, type_name, value in (
-            # All gains zero: parity with the legacy asset's RUNTIME values (its configured
-            # FixedTendonPropertiesCfg never lands due to the instanceable-prim issue, so the
-            # baseline trains with zero-gain tendons). A stiff coupling (limitStiffness 30)
-            # drags coupled joints to their limits against the weak position drives.
-            ("limitStiffness", Sdf.ValueTypeNames.Float, 0.0),
-            ("damping", Sdf.ValueTypeNames.Float, 0.0),
-            ("stiffness", Sdf.ValueTypeNames.Float, 0.0),
-            ("restLength", Sdf.ValueTypeNames.Float, 0.0),
-            ("lowerLimit", Sdf.ValueTypeNames.Float, -0.001),
-            ("upperLimit", Sdf.ValueTypeNames.Float, 0.001),
-            ("gearing", Sdf.ValueTypeNames.FloatArray, [-0.00805]),
-        ):
-            root_joint.CreateAttribute(f"physxTendon:{tendon}:{attr}", type_name).Set(value)
-        axis_joint.AddAppliedSchema(f"PhysxTendonAxisAPI:{tendon}")
-        axis_joint.CreateAttribute(f"physxTendon:{tendon}:gearing", Sdf.ValueTypeNames.FloatArray).Set([0.00705])
-
-
 SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
-    spawn=MenagerieUsdFileCfg(
+    spawn=MenageriePatchedUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
-        # UPSTREAM(asset): the MuJoCo USD Converter does not translate MJCF tendon
-        # couplings into PhysX tendon schemas, so the ``physx`` variant leaves the four
-        # distal finger joints uncoupled and undriven. Authored at spawn until then.
-        extra_fixups=[_author_shadow_hand_fixed_tendons],
+        # UPSTREAM(asset): the MuJoCo USD Converter does not translate MJCF tendon couplings
+        # into PhysX tendon schemas, so the ``physx`` variant leaves the four distal finger
+        # joints uncoupled and undriven; the patcher authors them into the ``physx`` layer.
+        # It also authors the legacy asset's 5729.6 deg/s joint velocity limit, which the
+        # Menagerie layers omit and PhysX needs for stability.
+        author_shadow_tendons=True,
+        joint_velocity_limit_deg_s=5729.6,
         variants={"Physics": "physx"},
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -268,7 +239,8 @@ SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
 
 .. note::
     The Menagerie PhysX variant carries no fixed-tendon authoring (converter gap), so the
-    Menagerie adapter authors the four distal-middle couplings from the legacy asset's
-    template at spawn time. See :func:`_author_shadow_hand_fixed_tendons` and
-    :class:`~isaaclab_assets.robots.menagerie.MenagerieUsdFileCfg`.
+    Menagerie patcher authors the four distal-middle couplings from the legacy asset's
+    template into a patched copy of the asset's ``physx`` layer on disk. See
+    :func:`~isaaclab_assets.robots.menagerie.patch_menagerie_asset` and
+    :class:`~isaaclab_assets.robots.menagerie.MenageriePatchedUsdFileCfg`.
 """
