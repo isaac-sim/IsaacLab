@@ -683,10 +683,11 @@ def test_num_shapes_per_body_follows_public_body_order() -> None:
     """Align Newton shape counts with the public body-name axis."""
 
     class _ShapeCountSurface:
-        _backend_num_shapes_per_body = Articulation._backend_num_shapes_per_body
+        backend_num_shapes_per_body = Articulation.backend_num_shapes_per_body
         num_shapes_per_body = Articulation.num_shapes_per_body
 
     articulation = _ShapeCountSurface()
+    articulation._num_shapes_per_body_backend = None
     articulation._root_view = SimpleNamespace(
         body_shapes=((), (object(), object()), (object(), object(), object())),
     )

@@ -172,13 +172,6 @@ class Articulation(BaseArticulation):
         return self.root_view.link_count
 
     @property
-    def _backend_num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes for each backend-order body."""
-        if not hasattr(self, "_num_shapes_per_body_backend"):
-            self._num_shapes_per_body_backend = [len(shapes) for shapes in self._root_view.body_shapes]
-        return self._num_shapes_per_body_backend
-
-    @property
     def num_shapes_per_body(self) -> list[int]:
         """Number of collision shapes per body in public body-name order.
 
@@ -189,7 +182,7 @@ class Articulation(BaseArticulation):
         Returns:
             List of integers representing the number of shapes per body.
         """
-        backend_num_shapes_per_body = self._backend_num_shapes_per_body
+        backend_num_shapes_per_body = self.backend_num_shapes_per_body
         if self.body_ordering is None:
             return backend_num_shapes_per_body
         return [backend_num_shapes_per_body[backend_id] for backend_id in self.body_ordering.user_to_backend_indices]
@@ -200,12 +193,15 @@ class Articulation(BaseArticulation):
 
         Each element corresponds to the body at the same index in
         :attr:`backend_body_names`, matching the shape axis of the backend
-        solver arrays. Use :attr:`num_shapes_per_body` for public body order.
+        solver arrays. The counts are cached on first access. Use
+        :attr:`num_shapes_per_body` for public body order.
 
         Returns:
             List of integers representing the number of shapes per backend-order body.
         """
-        return self._backend_num_shapes_per_body
+        if self._num_shapes_per_body_backend is None:
+            self._num_shapes_per_body_backend = [len(shapes) for shapes in self._root_view.body_shapes]
+        return self._num_shapes_per_body_backend
 
     @property
     def fixed_tendon_names(self) -> list[str]:
@@ -3442,6 +3438,9 @@ class Articulation(BaseArticulation):
             np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
         )
         self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
+
+        # Lazily-filled cache of backend-order collision-shape counts (see ``backend_num_shapes_per_body``).
+        self._num_shapes_per_body_backend: list[int] | None = None
 
         # external wrench composer
         self._instantaneous_wrench_composer = WrenchComposer(self)
