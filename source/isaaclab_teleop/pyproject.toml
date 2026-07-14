@@ -18,14 +18,11 @@ keywords = ["kit", "robotics", "teleoperation", "xr", "isaaclab"]
 requires-python = ">=3.12"
 # Only interpackage dependencies should go here.
 dependencies = [
-    "isaaclab",
+    "isaaclab @ file:../isaaclab",
 ]
 
 [tool.isaaclab]
 pip_upgrade_dependencies = ["isaacteleop"]
-
-[tool.uv.sources]
-isaaclab = { path = "../isaaclab", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"
