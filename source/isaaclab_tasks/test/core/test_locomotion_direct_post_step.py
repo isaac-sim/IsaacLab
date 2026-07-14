@@ -468,13 +468,14 @@ def test_mask_reset_support_requires_safe_newton_configuration():
     assert not env._supports_mask_reset()
 
 
-def test_masked_reset_preserves_robot_buffers_and_device_metric() -> None:
+def test_masked_reset_preserves_robot_buffers_and_float_metric() -> None:
     env = object.__new__(LocomotionDirectEnv)
     env._is_closed = True
     env.sim = SimpleNamespace(device="cpu")
     env.reset_buf = torch.tensor([False, True, False, True])
     env.reset_time_outs = torch.tensor([False, True, False, False])
     env.extras = {}
+    env._success_rate_publisher = LocomotionDirectEnv._SuccessRatePublisher("cpu")
     instantaneous_wrench_composer = Mock(active=True)
     permanent_wrench_composer = Mock(active=True)
     env.robot = Mock(
@@ -492,8 +493,8 @@ def test_masked_reset_preserves_robot_buffers_and_device_metric() -> None:
 
     env._reset_idx_mask(env_mask)
 
-    torch.testing.assert_close(env.extras["log"]["Metrics/success_rate"], torch.tensor(0.5))
-    assert isinstance(env.extras["log"]["Metrics/success_rate"], torch.Tensor)
+    assert env.extras["log"]["Metrics/success_rate"] == 0.5
+    assert isinstance(env.extras["log"]["Metrics/success_rate"], float)
     instantaneous_wrench_composer.reset.assert_called_once_with(env_mask=env_mask)
     permanent_wrench_composer.reset.assert_called_once_with(env_mask=env_mask)
     env.robot.write_root_pose_to_sim_mask.assert_called_once_with(root_pose=env._default_root_pose_w, env_mask=env_mask)
@@ -506,3 +507,71 @@ def test_masked_reset_preserves_robot_buffers_and_device_metric() -> None:
         env_mask=env_mask,
     )
     env._post_step_buffers.compute_masked_reset_observation.assert_called_once_with(env, env_mask)
+
+
+def test_cuda_success_rate_publisher_delays_and_coalesces_updates(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeEvent:
+        def __init__(self):
+            self.completed = False
+            self.record_count = 0
+
+        def query(self) -> bool:
+            return self.completed
+
+        def record(self, stream) -> None:
+            self.record_count += 1
+            self.completed = False
+
+    publisher = object.__new__(LocomotionDirectEnv._SuccessRatePublisher)
+    publisher._device = torch.device("cpu")
+    publisher._is_cuda = True
+    publisher._step_counts = torch.empty(2, dtype=torch.int64)
+    publisher._step_reset_count = publisher._step_counts[0]
+    publisher._step_survived_count = publisher._step_counts[1]
+    publisher._pending_counts = torch.zeros(2, dtype=torch.int64)
+    publisher._host_counts = torch.empty(2, dtype=torch.int64)
+    publisher._copy_event = FakeEvent()
+    publisher._copy_pending = False
+    monkeypatch.setattr(torch.cuda, "current_stream", lambda device: object())
+    step_counts_ptr = publisher._step_counts.data_ptr()
+    pending_counts_ptr = publisher._pending_counts.data_ptr()
+    log = {}
+
+    publisher.update(
+        torch.tensor([True, True, False]),
+        torch.tensor([True, False, False]),
+        log,
+    )
+
+    assert "Metrics/success_rate" not in log
+    assert publisher._copy_pending
+    assert publisher._copy_event.record_count == 1
+    torch.testing.assert_close(publisher._host_counts, torch.tensor([2, 1]))
+    torch.testing.assert_close(publisher._pending_counts, torch.tensor([0, 0]))
+
+    publisher.update(
+        torch.tensor([True, False, False]),
+        torch.tensor([True, False, False]),
+        log,
+    )
+
+    assert "Metrics/success_rate" not in log
+    assert publisher._copy_event.record_count == 1
+    torch.testing.assert_close(publisher._pending_counts, torch.tensor([1, 1]))
+
+    publisher._copy_event.completed = True
+    publisher.update(torch.zeros(3, dtype=torch.bool), torch.zeros(3, dtype=torch.bool), log)
+
+    assert log["Metrics/success_rate"] == 0.5
+    assert isinstance(log["Metrics/success_rate"], float)
+    assert publisher._copy_event.record_count == 2
+    torch.testing.assert_close(publisher._host_counts, torch.tensor([1, 1]))
+    torch.testing.assert_close(publisher._pending_counts, torch.tensor([0, 0]))
+
+    publisher._copy_event.completed = True
+    publisher.update(torch.zeros(3, dtype=torch.bool), torch.zeros(3, dtype=torch.bool), log)
+
+    assert log["Metrics/success_rate"] == 1.0
+    assert isinstance(log["Metrics/success_rate"], float)
+    assert publisher._step_counts.data_ptr() == step_counts_ptr
+    assert publisher._pending_counts.data_ptr() == pending_counts_ptr

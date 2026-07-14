@@ -81,6 +81,48 @@ class LocomotionDirectEnv(DirectRLEnv):
 
     cfg: DirectRLEnvCfg
 
+    class _SuccessRatePublisher:
+        """Publish reset success rates without synchronizing CUDA environment steps."""
+
+        def __init__(self, device: str):
+            self._device = torch.device(device)
+            self._is_cuda = self._device.type == "cuda"
+            if not self._is_cuda:
+                return
+
+            self._step_counts = torch.empty(2, dtype=torch.int64, device=self._device)
+            self._step_reset_count = self._step_counts[0]
+            self._step_survived_count = self._step_counts[1]
+            self._pending_counts = torch.zeros_like(self._step_counts)
+            self._host_counts = torch.empty(2, dtype=torch.int64, device="cpu", pin_memory=True)
+            self._copy_event = torch.cuda.Event()
+            self._copy_pending = False
+
+        def update(self, reset_buf: torch.Tensor, reset_time_outs: torch.Tensor, log: dict[str, object]) -> None:
+            """Aggregate reset outcomes and publish completed success rates as Python floats."""
+            if not self._is_cuda:
+                reset_count = reset_buf.sum().item()
+                if reset_count > 0:
+                    log["Metrics/success_rate"] = reset_time_outs.sum().item() / reset_count
+                return
+
+            torch.sum(reset_buf, dim=0, dtype=torch.int64, out=self._step_reset_count)
+            torch.sum(reset_time_outs, dim=0, dtype=torch.int64, out=self._step_survived_count)
+            self._pending_counts.add_(self._step_counts)
+
+            if self._copy_pending:
+                if not self._copy_event.query():
+                    return
+                reset_count, survived_count = self._host_counts.tolist()
+                if reset_count > 0:
+                    log["Metrics/success_rate"] = survived_count / reset_count
+                self._copy_pending = False
+
+            self._host_counts.copy_(self._pending_counts, non_blocking=True)
+            self._pending_counts.zero_()
+            self._copy_event.record(torch.cuda.current_stream(self._device))
+            self._copy_pending = True
+
     def __init__(self, cfg: DirectRLEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
@@ -139,6 +181,7 @@ class LocomotionDirectEnv(DirectRLEnv):
                 self._default_root_pose_w_torch = self.robot.data.default_root_pose.torch.clone()
                 self._default_root_pose_w_torch[:, :3] += self.scene.env_origins
                 self._default_root_pose_w = wp.from_torch(self._default_root_pose_w_torch, dtype=wp.transformf)
+                self._success_rate_publisher = self._SuccessRatePublisher(self.device)
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot)
@@ -310,14 +353,8 @@ class LocomotionDirectEnv(DirectRLEnv):
 
     def _reset_idx_mask(self, env_mask: wp.array(dtype=wp.bool)) -> None:
         """Reset direct locomotion environments selected by a device mask."""
-        reset_count = self.reset_buf.sum()
-        survived_count = torch.logical_and(self.reset_time_outs, self.reset_buf).sum()
-        success_rate = survived_count.float() / reset_count.clamp_min(1)
         log = self.extras.setdefault("log", {})
-        previous_success_rate = log.get("Metrics/success_rate", torch.zeros((), device=self.device))
-        if not isinstance(previous_success_rate, torch.Tensor):
-            previous_success_rate = torch.tensor(previous_success_rate, device=self.device)
-        log["Metrics/success_rate"] = torch.where(reset_count > 0, success_rate, previous_success_rate)
+        self._success_rate_publisher.update(self.reset_buf, self.reset_time_outs, log)
 
         # Supported tasks use stateless implicit actuators, so only active wrench buffers need reset.
         if self.robot.instantaneous_wrench_composer.active:
