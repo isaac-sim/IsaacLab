@@ -471,7 +471,16 @@ class DirectRLEnv(gym.Env):
 
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self._reset_envs_from_buffer()
-        if reset_env_ids is not None and len(reset_env_ids) > 0:
+        if reset_env_ids is None:
+            if self.cfg.compute_final_obs:
+                raise RuntimeError(
+                    "Mask-native reset overrides must return reset indices when compute_final_obs is enabled."
+                )
+            if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+                raise RuntimeError(
+                    "Mask-native reset overrides must return reset indices when RTX reset rerenders are enabled."
+                )
+        elif len(reset_env_ids) > 0:
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
                 for _ in range(self.cfg.num_rerenders_on_reset):
@@ -668,7 +677,9 @@ class DirectRLEnv(gym.Env):
         The default implementation compacts the reset mask into environment indices. CUDA
         environments synchronize while determining the dynamic output size of
         ``torch.Tensor.nonzero``. Tasks with backend-native mask reset support may
-        override this hook and return None to avoid that synchronization.
+        override this hook and return None to avoid that synchronization. Returning None
+        is only supported when terminal-observation capture and RTX reset rerenders are
+        disabled. Overrides must delegate to this implementation in those configurations.
 
         Returns:
             Reset environment indices, or None when an override completed reset
