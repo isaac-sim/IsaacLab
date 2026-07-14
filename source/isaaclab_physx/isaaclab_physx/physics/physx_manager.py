@@ -15,6 +15,7 @@ import logging
 import os
 import re
 import time
+import warnings
 from collections.abc import Callable
 from datetime import datetime
 from enum import Enum
@@ -679,7 +680,12 @@ class PhysxManager(PhysicsManager):
 
         # warnings
         if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
-            logger.warning("TGS solver with enable_external_forces_every_iteration=False may cause noisy velocities.")
+            warnings.warn(
+                "PhysxCfg.enable_external_forces_every_iteration is deprecated and will be removed in a future "
+                "PhysX release. External forces are applied every iteration by default; remove this override.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if not cfg.enable_stabilization and sim_cfg.dt > 0.0333:
             logger.warning("Large timestep without stabilization may cause physics issues.")
 
