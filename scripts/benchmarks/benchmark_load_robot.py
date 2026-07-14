@@ -9,9 +9,10 @@
 
     ./isaaclab.sh -p scripts/benchmarks/benchmark_load_robot.py --num_envs 2048 --robot g1
 
-The simulation app is launched through :func:`isaaclab.app.launch_simulation`, which scans the
-scene configuration and selects the appropriate experience file automatically (for example, auto-enabling
-cameras when the scene contains camera sensors that use a Kit renderer).
+    ./isaaclab.sh -p scripts/benchmarks/benchmark_load_robot.py --physics newton_mjwarp --robot h1
+
+The simulation app is launched through :func:`isaaclab.app.launch_simulation`, which selects the requested
+physics backend while the benchmark uses the full ``isaaclab.python.kit`` experience for consistent services.
 
 """
 
@@ -26,6 +27,7 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Benchmark loading different robots.")
 parser.add_argument("--num_envs", type=int, default=32, help="Number of robots to simulate.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 parser.add_argument(
     "--robot",
     type=str,
@@ -60,6 +62,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app import launch_simulation
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.test.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.utils.configclass import configclass
@@ -72,6 +75,7 @@ if TYPE_CHECKING:
 # Pre-defined configs
 ##
 from isaaclab_assets import ANYMAL_D_CFG, G1_MINIMAL_CFG, H1_MINIMAL_CFG  # isort:skip
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 
 
 # Stop the timer for imports
@@ -158,7 +162,12 @@ def run_simulator(sim: "SimulationContext", scene: "InteractiveScene", benchmark
     )
 
 
-def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float, benchmark: BaseIsaacLabBenchmark):
+def main(
+    scene_cfg: RobotSceneCfg,
+    physics_cfg: PhysicsCfg,
+    app_start_time_ms: float,
+    benchmark: BaseIsaacLabBenchmark,
+):
     """Main function."""
     # Import runtime classes only now that the simulation app has been launched. These modules import
     # USD/``omni`` bindings at import time, so importing them before the app is running crashes the simulator.
@@ -166,7 +175,22 @@ def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float, benchmark: BaseIsaa
     from isaaclab.sim import SimulationContext
 
     # Load kit helper
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
+    # The default MJWarp configuration needs additional constraint capacity and solver tuning for bipeds.
+    if (
+        args_cli.robot in ("h1", "g1")
+        and isinstance(physics_cfg, NewtonCfg)
+        and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg)
+    ):
+        physics_cfg.solver_cfg.njmax = 70
+        physics_cfg.solver_cfg.nconmax = 70
+        physics_cfg.solver_cfg.ls_iterations = 40
+        physics_cfg.solver_cfg.cone = "elliptic"
+        physics_cfg.solver_cfg.impratio = 100
+        physics_cfg.solver_cfg.ls_parallel = False
+        physics_cfg.solver_cfg.integrator = "implicitfast"
+        physics_cfg.num_substeps = 2
+
+    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg)
     sim = SimulationContext(sim_cfg)
     # Set main camera
     sim.set_camera_view([2.5, 0.0, 4.0], [0.0, 0.0, 2.0])
@@ -215,20 +239,20 @@ def main(scene_cfg: RobotSceneCfg, app_start_time_ms: float, benchmark: BaseIsaa
 
 
 if __name__ == "__main__":
-    # Use the full Kit experience in both headless and windowed modes so benchmark services have
-    # the same extension dependencies available. An explicit CLI override still takes precedence.
+    # Use the full Kit experience in both headless and windowed modes for a consistent runtime.
+    # An explicit CLI override still takes precedence.
     if not args_cli.experience:
         args_cli.experience = "isaaclab.python.kit"
 
-    # Build the scene configuration up front so that launch_simulation() can scan it and
-    # select the appropriate experience file (e.g. auto-enable cameras when camera sensors
-    # are present in the scene).
+    # Build the scene configuration before measuring app startup so scene-config imports are measured separately.
     scene_cfg = RobotSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
 
     # Start the timer for app start
     app_start_time_begin = time.perf_counter_ns()
-    # Launch the simulation app based on the scene configuration
-    with launch_simulation(scene_cfg, args_cli):
+    # Launch the selected physics backend in the benchmark's Kit experience.
+    with launch_simulation(PhysicsCfg(), args_cli) as physics_cfg:
+        if physics_cfg is None:
+            raise RuntimeError("No physics backend was selected.")
         # End the timer for app start
         app_start_time_end = time.perf_counter_ns()
         app_start_time_ms = (app_start_time_end - app_start_time_begin) / 1e6
@@ -240,14 +264,18 @@ if __name__ == "__main__":
             formatter_type=args_cli.benchmark_formatter,
             output_path=args_cli.output_path,
             use_recorders=True,
-            frametime_recorders=any(t in ("summary", "omniperf") for t in formatter_types),
+            # Isaac Sim's frametime recorder extension activates its bundled Warp, which conflicts with
+            # the newer Warp version required by Newton. Other benchmark recorders remain backend-independent.
+            frametime_recorders=args_cli.physics == "physx"
+            and any(t in ("summary", "omniperf") for t in formatter_types),
             output_prefix="benchmark_load_robot",
             workflow_metadata={
                 "metadata": [
                     {"name": "robot", "data": args_cli.robot},
+                    {"name": "physics", "data": args_cli.physics},
                     {"name": "num_envs", "data": args_cli.num_envs},
                 ]
             },
         )
         # run the main function
-        main(scene_cfg, app_start_time_ms, benchmark)
+        main(scene_cfg, physics_cfg, app_start_time_ms, benchmark)

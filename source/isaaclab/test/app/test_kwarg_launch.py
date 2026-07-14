@@ -13,7 +13,7 @@ import isaaclab.app.app_launcher as app_launcher_module
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import AppLauncher
-from isaaclab.app.sim_launcher import _ensure_livestream_kit_visualizer
+from isaaclab.app.sim_launcher import Scan, _ensure_livestream_kit_visualizer, _uses_isaac_sim_runtime
 
 pytestmark = pytest.mark.integration
 
@@ -44,6 +44,24 @@ def test_livestream_rejects_disabled_visualizers():
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
         _ensure_livestream_kit_visualizer(args)
+
+
+def test_explicit_experience_requires_isaac_sim_runtime():
+    """An explicit Kit experience must override a kitless physics configuration."""
+    scan = Scan(
+        resolved_physics_cfg=None,
+        effective_cfg=object(),
+        visualizer_intent={"has_any_visualizers": False, "has_kit_visualizer": False},
+        has_ovrtx=False,
+        has_kit_camera=False,
+        has_kit_physics=False,
+        has_kitless_physics=True,
+        has_ovphysx_physics=False,
+        needs_kit=False,
+    )
+    args = argparse.Namespace(experience="isaaclab.python.kit", visualizer=None)
+
+    assert _uses_isaac_sim_runtime(scan, args)
 
 
 def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.MonkeyPatch):
