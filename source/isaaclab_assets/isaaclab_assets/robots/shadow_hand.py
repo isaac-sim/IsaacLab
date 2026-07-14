@@ -17,24 +17,17 @@ Reference:
 
 """
 
-import os
-from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+
+from .menagerie import MENAGERIE_ASSET_ROOT, MenagerieUsdFileCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
-
-MENAGERIE_ASSET_ROOT = os.environ.get(
-    "MENAGERIE_ASSET_ROOT", "omniverse://isaac-dev.ov.nvidia.com/Isaac/Samples/Mujoco_Menagerie"
-)
-"""Root of the Mujoco Menagerie asset conversions. Override with the ``MENAGERIE_ASSET_ROOT``
-environment variable to point at a local mirror when the Nucleus server is unreachable."""
 
 ##
 # Configuration
@@ -101,7 +94,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
 
 
 SHADOW_HAND_MENAGERIE_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
+    spawn=MenagerieUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
         # The Menagerie exports default to the "physx" variant; Newton/MJWarp needs the
         # "mujoco" variant, which composes the MjcTendon distal couplings.
@@ -201,43 +194,13 @@ def _author_shadow_hand_fixed_tendons(prim: "Usd.Prim") -> None:
         axis_joint.CreateAttribute(f"physxTendon:{tendon}:gearing", Sdf.ValueTypeNames.FloatArray).Set([0.00705])
 
 
-def spawn_shadow_hand_menagerie_physx(
-    prim_path: str,
-    cfg: "ShadowHandMenageriePhysxSpawnCfg",
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    **kwargs,
-) -> "Usd.Prim":
-    """Spawn the Menagerie Shadow Hand and author the missing PhysX fixed tendons.
-
-    The MuJoCo USD Converter does not translate MJCF tendon couplings into PhysX tendon
-    schemas, so the ``physx`` variant leaves the four distal finger joints uncoupled and
-    undriven. This spawner authors them post-spawn until the converter gains support.
-    """
-    # Deferred imports: this module is imported by the task-config registry before the
-    # simulation app starts, when pxr and the spawner internals are not yet loadable.
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
-    from isaaclab.sim.utils import clone
-
-    @clone
-    def _spawn(prim_path, cfg, translation=None, orientation=None, **inner_kwargs):
-        prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
-        _author_shadow_hand_fixed_tendons(prim)
-        return prim
-
-    return _spawn(prim_path, cfg, translation, orientation, **kwargs)
-
-
-@configclass
-class ShadowHandMenageriePhysxSpawnCfg(sim_utils.UsdFileCfg):
-    """Spawn configuration for the Menagerie Shadow Hand on PhysX with authored fixed tendons."""
-
-    func: Callable = spawn_shadow_hand_menagerie_physx
-
-
 SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
-    spawn=ShadowHandMenageriePhysxSpawnCfg(
+    spawn=MenagerieUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/shadow_hand/right_hand/right_hand.usda",
+        # UPSTREAM(asset): the MuJoCo USD Converter does not translate MJCF tendon
+        # couplings into PhysX tendon schemas, so the ``physx`` variant leaves the four
+        # distal finger joints uncoupled and undriven. Authored at spawn until then.
+        extra_fixups=[_author_shadow_hand_fixed_tendons],
         variants={"Physics": "physx"},
         activate_contact_sensors=False,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
@@ -305,6 +268,7 @@ SHADOW_HAND_MENAGERIE_PHYSX_CFG = ArticulationCfg(
 
 .. note::
     The Menagerie PhysX variant carries no fixed-tendon authoring (converter gap), so the
-    spawner authors the four distal-middle couplings from the legacy asset's template. See
-    :func:`spawn_shadow_hand_menagerie_physx`.
+    Menagerie adapter authors the four distal-middle couplings from the legacy asset's
+    template at spawn time. See :func:`_author_shadow_hand_fixed_tendons` and
+    :class:`~isaaclab_assets.robots.menagerie.MenagerieUsdFileCfg`.
 """

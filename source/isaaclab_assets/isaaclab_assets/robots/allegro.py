@@ -17,18 +17,13 @@ Reference:
 """
 
 import math
-import os
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
-MENAGERIE_ASSET_ROOT = os.environ.get(
-    "MENAGERIE_ASSET_ROOT", "omniverse://isaac-dev.ov.nvidia.com/Isaac/Samples/Mujoco_Menagerie"
-)
-"""Root of the Mujoco Menagerie asset conversions. Override with the ``MENAGERIE_ASSET_ROOT``
-environment variable to point at a local mirror when the Nucleus server is unreachable."""
+from .menagerie import MENAGERIE_ASSET_ROOT, MenagerieUsdFileCfg
 
 ##
 # Configuration
@@ -77,7 +72,7 @@ ALLEGRO_HAND_CFG = ArticulationCfg(
 
 
 ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
-    spawn=sim_utils.UsdFileCfg(
+    spawn=MenagerieUsdFileCfg(
         usd_path=f"{MENAGERIE_ASSET_ROOT}/wonik_allegro/right_hand/right_hand.usda",
         # The Menagerie exports default to the "physx" variant; Newton/MJWarp needs "mujoco".
         # For PhysX runs, replace with variants={"Physics": "physx"}.
@@ -94,8 +89,11 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
             max_contact_impulse=1e32,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            # The conversion loses MJCF's parent-child contact exclusions, so adjacent-link
-            # colliders permanently wedge the finger medial joints when self-collisions are on.
+            # The conversion splits the fingertip geoms into welded ``*_tip`` bodies,
+            # manufacturing tip<->medial collision pairs that cannot exist in MuJoCo
+            # (same-body geoms never collide). The pairs are filtered at spawn via
+            # :attr:`~isaaclab_assets.robots.menagerie.MenagerieUsdFileCfg.filtered_body_pairs`,
+            # so self-collisions can be re-enabled after a training revalidation.
             enabled_self_collisions=False,
             solver_position_iteration_count=8,
             solver_velocity_iteration_count=0,
@@ -105,10 +103,17 @@ ALLEGRO_HAND_MENAGERIE_CFG = ArticulationCfg(
         # The mujoco variant authors no UsdPhysics drives (actuation is declared as MjcActuator
         # prims); IsaacLab's implicit actuators require the drive APIs to exist.
         joint_drive_props=sim_utils.JointDrivePropertiesCfg(drive_type="force", ensure_drives_exist=True),
-        # The conversion's physics-material bindings resolve outside the reference scope and
-        # are silently dropped, leaving the hand on default friction; bind an explicit
-        # high-friction material like the legacy asset carries.
-        physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0),
+        # Conversion-defect fixes applied at load time by the Menagerie adapter: the
+        # unauthored static friction is copied from the asset's sliding coefficient
+        # (the converter authors only ``physics:dynamicFriction``, so static falls
+        # back to zero), and the collision pairs manufactured by the fingertip weld
+        # split are filtered.
+        filtered_body_pairs=[
+            ("ff_tip", "ff_medial"),
+            ("mf_tip", "mf_medial"),
+            ("rf_tip", "rf_medial"),
+            ("th_tip", "th_medial"),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         # Offset so the cube's measured rest point coincides with the task's in-hand target
