@@ -5,6 +5,8 @@
 
 import warp as wp
 
+from isaaclab.assets.articulation.ordering_kernels import resolve_backend_index
+
 """
 Articulation-specific warp functions.
 """
@@ -30,34 +32,6 @@ def compute_soft_joint_pos_limits_func(
         joint_pos_mean - 0.5 * joint_pos_range * soft_limit_factor,
         joint_pos_mean + 0.5 * joint_pos_range * soft_limit_factor,
     )
-
-
-@wp.func
-def resolve_backend_index(
-    user_id: wp.int32,
-    user_to_backend: wp.array(dtype=wp.int32),
-    has_ordering: bool,
-):
-    """Map a public (user-order) item index to its backend-order index.
-
-    Newton's ordered write kernels iterate the public joint or body axis and
-    scatter into backend-order buffers. This centralizes the user-to-backend
-    direction with the identity fallback used when no nonidentity ordering is
-    active, so the routing logic is defined once instead of re-implemented
-    inline in each kernel.
-
-    Args:
-        user_id: Item index on the public (user-order) axis.
-        user_to_backend: Public-to-backend permutation for the axis. Ignored
-            when ``has_ordering`` is ``False`` (an identity map may be passed).
-        has_ordering: Whether a nonidentity ordering is active.
-
-    Returns:
-        The backend-order index for ``user_id``.
-    """
-    if has_ordering:
-        return user_to_backend[user_id]
-    return user_id
 
 
 """
