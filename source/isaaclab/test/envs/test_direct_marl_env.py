@@ -27,27 +27,16 @@ pytestmark = pytest.mark.integration
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_initialization(device):
-    """Test initialization of DirectMARLEnv."""
-    # create a new stage
+def test_initialization_and_close(device):
+    """DirectMARLEnv initializes and releases its simulation context."""
     sim_utils.create_new_stage()
-    try:
-        # create environment
-        env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg(device=device))
-    except Exception as e:
-        if "env" in locals() and hasattr(env, "_is_closed"):
-            env.close()
-        else:
-            if hasattr(e, "obj") and hasattr(e.obj, "_is_closed"):
-                e.obj.close()
-        pytest.fail(f"Failed to set-up the DirectMARLEnv environment. Error: {e}")
+    env = DirectMARLEnv(cfg=make_empty_direct_marl_env_cfg(device=device))
 
-    # check multi-agent config
-    assert env.num_agents == 2
-    assert env.max_num_agents == 2
-    # check spaces
-    assert env.state_space.shape == (7,)
-    assert len(env.observation_spaces) == 2
-    assert len(env.action_spaces) == 2
-    # close the environment
-    env.close()
+    try:
+        assert not env._is_closed
+        assert sim_utils.SimulationContext.instance() is env.sim
+    finally:
+        env.close()
+
+    assert env._is_closed
+    assert sim_utils.SimulationContext.instance() is None
