@@ -20,6 +20,8 @@ teleporting objects into interpenetrating states.
 import sys
 from pathlib import Path
 
+from isaaclab.test.utils import test_devices
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import math
@@ -74,7 +76,7 @@ SIM_DT = 1.0 / 120.0
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 @pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
 def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
@@ -193,7 +195,7 @@ def test_contact_lifecycle(device: str, use_mujoco_contacts: bool, shape_type: S
             assert no_contact_detected[env_idx], f"Env {env_idx}: Contact should stop after lift."
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 @pytest.mark.parametrize("shape_type", STABLE_SHAPES, ids=[shape_type_to_str(s) for s in STABLE_SHAPES])
 def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: bool, shape_type: ShapeType):
@@ -298,7 +300,7 @@ def test_horizontal_collision_detects_contact(device: str, use_mujoco_contacts: 
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
     """Test that resting object contact force equals weight and points upward.
@@ -401,7 +403,7 @@ def test_resting_object_contact_force(device: str, use_mujoco_contacts: bool):
         assert not errs, "\n".join(errs)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("use_mujoco_contacts", COLLISION_PIPELINES)
 def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contacts: bool):
     """Test that dropping from higher produces larger peak impact force.
@@ -483,7 +485,7 @@ def test_higher_drop_produces_larger_impact_force(device: str, use_mujoco_contac
 # ===================================================================
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
@@ -618,7 +620,7 @@ ALLEGRO_FINGER_LINKS = {
 }
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize(
     "use_mujoco_contacts",
     [
@@ -815,7 +817,7 @@ def _make_two_box_scene_cfg(num_envs: int) -> ContactSensorTestSceneCfg:
     return scene_cfg
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_sensor_metadata(device: str):
     """Verify sensor_names and filter_object_names match the underlying sensing and
     counterpart configuration across body-mode, body-mode-with-filter, and shape-mode.
