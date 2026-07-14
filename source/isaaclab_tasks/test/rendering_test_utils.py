@@ -33,6 +33,9 @@ _PIXEL_L2_NORM_DIFFERENCE_THRESHOLD = 10.0
 # needs to be large enough to tolerate minor rendering noise while small enough to catch unexpected changes.
 MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME = {
     "cartpole": 1.0,
+    # Aliasing artifacts of shadow on the table.
+    "franka_cloth": 8.0,
+    "franka_soft": 8.0,
     # Shadow-hand renderings (incl. ``Isaac-Reorient-Cube-Shadow-Camera-Direct``) show up to
     # ~3.28 % per-pixel diff from anti-aliasing noise along the many finger/cube edges. 5.0 gives
     # headroom above that without masking real regressions, which the SSIM gate still catches.
@@ -76,6 +79,20 @@ _SSIM_DISABLED_DATA_TYPES: set[str] = {
 _COMPARISON_IMAGES_DIR = os.path.join(os.getcwd(), "tests", "comparison-images")
 _COMPARISON_IMAGE_SUBDIR = "images"
 
+_COPY_ICON_SVG = (
+    '<svg class="copy-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>'
+    '<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'
+    "</svg>"
+)
+_CHECK_ICON_SVG = (
+    '<svg class="check-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"'
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M20 6 9 17l-5-5"/>'
+    "</svg>"
+)
+
 # ---------------------------------------------------------------------------
 # Parametrization: (physics_backend, renderer, data_type)
 # ---------------------------------------------------------------------------
@@ -116,7 +133,7 @@ _NEWTON_WARP_DATA_TYPES = (
 def _make_sensor_data_type_params(
     physics_backend: str,
     renderer: str,
-    sensor_data_types: list[str] = None,
+    sensor_data_types: list[str] | None = None,
     *,
     flaky: bool = True,
     renderer_label: str | None = None,
@@ -132,7 +149,7 @@ def _make_sensor_data_type_params(
         renderer_label: Overrides the renderer segment of the test id. Defaults to ``renderer``; used
             to keep the ``newton_warp`` id distinct from its ``newton_renderer`` argument.
     """
-    sensor_data_types = sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES
+    sensor_data_types = list(sensor_data_types or _DEFAULT_SENSOR_DATA_TYPES)
     label = renderer_label or renderer
     marks = _FLAKY_MARK if flaky else ()
     return [
@@ -211,7 +228,7 @@ def _redirect_ovrtx_renderer_log_to_stdout(env_cfg: Any) -> None:
     # manager-based envs
     scene = getattr(env_cfg, "scene", None)
     if scene is not None:
-        for camera_name in ("base_camera", "wrist_camera"):
+        for camera_name in ("base_camera", "wrist_camera", "tiled_camera"):
             camera_cfg = getattr(scene, camera_name, None)
             if camera_cfg is not None:
                 camera_cfgs.append(camera_cfg)
@@ -246,6 +263,29 @@ def _maybe_enable_physx_determinism_for_motion(env_cfg: Any, physics_backend: st
     env_cfg.sim.physics.enable_external_forces_every_iteration = True
 
 
+def _maybe_disable_instancing_for_current_stage(physics_backend: str, renderer: str, data_type: str) -> None:
+    """Disable USD instancing for the current stage to work around NVBUG#6418121.
+
+    HDC_TODO: Remove this temporary workaround once NVBUG#6418121 is fixed.
+    """
+    disable_instancing = False
+
+    if renderer == "isaacsim_rtx_renderer":
+        if physics_backend == "physx":
+            if data_type not in ["rgb", "albedo"]:
+                disable_instancing = True
+        elif physics_backend == "newton":
+            disable_instancing = True
+
+    if disable_instancing:
+        from isaaclab.sim.utils.prims import get_current_stage, make_uninstanceable
+
+        stage = get_current_stage()
+        make_uninstanceable("/World/envs", stage)
+
+        print("[rendering_test_utils] Disabled USD instancing for the current stage to work around NVBUG#6418121.")
+
+
 def _skip_if_newton_motion_vectors(physics_backend: str, data_type: str) -> None:
     """Skip ``motion_vectors`` golden-image tests running on the Newton physics backend.
 
@@ -269,12 +309,22 @@ def _physics_preset_name(physics_backend: str) -> str:
     return "newton_mjwarp" if physics_backend == "newton" else physics_backend
 
 
+def _physics_preset_name_deformable(physics_backend: str) -> str:
+    """Map deformable-test physics labels to Hydra preset names."""
+    return "newton_mjwarp_vbd" if physics_backend == "newton" else physics_backend
+
+
 def _save_comparison_image(img: Image.Image, filename: str) -> str:
     """Save a PIL image under the comparison images directory."""
     path = os.path.join(_COMPARISON_IMAGES_DIR, _COMPARISON_IMAGE_SUBDIR, filename)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     img.save(path, format="PNG")
     return path
+
+
+def _format_bcompare_command(actual_path: str, golden_path: str) -> str:
+    """Build a shell command that opens actual and golden images in Beyond Compare."""
+    return f"bcompare \\\n  {actual_path} \\\n  {golden_path}"
 
 
 def generate_html_report(comparison_scores: list[dict], report_filename: str) -> None:
@@ -293,11 +343,20 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
 
         actual_img_html = ""
         golden_img_html = ""
+        compare_html = ""
         if entry.get("img_result_path"):
             actual_fname = os.path.relpath(entry["img_result_path"], _COMPARISON_IMAGES_DIR)
             golden_fname = os.path.relpath(entry["img_golden_path"], _COMPARISON_IMAGES_DIR)
             actual_img_html = f'<a href="{actual_fname}"><img src="{actual_fname}" width="120" loading="lazy"></a>'
             golden_img_html = f'<a href="{golden_fname}"><img src="{golden_fname}" width="120" loading="lazy"></a>'
+            compare_cmd = _format_bcompare_command(actual_fname, golden_fname)
+            compare_html = (
+                '<div class="compare-cmd-wrap">'
+                f'<code class="compare-cmd">{compare_cmd}</code>'
+                '<button type="button" class="copy-btn" title="Copy command" aria-label="Copy command"'
+                f' onclick="copyCompareCmd(this)">{_COPY_ICON_SVG}{_CHECK_ICON_SVG}</button>'
+                "</div>"
+            )
 
         ssim_checked = entry.get("ssim_checked", True)
         ssim_cell_class = "" if ssim_checked else ' class="ssim-disabled"'
@@ -318,10 +377,11 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
             f'<td class="status-{status_class}">{status_text}</td>'
             f"<td>{actual_img_html}</td>"
             f"<td>{golden_img_html}</td>"
+            f'<td class="compare-cell">{compare_html}</td>'
             "</tr>"
         )
 
-    html = (
+    report_html = (
         "<!DOCTYPE html>\n"
         "<html>\n"
         "<head>\n"
@@ -340,7 +400,33 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "  .status-fail { color: #cc0000; font-weight: bold; }\n"
         "  .ssim-disabled { color: #999; font-style: italic; }\n"
         "  img { display: block; max-width: 120px; height: auto; }\n"
+        "  .compare-cell { max-width: 420px; }\n"
+        "  .compare-cmd-wrap { position: relative; }\n"
+        "  .compare-cmd { display: block; font-size: 11px; white-space: pre-wrap; word-break: break-all;"
+        " background: #f8f8f8; padding: 4px 28px 4px 6px; border: 1px solid #ddd; border-radius: 3px;"
+        " user-select: all; }\n"
+        "  .copy-btn { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; padding: 0;"
+        " border: none; border-radius: 4px; background: transparent; color: #666; cursor: pointer; }\n"
+        "  .copy-btn:hover { background: #e8e8e8; color: #333; }\n"
+        "  .copy-btn svg { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);"
+        " width: 14px; height: 14px; }\n"
+        "  .copy-btn .check-icon { display: none; }\n"
+        "  .copy-btn.copied .copy-icon { display: none; }\n"
+        "  .copy-btn.copied .check-icon { display: block; }\n"
         "</style>\n"
+        "<script>\n"
+        "function copyCompareCmd(btn) {\n"
+        "  const text = btn.previousElementSibling.textContent;\n"
+        "  navigator.clipboard.writeText(text).then(() => {\n"
+        "    btn.classList.add('copied');\n"
+        "    btn.title = 'Copied!';\n"
+        "    setTimeout(() => {\n"
+        "      btn.classList.remove('copied');\n"
+        "      btn.title = 'Copy command';\n"
+        "    }, 1500);\n"
+        "  });\n"
+        "}\n"
+        "</script>\n"
         "</head>\n"
         "<body>\n"
         "<h1>Rendering Correctness - Image Comparison Report</h1>\n"
@@ -358,6 +444,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
         "<th>Status</th>"
         "<th>ACTUAL</th>"
         "<th>GOLDEN</th>"
+        "<th>Beyond Compare Command</th>"
         "</tr></thead>\n"
         "<tbody>\n" + "\n".join(rows) + "\n</tbody>\n</table>\n"
         f"<p>Generated:&nbsp;{datetime.now().astimezone().isoformat(timespec='seconds')}.</p>\n"
@@ -366,7 +453,7 @@ def generate_html_report(comparison_scores: list[dict], report_filename: str) ->
     )
 
     with open(report_path, "w", encoding="utf-8") as file:
-        file.write(html)
+        file.write(report_html)
 
 
 def attach_comparison_properties(
@@ -1049,6 +1136,270 @@ def rendering_test_dexsuite_kuka(
             physics_backend,
             renderer,
             env.scene.sensors["base_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _make_franka_cloth_camera_env_cfg(data_type: str):
+    """Create a test-local Franka cloth camera env cfg without exposing a production task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_cloth_env_cfg import FrankaClothEnvCfg, FrankaClothSceneCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    @configclass
+    class TestFrankaClothCameraSceneCfg(FrankaClothSceneCfg):
+        """Franka cloth scene with a test-only camera sensor."""
+
+        tiled_camera: CameraCfg = CameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.85, -0.55, 0.42),
+                rot=(0.5080, 0.2114, 0.318, 0.7720),
+                convention="opengl",
+            ),
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+            width=128,
+            height=128,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+
+    @configclass
+    class TestFrankaClothCameraObservationsCfg:
+        """Image-only observations for the local rendering test env."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    @configclass
+    class TestFrankaClothCameraEnvCfg(FrankaClothEnvCfg):
+        """Test-only camera variant of ``Isaac-Lift-Cloth-Franka``."""
+
+        scene: TestFrankaClothCameraSceneCfg = TestFrankaClothCameraSceneCfg(
+            num_envs=4, env_spacing=3.0, replicate_physics=True
+        )
+        observations: TestFrankaClothCameraObservationsCfg = TestFrankaClothCameraObservationsCfg()
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.commands.deformable_pose.debug_vis = False
+            self.events.reset_deformable.params["position_range"] = {
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+            }
+
+    return TestFrankaClothCameraEnvCfg()
+
+
+def rendering_test_franka_cloth(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("FrankaCloth env cfg does not define an ovphysx preset yet.")
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env_cfg = _make_franka_cloth_camera_env_cfg(data_type)
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name_deformable(physics_backend)},{renderer}"]
+    )
+
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
+    test_name = "franka_cloth"
+    env = None
+
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+
+        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        # After 15 steps, the cloth should have fallen down on top of the cube and deformed.
+        zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+        for _ in range(15):
+            env.step(zero_actions)
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["tiled_camera"].data.output,
+            max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
+            comparison_scores=comparison_scores,
+        )
+    finally:
+        if env is not None:
+            env.close()
+
+            # This invokes camera sensor and renderer cleanup explicitly before pytest teardown, otherwise OV
+            # native code could probably complain about leaks and trigger segmentation fault.
+            env = None
+
+
+def _make_franka_soft_camera_env_cfg(data_type: str):
+    """Create a test-local Franka soft camera env cfg without exposing a production task."""
+    import isaaclab.sim as sim_utils
+    from isaaclab.envs import mdp as env_mdp
+    from isaaclab.managers import ObservationGroupCfg as ObsGroup
+    from isaaclab.managers import ObservationTermCfg as ObsTerm
+    from isaaclab.managers import SceneEntityCfg
+    from isaaclab.sensors import CameraCfg
+    from isaaclab.utils.configclass import configclass
+
+    from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg, _FrankaSoftSceneCfg
+    from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+    @configclass
+    class TestFrankaSoftCameraSceneCfg(_FrankaSoftSceneCfg):
+        """Franka soft scene with a test-only camera sensor."""
+
+        tiled_camera: CameraCfg = CameraCfg(
+            prim_path="/World/envs/env_.*/Camera",
+            offset=CameraCfg.OffsetCfg(
+                pos=(0.85, -0.55, 0.42),
+                rot=(0.5080, 0.2114, 0.318, 0.7720),
+                convention="opengl",
+            ),
+            data_types=[data_type],
+            spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.01, 3.0)),
+            width=128,
+            height=128,
+            renderer_cfg=MultiBackendRendererCfg(),
+        )
+
+    @configclass
+    class TestFrankaSoftCameraObservationsCfg:
+        """Image-only observations for the local rendering test env."""
+
+        @configclass
+        class PolicyCfg(ObsGroup):
+            image = ObsTerm(
+                func=env_mdp.image,
+                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type, "permute": True},
+            )
+
+            def __post_init__(self) -> None:
+                self.enable_corruption = False
+                self.concatenate_terms = True
+
+        policy: ObsGroup = PolicyCfg()
+
+    @configclass
+    class TestFrankaSoftCameraEnvCfg(FrankaSoftEnvCfg):
+        """Test-only camera variant of ``Isaac-Lift-Soft-Franka``."""
+
+        scene: TestFrankaSoftCameraSceneCfg = TestFrankaSoftCameraSceneCfg(
+            num_envs=4, env_spacing=3.0, replicate_physics=True
+        )
+        observations: TestFrankaSoftCameraObservationsCfg = TestFrankaSoftCameraObservationsCfg()
+
+        def __post_init__(self) -> None:
+            super().__post_init__()
+            self.commands.deformable_pose.debug_vis = False
+            self.events.reset_deformable.params["position_range"] = {
+                "x": (0.0, 0.0),
+                "y": (0.0, 0.0),
+                "z": (0.0, 0.0),
+            }
+
+    return TestFrankaSoftCameraEnvCfg()
+
+
+def rendering_test_franka_soft(
+    physics_backend: str,
+    renderer: str,
+    data_type: str,
+    comparison_scores: list[dict],
+) -> None:
+    if physics_backend == "ovphysx":
+        pytest.skip("FrankaSoft env cfg does not define an ovphysx preset yet.")
+
+    if physics_backend == "physx" and renderer == "newton_renderer":
+        pytest.skip("The test cases will be enabled after Newton Github Issue#3228 is fixed.")
+
+    if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
+        pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
+
+    _skip_if_newton_motion_vectors(physics_backend, data_type)
+
+    from isaaclab.envs import ManagerBasedRLEnv
+
+    env_cfg = _make_franka_soft_camera_env_cfg(data_type)
+    env_cfg = _apply_overrides_to_env_cfg(
+        env_cfg, [f"presets={_physics_preset_name_deformable(physics_backend)},{renderer}"]
+    )
+
+    env_cfg.scene.num_envs = 4
+
+    if renderer == "ovrtx_renderer":
+        _redirect_ovrtx_renderer_log_to_stdout(env_cfg)
+
+    _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, data_type)
+
+    test_name = "franka_soft"
+    env = None
+
+    try:
+        env = ManagerBasedRLEnv(env_cfg)
+
+        if data_type == "motion_vectors":
+            # Command a valid absolute IK pose with a small displacement (0.05m) so the renderer sees arm motion.
+            arm_action = env.action_manager.get_term("arm_action")
+            ee_pos_curr, ee_quat_curr = arm_action._compute_frame_pose()
+            ee_pos_curr[0] += 0.05
+
+            actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
+            actions[:, 0:3] = ee_pos_curr
+            actions[:, 3:7] = ee_quat_curr
+
+            env.step(actions)
+
+        # This workaround invalidates the physx data views and would lead to issues if it was done before stepping.
+        _maybe_disable_instancing_for_current_stage(physics_backend, renderer, data_type)
+
+        maybe_save_stage(test_name, physics_backend, renderer, data_type)
+
+        validate_camera_outputs(
+            test_name,
+            physics_backend,
+            renderer,
+            env.scene.sensors["tiled_camera"].data.output,
             max_different_pixels_percentage=MAX_DIFFERENT_PIXELS_PERCENTAGE_BY_ENV_NAME[test_name],
             comparison_scores=comparison_scores,
         )
