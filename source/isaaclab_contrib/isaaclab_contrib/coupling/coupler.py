@@ -8,17 +8,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING
 
 from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
+    NewtonCollisionPipelineCfg,
     NewtonSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import NewtonMPMManager
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from newton import Model, ModelBuilder, ShapeFlags
+from newton import CollisionPipeline, Model, ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupled, SolverCoupledADMM, SolverCoupledProxy
 
 from isaaclab.managers import SceneEntityCfg
@@ -418,7 +420,13 @@ class NewtonCouplerManager(NewtonVBDManager):
         proxy_cfgs: list[CouplerProxyMappingCfg],
         solver_cfg: CouplerProxyCfg,
     ) -> SolverCoupledProxy:
-        proxies = [SolverCoupledProxy.Proxy(**vars(proxy_cfg)) for proxy_cfg in proxy_cfgs]
+        proxies = []
+        for proxy_cfg in proxy_cfgs:
+            values = vars(proxy_cfg).copy()
+            if isinstance(values["collision_pipeline"], NewtonCollisionPipelineCfg):
+                collision_cfg = values["collision_pipeline"]
+                values["collision_pipeline"] = partial(CollisionPipeline, **collision_cfg.to_pipeline_args())
+            proxies.append(SolverCoupledProxy.Proxy(**values))
         coupling_values = cls._filter_solver_kwargs(SolverCoupledProxy.Config, solver_cfg)
         coupling_values["proxies"] = proxies
         coupling = SolverCoupledProxy.Config(**coupling_values)

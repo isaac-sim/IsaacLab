@@ -16,7 +16,7 @@ from collections.abc import Callable
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab_newton.physics import NewtonSolverCfg
+from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 from newton import CollisionPipeline
 
 from isaaclab.managers import SceneEntityCfg
@@ -125,12 +125,11 @@ class CouplerProxyMappingCfg:
     positive integers and require :attr:`collision_pipeline` to be a factory.
     """
 
-    collision_pipeline: Callable[[ModelView], CollisionPipeline | None] | None = lambda model_view: CollisionPipeline(
-        model_view, broad_phase="explicit"
+    collision_pipeline: NewtonCollisionPipelineCfg | Callable[[ModelView], CollisionPipeline | None] | None = field(
+        default_factory=NewtonCollisionPipelineCfg
     )
-    """Factory for the proxy destination's collision pipeline, or ``None``.
+    """Configuration or factory for the proxy destination collision pipeline.
 
-    The default creates a proxy-local pipeline with ``broad_phase="explicit"``.
     Setting the field or returning ``None`` from the factory passes shared
     outer contacts to the destination.
     """

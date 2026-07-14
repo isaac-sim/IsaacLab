@@ -24,6 +24,7 @@ from isaaclab_newton.physics import (
     KaminoSolverCfg,
     MJWarpSolverCfg,
     MPMSolverCfg,
+    NewtonCollisionPipelineCfg,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.newton_manager import NewtonManager
@@ -40,7 +41,6 @@ from isaaclab_contrib.coupling import (
     CouplerProxyMappingCfg,
     NewtonCouplerManager,
     coupler,
-    coupler_cfg,
 )
 from isaaclab_contrib.deformable.newton_manager_cfg import NewtonModelCfg, VBDSolverCfg
 
@@ -480,9 +480,9 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     )
     monkeypatch.setattr(coupler, "SolverCoupledProxy", _RecordingProxy)
     monkeypatch.setattr(
-        coupler_cfg,
+        coupler,
         "CollisionPipeline",
-        lambda model_view, *, broad_phase: (model_view, broad_phase),
+        lambda model_view, **kwargs: (model_view, kwargs["broad_phase"]),
     )
 
     proxies = [NewtonCouplerManager._resolve_proxy(model, proxy, _FakeSceneCfg()) for proxy in cfg.proxies]
@@ -494,6 +494,7 @@ def test_proxy_build_uses_custom_and_default_collision_pipelines(monkeypatch):
     assert solver.coupling.proxies[0].collide_interval == 4
     assert solver.coupling.proxies[0].collision_pipeline is custom_pipeline
     assert solver.coupling.proxies[1].collision_pipeline("soft-view") == ("soft-view", "explicit")
+    assert isinstance(cfg.proxies[1].collision_pipeline, NewtonCollisionPipelineCfg)
 
 
 def test_entry_build_uses_solver_config_class_type():
