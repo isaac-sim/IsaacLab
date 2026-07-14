@@ -360,7 +360,7 @@ class Articulation(BaseArticulation):
             # pre-ordering data path. Non-identity ordering fuses the four
             # per-buffer reorders into one gather; the effort source is read once
             # and feeds both joint_act and joint_effort.
-            if self.data.joint_ordering is None:
+            if not self.data.has_joint_ordering:
                 self.data._sim_bind_joint_position_target.assign(self._data._joint_pos_target)
                 self.data._sim_bind_joint_velocity_target.assign(self._data._joint_vel_target)
                 self.data._sim_bind_joint_act.assign(self._data._joint_effort_target)
@@ -399,7 +399,7 @@ class Articulation(BaseArticulation):
             # dedicated joint-act buffer (unused here: write_joint_act is off, so
             # it is never written) rather than aliasing the effort buffer, keeping
             # the launch's output dependencies distinct for graph capture.
-            if self.data.joint_ordering is None:
+            if not self.data.has_joint_ordering:
                 self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
                 if self._has_implicit_actuators:
                     self.data._sim_bind_joint_position_target.assign(self._joint_pos_target_sim)
