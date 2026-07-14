@@ -310,12 +310,14 @@ class LocomotionDirectEnv(DirectRLEnv):
 
     def _reset_idx_mask(self, env_mask: wp.array(dtype=wp.bool)) -> None:
         """Reset direct locomotion environments selected by a device mask."""
-        reset_counts = torch.stack(
-            (self.reset_buf.sum(), torch.logical_and(self.reset_time_outs, self.reset_buf).sum())
-        )
-        reset_count, survived_count = reset_counts.tolist()
-        if reset_count > 0:
-            self.extras.setdefault("log", {})["Metrics/success_rate"] = survived_count / reset_count
+        reset_count = self.reset_buf.sum()
+        survived_count = torch.logical_and(self.reset_time_outs, self.reset_buf).sum()
+        success_rate = survived_count.float() / reset_count.clamp_min(1)
+        log = self.extras.setdefault("log", {})
+        previous_success_rate = log.get("Metrics/success_rate", torch.zeros((), device=self.device))
+        if not isinstance(previous_success_rate, torch.Tensor):
+            previous_success_rate = torch.tensor(previous_success_rate, device=self.device)
+        log["Metrics/success_rate"] = torch.where(reset_count > 0, success_rate, previous_success_rate)
 
         # Supported tasks use stateless implicit actuators, so only active wrench buffers need reset.
         if self.robot.instantaneous_wrench_composer.active:

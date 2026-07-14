@@ -468,9 +468,10 @@ def test_mask_reset_support_requires_safe_newton_configuration():
     assert not env._supports_mask_reset()
 
 
-def test_masked_reset_preserves_robot_buffers_and_float_metric() -> None:
+def test_masked_reset_preserves_robot_buffers_and_device_metric() -> None:
     env = object.__new__(LocomotionDirectEnv)
     env._is_closed = True
+    env.sim = SimpleNamespace(device="cpu")
     env.reset_buf = torch.tensor([False, True, False, True])
     env.reset_time_outs = torch.tensor([False, True, False, False])
     env.extras = {}
@@ -491,8 +492,8 @@ def test_masked_reset_preserves_robot_buffers_and_float_metric() -> None:
 
     env._reset_idx_mask(env_mask)
 
-    assert env.extras["log"]["Metrics/success_rate"] == 0.5
-    assert isinstance(env.extras["log"]["Metrics/success_rate"], float)
+    torch.testing.assert_close(env.extras["log"]["Metrics/success_rate"], torch.tensor(0.5))
+    assert isinstance(env.extras["log"]["Metrics/success_rate"], torch.Tensor)
     instantaneous_wrench_composer.reset.assert_called_once_with(env_mask=env_mask)
     permanent_wrench_composer.reset.assert_called_once_with(env_mask=env_mask)
     env.robot.write_root_pose_to_sim_mask.assert_called_once_with(root_pose=env._default_root_pose_w, env_mask=env_mask)
