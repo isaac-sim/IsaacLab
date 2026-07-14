@@ -1066,6 +1066,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        self._last_gravity_params: tuple | None = None
 
         manager_name = env.sim.physics_manager.__name__.lower()
         if "newton" in manager_name:
@@ -1117,12 +1118,16 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             operation: The operation to apply ('add', 'scale', or 'abs').
             distribution: The distribution type (cached at init, param ignored at runtime).
         """
-        self._dist_param_0[0] = gravity_distribution_params[0][0]
-        self._dist_param_1[0] = gravity_distribution_params[1][0]
-        self._dist_param_0[1] = gravity_distribution_params[0][1]
-        self._dist_param_1[1] = gravity_distribution_params[1][1]
-        self._dist_param_0[2] = gravity_distribution_params[0][2]
-        self._dist_param_1[2] = gravity_distribution_params[1][2]
+        # rewrite the baked device tensors only when the curriculum-driven ranges change
+        params = (tuple(gravity_distribution_params[0]), tuple(gravity_distribution_params[1]))
+        if params != self._last_gravity_params:
+            self._last_gravity_params = params
+            self._dist_param_0[0] = gravity_distribution_params[0][0]
+            self._dist_param_1[0] = gravity_distribution_params[1][0]
+            self._dist_param_0[1] = gravity_distribution_params[0][1]
+            self._dist_param_1[1] = gravity_distribution_params[1][1]
+            self._dist_param_0[2] = gravity_distribution_params[0][2]
+            self._dist_param_1[2] = gravity_distribution_params[1][2]
 
         if self._backend == "newton":
             self._call_newton(env, env_ids, operation)
@@ -1838,50 +1843,64 @@ def push_by_setting_velocity(
     asset.write_root_velocity_to_sim_index(root_velocity=vel_w, env_ids=env_ids)
 
 
-def reset_root_state_uniform(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
+class reset_root_state_uniform(ManagerTermBase):
     """Reset the asset root state to a random position and velocity uniformly within the given ranges.
 
-    This function randomizes the root position and velocity of the asset.
+    This term randomizes the root position and velocity of the asset.
 
     * It samples the root position from the given ranges and adds them to the default root position, before setting
       them into the physics simulation.
     * It samples the root orientation from the given ranges and sets them into the physics simulation.
     * It samples the root velocity from the given ranges and sets them into the physics simulation.
 
-    The function takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
+    The term takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
+
+    The range dictionaries are materialized as device tensors once at construction.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-    # get default root state
-    default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
-    default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
-    # poses
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        keys = ("x", "y", "z", "roll", "pitch", "yaw")
+        pose_range = cfg.params.get("pose_range", {})
+        velocity_range = cfg.params.get("velocity_range", {})
+        self._pose_ranges = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=env.device)
+        self._velocity_ranges = torch.tensor(
+            [tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=env.device
+        )
 
-    positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
-    # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        pose_range: dict[str, tuple[float, float]],
+        velocity_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ):
+        # extract the used quantities (to enable type-hinting)
+        asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        # get default root state
+        # tensor indexing already returns a copy, and the values are only read below
+        default_root_pose = asset.data.default_root_pose.torch[env_ids]
+        default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
-    velocities = default_root_vel + rand_samples
+        # poses
+        ranges = self._pose_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-    # set into the physics simulation
-    asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
+        positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+        orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
+        orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
+        # velocities
+        ranges = self._velocity_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+        velocities = default_root_vel + rand_samples
+
+        # set into the physics simulation
+        asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+        asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
 
 
 def reset_root_state_with_random_orientation(
