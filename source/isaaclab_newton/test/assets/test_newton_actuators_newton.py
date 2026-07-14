@@ -1749,6 +1749,7 @@ def test_newton_actuator_defaults_follow_requested_public_joint_order() -> None:
         num_envs=2,
         num_joints=3,
         dof_offset=0,
+        env_stride=3,
         device="cpu",
         joint_user_to_backend_indices=(2, 0, 1),
     )
@@ -1774,6 +1775,7 @@ def test_newton_actuator_defaults_reject_incomplete_joint_permutation() -> None:
             num_envs=1,
             num_joints=3,
             dof_offset=0,
+            env_stride=3,
             device="cpu",
             joint_user_to_backend_indices=(0, 0, 2),
         )
