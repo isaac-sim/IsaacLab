@@ -1351,10 +1351,7 @@ def rendering_test_franka_soft(
         pytest.skip("FrankaSoft env cfg does not define an ovphysx preset yet.")
 
     if physics_backend == "physx" and renderer == "newton_renderer":
-        pytest.skip("physx + newton_renderer crashes (https://github.com/newton-physics/newton/issues/3228).")
-
-    if physics_backend == "newton" and renderer == "ovrtx_renderer" and data_type == "rgb":
-        pytest.skip("30% pixel difference from run to run likely caused by inconsistent lighting. Investigating.")
+        pytest.skip("The test cases will be enabled after Newton Github Issue#3228 is fixed.")
 
     if renderer == "isaacsim_rtx_renderer" and data_type == "motion_vectors":
         pytest.skip("The test cases will be enabled after NVBUG#6418121 is fixed.")
