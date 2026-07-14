@@ -395,8 +395,10 @@ class Articulation(BaseArticulation):
             # implicit actuator consumes them. Branching here keeps the no-reorder
             # case at zero launch overhead, matching the pre-ordering data path.
             # Non-identity ordering fuses the effort reorder with the optional
-            # position/velocity reorders. The last gather output aliases the
-            # effort buffer because write_joint_act is off, so it is never indexed.
+            # position/velocity reorders. The last gather output targets the
+            # dedicated joint-act buffer (unused here: write_joint_act is off, so
+            # it is never written) rather than aliasing the effort buffer, keeping
+            # the launch's output dependencies distinct for graph capture.
             if self.data.joint_ordering is None:
                 self.data._sim_bind_joint_effort.assign(self._joint_effort_target_sim)
                 if self._has_implicit_actuators:
@@ -420,7 +422,7 @@ class Articulation(BaseArticulation):
                         self.data._sim_bind_joint_effort,
                         self.data._sim_bind_joint_position_target,
                         self.data._sim_bind_joint_velocity_target,
-                        self.data._sim_bind_joint_effort,
+                        self.data._sim_bind_joint_act,
                     ],
                     device=self.device,
                 )
