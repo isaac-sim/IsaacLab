@@ -22,10 +22,22 @@ The selected environment count must cover every spawn variant and weighted clone
 combination. Omit ``--num_envs`` to size it automatically. The default launch is
 large; use ``--num_task`` for a smaller smoke test.
 
+.. note::
+    This demo targets the PhysX backend. PhysX allows each environment to hold a
+    different set of articulations, which is exactly what the heterogeneous clone
+    composition produces. The ``--physics newton_mjwarp`` backend is wired up (and
+    fixed-base articulations spawn correctly on it), but Newton's ``ArticulationView``
+    requires every environment to contain an identical articulation count and topology
+    and raises ``ValueError: Varying articulation counts per world are not supported``
+    otherwise. Newton therefore only works here for a homogeneous composition (every
+    environment gets the same task assets); the heterogeneous multitask case must use
+    PhysX.
+
 Usage:
 
 .. code-block:: bash
 
+    # Default PhysX physics with the Kit visualizer.
     ./isaaclab.sh -p scripts/demos/multitask_clone_scene.py --visualizer kit
 
     ./isaaclab.sh -p scripts/demos/multitask_clone_scene.py --num_task 3 \
@@ -34,18 +46,24 @@ Usage:
     ./isaaclab.sh -p scripts/demos/multitask_clone_scene.py --task TASK_ID \
         --task ANOTHER_TASK_ID --visualizer kit --num_envs 8
 
+    # Kitless Newton (MJWarp) physics with the Newton visualizer (no Isaac Sim).
+    # Note: only supported for homogeneous compositions (identical articulations per env).
+    ./isaaclab.sh -p scripts/demos/multitask_clone_scene.py \
+        --physics newton_mjwarp --visualizer newton
+
 """
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
 import sys
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Demo: clone-only multi-robot multi-task scene.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 parser.add_argument(
     "--num_envs",
     type=int,
@@ -78,7 +96,8 @@ parser.add_argument(
     default=-1,
     help="Maximum physics steps before exit. Negative values run until the app closes.",
 )
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
+parser.set_defaults(visualizer=["kit"])
 args_cli, hydra_args = parser.parse_known_args()
 sys.argv = [sys.argv[0], *hydra_args]
 if args_cli.num_task is not None and args_cli.num_task < 2:
@@ -91,9 +110,6 @@ if args_cli.task_ids is not None:
     if args_cli.num_task is not None and args_cli.num_task > len(args_cli.task_ids):
         parser.error(f"--num_task cannot exceed the {len(args_cli.task_ids)} explicitly selected tasks")
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
 """Everything else follows."""
 
 import gymnasium as gym
@@ -101,9 +117,12 @@ import gymnasium as gym
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_valid_clone_combinations, sequential
+from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg, scene_add
 from isaaclab.sim import SimulationContext
 from isaaclab.terrains import TerrainImporterCfg
+
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort:skip
 
 from isaaclab_tasks.utils import resolve_task_config
 
@@ -290,7 +309,8 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
     """Step physics for the scene without applying MDP actions."""
     sim_dt = sim.get_physics_dt()
     step = 0
-    while simulation_app.is_running():
+    # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
+    while sim.is_headless_or_exist_active_visualizer():
         if args_cli.max_steps >= 0 and step >= args_cli.max_steps:
             break
         if sim.is_stopped():
@@ -307,60 +327,68 @@ def run_simulator(sim: SimulationContext, scene: InteractiveScene) -> None:
 
 def main() -> None:
     """Run the scene-only clone demo."""
-    task_ids, task_scene_cfgs = _load_task_scenes()
-    for task_scene_cfg in task_scene_cfgs:
-        task_scene_cfg.env_spacing = args_cli.env_spacing
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        # The default newton mjwarp solver configuration needs to be tuned for this demo.
+        if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
+            physics_cfg.solver_cfg.nconmax = 128
+            physics_cfg.solver_cfg.naconmax = 2048
+            physics_cfg.solver_cfg.njmax = 512
 
-    replicate_physics = not args_cli.disable_replicate_physics and all(
-        scene_cfg.replicate_physics for scene_cfg in task_scene_cfgs
-    )
-    scene_cfg = task_scene_cfgs[0]
-    for task_scene_cfg in task_scene_cfgs[1:]:
-        scene_cfg = scene_add(scene_cfg, task_scene_cfg, asset_skip=_skip_light)
+        task_ids, task_scene_cfgs = _load_task_scenes()
+        for task_scene_cfg in task_scene_cfgs:
+            task_scene_cfg.env_spacing = args_cli.env_spacing
 
-    scene_fields = {
-        name: value for name, value in vars(scene_cfg).items() if name not in InteractiveSceneCfg.__dataclass_fields__
-    }
-    if "light" in scene_fields:
-        raise ValueError("Cannot add the demo light because a non-light scene field already uses 'light'.")
-    occupied_light_root = next(
-        (
-            name
-            for name, value in scene_fields.items()
-            if isinstance(value, AssetBaseCfg) and value.prim_path == "/World/light"
-        ),
-        None,
-    )
-    if occupied_light_root is not None:
-        raise ValueError(f"Cannot add the demo light because {occupied_light_root!r} already uses /World/light.")
-    scene_cfg.light = AssetBaseCfg(
-        prim_path="/World/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
-    )
+        replicate_physics = not args_cli.disable_replicate_physics and all(
+            scene_cfg.replicate_physics for scene_cfg in task_scene_cfgs
+        )
+        scene_cfg = task_scene_cfgs[0]
+        for task_scene_cfg in task_scene_cfgs[1:]:
+            scene_cfg = scene_add(scene_cfg, task_scene_cfg, asset_skip=_skip_light)
 
-    num_combinations = _num_expanded_clone_combinations(scene_cfg)
-    num_envs = num_combinations if args_cli.num_envs is None else args_cli.num_envs
-    if num_envs < num_combinations:
-        raise ValueError(f"--num_envs must be at least the {num_combinations} expanded clone combinations.")
+        scene_fields = {
+            name: value
+            for name, value in vars(scene_cfg).items()
+            if name not in InteractiveSceneCfg.__dataclass_fields__
+        }
+        if "light" in scene_fields:
+            raise ValueError("Cannot add the demo light because a non-light scene field already uses 'light'.")
+        occupied_light_root = next(
+            (
+                name
+                for name, value in scene_fields.items()
+                if isinstance(value, AssetBaseCfg) and value.prim_path == "/World/light"
+            ),
+            None,
+        )
+        if occupied_light_root is not None:
+            raise ValueError(f"Cannot add the demo light because {occupied_light_root!r} already uses /World/light.")
+        scene_cfg.light = AssetBaseCfg(
+            prim_path="/World/light",
+            spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
+        )
 
-    scene_cfg.num_envs = num_envs
-    scene_cfg.replicate_physics = replicate_physics
-    scene_cfg.clone_cfg.clone_strategy = sequential
-    print_composition_summary(scene_cfg, task_ids)
+        num_combinations = _num_expanded_clone_combinations(scene_cfg)
+        num_envs = num_combinations if args_cli.num_envs is None else args_cli.num_envs
+        if num_envs < num_combinations:
+            raise ValueError(f"--num_envs must be at least the {num_combinations} expanded clone combinations.")
 
-    sim_cfg = sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
-    scene = InteractiveScene(scene_cfg)
+        scene_cfg.num_envs = num_envs
+        scene_cfg.replicate_physics = replicate_physics
+        scene_cfg.clone_cfg.clone_strategy = sequential
+        print_composition_summary(scene_cfg, task_ids)
 
-    sim.reset()
-    scene.reset()
-    scene.write_data_to_sim()
-    print_scene_summary(scene)
-    print("\n[INFO] Setup complete. Stepping physics without MDP managers.")
-    run_simulator(sim, scene)
+        sim_cfg = sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device, physics=physics_cfg)
+        sim = SimulationContext(sim_cfg)
+        sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
+        scene = InteractiveScene(scene_cfg)
+
+        sim.reset()
+        scene.reset()
+        scene.write_data_to_sim()
+        print_scene_summary(scene)
+        print("\n[INFO] Setup complete. Stepping physics without MDP managers.")
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()

@@ -27,3 +27,8 @@ Fixed
   nested (sub-env) destinations, which offset static assets to the wrong place.
   Env-origin transforms are now authored only on env-root prims; nested assets keep
   their intra-env transform and inherit the origin from their env parent.
+* Fixed :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` raising
+  ``ModuleNotFoundError: No module named 'omni.physx'`` when spawning a fixed-base
+  articulation on kitless backends (e.g. Newton). The world fixed joint for
+  ``fix_root_link=True`` is now authored directly with USD when ``omni.physx`` is
+  unavailable, while Kit-based backends keep using ``omni.physx`` unchanged.
