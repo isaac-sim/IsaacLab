@@ -159,7 +159,7 @@ class PhysxCfg(PhysicsCfg):
 
         This flag is ignored when using the PGS solver (:attr:`solver_type` is 0).
 
-    .. deprecated::
+    .. deprecated:: TBD
 
         This flag is deprecated and will be removed in a future PhysX release.
     """
