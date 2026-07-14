@@ -5,8 +5,9 @@
 
 """Shared core-only environment configurations for Isaac Lab tests.
 
-This module imports simulator-dependent configuration types and must therefore be imported
-only after :class:`isaaclab.app.AppLauncher` starts the simulator.
+The configuration classes and factories in this module are safe to import, construct, and
+validate without starting :class:`isaaclab.app.AppLauncher`. Creating environments from the
+resulting configurations still requires a running simulator.
 """
 
 from __future__ import annotations
