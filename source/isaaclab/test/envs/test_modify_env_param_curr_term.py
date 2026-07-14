@@ -22,6 +22,8 @@ from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 
+pytestmark = pytest.mark.integration
+
 
 def replace_value(env, env_id, data, value, num_steps):
     if env.common_step_counter > num_steps and data != value:

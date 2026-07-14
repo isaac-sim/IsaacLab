@@ -30,6 +30,7 @@ from isaaclab.envs.utils.camera_view import (
     resolve_tiled_env_indices,
 )
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
+from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
@@ -513,9 +514,25 @@ class KitVisualizer(BaseVisualizer):
         ``omni:scenePartition`` token. Interactive viewport cameras live outside
         ``/World/envs`` and are created by Kit, so they do not inherit the env-root
         primvar authored by :class:`~isaaclab.scene.InteractiveScene`.
+
+        This method is a no-op unless ``ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1``,
+        matching the opt-in behaviour of
+        :meth:`~isaaclab_physx.renderers.IsaacRtxRenderer.prepare_stage`.
         """
+
+        if not isaac_rtx_per_env_scene_partition_enabled():
+            return
+
         if num_envs <= 0 or self._controlled_camera_path is None:
             return
+
+        logger.debug(
+            "[KitVisualizer] Per-environment Isaac RTX scene partitioning is enabled"
+            " (ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION=1)."
+            " Authoring omni:scenePartition attribute onto viewport camera '%s'.",
+            self._controlled_camera_path,
+        )
+
         env_id = self._resolved_visible_env_ids[0] if self._resolved_visible_env_ids else 0
         camera_prim = usd_stage.GetPrimAtPath(self._controlled_camera_path)
         if not camera_prim.IsValid() or not camera_prim.IsA(UsdGeom.Camera):

@@ -24,6 +24,8 @@ app.asyncRendering = true
 app.asyncRenderingLowLatency = true
 
 # For XR, set this back to default "#define OMNI_MAX_DEVICE_GROUP_DEVICE_COUNT 16"
+renderer.multiGpu.enabled = true
+renderer.multiGpu.autoEnable = true
 renderer.multiGpu.maxGpuCount = 16
 renderer.gpuEnumeration.glInterop.enabled = true # Allow Kit XR OpenXR to render headless
 

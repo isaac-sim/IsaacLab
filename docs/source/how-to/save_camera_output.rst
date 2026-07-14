@@ -94,8 +94,8 @@ To run the accompanying script, execute the following command:
    # Usage with saving and drawing
    python scripts/tutorials/04_sensors/run_usd_camera.py --save --draw --enable_cameras
 
-   # Usage with saving only in headless mode
-   python scripts/tutorials/04_sensors/run_usd_camera.py --save --headless --enable_cameras
+   # Usage with saving only (no visualizer)
+   python scripts/tutorials/04_sensors/run_usd_camera.py --save --enable_cameras
 
 
 The simulation should start, and you can observe different objects falling down. An output folder will be created

@@ -24,8 +24,9 @@ App-level deterministic rendering via ``AppLauncher``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The ``--deterministic`` flag is provided by :meth:`isaaclab.app.AppLauncher.add_app_launcher_args`.
-After the simulation app starts, :class:`~isaaclab.app.app_launcher.AppLauncher` applies RTX/RTPT carb
-settings via :meth:`~isaaclab.app.app_launcher.AppLauncher.apply_rtx_determinism_settings`.
+:class:`~isaaclab.app.app_launcher.AppLauncher` publishes ``/isaaclab/render/deterministic``.
+The Isaac RTX backend reads it on init and applies
+:func:`isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`.
 
 **Strict PyTorch determinism** (calling :meth:`~isaaclab.utils.seed.configure_seed` with
 ``torch_deterministic=True`` when you pass ``--deterministic``) is wired into the RL training entrypoints
@@ -36,12 +37,12 @@ optional PyTorch deterministic algorithms. Whether you need ``--deterministic`` 
 depends on the workload: **physics-only** simulation does not require it; **RTX** rendering
 (non-minimal mode) does require it for reproducible imagery; **Newton** rendering does not require it.
 
-To enable deterministic RTX settings from the app launcher, pass ``--deterministic``.
+Pass ``--deterministic`` to enable reproducible rendering from the app launcher. (Isaac RTX only)
 
 .. code-block:: bash
 
   ./isaaclab.sh train --rl_library rl_games \
-    --task Isaac-Cartpole-Camera --enable_cameras --headless --deterministic
+    --task Isaac-Cartpole-Camera --enable_cameras --deterministic
 
 For results on our determinacy testing for RL training, please check the GitHub Pull Request `#940`_.
 

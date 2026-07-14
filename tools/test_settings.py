@@ -60,14 +60,14 @@ PER_TEST_TIMEOUTS = {
     "test_outdated_sensor.py": 1000,
     "test_multi_tiled_camera.py": 1000,
     "test_multirotor.py": 1000,
-    "test_shadow_hand_vision_presets.py": 5000,
+    "test_shadow_hand_camera_presets.py": 5000,
     "test_environments_newton.py": 5000,
     "test_surface_gripper.py": 3000,
-    # For some reason kitless rendering tests take much longer on CI than local machines.
-    # After we pin OVRTX to 0.3 we need to test whether it is still reproducible.
+    # The first test in the kitless rendering test job will take longer to run due to RTX shader compilation.
     "test_rendering_cartpole_kitless.py": 2000,
-    "test_rendering_dexsuite_kuka_kitless.py": 2000,
-    "test_rendering_shadow_hand_kitless.py": 2000,
+    # Budgets ~45s per AOV: one full RTX env is built and torn down per parametrized data type.
+    # Bump this when renderer cases are added to _DEFAULT_SENSOR_DATA_TYPES in rendering_test_utils.py.
+    "test_rendering_shadow_hand.py": 1500,
     "test_contact_sensor.py": 2000,
 }
 """A dictionary of tests and their timeouts in seconds.
@@ -142,12 +142,12 @@ TEST_RL_ENVS = [
     "Isaac-Cartpole",
     # manipulation
     "Isaac-Lift-Cube-Franka",
-    "Isaac-Open-Drawer-Franka-v0",
+    "Isaac-Open-Drawer-Franka",
     # dexterous manipulation
-    "Isaac-Repose-Cube-Allegro-v0",
+    "Isaac-Reorient-Cube-Allegro",
     # locomotion
-    "Isaac-Velocity-Flat-Unitree-Go2-v0",
-    "Isaac-Velocity-Rough-Anymal-D-v0",
-    "Isaac-Velocity-Rough-G1-v0",
+    "Isaac-Velocity-Flat-UnitreeGo2",
+    "Isaac-Velocity-Rough-AnymalD",
+    "Isaac-Velocity-Rough-G1",
 ]
 """A list of RL environments to test training on by run_train_envs.py"""

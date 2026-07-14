@@ -28,10 +28,14 @@ with contextlib.suppress(ModuleNotFoundError):
     import isaacsim  # noqa: F401
     from isaacsim import SimulationApp
 
+from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
+from isaaclab.utils._device import set_cuda_device
 
 # import logger
 logger = logging.getLogger(__name__)
+
+_FABRIC_GPU_INTEROP_ENV = "ISAACLAB_FABRIC_USE_GPU_INTEROP"
 
 # Suppress noisy debug-level logs from third-party libraries
 logging.getLogger("websockets").setLevel(logging.WARNING)
@@ -80,6 +84,10 @@ class AppLauncher:
         value >-1. In other words, if ``livestream=-1``, then the value from the environment variable
         ``LIVESTREAM`` is used.
 
+    The ``ISAACLAB_FABRIC_USE_GPU_INTEROP`` environment variable optionally overrides the
+    ``/physics/fabricUseGPUInterop`` Kit setting. Set it to ``1`` or ``0`` to enable or disable the setting.
+    When unset, Kit's configured default is preserved.
+
     """
 
     @staticmethod
@@ -117,16 +125,6 @@ class AppLauncher:
                 settings.set_int("/isaaclab/visualizer/max_visible_envs", int(launcher_args["max_visible_envs"]))
             else:
                 settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
-
-    @staticmethod
-    def apply_rtx_determinism_settings() -> None:
-        """Apply RTX RealTimePathTracing and disable RTPT caches for reproducible RTX rendering.
-        Called after :class:`isaacsim.simulation_app.SimulationApp` starts whenever ``--deterministic`` is set.
-        """
-        settings = get_settings_manager()
-        settings.set_string("/rtx/rendermode", "RealTimePathTracing")
-        settings.set_bool("/rtx/rtpt/cached/enabled", False)
-        settings.set_bool("/rtx/rtpt/lightcache/cached/enabled", False)
 
     @staticmethod
     def _parse_visualizer_csv(value: str) -> list[str] | None:
@@ -187,25 +185,6 @@ class AppLauncher:
                 "Invalid `visualizer_intent`: `has_kit_visualizer=True` requires `has_any_visualizers=True`."
             )
         return has_any, has_kit
-
-    @staticmethod
-    def _resolve_python_logging_level(launcher_args: dict) -> int:
-        """Resolve the Python logging level that should survive Kit startup."""
-        if launcher_args.get("verbose", False) or "--verbose" in sys.argv:
-            return logging.DEBUG
-        if launcher_args.get("info", False) or "--info" in sys.argv:
-            return logging.INFO
-
-        level = logging.getLogger().getEffectiveLevel()
-        return logging.WARNING if level == logging.NOTSET else level
-
-    @staticmethod
-    def _apply_python_logging_level(level: int) -> None:
-        """Apply a Python logging level to the root logger and its handlers."""
-        root_logger = logging.getLogger()
-        root_logger.setLevel(level)
-        for handler in root_logger.handlers:
-            handler.setLevel(level)
 
     @staticmethod
     def _ensure_isaaclab_info_stream_handler() -> None:
@@ -277,7 +256,7 @@ class AppLauncher:
             launcher_args.update(kwargs)
 
         # Preserve the Python logging intent before Kit installs its own logging bridge.
-        self._python_logging_level = AppLauncher._resolve_python_logging_level(launcher_args)
+        self._python_logging_level = resolve_python_logging_level(launcher_args)
 
         # Define config members that are read from env-vars or keyword args
         self._headless: bool  # 0: GUI, 1: Headless
@@ -312,8 +291,6 @@ class AppLauncher:
 
         # Hide the stop button in the toolbar
         self._hide_stop_button()
-        # Set settings from the given rendering mode
-        self._set_rendering_mode_settings(launcher_args)
         # Set animation recording settings
         self._set_animation_recording_settings(launcher_args)
         # Set visualizer settings (if requested)
@@ -378,6 +355,39 @@ class AppLauncher:
     """
 
     @staticmethod
+    def _fuse_kit_args(argv: list[str]) -> list[str]:
+        """Fuse ``["--kit_args", "<option-like value>"]`` pairs into single ``--kit_args=<value>`` tokens.
+
+        Argparse rejects a value token that itself looks like an option (starts with ``-`` and contains
+        no space) with "expected one argument", and Kit arguments always start with ``--``. Fusing the
+        pair into the ``=``-attached form before parsing makes the documented space-separated form work
+        for a single Kit argument. All other forms pass through unchanged.
+
+        Args:
+            argv: Command-line tokens, excluding the program name.
+
+        Returns:
+            Tokens with any affected pair replaced by one fused token.
+        """
+        fused: list[str] = []
+        index = 0
+        while index < len(argv):
+            token = argv[index]
+            next_token = argv[index + 1] if index + 1 < len(argv) else None
+            if (
+                token == "--kit_args"
+                and next_token is not None
+                and next_token.startswith("-")
+                and " " not in next_token
+            ):
+                fused.append(f"--kit_args={next_token}")
+                index += 2
+            else:
+                fused.append(token)
+                index += 1
+        return fused
+
+    @staticmethod
     def add_app_launcher_args(parser: argparse.ArgumentParser) -> None:
         """Utility function to configure AppLauncher arguments with an existing argument parser object.
 
@@ -425,12 +435,16 @@ class AppLauncher:
           * If headless is True and enable_cameras is False, the experience file is set to
             ``isaaclab.python.headless.kit``.
 
-        * ``deterministic`` (bool): After startup, applies RTX/RTPT carb settings for reproducible rendering.
+        * ``deterministic`` (bool): Publishes ``/isaaclab/render/deterministic`` for reproducible rendering.
           Does not change how the default experience file is chosen.
 
         * ``kit_args`` (str): Optional command line arguments to be passed to Omniverse Kit directly.
           Arguments should be combined into a single string separated by space.
           Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"
+          A single Kit argument works in both the space-separated and the ``=``-attached form
+          (e.g. ``--kit_args "--ext-folder=/path/to/ext1"`` or ``--kit_args=--ext-folder=/path/to/ext1``).
+          Isaac Lab experiences use one renderer GPU by default. Applications that need single-process
+          multi-GPU rendering can override the ``renderer.multiGpu`` settings through this argument.
 
         * ``visualizer`` (str): Visualizer backends to enable.
           Valid options are:
@@ -452,6 +466,10 @@ class AppLauncher:
         Args:
             parser: An argument parser instance to be extended with the AppLauncher specific options.
         """
+        # argparse rejects an option-like value token after "--kit_args"; fuse the pair before
+        # anything parses the command line so the space-separated form works on every entry point
+        sys.argv[1:] = AppLauncher._fuse_kit_args(sys.argv[1:])
+
         # If the passed parser has an existing _HelpAction when passed,
         # we here remove the options which would invoke it,
         # to be added back after the additional AppLauncher args
@@ -557,18 +575,7 @@ class AppLauncher:
             "--deterministic",
             action="store_true",
             default=AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1],
-            help="After startup, apply RTX/RTPT settings for reproducible rendering (see AppLauncher docs).",
-        )
-        arg_group.add_argument(
-            "--rendering_mode",
-            type=str,
-            action=ExplicitAction,
-            choices={"performance", "balanced", "quality"},
-            help=(
-                "Sets the rendering mode. Preset settings files can be found in apps/rendering_modes."
-                ' Can be "performance", "balanced", or "quality".'
-                " Individual settings can be overwritten by using the RenderCfg class."
-            ),
+            help="Request reproducible rendering (see AppLauncher docs).",
         )
         arg_group.add_argument(
             "--kit_args",
@@ -576,7 +583,9 @@ class AppLauncher:
             default="",
             help=(
                 "Command line arguments for Omniverse Kit as a string separated by a space delimiter."
-                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2"'
+                ' Example usage: --kit_args "--ext-folder=/path/to/ext1 --ext-folder=/path/to/ext2".'
+                ' A single Kit argument works in both forms: --kit_args "--ext-folder=/path/to/ext1"'
+                " or --kit_args=--ext-folder=/path/to/ext1."
             ),
         )
         arg_group.add_argument(
@@ -628,7 +637,6 @@ class AppLauncher:
         "device": ([str], "cuda:0"),
         "experience": ([str], ""),
         "deterministic": ([bool], False),
-        "rendering_mode": ([str], "balanced"),
         "max_visible_envs": ([int, type(None)], None),
     }
     """A dictionary of arguments added manually by the :meth:`AppLauncher.add_app_launcher_args` method.
@@ -1072,13 +1080,11 @@ class AppLauncher:
         logger.info("Using device: %s", device)
 
     def _set_deferred_cuda_device(self) -> None:
-        """Set the current torch CUDA device after Kit startup."""
+        """Set the current CUDA device after Kit startup."""
         if self._deferred_cuda_device_id is None:
             return
 
-        import torch
-
-        torch.cuda.set_device(self._deferred_cuda_device_id)
+        set_cuda_device(self._deferred_cuda_device_id)
 
     def _resolve_experience_file(self, launcher_args: dict):
         """Resolve experience file related settings."""
@@ -1089,8 +1095,22 @@ class AppLauncher:
             launcher_args.get("deterministic", AppLauncher._APPLAUNCHER_CFG_INFO["deterministic"][1])
         )
 
-        # If nothing is provided resolve the experience file based on the headless flag
-        kit_app_exp_path = os.environ["EXP_PATH"]
+        # If nothing is provided resolve the experience file based on the headless flag.
+        # EXP_PATH is normally set by ``isaacsim.bootstrap_kernel()`` on first import.
+        # If it is not set (e.g. on aarch64 where the bootstrap early-return triggered
+        # under certain install layouts), derive it from the installed isaacsim package.
+        kit_app_exp_path = os.environ.get("EXP_PATH")
+        if not kit_app_exp_path:
+            try:
+                import isaacsim as _isaacsim_for_paths
+            except ImportError as e:
+                raise RuntimeError(
+                    "EXP_PATH is not set and the 'isaacsim' package is not importable."
+                    " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
+                    " before launching AppLauncher."
+                ) from e
+            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+            os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
         # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
         # if launcher_args.get("use_isaacsim_45", False):
@@ -1140,8 +1160,21 @@ class AppLauncher:
 
         # Resolve the absolute path of the experience file
         self._sim_experience_file = os.path.abspath(self._sim_experience_file)
-        self._apply_rtx_determinism = bool(deterministic_mode)
+        # Detect a known incompatibility between Isaac Lab and Isaac Sim full-app experiences.
+        if self._livestream in {1, 2} and self._experience_depends_on_isaacsim_exp_full(self._sim_experience_file):
+            raise ValueError(
+                "The experience file depends on 'isaacsim.exp.full', which is known to hang or invalidate PhysX "
+                "tensor views when launched through Isaac Lab with livestreaming enabled. Omit '--experience' so "
+                "AppLauncher can select an Isaac Lab experience file, or remove the 'isaacsim.exp.full' dependency."
+            )
+        self._deterministic_rendering = bool(deterministic_mode)
         logger.info("Loading experience file: %s", self._sim_experience_file)
+
+    @staticmethod
+    def _experience_depends_on_isaacsim_exp_full(experience_file: str) -> bool:
+        """Return whether a Kit experience directly depends on ``isaacsim.exp.full``."""
+        with open(experience_file, encoding="utf-8") as file:
+            return re.search(r'^\s*["\']isaacsim\.exp\.full["\']\s*=', file.read(), re.MULTILINE) is not None
 
     def _resolve_anim_recording_settings(self, launcher_args: dict):
         """Resolve animation recording settings."""
@@ -1155,11 +1188,21 @@ class AppLauncher:
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""
-        # Resolve additional arguments passed to Kit
-        self._kit_args = []
-        if "kit_args" in launcher_args:
-            self._kit_args = [arg for arg in launcher_args["kit_args"].split()]
-            sys.argv += self._kit_args
+        self._kit_args = launcher_args.get("kit_args", "").split()
+
+        fabric_gpu_interop = os.environ.get(_FABRIC_GPU_INTEROP_ENV)
+        if fabric_gpu_interop is not None:
+            if fabric_gpu_interop not in {"0", "1"}:
+                raise ValueError(
+                    f"Invalid value for environment variable `{_FABRIC_GPU_INTEROP_ENV}`: {fabric_gpu_interop}."
+                    " Expected: 0 or 1."
+                )
+            argument = f"--/physics/fabricUseGPUInterop={'true' if fabric_gpu_interop == '1' else 'false'}"
+            setting = argument.partition("=")[0]
+            if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
+                self._kit_args.append(argument)
+
+        sys.argv += self._kit_args
 
     def _create_app(self):
         """Launch and create the SimulationApp based on the parsed simulation config."""
@@ -1180,12 +1223,18 @@ class AppLauncher:
             sys.stdout = open(os.devnull, "w")  # noqa: SIM115
 
         # pytest may have left some things in sys.argv, this will check for some of those
-        # do a mark and sweep to remove any -m pytest and -m isaacsim_ci and -c **/pyproject.toml
+        # do a mark and sweep to remove any -m pytest, -m isaacsim_ci, -m windows_ci, -m arm_ci,
+        # and -c **/pyproject.toml
         indexes_to_remove = []
         for idx, arg in enumerate(sys.argv[:-1]):
             if arg == "-m":
                 value_for_dash_m = sys.argv[idx + 1]
-                if "pytest" in value_for_dash_m or "isaacsim_ci" in value_for_dash_m:
+                if (
+                    "pytest" in value_for_dash_m
+                    or "isaacsim_ci" in value_for_dash_m
+                    or "windows_ci" in value_for_dash_m
+                    or "arm_ci" in value_for_dash_m
+                ):
                     indexes_to_remove.append(idx)
                     indexes_to_remove.append(idx + 1)
             if arg.startswith("--config-file=") and "pyproject.toml" in arg:
@@ -1226,14 +1275,10 @@ class AppLauncher:
         # Use SettingsManager (backs onto carb when in Omniverse after initialize_carb_settings).
         initialize_carb_settings()
 
-        if self._apply_rtx_determinism:
-            AppLauncher.apply_rtx_determinism_settings()
-            logger.info("Applied RTX settings for deterministic rendering (--deterministic).")
-
         # After SimulationApp starts, Kit installs its Python log bridge at DEBUG level.
         # Re-apply the intended Python logging level, then add a scoped stream handler for
         # Isaac Lab INFO records that Kit's bridge does not mirror to the console.
-        AppLauncher._apply_python_logging_level(self._python_logging_level)
+        apply_python_logging_level(self._python_logging_level)
         if self._python_logging_level <= logging.INFO:
             AppLauncher._ensure_isaaclab_info_stream_handler()
         elif self._python_logging_level == logging.WARNING:
@@ -1242,6 +1287,10 @@ class AppLauncher:
             # handlers remain at WARNING.
             logging.getLogger().setLevel(logging.INFO)
         settings = get_settings_manager()
+
+        # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
+        # SimulationContext and renderers consume this setting during their initialization.
+        settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
 
         # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
@@ -1260,6 +1309,9 @@ class AppLauncher:
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)
         settings.set_bool("/isaaclab/render/rtx_sensors", False)
+
+        # publish the reproducible-rendering intent; rendering backends read this on initialization
+        settings.set_bool("/isaaclab/render/deterministic", self._deterministic_rendering)
 
         # set fabric update flag to disable updating transforms when rendering is disabled
         settings.set_bool("/physics/fabricUpdateTransformations", self._rendering_enabled())
@@ -1285,18 +1337,6 @@ class AppLauncher:
                 play_button_group._stop_button.visible = False  # type: ignore
                 play_button_group._stop_button.enabled = False  # type: ignore
                 play_button_group._stop_button = None  # type: ignore
-
-    def _set_rendering_mode_settings(self, launcher_args: dict) -> None:
-        """Store RTX rendering mode in settings."""
-        rendering_mode = launcher_args.get("rendering_mode")
-
-        if rendering_mode is None:
-            # use default kit rendering settings if cameras are disabled and a rendering mode is not selected
-            if not self._enable_cameras:
-                return
-            rendering_mode = ""
-
-        get_settings_manager().set_string("/isaaclab/rendering/rendering_mode", rendering_mode)
 
     def _set_animation_recording_settings(self, launcher_args: dict) -> None:
         """Store animation recording settings in settings."""

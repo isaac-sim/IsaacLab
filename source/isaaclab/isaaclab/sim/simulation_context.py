@@ -7,14 +7,12 @@ from __future__ import annotations
 
 import gc
 import logging
-import os
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
-import tomllib
 import torch
 
 import isaaclab.sim as sim_utils
@@ -175,7 +173,6 @@ class SimulationContext:
             self.cfg.physics = self._physics
         self.physics_manager: type[PhysicsManager] = self._physics.class_type
         self.physics_manager.initialize(self)
-        self._apply_render_cfg_settings()
 
         # Initialize visualizer state (visualizers are created lazily during initialize_visualizers()).
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
@@ -193,7 +190,12 @@ class SimulationContext:
         self._has_gui = bool(self.get_setting("/isaaclab/has_gui"))
         self._has_offscreen_render = bool(self.get_setting("/isaaclab/render/offscreen"))
         self._xr_enabled = bool(self.get_setting("/isaaclab/xr/enabled"))
-        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created
+        # Note: has_rtx_sensors is NOT cached because it changes when Camera sensors are created.
+        # It is a global setting flipped to True by RTX Camera creation (see Camera._initialize_impl)
+        # and is never flipped back. Reset it here so a fresh SimulationContext reflects its own
+        # cameras rather than inheriting a stale True from a previously torn-down simulation. RTX
+        # cameras created for this instance re-set it to True before it is read.
+        self.set_setting("/isaaclab/render/rtx_sensors", False)
         self._pending_camera_view: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self.vis_marker_registry = VisMarkerRegistry()
 
@@ -221,106 +223,6 @@ class SimulationContext:
         self._services = ServiceLocator()
 
         type(self)._instance = self  # Mark as valid singleton only after successful init
-
-    def _apply_render_cfg_settings(self) -> None:
-        """Apply render preset and overrides from SimulationCfg.render."""
-        # TODO: Refactor render preset + override handling to a dedicated RenderingQualityCfg
-        # (name subject to change) to keep quality profiles and carb mappings centralized.
-        render_cfg = getattr(self.cfg, "render", None)
-        if render_cfg is None:
-            return
-
-        # Priority:
-        # 1) CLI/AppLauncher setting if present, 2) SimulationCfg.render.rendering_mode.
-        rendering_mode = self.get_setting("/isaaclab/rendering/rendering_mode")
-        if not rendering_mode:
-            rendering_mode = getattr(render_cfg, "rendering_mode", None)
-
-        if rendering_mode:
-            supported_rendering_modes = {"performance", "balanced", "quality"}
-            if rendering_mode not in supported_rendering_modes:
-                raise ValueError(
-                    f"RenderCfg rendering mode '{rendering_mode}' not in supported modes "
-                    f"{sorted(supported_rendering_modes)}."
-                )
-
-            isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-            from isaaclab.utils.version import get_isaac_sim_version
-
-            if get_isaac_sim_version().major < 6:
-                isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
-
-            preset_filename = os.path.join(isaaclab_app_exp_path, f"rendering_modes/{rendering_mode}.kit")
-            if os.path.exists(preset_filename):
-                with open(preset_filename, "rb") as file:
-                    preset_dict = tomllib.load(file)
-
-                def _apply_nested(data: dict[str, Any], path: str = "") -> None:
-                    for key, value in data.items():
-                        key_path = f"{path}/{key}" if path else f"/{key}"
-                        if isinstance(value, dict):
-                            _apply_nested(value, key_path)
-                        else:
-                            self.set_setting(key_path.replace(".", "/"), value)
-
-                _apply_nested(preset_dict)
-            else:
-                logger.warning("[SimulationContext] Render preset file not found: %s", preset_filename)
-
-        # RenderCfg fields mapped to setting paths (stored via SettingsManager)
-        field_to_setting = {
-            "enable_translucency": "/rtx/translucency/enabled",
-            "enable_reflections": "/rtx/reflections/enabled",
-            "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
-            "enable_dlssg": "/rtx-transient/dlssg/enabled",
-            "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
-            "dlss_mode": "/rtx/post/dlss/execMode",
-            "enable_direct_lighting": "/rtx/directLighting/enabled",
-            "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
-            "enable_shadows": "/rtx/shadows/enabled",
-            "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
-            "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
-            "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
-            "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
-            "subpixel_mode": "/rtx/raytracing/subpixel/mode",
-            "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
-            "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
-            "view_tile_limit": "/rtx/viewTile/limit",
-            # RT2 path tracing settings
-            "max_bounces": "/rtx/rtpt/maxBounces",
-            "split_glass": "/rtx/rtpt/splitGlass",
-            "split_clearcoat": "/rtx/rtpt/splitClearcoat",
-            "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
-        }
-
-        for key, value in vars(render_cfg).items():
-            if value is None or key in {"rendering_mode", "carb_settings", "antialiasing_mode"}:
-                continue
-            setting_path = field_to_setting.get(key)
-            if setting_path is not None:
-                self.set_setting(setting_path, value)
-
-        # Raw overrides from render_cfg (stored via SettingsManager)
-        extra_settings = getattr(render_cfg, "carb_settings", None)
-        if extra_settings:
-            for key, value in extra_settings.items():
-                if "_" in key:
-                    path = "/" + key.replace("_", "/")
-                elif "." in key:
-                    path = "/" + key.replace(".", "/")
-                else:
-                    path = key
-                self.set_setting(path, value)
-
-        # Optional anti-aliasing mode via Replicator (best-effort, may use Omniverse APIs)
-        antialiasing_mode = getattr(render_cfg, "antialiasing_mode", None)
-        if antialiasing_mode is not None:
-            try:
-                import omni.replicator.core as rep
-
-                rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
-            except Exception:
-                pass
 
     def _init_usd_physics_scene(self) -> None:
         """Create and configure the USD physics scene."""
@@ -401,10 +303,15 @@ class SimulationContext:
 
     @property
     def is_rendering(self) -> bool:
-        """Returns whether rendering is active (GUI, RTX sensors, visualizers, or XR)."""
+        """Returns whether *continuous* rendering is active (GUI, RTX sensors, visualizers, or XR).
+
+        This drives the per-step render/Kit-pump loop, so it deliberately excludes headless
+        offscreen rendering (``--video`` / ``rgb_array``). Offscreen frames are produced on
+        demand when a frame is actually requested (via :meth:`render`), not on every step; see
+        :meth:`has_offscreen_render` and :meth:`can_render_rgb_array` for the capability checks.
+        """
         return (
             self._has_gui
-            or self._has_offscreen_render
             or self.get_setting("/isaaclab/render/rtx_sensors")
             or bool(self.resolve_visualizer_types())
             or self._xr_enabled
@@ -724,11 +631,11 @@ class SimulationContext:
         self.physics_manager.reset(soft)
         for viz in self._visualizers:
             viz.reset(soft)
+        if not self._visualizers:
+            # Initialize visualizers after PhysX sim views are ready, but before play() pumps timeline events.
+            self.initialize_visualizers()
         # Start the timeline so the play button is pressed
         self.physics_manager.play()
-        if not self._visualizers:
-            # Initialize visualizers after PhysX sim view is ready.
-            self.initialize_visualizers()
         self._is_playing = True
         self._is_stopped = False
 

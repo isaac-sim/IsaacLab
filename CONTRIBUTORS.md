@@ -44,6 +44,8 @@ Guidelines for modifications:
 
 ## Contributors
 
+* Advait Jayant
+* Agon Serifi
 * Alessandro Assirelli
 * Alex Omar
 * Alexander Millane
@@ -56,6 +58,7 @@ Guidelines for modifications:
 * Antonin Raffin
 * Arjun Bhardwaj
 * Ashwin Varghese Kuruttukulam
+* Asier Arranz
 * Bikram Pandit
 * Bingjie Tang
 * Bocheng Zou
@@ -73,6 +76,7 @@ Guidelines for modifications:
 * CY (Chien-Ying) Chen
 * David Leon
 * David Yang
+* Daniela Hasenbring
 * Dhananjay Shendre
 * Dhyan Thakkar
 * Dongxuan Fan
@@ -110,6 +114,7 @@ Guidelines for modifications:
 * Jingzhou Liu
 * Jinqi Wei
 * Jinyeob Kim
+* Jiwen Cai
 * Johnson Sun
 * Juana Du
 * Kaixi Bao
@@ -117,6 +122,7 @@ Guidelines for modifications:
 * Kousheek Chakraborty
 * Kris Wilson
 * Krishna Lakhi
+* Lin He
 * Lionel Gulich
 * Lorenz Wellhausen
 * Lotus Li
@@ -126,10 +132,12 @@ Guidelines for modifications:
 * Marco Alesiani
 * Masoud Moghani
 * Mateo Guaman Castro
+* Matthew Taylor
 * Maurice Rahme
 * Michael Gussert
 * Michael Lin
 * Michael Noseworthy
+* Michal Hapala
 * Miguel Alonso Jr
 * Mihir Kulkarni
 * Mingxue Gu
@@ -157,6 +165,7 @@ Guidelines for modifications:
 * Qingyang Jiang
 * Qinxi Yu
 * Rafael Wiltz
+* Rebecca Zhang
 * Renaud Poncelet
 * René Zurbrügg
 * Richard Schmitt
@@ -183,6 +192,7 @@ Guidelines for modifications:
 * Tsz Ki GAO
 * Tyler Lum
 * Victor Khaustov
+* Vidur Vij
 * Virgilio Gómez Lambo
 * Vladimir Fokow
 * Wei Yang

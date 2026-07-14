@@ -41,6 +41,12 @@ def isaaclab_root() -> Path:
     return find_isaaclab_root()
 
 
+@pytest.fixture(scope="session")
+def cartpole_smoke_script() -> Path:
+    """Path to the shared Cartpole smoke probe executed inside installed environments."""
+    return Path(__file__).resolve().parent / "misc" / "cartpole_training_smoke.py"
+
+
 @pytest.fixture
 def tmp_venv(tmp_path: Path):
     """Create a temporary Python virtual-environment and tear it down after the test.
@@ -100,6 +106,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 
 
 def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line("markers", "smoke: tests for core installation, task, and RL functionality")
     config.addinivalue_line("markers", "bug: bug-regression tests (use bug id as argument)")
     config.addinivalue_line("markers", "gpu: tests that require a GPU")
     config.addinivalue_line("markers", "docker: tests that only run inside Docker")

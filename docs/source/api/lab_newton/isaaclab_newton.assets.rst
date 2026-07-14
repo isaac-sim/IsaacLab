@@ -15,6 +15,9 @@
     RigidObjectCollectionData
     DeformableObject
     DeformableObjectData
+    MPMObject
+    MPMObjectCfg
+    MPMObjectData
 
 .. currentmodule:: isaaclab_newton.assets
 
@@ -77,6 +80,25 @@ Deformable Object
   :show-inheritance:
 
 .. autoclass:: DeformableObjectData
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+MPM Object
+----------
+
+.. autoclass:: MPMObject
+  :members:
+  :inherited-members:
+  :show-inheritance:
+
+.. autoclass:: MPMObjectCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: MPMObjectData
   :members:
   :inherited-members:
   :show-inheritance:

@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script demonstrates different legged robots.
+"""This script demonstrates different legged robots.
 
 .. code-block:: bash
 

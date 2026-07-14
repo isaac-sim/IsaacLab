@@ -332,14 +332,94 @@ class _RandomizeRigidBodyMaterialNewton:
         self._newton_manager.add_model_change(self._notify_shape_properties)
 
 
+class _RandomizeRigidBodyMaterialOvPhysx:
+    """OVPhysX backend implementation for material randomization.
+
+    OVPhysX runs the PhysX solver, so PhysX's 64000 unique-material limit applies and this
+    mirrors the PhysX bucket approach: ``num_buckets`` materials are pre-sampled once and
+    randomly assigned to shapes. Materials are written through the asset's
+    :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-collision-shape
+    ``shape_friction_and_restitution`` binding (shape ``[N, S, 3]`` = static friction,
+    dynamic friction, restitution).
+
+    OVPhysX does not expose per-body shape counts, so only whole-asset (all shapes)
+    randomization is supported; ``asset_cfg.body_ids`` must select all bodies.
+    """
+
+    def __init__(
+        self, cfg: EventTermCfg, env: ManagerBasedEnv, asset: RigidObject | Articulation, asset_cfg: SceneEntityCfg
+    ):
+        import isaaclab_ovphysx.tensor_types as ovphysx_tt  # noqa: PLC0415
+
+        from isaaclab.assets import BaseArticulation  # noqa: PLC0415
+
+        # OVPhysX cannot map body ids to shape ranges (no per-body shape counts), so a
+        # per-body subset cannot be indexed -- fail loud rather than silently randomize all.
+        if asset_cfg.body_ids != slice(None):
+            raise NotImplementedError(
+                "randomize_rigid_body_material on the OVPhysX backend randomizes all shapes only; "
+                "per-body selection via 'asset_cfg.body_ids' is not supported because the ovphysx "
+                "wheel does not expose per-body shape counts. Use the default (all bodies)."
+            )
+
+        # sample material buckets once (PhysX-style; the 64000 unique-material limit applies)
+        static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
+        dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
+        restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        num_buckets = int(cfg.params.get("num_buckets", 1))
+        ranges = torch.tensor([static_friction_range, dynamic_friction_range, restitution_range], device="cpu")
+        self.material_buckets = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_buckets, 3), device="cpu")
+        if cfg.params.get("make_consistent", False):
+            self.material_buckets[:, 1] = torch.min(self.material_buckets[:, 0], self.material_buckets[:, 1])
+
+        self.asset = asset
+        self.asset_cfg = asset_cfg
+        # per-shape material tensor type for this asset family (articulation vs rigid body)
+        self._material_type = (
+            ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
+            if isinstance(asset, BaseArticulation)
+            else ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
+        )
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor | None,
+        static_friction_range: tuple[float, float],
+        dynamic_friction_range: tuple[float, float],
+        restitution_range: tuple[float, float],
+        num_buckets: int,
+        asset_cfg: SceneEntityCfg,
+        make_consistent: bool = False,
+    ):
+        view = self.asset.root_view
+        # read the current per-shape material [N, S, 3] on the binding's native (sim) device
+        materials = wp.to_torch(view.get_attribute(self._material_type))
+        num_instances, num_shapes = materials.shape[0], materials.shape[1]
+
+        # resolve environment ids on the material buffer's device
+        if env_ids is None:
+            env_ids = torch.arange(num_instances, device=materials.device)
+        else:
+            env_ids = env_ids.to(materials.device)
+
+        # randomly assign pre-sampled bucket materials to every shape of the selected envs
+        bucket_ids = torch.randint(0, num_buckets, (len(env_ids), num_shapes), device="cpu")
+        material_samples = self.material_buckets[bucket_ids].to(materials.device)  # [len(env_ids), S, 3]
+        materials[env_ids] = material_samples
+
+        # write the full buffer back through the view (read-modify-write keeps non-selected envs)
+        view.set_attribute(self._material_type, wp.from_torch(materials.contiguous(), dtype=wp.float32))
+
+
 class randomize_rigid_body_material(ManagerTermBase):
     """Randomize the physics materials on all geometries of the asset.
 
     This function creates a set of physics materials with random static friction, dynamic friction, and restitution
     values and assigns them to the geometries of the asset.
 
-    Automatically detects the active physics backend (PhysX or Newton) and delegates to
-    the appropriate backend-specific implementation:
+    Automatically detects the active physics backend (PhysX, Newton, or OVPhysX) and delegates
+    to the appropriate backend-specific implementation:
 
     - **PhysX**: Uses the 3-tuple material format (static_friction, dynamic_friction, restitution)
       with bucket-based assignment (limited to 64000 unique materials). Applied via the PhysX
@@ -347,6 +427,11 @@ class randomize_rigid_body_material(ManagerTermBase):
     - **Newton**: Samples friction (mu) and restitution continuously per shape (no bucket
       limitation). Newton uses a single friction coefficient, so ``dynamic_friction_range``
       and ``num_buckets`` are ignored. Applied directly to Newton's view-level bindings.
+    - **OVPhysX**: Runs the PhysX solver, so the same 3-tuple, bucket-based assignment is used,
+      written through the :class:`~isaaclab_ovphysx.sim.views.OvPhysxView` on the per-shape
+      ``shape_friction_and_restitution`` binding. Randomizes all shapes only -- per-body
+      selection (``asset_cfg.body_ids``) is not supported (the wheel exposes no per-body shape
+      counts).
 
     If the flag ``make_consistent`` is set to ``True``, the dynamic friction is set to be less than or equal to
     the static friction (PhysX only). This obeys the physics constraint on friction values.
@@ -394,22 +479,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         # ``NewtonKaminoManager``, ...) are caught by the substring branch.
         manager_name = env.sim.physics_manager.__name__.lower()
         if manager_name == "ovphysxmanager":
-            # No OVPhysX implementation yet — wheel-side
-            # ``RIGID_BODY_MATERIAL`` tensor binding is missing; randomization
-            # would require per-body view creation that ovphysx does not yet
-            # expose.  Run with material randomization disabled (warns once).
-            import logging  # noqa: PLC0415
-
-            logging.getLogger(__name__).warning(
-                "randomize_rigid_body_material is a no-op on the OVPhysX backend "
-                "(wheel-side gap — see docs/superpowers/specs/2026-04-27-ovphysx-contact-api-gaps.md)."
-            )
-
-            class _Noop:
-                def __call__(self, *args, **kwargs):
-                    pass
-
-            self._impl = _Noop()
+            self._impl = _RandomizeRigidBodyMaterialOvPhysx(cfg, env, self.asset, self.asset_cfg)
         elif "newton" in manager_name:
             self._impl = _RandomizeRigidBodyMaterialNewton(cfg, env, self.asset, self.asset_cfg)
         elif "physx" in manager_name:
@@ -996,6 +1066,7 @@ class randomize_physics_scene_gravity(ManagerTermBase):
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        self._last_gravity_params: tuple | None = None
 
         manager_name = env.sim.physics_manager.__name__.lower()
         if "newton" in manager_name:
@@ -1047,12 +1118,16 @@ class randomize_physics_scene_gravity(ManagerTermBase):
             operation: The operation to apply ('add', 'scale', or 'abs').
             distribution: The distribution type (cached at init, param ignored at runtime).
         """
-        self._dist_param_0[0] = gravity_distribution_params[0][0]
-        self._dist_param_1[0] = gravity_distribution_params[1][0]
-        self._dist_param_0[1] = gravity_distribution_params[0][1]
-        self._dist_param_1[1] = gravity_distribution_params[1][1]
-        self._dist_param_0[2] = gravity_distribution_params[0][2]
-        self._dist_param_1[2] = gravity_distribution_params[1][2]
+        # rewrite the baked device tensors only when the curriculum-driven ranges change
+        params = (tuple(gravity_distribution_params[0]), tuple(gravity_distribution_params[1]))
+        if params != self._last_gravity_params:
+            self._last_gravity_params = params
+            self._dist_param_0[0] = gravity_distribution_params[0][0]
+            self._dist_param_1[0] = gravity_distribution_params[1][0]
+            self._dist_param_0[1] = gravity_distribution_params[0][1]
+            self._dist_param_1[1] = gravity_distribution_params[1][1]
+            self._dist_param_0[2] = gravity_distribution_params[0][2]
+            self._dist_param_1[2] = gravity_distribution_params[1][2]
 
         if self._backend == "newton":
             self._call_newton(env, env_ids, operation)
@@ -1768,50 +1843,64 @@ def push_by_setting_velocity(
     asset.write_root_velocity_to_sim_index(root_velocity=vel_w, env_ids=env_ids)
 
 
-def reset_root_state_uniform(
-    env: ManagerBasedEnv,
-    env_ids: torch.Tensor,
-    pose_range: dict[str, tuple[float, float]],
-    velocity_range: dict[str, tuple[float, float]],
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
-):
+class reset_root_state_uniform(ManagerTermBase):
     """Reset the asset root state to a random position and velocity uniformly within the given ranges.
 
-    This function randomizes the root position and velocity of the asset.
+    This term randomizes the root position and velocity of the asset.
 
     * It samples the root position from the given ranges and adds them to the default root position, before setting
       them into the physics simulation.
     * It samples the root orientation from the given ranges and sets them into the physics simulation.
     * It samples the root velocity from the given ranges and sets them into the physics simulation.
 
-    The function takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
+    The term takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
+
+    The range dictionaries are materialized as device tensors once at construction.
     """
-    # extract the used quantities (to enable type-hinting)
-    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
-    # get default root state
-    default_root_pose = asset.data.default_root_pose.torch[env_ids].clone()
-    default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
-    # poses
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        keys = ("x", "y", "z", "roll", "pitch", "yaw")
+        pose_range = cfg.params.get("pose_range", {})
+        velocity_range = cfg.params.get("velocity_range", {})
+        self._pose_ranges = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=env.device)
+        self._velocity_ranges = torch.tensor(
+            [tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=env.device
+        )
 
-    positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
-    orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
-    orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
-    # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
-    rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        pose_range: dict[str, tuple[float, float]],
+        velocity_range: dict[str, tuple[float, float]],
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    ):
+        # extract the used quantities (to enable type-hinting)
+        asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+        # get default root state
+        # tensor indexing already returns a copy, and the values are only read below
+        default_root_pose = asset.data.default_root_pose.torch[env_ids]
+        default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
-    velocities = default_root_vel + rand_samples
+        # poses
+        ranges = self._pose_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
 
-    # set into the physics simulation
-    asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
-    asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
+        positions = default_root_pose[:, 0:3] + env.scene.env_origins[env_ids] + rand_samples[:, 0:3]
+        orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
+        orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
+        # velocities
+        ranges = self._velocity_ranges
+        rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 6), device=asset.device)
+
+        velocities = default_root_vel + rand_samples
+
+        # set into the physics simulation
+        asset.write_root_pose_to_sim_index(root_pose=torch.cat([positions, orientations], dim=-1), env_ids=env_ids)
+        asset.write_root_velocity_to_sim_index(root_velocity=velocities, env_ids=env_ids)
 
 
 def reset_root_state_with_random_orientation(
@@ -2014,6 +2103,163 @@ def reset_joints_by_offset(
     # set into the physics simulation
     asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+
+
+class reset_joints_within_limits_range(ManagerTermBase):
+    """Reset an articulation's joints to a random position in the given limit ranges.
+
+    This function samples random values for the joint position and velocities from the given limit ranges.
+    The values are then set into the physics simulation.
+
+    The parameters to the function are:
+
+    * :attr:`position_range` - a dictionary of position ranges for each joint. The keys of the dictionary are the
+      joint names (or regular expressions) of the asset.
+    * :attr:`velocity_range` - a dictionary of velocity ranges for each joint. The keys of the dictionary are the
+      joint names (or regular expressions) of the asset.
+    * :attr:`use_default_offset` - a boolean flag to indicate if the ranges are offset by the default joint state.
+      Defaults to False.
+    * :attr:`asset_cfg` - the configuration of the asset to reset. Defaults to the entity named "robot" in the scene.
+    * :attr:`operation` - whether the ranges are scaled values of the joint limits, or absolute limits.
+       Defaults to "abs".
+
+    The dictionary values are a tuple of the form ``(a, b)``. Based on the operation, these values are
+    interpreted differently:
+
+    * If the operation is "abs", the values are the absolute minimum and maximum values for the joint, i.e.
+      the joint range becomes ``[a, b]``.
+    * If the operation is "scale", the values are the scaling factors for the joint limits, i.e. the joint range
+      becomes ``[a * min_joint_limit, b * max_joint_limit]``.
+
+    If the ``a`` or the ``b`` value is ``None``, the joint limits are used instead.
+
+    Note:
+        If the dictionary does not contain a key, the joint position or joint velocity is set to the default value for
+        that joint.
+
+    """
+
+    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
+        # initialize the base class
+        super().__init__(cfg, env)
+
+        # check if the cfg has the required parameters
+        if "position_range" not in cfg.params or "velocity_range" not in cfg.params:
+            raise ValueError(
+                "The term 'reset_joints_within_limits_range' requires parameters: 'position_range' and"
+                f" 'velocity_range'. Received: {list(cfg.params.keys())}."
+            )
+
+        # parse the parameters
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
+        use_default_offset = cfg.params.get("use_default_offset", False)
+        operation = cfg.params.get("operation", "abs")
+        # check if the operation is valid
+        if operation not in ["abs", "scale"]:
+            raise ValueError(
+                f"For event 'reset_joints_within_limits_range', unknown operation: '{operation}'."
+                " Please use 'abs' or 'scale'."
+            )
+
+        # extract the used quantities (to enable type-hinting)
+        self._asset: Articulation = env.scene[asset_cfg.name]
+        default_joint_pos = self._asset.data.default_joint_pos.torch[0]
+        default_joint_vel = self._asset.data.default_joint_vel.torch[0]
+
+        # create buffers to store the joint position range
+        self._pos_ranges = self._asset.data.soft_joint_pos_limits.torch[0].clone()
+        # parse joint position ranges
+        pos_joint_ids = []
+        for joint_name, joint_range in cfg.params["position_range"].items():
+            # find the joint ids
+            joint_ids = self._asset.find_joints(joint_name)[0]
+            pos_joint_ids.extend(joint_ids)
+
+            # set the joint position ranges based on the given values
+            if operation == "abs":
+                if joint_range[0] is not None:
+                    self._pos_ranges[joint_ids, 0] = joint_range[0]
+                if joint_range[1] is not None:
+                    self._pos_ranges[joint_ids, 1] = joint_range[1]
+            else:  # operation == "scale"
+                if joint_range[0] is not None:
+                    self._pos_ranges[joint_ids, 0] *= joint_range[0]
+                if joint_range[1] is not None:
+                    self._pos_ranges[joint_ids, 1] *= joint_range[1]
+            # add the default offset
+            if use_default_offset:
+                self._pos_ranges[joint_ids] += default_joint_pos[joint_ids].unsqueeze(1)
+
+        # store the joint pos ids (used later to sample the joint positions)
+        self._pos_joint_ids = torch.tensor(pos_joint_ids, device=self._pos_ranges.device)
+        self._pos_ranges = self._pos_ranges[self._pos_joint_ids]
+
+        # create buffers to store the joint velocity range
+        soft_joint_vel_limits_torch = self._asset.data.soft_joint_vel_limits.torch[0]
+        self._vel_ranges = torch.stack([-soft_joint_vel_limits_torch, soft_joint_vel_limits_torch], dim=1)
+        # parse joint velocity ranges
+        vel_joint_ids = []
+        for joint_name, joint_range in cfg.params["velocity_range"].items():
+            # find the joint ids
+            joint_ids = self._asset.find_joints(joint_name)[0]
+            vel_joint_ids.extend(joint_ids)
+
+            # set the joint velocity ranges based on the given values
+            if operation == "abs":
+                if joint_range[0] is not None:
+                    self._vel_ranges[joint_ids, 0] = joint_range[0]
+                if joint_range[1] is not None:
+                    self._vel_ranges[joint_ids, 1] = joint_range[1]
+            else:  # operation == "scale"
+                if joint_range[0] is not None:
+                    self._vel_ranges[joint_ids, 0] = joint_range[0] * self._vel_ranges[joint_ids, 0]
+                if joint_range[1] is not None:
+                    self._vel_ranges[joint_ids, 1] = joint_range[1] * self._vel_ranges[joint_ids, 1]
+            # add the default offset
+            if use_default_offset:
+                self._vel_ranges[joint_ids] += default_joint_vel[joint_ids].unsqueeze(1)
+
+        # store the joint vel ids (used later to sample the joint positions)
+        self._vel_joint_ids = torch.tensor(vel_joint_ids, device=self._vel_ranges.device)
+        self._vel_ranges = self._vel_ranges[self._vel_joint_ids]
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_ids: torch.Tensor,
+        position_range: dict[str, tuple[float | None, float | None]],
+        velocity_range: dict[str, tuple[float | None, float | None]],
+        use_default_offset: bool = False,
+        asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+        operation: Literal["abs", "scale"] = "abs",
+    ):
+        # get default joint state
+        joint_pos = self._asset.data.default_joint_pos.torch[env_ids].clone()
+        joint_vel = self._asset.data.default_joint_vel.torch[env_ids].clone()
+
+        # sample random joint positions for each joint
+        if len(self._pos_joint_ids) > 0:
+            joint_pos_shape = (len(env_ids), len(self._pos_joint_ids))
+            joint_pos[:, self._pos_joint_ids] = math_utils.sample_uniform(
+                self._pos_ranges[:, 0], self._pos_ranges[:, 1], joint_pos_shape, device=joint_pos.device
+            )
+            # clip the joint positions to the joint limits
+            joint_pos_limits = self._asset.data.soft_joint_pos_limits.torch[0, self._pos_joint_ids]
+            joint_pos = joint_pos.clamp(joint_pos_limits[:, 0], joint_pos_limits[:, 1])
+
+        # sample random joint velocities for each joint
+        if len(self._vel_joint_ids) > 0:
+            joint_vel_shape = (len(env_ids), len(self._vel_joint_ids))
+            joint_vel[:, self._vel_joint_ids] = math_utils.sample_uniform(
+                self._vel_ranges[:, 0], self._vel_ranges[:, 1], joint_vel_shape, device=joint_vel.device
+            )
+            # clip the joint velocities to the joint limits
+            joint_vel_limits = self._asset.data.soft_joint_vel_limits.torch[0, self._vel_joint_ids]
+            joint_vel = joint_vel.clamp(-joint_vel_limits, joint_vel_limits)
+
+        # set into the physics simulation
+        self._asset.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
+        self._asset.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
 
 def reset_nodal_state_uniform(
@@ -2335,9 +2581,34 @@ class randomize_visual_color(ManagerTermBase):
         asset = env.scene[asset_cfg.name]
 
         # create the affected prim path
-        if not mesh_name.startswith("/"):
-            mesh_name = "/" + mesh_name
-        mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        # note: Never match the articulation root prim. Authoring on the root (the SetInstanceable
+        #   and material binding below) invalidates the PhysX articulation view, crashing a later
+        #   at-play body-name resolution (root_view.shared_metatype becomes None). So we scope to
+        #   descendant visual prims, mirroring randomize_visual_texture_material.
+        if mesh_name:
+            # explicit mesh override
+            if not mesh_name.startswith("/"):
+                mesh_name = "/" + mesh_name
+            mesh_prim_path = f"{asset.cfg.prim_path}{mesh_name}"
+        else:
+            # default: the configured bodies' visual meshes
+            body_names = asset_cfg.body_names
+            if isinstance(body_names, str):
+                body_names_regex = body_names
+            elif isinstance(body_names, list):
+                body_names_regex = "|".join(body_names)
+            else:
+                body_names_regex = ".*"
+            pattern_with_visuals = f"{asset.cfg.prim_path}/{body_names_regex}/visuals"
+            if sim_utils.find_matching_prim_paths(pattern_with_visuals):
+                mesh_prim_path = pattern_with_visuals
+            else:
+                # fall back to any descendant if the asset has no ".../visuals" layout
+                mesh_prim_path = f"{asset.cfg.prim_path}/.*"
+                logging.info(
+                    f"Pattern '{pattern_with_visuals}' found no prims. Falling back to '{mesh_prim_path}'"
+                    " for color randomization."
+                )
         # TODO: Need to make it work for multiple meshes.
 
         # extract the replicator version

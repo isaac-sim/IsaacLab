@@ -67,6 +67,7 @@ class DirectMARLEnv(gym.Env):
 
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
 
@@ -480,6 +481,17 @@ class DirectMARLEnv(gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
+            # capture the per-agent terminal observation before reset and expose it for Same-Step
+            # autoreset. apply the same observation noise as the returned obs so the bootstrapped
+            # terminal value matches the distribution the policy is trained on.
+            if self.cfg.compute_final_obs:
+                terminal_obs = self._get_observations()
+                if self.cfg.observation_noise_model:
+                    for agent, obs in terminal_obs.items():
+                        if agent in self._observation_noise_model:
+                            terminal_obs[agent] = self._observation_noise_model[agent](obs)
+                for agent, obs in terminal_obs.items():
+                    self.extras[agent]["final_obs"] = obs
             self._reset_idx(reset_env_ids)
 
         # post-step: step interval event

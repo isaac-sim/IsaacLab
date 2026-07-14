@@ -15,7 +15,7 @@ from . import agents
 ##
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-v0",
+    id="IsaacContrib-Stack-Cube-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_joint_pos_env_cfg:FrankaCubeStackEnvCfg",
@@ -24,7 +24,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Instance-Randomize-Franka-v0",
+    id="IsaacContrib-Stack-Cube-Instance-Randomize-Franka",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": (
@@ -40,7 +40,7 @@ gym.register(
 ##
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Rel-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackEnvCfg",
@@ -50,7 +50,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_visuomotor_env_cfg:FrankaCubeStackVisuomotorEnvCfg",
@@ -60,7 +60,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor-Cosmos",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": (
@@ -72,7 +72,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-RedGreen-Franka-IK-Rel-v0",
+    id="IsaacContrib-Stack-Cube-RedGreen-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackRedGreenEnvCfg",
@@ -82,7 +82,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-RedGreenBlue-Franka-IK-Rel-v0",
+    id="IsaacContrib-Stack-Cube-RedGreenBlue-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackRedGreenBlueEnvCfg",
@@ -93,7 +93,7 @@ gym.register(
 
 
 gym.register(
-    id="Isaac-Stack-Cube-BlueGreen-Franka-IK-Rel-v0",
+    id="IsaacContrib-Stack-Cube-BlueGreen-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackBlueGreenEnvCfg",
@@ -103,7 +103,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-BlueGreenRed-Franka-IK-Rel-v0",
+    id="IsaacContrib-Stack-Cube-BlueGreenRed-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg:FrankaCubeStackBlueGreenRedEnvCfg",
@@ -113,7 +113,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Abs-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Abs",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_abs_env_cfg:FrankaCubeStackEnvCfg",
@@ -123,7 +123,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Instance-Randomize-Franka-IK-Rel-v0",
+    id="IsaacContrib-Stack-Cube-Instance-Randomize-Franka-IK-Rel",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": (
@@ -134,7 +134,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Rel-Blueprint-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_blueprint_env_cfg:FrankaCubeStackBlueprintEnvCfg",
@@ -143,7 +143,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Franka-IK-Rel-Skillgen-v0",
+    id="IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.stack_ik_rel_env_cfg_skillgen:FrankaCubeStackSkillgenEnvCfg",
@@ -153,7 +153,7 @@ gym.register(
 )
 
 gym.register(
-    id="Isaac-Stack-Cube-Bin-Franka-IK-Rel-Mimic-v0",
+    id="IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.bin_stack_ik_rel_env_cfg:FrankaBinStackEnvCfg",

@@ -82,48 +82,43 @@ class CartpolePPORunnerWithSymmetryCfg(CartpolePPORunnerCfg):
 class CartpoleCameraPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """CNN policy for the raw RGB/depth camera observation pipelines."""
 
-    num_steps_per_env = 16
-    max_iterations = 500
+    num_steps_per_env = 64
+    max_iterations = 200
     save_interval = 50
     experiment_name = "cartpole_camera"
-    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
+    obs_groups = {"actor": ["policy"], "critic": ["critic"]}
+    clip_actions = 1.0
     actor = RslRlCNNModelCfg(
         cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-            output_channels=[32, 64, 64],
-            kernel_size=[8, 4, 3],
-            stride=[4, 2, 1],
+            output_channels=[8, 16, 16],
+            kernel_size=[5, 3, 3],
+            stride=[2, 2, 2],
             activation="relu",
         ),
-        hidden_dims=[512],
+        hidden_dims=[64],
         activation="elu",
         obs_normalization=False,
         distribution_cfg=RslRlCNNModelCfg.GaussianDistributionCfg(init_std=1.0),
     )
-    critic = RslRlCNNModelCfg(
-        cnn_cfg=RslRlCNNModelCfg.CNNCfg(
-            output_channels=[32, 64, 64],
-            kernel_size=[8, 4, 3],
-            stride=[4, 2, 1],
-            activation="relu",
-        ),
-        hidden_dims=[512],
+    critic = RslRlMLPModelCfg(
+        hidden_dims=[32, 32],
         activation="elu",
         obs_normalization=False,
     )
     algorithm = RslRlPpoAlgorithmCfg(
-        value_loss_coef=1.0,
+        value_loss_coef=2.0,
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.005,
-        num_learning_epochs=5,
-        num_mini_batches=4,
-        learning_rate=1.0e-4,
-        schedule="adaptive",
+        entropy_coef=0.0,
+        num_learning_epochs=4,
+        num_mini_batches=16,
+        learning_rate=3.0e-4,
+        schedule="fixed",
         gamma=0.99,
         lam=0.95,
-        desired_kl=0.01,
+        desired_kl=0.008,
         max_grad_norm=1.0,
-        share_cnn_encoders=True,
+        share_cnn_encoders=False,
     )
 
 

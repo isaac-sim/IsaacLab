@@ -72,6 +72,7 @@ class DirectRLEnv(gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
     }
     """Metadata for the environment."""
 
@@ -471,6 +472,14 @@ class DirectRLEnv(gym.Env):
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
         if len(reset_env_ids) > 0:
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            # apply the same observation noise as the returned obs (policy space only) so the
+            # bootstrapped terminal value matches the distribution the policy is trained on.
+            if self.cfg.compute_final_obs:
+                terminal_obs = self._get_observations()
+                if self.cfg.observation_noise_model:
+                    terminal_obs["policy"] = self._observation_noise_model(terminal_obs["policy"])
+                self.extras["final_obs"] = terminal_obs
             self._reset_idx(reset_env_ids)
             # if sensors are added to the scene, make sure we render to reflect changes in reset
             if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:

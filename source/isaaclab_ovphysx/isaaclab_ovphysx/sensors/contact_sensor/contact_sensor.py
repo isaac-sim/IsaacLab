@@ -17,11 +17,12 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 from isaaclab.sensors.contact_sensor import BaseContactSensor
-from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ovphysx.tensor_types as TT
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .contact_sensor_data import ContactSensorData
 from .kernels import (
@@ -92,6 +93,9 @@ class ContactSensor(BaseContactSensor):
         self._physx_instance: Any = None
         self._contact_binding: Any = None
         self._pose_binding: Any = None
+        # The pose binding (track_pose only) is managed by an OvPhysxView; the ContactBinding
+        # is a separate wheel API the view does not wrap.
+        self._root_view: OvPhysxView | None = None
         # Pre-allocated read buffers, populated in _create_buffers.
         self._net_forces_flat_buf: wp.array | None = None
         self._force_matrix_flat_buf: wp.array | None = None
@@ -198,10 +202,9 @@ class ContactSensor(BaseContactSensor):
                 "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas()
             )
 
-        asset_prim, body_parent = resolve_matching_prims_from_source(parent_expr)[0]
-        walk_root = asset_prim.GetPath().pathString
-        prims = get_all_matching_child_prims(walk_root, predicate=has_contact_report, traverse_instance_prims=False)
-        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim in prims]
+        resolve_kwargs = {"raise_if_no_matches": False, "traverse_instance_prims": False}
+        body_matches = resolve_matching_prims_from_source(parent_expr, has_contact_report, **resolve_kwargs)
+        body_names = [prim.GetPath().pathString.rsplit("/", 1)[-1] for prim, _ in body_matches]
         if not body_names:
             raise RuntimeError(
                 f"Sensor at path '{self.cfg.prim_path}' could not find any bodies with contact reporter API."
@@ -212,6 +215,8 @@ class ContactSensor(BaseContactSensor):
 
         # Build glob patterns: one per (env, sensor body).
         # IsaacLab path forms map to ovphysx fnmatch globs the same way Articulation does.
+        _, body_path_expr = body_matches[0]
+        body_parent = body_path_expr.rsplit("/", 1)[0]
         base_glob = re.sub(r"\{ENV_REGEX_NS\}", "*", body_parent)
         base_glob = re.sub(r"\.\*", "*", base_glob)
         sensor_patterns = [f"{base_glob}/{name}" for name in body_names]
@@ -280,10 +285,8 @@ class ContactSensor(BaseContactSensor):
                     "per body."
                 )
             single_pose_pattern = f"{base_glob}/{body_names[0]}"
-            self._pose_binding = physx_instance.create_tensor_binding(
-                pattern=single_pose_pattern,
-                tensor_type=TT.RIGID_BODY_POSE,
-            )
+            self._root_view = OvPhysxView(physx_instance, pattern=single_pose_pattern, device=self._device)
+            self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
             if self._pose_binding.count != self._contact_binding.sensor_count:
                 raise RuntimeError(
                     "RIGID_BODY_POSE binding count mismatch."
@@ -377,7 +380,7 @@ class ContactSensor(BaseContactSensor):
 
         if self.cfg.track_pose:
             # Read pose into [num_envs * num_sensors, 7] float32 -> view as transformf.
-            self._pose_binding.read(self._poses_flat_buf)
+            self._root_view.read_into(TT.RIGID_BODY_POSE, self._poses_flat_buf)
             poses_flat = self._poses_flat_buf.view(wp.transformf)
             wp.launch(
                 split_flat_pose_to_pos_quat,
@@ -517,4 +520,7 @@ class ContactSensor(BaseContactSensor):
             with contextlib.suppress(Exception):
                 self._pose_binding.destroy()
         self._pose_binding = None
+        # Drop the view too: it caches the same (now-destroyed) pose binding, so leaving it set
+        # would keep a destroyed handle reachable. _initialize_impl rebuilds a fresh view on play.
+        self._root_view = None
         self._physx_instance = None

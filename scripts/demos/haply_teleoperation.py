@@ -14,8 +14,17 @@ teleoperate a robotic arm in Isaac Lab. The Haply provides:
 
 .. code-block:: bash
 
-    # Usage
+    # Usage with default PhysX physics and default kit visualizer.
     ./isaaclab.sh -p scripts/demos/haply_teleoperation.py
+
+    # Usage with Newton visualizer and default PhysX physics.
+    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --visualizer newton
+
+    # Usage with Newton (MJWarp) physics and default kit visualizer.
+    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --physics newton_mjwarp
+
+    # Usage with Newton visualizer and Newton (MJWarp) physics.
+    ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --visualizer newton --physics newton_mjwarp
 
     # With custom WebSocket URI
     ./isaaclab.sh -p scripts/demos/haply_teleoperation.py --websocket_uri ws://localhost:10001
@@ -29,15 +38,20 @@ Prerequisites:
     3. Connect Inverse3 and VerseGrip devices
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
-parser = argparse.ArgumentParser(description="Demonstration of Haply device teleoperation with Isaac Lab.")
+parser = argparse.ArgumentParser(
+    description="Demonstration of Haply device teleoperation with Isaac Lab.",
+    conflict_handler="resolve",
+)
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
+parser.add_argument("--physics", default="physx", choices=["physx", "newton_mjwarp"], help="Physics backend.")
 parser.add_argument(
     "--websocket_uri",
     type=str,
@@ -51,25 +65,34 @@ parser.add_argument(
     help="Position sensitivity scaling factor.",
 )
 
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 parser.set_defaults(visualizer=["kit"])
 args_cli = parser.parse_args()
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, AssetBaseCfg, RigidObject, RigidObjectCfg
+
+##
+# Pre-defined configs
+##
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from isaaclab.devices import HaplyDevice, HaplyDeviceCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.devices import HaplyDeviceCfg
+from isaaclab.physics import PhysicsCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort: skip
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation, RigidObject
+    from isaaclab.devices import HaplyDevice
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sensors import ContactSensor
 
 # Workspace mapping constants
 HAPLY_Z_OFFSET = 0.35
@@ -141,7 +164,8 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
     )
 
-    robot: Articulation = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = robot_cfg.class_type(robot_cfg)
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
 
@@ -176,9 +200,9 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
 
 
 def run_simulator(
-    sim: sim_utils.SimulationContext,
-    scene: InteractiveScene,
-    haply_device: HaplyDevice,
+    sim: "sim_utils.SimulationContext",
+    scene: "InteractiveScene",
+    haply_device: "HaplyDevice",
 ):
     """Runs the simulation loop with Haply teleoperation."""
     sim_dt = sim.get_physics_dt()
@@ -246,7 +270,7 @@ def run_simulator(
     print("  Move handler: Control pose of the end-effector")
     print("  Button A: Open | Button B: Close | Button C: Rotate EE (60°)\n")
 
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         if count % 10000 == 0:
             count = 1
             root_pose = robot.data.default_root_pose.torch.clone()
@@ -343,30 +367,30 @@ def run_simulator(
 
 def main():
     """Main function to set up and run the Haply teleoperation demo."""
-    sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=1 / 200)
-    sim = sim_utils.SimulationContext(sim_cfg)
+    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+        sim_cfg = sim_utils.SimulationCfg(device=args_cli.device, dt=1 / 200, physics=physics_cfg)
+        sim = sim_utils.SimulationContext(sim_cfg)
 
-    # set the simulation view
-    sim.set_camera_view([1.6, 1.0, 1.70], [0.4, 0.0, 1.0])
+        # set the simulation view
+        sim.set_camera_view([1.6, 1.0, 1.70], [0.4, 0.0, 1.0])
 
-    scene_cfg = FrankaHaplySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
+        scene_cfg = FrankaHaplySceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+        scene = scene_cfg.class_type(scene_cfg)
 
-    # Create Haply device
-    haply_cfg = HaplyDeviceCfg(
-        websocket_uri=args_cli.websocket_uri,
-        pos_sensitivity=args_cli.pos_sensitivity,
-        sim_device=args_cli.device,
-        limit_force=2.0,
-    )
-    haply_device = HaplyDevice(cfg=haply_cfg)
-    print(f"[INFO] Haply connected: {args_cli.websocket_uri}")
+        # Create Haply device
+        haply_cfg = HaplyDeviceCfg(
+            websocket_uri=args_cli.websocket_uri,
+            pos_sensitivity=args_cli.pos_sensitivity,
+            sim_device=args_cli.device,
+            limit_force=2.0,
+        )
+        haply_device = haply_cfg.class_type(cfg=haply_cfg)
+        print(f"[INFO] Haply connected: {args_cli.websocket_uri}")
 
-    sim.reset()
+        sim.reset()
 
-    run_simulator(sim, scene, haply_device)
+        run_simulator(sim, scene, haply_device)
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()

@@ -13,8 +13,8 @@ of objects in the scene, the complexity of the physics simulation, and the hardw
 Here are some tips to improve performance:
 
 1. **Use Headless Mode**: Running the simulation in headless mode can significantly improve performance, especially
-   when rendering is not required. You can enable headless mode by using the ``--headless`` flag when running the
-   simulator.
+   when rendering is not required. For commands that do not select a visualizer, no viewer is launched unless the configuration requests one. If a config or
+   command would otherwise launch visualizers, pass ``--viz none`` to force-disable them.
 2. **Avoid Unnecessary Collisions**: If possible, reduce the number of object overlaps to reduce overhead in the simulation.
    Excessive contacts and collisions in the simulation can be expensive in the collision phase in the simulation.
 3. **Use Simplified Physics**: Consider using simplified physics collision geometries or lowering simulation fidelity
@@ -32,7 +32,7 @@ For example, if you have a complex mesh, you can create a simplified collision g
 of the mesh. This can be done in Isaac Sim through the UI by modifying the collision mesh and approximation methods.
 
 Additionally, we can often remove collision geometries on areas of the robot that are not important for training.
-In the Anymal-C robot, we keep the collision geometries for the kneeds and feet, but remove the collision geometries
+In the AnymalC robot, we keep the collision geometries for the kneeds and feet, but remove the collision geometries
 on other parts of the legs to optimize for performance.
 
 Simpler collision geometries such as primitive shapes like spheres will also yield better performance than complex meshes.

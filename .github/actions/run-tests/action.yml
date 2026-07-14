@@ -41,6 +41,14 @@ inputs:
       excluded. Combines with filter-pattern (include + exclude).
     default: ''
     required: false
+  test-k-expr:
+    description: >-
+      Global pytest -k expression applied inside every per-file pytest run
+      spawned by tools/conftest.py (combined with device-split selectors).
+      Unlike pytest-options, this reaches the individual test processes, so it
+      can deselect parametrized cases (e.g. "not ovphysx").
+    default: ''
+    required: false
   curobo-only:
     description: 'Run only cuRobo and SkillGen tests (requires the cuRobo Docker image)'
     default: 'false'
@@ -51,6 +59,14 @@ inputs:
     required: false
   include-files:
     description: 'Comma-separated list of specific test file paths to include (e.g., source/pkg/test/test_a.py,source/pkg/test/test_b.py)'
+    default: ''
+    required: false
+  test-node-ids-file:
+    description: 'TOML file containing exact pytest node IDs to run'
+    default: ''
+    required: false
+  test-node-ids-key:
+    description: 'Top-level key in test-node-ids-file containing the node IDs for this job'
     default: ''
     required: false
   shard-index:
@@ -69,12 +85,34 @@ inputs:
     description: 'Space-separated pip packages to install inside the Docker container before pytest starts'
     default: ''
     required: false
+  wheelhouse-host-dir:
+    description: 'Host directory containing wheelhouse/ and manifest.json for offline pip installs'
+    default: ''
+    required: false
+  wheelhouse-packages:
+    description: 'Space-separated packages to install from /tmp/ovphysx-wheelhouse with pip --no-index'
+    default: ''
+  ci-marker:
+    description: 'CI_MARKER value forwarded to the container (read by tools/conftest.py to select test files by pytest marker)'
+    default: ''
+    required: false
+  omni-github-test-type:
+    description: 'Test type stored on each uploaded omni-github test row'
+    default: 'pytest'
+    required: false
 
 runs:
   using: composite
   steps:
     - name: Run Tests in Docker Container
       shell: bash
+      env:
+        # Passed via env instead of inline ${{ }} interpolation: pytest options may
+        # contain spaces and quotes (e.g. -k "not ovphysx"), which would word-split
+        # the run_tests positional arguments if substituted textually.
+        PYTEST_OPTIONS: ${{ inputs.pytest-options }}
+        TEST_K_EXPR_INPUT: ${{ inputs.test-k-expr }}
+        CI_MARKER_INPUT: ${{ inputs.ci-marker }}
       run: |
         # Function to run tests in Docker container
         run_tests() {
@@ -93,6 +131,12 @@ runs:
           local shard_count="${13}"
           local volume_mount_source="${14}"
           local extra_pip_packages="${15}"
+          local test_node_ids_file="${16}"
+          local test_node_ids_key="${17}"
+          local wheelhouse_host_dir="${18}"
+          local wheelhouse_packages="${19}"
+          local test_k_expr="${20}"
+          local ci_marker="${21}"
           local logs_pid=""
           local wait_pid=""
           local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -118,6 +162,12 @@ runs:
           if [ -n "$extra_pip_packages" ]; then
             echo "With extra pip packages: $extra_pip_packages"
           fi
+          if [ -n "$wheelhouse_host_dir" ]; then
+            echo "With wheelhouse host directory: $wheelhouse_host_dir"
+          fi
+          if [ -n "$wheelhouse_packages" ]; then
+            echo "With wheelhouse packages: $wheelhouse_packages"
+          fi
           if [ -n "$filter_pattern" ]; then
             echo "With filter pattern: $filter_pattern"
           fi
@@ -130,8 +180,23 @@ runs:
           if [ -n "$include_files" ]; then
             echo "Include files: $include_files"
           fi
+          if [ -n "$test_node_ids_file" ]; then
+            echo "Test node IDs file: $test_node_ids_file"
+          fi
+          if [ -n "$test_node_ids_key" ]; then
+            echo "Test node IDs key: $test_node_ids_key"
+          fi
           if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
             echo "Shard: $shard_index of $shard_count"
+          fi
+
+          if [ -n "$test_node_ids_file" ] || [ -n "$test_node_ids_key" ]; then
+            if [ -z "$test_node_ids_file" ] || [ -z "$test_node_ids_key" ]; then
+              echo "Both test-node-ids-file and test-node-ids-key must be set together"
+              return 1
+            fi
+            export TEST_NODE_IDS_FILE="$test_node_ids_file"
+            export TEST_NODE_IDS_KEY="$test_node_ids_key"
           fi
 
           # Create reports directory
@@ -170,6 +235,16 @@ runs:
             echo "Setting TEST_INCLUDE_FILES=$include_files_compact"
           fi
 
+          if [ -n "${TEST_NODE_IDS:-}" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_NODE_IDS"
+            echo "Setting TEST_NODE_IDS"
+          fi
+
+          if [ -n "${TEST_NODE_IDS_FILE:-}" ]; then
+            docker_env_vars="$docker_env_vars -e TEST_NODE_IDS_FILE -e TEST_NODE_IDS_KEY"
+            echo "Setting TEST_NODE_IDS_FILE=$TEST_NODE_IDS_FILE TEST_NODE_IDS_KEY=$TEST_NODE_IDS_KEY"
+          fi
+
           if [ -n "$shard_index" ] && [ -n "$shard_count" ]; then
             docker_env_vars="$docker_env_vars -e TEST_SHARD_INDEX=$shard_index -e TEST_SHARD_COUNT=$shard_count"
             echo "Setting TEST_SHARD_INDEX=$shard_index TEST_SHARD_COUNT=$shard_count"
@@ -202,6 +277,17 @@ runs:
           if [ -n "$extra_pip_packages" ]; then
             export TEST_EXTRA_PIP_PACKAGES="$extra_pip_packages"
             docker_env_vars="$docker_env_vars -e TEST_EXTRA_PIP_PACKAGES"
+          fi
+
+          if [ -n "$test_k_expr" ]; then
+            export TEST_K_EXPR="$test_k_expr"
+            docker_env_vars="$docker_env_vars -e TEST_K_EXPR"
+            echo "Setting per-file pytest -k expression: $test_k_expr"
+          fi
+
+          if [ -n "$ci_marker" ]; then
+            docker_env_vars="$docker_env_vars -e CI_MARKER=$ci_marker"
+            echo "Setting CI_MARKER=$ci_marker"
           fi
 
           # Volume mount for deps-cache-hit mode: bind-mount the checked-out
@@ -252,6 +338,31 @@ runs:
             echo "🔵 Running volume-mounted container as host uid:gid ${host_uid}:${host_gid} (${host_user})"
           fi
 
+          if [ -n "$wheelhouse_host_dir" ]; then
+            if [ -z "$wheelhouse_packages" ]; then
+              echo "::error::wheelhouse-host-dir was provided but wheelhouse-packages is empty"
+              return 1
+            fi
+            if [ ! -d "${wheelhouse_host_dir}/wheelhouse" ]; then
+              echo "::error::wheelhouse directory not found: ${wheelhouse_host_dir}/wheelhouse"
+              return 1
+            fi
+            if [ ! -f "${wheelhouse_host_dir}/manifest.json" ]; then
+              echo "::error::wheelhouse manifest not found: ${wheelhouse_host_dir}/manifest.json"
+              return 1
+            fi
+
+            export TEST_WHEELHOUSE_PACKAGES="$wheelhouse_packages"
+            docker_volume_args="$docker_volume_args \
+              -v ${wheelhouse_host_dir}/wheelhouse:/tmp/ovphysx-wheelhouse:ro \
+              -v ${wheelhouse_host_dir}/manifest.json:/tmp/ovphysx-wheelhouse-manifest.json:ro"
+            docker_env_vars="$docker_env_vars \
+              -e TEST_WHEELHOUSE_PATH=/tmp/ovphysx-wheelhouse \
+              -e TEST_WHEELHOUSE_MANIFEST=/tmp/ovphysx-wheelhouse-manifest.json \
+              -e TEST_WHEELHOUSE_PACKAGES"
+            echo "Mounting wheelhouse at /tmp/ovphysx-wheelhouse"
+          fi
+
           echo "Docker environment variables: '$docker_env_vars'"
 
           # Run tests in a detached container and follow logs.  Running detached
@@ -284,6 +395,26 @@ runs:
               # fall back to slow repeated retries.
               unset HUB__ARGS__DETECT_ONLY
               ./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flatdict flaky \"coverage>=7.6.1\"
+              if [ -n \"\${TEST_WHEELHOUSE_PACKAGES:-}\" ]; then
+                if [ ! -d \"\${TEST_WHEELHOUSE_PATH:-}\" ]; then
+                  echo \"Wheelhouse path is missing: \${TEST_WHEELHOUSE_PATH:-}\"
+                  exit 1
+                fi
+                if [ ! -f \"\${TEST_WHEELHOUSE_MANIFEST:-}\" ]; then
+                  echo \"Wheelhouse manifest is missing: \${TEST_WHEELHOUSE_MANIFEST:-}\"
+                  exit 1
+                fi
+
+                echo \"Installing wheelhouse packages offline: \${TEST_WHEELHOUSE_PACKAGES}\"
+                ./isaaclab.sh -p -m pip uninstall -y \${TEST_WHEELHOUSE_PACKAGES} || true
+                PIP_NO_INDEX=1 ./isaaclab.sh -p -m pip install --no-index --find-links=\"\${TEST_WHEELHOUSE_PATH}\" --upgrade --force-reinstall \${TEST_WHEELHOUSE_PACKAGES}
+
+                case \" \${TEST_WHEELHOUSE_PACKAGES} \" in
+                  *\" ovphysx \"*)
+                    ./isaaclab.sh -p -c \"import importlib.metadata,json,os,pathlib; from packaging.version import Version; manifest=json.loads(pathlib.Path(os.environ['TEST_WHEELHOUSE_MANIFEST']).read_text(encoding='utf-8')); expected=manifest.get('ovphysx_version'); actual=importlib.metadata.version('ovphysx'); print(f'Resolved ovphysx package version: {actual}'); print(f'Wheelhouse manifest ovphysx version: {expected}'); import ovphysx; runtime=getattr(ovphysx, '__version__', actual); print(f'Imported ovphysx runtime version: {runtime}'); raise SystemExit(0 if Version(actual) == Version(expected) and Version(runtime) == Version(expected) else f'ovphysx version mismatch: installed {actual}, import {runtime}, manifest {expected}')\"
+                    ;;
+                esac
+              fi
               if [ -n \"\${TEST_EXTRA_PIP_PACKAGES:-}\" ]; then
                 echo \"Installing extra pip packages: \${TEST_EXTRA_PIP_PACKAGES}\"
                 ./isaaclab.sh -p -m pip install \${TEST_EXTRA_PIP_PACKAGES}
@@ -392,7 +523,7 @@ runs:
         }
 
         # Call the function with provided parameters
-        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "${{ inputs.pytest-options }}" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}"
+        run_tests "${{ inputs.test-path }}" "${{ inputs.result-file }}" "${{ inputs.container-name }}" "${{ inputs.image-tag }}" "${{ inputs.reports-dir }}" "$PYTEST_OPTIONS" "${{ inputs.filter-pattern }}" "${{ inputs.exclude-pattern }}" "${{ inputs.curobo-only }}" "${{ inputs.include-files }}" "${{ inputs.quarantined-only }}" "${{ inputs.shard-index }}" "${{ inputs.shard-count }}" "${{ inputs.volume-mount-source }}" "${{ inputs.extra-pip-packages }}" "${{ inputs.test-node-ids-file }}" "${{ inputs.test-node-ids-key }}" "${{ inputs.wheelhouse-host-dir }}" "${{ inputs.wheelhouse-packages }}" "$TEST_K_EXPR_INPUT" "$CI_MARKER_INPUT"
 
     - name: Kill container on cancellation
       if: cancelled()
@@ -421,6 +552,7 @@ runs:
 
     - name: Upload comparison images
       if: always()
+      id : upload-comparison-images
       uses: actions/upload-artifact@v7
       with:
         name: comparison-images-${{ inputs.container-name }}
@@ -430,12 +562,23 @@ runs:
 
     - name: Upload JUnit XML report
       if: always()
+      id: upload-junit-report
       uses: actions/upload-artifact@v7
       with:
         name: junit-${{ inputs.container-name }}
         path: ${{ inputs.reports-dir }}/${{ inputs.result-file }}
         if-no-files-found: ignore
         retention-days: 7
+
+    - name: Upload omni-github test results
+      if: always()
+      uses: ./.github/actions/upload-omni-github-test-results
+      with:
+        junit-file: ${{ inputs.reports-dir }}/${{ inputs.result-file }}
+        junit-log-url: ${{ steps.upload-junit-report.outputs.artifact-url }}
+        comparison-images-url: ${{ steps.upload-comparison-images.outputs.artifact-url }}
+        artifact-prefix: pytest-results-${{ github.job }}-${{ inputs.container-name }}
+        test-type: ${{ inputs.omni-github-test-type }}
 
     - name: Clean up Docker container
       if: always() && !cancelled()

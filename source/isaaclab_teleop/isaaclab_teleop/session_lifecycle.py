@@ -502,6 +502,21 @@ class TeleopSessionLifecycle:
         """
         return self._try_start_session()
 
+    def _resolved_retargeting_execution(self):
+        """Return the retargeting execution settings for the IsaacTeleop session.
+
+        :attr:`~isaaclab_teleop.IsaacTeleopCfg.retargeting_execution` defaults to
+        ``None`` so that constructing the config never requires the optional
+        ``isaacteleop`` package. The default is resolved here, at session-start
+        time, where ``isaacteleop`` is guaranteed to be importable.
+        """
+        if self._cfg.retargeting_execution is not None:
+            return self._cfg.retargeting_execution
+
+        from isaacteleop.teleop_session_manager import DeadlinePacingConfig, RetargetingExecutionConfig
+
+        return RetargetingExecutionConfig(mode="pipelined", pacing=DeadlinePacingConfig(safety_margin_s=0.025))
+
     def _try_start_session(self) -> bool:
         """Attempt to create and start the IsaacTeleop session.
 
@@ -563,7 +578,7 @@ class TeleopSessionLifecycle:
             teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
             oxr_handles=oxr_handles,
-            retargeting_execution=self._cfg.retargeting_execution,
+            retargeting_execution=self._resolved_retargeting_execution(),
             mcap_config=mcap_config,
         )
 
@@ -611,7 +626,7 @@ class TeleopSessionLifecycle:
             pipeline=self._pipeline,
             teleop_control_pipeline=self._teleop_control_pipeline,
             plugins=self._cfg.plugins,
-            retargeting_execution=self._cfg.retargeting_execution,
+            retargeting_execution=self._resolved_retargeting_execution(),
             mode=SessionMode.REPLAY,
             mcap_config=mcap_config,
         )

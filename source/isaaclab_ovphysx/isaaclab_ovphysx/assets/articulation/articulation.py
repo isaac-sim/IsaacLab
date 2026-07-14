@@ -32,6 +32,7 @@ from isaaclab_ovphysx.assets import kernels as shared_kernels
 from isaaclab_ovphysx.assets.kernels import _body_wrench_to_world
 from isaaclab_ovphysx.cloner import queue_ovphysx_replication
 from isaaclab_ovphysx.physics import OvPhysxManager
+from isaaclab_ovphysx.sim.views.ovphysx_view import OvPhysxView
 
 from .articulation_data import ArticulationData
 from .kernels import (
@@ -86,9 +87,9 @@ class Articulation(BaseArticulation):
         """
         super().__init__(cfg)
         queue_ovphysx_replication(cfg)
-        # bindings are populated eagerly in ``_initialize_impl``; the dict
-        # also caches any tensor type the user explicitly queries later
-        self._bindings: dict[int, Any] = {}
+        # the binding manager is created in ``_initialize_impl``; it owns all
+        # TensorBinding creation, caching, and the CPU/GPU device policy.
+        self._root_view: OvPhysxView | None = None
 
     """
     Properties
@@ -148,20 +149,23 @@ class Articulation(BaseArticulation):
         return self._body_names
 
     @property
-    def root_view(self) -> dict[int, Any]:
+    def root_view(self) -> OvPhysxView:
         """Root view for the asset.
 
-        OVPhysX exposes per-tensor-type bindings rather than a single opaque view object
-        as used by the PhysX and Newton backends. Callers that need low-level binding
-        access should call :meth:`_get_binding` rather than iterating this dict directly.
-        For high-level state access (instance counts, prim paths, transforms), use the
-        :attr:`num_instances`, :attr:`body_names`, and :attr:`~ArticulationData.root_link_pose_w`
-        accessors instead.
+        On OVPhysX this is an :class:`~isaaclab_ovphysx.sim.views.OvPhysxView`: a
+        string-keyed binding manager over the per-tensor-type ``TensorBinding`` handles,
+        rather than the single opaque view object used by the PhysX and Newton backends.
+        Address attributes by their lowercased ``TensorType`` name (e.g.
+        ``root_view.get_attribute("articulation_dof_stiffness")``) or by the
+        :class:`~isaaclab_ovphysx.tensor_types.TensorType` member itself. For high-level
+        state access (instance counts, prim paths, transforms), prefer the
+        :attr:`num_instances`, :attr:`body_names`, and
+        :attr:`~ArticulationData.root_link_pose_w` accessors instead.
 
         .. note::
             Use this view with caution. It requires handling of tensors in a specific way.
         """
-        return self._bindings
+        return self._root_view
 
     @property
     def instantaneous_wrench_composer(self) -> WrenchComposer:
@@ -238,22 +242,21 @@ class Articulation(BaseArticulation):
                 outputs=[self._wrench_buf],
                 device=self._device,
             )
-            binding = self._get_binding(TT.LINK_WRENCH)
-            if binding is not None:
-                binding.write(self._wrench_buf)
+            if self._get_binding(TT.LINK_WRENCH) is not None:
+                self._root_view.set_attribute(TT.LINK_WRENCH, self._wrench_buf)
             inst.reset()
 
         # apply actuator models
         self._apply_actuator_model()
         # write actions into simulation (zeros are safe when no actuators are active)
-        if self._effort_binding is not None:
-            self._effort_binding.write(self._effort_write_view)
+        if self._effort_write_view is not None:
+            self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, self._effort_write_view)
         # position and velocity targets only for implicit actuators
         if self._has_implicit_actuators:
-            if self._pos_target_binding is not None:
-                self._pos_target_binding.write(self._pos_target_write_view)
-            if self._vel_target_binding is not None:
-                self._vel_target_binding.write(self._vel_target_write_view)
+            if self._pos_target_write_view is not None:
+                self._root_view.set_attribute(TT.DOF_POSITION_TARGET, self._pos_target_write_view)
+            if self._vel_target_write_view is not None:
+                self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, self._vel_target_write_view)
 
     def update(self, dt: float) -> None:
         """Updates the simulation data.
@@ -368,6 +371,7 @@ class Articulation(BaseArticulation):
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment indices into the simulation.
 
@@ -384,14 +388,17 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
+        self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids, skip_forward=skip_forward)
 
     def write_root_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root pose over selected environment mask into the simulation.
 
@@ -406,14 +413,17 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask)
+        self.write_root_link_pose_to_sim_mask(root_pose=root_pose, env_mask=env_mask, skip_forward=skip_forward)
 
     def write_root_link_pose_to_sim_index(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment indices into the simulation.
 
@@ -430,6 +440,8 @@ class Articulation(BaseArticulation):
             root_pose: Root link poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
@@ -440,20 +452,17 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_link_pose_w],
             device=self._device,
         )
-        # invalidate dependent timestamps: root link pose changes the body
-        # kinematics chain, so all body-pose buffers go stale
-        self.data._root_com_pose_w.timestamp = -1.0
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        # push cache to the simulation via an indexed write
-        binding = self._get_binding(TT.ROOT_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose()
+        self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_link_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -470,6 +479,8 @@ class Articulation(BaseArticulation):
             root_pose: Root poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
@@ -480,18 +491,17 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_link_pose_w],
             device=self._device,
         )
-        # invalidate dependent timestamps (see :meth:`write_root_link_pose_to_sim_index`)
-        self.data._root_com_pose_w.timestamp = -1.0
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        binding = self._get_binding(TT.ROOT_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose()
+        self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
 
     def write_root_com_pose_to_sim_index(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment indices into the simulation.
 
@@ -509,6 +519,8 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (len(env_ids), 7)
                 or (len(env_ids),) with dtype wp.transformf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_pose, (env_ids.shape[0],), wp.transformf, "root_pose")
@@ -519,18 +531,17 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
-        # writing the root CoM pose updates the inferred root link pose, which
-        # in turn invalidates the body kinematics chain
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        binding = self._get_binding(TT.ROOT_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
+        self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=env_ids)
 
     def write_root_com_pose_to_sim_mask(
         self,
         *,
         root_pose: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -548,6 +559,8 @@ class Articulation(BaseArticulation):
             root_pose: Root center of mass poses in simulation frame. Shape is (num_instances, 7)
                 or (num_instances,) with dtype wp.transformf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_pose, (self._num_instances,), wp.transformf, "root_pose")
@@ -558,17 +571,17 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_com_pose_w, self.data.root_link_pose_w],
             device=self._device,
         )
-        # invalidate dependent timestamps (see :meth:`write_root_com_pose_to_sim_index`)
-        self.data._body_link_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        binding = self._get_binding(TT.ROOT_POSE)
-        binding.write(self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
+        # Let the data class handle the invalidation of pose-dependent properties.
+        if not skip_forward:
+            self.data._reset_pose(from_link=False)
+        self._root_view.set_attribute(TT.ROOT_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp)
 
     def write_root_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -588,14 +601,19 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
+        self.write_root_com_velocity_to_sim_index(
+            root_velocity=root_velocity, env_ids=env_ids, skip_forward=skip_forward
+        )
 
     def write_root_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -610,14 +628,19 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_root_com_velocity_to_sim_mask(root_velocity=root_velocity, env_mask=env_mask)
+        self.write_root_com_velocity_to_sim_mask(
+            root_velocity=root_velocity, env_mask=env_mask, skip_forward=skip_forward
+        )
 
     def write_root_com_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment indices into the simulation.
 
@@ -637,6 +660,8 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
@@ -647,16 +672,19 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_com_vel_w, self.data.body_com_acc_w],
             device=self._device,
         )
-        # Invalidate dependent root_link_vel timestamp.
-        self.data._root_link_vel_w.timestamp = -1.0
-        binding = self._get_binding(TT.ROOT_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity()
+        self._root_view.set_attribute(
+            TT.ROOT_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids
+        )
 
     def write_root_com_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root center of mass velocity over selected environment mask into the simulation.
 
@@ -676,6 +704,8 @@ class Articulation(BaseArticulation):
             root_velocity: Root center of mass velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
@@ -686,15 +716,19 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_com_vel_w, self.data.body_com_acc_w],
             device=self._device,
         )
-        self.data._root_link_vel_w.timestamp = -1.0
-        binding = self._get_binding(TT.ROOT_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity()
+        self._root_view.set_attribute(
+            TT.ROOT_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp
+        )
 
     def write_root_link_velocity_to_sim_index(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment indices into the simulation.
 
@@ -714,6 +748,8 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame. Shape is (len(env_ids), 6)
                 or (len(env_ids),) with dtype wp.spatial_vectorf.
             env_ids: Environment indices. If None, then all indices are used.
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         self.assert_shape_and_dtype(root_velocity, (env_ids.shape[0],), wp.spatial_vectorf, "root_velocity")
@@ -730,14 +766,19 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_link_vel_w, self.data.root_com_vel_w, self.data.body_com_acc_w],
             device=self._device,
         )
-        binding = self._get_binding(TT.ROOT_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
+        self._root_view.set_attribute(
+            TT.ROOT_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), indices=env_ids
+        )
 
     def write_root_link_velocity_to_sim_mask(
         self,
         *,
         root_velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set the root link velocity over selected environment mask into the simulation.
 
@@ -757,6 +798,8 @@ class Articulation(BaseArticulation):
             root_velocity: Root frame velocities in simulation world frame. Shape is (num_instances, 6)
                 or (num_instances,) with dtype wp.spatial_vectorf.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         self.assert_shape_and_dtype(root_velocity, (self._num_instances,), wp.spatial_vectorf, "root_velocity")
@@ -773,8 +816,12 @@ class Articulation(BaseArticulation):
             outputs=[self.data.root_link_vel_w, self.data.root_com_vel_w, self.data.body_com_acc_w],
             device=self._device,
         )
-        binding = self._get_binding(TT.ROOT_VELOCITY)
-        binding.write(self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp)
+        # Let the data class handle the invalidation of velocity-dependent properties.
+        if not skip_forward:
+            self.data._reset_velocity(from_com=False)
+        self._root_view.set_attribute(
+            TT.ROOT_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp
+        )
 
     def write_joint_position_to_sim_index(
         self,
@@ -782,6 +829,7 @@ class Articulation(BaseArticulation):
         position: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set joint positions over selected env / joint indices into the simulation.
 
@@ -798,6 +846,8 @@ class Articulation(BaseArticulation):
                 (len(env_ids), len(joint_ids)) with dtype wp.float32.
             joint_ids: Joint indices.  Defaults to None (all joints).
             env_ids: Environment indices.  Defaults to None (all environments).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -809,16 +859,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # invalidate body-state buffers so the next read re-fetches FK from the
-        # wheel using the new joint positions
-        self._data._body_com_vel_w.timestamp = -1.0
-        self._data._body_link_vel_w.timestamp = -1.0
-        self._data._body_com_pose_b.timestamp = -1.0
-        self._data._body_com_pose_w.timestamp = -1.0
-        self._data._body_link_pose_w.timestamp = -1.0
-        self._data._joint_acc.timestamp = -1.0
-        binding = self._get_binding(TT.DOF_POSITION)
-        binding.write(self._data._joint_pos_buf.data, indices=env_ids)
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        # A position write does not change joint velocities, so the joint acceleration is unaffected.
+        if not skip_forward:
+            self._data._reset_pose()
+            self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, indices=env_ids)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -826,6 +872,7 @@ class Articulation(BaseArticulation):
         position: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set joint positions over selected env / joint masks into the simulation.
 
@@ -844,6 +891,8 @@ class Articulation(BaseArticulation):
                 (num_instances,).
             joint_mask: Joint mask.  If None, all joints are updated.  Shape is
                 (num_joints,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
@@ -855,15 +904,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_buf.data],
             device=self._device,
         )
-        # invalidate body-state buffers (see :meth:`write_joint_position_to_sim_index`)
-        self._data._body_com_vel_w.timestamp = -1.0
-        self._data._body_link_vel_w.timestamp = -1.0
-        self._data._body_com_pose_b.timestamp = -1.0
-        self._data._body_com_pose_w.timestamp = -1.0
-        self._data._body_link_pose_w.timestamp = -1.0
-        self._data._joint_acc.timestamp = -1.0
-        binding = self._get_binding(TT.DOF_POSITION)
-        binding.write(self._data._joint_pos_buf.data, mask=env_mask_wp)
+        # Let the data class handle the invalidation of pose- and velocity-dependent properties.
+        # A position write does not change joint velocities, so the joint acceleration is unaffected.
+        if not skip_forward:
+            self._data._reset_pose()
+            self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, mask=env_mask_wp)
 
     def write_joint_velocity_to_sim_index(
         self,
@@ -871,6 +917,7 @@ class Articulation(BaseArticulation):
         velocity: torch.Tensor | wp.array,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set joint velocities over selected env / joint indices into the simulation.
 
@@ -887,6 +934,8 @@ class Articulation(BaseArticulation):
                 (len(env_ids), len(joint_ids)) with dtype wp.float32.
             joint_ids: Joint indices.  Defaults to None (all joints).
             env_ids: Environment indices.  Defaults to None (all environments).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
@@ -898,8 +947,10 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_buf.data],
             device=self._device,
         )
-        # Sync previous_joint_vel to the new values so the next FD step does not
-        # produce a spurious acceleration spike.
+        # A velocity write teleports the joint velocity, so reset the finite-difference baseline:
+        # sync previous_joint_vel to the new values and zero the cached joint acceleration. Both are
+        # unconditional (independent of skip_forward) because they are part of the write's semantics,
+        # not lazily-recomputed cache state; the next FD step then differences against the new velocity.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_indices,
             dim=(env_ids.shape[0], joint_ids.shape[0]),
@@ -907,9 +958,17 @@ class Articulation(BaseArticulation):
             outputs=[self._data._previous_joint_vel],
             device=self._device,
         )
-        self._data._joint_acc.timestamp = -1.0
-        binding = self._get_binding(TT.DOF_VELOCITY)
-        binding.write(self._data._joint_vel_buf.data, indices=env_ids)
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_indices,
+            dim=(env_ids.shape[0], joint_ids.shape[0]),
+            inputs=[self._data._joint_acc_zeros, env_ids, joint_ids],
+            outputs=[self._data._joint_acc.data],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
+        if not skip_forward:
+            self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, indices=env_ids)
 
     def write_joint_velocity_to_sim_mask(
         self,
@@ -917,6 +976,7 @@ class Articulation(BaseArticulation):
         velocity: torch.Tensor | wp.array,
         env_mask: wp.array | None = None,
         joint_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Set joint velocities over selected env / joint masks into the simulation.
 
@@ -935,6 +995,8 @@ class Articulation(BaseArticulation):
                 (num_instances,).
             joint_mask: Joint mask.  If None, all joints are updated.  Shape is
                 (num_joints,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
         env_mask_wp = self._resolve_env_mask(env_mask)
         joint_mask_wp = self._resolve_joint_mask(joint_mask)
@@ -946,7 +1008,10 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_buf.data],
             device=self._device,
         )
-        # Sync previous_joint_vel so the next FD step does not produce a spurious spike.
+        # A velocity write teleports the joint velocity, so reset the finite-difference baseline:
+        # sync previous_joint_vel to the new values and zero the cached joint acceleration. Both are
+        # unconditional (independent of skip_forward) because they are part of the write's semantics,
+        # not lazily-recomputed cache state; the next FD step then differences against the new velocity.
         wp.launch(
             shared_kernels.write_2d_data_to_buffer_with_mask,
             dim=(self._num_instances, self._num_joints),
@@ -954,9 +1019,17 @@ class Articulation(BaseArticulation):
             outputs=[self._data._previous_joint_vel],
             device=self._device,
         )
-        self._data._joint_acc.timestamp = -1.0
-        binding = self._get_binding(TT.DOF_VELOCITY)
-        binding.write(self._data._joint_vel_buf.data, mask=env_mask_wp)
+        wp.launch(
+            shared_kernels.write_2d_data_to_buffer_with_mask,
+            dim=(self._num_instances, self._num_joints),
+            inputs=[self._data._joint_acc_zeros, env_mask_wp, joint_mask_wp],
+            outputs=[self._data._joint_acc.data],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
+        if not skip_forward:
+            self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, mask=env_mask_wp)
 
     def write_joint_state_to_sim_mask(
         self,
@@ -965,6 +1038,7 @@ class Articulation(BaseArticulation):
         velocity: torch.Tensor | wp.array,
         joint_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
+        skip_forward: bool = False,
     ) -> None:
         """Write joint positions and velocities over selected environment mask into the simulation.
 
@@ -985,9 +1059,20 @@ class Articulation(BaseArticulation):
                 (num_joints,).
             env_mask: Environment mask.  If None, all instances are updated.  Shape is
                 (num_instances,).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
         """
-        self.write_joint_position_to_sim_mask(position=position, env_mask=env_mask, joint_mask=joint_mask)
-        self.write_joint_velocity_to_sim_mask(velocity=velocity, env_mask=env_mask, joint_mask=joint_mask)
+        self.write_joint_position_to_sim_mask(
+            position=position, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
+        )
+        self.write_joint_velocity_to_sim_mask(
+            velocity=velocity, env_mask=env_mask, joint_mask=joint_mask, skip_forward=True
+        )
+        # The sub-writers skipped their composite invalidation (skip_forward=True); do it once here.
+        # The velocity sub-writer already reset the joint-acceleration baseline unconditionally.
+        if not skip_forward:
+            self._data._reset_pose()
+            self._data._reset_velocity()
 
     """
     Operations - Simulation Parameters Writers.
@@ -1034,8 +1119,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_joint_stiffness, self._data._joint_stiffness.data)
-        binding = self._get_binding(TT.DOF_STIFFNESS)
-        binding.write(self.data._cpu_joint_stiffness, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, indices=cpu_env_ids)
 
     def write_joint_stiffness_to_sim_mask(
         self,
@@ -1078,8 +1162,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_joint_stiffness, self._data._joint_stiffness.data)
-        binding = self._get_binding(TT.DOF_STIFFNESS)
-        binding.write(self.data._cpu_joint_stiffness, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_STIFFNESS, self.data._cpu_joint_stiffness, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_damping_to_sim_index(
         self,
@@ -1122,8 +1207,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_joint_damping, self._data._joint_damping.data)
-        binding = self._get_binding(TT.DOF_DAMPING)
-        binding.write(self.data._cpu_joint_damping, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_DAMPING, self.data._cpu_joint_damping, indices=cpu_env_ids)
 
     def write_joint_damping_to_sim_mask(
         self,
@@ -1166,8 +1250,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_joint_damping, self._data._joint_damping.data)
-        binding = self._get_binding(TT.DOF_DAMPING)
-        binding.write(self.data._cpu_joint_damping, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_DAMPING, self.data._cpu_joint_damping, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_position_limit_to_sim_index(
         self,
@@ -1266,8 +1351,7 @@ class Articulation(BaseArticulation):
             copy=False,
         )
         wp.copy(self.data._cpu_joint_position_limit, flat_src)
-        binding = self._get_binding(TT.DOF_LIMIT)
-        binding.write(self.data._cpu_joint_position_limit, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_LIMIT, self.data._cpu_joint_position_limit, indices=cpu_env_ids)
 
     def write_joint_position_limit_to_sim_mask(
         self,
@@ -1363,8 +1447,9 @@ class Articulation(BaseArticulation):
             copy=False,
         )
         wp.copy(self.data._cpu_joint_position_limit, flat_src)
-        binding = self._get_binding(TT.DOF_LIMIT)
-        binding.write(self.data._cpu_joint_position_limit, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_LIMIT, self.data._cpu_joint_position_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_velocity_limit_to_sim_index(
         self,
@@ -1407,8 +1492,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_joint_velocity_limit, self._data._joint_vel_limits.data)
-        binding = self._get_binding(TT.DOF_MAX_VELOCITY)
-        binding.write(self.data._cpu_joint_velocity_limit, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, indices=cpu_env_ids)
 
     def write_joint_velocity_limit_to_sim_mask(
         self,
@@ -1451,8 +1535,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_joint_velocity_limit, self._data._joint_vel_limits.data)
-        binding = self._get_binding(TT.DOF_MAX_VELOCITY)
-        binding.write(self.data._cpu_joint_velocity_limit, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_MAX_VELOCITY, self.data._cpu_joint_velocity_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_effort_limit_to_sim_index(
         self,
@@ -1495,8 +1580,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_joint_effort_limit, self._data._joint_effort_limits.data)
-        binding = self._get_binding(TT.DOF_MAX_FORCE)
-        binding.write(self.data._cpu_joint_effort_limit, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, indices=cpu_env_ids)
 
     def write_joint_effort_limit_to_sim_mask(
         self,
@@ -1539,8 +1623,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_joint_effort_limit, self._data._joint_effort_limits.data)
-        binding = self._get_binding(TT.DOF_MAX_FORCE)
-        binding.write(self.data._cpu_joint_effort_limit, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_MAX_FORCE, self.data._cpu_joint_effort_limit, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_armature_to_sim_index(
         self,
@@ -1583,8 +1668,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_joint_armature, self._data._joint_armature.data)
-        binding = self._get_binding(TT.DOF_ARMATURE)
-        binding.write(self.data._cpu_joint_armature, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_ARMATURE, self.data._cpu_joint_armature, indices=cpu_env_ids)
 
     def write_joint_armature_to_sim_mask(
         self,
@@ -1627,8 +1711,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_joint_armature, self._data._joint_armature.data)
-        binding = self._get_binding(TT.DOF_ARMATURE)
-        binding.write(self.data._cpu_joint_armature, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_ARMATURE, self.data._cpu_joint_armature, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_friction_coefficient_to_sim_index(
         self,
@@ -1702,8 +1787,7 @@ class Articulation(BaseArticulation):
         cpu_friction = self._data._stage_to_pinned_cpu(
             TT.DOF_FRICTION_PROPERTIES, "write", self._data._joint_friction_props_buf.data
         )
-        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
-        binding.write(cpu_friction, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
 
     def write_joint_friction_coefficient_to_sim_mask(
         self,
@@ -1755,8 +1839,9 @@ class Articulation(BaseArticulation):
         cpu_friction = self._data._stage_to_pinned_cpu(
             TT.DOF_FRICTION_PROPERTIES, "write", self._data._joint_friction_props_buf.data
         )
-        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
-        binding.write(cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_dynamic_friction_coefficient_to_sim_index(
         self,
@@ -1816,8 +1901,7 @@ class Articulation(BaseArticulation):
         cpu_friction = self._data._stage_to_pinned_cpu(
             TT.DOF_FRICTION_PROPERTIES, "write", self._data._joint_friction_props_buf.data
         )
-        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
-        binding.write(cpu_friction, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
 
     def write_joint_dynamic_friction_coefficient_to_sim_mask(
         self,
@@ -1861,8 +1945,9 @@ class Articulation(BaseArticulation):
         cpu_friction = self._data._stage_to_pinned_cpu(
             TT.DOF_FRICTION_PROPERTIES, "write", self._data._joint_friction_props_buf.data
         )
-        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
-        binding.write(cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def write_joint_viscous_friction_coefficient_to_sim_index(
         self,
@@ -1923,8 +2008,7 @@ class Articulation(BaseArticulation):
         cpu_friction = self._data._stage_to_pinned_cpu(
             TT.DOF_FRICTION_PROPERTIES, "write", self._data._joint_friction_props_buf.data
         )
-        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
-        binding.write(cpu_friction, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.DOF_FRICTION_PROPERTIES, cpu_friction, indices=cpu_env_ids)
 
     def write_joint_viscous_friction_coefficient_to_sim_mask(
         self,
@@ -1969,8 +2053,9 @@ class Articulation(BaseArticulation):
         cpu_friction = self._data._stage_to_pinned_cpu(
             TT.DOF_FRICTION_PROPERTIES, "write", self._data._joint_friction_props_buf.data
         )
-        binding = self._get_binding(TT.DOF_FRICTION_PROPERTIES)
-        binding.write(cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.DOF_FRICTION_PROPERTIES, cpu_friction, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     """
     Operations - Setters.
@@ -2014,8 +2099,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_mass, self._data._body_mass.data)
-        binding = self._get_binding(TT.BODY_MASS)
-        binding.write(self.data._cpu_body_mass, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, indices=cpu_env_ids)
 
     def set_masses_mask(
         self,
@@ -2056,8 +2140,7 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_mass, self._data._body_mass.data)
-        binding = self._get_binding(TT.BODY_MASS)
-        binding.write(self.data._cpu_body_mass, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(TT.BODY_MASS, self.data._cpu_body_mass, mask=self._get_cpu_env_mask(env_mask_wp))
 
     def set_coms_index(
         self,
@@ -2095,13 +2178,11 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_com_pose_b.data],
             device=self._device,
         )
-        # Invalidate derived buffers that depend on body_com_pose_b.
-        self.data._root_com_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
+        self._data._body_com_pose_b.timestamp = self._data._sim_timestamp
+        self._data._reset_body_com_pose_b_dependents()
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
-        wp.copy(self.data._cpu_body_coms, self._data._body_com_pose_b.data)
-        binding = self._get_binding(TT.BODY_COM_POSE)
-        binding.write(self.data._cpu_body_coms, indices=cpu_env_ids)
+        wp.copy(self.data._cpu_body_coms, self._data._body_com_pose_b.data.view(wp.float32))
+        self._root_view.set_attribute(TT.BODY_COM_POSE, self.data._cpu_body_coms, indices=cpu_env_ids)
 
     def set_coms_mask(
         self,
@@ -2141,12 +2222,12 @@ class Articulation(BaseArticulation):
             outputs=[self._data._body_com_pose_b.data],
             device=self._device,
         )
-        # Invalidate derived buffers that depend on body_com_pose_b.
-        self.data._root_com_pose_w.timestamp = -1.0
-        self.data._body_com_pose_w.timestamp = -1.0
-        wp.copy(self.data._cpu_body_coms, self._data._body_com_pose_b.data)
-        binding = self._get_binding(TT.BODY_COM_POSE)
-        binding.write(self.data._cpu_body_coms, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._data._body_com_pose_b.timestamp = self._data._sim_timestamp
+        self._data._reset_body_com_pose_b_dependents()
+        wp.copy(self.data._cpu_body_coms, self._data._body_com_pose_b.data.view(wp.float32))
+        self._root_view.set_attribute(
+            TT.BODY_COM_POSE, self.data._cpu_body_coms, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def set_inertias_index(
         self,
@@ -2186,8 +2267,7 @@ class Articulation(BaseArticulation):
         )
         cpu_env_ids = self._get_cpu_env_ids(env_ids)
         wp.copy(self.data._cpu_body_inertia, self._data._body_inertia.data)
-        binding = self._get_binding(TT.BODY_INERTIA)
-        binding.write(self.data._cpu_body_inertia, indices=cpu_env_ids)
+        self._root_view.set_attribute(TT.BODY_INERTIA, self.data._cpu_body_inertia, indices=cpu_env_ids)
 
     def set_inertias_mask(
         self,
@@ -2228,8 +2308,9 @@ class Articulation(BaseArticulation):
             device=self._device,
         )
         wp.copy(self.data._cpu_body_inertia, self._data._body_inertia.data)
-        binding = self._get_binding(TT.BODY_INERTIA)
-        binding.write(self.data._cpu_body_inertia, mask=self._get_cpu_env_mask(env_mask_wp))
+        self._root_view.set_attribute(
+            TT.BODY_INERTIA, self.data._cpu_body_inertia, mask=self._get_cpu_env_mask(env_mask_wp)
+        )
 
     def set_joint_position_target_index(
         self,
@@ -2268,8 +2349,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_target],
             device=self._device,
         )
-        binding = self._get_binding(TT.DOF_POSITION_TARGET)
-        binding.write(self._data._joint_pos_target, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_POSITION_TARGET, self._data._joint_pos_target, indices=env_ids)
 
     def set_joint_position_target_mask(
         self,
@@ -2305,8 +2385,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_pos_target],
             device=self._device,
         )
-        binding = self._get_binding(TT.DOF_POSITION_TARGET)
-        binding.write(self._data._joint_pos_target, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.DOF_POSITION_TARGET, self._data._joint_pos_target, mask=env_mask_wp)
 
     def set_joint_velocity_target_index(
         self,
@@ -2345,8 +2424,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_target],
             device=self._device,
         )
-        binding = self._get_binding(TT.DOF_VELOCITY_TARGET)
-        binding.write(self._data._joint_vel_target, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target, indices=env_ids)
 
     def set_joint_velocity_target_mask(
         self,
@@ -2382,8 +2460,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_vel_target],
             device=self._device,
         )
-        binding = self._get_binding(TT.DOF_VELOCITY_TARGET)
-        binding.write(self._data._joint_vel_target, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.DOF_VELOCITY_TARGET, self._data._joint_vel_target, mask=env_mask_wp)
 
     def set_joint_effort_target_index(
         self,
@@ -2422,8 +2499,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_effort_target],
             device=self._device,
         )
-        binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
-        binding.write(self._data._joint_effort_target, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, self._data._joint_effort_target, indices=env_ids)
 
     def set_joint_effort_target_mask(
         self,
@@ -2459,8 +2535,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._joint_effort_target],
             device=self._device,
         )
-        binding = self._get_binding(TT.DOF_ACTUATION_FORCE)
-        binding.write(self._data._joint_effort_target, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.DOF_ACTUATION_FORCE, self._data._joint_effort_target, mask=env_mask_wp)
 
     """
     Operations - Tendons.
@@ -2505,8 +2580,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_STIFFNESS)
-        binding.write(self._data._fixed_tendon_stiffness.data, indices=env_ids)
+        self._root_view.set_attribute(
+            TT.FIXED_TENDON_STIFFNESS, self._data._fixed_tendon_stiffness.data, indices=env_ids
+        )
 
     def set_fixed_tendon_stiffness_mask(
         self,
@@ -2549,8 +2625,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_STIFFNESS)
-        binding.write(self._data._fixed_tendon_stiffness.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.FIXED_TENDON_STIFFNESS, self._data._fixed_tendon_stiffness.data, mask=env_mask_wp
+        )
 
     def set_fixed_tendon_damping_index(
         self,
@@ -2591,8 +2668,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_damping.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_DAMPING)
-        binding.write(self._data._fixed_tendon_damping.data, indices=env_ids)
+        self._root_view.set_attribute(TT.FIXED_TENDON_DAMPING, self._data._fixed_tendon_damping.data, indices=env_ids)
 
     def set_fixed_tendon_damping_mask(
         self,
@@ -2635,8 +2711,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_damping.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_DAMPING)
-        binding.write(self._data._fixed_tendon_damping.data, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.FIXED_TENDON_DAMPING, self._data._fixed_tendon_damping.data, mask=env_mask_wp)
 
     def set_fixed_tendon_limit_stiffness_index(
         self,
@@ -2677,8 +2752,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_limit_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_LIMIT_STIFFNESS)
-        binding.write(self._data._fixed_tendon_limit_stiffness.data, indices=env_ids)
+        self._root_view.set_attribute(
+            TT.FIXED_TENDON_LIMIT_STIFFNESS, self._data._fixed_tendon_limit_stiffness.data, indices=env_ids
+        )
 
     def set_fixed_tendon_limit_stiffness_mask(
         self,
@@ -2721,8 +2797,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_limit_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_LIMIT_STIFFNESS)
-        binding.write(self._data._fixed_tendon_limit_stiffness.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.FIXED_TENDON_LIMIT_STIFFNESS, self._data._fixed_tendon_limit_stiffness.data, mask=env_mask_wp
+        )
 
     def set_fixed_tendon_position_limit_index(
         self,
@@ -2769,8 +2846,7 @@ class Articulation(BaseArticulation):
             device=self._device,
             copy=False,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_LIMIT)
-        binding.write(flat_src, indices=env_ids)
+        self._root_view.set_attribute(TT.FIXED_TENDON_LIMIT, flat_src, indices=env_ids)
 
     def set_fixed_tendon_position_limit_mask(
         self,
@@ -2817,8 +2893,7 @@ class Articulation(BaseArticulation):
             device=self._device,
             copy=False,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_LIMIT)
-        binding.write(flat_src, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.FIXED_TENDON_LIMIT, flat_src, mask=env_mask_wp)
 
     def set_fixed_tendon_rest_length_index(
         self,
@@ -2859,8 +2934,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_rest_length.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_REST_LENGTH)
-        binding.write(self._data._fixed_tendon_rest_length.data, indices=env_ids)
+        self._root_view.set_attribute(
+            TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length.data, indices=env_ids
+        )
 
     def set_fixed_tendon_rest_length_mask(
         self,
@@ -2903,8 +2979,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_rest_length.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_REST_LENGTH)
-        binding.write(self._data._fixed_tendon_rest_length.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length.data, mask=env_mask_wp
+        )
 
     def set_fixed_tendon_offset_index(
         self,
@@ -2945,8 +3022,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_offset.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_OFFSET)
-        binding.write(self._data._fixed_tendon_offset.data, indices=env_ids)
+        self._root_view.set_attribute(TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset.data, indices=env_ids)
 
     def set_fixed_tendon_offset_mask(
         self,
@@ -2989,8 +3065,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._fixed_tendon_offset.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.FIXED_TENDON_OFFSET)
-        binding.write(self._data._fixed_tendon_offset.data, mask=env_mask_wp)
+        self._root_view.set_attribute(TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset.data, mask=env_mask_wp)
 
     def write_fixed_tendon_properties_to_sim_index(
         self,
@@ -3022,9 +3097,8 @@ class Articulation(BaseArticulation):
             (TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length),
             (TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset),
         ):
-            binding = self._get_binding(tt)
-            if binding is not None:
-                binding.write(buf.data, indices=env_ids)
+            if self._get_binding(tt) is not None:
+                self._root_view.set_attribute(tt, buf.data, indices=env_ids)
         # Position-limit binding consumes a flat (N, T, 2) float32 view.
         binding = self._get_binding(TT.FIXED_TENDON_LIMIT)
         if binding is not None:
@@ -3035,7 +3109,7 @@ class Articulation(BaseArticulation):
                 device=self._device,
                 copy=False,
             )
-            binding.write(flat_src, indices=env_ids)
+            self._root_view.set_attribute(TT.FIXED_TENDON_LIMIT, flat_src, indices=env_ids)
 
     def write_fixed_tendon_properties_to_sim_mask(
         self,
@@ -3057,9 +3131,8 @@ class Articulation(BaseArticulation):
             (TT.FIXED_TENDON_REST_LENGTH, self._data._fixed_tendon_rest_length),
             (TT.FIXED_TENDON_OFFSET, self._data._fixed_tendon_offset),
         ):
-            binding = self._get_binding(tt)
-            if binding is not None:
-                binding.write(buf.data, mask=env_mask_wp)
+            if self._get_binding(tt) is not None:
+                self._root_view.set_attribute(tt, buf.data, mask=env_mask_wp)
         binding = self._get_binding(TT.FIXED_TENDON_LIMIT)
         if binding is not None:
             flat_src = wp.array(
@@ -3069,7 +3142,7 @@ class Articulation(BaseArticulation):
                 device=self._device,
                 copy=False,
             )
-            binding.write(flat_src, mask=env_mask_wp)
+            self._root_view.set_attribute(TT.FIXED_TENDON_LIMIT, flat_src, mask=env_mask_wp)
 
     def set_spatial_tendon_stiffness_index(
         self,
@@ -3111,8 +3184,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_STIFFNESS)
-        binding.write(self._data._spatial_tendon_stiffness.data, indices=env_ids)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_STIFFNESS, self._data._spatial_tendon_stiffness.data, indices=env_ids
+        )
 
     def set_spatial_tendon_stiffness_mask(
         self,
@@ -3155,8 +3229,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_STIFFNESS)
-        binding.write(self._data._spatial_tendon_stiffness.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_STIFFNESS, self._data._spatial_tendon_stiffness.data, mask=env_mask_wp
+        )
 
     def set_spatial_tendon_damping_index(
         self,
@@ -3195,8 +3270,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_damping.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_DAMPING)
-        binding.write(self._data._spatial_tendon_damping.data, indices=env_ids)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_DAMPING, self._data._spatial_tendon_damping.data, indices=env_ids
+        )
 
     def set_spatial_tendon_damping_mask(
         self,
@@ -3239,8 +3315,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_damping.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_DAMPING)
-        binding.write(self._data._spatial_tendon_damping.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_DAMPING, self._data._spatial_tendon_damping.data, mask=env_mask_wp
+        )
 
     def set_spatial_tendon_limit_stiffness_index(
         self,
@@ -3283,8 +3360,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_limit_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_LIMIT_STIFFNESS)
-        binding.write(self._data._spatial_tendon_limit_stiffness.data, indices=env_ids)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._data._spatial_tendon_limit_stiffness.data, indices=env_ids
+        )
 
     def set_spatial_tendon_limit_stiffness_mask(
         self,
@@ -3327,8 +3405,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_limit_stiffness.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_LIMIT_STIFFNESS)
-        binding.write(self._data._spatial_tendon_limit_stiffness.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._data._spatial_tendon_limit_stiffness.data, mask=env_mask_wp
+        )
 
     def set_spatial_tendon_offset_index(
         self,
@@ -3369,8 +3448,7 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_offset.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_OFFSET)
-        binding.write(self._data._spatial_tendon_offset.data, indices=env_ids)
+        self._root_view.set_attribute(TT.SPATIAL_TENDON_OFFSET, self._data._spatial_tendon_offset.data, indices=env_ids)
 
     def set_spatial_tendon_offset_mask(
         self,
@@ -3413,8 +3491,9 @@ class Articulation(BaseArticulation):
             outputs=[self._data._spatial_tendon_offset.data],
             device=self._device,
         )
-        binding = self._get_binding(TT.SPATIAL_TENDON_OFFSET)
-        binding.write(self._data._spatial_tendon_offset.data, mask=env_mask_wp)
+        self._root_view.set_attribute(
+            TT.SPATIAL_TENDON_OFFSET, self._data._spatial_tendon_offset.data, mask=env_mask_wp
+        )
 
     def write_spatial_tendon_properties_to_sim_index(
         self,
@@ -3441,9 +3520,8 @@ class Articulation(BaseArticulation):
             (TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._data._spatial_tendon_limit_stiffness),
             (TT.SPATIAL_TENDON_OFFSET, self._data._spatial_tendon_offset),
         ):
-            binding = self._get_binding(tt)
-            if binding is not None:
-                binding.write(buf.data, indices=env_ids)
+            if self._get_binding(tt) is not None:
+                self._root_view.set_attribute(tt, buf.data, indices=env_ids)
 
     def write_spatial_tendon_properties_to_sim_mask(
         self,
@@ -3459,9 +3537,8 @@ class Articulation(BaseArticulation):
             (TT.SPATIAL_TENDON_LIMIT_STIFFNESS, self._data._spatial_tendon_limit_stiffness),
             (TT.SPATIAL_TENDON_OFFSET, self._data._spatial_tendon_offset),
         ):
-            binding = self._get_binding(tt)
-            if binding is not None:
-                binding.write(buf.data, mask=env_mask_wp)
+            if self._get_binding(tt) is not None:
+                self._root_view.set_attribute(tt, buf.data, mask=env_mask_wp)
 
     """
     Internal helper.
@@ -3484,12 +3561,9 @@ class Articulation(BaseArticulation):
             def has_articulation_root_api(prim) -> bool:
                 return bool(prim.HasAPI(UsdPhysics.ArticulationRootAPI))
 
-            asset_prim, root_expr = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path)[0]
-            walk_root = asset_prim.GetPath().pathString
-            root_prims = sim_utils.get_all_matching_child_prims(
-                walk_root, has_articulation_root_api, expected_num_matches=1
-            )
-            root_prim_path_expr = root_expr + root_prims[0].GetPath().pathString[len(walk_root) :]
+            resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
+            root_matches = sim_utils.resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)
+            _, root_prim_path_expr = root_matches[0]
         # Validate the prim exists on the live stage -- ``create_tensor_binding`` silently
         # returns a 0-count binding when the pattern matches nothing, surfacing as obscure
         # AttributeErrors deep in property accessors. Also stash the concrete source-side
@@ -3514,7 +3588,6 @@ class Articulation(BaseArticulation):
             TT.LINK_POSE,
             TT.LINK_VELOCITY,
             TT.LINK_ACCELERATION,
-            TT.LINK_INCOMING_JOINT_FORCE,
             TT.DOF_POSITION,
             TT.DOF_VELOCITY,
             TT.DOF_STIFFNESS,
@@ -3528,33 +3601,33 @@ class Articulation(BaseArticulation):
             TT.BODY_COM_POSE,
             TT.BODY_INERTIA,
         ]
+        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor
+        # types that do not apply to these prims (so a minimal articulation that lacks some
+        # of these types is skipped rather than failing the whole init).
         for tt in eager_types:
-            try:
-                self._bindings[tt] = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=tt)
-            except Exception:
-                logger.debug("Could not create tensor binding for type %s on pattern %s", tt, pattern)
+            self._root_view.try_binding_for(tt)
 
-        if not self._bindings:
+        if not self._root_view.available_attributes:
             raise RuntimeError(
                 f"OVPhysX could not create any articulation bindings for pattern {pattern!r}. "
                 f"Check that prim_path={self.cfg.prim_path!r} matches at least one "
                 "UsdPhysics.ArticulationRootAPI prim."
             )
 
-        # read metadata from the first available binding
-        sample = next(iter(self._bindings.values()))
-        self._num_instances = sample.count
-        self._num_joints = sample.dof_count
-        self._num_bodies = sample.body_count
-        self._is_fixed_base = sample.is_fixed_base
-        self._joint_names = list(sample.dof_names)
-        self._body_names = list(sample.body_names)
+        # read metadata from the view (any instantiated binding carries it)
+        self._num_instances = self._root_view.count
+        self._num_joints = self._root_view.dof_count
+        self._num_bodies = self._root_view.body_count
+        self._is_fixed_base = self._root_view.is_fixed_base
+        self._joint_names = list(self._root_view.dof_names)
+        self._body_names = list(self._root_view.body_names)
 
         # tendon counts/names must be resolved before buffer allocation
         self._process_tendons()
 
-        # eagerly create tendon bindings now that the counts are known; this keeps
-        # ArticulationData's _get_binding a simple dict lookup (no lazy callback).
+        # eagerly create tendon bindings now that the counts are known, through the same
+        # view, so ArticulationData reads them via a cached lookup (no lazy callback).
         if self._num_fixed_tendons > 0:
             for tt in (
                 TT.FIXED_TENDON_STIFFNESS,
@@ -3564,10 +3637,7 @@ class Articulation(BaseArticulation):
                 TT.FIXED_TENDON_REST_LENGTH,
                 TT.FIXED_TENDON_OFFSET,
             ):
-                try:
-                    self._bindings[tt] = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=tt)
-                except Exception:
-                    logger.debug("Could not create tensor binding for type %s on pattern %s", tt, pattern)
+                self._root_view.try_binding_for(tt)
         if self._num_spatial_tendons > 0:
             for tt in (
                 TT.SPATIAL_TENDON_STIFFNESS,
@@ -3575,13 +3645,10 @@ class Articulation(BaseArticulation):
                 TT.SPATIAL_TENDON_LIMIT_STIFFNESS,
                 TT.SPATIAL_TENDON_OFFSET,
             ):
-                try:
-                    self._bindings[tt] = physx_instance.create_tensor_binding(pattern=pattern, tensor_type=tt)
-                except Exception:
-                    logger.debug("Could not create tensor binding for type %s on pattern %s", tt, pattern)
+                self._root_view.try_binding_for(tt)
 
-        # construct the data container; counts come from the bindings
-        self._data = ArticulationData(self._bindings, self._device)
+        # construct the data container; counts come from the view's bindings
+        self._data = ArticulationData(self._root_view, self._device)
         self._data.body_names = self._body_names
         self._data.joint_names = self._joint_names
         self._data.fixed_tendon_names = self._fixed_tendon_names
@@ -3721,9 +3788,8 @@ class Articulation(BaseArticulation):
         self._fixed_tendon_names = []
         self._spatial_tendon_names = []
 
-        sample = next(iter(self._bindings.values()))
-        self._num_fixed_tendons = getattr(sample, "fixed_tendon_count", 0)
-        self._num_spatial_tendons = getattr(sample, "spatial_tendon_count", 0)
+        self._num_fixed_tendons = self._root_view.fixed_tendon_count
+        self._num_spatial_tendons = self._root_view.spatial_tendon_count
 
         if self._num_fixed_tendons > 0 or self._num_spatial_tendons > 0:
             stage_path = OvPhysxManager._stage_path
@@ -3782,16 +3848,7 @@ class Articulation(BaseArticulation):
         Returns:
             A TensorBinding object, or ``None`` if the binding could not be created.
         """
-        binding = self._bindings.get(tensor_type)
-        if binding is not None:
-            return binding
-        try:
-            binding = self._ovphysx.create_tensor_binding(pattern=self._binding_pattern, tensor_type=tensor_type)
-            self._bindings[tensor_type] = binding
-            return binding
-        except Exception:
-            logger.debug("Could not create tensor binding for type %s", tensor_type)
-            return None
+        return self._root_view.try_binding_for(tensor_type)
 
     def _resolve_joint_values(self, pattern_dict: dict[str, float], buffer: wp.array) -> None:
         """Resolve a ``{pattern: value}`` dict into a per-joint buffer.
@@ -3838,6 +3895,9 @@ class Articulation(BaseArticulation):
     def _invalidate_initialize_callback(self, event) -> None:
         """Invalidate the asset on simulation reset."""
         super()._invalidate_initialize_callback(event)
+        # Drop the view (and the bindings it caches) on stop so a destroyed/stale binding is
+        # not held across the reset; ``_initialize_impl`` rebuilds a fresh view on the next play.
+        self._root_view = None
 
     """
     Internal helpers -- Actuators.
@@ -4103,9 +4163,10 @@ class Articulation(BaseArticulation):
     def _resolve_env_mask(self, env_mask: wp.array | None) -> wp.array:
         """Resolve an environment mask to a ``wp.bool`` array on ``self._device``.
 
-        OVPhysX (like Newton) uses the binding's native ``binding.write(mask=...)`` path,
-        so the mask is preserved end-to-end; no ``torch.nonzero`` conversion is needed.
-        ``None`` returns the pre-allocated all-true mask.
+        OVPhysX (like Newton) writes through the view's ``set_attribute(mask=...)``, which
+        forwards to the binding's native masked write, so the mask is preserved end-to-end;
+        no ``torch.nonzero`` conversion is needed. ``None`` returns the pre-allocated
+        all-true mask.
         """
         if env_mask is None:
             return self._ALL_TRUE_ENV_MASK
@@ -4158,9 +4219,9 @@ class Articulation(BaseArticulation):
     def _get_cpu_env_mask(self, env_mask: wp.array) -> wp.array:
         """Return a pinned-host CPU copy of :paramref:`env_mask` for a CPU-only binding write.
 
-        :paramref:`env_mask` is normally on ``self._device``; ``binding.write(mask=...)``
-        requires the mask on the binding's device, which is CPU for mass / CoMs / inertia.
-        Reuses the pre-allocated ``_cpu_env_mask`` pinned buffer.
+        :paramref:`env_mask` is normally on ``self._device``; ``set_attribute(mask=...)``
+        requires the mask on the binding's native device, which is CPU for mass / CoMs /
+        inertia. Reuses the pre-allocated ``_cpu_env_mask`` pinned buffer.
         """
         wp.copy(self._cpu_env_mask, env_mask)
         return self._cpu_env_mask

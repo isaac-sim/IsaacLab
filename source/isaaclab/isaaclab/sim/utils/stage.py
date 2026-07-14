@@ -59,6 +59,17 @@ def _check_ancestral(prim: Usd.Prim) -> bool:
     return _check_ancestral_node(prim_index.rootNode)
 
 
+def _is_uri_path(asset_path: str) -> bool:
+    """Return whether an asset path has an explicit URI scheme."""
+    scheme = asset_path.split("://", 1)[0]
+    return (
+        scheme != asset_path
+        and len(scheme) > 1
+        and scheme[0].isalpha()
+        and all(c.isalnum() or c in "+-." for c in scheme[1:])
+    )
+
+
 def resolve_paths(
     src_layer_identifier: str,
     dst_layer_identifier: str,
@@ -105,9 +116,11 @@ def resolve_paths(
     dst_dir = os.path.dirname(dst_layer.realPath or dst_layer.identifier)
 
     def _modify_path(asset_path: str) -> str:
-        if not asset_path:
+        if not asset_path or _is_uri_path(asset_path):
             return asset_path
         resolved = src_layer.ComputeAbsolutePath(asset_path)
+        if resolved and _is_uri_path(resolved):
+            return resolved
         if store_relative_path and resolved and dst_dir:
             try:
                 return os.path.relpath(resolved, dst_dir)
@@ -123,15 +136,24 @@ def resolve_paths(
 # ##############################################################################
 
 
-try:
-    # _context is a singleton design in isaacsim and for that reason
-    #  until we fully replace all modules that references the singleton(such as XformPrim, Prim ....), we have to point
-    #  that singleton to this _context
-    from isaacsim.core.experimental.utils import stage as sim_stage
+_isaacsim_stage_context_synced = False
 
+
+def _sync_isaacsim_stage_context() -> None:
+    """Point Isaac Sim's stage helper at Isaac Lab's thread-local stage context."""
+    global _isaacsim_stage_context_synced
+
+    if _isaacsim_stage_context_synced or not has_kit():
+        return
+
+    try:
+        from isaacsim.core.experimental.utils import stage as sim_stage  # noqa: PLC0415
+    except ImportError:
+        return
+
+    # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = _context  # type: ignore
-except ImportError:
-    pass
+    _isaacsim_stage_context_synced = True
 
 
 def create_new_stage() -> Usd.Stage:
@@ -154,6 +176,8 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
+    _sync_isaacsim_stage_context()
+
     from pxr import Usd, UsdUtils  # noqa: PLC0415
 
     stage: Usd.Stage = Usd.Stage.CreateInMemory()
@@ -213,6 +237,8 @@ def open_stage(usd_path: str) -> Usd.Stage:
         ValueError: When input path is not a supported file type by USD.
         RuntimeError: When failed to open the stage.
     """
+    _sync_isaacsim_stage_context()
+
     from pxr import Usd  # noqa: PLC0415
 
     if not Usd.Stage.IsSupportedFile(usd_path):
@@ -510,6 +536,8 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
+    _sync_isaacsim_stage_context()
+
     # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
     if stage is not None:

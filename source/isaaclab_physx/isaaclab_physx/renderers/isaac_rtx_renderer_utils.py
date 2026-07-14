@@ -14,8 +14,36 @@ from typing import Any
 import omni.usd
 
 import isaaclab.sim as sim_utils
+from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+
+from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
 logger = logging.getLogger(__name__)
+
+_RTX_FIELD_TO_SETTING = {
+    "enable_translucency": "/rtx/translucency/enabled",
+    "enable_reflections": "/rtx/reflections/enabled",
+    "enable_global_illumination": "/rtx/indirectDiffuse/enabled",
+    "enable_dlssg": "/rtx-transient/dlssg/enabled",
+    "enable_dl_denoiser": "/rtx-transient/dldenoiser/enabled",
+    "dlss_mode": "/rtx/post/dlss/execMode",
+    "enable_direct_lighting": "/rtx/directLighting/enabled",
+    "samples_per_pixel": "/rtx/directLighting/sampledLighting/samplesPerPixel",
+    "enable_shadows": "/rtx/shadows/enabled",
+    "enable_ambient_occlusion": "/rtx/ambientOcclusion/enabled",
+    "dome_light_upper_lower_strategy": "/rtx/domeLight/upperLowerStrategy",
+    "ambient_light_intensity": "/rtx/sceneDb/ambientLightIntensity",
+    "ambient_occlusion_denoiser_mode": "/rtx/ambientOcclusion/denoiserMode",
+    "subpixel_mode": "/rtx/raytracing/subpixel/mode",
+    "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
+    "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
+    "view_tile_limit": "/rtx/viewTile/limit",
+    # RT2 path tracing settings
+    "max_bounces": "/rtx/rtpt/maxBounces",
+    "split_glass": "/rtx/rtpt/splitGlass",
+    "split_clearcoat": "/rtx/rtpt/splitClearcoat",
+    "split_rough_reflection": "/rtx/rtpt/splitRoughReflection",
+}
 
 # Module-level dedup stamp: tracks the last (sim instance, physics step, render generation) at
 # which Kit's ``app.update()`` was pumped.  Keyed on ``id(sim)`` so that a
@@ -24,6 +52,71 @@ logger = logging.getLogger(__name__)
 _last_render_update_key: tuple[int, int, int] = (0, -1, -1)
 
 _STREAMING_WAIT_TIMEOUT_S: float = 30.0
+
+
+def _setting_path_from_key(key: str) -> str:
+    """Convert a user-friendly carb setting key to a carb path."""
+    if key.startswith("/"):
+        return key
+    if "_" in key:
+        return "/" + key.replace("_", "/")
+    if "." in key:
+        return "/" + key.replace(".", "/")
+    return key
+
+
+def apply_isaac_rtx_determinism_settings(settings: SettingsManager | None = None) -> None:
+    """Apply Isaac RTX settings for reproducible rendering.
+
+    Selects RealTimePathTracing and disables the RTPT color and light caches.
+
+    Args:
+        settings: Settings manager to apply settings through. If None, the global settings manager is used.
+    """
+    if settings is None:
+        settings = get_settings_manager()
+    settings.set("/rtx/rendermode", "RealTimePathTracing")
+    settings.set("/rtx/rtpt/cached/enabled", False)
+    settings.set("/rtx/rtpt/lightcache/cached/enabled", False)
+    logger.info("Applied Isaac RTX settings for deterministic rendering.")
+
+
+def apply_isaac_rtx_global_settings(
+    global_settings: IsaacRtxRendererGlobalSettingsCfg,
+    settings: SettingsManager | None = None,
+) -> None:
+    """Apply global Isaac RTX settings before renderer initialization.
+
+    Args:
+        global_settings: Global Isaac RTX settings to apply.
+        settings: Settings manager to apply settings through. If None, the global settings manager is used.
+    """
+    if settings is None:
+        settings = get_settings_manager()
+    _apply_isaac_rtx_global_settings(global_settings, settings)
+
+
+def _apply_isaac_rtx_global_settings(
+    global_settings: IsaacRtxRendererGlobalSettingsCfg,
+    settings: SettingsManager,
+) -> None:
+    """Apply global Isaac RTX settings to the provided settings manager."""
+
+    for field_name, setting_path in _RTX_FIELD_TO_SETTING.items():
+        value = getattr(global_settings, field_name, None)
+        if value is not None:
+            settings.set(setting_path, value)
+
+    extra_settings = getattr(global_settings, "carb_settings", None)
+    if extra_settings:
+        for key, value in extra_settings.items():
+            settings.set(_setting_path_from_key(key), value)
+
+    antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
+    if antialiasing_mode is not None:
+        import omni.replicator.core as rep
+
+        rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
 
 
 def _get_stage_streaming_busy() -> bool:
@@ -90,11 +183,17 @@ def ensure_rtx_hydra_engine_attached() -> None:
         logger.error("RTX Hydra engine attach failed: %s", e)
 
 
-def ensure_isaac_rtx_render_update() -> None:
+def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     """Ensure the Isaac RTX renderer has been pumped for the current sim step.
 
     This keeps the Kit-specific ``app.update()`` logic inside the renderers
     package rather than in the backend-agnostic ``SimulationContext``.
+
+    Args:
+        force: Pump even when continuous rendering is inactive
+            (:attr:`~isaaclab.sim.SimulationContext.is_rendering` is ``False``). Used by the
+            on-demand headless offscreen video path to produce a frame only when one is
+            requested. Defaults to ``False``.
 
     Safe to call from multiple ``Camera`` instances per step —
     only the first call triggers ``app.update()``.  Subsequent calls are no-ops
@@ -113,7 +212,7 @@ def ensure_isaac_rtx_render_update() -> None:
     No-op conditions:
         * Already called this step (dedup across camera instances).
         * A visualizer already pumps ``app.update()`` (e.g. KitVisualizer).
-        * Rendering is not active.
+        * Rendering is not active and ``force`` is ``False``.
     """
     global _last_render_update_key
 
@@ -135,7 +234,12 @@ def ensure_isaac_rtx_render_update() -> None:
         _last_render_update_key = key
         return
 
-    if not sim.is_rendering:
+    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
+    # excludes headless offscreen rendering so the per-step loop does not pump between frames.
+    # Offscreen frames are produced on demand: the ``--video`` / ``rgb_array`` path calls this with
+    # ``force=True`` (see :func:`pump_kit_app_for_headless_video_render_if_needed`) to pump exactly
+    # when a frame is requested, without making every step pump.
+    if not force and not sim.is_rendering:
         return
 
     # Sync physics results → Fabric so RTX sees updated positions.
@@ -171,7 +275,9 @@ def pump_kit_app_for_headless_video_render_if_needed(sim: Any) -> None:
     if any(viz.pumps_app_update() for viz in sim.visualizers):
         return
     try:
-        ensure_isaac_rtx_render_update()
+        # Explicit on-demand frame request: pump even though headless offscreen rendering
+        # is excluded from ``is_rendering`` (so the per-step loop stays quiet between frames).
+        ensure_isaac_rtx_render_update(force=True)
     except (ImportError, AttributeError, ModuleNotFoundError) as exc:
         logger.debug("[isaac_rtx] Skipping Kit app-loop pump in render() (non-Kit env): %s", exc)
     except Exception as exc:

@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
 from isaaclab.utils.configclass import configclass
@@ -126,6 +126,9 @@ class NewtonCfg(PhysicsCfg):
     - :class:`XPBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
+    :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
+    implicit MPM treats rigid geometry as colliders internally.
+
     If ``None`` (default), a pipeline with ``broad_phase="explicit"`` is created
     automatically.  Set this to a :class:`NewtonCollisionPipelineCfg` to customize
     parameters such as broad phase algorithm, contact limits, or hydroelastic mode.
@@ -142,6 +145,45 @@ class NewtonCfg(PhysicsCfg):
     Forwarded to Newton's :attr:`ModelBuilder.default_shape_cfg` at builder
     construction via :func:`~isaaclab.utils.checked_apply`. See
     :class:`NewtonShapeCfg` for the declared fields.
+    """
+
+    simplify_meshes: bool = True
+    """Whether Newton replication simplifies mesh colliders to convex hulls.
+
+    Keep this enabled for most rigid-body scenes. Disable it when exact triangle
+    meshes are intentional, for example thin or hollow MPM colliders.
+    """
+
+    bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"
+    """BVH construction algorithm for mesh geometry colliders.
+
+    Selects the bounding-volume-hierarchy builder Newton uses for the triangle
+    meshes of collision geometry, forwarded to :attr:`ModelBuilder.BvhConfig`.
+    Trades build time against query (traversal) quality:
+
+    - ``"lbvh"``: linear BVH; fastest to build, lowest-quality tree.
+    - ``"sah"``: surface-area-heuristic BVH; slower build, tighter tree with
+      faster ray/overlap queries.
+    - ``"cubql"``: cuBQL GPU builder; balances fast construction with good tree
+      quality on the GPU (default).
+    """
+
+    bvh_constructor_scene: Literal["lbvh", "sah"] = "sah"
+    """BVH construction algorithm for the top-level scene (broad-phase) hierarchy.
+
+    Selects the builder for the BVH over all colliders used during broad-phase
+    culling, forwarded to :attr:`ModelBuilder.BvhConfig`. See
+    :attr:`bvh_constructor_geometry` for the ``"lbvh"`` / ``"sah"`` trade-off;
+    ``"cubql"`` is not available for the scene hierarchy.
+    """
+
+    bvh_constructor_gaussian: Literal["lbvh", "sah", "cubql"] = "cubql"
+    """BVH construction algorithm for Gaussian-splat primitives.
+
+    Selects the builder for the BVH over 3D Gaussian primitives (used by the
+    Gaussian renderer/collision path), forwarded to
+    :attr:`ModelBuilder.BvhConfig`. See :attr:`bvh_constructor_geometry` for the
+    ``"lbvh"`` / ``"sah"`` / ``"cubql"`` trade-off.
     """
 
     def __post_init__(self):

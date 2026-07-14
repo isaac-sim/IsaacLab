@@ -1,6 +1,13 @@
 Tricks and Troubleshooting
 ==========================
 
+.. seealso::
+
+   This page is the source of truth for the ``isaaclab-setup-troubleshooting`` agent skill
+   (`skills/user/setup-troubleshooting/ <../../../skills/user/setup-troubleshooting/SKILL.md>`__).
+   When you change this page, update the skill so agent guidance stays in sync. See
+   :doc:`/source/overview/developer-guide/agent_skills`.
+
 .. note::
 
     The following lists some of the common tricks and troubleshooting methods that we use in our common workflows.
@@ -40,6 +47,48 @@ packages.
 
 Include ``assets`` in your install command, or use ``./isaaclab.sh -i`` to install
 everything.
+
+``ModuleNotFoundError: No module named 'isaaclab_tasks'``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``isaaclab_tasks`` package contains the registered task environments. This
+error usually means the command is not running in the Isaac Lab Python
+environment or the repository packages were not installed in editable mode.
+
+Try the following checks:
+
+1. Run from the Isaac Lab repository root using uv:
+
+   .. code-block:: bash
+
+      uv run python -c "import isaaclab_tasks; print('ok')"
+
+2. If the import still fails, recreate the documented source-install
+   environment for your workflow.
+
+3. Re-run the task command from the repository root instead of a system Python:
+
+   .. code-block:: bash
+
+      uv run python scripts/environments/random_agent.py --task Isaac-Cartpole --num_envs 4
+
+``<package> requires <version>, but <other-package> requires <version>``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+During pip or uv installs, the package manager may print dependency warnings
+where an Isaac Lab package, Isaac Sim package, or third-party package declares
+an incompatible dependency constraint. Common examples include ``coverage``,
+``packaging``, ``numpy``, or ``Pillow`` constraints reported between
+``isaaclab``, ``isaacsim-kernel``, ``isaacsim-core``, ``nvidia-srl-usd``, and
+``moviepy``.
+
+These messages are generally benign when the install command completes
+successfully. They usually reflect package metadata that is stricter or older
+than the versions bundled and tested with Isaac Sim. Prefer starting from a
+fresh virtual environment and using the installation commands in the Isaac Lab
+docs. If the resolver aborts with ``No solution found`` or installation leaves
+missing modules at runtime, recreate the environment and install the documented
+Isaac Sim version before installing Isaac Lab.
 
 ``ModuleNotFoundError: No module named 'rsl_rl'``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -104,7 +153,7 @@ To enable OmniPVD capture in Isaac Lab, add the relevant kit arguments to the co
 
 .. code:: bash
 
-    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true" --headless
+    ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
 Joints actuate in PhysX but not in a Newton-based backend
@@ -200,7 +249,7 @@ For instance, to run a standalone script with verbose logging, you can use the f
 .. code-block:: bash
 
     # Run the standalone script with info logging
-    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --headless --info
+    ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

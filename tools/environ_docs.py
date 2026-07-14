@@ -46,11 +46,13 @@ _PHYSICS_BACKEND_MIRROR_NAMES = frozenset(
 _RL_LIBRARY_ORDER = ("rl_games", "rsl_rl", "skrl", "sb3", "rlinf")
 
 # Gym IDs reserved for inference / evaluation variants and excluded from the training list.
-_INFERENCE_TASK_SUFFIXES = ("-Play-v0", "-Eval-v0")
+# Core and contributed tasks use versionless ``-Play`` / ``-Eval`` suffixes; experimental Warp
+# tasks still carry the legacy ``-Play-v0`` suffix.
+_INFERENCE_TASK_SUFFIXES = ("-Play", "-Play-v0", "-Eval")
 
 # RL libraries not discoverable from Gym ``kwargs`` (e.g. RLinf YAML-based workflows).
 RL_LIBRARY_OVERRIDES: dict[str, dict[str, list[str]]] = {
-    "Isaac-Assemble-Trocar-G129-Dex3-v0": {"rlinf": ["PPO"]},
+    "IsaacContrib-Assemble-Trocar-G129-Dex3": {"rlinf": ["PPO"]},
 }
 
 # Marker comments that delimit the auto-generated section in environments.rst.

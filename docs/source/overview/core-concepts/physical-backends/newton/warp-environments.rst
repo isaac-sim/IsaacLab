@@ -34,7 +34,7 @@ Direct Warp Environments
 - ``Isaac-Cartpole-Direct-Warp-v0`` — Cartpole balance
 - ``Isaac-Ant-Direct-Warp-v0`` — Ant locomotion
 - ``Isaac-Humanoid-Direct-Warp-v0`` — Humanoid locomotion
-- ``Isaac-Repose-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube repose
+- ``Isaac-Reorient-Cube-Allegro-Direct-Warp-v0`` — Allegro hand cube reorient
 
 
 Manager-Based Warp Environments
@@ -48,16 +48,16 @@ Manager-Based Warp Environments
 
 **Locomotion (Flat)**
 
-- ``Isaac-Velocity-Flat-Anymal-B-Warp-v0``
-- ``Isaac-Velocity-Flat-Anymal-C-Warp-v0``
-- ``Isaac-Velocity-Flat-Anymal-D-Warp-v0``
+- ``Isaac-Velocity-Flat-AnymalB-Warp-v0``
+- ``Isaac-Velocity-Flat-AnymalC-Warp-v0``
+- ``Isaac-Velocity-Flat-AnymalD-Warp-v0``
 - ``Isaac-Velocity-Flat-Cassie-Warp-v0``
 - ``Isaac-Velocity-Flat-G1-Warp-v0``
 - ``Isaac-Velocity-Flat-G1-Warp-v1``
 - ``Isaac-Velocity-Flat-H1-Warp-v0``
-- ``Isaac-Velocity-Flat-Unitree-A1-Warp-v0``
-- ``Isaac-Velocity-Flat-Unitree-Go1-Warp-v0``
-- ``Isaac-Velocity-Flat-Unitree-Go2-Warp-v0``
+- ``Isaac-Velocity-Flat-UnitreeA1-Warp-v0``
+- ``Isaac-Velocity-Flat-UnitreeGo1-Warp-v0``
+- ``Isaac-Velocity-Flat-UnitreeGo2-Warp-v0``
 
 **Manipulation**
 
@@ -72,11 +72,11 @@ Quick Start
 
     # Direct workflow
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096 --headless
+        --task Isaac-Cartpole-Direct-Warp-v0 --num_envs 4096
 
     # Manager-based workflow
     ./isaaclab.sh train --rl_library rsl_rl \
-        --task Isaac-Velocity-Flat-Anymal-C-Warp-v0 --num_envs 4096 --headless
+        --task Isaac-Velocity-Flat-AnymalC-Warp-v0 --num_envs 4096
 
 All RL libraries with warp-compatible wrappers are supported: RSL-RL, RL Games, SKRL, and
 Stable-Baselines3.
@@ -143,17 +143,17 @@ both running on the Newton physics backend. Measured over 300 iterations with 40
      - 11,458
      - 7,813
      - -31.83%
-   * - Anymal-B
+   * - AnymalB
      - Manager
      - 29,188
      - 21,781
      - -25.38%
-   * - Anymal-C
+   * - AnymalC
      - Manager
      - 30,938
      - 22,228
      - -28.15%
-   * - Anymal-D
+   * - AnymalD
      - Manager
      - 32,294
      - 23,977
@@ -260,8 +260,8 @@ specific to warp envs; for Newton physics limitations see :doc:`supported-featur
 Benchmarking Your Environment
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The performance table above was produced with ``scripts/benchmarks/benchmark_rsl_rl.py``,
-which runs a fixed iteration count and reports step-time statistics. Use the same script
+The performance table above was produced with ``isaaclab benchmark training``,
+which runs a fixed iteration count and reports step-time statistics. Use the same command
 to estimate the gain for your own task before committing to a migration.
 
 **Single-task A/B**
@@ -269,35 +269,35 @@ to estimate the gain for your own task before committing to a migration.
 .. code-block:: bash
 
     # Stable variant
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+    uv run isaaclab benchmark training \
+        --rl_library rsl_rl \
         --task <Task-Name>-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
-        --benchmark_backend summary \
+        --benchmark_formatter summary \
         --output_path benchmarks/stable
 
     # Warp variant — same task with -Warp- suffix
-    ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+    uv run isaaclab benchmark training \
+        --rl_library rsl_rl \
         --task <Task-Name>-Warp-v0 \
         --num_envs 4096 \
         --max_iterations 500 \
-        --headless \
-        --benchmark_backend summary \
+        --benchmark_formatter summary \
         --output_path benchmarks/warp
 
-The ``summary`` backend prints step time (mean / p50 / p99) and total throughput. Compare
+The ``summary`` formatter prints step time (min / mean / max) and total throughput. Compare
 "step time" between the two runs to estimate the gain per env step.
 
 **Sweep across all available tasks**
 
-``scripts/benchmarks/run_training_benchmarks.sh`` runs the full set of stable tasks listed
-in the script (cartpole, ant, humanoid, locomotion, manipulation). Pair it with a
-warp-tasks variant (substitute the ``-Warp-`` suffixed task ids) and diff the two outputs.
+Run ``isaaclab benchmark training`` for each task in the stable set (cartpole, ant, humanoid,
+locomotion, manipulation) and again with the ``-Warp-`` suffixed task ids, then diff the two output
+directories.
 
 **What to look at in the output**
 
-- *Step time (mean / p99)*: the headline number — what each env step costs.
+- *Step time (min / mean / max)*: the headline number — what each env step costs.
 - *Iteration time*: includes policy update; useful for end-to-end training throughput.
 - *Capture overhead*: for warp runs, the first few iterations include CUDA graph capture
   cost; exclude those when comparing steady-state numbers.
@@ -311,7 +311,7 @@ step time and look at where it's spent:
 - ``step_time`` dominated by ``manager.compute_*`` calls → expect large gains, since those
   are exactly what the warp managers replace with captured kernel launches.
 
-Use ``--num_frames`` on ``benchmark_non_rl.py`` for a no-policy step-time microbenchmark
+Use ``--num_frames`` on ``runtime.py`` for a no-policy step-time microbenchmark
 when you want to isolate env overhead from policy compute.
 
 
