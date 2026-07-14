@@ -41,6 +41,19 @@ if exist "%ISAACLAB_PATH%\_isaac_sim\" (
     )
 )
 
+rem If omni.usd.libs is present, prepend the latest version to PYTHONPATH so its
+rem patched pxr is found before usd-core's pxr, resolving TfType::AddAlias conflicts.
+set "_ov_usd_libs_dir="
+if exist "%ISAACLAB_PATH%\_isaac_sim\extscache\" (
+    "%python_exe%" -c "import glob,os,sys; d=sorted(glob.glob(os.path.join(os.environ.get('ISAACLAB_PATH',''),'_isaac_sim','extscache','omni.usd.libs-*'))); print(d[-1] if d else '',end='')" > "%TEMP%\ov_usd_libs.tmp" 2>nul
+    set /p _ov_usd_libs_dir=<"%TEMP%\ov_usd_libs.tmp"
+    del "%TEMP%\ov_usd_libs.tmp" >nul 2>&1
+)
+if defined _ov_usd_libs_dir (
+    set "PYTHONPATH=!_ov_usd_libs_dir!;!PYTHONPATH!"
+)
+set "_ov_usd_libs_dir="
+
 rem Execute CLI.
 "%python_exe%" -c "from isaaclab.cli import cli; cli()" %*
 

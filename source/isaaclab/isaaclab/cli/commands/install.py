@@ -53,8 +53,8 @@ def _install_system_deps() -> None:
         run_command(["sudo"] + cmd if os.geteuid() != 0 else cmd)
 
     # On ARM Linux (e.g. DGX Spark), Python dev headers (Python.h) are needed
-    # to build Python packages with native extensions. They are typically
-    # pre-installed in x86 Docker images but missing on bare-metal ARM systems.
+    # to build C extensions such as quadprog. They are typically pre-installed
+    # in x86 Docker images but missing on bare-metal ARM systems.
     if is_arm():
         python_dev_pkg = f"python{sys.version_info.major}.{sys.version_info.minor}-dev"
         try:
@@ -136,60 +136,6 @@ sys.exit(0)
         text=True,
     )
     return result.returncode == 1
-
-
-def _maybe_configure_ov_pxr(python_exe: str) -> None:
-    """Prioritize omni.usd.libs pxr over usd-core in OV/Isaac Sim environments.
-
-    ``usd-core`` 26.x added a backward-compatibility ``TfType`` alias for
-    ``"ParticleField"`` in ``UsdVol``.  When ``omni.usd.schema.usd_particle_field``
-    (shipped by the ``ovrtx``/``ovphysx`` extras) is also present, both packages
-    try to register the same alias and ``pxr.Tf.ErrorException: TfType::AddAlias``
-    is raised on import.
-
-    Isaac Sim's ``omni.usd.libs`` extension supplies NVIDIA's patched OpenUSD
-    build which removes the conflicting alias.  A ``.pth`` file installed in
-    site-packages prepends ``omni.usd.libs`` to ``sys.path`` at Python startup
-    so the patched pxr is found before usd-core's pxr, eliminating the conflict.
-    Kit-less environments (no ``omni.usd.libs``) continue using usd-core unaffected.
-    """
-    isaacsim_path = extract_isaacsim_path(required=False)
-    if isaacsim_path is None:
-        return
-    if not list(isaacsim_path.glob("extscache/omni.usd.libs-*")):
-        return
-
-    result = run_command(
-        [python_exe, "-c", "import site; print(site.getsitepackages()[0])"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode != 0 or not result.stdout.strip():
-        print_warning("Could not determine site-packages path; skipping pxr priority configuration.")
-        return
-
-    site_packages = Path(result.stdout.strip())
-    if not site_packages.is_dir():
-        return
-
-    # Single-line .pth executed by site at Python startup.  Dynamically resolves
-    # omni.usd.libs via ISAACLAB_PATH so the path stays valid across version bumps.
-    # The explicit ISAACLAB_PATH guard avoids an accidental relative-path glob
-    # when the variable is absent (e.g. when Python is invoked outside isaaclab.sh).
-    pth_content = (
-        "import sys, os, glob as _g; "
-        "_b = os.environ.get('ISAACLAB_PATH'); "
-        "_dirs = sorted(d for d in _g.glob("
-        "os.path.join(_b, '_isaac_sim', 'extscache', 'omni.usd.libs-*')) "
-        "if os.path.isdir(d)) if _b else []; "
-        "_dirs and sys.path.insert(0, _dirs[-1])\n"
-    )
-    pth_file = site_packages / "omni_usd_libs_pxr.pth"
-    pth_file.write_text(pth_content)
-    print_info(
-        f"Installed {pth_file.name} in site-packages to prioritize omni.usd.libs pxr over usd-core in OV environments."
-    )
 
 
 def _maybe_uninstall_prebundled_torch(
@@ -1370,12 +1316,6 @@ def command_install(install_type: str = "all") -> None:
         # centralized core requirements (and optional-submodule extras) from the
         # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
         _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
-
-        # In OV/Isaac Sim environments omni.usd.libs ships NVIDIA's patched pxr
-        # which removes schema aliases that conflict with omni.usd.schema packages
-        # bundled in ovrtx/ovphysx extras.  Install a .pth file so the patched pxr
-        # is found before usd-core on sys.path.
-        _maybe_configure_ov_pxr(python_exe)
 
         # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
         # pinned Newton git build (the default physics engine) over it.
