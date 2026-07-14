@@ -29,6 +29,8 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
+    from isaaclab_newton.sensors import NewtonSensorManager
+
 logger = logging.getLogger(__name__)
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
@@ -79,9 +81,9 @@ class RenderData:
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self._camera_quat_scratch: wp.array = None
-        # Name under which this camera's render launch is registered in the
-        # shared BVH task graph (set on first render).
-        self.bvh_task_name: str | None = None
+        # Name under which this camera's render launch is registered with the
+        # Newton sensor manager (set on first render).
+        self.sensor_task_name: str | None = None
         self.outputs = RenderData.CameraOutputs()
         self.width = getattr(spec.cfg, "width", 100)
         self.height = getattr(spec.cfg, "height", 100)
@@ -168,7 +170,7 @@ class RenderData:
         return None
 
     def update(self, positions: ProxyArray, orientations: ProxyArray, intrinsics: ProxyArray):
-        # Buffers are persistent: the shared BVH task graph captures the render
+        # Buffers are persistent: the sensor manager graph captures the render
         # launch against `camera_transforms`, so it must be updated in place.
         if self._camera_quat_scratch is None:
             self._camera_quat_scratch = wp.empty_like(orientations)
@@ -230,6 +232,7 @@ class NewtonWarpRenderer(BaseRenderer):
 
         self.cfg = cfg
         self.newton_sensor: newton.sensors.SensorTiledCamera | None = None
+        self._sensor_manager: NewtonSensorManager | None = None
 
         sim = SimulationContext.instance()
         current_req = sim.get_scene_data_requirements()
@@ -240,10 +243,11 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        self._newton_model: newton.Model = NewtonManager.get_model()
+        self._sensor_manager = NewtonManager.get_sensor_manager()
+        self._newton_model = self._sensor_manager.model
         if self._newton_model is None:
             raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but NewtonManager.get_model() returned None. "
+                "NewtonWarpRenderer requires a Newton model but the Newton sensor manager has no model. "
                 "This usually means the Newton model failed to build from the USD stage "
                 "(e.g., unsupported PhysX schemas such as tendons). "
                 "Check the log for earlier Newton model build errors."
@@ -341,16 +345,14 @@ class NewtonWarpRenderer(BaseRenderer):
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        # Refreshes the shadow state under the PhysX backend and flags the BVH
-        # for refit; the shared task graph then refits at most once per state
-        # change, no matter how many cameras and ray-cast sensors consume it.
+        # Refresh the shadow state under PhysX, then let the sensor manager own
+        # BVH refit and conditional graph execution for every Newton sensor.
         NewtonManager.get_state()
-
-        bvh_graph = NewtonManager.get_bvh_graph()
-        if render_data.bvh_task_name is None:
-            render_data.bvh_task_name = f"newton_warp_render:{id(render_data)}"
-            bvh_graph.register(render_data.bvh_task_name, lambda: self._launch_render(render_data))
-        bvh_graph.run(render_data.bvh_task_name)
+        assert self._sensor_manager is not None
+        if render_data.sensor_task_name is None:
+            render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
+            self._sensor_manager.register(render_data.sensor_task_name, lambda: self._launch_render(render_data))
+        self._sensor_manager.update(render_data.sensor_task_name)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
         # tensors were bound once in ``set_outputs``.
@@ -361,9 +363,10 @@ class NewtonWarpRenderer(BaseRenderer):
             )
 
     def _launch_render(self, render_data: RenderData) -> None:
-        """Launch the tiled-camera render kernels (captured into the BVH task graph)."""
+        """Launch the tiled-camera render kernels for sensor graph capture."""
+        assert self._sensor_manager is not None
         self.newton_sensor.update(
-            NewtonManager.get_state_0(),
+            self._sensor_manager.state,
             render_data.camera_transforms,
             render_data.camera_rays,
             color_image=render_data.outputs.color_image,
@@ -390,10 +393,10 @@ class NewtonWarpRenderer(BaseRenderer):
                     wp.copy(output_wp, image_data)
 
     def cleanup(self, render_data: RenderData | None):
-        """Release resources and drop the camera's BVH task.
+        """Release resources and drop the camera's sensor task.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.cleanup`."""
         if render_data:
-            if render_data.bvh_task_name is not None and NewtonManager._bvh_graph is not None:
-                NewtonManager._bvh_graph.unregister(render_data.bvh_task_name)
-                render_data.bvh_task_name = None
+            if render_data.sensor_task_name is not None and self._sensor_manager is not None:
+                self._sensor_manager.unregister(render_data.sensor_task_name)
+                render_data.sensor_task_name = None
             render_data.sensor = None

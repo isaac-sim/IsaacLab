@@ -15,8 +15,13 @@ __all__ = [
     "JointWrenchSensorData",
     "Pva",
     "PvaData",
+    "NewtonSensorManager",
     "MultiMeshRayCaster",
     "MultiMeshRayCasterCamera",
+    "LegacyMultiMeshRayCaster",
+    "LegacyMultiMeshRayCasterCamera",
+    "LegacyRayCaster",
+    "LegacyRayCasterCamera",
     "NewtonRaycastSensor",
     "NewtonRaycastSensorCfg",
     "NewtonRaycastSensorData",
@@ -28,6 +33,18 @@ from .contact_sensor import ContactSensor, ContactSensorData, ContactSensorCfg
 from .frame_transformer import FrameTransformer, FrameTransformerData
 from .imu import Imu, ImuData
 from .joint_wrench import JointWrenchSensor, JointWrenchSensorData
-from .newton_raycast import NewtonRaycastSensor, NewtonRaycastSensorCfg, NewtonRaycastSensorData
 from .pva import Pva, PvaData
-from .ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCamera, RayCaster, RayCasterCamera
+from .sensor_manager import NewtonSensorManager
+from .ray_caster import (
+    LegacyMultiMeshRayCaster,
+    LegacyMultiMeshRayCasterCamera,
+    LegacyRayCaster,
+    LegacyRayCasterCamera,
+    MultiMeshRayCaster,
+    MultiMeshRayCasterCamera,
+    NewtonRaycastSensor,
+    NewtonRaycastSensorCfg,
+    NewtonRaycastSensorData,
+    RayCaster,
+    RayCasterCamera,
+)

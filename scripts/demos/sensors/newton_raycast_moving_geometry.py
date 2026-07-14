@@ -32,10 +32,12 @@ parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 import math
+
 import numpy as np
 import torch
-
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.sensors import NewtonRaycastSensor, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
@@ -44,9 +46,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.sensors import NewtonRaycastSensor, NewtonRaycastSensorCfg
 
 BOX_DROP_POSITIONS = [(1.0, 0.6, 3.0), (-0.8, -1.0, 3.5), (0.2, -1.2, 4.0)]
 

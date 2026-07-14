@@ -4,13 +4,25 @@ Added
 * Added :class:`~isaaclab_newton.sensors.NewtonRaycastSensor` that ray-casts against every collision
   shape in the Newton scene through the model's shape BVH using :func:`newton.intersect_ray`, with
   per-environment worlds, hit distances and surface normals, and debug visualization.
-* Added :class:`~isaaclab_newton.physics.BvhTaskGraph`, a single conditional CUDA graph shared by all
-  consumers of the Newton shape BVH. The BVH is refit at most once per state change and each consumer
-  (tiled-camera renderer, ray-cast sensors) runs at its own update frequency inside the same graph.
+* Added :class:`~isaaclab_newton.sensors.NewtonSensorManager` to own Newton sensor scheduling,
+  shape-BVH refits, and conditional CUDA graph execution against an injected Newton model and state.
 
 Changed
 ^^^^^^^
 
 * Changed :class:`~isaaclab_newton.renderers.NewtonWarpRenderer` to refit the shape BVH through the new
-  Newton BVH API (:meth:`newton.Model.bvh_refit_shapes`) via the shared BVH task graph, replacing the
+  Newton BVH API (:meth:`newton.Model.bvh_refit_shapes`) via the shared sensor manager, replacing the
   deprecated ``newton.geometry.build_bvh_shape`` / ``newton.geometry.refit_bvh_shape`` helpers.
+* Changed the Newton implementation selected by :class:`~isaaclab.sensors.RayCaster` to use the live
+  scene BVH. The previous configured Warp-mesh implementations remain available as
+  :class:`~isaaclab_newton.sensors.LegacyRayCaster`,
+  :class:`~isaaclab_newton.sensors.LegacyRayCasterCamera`,
+  :class:`~isaaclab_newton.sensors.LegacyMultiMeshRayCaster`, and
+  :class:`~isaaclab_newton.sensors.LegacyMultiMeshRayCasterCamera`.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Newton backend class names ``RayCasterCamera``, ``MultiMeshRayCaster``, and
+  ``MultiMeshRayCasterCamera`` in favor of their ``Legacy``-prefixed names. Backend-dispatching classes
+  under :mod:`isaaclab.sensors` continue to work without changes.

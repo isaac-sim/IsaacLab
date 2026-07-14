@@ -14,12 +14,19 @@ import pytest
 import torch
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_newton.sensors import NewtonRaycastSensor, NewtonRaycastSensorCfg
+from isaaclab_newton.sensors import (
+    LegacyMultiMeshRayCaster,
+    LegacyMultiMeshRayCasterCamera,
+    LegacyRayCasterCamera,
+    NewtonRaycastSensor,
+    NewtonRaycastSensorCfg,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
+from isaaclab.sensors.ray_caster import MultiMeshRayCaster, MultiMeshRayCasterCamera, RayCasterCamera, RayCasterCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
@@ -68,6 +75,20 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
     )
 
 
+@configclass
+class GenericRaycastTestSceneCfg(RaycastTestSceneCfg):
+    """Scene using the backend-dispatching ray-caster configuration."""
+
+    raycast = RayCasterCfg(
+        prim_path="{ENV_REGEX_NS}/SensorBody",
+        offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET)),
+        pattern_cfg=GridPatternCfg(resolution=0.2, size=(0.4, 0.4)),
+        ray_alignment="yaw",
+        max_distance=100.0,
+        mesh_prim_paths=["/World/ground"],
+    )
+
+
 @pytest.fixture(params=[True, False], ids=["cuda_graph", "eager"])
 def sim(request):
     """Newton simulation context, with and without CUDA graphs."""
@@ -109,6 +130,29 @@ def test_rays_hit_ground_plane(sim, global_world_only):
     torch.testing.assert_close(normals, expected_normal, atol=1e-3, rtol=0)
 
 
+def test_generic_ray_caster_uses_newton_scene_bvh(sim):
+    """The backend-dispatching ray caster selects the Newton BVH implementation."""
+    scene = InteractiveScene(GenericRaycastTestSceneCfg(num_envs=1))
+    sim.reset()
+    sensor = _step_and_read(sim, scene)
+
+    assert isinstance(sensor, NewtonRaycastSensor)
+    assert hasattr(sensor.data, "ray_distances")
+    torch.testing.assert_close(
+        sensor.data.ray_distances.torch,
+        torch.full_like(sensor.data.ray_distances.torch, RAY_START_HEIGHT),
+        atol=1e-3,
+        rtol=0,
+    )
+
+
+def test_remaining_warp_mesh_factories_select_legacy_newton_adapters(sim):
+    """Camera and multi-mesh factories retain their explicit legacy implementations."""
+    assert RayCasterCamera.resolve_class() is LegacyRayCasterCamera
+    assert MultiMeshRayCaster.resolve_class() is LegacyMultiMeshRayCaster
+    assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
+
+
 def test_bvh_refit_tracks_moving_geometry(sim):
     """Sliding a box under the sensor changes the hits, proving the BVH refits live."""
     scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
@@ -148,8 +192,8 @@ class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     )
 
 
-def test_renderer_and_raycast_share_one_graph(sim):
-    """Tiled-camera render and ray-cast run as tasks of the same BVH graph, both correct."""
+def test_renderer_and_raycast_share_sensor_manager_graph(sim):
+    """Tiled-camera and ray-cast updates share the sensor manager graph."""
     scene = InteractiveScene(RaycastCameraSceneCfg(num_envs=1))
     sim.reset()
     sim.step()
@@ -160,8 +204,8 @@ def test_renderer_and_raycast_share_one_graph(sim):
     assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
 
-    bvh_graph = NewtonManager._bvh_graph
-    task_names = sorted(bvh_graph._tasks)
+    sensor_manager = NewtonManager.get_sensor_manager()
+    task_names = sorted(sensor_manager.task_names)
     assert any(name.startswith("newton_raycast:") for name in task_names)
     assert any(name.startswith("newton_warp_render:") for name in task_names)
-    assert (bvh_graph._graph is not None) == sim.cfg.physics.use_cuda_graph
+    assert sensor_manager.is_graph_captured == sim.cfg.physics.use_cuda_graph

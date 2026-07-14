@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
-    "BvhTaskGraph",
     "NewtonFeatherstoneManager",
     "FeatherstoneSolverCfg",
     "HydroelasticSDFCfg",
@@ -23,7 +22,6 @@ __all__ = [
     "XPBDSolverCfg",
 ]
 
-from .bvh_task_graph import BvhTaskGraph
 from .featherstone_manager import NewtonFeatherstoneManager
 from .featherstone_manager_cfg import FeatherstoneSolverCfg
 from .kamino_manager import NewtonKaminoManager

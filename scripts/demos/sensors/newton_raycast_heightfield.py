@@ -30,10 +30,12 @@ parser.set_defaults(visualizer=["newton"])
 args_cli = parser.parse_args()
 
 import math
+
 import numpy as np
 import torch
-
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.sensors import NewtonRaycastSensor, NewtonRaycastSensorCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.terrains as terrain_gen
@@ -43,9 +45,6 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
 from isaaclab.utils.configclass import configclass
-
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
-from isaaclab_newton.sensors import NewtonRaycastSensor, NewtonRaycastSensorCfg
 
 WAVE_TERRAIN_CFG = TerrainGeneratorCfg(
     size=(12.0, 12.0),

@@ -50,13 +50,13 @@ from isaaclab.utils.timer import Timer
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
 from isaaclab_newton.physics.visualization_builder import build_visualization_builder_from_stage_envs
 
-from .bvh_task_graph import BvhTaskGraph
 from .newton_manager_cfg import NewtonCfg, NewtonShapeCfg
 
 if TYPE_CHECKING:
     from pxr import Usd
 
     from isaaclab_newton.actuators import NewtonActuatorAdapter
+    from isaaclab_newton.sensors import NewtonSensorManager
 
     from .newton_collision_cfg import NewtonCollisionPipelineCfg
 
@@ -286,8 +286,8 @@ class NewtonManager(PhysicsManager):
     _graph = None
     _graph_capture_pending: bool = False
 
-    # Shared BVH refit graph for renderers and ray-cast sensors (lazy, see get_bvh_graph)
-    _bvh_graph: BvhTaskGraph | None = None
+    # Newton sensor scheduling and graph execution (created lazily once model/state exist).
+    _sensor_manager: NewtonSensorManager | None = None
 
     # USD/Fabric sync
     _newton_stage_path = None
@@ -420,8 +420,8 @@ class NewtonManager(PhysicsManager):
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
             cls._world_reset_mask.zero_()
-        if cls._bvh_graph is not None:
-            cls._bvh_graph.mark_state_changed()
+        if cls._sensor_manager is not None:
+            cls._sensor_manager.set_state(cls._state_0)
 
     @classmethod
     def pre_render(cls) -> None:
@@ -754,8 +754,8 @@ class NewtonManager(PhysicsManager):
             cls._mark_state_dirty()
         elif cls._particle_visual_prims:
             cls._mark_particles_dirty()
-        if cls._bvh_graph is not None:
-            cls._bvh_graph.mark_state_changed()
+        if cls._sensor_manager is not None:
+            cls._sensor_manager.set_state(cls._state_0)
 
         # Launch solver-specific debug logging after stepping.
         cls._log_solver_debug()
@@ -838,7 +838,9 @@ class NewtonManager(PhysicsManager):
         NewtonManager._fk_reset_mask = None
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
-        NewtonManager._bvh_graph = None
+        if NewtonManager._sensor_manager is not None:
+            NewtonManager._sensor_manager.clear()
+        NewtonManager._sensor_manager = None
         NewtonManager._newton_stage_path = None
         NewtonManager._usdrt_stage = None
         NewtonManager._transforms_dirty = False
@@ -1641,7 +1643,7 @@ class NewtonManager(PhysicsManager):
         excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
 
         When ``capture_target`` is provided it is captured instead of the physics simulate
-        function (used for secondary graphs such as the BVH task graph).
+        function (used for secondary graphs such as the sensor manager graph).
 
         Returns a ``wp.Graph`` on success, or ``None`` on failure.
         """
@@ -1859,39 +1861,40 @@ class NewtonManager(PhysicsManager):
         return cls._contacts
 
     @classmethod
-    def get_bvh_graph(cls) -> BvhTaskGraph:
-        """Get the shared BVH task graph, creating it lazily.
+    def get_sensor_manager(cls) -> NewtonSensorManager:
+        """Get the Newton sensor manager, creating it from the active model and state.
 
-        The graph refits the model's shape BVH (:meth:`newton.Model.bvh_refit_shapes`)
-        and runs its registered consumers — tiled-camera renderers and ray-cast
-        sensors — inside a single conditional CUDA graph. See :class:`BvhTaskGraph`.
+        The physics manager currently owns the authoritative Newton model and
+        state. They are injected into :class:`~isaaclab_newton.sensors.NewtonSensorManager`,
+        which independently owns sensor scheduling, BVH refits, and graph execution.
+
+        Returns:
+            The sensor manager for the active Newton model.
         """
-        if cls._bvh_graph is None:
+        if cls._sensor_manager is None:
+            from isaaclab_newton.sensors import NewtonSensorManager  # noqa: PLC0415
+
             model = cls.get_model()
-            if model is None:
-                raise RuntimeError("NewtonManager.get_bvh_graph() requires a Newton model.")
-            # ModelBuilder.finalize() builds the shape BVH; guard for manually populated models.
-            if model.shape_count > 0 and model.bvh_shapes is None:
-                model.bvh_build_shapes(cls.get_state_0())
+            state = cls.get_state_0()
+            if model is None or state is None:
+                raise RuntimeError("NewtonManager.get_sensor_manager() requires a Newton model and state.")
             cfg = PhysicsManager._cfg
-            NewtonManager._bvh_graph = BvhTaskGraph(
-                refit_fn=cls._refit_shape_bvh,
-                capture_fn=cls._capture_secondary_graph,
+            NewtonManager._sensor_manager = NewtonSensorManager(
+                model=model,
+                state=state,
+                capture_fn=cls._capture_sensor_graph,
                 device=str(PhysicsManager._device),
                 use_cuda_graph=bool(getattr(cfg, "use_cuda_graph", False)),
             )
-        return cls._bvh_graph
+        else:
+            state = cls.get_state_0()
+            if state is not cls._sensor_manager.state:
+                cls._sensor_manager.set_state(state)
+        return cls._sensor_manager
 
     @classmethod
-    def _refit_shape_bvh(cls) -> None:
-        """Refit the model's shape BVH against the current state (graph-capturable)."""
-        model = cls._model
-        if model is not None and model.shape_count > 0 and model.bvh_shapes is not None:
-            model.bvh_refit_shapes(cls._state_0)
-
-    @classmethod
-    def _capture_secondary_graph(cls, fn: Callable[[], None]) -> wp.Graph | None:
-        """Capture ``fn`` into a CUDA graph alongside (not inside) the physics graph.
+    def _capture_sensor_graph(cls, fn: Callable[[], None]) -> wp.Graph | None:
+        """Capture sensor work into a graph alongside the physics graph.
 
         Uses the RTX-compatible relaxed capture when a USDRT stage is active,
         otherwise a standard :class:`warp.ScopedCapture`. Returns ``None`` on
@@ -1905,7 +1908,7 @@ class NewtonManager(PhysicsManager):
                 fn()
             return capture.graph
         except Exception:
-            logger.exception("[NewtonManager] secondary CUDA graph capture failed")
+            logger.exception("[NewtonManager] sensor CUDA graph capture failed")
             return None
 
     @classmethod
@@ -2036,8 +2039,8 @@ class NewtonManager(PhysicsManager):
 
         cls._scene_data.transforms = cls._state_0.body_q
         scene_data_provider.get_transforms(cls._scene_data, mapping=cls._scene_data_mapping)
-        if cls._bvh_graph is not None:
-            cls._bvh_graph.mark_state_changed()
+        if cls._sensor_manager is not None:
+            cls._sensor_manager.set_state(cls._state_0)
 
     @staticmethod
     def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:
