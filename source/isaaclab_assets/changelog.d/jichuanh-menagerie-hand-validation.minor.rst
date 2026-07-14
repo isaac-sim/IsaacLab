@@ -6,9 +6,12 @@ Added
   Menagerie conversion defects by writing them into a patched copy of the asset's USD
   layers on disk (cached under ``~/.cache/isaaclab/menagerie_patched/``) instead of
   authoring prims at spawn time. Each fix is detection-first and idempotent -- kept
-  drives alive in the ``mujoco`` variant, unauthored static friction, collision pairs
-  manufactured by welded-body splits, ``physx``-layer joint velocity limits, and the
-  Shadow hand's fixed tendons -- and a ``isaaclabMenageriePatchVersion`` marker on the
+  drives alive in the ``mujoco`` variant, removed the converter's ``MjcActuator`` prims
+  so the drives are the single actuation source (Newton otherwise builds a second,
+  never-commanded servo per joint that drags it toward zero), unauthored static
+  friction, collision pairs manufactured by welded-body splits, ``physx``-layer joint
+  velocity limits, and the Shadow hand's fixed tendons -- and a
+  ``isaaclabMenageriePatchVersion`` marker on the
   entry layer short-circuits repeated patching. Assets resolve from the public
   production release via :obj:`~isaaclab_assets.robots.menagerie.MENAGERIE_ASSET_ROOT`
   (no Nucleus authentication required; a local mirror is copied and the S3 release is

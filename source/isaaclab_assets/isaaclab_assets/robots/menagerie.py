@@ -61,7 +61,7 @@ _PATCH_CACHE_ROOT = os.path.join(os.path.expanduser("~"), ".cache", "isaaclab", 
 _PATCH_MARKER_KEY = "isaaclabMenageriePatchVersion"
 """``customLayerData`` key stamped on a fully patched entry layer."""
 
-_PATCH_VERSION = 1
+_PATCH_VERSION = 2
 """Bump when the set or content of the fixes below changes, to invalidate stale caches."""
 
 
@@ -119,6 +119,34 @@ def _strip_drive_deletes(mujoco_layer: str) -> None:
         return
     layer.Save()
     _log_applied(f"{fix} ({count} joints)")
+
+
+def _remove_mjc_actuators(mujoco_layer: str) -> None:
+    """Remove the converter's ``MjcActuator`` prims so the drive APIs own actuation.
+
+    UPSTREAM(importer): with :meth:`_strip_drive_deletes` re-enabling the per-joint
+    UsdPhysics drives, the ``mujoco`` variant declares actuation TWICE — the native
+    ``MjcActuator`` prims (MJCF servo, kp=1) and the drives (task actuator config).
+    Newton's USD importer builds MuJoCo actuators from both, so every joint carries a
+    second servo whose control target IsaacLab never writes; it idles at ctrl=0 and
+    drags the joint toward zero with kp/(kp+kp_drive) of the command authority
+    (measured: 32 actuators for 16 joints, uniform 0.75 tracking = 3/(3+1)).
+    Removing the ``MjcActuator`` prims leaves exactly one actuation source per joint,
+    matching the legacy-asset contract. Delete once the importer deduplicates joints
+    that have both an ``MjcActuator`` and an authored drive.
+    """
+    from pxr import Usd
+
+    fix = "remove MjcActuator prims (double actuation)"
+    stage = Usd.Stage.Open(mujoco_layer)
+    actuators = [prim for prim in stage.TraverseAll() if prim.GetTypeName() == "MjcActuator"]
+    if not actuators:
+        _log_skipped(fix)
+        return
+    for prim in actuators:
+        stage.RemovePrim(prim.GetPath())
+    stage.GetRootLayer().Save()
+    _log_applied(f"{fix} ({len(actuators)} actuator(s))")
 
 
 def _author_static_friction(physics_layer: str) -> None:
@@ -308,6 +336,7 @@ def patch_menagerie_asset(
     physx_layer = os.path.join(physics_dir, "physx.usda")
 
     _strip_drive_deletes(mujoco_layer)
+    _remove_mjc_actuators(mujoco_layer)
     if author_static_friction:
         _author_static_friction(physics_layer)
     if filtered_body_pairs:
