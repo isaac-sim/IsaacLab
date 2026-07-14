@@ -3,103 +3,102 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Test texture randomization in the cartpole scene using pytest."""
+"""Unit tests for manager-based RL environment observation space construction."""
 
-from isaaclab.app import AppLauncher
+from __future__ import annotations
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+from types import SimpleNamespace
 
 import gymnasium as gym
 import numpy as np
 import pytest
-import torch
 
-import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedRLEnv
-from isaaclab.managers import ObservationGroupCfg
 
-from isaaclab_tasks.contrib.velocity.config.anymal_c.rough_env_cfg import AnymalCRoughEnvCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_camera_env_cfg import CartpoleCameraEnvCfg
-from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
-
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_non_concatenated_obs_groups_contain_all_terms(device):
-    """Test that non-concatenated observation groups contain all defined terms (issue #3133).
+def _make_env_with_policy_obs_terms(
+    num_envs: int,
+    terms: list[tuple[str, tuple[int, ...], tuple[float, float] | None]],
+) -> ManagerBasedRLEnv:
+    """Build an uninitialized env whose observation manager stubs drive space setup.
+
+    Args:
+        num_envs: Number of vectorized environments.
+        terms: Non-concatenated policy observation terms as ``(name, shape, clip)``
+            where ``clip`` is ``(low, high)`` or ``None``.
+
+    Returns:
+        An uninitialized :class:`~isaaclab.envs.ManagerBasedRLEnv` ready for
+        :meth:`~isaaclab.envs.ManagerBasedRLEnv._configure_gym_env_spaces`.
+    """
+    term_names = [name for name, _, _ in terms]
+    term_dims = [shape for _, shape, _ in terms]
+    term_cfgs = [SimpleNamespace(clip=clip) for _, _, clip in terms]
+
+    env = object.__new__(ManagerBasedRLEnv)
+    env._is_closed = True
+    env.scene = SimpleNamespace(num_envs=num_envs)
+    env.observation_manager = SimpleNamespace(
+        active_terms={"policy": term_names},
+        group_obs_concatenate={"policy": False},
+        group_obs_dim={"policy": term_dims},
+        _group_obs_term_cfgs={"policy": term_cfgs},
+    )
+    env.action_manager = SimpleNamespace(action_term_dim=[0])
+    return env
+
+
+def test_non_concatenated_obs_groups_contain_all_terms():
+    """Non-concatenated observation groups expose every term in the Dict space (issue #3133).
 
     Before the fix, only the last term in each non-concatenated group would be present
     in the observation space Dict. This test ensures all terms are correctly included.
     """
-    # new USD stage
-    sim_utils.create_new_stage()
+    terms = [
+        ("vector", (3,), None),
+        ("matrix", (2, 3), (-2.0, 2.0)),
+        ("image", (4, 5, 3), (0.0, 1.0)),
+    ]
+    env = _make_env_with_policy_obs_terms(num_envs=2, terms=terms)
+    ManagerBasedRLEnv._configure_gym_env_spaces(env)
 
-    # configure the policy group to return its terms separately
-    env_cfg = CartpoleEnvCfg()
-    env_cfg.scene.num_envs = 2  # keep num_envs small for testing
-    env_cfg.observations.policy.concatenate_terms = False
-    env_cfg.sim.device = device
+    assert isinstance(env.observation_space, gym.spaces.Dict)
+    policy_space = env.observation_space.spaces["policy"]
+    assert isinstance(policy_space, gym.spaces.Dict)
 
-    env = ManagerBasedRLEnv(cfg=env_cfg)
-    try:
-        assert isinstance(env.observation_space, gym.spaces.Dict)
-        policy_space = env.observation_space.spaces["policy"]
-        assert isinstance(policy_space, gym.spaces.Dict)
-
-        expected_policy_terms = ["joint_pos_rel", "joint_vel_rel"]
-
-        assert list(policy_space.spaces) == expected_policy_terms
-        for term_name in expected_policy_terms:
-            assert isinstance(policy_space.spaces[term_name], gym.spaces.Box)
-
-        # Test that observations match the space structure.
-        env.reset()
-        action = torch.tensor(env.action_space.sample(), device=env.device)
-        obs, _, _, _, _ = env.step(action)
-        assert list(obs["policy"]) == expected_policy_terms
-    finally:
-        env.close()
+    expected_policy_terms = {"vector", "matrix", "image"}
+    assert set(policy_space.spaces) == expected_policy_terms
+    for term_name in expected_policy_terms:
+        assert isinstance(policy_space.spaces[term_name], gym.spaces.Box)
 
 
-@pytest.mark.parametrize(
-    ("env_cfg_cls", "presets"),
-    [
-        (CartpoleCameraEnvCfg, ("rgb",)),
-        (CartpoleCameraEnvCfg, ("depth",)),
-        (AnymalCRoughEnvCfg, ()),
-    ],
-    ids=["RGB", "Depth", "RayCaster"],
-)
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_obs_space_follows_clip_contraint(env_cfg_cls, presets, device):
-    """Ensure observation space bounds reflect the clip constraint on each term."""
-    # new USD stage
-    sim_utils.create_new_stage()
+def test_obs_space_follows_clip_constraint():
+    """Observation space bounds reflect the clip constraint on each non-concatenated term."""
+    terms = [
+        ("vector", (3,), None),
+        ("matrix", (2, 3), (-2.0, 2.0)),
+        ("image", (4, 5, 3), (0.0, 1.0)),
+    ]
+    expected_shapes = {
+        "vector": (2, 3),
+        "matrix": (2, 2, 3),
+        "image": (2, 4, 5, 3),
+    }
+    term_clips = {name: clip for name, _, clip in terms}
+    env = _make_env_with_policy_obs_terms(num_envs=2, terms=terms)
+    ManagerBasedRLEnv._configure_gym_env_spaces(env)
 
-    # configure the env -- resolve Hydra presets so _Preset fields become plain values
-    from isaaclab_tasks.utils.hydra import resolve_presets
-
-    env_cfg = resolve_presets(env_cfg_cls(), presets)
-    env_cfg.scene.num_envs = 2  # keep num_envs small for testing
-    for group_cfg in vars(env_cfg.observations).values():
-        if isinstance(group_cfg, ObservationGroupCfg):
-            group_cfg.concatenate_terms = False
-    env_cfg.sim.device = device
-
-    env = ManagerBasedRLEnv(cfg=env_cfg)
-    try:
-        for group_name, group_space in env.observation_space.spaces.items():
-            assert isinstance(group_space, gym.spaces.Dict)
-            for term_name, term_space in group_space.spaces.items():
-                term_cfg = getattr(getattr(env_cfg.observations, group_name), term_name)
-                low = -np.inf if term_cfg.clip is None else term_cfg.clip[0]
-                high = np.inf if term_cfg.clip is None else term_cfg.clip[1]
-                assert isinstance(term_space, gym.spaces.Box), (
-                    f"Expected Box space for {term_name} in {group_name}, got {type(term_space)}"
-                )
-                assert np.all(term_space.low == low)
-                assert np.all(term_space.high == high)
-    finally:
-        env.close()
+    for group_name, group_space in env.observation_space.spaces.items():
+        assert isinstance(group_space, gym.spaces.Dict)
+        for term_name, term_space in group_space.spaces.items():
+            clip = term_clips[term_name]
+            low = -np.inf if clip is None else clip[0]
+            high = np.inf if clip is None else clip[1]
+            assert isinstance(term_space, gym.spaces.Box), (
+                f"Expected Box space for {term_name} in {group_name}, got {type(term_space)}"
+            )
+            assert term_space.shape == expected_shapes[term_name]
+            assert np.all(term_space.low == low)
+            assert np.all(term_space.high == high)

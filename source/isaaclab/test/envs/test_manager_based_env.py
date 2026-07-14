@@ -24,17 +24,10 @@ import isaaclab.sim as sim_utils
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
-
-
-@configclass
-class EmptyManagerCfg:
-    """Empty manager specifications for the environment."""
-
-    pass
 
 
 @configclass
@@ -53,63 +46,13 @@ class EmptyObservationWithHistoryCfg:
     empty_observation: EmptyObservationGroupWithHistoryCfg = EmptyObservationGroupWithHistoryCfg()
 
 
-@configclass
-class EmptySceneCfg(InteractiveSceneCfg):
-    """Configuration for an empty scene."""
-
-    pass
-
-
-def get_empty_base_env_cfg(device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0):
-    """Generate base environment config based on device"""
-
-    @configclass
-    class EmptyEnvCfg(ManagerBasedEnvCfg):
-        """Configuration for the empty test environment."""
-
-        # Scene settings
-        scene: EmptySceneCfg = EmptySceneCfg(num_envs=num_envs, env_spacing=env_spacing)
-        # Basic settings
-        actions: EmptyManagerCfg = EmptyManagerCfg()
-        observations: EmptyManagerCfg = EmptyManagerCfg()
-
-        def __post_init__(self):
-            """Post initialization."""
-            # step settings
-            self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-            # simulation settings
-            self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
-
-    return EmptyEnvCfg()
-
-
-def get_empty_base_env_cfg_with_history(device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0):
-    """Generate base environment config based on device"""
-
-    @configclass
-    class EmptyEnvWithHistoryCfg(ManagerBasedEnvCfg):
-        """Configuration for the empty test environment."""
-
-        # Scene settings
-        scene: EmptySceneCfg = EmptySceneCfg(num_envs=num_envs, env_spacing=env_spacing)
-        # Basic settings
-        actions: EmptyManagerCfg = EmptyManagerCfg()
-        observations: EmptyObservationWithHistoryCfg = EmptyObservationWithHistoryCfg()
-
-        def __post_init__(self):
-            """Post initialization."""
-            # step settings
-            self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-            # simulation settings
-            self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
-
-    return EmptyEnvWithHistoryCfg()
+def make_empty_manager_based_env_with_history_cfg(
+    device: str = "cuda:0", num_envs: int = 1, env_spacing: float = 1.0
+) -> ManagerBasedEnvCfg:
+    """Create an empty environment configuration with observation history."""
+    cfg = make_empty_manager_based_env_cfg(device=device, num_envs=num_envs, env_spacing=env_spacing)
+    cfg.observations = EmptyObservationWithHistoryCfg()
+    return cfg
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
@@ -118,7 +61,7 @@ def test_initialization(device):
     # create a new stage
     sim_utils.create_new_stage()
     # create environment
-    env = ManagerBasedEnv(cfg=get_empty_base_env_cfg(device=device))
+    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_cfg(device=device))
     # check size of action manager terms
     assert env.action_manager.total_action_dim == 0
     assert len(env.action_manager.active_terms) == 0
@@ -146,7 +89,7 @@ def test_observation_history_changes_only_after_step(device):
     # create a new stage
     sim_utils.create_new_stage()
     # create environment with history length of 5
-    env = ManagerBasedEnv(cfg=get_empty_base_env_cfg_with_history(device=device))
+    env = ManagerBasedEnv(cfg=make_empty_manager_based_env_with_history_cfg(device=device))
 
     # check if history buffer is empty
     for group_name in env.observation_manager._group_obs_term_names:

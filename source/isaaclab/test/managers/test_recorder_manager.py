@@ -27,10 +27,10 @@ import pytest
 import torch
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.test.env_cfgs import make_empty_manager_based_env_cfg
 from isaaclab.utils.configclass import configclass
 
 pytestmark = pytest.mark.integration
@@ -85,47 +85,6 @@ class DummyRecorderManagerCfg(RecorderManagerBaseCfg):
     record_step_term = DummyStepRecorderTermCfg()
 
     dataset_export_mode = DatasetExportMode.EXPORT_ALL
-
-
-@configclass
-class EmptyManagerCfg:
-    """Empty manager specifications for the environment."""
-
-    pass
-
-
-@configclass
-class EmptySceneCfg(InteractiveSceneCfg):
-    """Configuration for an empty scene."""
-
-    pass
-
-
-def get_empty_base_env_cfg(device: str = "cuda", num_envs: int = 1, env_spacing: float = 1.0):
-    """Generate base environment config based on device"""
-
-    @configclass
-    class EmptyEnvCfg(ManagerBasedEnvCfg):
-        """Configuration for the empty test environment."""
-
-        # Scene settings
-        scene: EmptySceneCfg = EmptySceneCfg(num_envs=num_envs, env_spacing=env_spacing)
-        # Basic settings
-        actions: EmptyManagerCfg = EmptyManagerCfg()
-        observations: EmptyManagerCfg = EmptyManagerCfg()
-        recorders: EmptyManagerCfg = EmptyManagerCfg()
-
-        def __post_init__(self):
-            """Post initialization."""
-            # step settings
-            self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-            # simulation settings
-            self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-            self.sim.render_interval = self.decimation  # render every 4 sim steps
-            # pass device down from test
-            self.sim.device = device
-
-    return EmptyEnvCfg()
 
 
 def get_file_contents(file_name: str, num_steps: int) -> dict[str, np.ndarray]:
@@ -271,7 +230,7 @@ def test_close(device, dataset_dir):
     # create a new stage
     sim_utils.create_new_stage()
     # create environment
-    env_cfg = get_empty_base_env_cfg(device=device, num_envs=2)
+    env_cfg = make_empty_manager_based_env_cfg(device=device, num_envs=2)
     cfg = DummyRecorderManagerCfg()
     cfg.export_in_close = True
     cfg.dataset_export_dir_path = dataset_dir
