@@ -126,6 +126,29 @@ def test_compare_golden_stage_reports_structure_and_transform_diffs(tmp_path: Pa
     assert any("transform" in problem and "/World/Robot" in problem for problem in problems)
 
 
+def test_maybe_save_stage_matches_golden_with_sublayer_result(golden_stage_dir: Path, tmp_path: Path):
+    """Comparison still passes when save_stage writes a root layer with a sublayer reference.
+
+    The bootstrap flattens the result stage to produce the golden.  On the second call the
+    result also has sublayer references, but both sides are flattened before comparison so
+    the composed prim structure and transforms match the golden exactly.
+    """
+    sublayer = tmp_path / "sub.usda"
+    sublayer.write_text(_usda_with_robot((1.0, 2.0, 3.0)), encoding="utf-8")
+
+    # Root layer that pulls all prims in via a sublayer — no inline definitions.
+    root_usda = f"#usda 1.0\n(\n    subLayers = [\n        @{sublayer}@\n    ]\n)\n"
+
+    with mock.patch("isaaclab.sim.save_stage", return_value=True) as save_stage_mock:
+        save_stage_mock.side_effect = _mock_export(root_usda)
+
+        with pytest.raises(pytest.fail.Exception, match="Golden stage not found"):
+            maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
+
+        # Same sublayered stage must compare equal to the flattened golden.
+        maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
+
+
 def test_maybe_save_stage_noop_without_dump_or_compare(monkeypatch: pytest.MonkeyPatch):
     """maybe_save_stage remains a no-op unless compare_golden or ISAAC_LAB_SAVE_STAGES is set."""
     monkeypatch.delenv("ISAAC_LAB_SAVE_STAGES", raising=False)

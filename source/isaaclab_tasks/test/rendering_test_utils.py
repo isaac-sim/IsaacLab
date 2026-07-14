@@ -325,20 +325,21 @@ def maybe_save_stage(
             os.makedirs(golden_dir, exist_ok=True)
             golden_path = os.path.join(golden_dir, f"{physics_backend}-{renderer}-{data_type}.usda")
 
-            if not os.path.exists(golden_path):
-                # Bootstrap a self-contained (flattened) baseline from the saved root-layer export.
-                # Flattening ``stage_path`` inlines its asset references, so the golden carries no
-                # external paths (which ``save_stage`` leaves as machine- and OS-specific resolved
-                # paths that would not reopen on another host such as CI). Flattening the *export*
-                # rather than the live stage also keeps Kit's volatile session render prims
-                # (OmniverseKit cameras, Replicator SDG pipeline, post-process) out of the baseline,
-                # matching exactly the composed prims the result side opens from ``stage_path``.
-                from pxr import Usd  # noqa: PLC0415
+            from pxr import Usd  # noqa: PLC0415
 
-                opened_stage = Usd.Stage.Open(stage_path)
-                if opened_stage is None:
-                    pytest.fail(f"Could not open the saved stage at {stage_path} to flatten for bootstrapping.")
-                if not opened_stage.Flatten().Export(golden_path):
+            # Open and flatten the saved stage once. Flattening inlines sublayer references so
+            # the golden carries no external paths and both the bootstrap export and the
+            # comparison work from the same flattened representation — even when save_stage
+            # writes a root layer with sublayer references. Opening the export (not the live Kit
+            # stage) also keeps volatile session render prims (OmniverseKit cameras, Replicator
+            # SDG pipeline, post-process) out of the baseline.
+            opened_stage = Usd.Stage.Open(stage_path)
+            if opened_stage is None:
+                pytest.fail(f"Could not open the saved stage at {stage_path} to flatten.")
+            flat_layer = opened_stage.Flatten()
+
+            if not os.path.exists(golden_path):
+                if not flat_layer.Export(golden_path):
                     pytest.fail(f"Failed to export the flattened golden baseline to {golden_path}.")
                 # Strip host-specific provenance/paths so the committed baseline is reproducible.
                 with open(golden_path, encoding="utf-8") as file:
@@ -347,7 +348,18 @@ def maybe_save_stage(
                     file.write(_sanitize_golden_stage_text(golden_text))
                 pytest.fail(f"Golden stage not found at {golden_path}. A new baseline was written.")
 
-            problems = compare_golden_stage(golden_path, stage_path)
+            # Write the flattened result to a temp file so both sides of the comparison use
+            # the same representation as the bootstrap wrote for the golden.
+            with tempfile.NamedTemporaryFile(suffix=".usda", delete=False) as flat_tmp:
+                flat_stage_path = flat_tmp.name
+            try:
+                if not flat_layer.Export(flat_stage_path):
+                    pytest.fail(f"Failed to write flattened result stage for comparison.")
+                problems = compare_golden_stage(golden_path, flat_stage_path)
+            finally:
+                if os.path.exists(flat_stage_path):
+                    os.unlink(flat_stage_path)
+
             if problems:
                 diff_summary = "\n".join(problems[:_MAX_STAGE_DIFF_LINES])
                 if len(problems) > _MAX_STAGE_DIFF_LINES:
