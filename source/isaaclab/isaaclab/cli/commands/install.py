@@ -138,6 +138,28 @@ sys.exit(0)
     return result.returncode == 1
 
 
+def _maybe_uninstall_kitless_pxr(pip_cmd: list[str]) -> None:
+    """Uninstall kit-less pxr packages when Isaac Sim's omni.usd.libs is present.
+
+    ``usd-core`` (x86_64) and ``usd-exchange`` (aarch64) provide a standalone
+    pxr runtime for use in kit-less environments.  When a full Isaac Sim
+    installation is present, its ``omni.usd.libs`` extension supplies the
+    authoritative NVIDIA-patched pxr instead.  Having both on ``sys.path``
+    causes pxr schema conflicts.  Remove the kit-less packages
+    so ``omni.usd.libs`` is the sole pxr provider in OV environments.
+    """
+    isaacsim_path = extract_isaacsim_path(required=False)
+    if isaacsim_path is None:
+        return
+    if not list(isaacsim_path.glob("extscache/omni.usd.libs-*")):
+        return
+    print_info(
+        "Isaac Sim's omni.usd.libs provides the authoritative pxr runtime. "
+        "Uninstalling kit-less pxr packages (usd-core, usd-exchange) to avoid conflicts."
+    )
+    run_command(pip_cmd + ["uninstall", "-y", "usd-core", "usd-exchange"], check=False)
+
+
 def _maybe_uninstall_prebundled_torch(
     python_exe: str,
     pip_cmd: list[str],
@@ -1316,6 +1338,13 @@ def command_install(install_type: str = "all") -> None:
         # centralized core requirements (and optional-submodule extras) from the
         # root pyproject. torch is excluded — it is handled by _ensure_cuda_torch.
         _install_centralized_dependencies(pip_cmd, requested_optional_submodules)
+
+        # In OV/Isaac Sim environments omni.usd.libs ships the authoritative pxr
+        # runtime (NVIDIA-patched OpenUSD).  usd-core is a kit-less fallback
+        # installed for environments without Isaac Sim.  When both are present,
+        # omni.usd.libs must take precedence so that Isaac Sim's pxr patches and
+        # schema customisations are active rather than the vanilla usd-core build.
+        _maybe_uninstall_kitless_pxr(pip_cmd)
 
         # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
         # pinned Newton git build (the default physics engine) over it.

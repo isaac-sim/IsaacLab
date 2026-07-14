@@ -55,16 +55,6 @@ if [ -d "$ISAACLAB_PATH/_isaac_sim" ]; then
                 export PYTHONPATH="$env_site_packages:$PYTHONPATH"
             fi
         fi
-        # In OV/Isaac Sim environments omni.usd.libs ships the authoritative pxr
-        # runtime (NVIDIA-patched OpenUSD).  usd-core is a kit-less fallback
-        # installed for environments without Isaac Sim.  When both are present,
-        # omni.usd.libs must take precedence so that Isaac Sim's pxr patches and
-        # schema customisations are active rather than the vanilla usd-core build.
-        _omni_usd_libs=$(ls -d "$ISAACLAB_PATH/_isaac_sim/extscache/omni.usd.libs-"*/ 2>/dev/null | sort -V | tail -1)
-        if [ -n "$_omni_usd_libs" ]; then
-            export PYTHONPATH="$_omni_usd_libs:$PYTHONPATH"
-        fi
-        unset _omni_usd_libs
     else
         echo "[WARNING] _isaac_sim is present but _isaac_sim/setup_conda_env.sh or _isaac_sim/setup_python_env.sh is missing; Isaac Sim env vars not exported." >&2
         echo "[WARNING] Re-extract the Isaac Sim binary zip if you intend to use the bundled binary." >&2
