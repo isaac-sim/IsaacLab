@@ -823,6 +823,57 @@ class Articulation(BaseArticulation):
             TT.ROOT_VELOCITY, self.data._root_com_vel_w.data.view(wp.float32), mask=env_mask_wp
         )
 
+    def write_joint_state_to_sim_index(
+        self,
+        *,
+        position: torch.Tensor | wp.array,
+        velocity: torch.Tensor | wp.array,
+        joint_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
+        skip_forward: bool = False,
+    ) -> None:
+        """Set joint positions and velocities over selected indices into the simulation.
+
+        The joint position and velocity caches, finite-difference velocity baseline, and
+        joint acceleration cache are updated in one device kernel.
+
+        .. note::
+            This method expects partial data.
+
+        Args:
+            position: Joint positions [m or rad, depending on joint type]. Shape is
+                (len(env_ids), len(joint_ids)) with dtype wp.float32.
+            velocity: Joint velocities [m/s or rad/s, depending on joint type]. Shape is
+                (len(env_ids), len(joint_ids)) with dtype wp.float32.
+            joint_ids: Joint indices. Defaults to None (all joints).
+            env_ids: Environment indices. Defaults to None (all environments).
+            skip_forward: Whether to skip invalidating cached data after the write. When True, the caller
+                must invalidate stale cached data before reading it back. Defaults to False.
+        """
+        env_ids = self._resolve_env_ids(env_ids)
+        joint_ids = self._resolve_joint_ids(joint_ids)
+        expected_shape = (env_ids.shape[0], joint_ids.shape[0])
+        self.assert_shape_and_dtype(position, expected_shape, wp.float32, "position")
+        self.assert_shape_and_dtype(velocity, expected_shape, wp.float32, "velocity")
+        wp.launch(
+            shared_kernels.write_joint_state_to_buffer_with_indices,
+            dim=expected_shape,
+            inputs=[position, velocity, env_ids, joint_ids],
+            outputs=[
+                self._data._joint_pos_buf.data,
+                self._data._joint_vel_buf.data,
+                self._data._previous_joint_vel,
+                self._data._joint_acc.data,
+            ],
+            device=self._device,
+        )
+        self._data._joint_acc.timestamp = self._data._sim_timestamp
+        if not skip_forward:
+            self._data._reset_pose()
+            self._data._reset_velocity()
+        self._root_view.set_attribute(TT.DOF_POSITION, self._data._joint_pos_buf.data, indices=env_ids)
+        self._root_view.set_attribute(TT.DOF_VELOCITY, self._data._joint_vel_buf.data, indices=env_ids)
+
     def write_joint_position_to_sim_index(
         self,
         *,
