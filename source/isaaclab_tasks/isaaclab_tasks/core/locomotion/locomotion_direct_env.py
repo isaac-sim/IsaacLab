@@ -248,7 +248,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         if hasattr(self.robot, "write_joint_state_to_sim_index"):
             self.robot.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, env_ids=env_ids)
         else:
-            # OVPhysX does not yet provide the fused writer.
+            # Keep compatibility with backends that do not provide the fused writer.
             self.robot.write_joint_position_to_sim_index(position=joint_pos, env_ids=env_ids)
             self.robot.write_joint_velocity_to_sim_index(velocity=joint_vel, env_ids=env_ids)
 
