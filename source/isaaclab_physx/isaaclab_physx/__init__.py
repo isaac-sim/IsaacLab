@@ -117,7 +117,12 @@ def _subscribe_to_simulation_manager_enable():
     if kit_app is None:
         return
 
-    app = kit_app.get_app()
+    try:
+        app = kit_app.get_app()
+    except RuntimeError:
+        # The Python module can be imported before the Kit IApp interface exists,
+        # such as during config-only pytest collection.
+        return
     if app is None:
         return
 
