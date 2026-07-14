@@ -37,7 +37,6 @@ Repository organization
    │   ├── environments
    │   ├── imitation_learning
    │   ├── reinforcement_learning
-   │   ├── sim2sim_transfer
    │   ├── tools
    │   └── tutorials
    ├── tools
@@ -121,7 +120,6 @@ They are structured as follows:
   learning libraries (e.g. robomimic).
 * **reinforcement_learning**: Applications for training and evaluating policies with RL
   libraries (e.g. rsl_rl, rl_games, sb3, skrl).
-* **sim2sim_transfer**: Scripts for transferring policies trained in one simulator to another.
 * **tools**: Applications for using framework tools such as converting assets and generating
   datasets.
 * **tutorials**: Step-by-step tutorials for using the APIs provided by the framework.
