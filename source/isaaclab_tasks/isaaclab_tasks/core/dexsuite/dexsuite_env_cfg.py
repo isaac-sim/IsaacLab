@@ -407,7 +407,7 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     mechanical_energy = RewTerm(func=mdp.mechanical_energy, weight=-0.01)
-    
+
     fingers_to_object = RewTerm(func=mdp.object_ee_distance, params={"std": 0.4}, weight=0.05)
 
     position_tracking = RewTerm(

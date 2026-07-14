@@ -8,7 +8,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
-from isaaclab.sim import MeshCuboidCfg, MeshCapsuleCfg, MeshSphereCfg
+from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
 from isaaclab.utils.configclass import configclass
 
 from isaaclab_assets.robots import FRANKA_PANDA_CFG

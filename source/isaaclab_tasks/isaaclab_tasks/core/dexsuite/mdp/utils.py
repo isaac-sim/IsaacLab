@@ -283,7 +283,11 @@ def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, t
         if owner_frame is None:
             continue
         owner, frame_prim = owner_frame
-        mesh = create_trimesh_from_geom_mesh(prim) if prim.GetTypeName() == "Mesh" else create_trimesh_from_geom_shape(prim)
+        mesh = (
+            create_trimesh_from_geom_mesh(prim)
+            if prim.GetTypeName() == "Mesh"
+            else create_trimesh_from_geom_shape(prim)
+        )
         mesh.apply_scale(sim_utils.resolve_prim_scale(prim))
         position, quat_xyzw = sim_utils.resolve_prim_pose(prim, frame_prim)
         transform = trimesh.transformations.quaternion_matrix([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])

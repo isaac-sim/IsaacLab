@@ -93,7 +93,9 @@ class KukaAllegroMixinCfg:
         events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="iiwa7_joint_7")
         events["reset_object_to_target"].params["target_cfg"] = SceneEntityCfg("robot", body_names="palm_link")
         events["reset_object_to_target"].params["pose_range"] = {
-            "x": [0.03, 0.07], "y": [-0.04, 0.04], "z": [0.02, 0.08]
+            "x": [0.03, 0.07],
+            "y": [-0.04, 0.04],
+            "z": [0.02, 0.08],
         }
         # table/ground clearance: everything but the ground-mounted arm base (allegro finger links
         # are also named *_link_N, so exclude exactly iiwa7_link_0)

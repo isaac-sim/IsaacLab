@@ -20,8 +20,8 @@ class MeshClearanceCfg(ManagerTermBaseCfg):
 
     Configuration for :class:`mesh_clearance`, which checks the object's surface point cloud
     against the robot collision meshes and the robot collision vertices against the object
-    mesh with Warp signed-distance queries. The implementation is referenced by name and resolved at play, so importing this config pulls no
-    implementation dependencies.
+    mesh with Warp signed-distance queries. The implementation is referenced by name and
+    resolved at play, so importing this config pulls no implementation dependencies.
     """
 
     func: Callable | str = "{DIR}.events:mesh_clearance"

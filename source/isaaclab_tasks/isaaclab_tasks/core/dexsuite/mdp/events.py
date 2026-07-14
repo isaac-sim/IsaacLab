@@ -20,8 +20,8 @@ from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg,
 from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 
 from .utils import (
-    collect_collision_meshes,
     collect_body_collision_meshes,
+    collect_collision_meshes,
     get_reset_state,
     sample_object_point_cloud,
     set_reset_state,
