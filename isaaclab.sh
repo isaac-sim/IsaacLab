@@ -61,15 +61,15 @@ if [ -d "$ISAACLAB_PATH/_isaac_sim" ]; then
     fi
 fi
 
-# If omni.usd.libs is present, prepend it to PYTHONPATH so its patched pxr is
-# found before usd-core's pxr.  This resolves TfType::AddAlias conflicts when
-# omni.usd.schema packages (ovrtx/ovphysx) are also installed.  Done here rather
-# than via a .pth file so that LD_LIBRARY_PATH (set above by setup_*_env.sh)
-# is already in effect, keeping kit-less environments unaffected.
+# If omni.usd.libs is present, prepend it to PYTHONPATH and its bin/ to
+# LD_LIBRARY_PATH so its patched pxr is found before usd-core's pxr and the
+# native USD shared libraries are resolvable.  This resolves TfType::AddAlias
+# conflicts when omni.usd.schema packages (ovrtx/ovphysx) are also installed.
 if [ -d "$ISAACLAB_PATH/_isaac_sim/extscache" ]; then
     _ov_usd_libs_dir=$(find "$ISAACLAB_PATH/_isaac_sim/extscache" -maxdepth 1 -name "omni.usd.libs-*" -type d 2>/dev/null | sort | tail -1)
     if [ -n "$_ov_usd_libs_dir" ]; then
         export PYTHONPATH="$_ov_usd_libs_dir:$PYTHONPATH"
+        export LD_LIBRARY_PATH="$_ov_usd_libs_dir/bin:$LD_LIBRARY_PATH"
     fi
     unset _ov_usd_libs_dir
 fi
