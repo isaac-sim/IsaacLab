@@ -1241,6 +1241,10 @@ class AppLauncher:
                 indexes_to_remove.append(idx)
             if arg == "--capture=no":
                 indexes_to_remove.append(idx)
+            # Kit also interprets pytest's -v/-vv flags, enabling verbose startup
+            # logs that dump configuration tokens and every registered extension.
+            if re.fullmatch(r"-v+", arg):
+                indexes_to_remove.append(idx)
         for idx in sorted(indexes_to_remove, reverse=True):
             sys.argv = sys.argv[:idx] + sys.argv[idx + 1 :]
 
