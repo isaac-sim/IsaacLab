@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from .ordering import (
@@ -50,6 +51,63 @@ if TYPE_CHECKING:
     from .base_articulation import BaseArticulation
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ArticulationElementKind:
+    """Per-kind data for one articulation element axis (joints or bodies).
+
+    Instances are module-private, frozen, and interned as the :data:`_JOINT_KIND`
+    and :data:`_BODY_KIND` singletons, so the kind threaded through ordering
+    resolution carries its own backend attribute, USD relationship, name-override
+    spellings, config field, and spelling-match policy instead of scattering
+    those as per-call ternaries and per-kind lookup tables.
+
+    Attributes:
+        label: Public element-kind alias, either ``"joint"`` or ``"body"``, used
+            for diagnostics and as the per-articulation convention cache key.
+        backend_names_attr: Name of the articulation attribute exposing active
+            backend names for this kind.
+        relationship_name: Isaac Sim robot-schema relationship authored on the
+            source asset for this kind.
+        name_override_attrs: Candidate name-override attribute spellings, tried in
+            order when reading a robot-schema target's authored name.
+        config_field: Configuration field naming this kind's public ordering.
+        matches_backend_spelling: Whether convention names for this kind are
+            rewritten to active-backend spellings; only joints carry the per-DoF
+            separator differences that need matching.
+    """
+
+    label: Literal["joint", "body"]
+    backend_names_attr: str
+    relationship_name: str
+    name_override_attrs: tuple[str, ...]
+    config_field: str
+    matches_backend_spelling: bool
+
+
+_JOINT_KIND = _ArticulationElementKind(
+    label="joint",
+    backend_names_attr="backend_joint_names",
+    relationship_name="isaac:physics:robotJoints",
+    name_override_attrs=("isaac:NameOverride", "isaac:nameOverride"),
+    config_field="joint_ordering",
+    matches_backend_spelling=True,
+)
+
+_BODY_KIND = _ArticulationElementKind(
+    label="body",
+    backend_names_attr="backend_body_names",
+    relationship_name="isaac:physics:robotLinks",
+    name_override_attrs=("isaac:nameOverride", "isaac:NameOverride"),
+    config_field="body_ordering",
+    matches_backend_spelling=False,
+)
+
+_ELEMENT_KINDS_BY_LABEL: dict[str, _ArticulationElementKind] = {
+    _JOINT_KIND.label: _JOINT_KIND,
+    _BODY_KIND.label: _BODY_KIND,
+}
 
 
 def _backend_matches_ordering_convention(
@@ -71,57 +129,61 @@ def _backend_matches_ordering_convention(
     return convention.value in getattr(articulation, "__backend_native_orderings__", ())
 
 
-def _validate_ordering_kind(kind: object) -> Literal["joint", "body"]:
-    """Return a supported articulation element kind."""
-    if kind == "joint" or kind == "body":
+def _validate_ordering_kind(kind: _ArticulationElementKind | str) -> _ArticulationElementKind:
+    """Return the :class:`_ArticulationElementKind` for a supported element kind.
+
+    Accepts the public ``"joint"``/``"body"`` label or an already-resolved
+    :class:`_ArticulationElementKind` (idempotent), so this is the single point
+    where the external string boundary is converted into the rich kind consumed
+    by the rest of the module.
+    """
+    if isinstance(kind, _ArticulationElementKind):
         return kind
+    resolved = _ELEMENT_KINDS_BY_LABEL.get(kind) if isinstance(kind, str) else None
+    if resolved is not None:
+        return resolved
     raise ValueError(f"kind must be 'joint' or 'body'; got {kind!r}.")
 
 
-def _get_backend_names(articulation: BaseArticulation, kind: Literal["joint", "body"]) -> tuple[str, ...]:
+def _get_backend_names(articulation: BaseArticulation, kind: _ArticulationElementKind) -> tuple[str, ...]:
     """Return active backend names from an articulation."""
-    attr_name = "backend_joint_names" if kind == "joint" else "backend_body_names"
+    attr_name = kind.backend_names_attr
     return _validate_articulation_names(getattr(articulation, attr_name), parameter_name=f"Articulation {attr_name}")
 
 
 def _get_cached_convention_names(
     articulation: BaseArticulation,
     convention: ArticulationOrderingConvention,
-    kind: Literal["joint", "body"],
+    kind: _ArticulationElementKind,
 ) -> tuple[str, ...] | None:
     """Return cached convention names for an articulation, if present.
 
     The cache is written only by :func:`_cache_convention_names` with already
-    validated tuples, so entries are returned without re-validation.
+    validated tuples, so entries are returned without re-validation. Keys use
+    :attr:`_ArticulationElementKind.label` so the cache stays keyed by a plain
+    ``(convention, "joint"/"body")`` tuple.
     """
-    return articulation._ordering_convention_name_cache.get((convention, kind))
+    return articulation._ordering_convention_name_cache.get((convention, kind.label))
 
 
 def _cache_convention_names(
     articulation: BaseArticulation,
     convention: ArticulationOrderingConvention,
-    names_by_kind: dict[Literal["joint", "body"], tuple[str, ...]],
+    names_by_kind: dict[_ArticulationElementKind, tuple[str, ...]],
 ) -> None:
-    """Cache convention names on the articulation instance."""
+    """Cache convention names on the articulation instance.
+
+    Keyed by :attr:`_ArticulationElementKind.label` so the cache stays keyed by a
+    plain ``(convention, "joint"/"body")`` tuple.
+    """
     cache = articulation._ordering_convention_name_cache
     for kind, names in names_by_kind.items():
-        cache[(convention, kind)] = tuple(names)
+        cache[(convention, kind.label)] = tuple(names)
 
 
 def _get_prim_path_string(prim: Usd.Prim) -> str:
     """Return a USD prim's path string."""
     return prim.GetPath().pathString
-
-
-_ROBOT_SCHEMA_RELATIONSHIP_NAMES: dict[Literal["joint", "body"], str] = {
-    "joint": "isaac:physics:robotJoints",
-    "body": "isaac:physics:robotLinks",
-}
-
-_ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS: dict[Literal["joint", "body"], tuple[str, ...]] = {
-    "joint": ("isaac:NameOverride", "isaac:nameOverride"),
-    "body": ("isaac:nameOverride", "isaac:NameOverride"),
-}
 
 
 def _get_stage_prim_at_path(stage: Usd.Stage, path: Sdf.Path | str) -> Usd.Prim | None:
@@ -153,9 +215,9 @@ def _get_prim_name(prim: Usd.Prim) -> str:
     return prim.GetName()
 
 
-def _get_robot_schema_target_name(prim: Usd.Prim, kind: Literal["joint", "body"]) -> str:
+def _get_robot_schema_target_name(prim: Usd.Prim, kind: _ArticulationElementKind) -> str:
     """Return the articulation name represented by a robot schema target prim."""
-    name_override = _get_prim_authored_string(prim, _ROBOT_SCHEMA_NAME_OVERRIDE_ATTRS[kind])
+    name_override = _get_prim_authored_string(prim, kind.name_override_attrs)
     if name_override is not None:
         return name_override
     return _get_prim_name(prim)
@@ -172,7 +234,7 @@ def _get_relationship_targets(prim: Usd.Prim, relationship_name: str) -> tuple[S
 
 def _collect_robot_schema_relationship_names(
     robot_prim: Usd.Prim,
-    kind: Literal["joint", "body"],
+    kind: _ArticulationElementKind,
     visited_paths: set[str],
     unresolved_targets: list[str] | None = None,
 ) -> tuple[str, ...]:
@@ -201,7 +263,7 @@ def _collect_robot_schema_relationship_names(
         ValueError: If a relationship target resolves to a prim path already
             present in :paramref:`visited_paths`.
     """
-    relationship_name = _ROBOT_SCHEMA_RELATIONSHIP_NAMES[kind]
+    relationship_name = kind.relationship_name
     target_paths = _get_relationship_targets(robot_prim, relationship_name)
     if not target_paths:
         return ()
@@ -298,19 +360,17 @@ def _match_backend_joint_name_spellings(
 
 def _match_backend_name_spellings(
     *,
-    kind: Literal["joint", "body"],
+    kind: _ArticulationElementKind,
     names: Sequence[str],
     backend_names: Sequence[str],
 ) -> tuple[str, ...]:
     """Return convention names rewritten with active-backend spellings when needed."""
-    if kind == "joint":
-        return _match_backend_joint_name_spellings(names, backend_names)
-    return tuple(names)
+    return _match_backend_joint_name_spellings(names, backend_names) if kind.matches_backend_spelling else tuple(names)
 
 
 def _get_complete_convention_names(
     *,
-    kind: Literal["joint", "body"],
+    kind: _ArticulationElementKind,
     names: tuple[str, ...] | None,
     backend_names: Sequence[str],
 ) -> tuple[str, ...] | None:
@@ -337,14 +397,19 @@ def _get_complete_convention_names(
 def _get_complete_convention_names_by_kind(
     articulation: BaseArticulation,
     names_by_kind: dict[Literal["joint", "body"], tuple[str, ...]],
-) -> dict[Literal["joint", "body"], tuple[str, ...]]:
-    """Return only complete convention-name candidates from a multi-kind provider."""
-    complete_names: dict[Literal["joint", "body"], tuple[str, ...]] = {}
-    for candidate_kind in ("joint", "body"):
+) -> dict[_ArticulationElementKind, tuple[str, ...]]:
+    """Return only complete convention-name candidates from a multi-kind provider.
+
+    :paramref:`names_by_kind` is keyed by the public ``"joint"``/``"body"`` label
+    (both kinds are produced together by the builder); the returned dict is keyed
+    by the resolved :class:`_ArticulationElementKind`.
+    """
+    complete_names: dict[_ArticulationElementKind, tuple[str, ...]] = {}
+    for candidate_kind in (_JOINT_KIND, _BODY_KIND):
         backend_names = _get_backend_names(articulation, candidate_kind)
         names = _get_complete_convention_names(
             kind=candidate_kind,
-            names=names_by_kind.get(candidate_kind),
+            names=names_by_kind.get(candidate_kind.label),
             backend_names=backend_names,
         )
         if names is not None:
@@ -381,7 +446,7 @@ def _get_robot_schema_candidate_prims(articulation: BaseArticulation) -> tuple[U
 
 def _get_robot_schema_names(
     articulation: BaseArticulation,
-    kind: Literal["joint", "body"],
+    kind: _ArticulationElementKind,
 ) -> tuple[tuple[str, ...] | None, str]:
     """Return complete articulation names from Isaac Sim robot schema relationships.
 
@@ -396,7 +461,7 @@ def _get_robot_schema_names(
         resolved).
     """
     backend_names = _get_backend_names(articulation, kind)
-    relationship_name = _ROBOT_SCHEMA_RELATIONSHIP_NAMES[kind]
+    relationship_name = kind.relationship_name
 
     candidate_prims = _get_robot_schema_candidate_prims(articulation)
     if not candidate_prims:
@@ -538,16 +603,16 @@ def _get_mjwarp_names_from_newton_usd_builder(
 
 
 def _describe_incomplete_convention_names(
-    kind: Literal["joint", "body"],
+    kind: _ArticulationElementKind,
     names: Sequence[str] | None,
     backend_names: Sequence[str],
 ) -> str:
     """Return a short reason a convention candidate is not a complete backend-name permutation."""
     if names is None:
-        return f"no {kind} names were discovered"
+        return f"no {kind.label} names were discovered"
     missing = sorted(set(backend_names) - set(names))
     extra = sorted(set(names) - set(backend_names))
-    return f"{kind} names are not a complete permutation (missing={missing}, extra={extra})"
+    return f"{kind.label} names are not a complete permutation (missing={missing}, extra={extra})"
 
 
 def _describe_newton_usd_builder_unavailability(articulation: BaseArticulation) -> str:
@@ -598,7 +663,7 @@ def _resolve_articulation_convention_name_ordering(
     *,
     articulation: BaseArticulation,
     convention: str | ArticulationOrderingConvention,
-    kind: Literal["joint", "body"],
+    kind: Literal["joint", "body"] | _ArticulationElementKind,
 ) -> tuple[str, ...]:
     """Resolve a symbolic convention to names for the public articulation axis.
 
@@ -678,18 +743,18 @@ def _resolve_articulation_convention_name_ordering(
                 _cache_convention_names(articulation, parsed_convention, complete_names)
             if kind in complete_names:
                 return complete_names[kind]
-            reason = _describe_incomplete_convention_names(kind, builder_names.get(kind), backend_names)
+            reason = _describe_incomplete_convention_names(kind, builder_names.get(kind.label), backend_names)
             resolution_failures.append(f"{provider_label}: {reason}")
         else:
             reason = _describe_newton_usd_builder_unavailability(articulation)
             resolution_failures.append(f"{provider_label}: {reason}")
 
-    config_field = "joint_ordering" if kind == "joint" else "body_ordering"
+    config_field = kind.config_field
     attempted_resolutions = f" Attempted resolutions: {'; '.join(resolution_failures)}." if resolution_failures else ""
     raise NotImplementedError(
-        f"Unable to resolve '{parsed_convention.value}' {kind} ordering for active backend "
+        f"Unable to resolve '{parsed_convention.value}' {kind.label} ordering for active backend "
         f"'{active_backend_name}'. Ensure the source USD and required ordering dependencies are available, "
-        f"set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or use None to keep "
+        f"set env.scene.robot.{config_field} to an explicit {kind.label}-name permutation, or use None to keep "
         f"active-backend order.{attempted_resolutions}"
     )
 
@@ -808,10 +873,10 @@ def _resolve_articulation_ordering_names(
     elif isinstance(ordering, str):
         convention = parse_articulation_ordering_convention(ordering)
     elif type(ordering) in (list, tuple):
-        return _validate_articulation_names(ordering, parameter_name=f"{kind}_ordering")
+        return _validate_articulation_names(ordering, parameter_name=f"{kind.label}_ordering")
     else:
         raise TypeError(
-            f"{kind}_ordering must be a name list or tuple, convention string/enum, or None;"
+            f"{kind.label}_ordering must be a name list or tuple, convention string/enum, or None;"
             f" got {type(ordering).__name__}."
         )
 
@@ -825,9 +890,9 @@ def _resolve_articulation_ordering_names(
         )
         return _match_backend_name_spellings(kind=kind, names=convention_names, backend_names=backend_names)
 
-    config_field = "joint_ordering" if kind == "joint" else "body_ordering"
+    config_field = kind.config_field
     raise NotImplementedError(
-        f"Unable to resolve '{convention.value}' {kind} ordering for active backend '{active_backend_name}'. "
-        f"Set env.scene.robot.{config_field} to an explicit {kind}-name permutation, or supply an articulation "
+        f"Unable to resolve '{convention.value}' {kind.label} ordering for active backend '{active_backend_name}'. "
+        f"Set env.scene.robot.{config_field} to an explicit {kind.label}-name permutation, or supply an articulation "
         "whose source USD can provide that convention."
     )
